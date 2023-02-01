@@ -1,5 +1,6 @@
 //! Utility functions for the rest of the crate.
 
+use tor_error::ErrorReport;
 use tor_persist::StateMgr;
 use tracing::error;
 
@@ -12,7 +13,7 @@ pub(crate) struct StateMgrUnlockGuard<'a, T: StateMgr + 'a> {
 impl<'a, T: StateMgr + 'a> Drop for StateMgrUnlockGuard<'a, T> {
     fn drop(&mut self) {
         if let Err(e) = self.mgr.unlock() {
-            error!("Failed to unlock state manager: {}", e);
+            error!("Failed to unlock state manager: {}", e.report());
         }
     }
 }

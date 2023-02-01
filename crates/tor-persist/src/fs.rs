@@ -10,6 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
+use tor_error::ErrorReport;
 use tracing::{info, warn};
 
 /// Implementation of StateMgr that stores state as JSON files on disk.
@@ -141,7 +142,11 @@ impl FsStateMgr {
         for fname in clean::files_to_delete(self.inner.statepath.as_path(), now) {
             info!("Deleting obsolete file {}", fname.anonymize_home());
             if let Err(e) = std::fs::remove_file(&fname) {
-                warn!("Unable to delete {}: {}", fname.anonymize_home(), e);
+                warn!(
+                    "Unable to delete {}: {}",
+                    fname.anonymize_home(),
+                    e.report()
+                );
             }
         }
     }

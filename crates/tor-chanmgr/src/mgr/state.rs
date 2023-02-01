@@ -481,10 +481,10 @@ fn padding_parameters(
     };
 
     padding_parameters_builder(reduced, netdir)
-        .unwrap_or_else(|e| {
+        .unwrap_or_else(|e: &str| {
             info!(
                 "consensus channel padding parameters wrong, using defaults: {}",
-                &e
+                &e,
             );
             Some(PaddingParametersBuilder::default())
         })

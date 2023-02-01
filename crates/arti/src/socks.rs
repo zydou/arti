@@ -13,6 +13,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use tracing::{debug, error, info, warn};
 
 use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
+use tor_error::ErrorReport;
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -442,7 +443,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                 info!("Listening on {:?}.", addr);
                 listeners.push(listener);
             }
-            Err(e) => warn!("Can't listen on {}: {}", addr, e),
+            Err(e) => warn!("Can't listen on {}: {}", addr, e.report()),
         }
     }
     // We weren't able to bind any ports: There's nothing to do.
@@ -472,7 +473,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                 if accept_err_is_fatal(&err) {
                     return Err(err).context("Failed to receive incoming stream on SOCKS port");
                 } else {
-                    warn!("Incoming stream failed: {}", err);
+                    warn!("Incoming stream failed: {}", err.report());
                     continue;
                 }
             }
@@ -483,7 +484,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
             let res =
                 handle_socks_conn(runtime_copy, client_ref, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
-                warn!("connection exited with error: {}", e);
+                warn!("connection exited with error: {}", tor_error::Report(e));
             }
         })?;
     }

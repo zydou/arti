@@ -29,7 +29,7 @@ use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChannelUsage;
 use tor_config::MutCfg;
-use tor_error::{internal, AbsRetryTime, HasRetryTime};
+use tor_error::{internal, AbsRetryTime, ErrorReport, HasRetryTime};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -877,7 +877,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // We couldn't pick the action!
                     info!(
                         "Couldn't pick action for circuit attempt {}: {}",
-                        attempt_num, &e
+                        attempt_num,
+                        e.report(),
                     );
                     e
                 }
@@ -1143,17 +1144,17 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                 };
                                 if src == streams::Source::Left {
                                     info!(
-                                        "{} suggested we use {:?}, but restrictions failed: {:?}",
+                                        "{} suggested we use {:?}, but restrictions failed: {}",
                                         describe_source(building, src),
                                         id,
-                                        &e
+                                        e.report(),
                                     );
                                 } else {
                                     debug!(
-                                        "{} suggested we use {:?}, but restrictions failed: {:?}",
+                                        "{} suggested we use {:?}, but restrictions failed: {}",
                                         describe_source(building, src),
                                         id,
-                                        &e
+                                        e.report(),
                                     );
                                 }
                                 record_error(&mut retry_error, src, building, e);
@@ -1501,7 +1502,7 @@ fn spawn_expiration_task<B, R>(
             };
             cm.expire_circ(&circ_id, exp_inst);
         }) {
-            warn!("Unable to launch expiration task: {}", e);
+            warn!("Unable to launch expiration task: {}", e.report());
         }
     }
 }

@@ -141,7 +141,7 @@ impl<'a> DirInfo<'a> {
         fn from_netparams(inp: &NetParameters) -> CircParameters {
             let mut p = CircParameters::default();
             if let Err(e) = p.set_initial_send_window(inp.circuit_window.get() as u16) {
-                warn!("Invalid parameter in directory: {}", e);
+                warn!("Invalid parameter in directory: {}", e.report());
             }
             p.set_extend_by_ed25519_id(inp.extend_by_ed25519_id.into());
             p
@@ -538,7 +538,7 @@ impl<R: Runtime> CircMgr<R> {
                     warn!(
                         "Failed to build preemptive circuit {:?}: {}",
                         sv(&circs[i]),
-                        &e
+                        e.report(),
                     );
                     n_errors += 1;
                 }
@@ -677,7 +677,10 @@ impl<R: Runtime> CircMgr<R> {
             if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
                 if let Ok(netdir) = dm.netdir(Timeliness::Unchecked) {
                     if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
-                        warn!("Problem launching a timeout testing circuit: {}", e);
+                        warn!(
+                            "Problem launching a timeout testing circuit: {}",
+                            e.report()
+                        );
                     }
                     let delay = netdir
                         .params()
@@ -722,19 +725,19 @@ impl<R: Runtime> CircMgr<R> {
                     Ok(NewlyAcquired) => {
                         info!("We now own the lock on our state files.");
                         if let Err(e) = circmgr.upgrade_to_owned_persistent_state() {
-                            error!("Unable to upgrade to owned state files: {}", e);
+                            error!("Unable to upgrade to owned state files: {}", e.report());
                             break;
                         }
                     }
                     Ok(AlreadyHeld) => {
                         if let Err(e) = circmgr.store_persistent_state() {
-                            error!("Unable to flush circmgr state: {}", e);
+                            error!("Unable to flush circmgr state: {}", e.report());
                             break;
                         }
                     }
                     Ok(NoLock) => {
                         if let Err(e) = circmgr.reload_persistent_state() {
-                            error!("Unable to reload circmgr state: {}", e);
+                            error!("Unable to reload circmgr state: {}", e.report());
                             break;
                         }
                     }
@@ -848,7 +851,10 @@ impl<R: Runtime> Drop for CircMgr<R> {
         match self.store_persistent_state() {
             Ok(true) => info!("Flushed persistent state at exit."),
             Ok(false) => debug!("Lock not held; no state to flush."),
-            Err(e) => error!("Unable to flush state on circuit manager drop: {}", e),
+            Err(e) => error!(
+                "Unable to flush state on circuit manager drop: {}",
+                e.report()
+            ),
         }
     }
 }
