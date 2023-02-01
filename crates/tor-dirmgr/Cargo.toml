@@ -52,7 +52,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.3.0" }
 rusqlite = { version = "0.28.0", features = ["time"] }
-safelog = { path = "../safelog", version = "0.2.0" }
+safelog = { path = "../safelog", version = "0.2.1" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
@@ -65,11 +65,11 @@ tor-circmgr = { path = "../tor-circmgr", version = "0.7.1" }
 tor-config = { path = "../tor-config", version = "0.7.1" }
 tor-consdiff = { path = "../tor-consdiff", version = "0.4.0" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.6.1", default-features = false }
-tor-error = { path = "../tor-error", version = "0.4.0" }
+tor-error = { path = "../tor-error", version = "0.4.1" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.1" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.7.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.6.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
+tor-netdir = { path = "../tor-netdir", version = "0.7.1" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.1" }
 tor-proto = { path = "../tor-proto", version = "0.8.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tracing = "0.1.18"

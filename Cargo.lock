@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -2792,7 +2792,7 @@ dependencies = [
 
 [[package]]
 name = "safelog"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "derive_more",
  "educe",
@@ -3580,7 +3580,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "arrayref",
  "bytes",
@@ -3856,7 +3856,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "backtrace",
  "derive_more",
@@ -3994,7 +3994,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "aes",
  "arrayref",
@@ -4030,7 +4030,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "bitflags",
  "derive_builder_fork_arti",
@@ -4065,7 +4065,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "base64ct",
  "bitflags",
@@ -4233,7 +4233,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "arbitrary",
  "caret",
@@ -4246,7 +4246,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "derive_more",
  "float-cmp",
