@@ -606,7 +606,7 @@ impl PartialNetDir {
             }
         }
 
-        #[cfg(feature = "hs-common")]
+        #[cfg(feature = "onion-common")]
         {
             // TODO hs: cache the values for the hash rings if possible, maybe
             // in the PartialNetDir, since we will want to use them in computing
@@ -619,7 +619,7 @@ impl PartialNetDir {
     }
 
     /// Compute the hash ring(s) for this NetDir, if one is not already computed.
-    #[cfg(feature = "hs-common")]
+    #[cfg(feature = "onion-common")]
     #[allow(clippy::missing_panics_doc)]
     pub fn compute_ring(&mut self) {
         // TODO hs: compute the ring based on the time period and shared random
