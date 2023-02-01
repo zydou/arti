@@ -722,10 +722,7 @@ impl NetDir {
         rs: &'a netstatus::MdConsensusRouterStatus,
         rs_idx: usize,
     ) -> UncheckedRelay<'a> {
-        debug_assert_eq!(
-            self.c_relays()[rs_idx].rsa_identity(),
-            rs.rsa_identity()
-        );
+        debug_assert_eq!(self.c_relays()[rs_idx].rsa_identity(), rs.rsa_identity());
         let md = self.mds[rs_idx].as_deref();
         if let Some(md) = md {
             debug_assert_eq!(rs.md_digest(), md.digest());
