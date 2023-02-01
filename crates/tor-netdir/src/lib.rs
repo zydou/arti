@@ -674,26 +674,20 @@ impl PartialNetDir {
 
         #[cfg(feature = "onion-common")]
         {
-            // TODO hs: cache the values for the hash rings if possible, maybe
-            // in the PartialNetDir, since we will want to use them in computing
-            // hash indices for the new hash ring.  This can let us save some
-            // computation?  Alternatively, we could compute the new rings at
-            // this point, but that could make this operation a bit expensive.
             self.prev_netdir = Some(prev);
         }
     }
 
-    /// Compute the hash ring(s) for this NetDir, if one is not already computed.
+    /// Compute the hash ring(s) for this NetDir
     #[cfg(feature = "onion-common")]
     #[allow(clippy::missing_panics_doc)]
-    pub fn compute_ring(&mut self) {
-        // TODO hs: compute the ring based on the time period and shared random
-        // value of the consensus.
-        //
-        // The ring itself can be a bit expensive to compute, so maybe we should
-        // make sure this happens in a separate task or something, and expose a
-        // way to do that?
-        todo!()
+    fn compute_rings(&mut self) {
+        let params = HsDirParams::compute(&self.netdir.consensus, &self.netdir.params)
+            .expect("Invalid consensus");
+        // TODO hs: see TODO by similar expect in new()
+
+        self.netdir.hsdir_rings = params
+            .map(|params| HsDirRing::compute(params, &self.netdir, self.prev_netdir.as_deref()));
     }
 
     /// Return true if this are enough information in this directory
@@ -703,9 +697,9 @@ impl PartialNetDir {
     }
     /// If this directory has enough information to build multihop
     /// circuits, return it.
-    pub fn unwrap_if_sufficient(self) -> std::result::Result<NetDir, PartialNetDir> {
+    pub fn unwrap_if_sufficient(mut self) -> std::result::Result<NetDir, PartialNetDir> {
         if self.netdir.have_enough_paths() {
-            //  self.compute_ring(); // TODO hs
+            self.compute_rings();
             Ok(self.netdir)
         } else {
             Err(self)

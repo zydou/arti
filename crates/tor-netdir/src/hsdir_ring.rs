@@ -23,7 +23,7 @@ use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
 use crate::hsdir_params::HsDirParams;
-use crate::RouterStatusIdx;
+use crate::{NetDir, RouterStatusIdx};
 
 /// A sort key determining a position in the onion service directory ring.
 ///
@@ -117,6 +117,27 @@ impl HsDirRing {
             params,
             ring: Vec::new(),
         }
+    }
+
+    /// Compute the HsDirRing
+    ///
+    /// Reuses existing hash calculations from a previous netdir, if available.
+    ///
+    /// `this_netdir.hsdir_rings` is not used; the return values from this function
+    /// will be stored there by
+    /// [`PartialNetDir::compute_rings`](super::PartialNetDir::compute_rings).
+    pub(crate) fn compute(
+        new_params: HsDirParams,
+        this_netdir: &NetDir,
+        prev_netdir: Option<&NetDir>,
+    ) -> Self {
+        // TODO hs: compute the ring based on the time period and shared random
+        // value of the consensus.
+        //
+        // TODO hs: The ring itself can be a bit expensive to compute, so maybe we should
+        // make sure this happens in a separate task or something, and expose a
+        // way to do that?
+        Self::empty_from_params(new_params)
     }
 
     /// Find the location or (notional) insertion point for `idx` within `ring`.
