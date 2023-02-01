@@ -603,12 +603,12 @@ impl PartialNetDir {
             #[cfg(feature = "onion-service")]
             {
                 hsdir_secondary_rings = secondary_hsparams
-                    .iter()
+                    .into_iter()
                     .map(HsDirRing::empty_from_params)
                     .collect();
             }
 
-            HsDirRing::empty_from_params(&cur_hsparams)
+            HsDirRing::empty_from_params(cur_hsparams)
         };
 
         let netdir = NetDir {

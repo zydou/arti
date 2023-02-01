@@ -38,6 +38,7 @@ pub(crate) struct HsRingParams {
     pub(crate) time_period: TimePeriod,
     /// The SharedRandVal for this ring.  It's used to ensure that the position
     /// of each HsDir within the ring rotates _unpredictably_ over time.
+    #[allow(dead_code)] // TODO hs
     pub(crate) shared_rand: SharedRandVal,
 }
 

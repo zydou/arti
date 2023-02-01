@@ -17,7 +17,6 @@
 
 use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_netdoc::doc::netstatus::SharedRandVal;
 
 use crate::hsdir_params::HsRingParams;
 use crate::RouterStatusIdx;
@@ -45,11 +44,8 @@ pub(crate) struct HsDirIndex([u8; 32]);
 /// document.
 #[derive(Clone, Debug)]
 pub(crate) struct HsDirRing {
-    /// The time period for which the ring is valid.
-    period: TimePeriod,
-
-    /// The shared random value that applies to the ring.
-    shared_rand: SharedRandVal,
+    /// The parameters (time period and shared random value)
+    params: HsRingParams,
 
     /// The ring itself.
     ///
@@ -65,8 +61,7 @@ pub(crate) struct HsDirRing {
 /// Compute the [`HsDirIndex`] for a given relay.
 pub(crate) fn relay_index(
     id: Ed25519Identity,
-    rand: SharedRandVal,
-    period: TimePeriod,
+    params: &HsRingParams,
 ) -> HsDirIndex {
     //  TODO hs implement this.
     //
@@ -84,8 +79,7 @@ pub(crate) fn relay_index(
 pub(crate) fn service_index(
     id: HsBlindId,
     replica: u8,
-    rand: SharedRandVal,
-    period: TimePeriod,
+    params: &HsRingParams,
 ) -> HsDirIndex {
     // TODO hs implement this
     //
@@ -102,10 +96,9 @@ pub(crate) fn service_index(
 
 impl HsDirRing {
     /// Return a new empty HsDirRing from a given set of parameters.
-    pub(crate) fn empty_from_params(params: &HsRingParams) -> Self {
+    pub(crate) fn empty_from_params(params: HsRingParams) -> Self {
         Self {
-            period: params.time_period,
-            shared_rand: params.shared_rand,
+            params,
             ring: Vec::new(),
         }
     }
@@ -128,6 +121,6 @@ impl HsDirRing {
 
     /// Return the time period for which this ring applies.
     pub(crate) fn time_period(&self) -> TimePeriod {
-        self.period
+        self.params.time_period
     }
 }
