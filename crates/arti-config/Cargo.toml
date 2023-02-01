@@ -10,6 +10,7 @@ description = "Removed crate.  (Tools for configuration management in Arti)"
 keywords = ["tor", "arti"]
 categories = ["config"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+publish = false
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
