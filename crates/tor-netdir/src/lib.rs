@@ -504,6 +504,12 @@ impl AsRef<NetParameters> for NetDir {
 pub struct PartialNetDir {
     /// The netdir that's under construction.
     netdir: NetDir,
+
+    /// The previous netdir, if we had one
+    ///
+    /// Used as a cache, so we can reusing information
+    #[cfg(feature = "onion-common")]
+    prev_netdir: Option<Arc<NetDir>>,
 }
 
 /// A view of a relay on the Tor network, suitable for building circuits.
@@ -620,7 +626,11 @@ impl PartialNetDir {
             weights,
         };
 
-        PartialNetDir { netdir }
+        PartialNetDir {
+            netdir,
+            #[cfg(feature = "onion-common")]
+            prev_netdir: None,
+        }
     }
 
     /// Return the declared lifetime of this PartialNetDir.
@@ -632,6 +642,9 @@ impl PartialNetDir {
     //
     // Fills in as many missing microdescriptors as possible in this
     // netdir, using the microdescriptors from the previous netdir.
+    //
+    // With HS enabled, stores the netdir for reuse of relay hash ring index values.
+    #[allow(clippy::needless_pass_by_value)] // prev might, or might not, be stored
     pub fn fill_from_previous_netdir(&mut self, prev: Arc<NetDir>) {
         for md in prev.mds.iter().flatten() {
             self.netdir.add_arc_microdesc(md.clone());
@@ -644,6 +657,7 @@ impl PartialNetDir {
             // hash indices for the new hash ring.  This can let us save some
             // computation?  Alternatively, we could compute the new rings at
             // this point, but that could make this operation a bit expensive.
+            self.prev_netdir = Some(prev);
         }
     }
 
