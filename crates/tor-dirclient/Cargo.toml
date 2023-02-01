@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirclient"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -30,18 +30,18 @@ httpdate = "1.0"
 itertools = "0.10.1"
 memchr = "2"
 thiserror = "1"
-tor-circmgr = { path = "../tor-circmgr", version = "0.7.0" }
-tor-error = { path = "../tor-error", version = "0.4.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.7.1" }
+tor-error = { path = "../tor-error", version = "0.4.1" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.6.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.6.0" }
-tor-proto = { path = "../tor-proto", version = "0.8.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.1" }
+tor-proto = { path = "../tor-proto", version = "0.8.1" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tracing = "0.1.18"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.0", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
 [package.metadata.docs.rs]
 all-features = true
