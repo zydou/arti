@@ -899,7 +899,7 @@ impl<R: Runtime> GetMicrodescsState<R> {
         let params = &config.override_net_params;
         let mut partial_dir = PartialNetDir::new(consensus, Some(params));
         if let Some(old_dir) = prev_netdir.as_ref().and_then(|x| x.get_netdir()) {
-            partial_dir.fill_from_previous_netdir(&old_dir);
+            partial_dir.fill_from_previous_netdir(old_dir);
         }
 
         GetMicrodescsState {

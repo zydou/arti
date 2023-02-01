@@ -628,14 +628,13 @@ impl PartialNetDir {
         self.netdir.lifetime()
     }
 
-    /// Fill in as many missing microdescriptors as possible in this
-    /// netdir, using the microdescriptors from the previous netdir.
-    pub fn fill_from_previous_netdir<'a>(&mut self, prev: &'a NetDir) -> Vec<&'a MdDigest> {
-        let mut loaded = Vec::new();
+    /// Record a previous netdir, which can be used for reusing cached information
+    //
+    // Fills in as many missing microdescriptors as possible in this
+    // netdir, using the microdescriptors from the previous netdir.
+    pub fn fill_from_previous_netdir(&mut self, prev: Arc<NetDir>) {
         for md in prev.mds.iter().flatten() {
-            if self.netdir.add_arc_microdesc(md.clone()) {
-                loaded.push(md.digest());
-            }
+            self.netdir.add_arc_microdesc(md.clone());
         }
 
         #[cfg(feature = "onion-common")]
@@ -646,8 +645,6 @@ impl PartialNetDir {
             // computation?  Alternatively, we could compute the new rings at
             // this point, but that could make this operation a bit expensive.
         }
-
-        loaded
     }
 
     /// Compute the hash ring(s) for this NetDir, if one is not already computed.
@@ -1507,7 +1504,7 @@ mod test {
 
         let mut dir = PartialNetDir::new(consensus, None);
         assert_eq!(dir.missing_microdescs().count(), 40);
-        dir.fill_from_previous_netdir(&dir1);
+        dir.fill_from_previous_netdir(Arc::new(dir1));
         assert_eq!(dir.missing_microdescs().count(), 2);
     }
 
