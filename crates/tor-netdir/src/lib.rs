@@ -63,6 +63,7 @@ use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 
+use derive_more::{From, Into};
 use futures::stream::BoxStream;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
@@ -72,6 +73,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use strum::{EnumCount, EnumIter};
 use tracing::warn;
+use typed_index_collections::{TiSlice, TiVec};
 
 #[cfg(feature = "onion-common")]
 use tor_hscrypto::{pk::BlindedOnionId, time::TimePeriod};
@@ -86,6 +88,20 @@ pub use err::OnionDirLookupError;
 
 use params::NetParameters;
 
+/// Index into the consensus relays
+///
+/// This is an index into the list of relays returned by
+/// [`.c_relays()`](ConsensusRelays::c_relays)
+/// (on the corresponding consensus or netdir).
+///
+/// This is just a `usize` inside, but using a newtype prevents getting a relay index
+/// confused with other kinds of slice indices or counts.
+///
+/// If you are in a part of the code which needs to work with multiple consensuses,
+/// the typechecking cannot tell if you try to index into the wrong consensus.
+#[derive(Debug, From, Into, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub(crate) struct RouterStatusIdx(usize);
+
 /// Extension trait to provide index-type-safe `.c_relays()` method
 //
 // TODO: Really it would be better to have MdConsensns::relays() return TiSlice,
@@ -93,16 +109,16 @@ use params::NetParameters;
 pub(crate) trait ConsensusRelays {
     /// Obtain the list of relays in the consensus
     //
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus>;
     // TODO hs: This will return a TiSlice, shortly
-    fn c_relays(&self) -> &[MdConsensusRouterStatus];
 }
 impl ConsensusRelays for MdConsensus {
-    fn c_relays(&self) -> &[MdConsensusRouterStatus] {
-        MdConsensus::relays(self)
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
+        TiSlice::from_ref(MdConsensus::relays(self))
     }
 }
 impl ConsensusRelays for NetDir {
-    fn c_relays(&self) -> &[MdConsensusRouterStatus] {
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
         self.consensus.c_relays()
     }
 }
@@ -278,10 +294,10 @@ pub struct NetDir {
     params: NetParameters,
     /// Map from  routerstatus index (the position of a routerstatus within the
     /// consensus), to that routerstatus's microdescriptor (if we have one.)
-    mds: Vec<Option<Arc<Microdesc>>>,
+    mds: TiVec<RouterStatusIdx, Option<Arc<Microdesc>>>,
     /// Map from SHA256 of _missing_ microdescriptors to the position of their
     /// corresponding routerstatus indices within `consensus`.
-    rs_idx_by_missing: HashMap<MdDigest, usize>,
+    rs_idx_by_missing: HashMap<MdDigest, RouterStatusIdx>,
     /// Map from ed25519 identity to index of the routerstatus within
     /// `self.consensus.relays()`.
     ///
@@ -295,13 +311,13 @@ pub struct NetDir {
     /// `MdEntry::*::rsa_idx`, it might be cool to have references instead.
     /// But that would make this into a self-referential structure,
     /// which isn't possible in safe rust.
-    rs_idx_by_ed: HashMap<Ed25519Identity, usize>,
+    rs_idx_by_ed: HashMap<Ed25519Identity, RouterStatusIdx>,
     /// Map from RSA identity to index of the routerstatus within
     /// `self.consensus.relays()`.
     ///
     /// This is constructed at the same time as the NetDir object, so it
     /// can be immutable.
-    rs_idx_by_rsa: Arc<HashMap<RsaIdentity, usize>>,
+    rs_idx_by_rsa: Arc<HashMap<RsaIdentity, RouterStatusIdx>>,
 
     /// A hash ring describing the onion service directory.
     ///
@@ -561,15 +577,13 @@ impl PartialNetDir {
 
         let rs_idx_by_missing = consensus
             .c_relays()
-            .iter()
-            .enumerate()
+            .iter_enumerated()
             .map(|(rs_idx, rs)| (*rs.md_digest(), rs_idx))
             .collect();
 
         let rs_idx_by_rsa = consensus
             .c_relays()
-            .iter()
-            .enumerate()
+            .iter_enumerated()
             .map(|(rs_idx, rs)| (*rs.rsa_identity(), rs_idx))
             .collect();
 
@@ -598,7 +612,7 @@ impl PartialNetDir {
         let netdir = NetDir {
             consensus: Arc::new(consensus),
             params,
-            mds: vec![None; n_relays],
+            mds: vec![None; n_relays].into(),
             rs_idx_by_missing,
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
             rs_idx_by_ed: HashMap::with_capacity(n_relays),
@@ -720,7 +734,7 @@ impl NetDir {
     fn relay_from_rs_and_idx<'a>(
         &'a self,
         rs: &'a netstatus::MdConsensusRouterStatus,
-        rs_idx: usize,
+        rs_idx: RouterStatusIdx,
     ) -> UncheckedRelay<'a> {
         debug_assert_eq!(self.c_relays()[rs_idx].rsa_identity(), rs.rsa_identity());
         let md = self.mds[rs_idx].as_deref();
@@ -753,8 +767,7 @@ impl NetDir {
         // TODO: I'd like if we could memoize this so we don't have to
         // do so many hashtable lookups.
         self.c_relays()
-            .iter()
-            .enumerate()
+            .iter_enumerated()
             .map(move |(idx, rs)| self.relay_from_rs_and_idx(rs, idx))
     }
     /// Return an iterator over all usable Relays.

@@ -55,6 +55,7 @@ tor-netdoc = { path = "../tor-netdoc", version = "0.6.1" }
 tor-protover = { path = "../tor-protover", version = "0.4.0" }
 tor-units = { path = "../tor-units", version = "0.4.1" }
 tracing = "0.1.18"
+typed-index-collections = "3.1"
 
 [dev-dependencies]
 float_eq = "1.0.0"
