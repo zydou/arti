@@ -90,7 +90,7 @@ checksum = "a4c527152e37cf757a3f78aae5a06fbeefdb07ccc535c980a3208ee3060dd544"
 
 [[package]]
 name = "arti"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -203,7 +203,7 @@ version = "0.5.1"
 
 [[package]]
 name = "arti-hyper"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -3621,7 +3621,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "base64ct",
  "caret",
@@ -3639,7 +3639,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -3683,7 +3683,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "async-trait",
  "bounded-vec-deque",
@@ -3723,7 +3723,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "config",
  "derive_builder_fork_arti",
@@ -3773,7 +3773,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "async-compression",
  "base64ct",
@@ -3800,7 +3800,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3868,7 +3868,7 @@ dependencies = [
 
 [[package]]
 name = "tor-events"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "async-broadcast",
  "futures",
@@ -3881,7 +3881,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -4101,7 +4101,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "derive_more",
  "fs-mistrust",
@@ -4117,7 +4117,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "arrayref",
  "asynchronous-codec",
@@ -4173,7 +4173,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4196,7 +4196,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "async-io",
  "async-native-tls",

@@ -1,6 +1,6 @@
 [package]
 name = "arti"
-version = "1.1.0"
+version = "1.1.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -89,9 +89,9 @@ serde = { version = "1.0.103", features = ["derive"] }
 signal-hook = { version = "0.3", optional = true }
 signal-hook-async-std = { version = "0.2", optional = true }
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
-tor-config = { path = "../tor-config", version = "0.7.0" }
+tor-config = { path = "../tor-config", version = "0.7.1" }
 tor-error = { path = "../tor-error", version = "0.4.0", default-features = false }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.0", default-features = false }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", default-features = false }
 tor-socksproto = { path = "../tor-socksproto", version = "0.6.0" }
 tracing = "0.1.18"
 tracing-appender = "0.2.0"
