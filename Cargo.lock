@@ -132,7 +132,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "arti",
@@ -199,7 +199,7 @@ dependencies = [
 
 [[package]]
 name = "arti-config"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "arti-hyper"
@@ -222,7 +222,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "arti",
@@ -613,7 +613,7 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "caret"
-version = "0.3.0"
+version = "0.3.1"
 
 [[package]]
 name = "cc"
@@ -1276,7 +1276,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -2656,7 +2656,7 @@ checksum = "4389f1d5789befaf6029ebd9f7dac4af7f7e3d61b69d4f30e2ac02b57e7712b0"
 
 [[package]]
 name = "retry-error"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
 ]
@@ -3558,7 +3558,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "derive_more",
  "educe",
@@ -3673,7 +3673,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "humantime 2.1.0",
  "signature 1.6.4",
@@ -3753,7 +3753,7 @@ dependencies = [
 
 [[package]]
 name = "tor-congestion"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "thiserror",
  "tor-error",
@@ -3763,7 +3763,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "digest 0.10.6",
  "hex",
@@ -3968,7 +3968,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "base64ct",
  "by_address",
@@ -4165,7 +4165,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "caret",
  "thiserror",
@@ -4217,7 +4217,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "async-trait",
  "futures",
