@@ -292,14 +292,12 @@ pub struct NetDir {
     /// A map from keys to integer values, distributed in the consensus,
     /// and clamped to certain defaults.
     params: NetParameters,
-    /// Map from  routerstatus index (the position of a routerstatus within the
-    /// consensus), to that routerstatus's microdescriptor (if we have one.)
+    /// Map from routerstatus index, to that routerstatus's microdescriptor (if we have one.)
     mds: TiVec<RouterStatusIdx, Option<Arc<Microdesc>>>,
-    /// Map from SHA256 of _missing_ microdescriptors to the position of their
-    /// corresponding routerstatus indices within `consensus`.
+    /// Map from SHA256 of _missing_ microdescriptors to the index of their
+    /// corresponding routerstatus.
     rs_idx_by_missing: HashMap<MdDigest, RouterStatusIdx>,
-    /// Map from ed25519 identity to index of the routerstatus within
-    /// `self.consensus.relays()`.
+    /// Map from ed25519 identity to index of the routerstatus.
     ///
     /// Note that we don't know the ed25519 identity of a relay until
     /// we get the microdescriptor for it, so this won't be filled in
@@ -312,8 +310,7 @@ pub struct NetDir {
     /// But that would make this into a self-referential structure,
     /// which isn't possible in safe rust.
     rs_idx_by_ed: HashMap<Ed25519Identity, RouterStatusIdx>,
-    /// Map from RSA identity to index of the routerstatus within
-    /// `self.consensus.relays()`.
+    /// Map from RSA identity to index of the routerstatus.
     ///
     /// This is constructed at the same time as the NetDir object, so it
     /// can be immutable.
@@ -730,7 +727,7 @@ impl NetDir {
     }
 
     /// Construct a (possibly invalid) Relay object from a routerstatus and its
-    /// position within the consensus.
+    /// index within the consensus.
     fn relay_from_rs_and_idx<'a>(
         &'a self,
         rs: &'a netstatus::MdConsensusRouterStatus,
