@@ -184,7 +184,7 @@ impl HsDescOuter {
             }
         }
 
-        // Parse lifetime.
+        // Parse `descryptor-lifetime`.
         let lifetime_minutes = {
             let tok = body.required(DESCRIPTOR_LIFETIME)?;
             let lifetime_minutes: u16 = tok.parse_arg(0)?;

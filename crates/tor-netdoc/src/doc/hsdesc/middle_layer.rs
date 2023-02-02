@@ -204,7 +204,7 @@ impl HsDescMiddle {
         let mut iter = reader.iter();
         let body = HS_MIDDLE_RULES.parse(&mut iter)?;
 
-        // Check for the only currently recognized desc-auth-type
+        // Check for the only currently recognized `desc-auth-type`
         {
             let auth_type = body.required(DESC_AUTH_TYPE)?.required_arg(0)?;
             if auth_type != "x25519" {
@@ -214,18 +214,21 @@ impl HsDescMiddle {
             }
         }
 
+        // Extract `KP_hs_desc_ephem` from DESC_AUTH_EPHEMERAL_KEY
         let ephemeral_key: curve25519::PublicKey = {
             let token = body.required(DESC_AUTH_EPHEMERAL_KEY)?;
             let bytes = token.parse_arg::<B64>(0)?.into_array()?;
             bytes.into()
         };
 
+        // Parse all the auth-client lines.
         let auth_clients: Vec<AuthClient> = body
             .slice(AUTH_CLIENT)
             .iter()
             .map(AuthClient::from_item)
             .collect::<Result<Vec<_>>>()?;
 
+        // The encrypted body is taken verbatim.
         let encrypted_body: Vec<u8> = body.required(ENCRYPTED)?.obj("MESSAGE")?;
 
         Ok(HsDescMiddle {

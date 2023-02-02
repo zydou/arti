@@ -101,7 +101,7 @@ impl HsDescInner {
         // Parse the header.
         let header = HS_INNER_HEADER_RULES.parse(&mut iter)?;
 
-        // Make sure that the "ntor" handshake is supported in the list of CREATE2 formats.
+        // Make sure that the "ntor" handshake is supported in the list of `create2-formats`.
         {
             let tok = header.required(CREATE2_FORMATS)?;
             let check = tok.args().any(|s| s == "ntor");
@@ -112,7 +112,8 @@ impl HsDescInner {
                     .with_msg("Onion service descriptor does not support ntor handshake."));
             }
         }
-        // Check whether any kind of introduction-point authentication is required.
+        // Check whether any kind of introduction-point authentication is
+        // specified in an `intro-auth-required` line.
         let authtypes = if let Some(tok) = header.get(INTRO_AUTH_REQUIRED) {
             let mut authtypes: SmallVec<[IntroAuthType; 2]> = SmallVec::new();
             let mut push = |at| {
@@ -139,6 +140,7 @@ impl HsDescInner {
             None
         };
 
+        // Recognize `single-onion-service` if it's there.
         let is_single_onion_service = header.get(SINGLE_ONION_SERVICE).is_some();
 
         // Now we parse the introduction points.  Each of these will be a
@@ -165,7 +167,7 @@ impl HsDescInner {
 
             let body = HS_INNER_INTRO_RULES.parse(&mut iter)?;
 
-            // Parse link specifiers
+            // Parse link-specifiers
             let link_specifiers = {
                 let tok = body.required(INTRODUCTION_POINT)?;
                 let ls = tok.parse_arg::<B64>(0)?;
@@ -176,7 +178,7 @@ impl HsDescInner {
                 res
             };
 
-            // Parse ntor onion key (`KP_onion_ntor`) of the introduction point.
+            // Parse the ntor "onion-key" (`KP_onion_ntor`) of the introduction point.
             let ntor_onion_key = {
                 let tok = body
                     .slice(ONION_KEY)
@@ -230,7 +232,8 @@ impl HsDescInner {
             };
 
             // Extract the key `KP_hs_intro_ntor` that we'll use for our
-            // handshake with the onion service itself.
+            // handshake with the onion service itself.  This comes from the
+            // "enc-key" item.
             let hs_enc_key: IntroPtEncKey = {
                 let tok = body
                     .slice(ENC_KEY)
@@ -241,7 +244,7 @@ impl HsDescInner {
                 key.into()
             };
 
-            // Check that the key in the enc_key_cert matches the
+            // Check that the key in the "enc-key-cert" item matches the
             // `KP_hs_intro_ntor` we just extracted.
             {
                 // NOTE: As above, this certificate is backwards, and hence
