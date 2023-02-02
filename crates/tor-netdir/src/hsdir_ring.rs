@@ -20,6 +20,7 @@ use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdoc::doc::netstatus::SharedRandVal;
 
 use crate::hsdir_params::HsRingParams;
+use crate::RouterStatusIdx;
 
 /// A sort key determining a position in the onion service directory ring.
 ///
@@ -58,7 +59,7 @@ pub(crate) struct HsDirRing {
     ///
     /// This vector is empty in a partial netdir; it is filled in when we
     /// convert to a complete netdir.
-    ring: Vec<(HsDirIndex, usize)>,
+    ring: Vec<(HsDirIndex, RouterStatusIdx)>,
 }
 
 /// Compute the [`HsDirIndex`] for a given relay.
@@ -120,7 +121,7 @@ impl HsDirRing {
     pub(crate) fn ring_items_at(
         &self,
         idx: HsDirIndex,
-    ) -> impl Iterator<Item = &(HsDirIndex, usize)> {
+    ) -> impl Iterator<Item = &(HsDirIndex, RouterStatusIdx)> {
         let idx = self.find_pos(idx);
         self.ring[idx..].iter().chain(&self.ring[..idx])
     }
