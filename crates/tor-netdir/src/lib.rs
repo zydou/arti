@@ -783,6 +783,12 @@ impl NetDir {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
     }
 
+    /// Look up a relay's `MicroDesc` by its `RouterStatusIdc`
+    #[allow(dead_code)] // TODO hs
+    pub(crate) fn md_by_idx(&self, rsi: RouterStatusIdx) -> Option<&Microdesc> {
+        self.mds.get(rsi)?.as_deref()
+    }
+
     /// Return a relay matching a given identity, if we have a
     /// _usable_ relay with that key.
     ///
