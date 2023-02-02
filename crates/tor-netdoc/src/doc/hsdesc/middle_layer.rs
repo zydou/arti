@@ -19,12 +19,19 @@ use super::DecryptionError;
 /// service descriptor.
 #[derive(Debug, Clone)]
 pub(super) struct HsDescMiddle {
-    /// A public key used by authorized clients to decrypt the
-    /// key used to decrypt the inner layer.  This is ignored if
-    /// client authorization is not in use.
+    /// A public key used by authorized clients to decrypt the key used to
+    /// decrypt the inner layer.  This is ignored if client authorization is not
+    /// in use.
+    ///
+    /// This is `desc-auth-ephemeral-key` in the document format; it does not
+    /// yet have a name in our spec's list of keys.  Call it `KP_hs_desc_ephem`
+    /// for now.  It is used along with `KS_hsc_desc_enc` to perform a
+    /// diffie-hellman operation and decrypt the inner layer.
     ephemeral_key: curve25519::PublicKey,
     /// One or more authorized clients, and the key exchange information that
-    /// they use to compute
+    /// they use to compute shared keys for decrypting inner layer.
+    ///
+    /// Each of these is parsed from a `auth-client` line.
     auth_clients: Vec<AuthClient>,
     /// The inner body of the onion service descriptor.
     encrypted_body: Vec<u8>,
@@ -54,9 +61,12 @@ impl HsDescMiddle {
         decrypt.decrypt(&self.encrypted_body)
     }
 
-    /// Use a `ClientDescAuthSecretKey` to see if there is any `auth-client`
+    /// Use a `ClientDescAuthSecretKey` (`KS_hsc_desc_enc`) to see if there is any `auth-client`
     /// entry for us in this descriptor.  If so, decrypt it and return its
-    /// corresponding `DescEncryptionCookie`.
+    /// corresponding `DescEncryptionCookie` (`N_hs_desc_enc`, not yet so named in the spec).
+    ///
+    /// If no such `N_hs_desc_enc` is found, then either we do not have
+    /// permission to decrypt this layer, OR no encryption is required.
     ///
     /// (The protocol makes it intentionally impossible to distinguish any error
     /// conditions here other than "no cookie for you.")
@@ -70,8 +80,20 @@ impl HsDescMiddle {
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
         use tor_llcrypto::d::Shake256 as KDF;
 
-        // Perform a diffie hellman handshake, and use it to find our client_id
-        // and cookie_key.
+        // Perform a diffie hellman handshake using `KS_hsc_desc_enc` and `KP_hs_desc_ephem`,
+        // and use it to find our client_id and cookie_key.
+        //
+        // The spec says:
+        //
+        //     SECRET_SEED = x25519(hs_y, client_X)
+        //                 = x25519(client_y, hs_X)
+        //     KEYS = KDF(N_hs_subcred | SECRET_SEED, 40)
+        //     CLIENT-ID = fist 8 bytes of KEYS
+        //     COOKIE-KEY = last 32 bytes of KEYS
+        //
+        // Where:
+        //     hs_{X,y} = K{P,S}_hs_desc_ephem
+        //     client_{X,Y} = K{P,S}_hsc_desc_enc
         let seed = key.as_ref().diffie_hellman(&self.ephemeral_key);
         let mut kdf = KDF::default();
         kdf.update(subcredential.as_ref());
@@ -82,15 +104,15 @@ impl HsDescMiddle {
         key_stream.read(client_id.as_mut());
         key_stream.read(&mut cookie_key);
 
-        // See whether there is any matching client_id in self.auth_ids. TODO
-        // HS: Perhaps we should use `tor_proto::util::ct::lookup`.  We would
+        // See whether there is any matching client_id in self.auth_ids.
+        // TODO HS: Perhaps we should use `tor_proto::util::ct::lookup`.  We would
         // have to put it in a lower level module.
         let auth_client = self
             .auth_clients
             .iter()
             .find(|c| c.client_id == client_id)?;
 
-        // We found an auth client: Take and decrypt the cookie at last.
+        // We found an auth client entry: Take and decrypt the cookie `N_hs_desc_enc` at last.
         let mut cookie = auth_client.encrypted_cookie;
         let mut cipher = Cipher::new(&cookie_key.into(), &auth_client.iv.into());
         cipher.apply_keystream(&mut cookie);
@@ -103,11 +125,19 @@ impl HsDescMiddle {
 #[derive(Debug, Clone)]
 struct AuthClient {
     /// A check field that clients can use to see if this [`AuthClient`] entry corresponds to a key they hold.
+    ///
+    /// This is the first part of the `auth-client` line.
     client_id: CtByteArray<8>,
     /// An IV used to decrypt `encrypted_cookie`.
+    ///
+    /// This is the second item on the `auth-client` line.
     iv: [u8; 16],
     /// An encrypted value used to find the descriptor cookie, which in turn is
     /// needed to decrypt the [HsDescMiddle]'s `encrypted_body`.
+    ///
+    /// This is the third item on the `auth-client` line.  When decrypted, it
+    /// reveals a `DescEncEncryptionCookie` (`N_hs_desc_enc`, not yet so named
+    /// in the spec).
     encrypted_cookie: [u8; 16],
 }
 

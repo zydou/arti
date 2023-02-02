@@ -40,7 +40,7 @@ use tor_llcrypto::pk::curve25519;
 /// The HsDir caches this value, along with the original text of the descriptor.
 pub struct StoredHsDescMeta {
     /// The blinded onion identity for this descriptor.  (This is the only
-    /// identity that the HsDesc knows.)
+    /// identity that the HsDir knows.)
     blinded_id: BlindedOnionId,
 
     /// Information about the expiration and revision counter for this
@@ -59,7 +59,7 @@ struct IndexInfo {
     /// The lifetime in minutes that this descriptor should be held after it is
     /// received.
     lifetime_minutes: u16,
-    /// The expiration time on the signing key certificate included in this
+    /// The expiration time on the `descriptor-signing-key-cert` included in this
     /// descriptor.
     signing_cert_expires: SystemTime,
     /// The revision counter on this descriptor: higher values should replace
@@ -79,7 +79,11 @@ pub struct HsDesc {
     /// descriptor.
     idx_info: IndexInfo,
 
-    /// The public key (if any) for the private key that we used to decrypt this descriptor.
+    /// The public key for the `KS_hsc_desc_enc` private key that we used to
+    /// decrypt this descriptor.
+    ///
+    /// This is set to None if we did not have to use a private key to decrypt
+    /// the descriptor.
     decrypted_with_id: Option<ClientDescAuthKey>,
 
     /// A list of recognized CREATE handshakes that this onion service supports.
@@ -121,15 +125,20 @@ pub struct IntroPointDesc {
     // TODO hs: perhaps it would be better to have this be a lazily parsed Vec<u8>
     link_specifiers: Vec<LinkSpec>,
 
-    /// The key used to extend a circuit to the introduction point, using the
-    /// ntor or ntor3 handshakes.
+    /// The key used to extend a circuit _to the introduction point_, using the
+    /// ntor or ntor3 handshakes.  (`KP_onion_ntor`)
     ntor_onion_key: curve25519::PublicKey,
 
     /// A key used to identify the onion service at this introduction point.
+    /// (`KP_hs_intro_tid`)
     auth_key: IntroPtAuthKey,
 
-    /// The key used to encrypt a handshake _to the onion service_ when using this
-    /// introduction point.
+    /// The key used to encrypt a handshake _to the onion service_ when using
+    /// this introduction point. (`KP_hs_intro_ntor`)
+    ///
+    /// The onion service uses a separate key of this type with each
+    /// introduction point as part of its strategy for preventing replay
+    /// attacks.
     hs_enc_key: IntroPtEncKey,
 }
 

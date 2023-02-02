@@ -196,7 +196,9 @@ impl HsDescOuter {
             lifetime_minutes
         };
 
-        // Parse certificate.
+        // Parse `descriptor-signing-key-cert`.  This certificate is signed with
+        // the blinded Id (`KP_blinded_id`), and used to authenticate the
+        // descriptor signing key (`KP_hs_desc_sign`).
         let (unchecked_cert, desc_signing_key) = {
             let cert_tok = body.required(DESCRIPTOR_SIGNING_KEY_CERT)?;
             let cert = cert_tok
@@ -233,8 +235,8 @@ impl HsDescOuter {
             .map_err(|_| EK::BadSignature.with_msg("Bad signature object length"))?;
         let signature = ed25519::Signature::from(signature);
 
-        // Split apart the unchecked certificate: its constraints will become
-        // our own.
+        // Split apart the unchecked `descriptor-signing-key-cert`:
+        // its constraints will become our own.
         let (desc_signing_key_cert, cert_signature) = unchecked_cert
             .dangerously_split()
             // we already checked that there is a public key, so an error should be impossible.

@@ -22,17 +22,27 @@ pub(super) struct HsDescEncryption<'a> {
     /// First half of the "SECRET_DATA" field.
     pub(super) blinded_id: &'a BlindedOnionId,
     /// Second half of the "SECRET_DATA" field.
+    ///
+    /// This is absent when handling the middle layer.  This is also absent when
+    /// decrypting the inner layer if descriptor-encryption authentication via
+    /// `KP_hsc_desc_enc` is not in use.
     pub(super) encryption_cookie: Option<&'a DescEncryptionCookie>,
     /// The "subcredential" of the onion service.
     pub(super) subcredential: &'a Subcredential,
     /// The current revision of the onion service descriptor being decrypted.
     pub(super) revision: RevisionCounter,
-    /// A personalization string.
+    /// A "personalization string".
+    ///
+    /// This is set to one of two constants depending on the layer being
+    /// decrypted.
     pub(super) string_const: &'a [u8],
 }
 
 /// A value used in deriving the encryption key for the inner layer of onion
 /// service encryption.
+///
+/// We do not yet have an identifier for this value in the spec, where we
+/// generally call it a "descriptor cookie".  Call it `N_hs_desc_enc` for now.
 #[derive(derive_more::AsRef, derive_more::From)]
 pub(super) struct DescEncryptionCookie([u8; 16]);
 
@@ -128,6 +138,8 @@ impl<'a> HsDescEncryption<'a> {
         let mut kdf = KDF::default();
 
         // secret_input = SECRET_DATA | N_hs_subcred | INT_8(revision_counter)
+        //
+        // (SECRET_DATA is always blinded_id, or blinded_id | encryption_cookie).
         kdf.update(self.blinded_id.as_ref());
         if let Some(cookie) = self.encryption_cookie {
             kdf.update(cookie.as_ref());

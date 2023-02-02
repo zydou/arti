@@ -101,11 +101,11 @@ impl HsDescInner {
         // Parse the header.
         let header = HS_INNER_HEADER_RULES.parse(&mut iter)?;
 
-        // Make sure that the "ntor" handshake is supported.
+        // Make sure that the "ntor" handshake is supported in the list of CREATE2 formats.
         {
             let tok = header.required(CREATE2_FORMATS)?;
             let check = tok.args().any(|s| s == "ntor");
-            // TODO hs: actually, do we need to store these?
+            // TODO hs: actually, do we need to store these?  Would a bit-array make more sense?
             if !tok.args().any(|s| s == "2") {
                 return Err(EK::BadArgument
                     .at_pos(tok.pos())
@@ -141,7 +141,9 @@ impl HsDescInner {
 
         let is_single_onion_service = header.get(SINGLE_ONION_SERVICE).is_some();
 
-        // Now we parse the introduction points.
+        // Now we parse the introduction points.  Each of these will be a
+        // section starting with `introduction-point`, ending right before the
+        // next `introduction-point` (or before the end of the layer.)
         let mut intro_points = Vec::new();
         while reader.iter().peek().is_some() {
             // Construct a new PauseAt to parse at the _second_ time we see an INTRODUCTION_POINT
@@ -174,7 +176,7 @@ impl HsDescInner {
                 res
             };
 
-            // Parse ntor onion key of the introduction point.
+            // Parse ntor onion key (`KP_onion_ntor`) of the introduction point.
             let ntor_onion_key = {
                 let tok = body
                     .slice(ONION_KEY)
@@ -184,7 +186,8 @@ impl HsDescInner {
                 tok.parse_arg::<B64>(1)?.into_array()?.into()
             };
 
-            // Extract the auth_key from the (unchecked) auth_key_cert.
+            // Extract the auth_key (`KP_hs_intro_tid`) from the (unchecked)
+            // "auth-key" certificate.
             let auth_key: IntroPtAuthKey = {
                 // Note that this certificate does not actually serve any
                 // function _as_ a certificate; it was meant to cross-certify
@@ -226,6 +229,8 @@ impl HsDescInner {
                 ed_key.into()
             };
 
+            // Extract the key `KP_hs_intro_ntor` that we'll use for our
+            // handshake with the onion service itself.
             let hs_enc_key: IntroPtEncKey = {
                 let tok = body
                     .slice(ENC_KEY)
@@ -236,7 +241,8 @@ impl HsDescInner {
                 key.into()
             };
 
-            // Check that the key in the enc_key_cert matches what we expect.
+            // Check that the key in the enc_key_cert matches the
+            // `KP_hs_intro_ntor` we just extracted.
             {
                 // NOTE: As above, this certificate is backwards, and hence
                 // useless. Therefore, we do not validate it: we only check that
