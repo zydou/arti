@@ -60,9 +60,10 @@ use tor_linkspec::{
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
-use tor_netdoc::doc::netstatus::{self, MdConsensus, RouterStatus};
+use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 
+use derive_more::{From, Into};
 use futures::stream::BoxStream;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
@@ -72,6 +73,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use strum::{EnumCount, EnumIter};
 use tracing::warn;
+use typed_index_collections::{TiSlice, TiVec};
 
 #[cfg(feature = "onion-common")]
 use tor_hscrypto::{pk::BlindedOnionId, time::TimePeriod};
@@ -85,6 +87,41 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub use err::OnionDirLookupError;
 
 use params::NetParameters;
+
+/// Index into the consensus relays
+///
+/// This is an index into the list of relays returned by
+/// [`.c_relays()`](ConsensusRelays::c_relays)
+/// (on the corresponding consensus or netdir).
+///
+/// This is just a `usize` inside, but using a newtype prevents getting a relay index
+/// confused with other kinds of slice indices or counts.
+///
+/// If you are in a part of the code which needs to work with multiple consensuses,
+/// the typechecking cannot tell if you try to index into the wrong consensus.
+#[derive(Debug, From, Into, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub(crate) struct RouterStatusIdx(usize);
+
+/// Extension trait to provide index-type-safe `.c_relays()` method
+//
+// TODO: Really it would be better to have MdConsensns::relays() return TiSlice,
+// but that would be an API break there.
+pub(crate) trait ConsensusRelays {
+    /// Obtain the list of relays in the consensus
+    //
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus>;
+    // TODO hs: This will return a TiSlice, shortly
+}
+impl ConsensusRelays for MdConsensus {
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
+        TiSlice::from_ref(MdConsensus::relays(self))
+    }
+}
+impl ConsensusRelays for NetDir {
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
+        self.consensus.c_relays()
+    }
+}
 
 /// Configuration for determining when two relays have addresses "too close" in
 /// the network.
@@ -255,14 +292,12 @@ pub struct NetDir {
     /// A map from keys to integer values, distributed in the consensus,
     /// and clamped to certain defaults.
     params: NetParameters,
-    /// Map from  routerstatus index (the position of a routerstatus within the
-    /// consensus), to that routerstatus's microdescriptor (if we have one.)
-    mds: Vec<Option<Arc<Microdesc>>>,
-    /// Map from SHA256 of _missing_ microdescriptors to the position of their
-    /// corresponding routerstatus indices within `consensus`.
-    rs_idx_by_missing: HashMap<MdDigest, usize>,
-    /// Map from ed25519 identity to index of the routerstatus within
-    /// `self.consensus.relays()`.
+    /// Map from routerstatus index, to that routerstatus's microdescriptor (if we have one.)
+    mds: TiVec<RouterStatusIdx, Option<Arc<Microdesc>>>,
+    /// Map from SHA256 of _missing_ microdescriptors to the index of their
+    /// corresponding routerstatus.
+    rs_idx_by_missing: HashMap<MdDigest, RouterStatusIdx>,
+    /// Map from ed25519 identity to index of the routerstatus.
     ///
     /// Note that we don't know the ed25519 identity of a relay until
     /// we get the microdescriptor for it, so this won't be filled in
@@ -274,13 +309,12 @@ pub struct NetDir {
     /// `MdEntry::*::rsa_idx`, it might be cool to have references instead.
     /// But that would make this into a self-referential structure,
     /// which isn't possible in safe rust.
-    rs_idx_by_ed: HashMap<Ed25519Identity, usize>,
-    /// Map from RSA identity to index of the routerstatus within
-    /// `self.consensus.relays()`.
+    rs_idx_by_ed: HashMap<Ed25519Identity, RouterStatusIdx>,
+    /// Map from RSA identity to index of the routerstatus.
     ///
     /// This is constructed at the same time as the NetDir object, so it
     /// can be immutable.
-    rs_idx_by_rsa: Arc<HashMap<RsaIdentity, usize>>,
+    rs_idx_by_rsa: Arc<HashMap<RsaIdentity, RouterStatusIdx>>,
 
     /// A hash ring describing the onion service directory.
     ///
@@ -536,19 +570,17 @@ impl PartialNetDir {
         // Compute the weights we'll want to use for these relays.
         let weights = weight::WeightSet::from_consensus(&consensus, &params);
 
-        let n_relays = consensus.relays().len();
+        let n_relays = consensus.c_relays().len();
 
         let rs_idx_by_missing = consensus
-            .relays()
-            .iter()
-            .enumerate()
+            .c_relays()
+            .iter_enumerated()
             .map(|(rs_idx, rs)| (*rs.md_digest(), rs_idx))
             .collect();
 
         let rs_idx_by_rsa = consensus
-            .relays()
-            .iter()
-            .enumerate()
+            .c_relays()
+            .iter_enumerated()
             .map(|(rs_idx, rs)| (*rs.rsa_identity(), rs_idx))
             .collect();
 
@@ -577,7 +609,7 @@ impl PartialNetDir {
         let netdir = NetDir {
             consensus: Arc::new(consensus),
             params,
-            mds: vec![None; n_relays],
+            mds: vec![None; n_relays].into(),
             rs_idx_by_missing,
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
             rs_idx_by_ed: HashMap::with_capacity(n_relays),
@@ -672,7 +704,7 @@ impl NetDir {
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     fn add_arc_microdesc(&mut self, md: Arc<Microdesc>) -> bool {
         if let Some(rs_idx) = self.rs_idx_by_missing.remove(md.digest()) {
-            assert_eq!(self.consensus.relays()[rs_idx].md_digest(), md.digest());
+            assert_eq!(self.c_relays()[rs_idx].md_digest(), md.digest());
 
             // There should never be two approved MDs in the same
             // consensus listing the same ID... but if there is,
@@ -695,16 +727,13 @@ impl NetDir {
     }
 
     /// Construct a (possibly invalid) Relay object from a routerstatus and its
-    /// position within the consensus.
+    /// index within the consensus.
     fn relay_from_rs_and_idx<'a>(
         &'a self,
         rs: &'a netstatus::MdConsensusRouterStatus,
-        rs_idx: usize,
+        rs_idx: RouterStatusIdx,
     ) -> UncheckedRelay<'a> {
-        debug_assert_eq!(
-            self.consensus.relays()[rs_idx].rsa_identity(),
-            rs.rsa_identity()
-        );
+        debug_assert_eq!(self.c_relays()[rs_idx].rsa_identity(), rs.rsa_identity());
         let md = self.mds[rs_idx].as_deref();
         if let Some(md) = md {
             debug_assert_eq!(rs.md_digest(), md.digest());
@@ -734,10 +763,8 @@ impl NetDir {
     pub fn all_relays(&self) -> impl Iterator<Item = UncheckedRelay<'_>> {
         // TODO: I'd like if we could memoize this so we don't have to
         // do so many hashtable lookups.
-        self.consensus
-            .relays()
-            .iter()
-            .enumerate()
+        self.c_relays()
+            .iter_enumerated()
             .map(move |(idx, rs)| self.relay_from_rs_and_idx(rs, idx))
     }
     /// Return an iterator over all usable Relays.
@@ -763,7 +790,7 @@ impl NetDir {
         let answer = match id {
             RelayIdRef::Ed25519(ed25519) => {
                 let rs_idx = *self.rs_idx_by_ed.get(ed25519)?;
-                let rs = self.consensus.relays().get(rs_idx).expect("Corrupt index");
+                let rs = self.c_relays().get(rs_idx).expect("Corrupt index");
 
                 self.relay_from_rs_and_idx(rs, rs_idx).into_relay()?
             }
@@ -865,7 +892,7 @@ impl NetDir {
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
         let rs_idx = *self.rs_idx_by_rsa.get(rsa_id)?;
-        let rs = self.consensus.relays().get(rs_idx).expect("Corrupt index");
+        let rs = self.c_relays().get(rs_idx).expect("Corrupt index");
         assert_eq!(rs.rsa_identity(), rsa_id);
         Some(self.relay_from_rs_and_idx(rs, rs_idx))
     }
@@ -1428,7 +1455,7 @@ mod test {
 
         let missing: HashSet<_> = dir.missing_microdescs().collect();
         assert_eq!(missing.len(), 40);
-        assert_eq!(missing.len(), dir.netdir.consensus.relays().len());
+        assert_eq!(missing.len(), dir.netdir.c_relays().len());
         for md in &microdescs {
             assert!(missing.contains(md.digest()));
         }

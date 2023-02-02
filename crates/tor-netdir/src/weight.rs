@@ -13,6 +13,7 @@
 //!   use it for other roles, or to use it less commonly for them.
 
 use crate::params::NetParameters;
+use crate::ConsensusRelays;
 use bitflags::bitflags;
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, NetParams};
 
@@ -245,11 +246,11 @@ impl WeightSet {
 
     /// Compute the correct WeightSet for a provided MdConsensus.
     pub(crate) fn from_consensus(consensus: &MdConsensus, params: &NetParameters) -> Self {
-        let bandwidth_fn = pick_bandwidth_fn(consensus.relays().iter().map(|rs| rs.weight()));
+        let bandwidth_fn = pick_bandwidth_fn(consensus.c_relays().iter().map(|rs| rs.weight()));
         let weight_scale = params.bw_weight_scale.into();
 
         let total_bw = consensus
-            .relays()
+            .c_relays()
             .iter()
             .map(|rs| u64::from(bandwidth_fn.apply(rs.weight())))
             .sum();
@@ -335,7 +336,7 @@ impl WeightSet {
         use WeightRole::*;
         for role in [Guard, Middle, Exit, BeginDir, Unweighted] {
             let _: u64 = consensus
-                .relays()
+                .c_relays()
                 .iter()
                 .map(|rs| self.weight_rs_for_role(rs, role))
                 .fold(0_u64, |a, b| {
