@@ -104,7 +104,6 @@ impl HsDescInner {
         // Make sure that the "ntor" handshake is supported in the list of `create2-formats`.
         {
             let tok = header.required(CREATE2_FORMATS)?;
-            let check = tok.args().any(|s| s == "ntor");
             // TODO hs: actually, do we need to store these?  Would a bit-array make more sense?
             if !tok.args().any(|s| s == "2") {
                 return Err(EK::BadArgument
