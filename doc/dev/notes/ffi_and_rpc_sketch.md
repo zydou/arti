@@ -34,9 +34,9 @@ and which can be implemented remotely or in-process.
 ```mermaid
    graph TD
 
-   classDef UserCode fill:#008,stroke-width:3px,stroke-dasharray: 5 5;
-   classDef API1 fill:#373;
-   classDef API2 fill:#737;
+   classDef UserCode fill:#008,color:#eee,stroke-width:3px,stroke-dasharray: 5 5;
+   classDef API1 fill:#373,color:#eee;
+   classDef API2 fill:#737,color:#eee;
 
    subgraph In-Process
      RPCServer(RPC Server)
