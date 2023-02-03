@@ -160,25 +160,39 @@ impl<'a, T: Keyword> Section<'a, T> {
     }
 }
 
-impl<T: Keyword> SectionRules<T> {
-    /// Create a new SectionRules with no rules.
-    ///
-    /// By default, no Keyword is allowed by this SectionRules.
-    pub(crate) fn new() -> Self {
-        let n = T::n_vals();
-        let mut rules = Vec::with_capacity(n);
-        rules.resize(n, None);
-        SectionRules { rules }
-    }
+/// A builder for a set of section rules.
+#[derive(Clone)]
+pub(crate) struct SectionRulesBuilder<T: Keyword>(SectionRules<T>);
 
-    /// Add a rule to this SectionRules, based on a TokenFmtBuilder.
+impl<T: Keyword> SectionRulesBuilder<T> {
+    /// Add a rule to this SectionRulesBuilder, based on a TokenFmtBuilder.
     ///
     /// Requires that no rule yet exists for the provided keyword.
     pub(crate) fn add(&mut self, t: TokenFmtBuilder<T>) {
         let rule: TokenFmt<_> = t.into();
         let idx = rule.kwd().idx();
-        assert!(self.rules[idx].is_none());
-        self.rules[idx] = Some(rule);
+        assert!(self.0.rules[idx].is_none());
+        self.0.rules[idx] = Some(rule);
+    }
+
+    /// Construct the SectionRules from this builder.
+    ///
+    /// # Panics
+    ///
+    pub(crate) fn build(self) -> SectionRules<T> {
+        self.0
+    }
+}
+
+impl<T: Keyword> SectionRules<T> {
+    /// Create a new builder for a SectionRules with no rules.
+    ///
+    /// By default, no Keyword is allowed by this SectionRules.
+    pub(crate) fn builder() -> SectionRulesBuilder<T> {
+        let n = T::n_vals();
+        let mut rules = Vec::with_capacity(n);
+        rules.resize(n, None);
+        SectionRulesBuilder(SectionRules { rules })
     }
 
     /// Parse a stream of tokens into a Section object without (fully)
@@ -289,13 +303,13 @@ mod test {
     /// Rules for parsing a set of router annotations.
     static FRUIT_SALAD: Lazy<SectionRules<Fruit>> = Lazy::new(|| {
         use Fruit::*;
-        let mut rules = SectionRules::new();
+        let mut rules = SectionRules::builder();
         rules.add(ANN_TASTY.rule().required().args(1..=1));
         rules.add(ORANGE.rule().args(1..));
         rules.add(STONEFRUIT.rule().may_repeat());
         rules.add(GUAVA.rule().obj_optional());
         rules.add(LEMON.rule().no_args().obj_required());
-        rules
+        rules.build()
     });
 
     #[test]

@@ -50,7 +50,7 @@ mod build;
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
 use crate::parse::keyword::Keyword;
-use crate::parse::parser::{Section, SectionRules};
+use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::private::Sealed;
@@ -736,9 +736,9 @@ decl_keyword! {
 }
 
 /// Shared parts of rules for all kinds of netstatus headers
-static NS_HEADER_RULES_COMMON_: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
+static NS_HEADER_RULES_COMMON_: Lazy<SectionRulesBuilder<NetstatusKwd>> = Lazy::new(|| {
     use NetstatusKwd::*;
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(NETWORK_STATUS_VERSION.rule().required().args(1..=2));
     rules.add(VOTE_STATUS.rule().required().args(1..));
     rules.add(VALID_AFTER.rule().required());
@@ -763,7 +763,7 @@ static NS_HEADER_RULES_CONSENSUS: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|
     rules.add(SHARED_RAND_PREVIOUS_VALUE.rule().args(2..));
     rules.add(SHARED_RAND_CURRENT_VALUE.rule().args(2..));
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
-    rules
+    rules.build()
 });
 /*
 /// Rules for parsing the header of a vote.
@@ -797,17 +797,17 @@ static NS_VOTERINFO_RULES_VOTE: SectionRules<NetstatusKwd> = {
 /// Rules for parsing a single voter's information in a consensus
 static NS_VOTERINFO_RULES_CONSENSUS: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
     use NetstatusKwd::*;
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(DIR_SOURCE.rule().required().args(6..));
     rules.add(CONTACT.rule().required());
     rules.add(VOTE_DIGEST.rule().required());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
-    rules
+    rules.build()
 });
 /// Shared rules for parsing a single routerstatus
-static NS_ROUTERSTATUS_RULES_COMMON_: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
+static NS_ROUTERSTATUS_RULES_COMMON_: Lazy<SectionRulesBuilder<NetstatusKwd>> = Lazy::new(|| {
     use NetstatusKwd::*;
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(RS_A.rule().may_repeat().args(1..));
     rules.add(RS_S.rule().required());
     rules.add(RS_V.rule());
@@ -823,7 +823,7 @@ static NS_ROUTERSTATUS_RULES_NSCON: Lazy<SectionRules<NetstatusKwd>> = Lazy::new
     use NetstatusKwd::*;
     let mut rules = NS_ROUTERSTATUS_RULES_COMMON_.clone();
     rules.add(RS_R.rule().required().args(8..));
-    rules
+    rules.build()
 });
 
 /*
@@ -843,17 +843,17 @@ static NS_ROUTERSTATUS_RULES_MDCON: Lazy<SectionRules<NetstatusKwd>> = Lazy::new
     let mut rules = NS_ROUTERSTATUS_RULES_COMMON_.clone();
     rules.add(RS_R.rule().required().args(6..));
     rules.add(RS_M.rule().required().args(1..));
-    rules
+    rules.build()
 });
 /// Rules for parsing consensus fields from a footer.
 static NS_FOOTER_RULES: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
     use NetstatusKwd::*;
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(DIRECTORY_FOOTER.rule().required().no_args());
     // consensus only
     rules.add(BANDWIDTH_WEIGHTS.rule());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
-    rules
+    rules.build()
 });
 
 impl ProtoStatus {
