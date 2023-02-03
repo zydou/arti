@@ -162,7 +162,12 @@ impl<'a, T: Keyword> Section<'a, T> {
 
 /// A builder for a set of section rules.
 #[derive(Clone)]
-pub(crate) struct SectionRulesBuilder<T: Keyword>(SectionRules<T>);
+pub(crate) struct SectionRulesBuilder<T: Keyword> {
+    /// Have we been told, explicitly, to reject unrecognized tokens?
+    strict: bool,
+    /// The rules we're building.
+    rules: SectionRules<T>,
+}
 
 impl<T: Keyword> SectionRulesBuilder<T> {
     /// Add a rule to this SectionRulesBuilder, based on a TokenFmtBuilder.
@@ -171,16 +176,31 @@ impl<T: Keyword> SectionRulesBuilder<T> {
     pub(crate) fn add(&mut self, t: TokenFmtBuilder<T>) {
         let rule: TokenFmt<_> = t.into();
         let idx = rule.kwd().idx();
-        assert!(self.0.rules[idx].is_none());
-        self.0.rules[idx] = Some(rule);
+        assert!(self.rules.rules[idx].is_none());
+        self.rules.rules[idx] = Some(rule);
+    }
+
+    /// Explicitly reject any unrecognized tokens.
+    ///
+    /// To avoid errors, you must either explicitly reject unrecognized tokens,
+    /// or you must define how they are handled.  
+    pub(crate) fn reject_unrecognized(&mut self) {
+        self.strict = true;
     }
 
     /// Construct the SectionRules from this builder.
     ///
     /// # Panics
     ///
+    /// Panics if you did not specify the behavior for unrecognized tokens,
+    /// using either `reject_unrecognized` or `add(UNRECOGNIZED.rule()...)`
     pub(crate) fn build(self) -> SectionRules<T> {
-        self.0
+        let unrecognized_idx = T::unrecognized().idx();
+        assert!(
+            self.strict || self.rules.rules[unrecognized_idx].is_some(),
+            "BUG: Section has to handle UNRECOGNIZED tokens explicitly."
+        );
+        self.rules
     }
 }
 
@@ -192,7 +212,10 @@ impl<T: Keyword> SectionRules<T> {
         let n = T::n_vals();
         let mut rules = Vec::with_capacity(n);
         rules.resize(n, None);
-        SectionRulesBuilder(SectionRules { rules })
+        SectionRulesBuilder {
+            strict: false,
+            rules: SectionRules { rules },
+        }
     }
 
     /// Parse a stream of tokens into a Section object without (fully)
@@ -309,6 +332,7 @@ mod test {
         rules.add(STONEFRUIT.rule().may_repeat());
         rules.add(GUAVA.rule().obj_optional());
         rules.add(LEMON.rule().no_args().obj_required());
+        rules.reject_unrecognized();
         rules.build()
     });
 

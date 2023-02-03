@@ -183,6 +183,9 @@ static MICRODESC_ANNOTATIONS: Lazy<SectionRules<MicrodescKwd>> = Lazy::new(|| {
     let mut rules = SectionRules::builder();
     rules.add(ANN_LAST_LISTED.rule().args(1..));
     rules.add(ANN_UNRECOGNIZED.rule().may_repeat().obj_optional());
+    // unrecognized annotations are okay; anything else is a bug in this
+    // context.
+    rules.reject_unrecognized();
     rules.build()
 });
 /// Rules about entries that must appear in an Microdesc, and how they must

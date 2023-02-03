@@ -247,6 +247,9 @@ static ROUTER_ANNOTATIONS: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     rules.add(ANN_DOWNLOADED_AT.rule().args(1..));
     rules.add(ANN_PURPOSE.rule().args(1..));
     rules.add(ANN_UNRECOGNIZED.rule().may_repeat().obj_optional());
+    // Unrecognized annotations are fine; anything else is an error in this
+    // context.
+    rules.reject_unrecognized();
     rules.build()
 });
 /// Rules for tokens that are allowed in the first part of a
@@ -257,6 +260,8 @@ static ROUTER_HEADER_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     let mut rules = SectionRules::builder();
     rules.add(ROUTER.rule().required().args(5..));
     rules.add(IDENTITY_ED25519.rule().required().no_args().obj_required());
+    // No other intervening tokens are permitted in the header.
+    rules.reject_unrecognized();
     rules.build()
 });
 /// Rules for  tokens that are allowed in the first part of a
@@ -316,6 +321,8 @@ static ROUTER_SIG_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     let mut rules = SectionRules::builder();
     rules.add(ROUTER_SIG_ED25519.rule().required().args(1..));
     rules.add(ROUTER_SIGNATURE.rule().required().no_args().obj_required());
+    // No intervening tokens are allowed in the footer.
+    rules.reject_unrecognized();
     rules.build()
 });
 
