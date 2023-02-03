@@ -38,6 +38,15 @@ and which can be implemented remotely or in-process.
    classDef API1 fill:#373,color:#eee;
    classDef API2 fill:#737,color:#eee;
 
+   subgraph Legend
+      UserCode[User Code]
+      API1[Uniform Rust API]
+      API2[Uniform C API]
+      UserCode:::UserCode;
+      API1:::API1;
+      API2:::API2;
+   end
+
    subgraph In-Process
      RPCServer(RPC Server)
      C_FFI(C FFI)
@@ -76,15 +85,6 @@ and which can be implemented remotely or in-process.
    class C_FFI API2;
    class RPC_FFI API2;
 
-   subgraph Legend
-      direction LR
-      UserCode[User Code]
-      API1[Uniform Rust API]
-      API2[Uniform C API]
-      UserCode:::UserCode;
-      API1:::API1;
-      API2:::API2;
-   end
 ```
 
 # Challenges
