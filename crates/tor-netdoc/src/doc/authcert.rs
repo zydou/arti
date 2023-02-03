@@ -57,6 +57,7 @@ static AUTHCERT_RULES: Lazy<SectionRules<AuthCertKwd>> = Lazy::new(|| {
     rules.add(DIR_KEY_PUBLISHED.rule().required());
     rules.add(DIR_KEY_EXPIRES.rule().required());
     rules.add(DIR_KEY_CROSSCERT.rule().required().no_args().obj_required());
+    rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
     rules.add(
         DIR_KEY_CERTIFICATION
             .rule()
