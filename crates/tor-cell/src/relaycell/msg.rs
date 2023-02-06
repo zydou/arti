@@ -114,9 +114,8 @@ impl<B: Body> From<B> for RelayMsg {
     }
 }
 
-impl RelayMsg {
-    /// Return the stream command associated with this message.
-    pub fn cmd(&self) -> RelayCmd {
+impl super::RelayMsgClass for RelayMsg {
+    fn cmd(&self) -> RelayCmd {
         use RelayMsg::*;
         match self {
             Begin(_) => RelayCmd::BEGIN,
@@ -162,8 +161,8 @@ impl RelayMsg {
             Unrecognized(u) => u.cmd(),
         }
     }
-    /// Extract the body of this message from `r`
-    pub fn decode_from_reader(c: RelayCmd, r: &mut Reader<'_>) -> Result<Self> {
+
+    fn decode_from_reader(c: RelayCmd, r: &mut Reader<'_>) -> Result<Self> {
         Ok(match c {
             RelayCmd::BEGIN => RelayMsg::Begin(Begin::decode_from_reader(r)?),
             RelayCmd::DATA => RelayMsg::Data(Data::decode_from_reader(r)?),
@@ -216,9 +215,8 @@ impl RelayMsg {
         })
     }
 
-    /// Encode the body of this message, not including command or length
     #[allow(clippy::missing_panics_doc)] // TODO hs
-    pub fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         use RelayMsg::*;
         match self {
             Begin(b) => b.encode_onto(w),
@@ -263,6 +261,21 @@ impl RelayMsg {
 
             Unrecognized(b) => b.encode_onto(w),
         }
+    }
+}
+
+impl RelayMsg {
+    /// Return the stream command associated with this message.
+    pub fn cmd(&self) -> RelayCmd {
+        super::RelayMsgClass::cmd(self)
+    }
+    /// Encode the body of this message, not including command or length
+    pub fn encode_onto(self, w: &mut Vec<u8>) -> tor_bytes::EncodeResult<()> {
+        super::RelayMsgClass::encode_onto(self, w)
+    }
+    /// Extract the body of a message with command `cmd` from reader `r`.
+    pub fn decode_from_reader(cmd: RelayCmd, r: &mut Reader<'_>) -> Result<Self> {
+        super::RelayMsgClass::decode_from_reader(cmd, r)
     }
 }
 

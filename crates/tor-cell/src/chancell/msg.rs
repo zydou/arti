@@ -72,9 +72,8 @@ pub enum ChanMsg {
     Unrecognized(Unrecognized),
 }
 
-impl ChanMsg {
-    /// Return the ChanCmd for this message.
-    pub fn cmd(&self) -> ChanCmd {
+impl super::ChanMsgClass for ChanMsg {
+    fn cmd(&self) -> ChanCmd {
         use ChanMsg::*;
         match self {
             Padding(_) => ChanCmd::PADDING,
@@ -99,8 +98,7 @@ impl ChanMsg {
         }
     }
 
-    /// Write the body of this message (not including length or command).
-    pub fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         use ChanMsg::*;
         match self {
             Padding(b) => b.write_body_onto(w),
@@ -125,10 +123,7 @@ impl ChanMsg {
         }
     }
 
-    /// Decode this message from a given reader, according to a specified
-    /// command value. The reader must be truncated to the exact length
-    /// of the body.
-    pub fn take(r: &mut Reader<'_>, cmd: ChanCmd) -> Result<Self> {
+    fn take(r: &mut Reader<'_>, cmd: ChanCmd) -> Result<Self> {
         use ChanMsg::*;
         Ok(match cmd {
             ChanCmd::PADDING => Padding(r.extract()?),
@@ -151,6 +146,25 @@ impl ChanMsg {
             ChanCmd::AUTHORIZE => Authorize(r.extract()?),
             _ => Unrecognized(unrecognized_with_cmd(cmd, r)?),
         })
+    }
+}
+
+impl ChanMsg {
+    /// Return the ChanCmd for this message.
+    pub fn cmd(&self) -> ChanCmd {
+        super::ChanMsgClass::cmd(self)
+    }
+
+    /// Write the body of this message (not including length or command).
+    pub fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        super::ChanMsgClass::write_body_onto(self, w)
+    }
+
+    /// Decode this message from a given reader, according to a specified
+    /// command value. The reader must be truncated to the exact length
+    /// of the body.
+    pub fn take(r: &mut Reader<'_>, cmd: ChanCmd) -> Result<Self> {
+        super::ChanMsgClass::take(r, cmd)
     }
 }
 

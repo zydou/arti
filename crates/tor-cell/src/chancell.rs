@@ -154,30 +154,53 @@ impl ChanCmd {
     }
 }
 
+/// A decoded and parsed channel cell of unrestricted type.
+pub type ChanCell = RestrictedChanCell<msg::ChanMsg>;
+
+/// Trait implemented by anything that can serve as a channel message.
+///
+/// Typically, this will be [`RelayMsg`] (to represent an unrestricted relay
+/// message), or a restricted subset of `RelayMsg`.
+pub trait ChanMsgClass {
+    /// Return the [`ChanCmd`] for this message.
+    fn cmd(&self) -> ChanCmd;
+    /// Write the body of this message (not including length or command).
+    fn write_body_onto<W: tor_bytes::Writer + ?Sized>(
+        self,
+        w: &mut W,
+    ) -> tor_bytes::EncodeResult<()>;
+    /// Decode this message from a given reader, according to a specified
+    /// command value. The reader must be truncated to the exact length
+    /// of the body.
+    fn take(r: &mut tor_bytes::Reader<'_>, cmd: ChanCmd) -> tor_bytes::Result<Self>
+    where
+        Self: Sized;
+}
+
 /// A decoded channel cell, to be sent or received on a channel.
 #[derive(Debug)]
-pub struct ChanCell {
+pub struct RestrictedChanCell<M> {
     /// Circuit ID associated with this cell
     circid: CircId,
     /// Underlying message in this cell
-    msg: msg::ChanMsg,
+    msg: M,
 }
 
-impl ChanCell {
+impl<M: ChanMsgClass> RestrictedChanCell<M> {
     /// Construct a new channel cell.
-    pub fn new(circid: CircId, msg: msg::ChanMsg) -> Self {
-        ChanCell { circid, msg }
+    pub fn new(circid: CircId, msg: M) -> Self {
+        RestrictedChanCell { circid, msg }
     }
     /// Return the circuit ID for this cell.
     pub fn circid(&self) -> CircId {
         self.circid
     }
     /// Return a reference to the underlying message of this cell.
-    pub fn msg(&self) -> &msg::ChanMsg {
+    pub fn msg(&self) -> &M {
         &self.msg
     }
     /// Consume this cell and return its components.
-    pub fn into_circid_and_msg(self) -> (CircId, msg::ChanMsg) {
+    pub fn into_circid_and_msg(self) -> (CircId, M) {
         (self.circid, self.msg)
     }
 }
