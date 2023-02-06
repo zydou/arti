@@ -20,13 +20,16 @@ use zeroize::Zeroizing as Z;
 /// rend-spec-v3.txt
 pub(super) struct HsDescEncryption<'a> {
     /// First half of the "SECRET_DATA" field.
+    ///
+    /// (See rend-spec v3 2.5.1.1 and 2.5.2.1.)
     pub(super) blinded_id: &'a BlindedOnionId,
     /// Second half of the "SECRET_DATA" field.
     ///
-    /// This is absent when handling the middle layer.  This is also absent when
-    /// decrypting the inner layer if descriptor-encryption authentication via
-    /// `KP_hsc_desc_enc` is not in use.
-    pub(super) encryption_cookie: Option<&'a DescEncryptionCookie>,
+    /// This is absent when handling the middle layer (2.5.1.1).
+    /// For the inner layer, it is `descriptor_cookie` (2.5.2.1)
+    /// which is present when descriptor-encryption authentication via
+    /// `KP_hsc_desc_enc` is in use.
+    pub(super) descriptor_cookie: Option<&'a DescEncryptionCookie>,
     /// The "subcredential" of the onion service.
     pub(super) subcredential: &'a Subcredential,
     /// The current revision of the onion service descriptor being decrypted.
@@ -54,6 +57,13 @@ const MAC_LEN: usize = 32;
 type Salt = [u8; SALT_LEN];
 
 impl<'a> HsDescEncryption<'a> {
+    /// Length of our MAC key.
+    const MAC_KEY_LEN: usize = 32;
+    /// Length of the cipher key that we use.
+    const CIPHER_KEY_LEN: usize = 32;
+    /// Length of our cipher's IV.
+    const IV_LEN: usize = 16;
+
     /// Encrypt a given bytestring using these encryption parameters.
     pub(super) fn encrypt<R: Rng + CryptoRng>(&self, rng: &mut R, data: &[u8]) -> Vec<u8> {
         let output_len = data.len() + SALT_LEN + MAC_LEN;
@@ -104,19 +114,19 @@ impl<'a> HsDescEncryption<'a> {
     /// Return the cryptographic objects that are used for en/decrypting and
     /// authenticating a HsDesc layer, given these parameters and a provided
     /// salt.
+    ///
+    /// Calculates `SECRET_KEY` and `SECRET_IV` (as `Cipher`) and `MAC_KEY` (as `Hash`)
+    /// from rend-spec-v3 2.5.3 (`[HS-DESC-ENCRYPTION-KEYS]`).
+    ///
+    /// `Hash` is the required intermediate value in the calculation of `D_MAC`:
+    /// It is in the state just after the `SALT` has been added;
+    /// the ciphertext should be added, and then it should be finalized.
     fn init(&self, salt: &[u8; 16]) -> (Cipher, Hash) {
         let mut key_stream = self.get_kdf(salt).finalize_xof();
 
-        /// Length of our MAC key.
-        const MAC_KEY_LEN: usize = 32;
-        /// Length of the cipher key that we use.
-        const CIPHER_KEY_LEN: usize = 32;
-        /// Length of our cipher's IV.
-        const IV_LEN: usize = 16;
-
-        let mut key = Z::new([0_u8; CIPHER_KEY_LEN]);
-        let mut iv = Z::new([0_u8; IV_LEN]);
-        let mut mac_key = Z::new([0_u8; MAC_KEY_LEN]); // XXXX conjectural!
+        let mut key = Z::new([0_u8; Self::CIPHER_KEY_LEN]);
+        let mut iv = Z::new([0_u8; Self::IV_LEN]);
+        let mut mac_key = Z::new([0_u8; Self::MAC_KEY_LEN]); // XXXX conjectural!
         key_stream.read(&mut key[..]);
         key_stream.read(&mut iv[..]);
         key_stream.read(&mut mac_key[..]);
@@ -124,7 +134,7 @@ impl<'a> HsDescEncryption<'a> {
         let cipher = Cipher::new(key.as_ref().into(), iv.as_ref().into());
 
         let mut mac = Hash::default();
-        mac.update(&(MAC_KEY_LEN as u64).to_be_bytes());
+        mac.update(&(Self::MAC_KEY_LEN as u64).to_be_bytes());
         mac.update(&mac_key[..]);
         mac.update(&(salt.len() as u64).to_be_bytes());
         mac.update(&salt[..]);
@@ -134,14 +144,19 @@ impl<'a> HsDescEncryption<'a> {
 
     /// Return a KDF that can yield the keys to be used for encryption with
     /// these key parameters.
+    ///
+    /// Calculates `keys` from rend-spec-v3 2.5.3 (`[HS-DESC-ENCRYPTION-KEYS]`)
+    /// as required for the two instantiations of `HS-DESC-ENCRYPTION-KEYS` in
+    /// 2.5.1.1 ("First layer encryption logic") and 2.5.2.1 ("Second layer
+    /// encryption logic").
     fn get_kdf(&self, salt: &[u8; 16]) -> KDF {
         let mut kdf = KDF::default();
 
         // secret_input = SECRET_DATA | N_hs_subcred | INT_8(revision_counter)
         //
-        // (SECRET_DATA is always blinded_id, or blinded_id | encryption_cookie).
+        // (SECRET_DATA is always blinded_id (2.5.1.1), or blinded_id | descriptor_cookie) (2.5.2.1).
         kdf.update(self.blinded_id.as_ref());
-        if let Some(cookie) = self.encryption_cookie {
+        if let Some(cookie) = self.descriptor_cookie {
             kdf.update(cookie.as_ref());
         }
         kdf.update(self.subcredential.as_ref());
@@ -187,7 +202,7 @@ mod test {
         let string_const = "greetings puny humans";
         let params = HsDescEncryption {
             blinded_id: &blinded_id,
-            encryption_cookie: None,
+            descriptor_cookie: None,
             subcredential: &subcredential,
             revision,
             string_const: string_const.as_bytes(),
@@ -220,7 +235,7 @@ mod test {
         let string_const = "greetings puny humans";
         let params = HsDescEncryption {
             blinded_id: &blinded_id,
-            encryption_cookie: None,
+            descriptor_cookie: None,
             subcredential: &subcredential,
             revision,
             string_const: string_const.as_bytes(),

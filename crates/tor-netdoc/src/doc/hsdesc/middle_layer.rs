@@ -52,7 +52,7 @@ impl HsDescMiddle {
         let encryption_cookie = key.and_then(|k| self.find_cookie(subcredential, k));
         let decrypt = HsDescEncryption {
             blinded_id,
-            encryption_cookie: encryption_cookie.as_ref(),
+            descriptor_cookie: encryption_cookie.as_ref(),
             subcredential,
             revision,
             string_const: b"hsdir-encrypted-data",
