@@ -45,17 +45,17 @@ pub enum RelayMsg {
     /// Successful response to an Extend2 message
     Extended2(Extended2),
     /// Partially close a circuit
-    Truncate,
+    Truncate(Truncate),
     /// Tell the client that a circuit has been partially closed
     Truncated(Truncated),
     /// Used for padding
-    Drop,
+    Drop(Drop),
     /// Launch a DNS request
     Resolve(Resolve),
     /// Response to a Resolve message
     Resolved(Resolved),
     /// Start a directory stream
-    BeginDir,
+    BeginDir(BeginDir),
     /// Start a UDP stream.
     #[cfg(feature = "experimental-udp")]
     ConnectUdp(udp::ConnectUdp),
@@ -127,12 +127,12 @@ impl super::RelayMsgClass for RelayMsg {
             Extended(_) => RelayCmd::EXTENDED,
             Extend2(_) => RelayCmd::EXTEND2,
             Extended2(_) => RelayCmd::EXTENDED2,
-            Truncate => RelayCmd::TRUNCATE,
+            Truncate(_) => RelayCmd::TRUNCATE,
             Truncated(_) => RelayCmd::TRUNCATED,
-            Drop => RelayCmd::DROP,
+            Drop(_) => RelayCmd::DROP,
             Resolve(_) => RelayCmd::RESOLVE,
             Resolved(_) => RelayCmd::RESOLVED,
-            BeginDir => RelayCmd::BEGIN_DIR,
+            BeginDir(_) => RelayCmd::BEGIN_DIR,
             #[cfg(feature = "experimental-udp")]
             ConnectUdp(_) => RelayCmd::CONNECT_UDP,
             #[cfg(feature = "experimental-udp")]
@@ -173,12 +173,12 @@ impl super::RelayMsgClass for RelayMsg {
             RelayCmd::EXTENDED => RelayMsg::Extended(Extended::decode_from_reader(r)?),
             RelayCmd::EXTEND2 => RelayMsg::Extend2(Extend2::decode_from_reader(r)?),
             RelayCmd::EXTENDED2 => RelayMsg::Extended2(Extended2::decode_from_reader(r)?),
-            RelayCmd::TRUNCATE => RelayMsg::Truncate,
+            RelayCmd::TRUNCATE => RelayMsg::Truncate(Truncate::decode_from_reader(r)?),
             RelayCmd::TRUNCATED => RelayMsg::Truncated(Truncated::decode_from_reader(r)?),
-            RelayCmd::DROP => RelayMsg::Drop,
+            RelayCmd::DROP => RelayMsg::Drop(Drop::decode_from_reader(r)?),
             RelayCmd::RESOLVE => RelayMsg::Resolve(Resolve::decode_from_reader(r)?),
             RelayCmd::RESOLVED => RelayMsg::Resolved(Resolved::decode_from_reader(r)?),
-            RelayCmd::BEGIN_DIR => RelayMsg::BeginDir,
+            RelayCmd::BEGIN_DIR => RelayMsg::BeginDir(BeginDir::decode_from_reader(r)?),
             #[cfg(feature = "experimental-udp")]
             RelayCmd::CONNECT_UDP => RelayMsg::ConnectUdp(udp::ConnectUdp::decode_from_reader(r)?),
             #[cfg(feature = "experimental-udp")]
@@ -228,12 +228,12 @@ impl super::RelayMsgClass for RelayMsg {
             Extended(b) => b.encode_onto(w),
             Extend2(b) => b.encode_onto(w),
             Extended2(b) => b.encode_onto(w),
-            Truncate => Ok(()),
+            Truncate(b) => b.encode_onto(w),
             Truncated(b) => b.encode_onto(w),
-            Drop => Ok(()),
+            Drop(b) => b.encode_onto(w),
             Resolve(b) => b.encode_onto(w),
             Resolved(b) => b.encode_onto(w),
-            BeginDir => Ok(()),
+            BeginDir(b) => b.encode_onto(w),
             #[cfg(feature = "experimental-udp")]
             ConnectUdp(b) => b.encode_onto(w),
             #[cfg(feature = "experimental-udp")]
@@ -1332,4 +1332,41 @@ impl Body for Unrecognized {
         w.write_all(&self.body[..]);
         Ok(())
     }
+}
+
+/// Declare a message type for a message with an empty body.
+macro_rules! empty_body {
+   {
+       $(#[$meta:meta])*
+       pub struct $name:ident {}
+   } => {
+       $(#[$meta])*
+       #[derive(Clone,Debug,Default)]
+       #[non_exhaustive]
+       pub struct $name {}
+       impl $crate::relaycell::msg::Body for $name {
+           fn into_message(self) -> $crate::relaycell::msg::RelayMsg {
+               $crate::relaycell::msg::RelayMsg::$name(self)
+           }
+           fn decode_from_reader(_r: &mut Reader<'_>) -> Result<Self> {
+               Ok(Self::default())
+           }
+           fn encode_onto<W: Writer + ?Sized>(self, _w: &mut W) -> EncodeResult<()> {
+               Ok(())
+           }
+       }
+   }
+}
+
+empty_body! {
+    /// A padding message, which is always ignored.
+    pub struct Drop {}
+}
+empty_body! {
+    /// Tells a circuit to close all downstream hops on the circuit.
+    pub struct Truncate {}
+}
+empty_body! {
+    /// Opens a new stream on a directory cache.
+    pub struct BeginDir {}
 }

@@ -123,7 +123,7 @@ fn test_begindir() {
     let cmd = RelayCmd::BEGIN_DIR;
     assert_eq!(Into::<u8>::into(cmd), 13_u8);
 
-    msg(cmd, "", &msg::RelayMsg::BeginDir);
+    msg(cmd, "", &msg::RelayMsg::BeginDir(Default::default()));
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn test_drop() {
     let cmd = RelayCmd::DROP;
     assert_eq!(Into::<u8>::into(cmd), 10_u8);
 
-    msg(cmd, "", &msg::RelayMsg::Drop);
+    msg(cmd, "", &msg::RelayMsg::Drop(Default::default()));
 }
 
 #[test]
@@ -443,7 +443,7 @@ fn test_truncate() {
     let cmd = RelayCmd::TRUNCATE;
     assert_eq!(Into::<u8>::into(cmd), 8_u8);
 
-    msg(cmd, "", &msg::RelayMsg::Truncate);
+    msg(cmd, "", &msg::RelayMsg::Truncate(Default::default()));
 }
 
 #[test]

@@ -474,7 +474,8 @@ impl ClientCirc {
         // Since they are local to a relay that we've already authenticated
         // with and built a circuit to, there should be no additional checks
         // we need to perform to see whether the BEGINDIR will succeed.
-        self.begin_data_stream(RelayMsg::BeginDir, true).await
+        self.begin_data_stream(RelayMsg::BeginDir(Default::default()), true)
+            .await
     }
 
     /// Perform a DNS lookup, using a RESOLVE cell with the last relay
@@ -1050,7 +1051,7 @@ mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
             let (circ, _send) = newcirc(&rt, chan).await;
-            let begindir = RelayCell::new(0.into(), RelayMsg::BeginDir);
+            let begindir = RelayCell::new(0.into(), RelayMsg::BeginDir(Default::default()));
             circ.control
                 .unbounded_send(CtrlMsg::SendRelayCell {
                     hop: 2.into(),
@@ -1067,7 +1068,7 @@ mod test {
                 ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
-            assert!(matches!(m.msg(), RelayMsg::BeginDir));
+            assert!(matches!(m.msg(), RelayMsg::BeginDir(_)));
         });
     }
 
@@ -1298,7 +1299,7 @@ mod test {
                     _ => panic!(),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-                assert!(matches!(rmsg, RelayMsg::BeginDir));
+                assert!(matches!(rmsg, RelayMsg::BeginDir(_)));
 
                 // Reply with a Connected cell to indicate success.
                 let connected = relaymsg::Connected::new_empty().into();
