@@ -37,19 +37,21 @@ const LSTYPE_ED25519ID: u8 = 3;
 impl Readable for LinkSpec {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let lstype = r.take_u8()?;
-        r.read_nested_u8len(|r| Ok(match lstype {
-            LSTYPE_ORPORT_V4 => {
-                let addr = IpAddr::V4(r.extract()?);
-                LinkSpec::OrPort(addr, r.take_u16()?)
-            }
-            LSTYPE_ORPORT_V6 => {
-                let addr = IpAddr::V6(r.extract()?);
-                LinkSpec::OrPort(addr, r.take_u16()?)
-            }
-            LSTYPE_RSAID => LinkSpec::RsaId(r.extract()?),
-            LSTYPE_ED25519ID => LinkSpec::Ed25519Id(r.extract()?),
-            _ => LinkSpec::Unrecognized(lstype, r.take_rest().into()),
-        }))
+        r.read_nested_u8len(|r| {
+            Ok(match lstype {
+                LSTYPE_ORPORT_V4 => {
+                    let addr = IpAddr::V4(r.extract()?);
+                    LinkSpec::OrPort(addr, r.take_u16()?)
+                }
+                LSTYPE_ORPORT_V6 => {
+                    let addr = IpAddr::V6(r.extract()?);
+                    LinkSpec::OrPort(addr, r.take_u16()?)
+                }
+                LSTYPE_RSAID => LinkSpec::RsaId(r.extract()?),
+                LSTYPE_ED25519ID => LinkSpec::Ed25519Id(r.extract()?),
+                _ => LinkSpec::Unrecognized(lstype, r.take_rest().into()),
+            })
+        })
     }
 }
 impl Writeable for LinkSpec {
