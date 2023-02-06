@@ -61,6 +61,7 @@ digest = "0.10.0"
 educe = "0.4.6"
 hex = "0.4"
 humantime = "2"
+itertools = "0.10.1"
 once_cell = "1"
 phf = { version = "0.11.1", features = ["macros"] }
 rand = { version = "0.8", optional = true }

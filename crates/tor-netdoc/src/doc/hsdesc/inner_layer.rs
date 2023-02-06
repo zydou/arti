@@ -6,6 +6,7 @@ use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::{UnvalidatedEdCert, B64};
 use crate::{ParseErrorKind as EK, Result};
 
+use itertools::Itertools as _;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use tor_hscrypto::pk::{IntroPtAuthKey, IntroPtEncKey};
@@ -181,8 +182,9 @@ impl HsDescInner {
                 let tok = body
                     .slice(ONION_KEY)
                     .iter()
-                    .find(|item| item.arg(0) == Some("ntor"))
-                    .ok_or_else(|| EK::MissingToken.with_msg("No ntor onion key found."))?;
+                    .filter(|item| item.arg(0) == Some("ntor"))
+                    .exactly_one()
+                    .map_err(|_| EK::MissingToken.with_msg("No unique ntor onion key found."))?;
                 tok.parse_arg::<B64>(1)?.into_array()?.into()
             };
 
@@ -236,8 +238,9 @@ impl HsDescInner {
                 let tok = body
                     .slice(ENC_KEY)
                     .iter()
-                    .find(|item| item.arg(0) == Some("ntor"))
-                    .ok_or_else(|| EK::MissingToken.with_msg("No ntor onion key found."))?;
+                    .filter(|item| item.arg(0) == Some("ntor"))
+                    .exactly_one()
+                    .map_err(|_| EK::MissingToken.with_msg("No unique ntor onion key found."))?;
                 let key = curve25519::PublicKey::from(tok.parse_arg::<B64>(1)?.into_array()?);
                 key.into()
             };
