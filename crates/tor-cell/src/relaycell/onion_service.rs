@@ -188,7 +188,7 @@ impl msg::Body for EstablishIntro {
             sig,
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(self.auth_key_type.get());
         w.write_u16(u16::try_from(self.auth_key.len()).map_err(|_| EncodeError::BadLengthValue)?);
         w.write_all(&self.auth_key[..]);
@@ -267,7 +267,7 @@ impl msg::Body for EstablishRendezvous {
         r.take_rest();
         Ok(Self { cookie })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write(&self.cookie)
     }
 }
@@ -283,7 +283,7 @@ impl msg::Body for Introduce1 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Self(Introduce::decode_from_reader(r)?))
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         self.0.encode_onto(w)
     }
 }
@@ -306,7 +306,7 @@ impl msg::Body for Introduce2 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Self(Introduce::decode_from_reader(r)?))
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         self.0.encode_onto(w)
     }
 }
@@ -364,7 +364,7 @@ impl Introduce {
         })
     }
     /// Encode an Introduce message body onto the given writer
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&[0_u8; 20]);
         w.write_u8(self.auth_key_type.get());
         w.write_u16(u16::try_from(self.auth_key.len()).map_err(|_| EncodeError::BadLengthValue)?);

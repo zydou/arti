@@ -165,14 +165,11 @@ pub trait ChanMsgClass {
     /// Return the [`ChanCmd`] for this message.
     fn cmd(&self) -> ChanCmd;
     /// Write the body of this message (not including length or command).
-    fn write_body_onto<W: tor_bytes::Writer + ?Sized>(
-        self,
-        w: &mut W,
-    ) -> tor_bytes::EncodeResult<()>;
+    fn encode_onto<W: tor_bytes::Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()>;
     /// Decode this message from a given reader, according to a specified
     /// command value. The reader must be truncated to the exact length
     /// of the body.
-    fn take(r: &mut tor_bytes::Reader<'_>, cmd: ChanCmd) -> tor_bytes::Result<Self>
+    fn decode_from_reader(cmd: ChanCmd, r: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self>
     where
         Self: Sized;
 }

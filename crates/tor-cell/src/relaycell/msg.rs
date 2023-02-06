@@ -104,8 +104,8 @@ pub trait Body: Sized {
     fn into_message(self) -> RelayMsg;
     /// Decode a relay cell body from a provided reader.
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self>;
-    /// Encode the body of this cell into the end of a vec.
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()>;
+    /// Encode the body of this cell into the end of a writer.
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()>;
 }
 
 impl<B: Body> From<B> for RelayMsg {
@@ -216,7 +216,7 @@ impl super::RelayMsgClass for RelayMsg {
     }
 
     #[allow(clippy::missing_panics_doc)] // TODO hs
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         use RelayMsg::*;
         match self {
             Begin(b) => b.encode_onto(w),
@@ -270,7 +270,7 @@ impl RelayMsg {
         super::RelayMsgClass::cmd(self)
     }
     /// Encode the body of this message, not including command or length
-    pub fn encode_onto(self, w: &mut Vec<u8>) -> tor_bytes::EncodeResult<()> {
+    pub fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()> {
         super::RelayMsgClass::encode_onto(self, w)
     }
     /// Extract the body of a message with command `cmd` from reader `r`.
@@ -406,7 +406,7 @@ impl Body for Begin {
             flags: flags.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         if self.addr.contains(&b':') {
             w.write_u8(b'[');
             w.write_all(&self.addr[..]);
@@ -490,8 +490,8 @@ impl Body for Data {
             body: r.take(r.remaining())?.into(),
         })
     }
-    fn encode_onto(mut self, w: &mut Vec<u8>) -> EncodeResult<()> {
-        w.append(&mut self.body);
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        w.write_all(&self.body);
         Ok(())
     }
 }
@@ -628,7 +628,7 @@ impl Body for End {
             Ok(End { reason, addr: None })
         }
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(self.reason.into());
         if let (EndReason::EXITPOLICY, Some((addr, ttl))) = (self.reason, self.addr) {
             match addr {
@@ -708,7 +708,7 @@ impl Body for Connected {
             addr: Some((addr, ttl)),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         if let Some((addr, ttl)) = self.addr {
             match addr {
                 IpAddr::V4(v4) => w.write(&v4)?,
@@ -786,17 +786,17 @@ impl Body for Sendme {
         };
         Ok(Sendme { digest })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         match self.digest {
             None => (),
-            Some(mut x) => {
+            Some(x) => {
                 w.write_u8(1);
                 let bodylen: u16 = x
                     .len()
                     .try_into()
                     .map_err(|_| EncodeError::BadLengthValue)?;
                 w.write_u16(bodylen);
-                w.append(&mut x);
+                w.write_all(&x);
             }
         }
         Ok(())
@@ -845,7 +845,7 @@ impl Body for Extend {
             rsaid,
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write(&self.addr)?;
         w.write_u16(self.port);
         w.write_all(&self.handshake[..]);
@@ -878,8 +878,8 @@ impl Body for Extended {
         let handshake = r.take(TAP_S_HANDSHAKE_LEN)?.into();
         Ok(Extended { handshake })
     }
-    fn encode_onto(mut self, w: &mut Vec<u8>) -> EncodeResult<()> {
-        w.append(&mut self.handshake);
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        w.write_all(&self.handshake);
         Ok(())
     }
 }
@@ -950,7 +950,7 @@ impl Body for Extend2 {
             handshake,
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         let n_linkspecs: u8 = self
             .linkspec
             .len()
@@ -1004,7 +1004,7 @@ impl Body for Extended2 {
             handshake: handshake.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         let handshake_len: u16 = self
             .handshake
             .len()
@@ -1047,7 +1047,7 @@ impl Body for Truncated {
             reason: r.take_u8()?.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(self.reason.into());
         Ok(())
     }
@@ -1104,7 +1104,7 @@ impl Body for Resolve {
             query: query.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.query[..]);
         w.write_u8(0);
         Ok(())
@@ -1276,7 +1276,7 @@ impl Body for Resolved {
         }
         Ok(Resolved { answers })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         for (rv, ttl) in &self.answers {
             w.write(rv)?;
             w.write_u32(*ttl);
@@ -1328,7 +1328,7 @@ impl Body for Unrecognized {
             body: r.take(r.remaining())?.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.body[..]);
         Ok(())
     }

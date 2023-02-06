@@ -188,7 +188,7 @@ pub trait RelayMsgClass {
     /// Return the stream command associated with this message.
     fn cmd(&self) -> RelayCmd;
     /// Encode the body of this message, not including command or length
-    fn encode_onto(self, w: &mut Vec<u8>) -> tor_bytes::EncodeResult<()>;
+    fn encode_onto<W: tor_bytes::Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()>;
     /// Extract the body of a message with command `cmd` from reader `r`.
     fn decode_from_reader(cmd: RelayCmd, r: &mut Reader<'_>) -> Result<Self>
     where
