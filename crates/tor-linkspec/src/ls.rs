@@ -5,7 +5,7 @@
 
 use std::net::{IpAddr, SocketAddr};
 
-use tor_bytes::{EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
+use tor_bytes::{EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -36,24 +36,8 @@ const LSTYPE_ED25519ID: u8 = 3;
 
 impl Readable for LinkSpec {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        /// Return the expected length of the link specifier whose type is tp.
-        fn lstype_len(tp: u8) -> Option<usize> {
-            match tp {
-                LSTYPE_ORPORT_V4 => Some(6),
-                LSTYPE_ORPORT_V6 => Some(18),
-                LSTYPE_RSAID => Some(20),
-                LSTYPE_ED25519ID => Some(32),
-                _ => None,
-            }
-        }
         let lstype = r.take_u8()?;
-        let lslen = r.take_u8()? as usize;
-        if let Some(wantlen) = lstype_len(lstype) {
-            if wantlen != lslen {
-                return Err(Error::BadMessage("Wrong length for link specifier"));
-            }
-        }
-        Ok(match lstype {
+        r.read_nested_u8len(|r| Ok(match lstype {
             LSTYPE_ORPORT_V4 => {
                 let addr = IpAddr::V4(r.extract()?);
                 LinkSpec::OrPort(addr, r.take_u16()?)
@@ -64,8 +48,8 @@ impl Readable for LinkSpec {
             }
             LSTYPE_RSAID => LinkSpec::RsaId(r.extract()?),
             LSTYPE_ED25519ID => LinkSpec::Ed25519Id(r.extract()?),
-            _ => LinkSpec::Unrecognized(lstype, r.take(lslen)?.into()),
-        })
+            _ => LinkSpec::Unrecognized(lstype, r.take_rest().into()),
+        }))
     }
 }
 impl Writeable for LinkSpec {
@@ -233,7 +217,7 @@ mod test {
             got.err().unwrap()
         }
 
-        assert!(matches!(t(&hex!("00 03")), Error::BadMessage(_)));
+        assert!(matches!(t(&hex!("00 03")), Error::Truncated));
         assert!(matches!(t(&hex!("00 06 01020304")), Error::Truncated));
         assert!(matches!(t(&hex!("99 07 010203")), Error::Truncated));
     }
