@@ -1,6 +1,6 @@
 //! Encoding and decoding for relay messages related to onion services.
 
-#![allow(dead_code)] // TODO hs: remove.
+#![allow(dead_code, unused_variables)] // TODO hs: remove.
 
 // TODO hs design: We need to discuss how we want to handle extensions in these
 // cells: extensions are used all over the protocol, and it would be nice to be
@@ -13,7 +13,7 @@
 
 // TODO hs: we'll need accessors for the useful fields in all these types.
 
-use super::msg;
+use super::msg::{self, Body};
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Readable, Result, Writeable};
 use tor_bytes::{Reader, Writer};
@@ -385,12 +385,41 @@ pub struct Rendezvous1 {
     /// The message to send the client.
     message: Vec<u8>,
 }
+
+impl Body for Rendezvous1 {
+    fn into_message(self) -> msg::RelayMsg {
+        todo!()
+    }
+
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        todo!()
+    }
+
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        todo!()
+    }
+}
+
 /// A message sent from the rendezvous point to the client, telling it about the
 /// onion service's message.
 #[derive(Debug, Clone)]
 pub struct Rendezvous2 {
     /// The message from the onion service.
     message: Vec<u8>,
+}
+
+impl Body for Rendezvous2 {
+    fn into_message(self) -> msg::RelayMsg {
+        todo!()
+    }
+
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        todo!()
+    }
+
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        todo!()
+    }
 }
 
 /// Reply sent from the introduction point to the onion service, telling it that
@@ -402,6 +431,20 @@ pub struct IntroEstablished {
     // TODO hs: we should extract this with any DOS related extensions, depending on what we
     // decide to do with extension in general.
     extensions: Vec<IntroEstExtension>,
+}
+
+impl Body for IntroEstablished {
+    fn into_message(self) -> msg::RelayMsg {
+        todo!()
+    }
+
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        todo!()
+    }
+
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        todo!()
+    }
 }
 
 /// An extension included in an [`IntroEstablished`] message.
@@ -420,4 +463,23 @@ pub struct IntroduceAck {
     /// The status reported for the Introduce1 message.
     status_code: u16,
     // TODO hs: add extensions.
+}
+
+impl Body for IntroduceAck {
+    fn into_message(self) -> msg::RelayMsg {
+        todo!()
+    }
+
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        todo!()
+    }
+
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        todo!()
+    }
+}
+
+super::msg::empty_body! {
+    /// Acknowledges an EstablishRendezvous message.
+    pub struct RendezvousEstablished {}
 }

@@ -18,84 +18,89 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use bitflags::bitflags;
 
 #[cfg(feature = "onion-service")]
-use super::onion_service;
+pub use super::onion_service::{
+    EstablishIntro, EstablishRendezvous, IntroEstablished, Introduce1, Introduce2, IntroduceAck,
+    Rendezvous1, Rendezvous2, RendezvousEstablished,
+};
 #[cfg(feature = "experimental-udp")]
-use super::udp;
+pub use super::udp::{ConnectUdp, ConnectedUdp, Datagram};
 
+crate::restrict::restricted_msg! {
 /// A single parsed relay message, sent or received along a circuit
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum RelayMsg {
+pub enum RelayMsg : RelayMsg {
     /// Create a stream
-    Begin(Begin),
+    Begin,
     /// Send data on a stream
-    Data(Data),
+    Data,
     /// Close a stream
-    End(End),
+    End,
     /// Successful response to a Begin message
-    Connected(Connected),
+    Connected,
     /// For flow control
-    Sendme(Sendme),
+    Sendme,
     /// Extend a circuit to a new hop (deprecated)
-    Extend(Extend),
+    Extend,
     /// Successful response to an Extend message (deprecated)
-    Extended(Extended),
+    Extended,
     /// Extend a circuit to a new hop
-    Extend2(Extend2),
+    Extend2,
     /// Successful response to an Extend2 message
-    Extended2(Extended2),
+    Extended2,
     /// Partially close a circuit
-    Truncate(Truncate),
+    Truncate,
     /// Tell the client that a circuit has been partially closed
-    Truncated(Truncated),
+    Truncated,
     /// Used for padding
-    Drop(Drop),
+    Drop,
     /// Launch a DNS request
-    Resolve(Resolve),
+    Resolve,
     /// Response to a Resolve message
-    Resolved(Resolved),
+    Resolved,
     /// Start a directory stream
-    BeginDir(BeginDir),
+    BeginDir,
     /// Start a UDP stream.
     #[cfg(feature = "experimental-udp")]
-    ConnectUdp(udp::ConnectUdp),
+    ConnectUdp,
     /// Successful response to a ConnectUdp message
     #[cfg(feature = "experimental-udp")]
-    ConnectedUdp(udp::ConnectedUdp),
+    ConnectedUdp,
     /// UDP stream data
     #[cfg(feature = "experimental-udp")]
-    Datagram(udp::Datagram),
-
+    Datagram,
     /// Establish Introduction
     #[cfg(feature = "onion-service")]
-    EstablishIntro(onion_service::EstablishIntro),
+    EstablishIntro,
     /// Establish Rendezvous
     #[cfg(feature = "onion-service")]
-    EstablishRendezvous(onion_service::EstablishRendezvous),
+    EstablishRendezvous,
     /// Introduce1 (client to introduction point)
     #[cfg(feature = "onion-service")]
-    Introduce1(onion_service::Introduce1),
+    Introduce1,
     /// Introduce2 (introduction point to service)
     #[cfg(feature = "onion-service")]
-    Introduce2(onion_service::Introduce2),
+    Introduce2,
     /// Rendezvous1 (service to rendezvous point)
     #[cfg(feature = "onion-service")]
-    Rendezvous1(onion_service::Rendezvous1),
+    Rendezvous1,
     /// Rendezvous2 (rendezvous point to client)
     #[cfg(feature = "onion-service")]
-    Rendezvous2(onion_service::Rendezvous2),
+    Rendezvous2,
     /// Acknowledgement for EstablishIntro.
     #[cfg(feature = "onion-service")]
-    IntroEstablished(onion_service::IntroEstablished),
-    /// Acknowledgment for EstalishRendezvous.
+    IntroEstablished,
+    /// Acknowledgment for EstablishRendezvous.
     #[cfg(feature = "onion-service")]
-    RendEstablished,
+    RendezvousEstablished,
     /// Acknowledgement for Introduce1.
     #[cfg(feature = "onion-service")]
-    IntroduceAck(onion_service::IntroduceAck),
+    IntroduceAck,
 
+    _ =>
     /// An unrecognized command.
-    Unrecognized(Unrecognized),
+    Unrecognized,
+    }
 }
 
 /// Internal: traits in common different cell bodies.
@@ -111,156 +116,6 @@ pub trait Body: Sized {
 impl<B: Body> From<B> for RelayMsg {
     fn from(b: B) -> RelayMsg {
         b.into_message()
-    }
-}
-
-impl super::RelayMsgClass for RelayMsg {
-    fn cmd(&self) -> RelayCmd {
-        use RelayMsg::*;
-        match self {
-            Begin(_) => RelayCmd::BEGIN,
-            Data(_) => RelayCmd::DATA,
-            End(_) => RelayCmd::END,
-            Connected(_) => RelayCmd::CONNECTED,
-            Sendme(_) => RelayCmd::SENDME,
-            Extend(_) => RelayCmd::EXTEND,
-            Extended(_) => RelayCmd::EXTENDED,
-            Extend2(_) => RelayCmd::EXTEND2,
-            Extended2(_) => RelayCmd::EXTENDED2,
-            Truncate(_) => RelayCmd::TRUNCATE,
-            Truncated(_) => RelayCmd::TRUNCATED,
-            Drop(_) => RelayCmd::DROP,
-            Resolve(_) => RelayCmd::RESOLVE,
-            Resolved(_) => RelayCmd::RESOLVED,
-            BeginDir(_) => RelayCmd::BEGIN_DIR,
-            #[cfg(feature = "experimental-udp")]
-            ConnectUdp(_) => RelayCmd::CONNECT_UDP,
-            #[cfg(feature = "experimental-udp")]
-            ConnectedUdp(_) => RelayCmd::CONNECTED_UDP,
-            #[cfg(feature = "experimental-udp")]
-            Datagram(_) => RelayCmd::DATAGRAM,
-            #[cfg(feature = "onion-service")]
-            EstablishIntro(_) => RelayCmd::ESTABLISH_INTRO,
-            #[cfg(feature = "onion-service")]
-            EstablishRendezvous(_) => RelayCmd::ESTABLISH_RENDEZVOUS,
-            #[cfg(feature = "onion-service")]
-            Introduce1(_) => RelayCmd::INTRODUCE1,
-            #[cfg(feature = "onion-service")]
-            Introduce2(_) => RelayCmd::INTRODUCE2,
-            #[cfg(feature = "onion-service")]
-            Rendezvous1(_) => RelayCmd::RENDEZVOUS1,
-            #[cfg(feature = "onion-service")]
-            Rendezvous2(_) => RelayCmd::RENDEZVOUS2,
-            #[cfg(feature = "onion-service")]
-            IntroEstablished(_) => RelayCmd::INTRO_ESTABLISHED,
-            #[cfg(feature = "onion-service")]
-            RendEstablished => RelayCmd::RENDEZVOUS_ESTABLISHED,
-            #[cfg(feature = "onion-service")]
-            IntroduceAck(_) => RelayCmd::INTRODUCE_ACK,
-
-            Unrecognized(u) => u.cmd(),
-        }
-    }
-
-    fn decode_from_reader(c: RelayCmd, r: &mut Reader<'_>) -> Result<Self> {
-        Ok(match c {
-            RelayCmd::BEGIN => RelayMsg::Begin(Begin::decode_from_reader(r)?),
-            RelayCmd::DATA => RelayMsg::Data(Data::decode_from_reader(r)?),
-            RelayCmd::END => RelayMsg::End(End::decode_from_reader(r)?),
-            RelayCmd::CONNECTED => RelayMsg::Connected(Connected::decode_from_reader(r)?),
-            RelayCmd::SENDME => RelayMsg::Sendme(Sendme::decode_from_reader(r)?),
-            RelayCmd::EXTEND => RelayMsg::Extend(Extend::decode_from_reader(r)?),
-            RelayCmd::EXTENDED => RelayMsg::Extended(Extended::decode_from_reader(r)?),
-            RelayCmd::EXTEND2 => RelayMsg::Extend2(Extend2::decode_from_reader(r)?),
-            RelayCmd::EXTENDED2 => RelayMsg::Extended2(Extended2::decode_from_reader(r)?),
-            RelayCmd::TRUNCATE => RelayMsg::Truncate(Truncate::decode_from_reader(r)?),
-            RelayCmd::TRUNCATED => RelayMsg::Truncated(Truncated::decode_from_reader(r)?),
-            RelayCmd::DROP => RelayMsg::Drop(Drop::decode_from_reader(r)?),
-            RelayCmd::RESOLVE => RelayMsg::Resolve(Resolve::decode_from_reader(r)?),
-            RelayCmd::RESOLVED => RelayMsg::Resolved(Resolved::decode_from_reader(r)?),
-            RelayCmd::BEGIN_DIR => RelayMsg::BeginDir(BeginDir::decode_from_reader(r)?),
-            #[cfg(feature = "experimental-udp")]
-            RelayCmd::CONNECT_UDP => RelayMsg::ConnectUdp(udp::ConnectUdp::decode_from_reader(r)?),
-            #[cfg(feature = "experimental-udp")]
-            RelayCmd::CONNECTED_UDP => {
-                RelayMsg::ConnectedUdp(udp::ConnectedUdp::decode_from_reader(r)?)
-            }
-            #[cfg(feature = "experimental-udp")]
-            RelayCmd::DATAGRAM => RelayMsg::Datagram(udp::Datagram::decode_from_reader(r)?),
-            #[cfg(feature = "onion-service")]
-            RelayCmd::ESTABLISH_INTRO => {
-                RelayMsg::EstablishIntro(onion_service::EstablishIntro::decode_from_reader(r)?)
-            }
-            #[cfg(feature = "onion-service")]
-            RelayCmd::ESTABLISH_RENDEZVOUS => RelayMsg::EstablishRendezvous(
-                onion_service::EstablishRendezvous::decode_from_reader(r)?,
-            ),
-            #[cfg(feature = "onion-service")]
-            RelayCmd::INTRODUCE1 => {
-                RelayMsg::Introduce1(onion_service::Introduce1::decode_from_reader(r)?)
-            }
-
-            // TODO hs
-            // #[cfg(feature = "onion-service")]
-            // RelayCmd::RENDEZVOUS1 => todo!(),
-            // #[cfg(feature = "onion-service")]
-            // RelayCmd::RENDEZVOUS2 => todo!(),
-            // #[cfg(feature = "onion-service")]
-            // RelayCmd::INTRO_ESTABLISHED => todo!(),
-            // #[cfg(feature = "onion-service")]
-            // RelayCmd::RENDEZVOUS_ESTABLISHED => todo!(),
-            // #[cfg(feature = "onion-service")]
-            // RelayCmd::INTRODUCE_ACK => todo!(),
-            _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
-        })
-    }
-
-    #[allow(clippy::missing_panics_doc)] // TODO hs
-    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        use RelayMsg::*;
-        match self {
-            Begin(b) => b.encode_onto(w),
-            Data(b) => b.encode_onto(w),
-            End(b) => b.encode_onto(w),
-            Connected(b) => b.encode_onto(w),
-            Sendme(b) => b.encode_onto(w),
-            Extend(b) => b.encode_onto(w),
-            Extended(b) => b.encode_onto(w),
-            Extend2(b) => b.encode_onto(w),
-            Extended2(b) => b.encode_onto(w),
-            Truncate(b) => b.encode_onto(w),
-            Truncated(b) => b.encode_onto(w),
-            Drop(b) => b.encode_onto(w),
-            Resolve(b) => b.encode_onto(w),
-            Resolved(b) => b.encode_onto(w),
-            BeginDir(b) => b.encode_onto(w),
-            #[cfg(feature = "experimental-udp")]
-            ConnectUdp(b) => b.encode_onto(w),
-            #[cfg(feature = "experimental-udp")]
-            ConnectedUdp(b) => b.encode_onto(w),
-            #[cfg(feature = "experimental-udp")]
-            Datagram(b) => b.encode_onto(w),
-            #[cfg(feature = "onion-service")]
-            EstablishIntro(b) => b.encode_onto(w),
-            #[cfg(feature = "onion-service")]
-            EstablishRendezvous(b) => b.encode_onto(w),
-            #[cfg(feature = "onion-service")]
-            Introduce1(b) => b.encode_onto(w),
-            #[cfg(feature = "onion-service")]
-            Introduce2(b) => b.encode_onto(w),
-            #[cfg(feature = "onion-service")]
-            Rendezvous1(_) => todo!(), // TODO hs
-            #[cfg(feature = "onion-service")]
-            Rendezvous2(_) => todo!(), // TODO hs
-            #[cfg(feature = "onion-service")]
-            IntroEstablished(_) => todo!(), // TODO hs
-            #[cfg(feature = "onion-service")]
-            RendEstablished => todo!(), // TODO hs
-            #[cfg(feature = "onion-service")]
-            IntroduceAck(_) => todo!(), // TODO hs
-
-            Unrecognized(b) => b.encode_onto(w),
-        }
     }
 }
 
@@ -1357,6 +1212,7 @@ macro_rules! empty_body {
        }
    }
 }
+pub(crate) use empty_body;
 
 empty_body! {
     /// A padding message, which is always ignored.
