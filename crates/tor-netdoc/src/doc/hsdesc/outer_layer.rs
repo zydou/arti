@@ -24,10 +24,12 @@ pub(super) struct HsDescOuter {
     /// This doesn't actually list the starting time or the end time for the
     /// descriptor: presumably, because we didn't want to leak the onion
     /// service's view of the wallclock.
+    // TODO HS: Use IntegerMinutes, and rename to `Lifetime`.
     pub(super) lifetime_minutes: u16,
     /// A certificate containing the descriptor-signing-key for this onion
     /// service (`KP_hs_desc_sign`) signed by the blinded ed25519 identity
     /// (`HS_blind_id`) for this onion service.
+    // TODO HS: decide what to call this, and RENAME.
     pub(super) desc_signing_key_cert: Ed25519Cert,
     /// A revision counter to tell whether this descriptor is more or less recent
     /// than another one for the same blinded ID.
@@ -38,7 +40,7 @@ pub(super) struct HsDescOuter {
     //
     // TODO: it might be a good idea to just discard this immediately (after checking it)
     // for the directory case.
-    pub(super) encrypted_body: Vec<u8>,
+    pub(super) superencrypted: Vec<u8>,
 }
 
 impl HsDescOuter {
@@ -70,7 +72,7 @@ impl HsDescOuter {
             string_const: b"hsdir-superencrypted-data",
         };
 
-        let mut body = decrypt.decrypt(&self.encrypted_body[..])?;
+        let mut body = decrypt.decrypt(&self.superencrypted[..])?;
         let n_padding = body.iter().rev().take_while(|n| **n == 0).count();
         body.truncate(body.len() - n_padding);
         // Work around a bug in the C tor implementation: it doesn't
@@ -198,7 +200,7 @@ impl HsDescOuter {
         // Parse `descriptor-signing-key-cert`.  This certificate is signed with
         // the blinded Id (`KP_blinded_id`), and used to authenticate the
         // descriptor signing key (`KP_hs_desc_sign`).
-        let (unchecked_cert, desc_signing_key) = {
+        let (unchecked_cert, kp_desc_sign) = {
             let cert_tok = body.required(DESCRIPTOR_SIGNING_KEY_CERT)?;
             let cert = cert_tok
                 .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
@@ -211,7 +213,7 @@ impl HsDescOuter {
                         .with_source(err)
                         .at_pos(cert_tok.pos())
                 })?;
-            let key: ed25519::PublicKey = cert
+            let kp_desc_sign: ed25519::PublicKey = cert
                 .peek_subject_key()
                 .as_ed25519()
                 .and_then(|id| id.try_into().ok())
@@ -221,7 +223,7 @@ impl HsDescOuter {
                         .with_msg("Invalid ed25519 subject key")
                         .at_pos(cert_tok.pos())
                 })?;
-            (cert, key)
+            (cert, kp_desc_sign)
         };
 
         // Parse remaining fields, which are nice and simple.
@@ -241,14 +243,17 @@ impl HsDescOuter {
             // we already checked that there is a public key, so an error should be impossible.
             .map_err(|e| EK::Internal.err().with_source(e))?;
         let desc_signing_key_cert = desc_signing_key_cert.dangerously_assume_timely();
+        // TODO HS: It is unclear whether using the certificate expiration time
+        // as the expiration time for whole document is correct. We must
+        // investigate.
+        let expiration = desc_signing_key_cert.expiry();
 
         // Build our return value.
-        let expiration = desc_signing_key_cert.expiry();
         let desc = HsDescOuter {
             lifetime_minutes,
             desc_signing_key_cert,
             revision_counter,
-            encrypted_body,
+            superencrypted: encrypted_body,
         };
         // You can't have that until you check that it's timely.
         let desc = TimerangeBound::new(desc, ..expiration);
@@ -256,7 +261,7 @@ impl HsDescOuter {
         let signatures: Vec<Box<dyn tor_llcrypto::pk::ValidatableSignature>> = vec![
             Box::new(cert_signature),
             Box::new(ValidatableEd25519Signature::new(
-                desc_signing_key,
+                kp_desc_sign,
                 signature,
                 &signed_text[..],
             )),
