@@ -190,7 +190,6 @@ impl HsDescMiddle {
     pub(super) fn parse(s: &str) -> Result<HsDescMiddle> {
         let mut reader = NetDocReader::new(s);
         let result = HsDescMiddle::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
-        reader.should_be_exhausted()?;
         Ok(result)
     }
 

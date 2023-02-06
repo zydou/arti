@@ -120,7 +120,6 @@ impl HsDescOuter {
         // XXXX needs to be unchecked.
         let mut reader = NetDocReader::new(s);
         let result = HsDescOuter::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
-        reader.should_be_exhausted()?;
         Ok(result)
     }
 
