@@ -385,8 +385,8 @@ fn test_vpadding() {
     let cmd = ChanCmd::VPADDING;
     assert_eq!(Into::<u8>::into(cmd), 128_u8);
 
-    vbody(cmd, "", &msg::VPadding::new(0).into());
-    vbody(cmd, "00000000000000000000", &msg::VPadding::new(10).into());
+    vbody(cmd, "", &msg::Vpadding::new(0).into());
+    vbody(cmd, "00000000000000000000", &msg::Vpadding::new(10).into());
 }
 
 #[test]

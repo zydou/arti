@@ -226,7 +226,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
             trace!("{}: received a {} cell.", self.unique_id, m.cmd());
             match m {
                 // Are these technically allowed?
-                Padding(_) | VPadding(_) => (),
+                Padding(_) | Vpadding(_) => (),
                 // Unrecognized cells get ignored.
                 Unrecognized(_) => (),
                 // Clients don't care about AuthChallenge

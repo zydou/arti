@@ -24,133 +24,59 @@ pub trait Body: Readable {
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()>;
 }
 
+crate::restrict::restricted_msg! {
 /// Decoded message from a channel.
 ///
 /// A ChanMsg is an item received on a channel -- a message from
 /// another Tor client or relay that we are connected to directly over
 /// a TLS connection.
-#[non_exhaustive]
 #[derive(Clone, Debug)]
-pub enum ChanMsg {
+#[non_exhaustive]
+pub enum ChanMsg : ChanMsg {
     /// A Padding message
-    Padding(Padding),
+    Padding,
     /// Variable-length padding message
-    VPadding(VPadding),
+    Vpadding,
     /// (Deprecated) TAP-based cell to create a new circuit.
-    Create(Create),
+    Create,
     /// (Mostly deprecated) HMAC-based cell to create a new circuit.
-    CreateFast(CreateFast),
+    CreateFast,
     /// Cell to create a new circuit
-    Create2(Create2),
+    Create2,
     /// (Deprecated) Answer to a Create cell
-    Created(Created),
+    Created,
     /// (Mostly Deprecated) Answer to a CreateFast cell
-    CreatedFast(CreatedFast),
+    CreatedFast,
     /// Answer to a Create2 cell
-    Created2(Created2),
+    Created2,
     /// A message sent along a circuit, likely to a more-distant relay.
-    Relay(Relay),
+    Relay,
     /// A message sent along a circuit (limited supply)
-    RelayEarly(Relay),
+    RelayEarly,
     /// Tear down a circuit
-    Destroy(Destroy),
+    Destroy,
     /// Part of channel negotiation: describes our position on the network
-    Netinfo(Netinfo),
+    Netinfo,
     /// Part of channel negotiation: describes what link protocol versions
     /// we support
-    Versions(Versions),
+    Versions,
     /// Negotiates what kind of channel padding to send
-    PaddingNegotiate(PaddingNegotiate),
+    PaddingNegotiate,
     /// Part of channel negotiation: additional certificates not in the
     /// TLS handshake
-    Certs(Certs),
+    Certs,
     /// Part of channel negotiation: additional random material to be used
     /// as part of authentication
-    AuthChallenge(AuthChallenge),
+    AuthChallenge,
     /// Part of channel negotiation: used to authenticate relays when they
     /// initiate the channel.
-    Authenticate(Authenticate),
+    Authenticate,
     /// Not yet used
-    Authorize(Authorize),
+    Authorize,
+    _ =>
     /// Any cell whose command we don't recognize
-    Unrecognized(Unrecognized),
+    Unrecognized,
 }
-
-impl super::ChanMsgClass for ChanMsg {
-    fn cmd(&self) -> ChanCmd {
-        use ChanMsg::*;
-        match self {
-            Padding(_) => ChanCmd::PADDING,
-            VPadding(_) => ChanCmd::VPADDING,
-            Create(_) => ChanCmd::CREATE,
-            CreateFast(_) => ChanCmd::CREATE_FAST,
-            Create2(_) => ChanCmd::CREATE2,
-            Created(_) => ChanCmd::CREATED,
-            CreatedFast(_) => ChanCmd::CREATED_FAST,
-            Created2(_) => ChanCmd::CREATED2,
-            Relay(_) => ChanCmd::RELAY,
-            RelayEarly(_) => ChanCmd::RELAY_EARLY,
-            Destroy(_) => ChanCmd::DESTROY,
-            Netinfo(_) => ChanCmd::NETINFO,
-            Versions(_) => ChanCmd::VERSIONS,
-            PaddingNegotiate(_) => ChanCmd::PADDING_NEGOTIATE,
-            Certs(_) => ChanCmd::CERTS,
-            AuthChallenge(_) => ChanCmd::AUTH_CHALLENGE,
-            Authenticate(_) => ChanCmd::AUTHENTICATE,
-            Authorize(_) => ChanCmd::AUTHORIZE,
-            Unrecognized(c) => c.cmd(),
-        }
-    }
-
-    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        use ChanMsg::*;
-        match self {
-            Padding(b) => b.encode_onto(w),
-            VPadding(b) => b.encode_onto(w),
-            Create(b) => b.encode_onto(w),
-            CreateFast(b) => b.encode_onto(w),
-            Create2(b) => b.encode_onto(w),
-            Created(b) => b.encode_onto(w),
-            CreatedFast(b) => b.encode_onto(w),
-            Created2(b) => b.encode_onto(w),
-            Relay(b) => b.encode_onto(w),
-            RelayEarly(b) => b.encode_onto(w),
-            Destroy(b) => b.encode_onto(w),
-            Netinfo(b) => b.encode_onto(w),
-            Versions(b) => b.encode_onto(w),
-            PaddingNegotiate(b) => b.encode_onto(w),
-            Certs(b) => b.encode_onto(w),
-            AuthChallenge(b) => b.encode_onto(w),
-            Authenticate(b) => b.encode_onto(w),
-            Authorize(b) => b.encode_onto(w),
-            Unrecognized(b) => b.encode_onto(w),
-        }
-    }
-
-    fn decode_from_reader(cmd: ChanCmd, r: &mut Reader<'_>) -> Result<Self> {
-        use ChanMsg::*;
-        Ok(match cmd {
-            ChanCmd::PADDING => Padding(r.extract()?),
-            ChanCmd::VPADDING => VPadding(r.extract()?),
-            ChanCmd::CREATE => Create(r.extract()?),
-            ChanCmd::CREATE_FAST => CreateFast(r.extract()?),
-            ChanCmd::CREATE2 => Create2(r.extract()?),
-            ChanCmd::CREATED => Created(r.extract()?),
-            ChanCmd::CREATED_FAST => CreatedFast(r.extract()?),
-            ChanCmd::CREATED2 => Created2(r.extract()?),
-            ChanCmd::RELAY => Relay(r.extract()?),
-            ChanCmd::RELAY_EARLY => RelayEarly(r.extract()?),
-            ChanCmd::DESTROY => Destroy(r.extract()?),
-            ChanCmd::NETINFO => Netinfo(r.extract()?),
-            ChanCmd::VERSIONS => Versions(r.extract()?),
-            ChanCmd::PADDING_NEGOTIATE => PaddingNegotiate(r.extract()?),
-            ChanCmd::CERTS => Certs(r.extract()?),
-            ChanCmd::AUTH_CHALLENGE => AuthChallenge(r.extract()?),
-            ChanCmd::AUTHENTICATE => Authenticate(r.extract()?),
-            ChanCmd::AUTHORIZE => Authorize(r.extract()?),
-            _ => Unrecognized(crate::chancell::msg::Unrecognized::decode_with_cmd(cmd, r)?),
-        })
-    }
 }
 
 impl ChanMsg {
@@ -206,31 +132,31 @@ impl Readable for Padding {
 ///
 /// The correct response to a padding cell is to drop it and do nothing.
 #[derive(Clone, Debug)]
-pub struct VPadding {
+pub struct Vpadding {
     /// How much padding to send in this cell's body.
     len: u16,
 }
-impl VPadding {
+impl Vpadding {
     /// Return a new vpadding cell with given length.
     pub fn new(len: u16) -> Self {
-        VPadding { len }
+        Vpadding { len }
     }
 }
-impl Body for VPadding {
+impl Body for Vpadding {
     fn into_message(self) -> ChanMsg {
-        ChanMsg::VPadding(self)
+        ChanMsg::Vpadding(self)
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_zeros(self.len as usize);
         Ok(())
     }
 }
-impl Readable for VPadding {
+impl Readable for Vpadding {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         if r.remaining() > std::u16::MAX as usize {
             return Err(Error::BadMessage("Too many bytes in VPADDING cell"));
         }
-        Ok(VPadding {
+        Ok(Vpadding {
             len: r.remaining() as u16,
         })
     }
@@ -519,6 +445,9 @@ impl Readable for Relay {
         Ok(Relay { body })
     }
 }
+
+/// Alias for Relay: these two cell types have the same body.
+pub type RelayEarly = Relay;
 
 /// The Destroy message tears down a circuit.
 ///
@@ -1279,7 +1208,7 @@ macro_rules! msg_into_cell {
 }
 
 msg_into_cell!(Padding);
-msg_into_cell!(VPadding);
+msg_into_cell!(Vpadding);
 msg_into_cell!(Netinfo);
 msg_into_cell!(Versions);
 msg_into_cell!(PaddingNegotiate);

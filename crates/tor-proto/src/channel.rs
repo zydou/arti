@@ -245,7 +245,7 @@ impl Sink<ChanCell> for Channel {
         {
             use msg::ChanMsg::*;
             match cell.msg() {
-                Relay(_) | Padding(_) | VPadding(_) => {} // too frequent to log.
+                Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
                 _ => trace!(
                     "{}: Sending {} for {}",
                     this.details.unique_id,

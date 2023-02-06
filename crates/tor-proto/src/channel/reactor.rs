@@ -307,7 +307,7 @@ impl<S: SleepProvider> Reactor<S> {
         use ChanMsg::*;
 
         match msg {
-            Relay(_) | Padding(_) | VPadding(_) => {} // too frequent to log.
+            Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
             _ => trace!("{}: received {} for {}", &self, msg.cmd(), circid),
         }
 
@@ -339,7 +339,7 @@ impl<S: SleepProvider> Reactor<S> {
             CreatedFast(_) | Created2(_) => self.deliver_created(circid, msg).await,
 
             // These are always ignored.
-            Padding(_) | VPadding(_) => Ok(()),
+            Padding(_) | Vpadding(_) => Ok(()),
 
             // Unrecognized cell types should be safe to allow _on channels_,
             // since they can't propagate.
