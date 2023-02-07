@@ -3607,6 +3607,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
+ "paste",
  "rand 0.8.5",
  "thiserror",
  "tor-basic-utils",

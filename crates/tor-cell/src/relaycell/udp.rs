@@ -188,8 +188,8 @@ impl ConnectUdp {
 }
 
 impl msg::Body for ConnectUdp {
-    fn into_message(self) -> msg::RelayMsg {
-        msg::RelayMsg::ConnectUdp(self)
+    fn into_message(self) -> msg::AnyRelayMsg {
+        msg::AnyRelayMsg::ConnectUdp(self)
     }
 
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
@@ -202,7 +202,7 @@ impl msg::Body for ConnectUdp {
         })
     }
 
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u32(self.flags.bits());
         w.write(&self.addr)?;
         Ok(())
@@ -230,8 +230,8 @@ impl ConnectedUdp {
 }
 
 impl msg::Body for ConnectedUdp {
-    fn into_message(self) -> msg::RelayMsg {
-        msg::RelayMsg::ConnectedUdp(self)
+    fn into_message(self) -> msg::AnyRelayMsg {
+        msg::AnyRelayMsg::ConnectedUdp(self)
     }
 
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
@@ -250,7 +250,7 @@ impl msg::Body for ConnectedUdp {
         })
     }
 
-    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write(&self.our_address)?;
         w.write(&self.their_address)?;
         Ok(())
@@ -305,8 +305,8 @@ impl AsRef<[u8]> for Datagram {
 }
 
 impl msg::Body for Datagram {
-    fn into_message(self) -> msg::RelayMsg {
-        msg::RelayMsg::Datagram(self)
+    fn into_message(self) -> msg::AnyRelayMsg {
+        msg::AnyRelayMsg::Datagram(self)
     }
 
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
@@ -315,8 +315,8 @@ impl msg::Body for Datagram {
         })
     }
 
-    fn encode_onto(mut self, w: &mut Vec<u8>) -> EncodeResult<()> {
-        w.append(&mut self.body);
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        w.write_all(&self.body);
         Ok(())
     }
 }

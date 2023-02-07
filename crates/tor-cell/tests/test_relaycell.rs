@@ -2,7 +2,7 @@
 #![allow(clippy::uninlined_format_args)]
 
 use tor_bytes::Error;
-use tor_cell::relaycell::{msg, msg::RelayMsg, RelayCell, RelayCmd, StreamId};
+use tor_cell::relaycell::{msg, msg::AnyRelayMsg, AnyRelayCell, RelayCmd, RelayMsg, StreamId};
 
 #[cfg(feature = "experimental-udp")]
 use std::{
@@ -45,13 +45,13 @@ fn decode(body: &str) -> [u8; CELL_BODY_LEN] {
     result
 }
 
-fn cell(body: &str, id: StreamId, msg: RelayMsg) {
+fn cell(body: &str, id: StreamId, msg: AnyRelayMsg) {
     let body = decode(body);
     let mut bad_rng = BadRng;
 
-    let expected = RelayCell::new(id, msg);
+    let expected = AnyRelayCell::new(id, msg);
 
-    let decoded = RelayCell::decode(body).unwrap();
+    let decoded = AnyRelayCell::decode(body).unwrap();
 
     assert_eq!(format!("{:?}", expected), format!("{:?}", decoded));
 
@@ -90,13 +90,13 @@ fn test_cells() {
     // length too big: 0x1f3 is one byte too many.
     let m = decode("02 0000 9999 12345678 01f3 6e6565642d746f2d6b6e6f77 00000000");
     assert_eq!(
-        RelayCell::decode(m).err(),
+        AnyRelayCell::decode(m).err(),
         Some(Error::BadMessage("Insufficient data in relay cell"))
     );
 
     // check accessors.
     let m = decode("02 0000 9999 12345678 01f2 6e6565642d746f2d6b6e6f77 00000000");
-    let c = RelayCell::decode(m).unwrap();
+    let c = AnyRelayCell::decode(m).unwrap();
     assert_eq!(c.cmd(), RelayCmd::from(2));
     assert_eq!(c.msg().cmd(), RelayCmd::from(2));
     let (s, _) = c.into_streamid_and_msg();

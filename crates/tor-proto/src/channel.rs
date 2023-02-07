@@ -75,7 +75,8 @@ use safelog::sensitive as sv;
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
-use tor_cell::chancell::{msg, msg::PaddingNegotiate, ChanCell, CircId};
+use tor_cell::chancell::ChanMsg;
+use tor_cell::chancell::{msg, msg::PaddingNegotiate, AnyChanCell, CircId};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
@@ -132,7 +133,7 @@ pub struct Channel {
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
-    cell_tx: mpsc::Sender<ChanCell>,
+    cell_tx: mpsc::Sender<AnyChanCell>,
     /// Information shared with the reactor
     details: Arc<ChannelDetails>,
 }
@@ -226,7 +227,7 @@ enum PaddingControlState {
 
 use PaddingControlState as PCS;
 
-impl Sink<ChanCell> for Channel {
+impl Sink<AnyChanCell> for Channel {
     type Error = Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -236,16 +237,16 @@ impl Sink<ChanCell> for Channel {
             .map_err(|_| ChannelClosed.into())
     }
 
-    fn start_send(self: Pin<&mut Self>, cell: ChanCell) -> Result<()> {
+    fn start_send(self: Pin<&mut Self>, cell: AnyChanCell) -> Result<()> {
         let this = self.get_mut();
         if this.details.closed.load(Ordering::SeqCst) {
             return Err(ChannelClosed.into());
         }
         this.check_cell(&cell)?;
         {
-            use msg::ChanMsg::*;
+            use msg::AnyChanMsg::*;
             match cell.msg() {
-                Relay(_) | Padding(_) | VPadding(_) => {} // too frequent to log.
+                Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
                 _ => trace!(
                     "{}: Sending {} for {}",
                     this.details.unique_id,
@@ -521,8 +522,8 @@ impl Channel {
 
     /// Check whether a cell type is permissible to be _sent_ on an
     /// open client channel.
-    fn check_cell(&self, cell: &ChanCell) -> Result<()> {
-        use msg::ChanMsg::*;
+    fn check_cell(&self, cell: &AnyChanCell) -> Result<()> {
+        use msg::AnyChanMsg::*;
         let msg = cell.msg();
         match msg {
             Created(_) | Created2(_) | CreatedFast(_) => Err(Error::from(internal!(
@@ -548,7 +549,7 @@ impl Channel {
     }
 
     /// Transmit a single cell on a channel.
-    pub async fn send_cell(&mut self, cell: ChanCell) -> Result<()> {
+    pub async fn send_cell(&mut self, cell: AnyChanCell) -> Result<()> {
         self.send(cell).await?;
 
         Ok(())
@@ -705,7 +706,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::codec::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::new_reactor;
-    use tor_cell::chancell::{msg, ChanCell};
+    use tor_cell::chancell::{msg, AnyChanCell};
     use tor_rtcompat::PreferredRuntime;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
@@ -723,18 +724,18 @@ pub(crate) mod test {
             use std::error::Error;
             let chan = fake_channel(fake_channel_details());
 
-            let cell = ChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
+            let cell = AnyChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
             assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CREATED2 cell on client channel"));
-            let cell = ChanCell::new(0.into(), msg::Certs::new_empty().into());
+            let cell = AnyChanCell::new(0.into(), msg::Certs::new_empty().into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
             assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CERTS cell after handshake is done"));
 
-            let cell = ChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());
+            let cell = AnyChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());
             let e = chan.check_cell(&cell);
             assert!(e.is_ok());
             // FIXME(eta): more difficult to test that sending works now that it has to go via reactor

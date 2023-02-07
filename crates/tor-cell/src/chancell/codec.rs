@@ -1,7 +1,7 @@
 //! Implementation for encoding and decoding of ChanCells.
 
 use super::CELL_DATA_LEN;
-use crate::chancell::{msg, ChanCell, ChanCmd, CircId};
+use crate::chancell::{msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
 use crate::Error;
 use arrayref::{array_mut_ref, array_ref};
 use tor_bytes::{self, Reader, Writer};
@@ -49,8 +49,8 @@ impl ChannelCodec {
     }
 
     /// Write the given cell into the provided BytesMut object.
-    pub fn write_cell(&mut self, item: ChanCell, dst: &mut BytesMut) -> crate::Result<()> {
-        let ChanCell { circid, msg } = item;
+    pub fn write_cell(&mut self, item: AnyChanCell, dst: &mut BytesMut) -> crate::Result<()> {
+        let AnyChanCell { circid, msg } = item;
         let cmd = msg.cmd();
         dst.write_u32(circid.into());
         dst.write_u8(cmd.into());
@@ -60,7 +60,7 @@ impl ChannelCodec {
         // now write the cell body and handle the length.
         if cmd.is_var_cell() {
             dst.write_u16(0);
-            msg.write_body_onto(dst)?;
+            msg.encode_onto(dst)?;
             let len = dst.len() - pos - 2;
             if len > std::u16::MAX as usize {
                 return Err(Error::Internal(internal!("ran out of space for varcell")));
@@ -68,7 +68,7 @@ impl ChannelCodec {
             // go back and set the length.
             *(array_mut_ref![&mut dst[pos..pos + 2], 0, 2]) = (len as u16).to_be_bytes();
         } else {
-            msg.write_body_onto(dst)?;
+            msg.encode_onto(dst)?;
             let len = dst.len() - pos;
             if len > CELL_DATA_LEN {
                 return Err(Error::Internal(internal!("ran out of space for cell")));
@@ -83,7 +83,7 @@ impl ChannelCodec {
     ///
     /// On a definite decoding error, return Err(_).  On a cell that might
     /// just be truncated, return Ok(None).
-    pub fn decode_cell(&mut self, src: &mut BytesMut) -> crate::Result<Option<ChanCell>> {
+    pub fn decode_cell(&mut self, src: &mut BytesMut) -> crate::Result<Option<AnyChanCell>> {
         /// Wrap `be` as an appropriate type.
         fn wrap_err(be: tor_bytes::Error) -> crate::Error {
             crate::Error::BytesErr {
@@ -113,7 +113,7 @@ impl ChannelCodec {
         let mut r = Reader::from_bytes(&cell);
         let circid: CircId = r.take_u32().map_err(wrap_err)?.into();
         r.advance(if varcell { 3 } else { 1 }).map_err(wrap_err)?;
-        let msg = msg::ChanMsg::take(&mut r, cmd).map_err(wrap_err)?;
+        let msg = msg::AnyChanMsg::decode_from_reader(cmd, &mut r).map_err(wrap_err)?;
 
         if !cmd.accepts_circid_val(circid) {
             return Err(Error::ChanProto(format!(
@@ -121,6 +121,6 @@ impl ChannelCodec {
                 circid, cmd
             )));
         }
-        Ok(Some(ChanCell { circid, msg }))
+        Ok(Some(AnyChanCell { circid, msg }))
     }
 }

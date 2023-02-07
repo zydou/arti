@@ -59,8 +59,8 @@ use crate::crypto::cell::{HopNum, InboundClientCrypt, OutboundClientCrypt};
 use crate::stream::{DataStream, ResolveStream, StreamParameters, StreamReader};
 use crate::{Error, ResolveError, Result};
 use tor_cell::{
-    chancell::{self, msg::ChanMsg, CircId},
-    relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
+    chancell::{self, msg::AnyChanMsg, CircId},
+    relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
 };
 
 use tor_error::{bad_api_usage, internal, into_internal};
@@ -197,7 +197,7 @@ pub(crate) struct StreamTarget {
     /// Reactor ID for this stream.
     stream_id: StreamId,
     /// Channel to send cells down.
-    tx: mpsc::Sender<RelayMsg>,
+    tx: mpsc::Sender<AnyRelayMsg>,
     /// Reference to the circuit that this stream is on.
     circ: ClientCirc,
 }
@@ -243,7 +243,7 @@ impl ClientCirc {
     //   reactor code, but "meta messages" just sounds odd.
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     #[cfg(feature = "experimental-api")]
-    pub async fn send_control_message(&self, msg: RelayMsg) -> Result<()> {
+    pub async fn send_control_message(&self, msg: AnyRelayMsg) -> Result<()> {
         todo!() // TODO hs
     }
 
@@ -391,7 +391,10 @@ impl ClientCirc {
     ///
     /// The caller will typically want to see the first cell in response,
     /// to see whether it is e.g. an END or a CONNECTED.
-    async fn begin_stream_impl(&self, begin_msg: RelayMsg) -> Result<(StreamReader, StreamTarget)> {
+    async fn begin_stream_impl(
+        &self,
+        begin_msg: AnyRelayMsg,
+    ) -> Result<(StreamReader, StreamTarget)> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
@@ -439,7 +442,7 @@ impl ClientCirc {
 
     /// Start a DataStream (anonymized connection) to the given
     /// address and port, using a BEGIN cell.
-    async fn begin_data_stream(&self, msg: RelayMsg, optimistic: bool) -> Result<DataStream> {
+    async fn begin_data_stream(&self, msg: AnyRelayMsg, optimistic: bool) -> Result<DataStream> {
         let (reader, target) = self.begin_stream_impl(msg).await?;
         let mut stream = DataStream::new(reader, target);
         if !optimistic {
@@ -474,7 +477,8 @@ impl ClientCirc {
         // Since they are local to a relay that we've already authenticated
         // with and built a circuit to, there should be no additional checks
         // we need to perform to see whether the BEGINDIR will succeed.
-        self.begin_data_stream(RelayMsg::BeginDir, true).await
+        self.begin_data_stream(AnyRelayMsg::BeginDir(Default::default()), true)
+            .await
     }
 
     /// Perform a DNS lookup, using a RESOLVE cell with the last relay
@@ -694,7 +698,7 @@ impl PendingClientCirc {
 /// cell, and unwrap a CREATED* cell.
 trait CreateHandshakeWrap {
     /// Construct an appropriate ChanMsg to hold this kind of handshake.
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> ChanMsg;
+    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg;
     /// Decode a ChanMsg to an appropriate handshake value, checking
     /// its type.
     fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>>;
@@ -704,7 +708,7 @@ trait CreateHandshakeWrap {
 struct CreateFastWrap;
 
 impl CreateHandshakeWrap for CreateFastWrap {
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> ChanMsg {
+    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {
         chancell::msg::CreateFast::new(bytes).into()
     }
     fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>> {
@@ -728,7 +732,7 @@ struct Create2Wrap {
     handshake_type: u16,
 }
 impl CreateHandshakeWrap for Create2Wrap {
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> ChanMsg {
+    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {
         chancell::msg::Create2::new(self.handshake_type, bytes).into()
     }
     fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>> {
@@ -750,7 +754,7 @@ impl StreamTarget {
     /// The StreamTarget will set the correct stream ID and pick the
     /// right hop, but will not validate that the message is well-formed
     /// or meaningful in context.
-    pub(crate) async fn send(&mut self, msg: RelayMsg) -> Result<()> {
+    pub(crate) async fn send(&mut self, msg: AnyRelayMsg) -> Result<()> {
         self.tx.send(msg).await.map_err(|_| Error::CircuitClosed)?;
         Ok(())
     }
@@ -801,7 +805,7 @@ mod test {
     use super::*;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
-    use chanmsg::{ChanMsg, Created2, CreatedFast};
+    use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use futures::sink::SinkExt;
@@ -810,17 +814,17 @@ mod test {
     use hex_literal::hex;
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::chancell::{msg as chanmsg, ChanCell};
-    use tor_cell::relaycell::{msg as relaymsg, RelayCell, StreamId};
+    use tor_cell::chancell::{msg as chanmsg, AnyChanCell};
+    use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
-    fn rmsg_to_ccmsg<ID>(id: ID, msg: relaymsg::RelayMsg) -> ClientCircChanMsg
+    fn rmsg_to_ccmsg<ID>(id: ID, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg
     where
         ID: Into<StreamId>,
     {
-        let body: RelayCellBody = RelayCell::new(id.into(), msg)
+        let body: RelayCellBody = AnyRelayCell::new(id.into(), msg)
             .encode(&mut testing_rng())
             .unwrap()
             .into();
@@ -855,8 +859,8 @@ mod test {
         rt: &R,
     ) -> (
         Channel,
-        Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, CodecError>>,
+        Receiver<AnyChanCell>,
+        Sender<std::result::Result<AnyChanCell, CodecError>>,
     ) {
         let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
         rt.spawn(async {
@@ -893,14 +897,14 @@ mod test {
             assert_eq!(create_cell.circid(), 128.into());
             let reply = if fast {
                 let cf = match create_cell.msg() {
-                    ChanMsg::CreateFast(cf) => cf,
+                    AnyChanMsg::CreateFast(cf) => cf,
                     _ => panic!(),
                 };
                 let (_, rep) = CreateFastServer::server(&mut rng, &[()], cf.handshake()).unwrap();
                 CreateResponse::CreatedFast(CreatedFast::new(rep))
             } else {
                 let c2 = match create_cell.msg() {
-                    ChanMsg::Create2(c2) => c2,
+                    AnyChanMsg::Create2(c2) => c2,
                     _ => panic!(),
                 };
                 let (_, rep) =
@@ -1050,7 +1054,7 @@ mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
             let (circ, _send) = newcirc(&rt, chan).await;
-            let begindir = RelayCell::new(0.into(), RelayMsg::BeginDir);
+            let begindir = AnyRelayCell::new(0.into(), AnyRelayMsg::BeginDir(Default::default()));
             circ.control
                 .unbounded_send(CtrlMsg::SendRelayCell {
                     hop: 2.into(),
@@ -1064,10 +1068,10 @@ mod test {
             let rcvd = rx.next().await.unwrap();
             assert_eq!(rcvd.circid(), 128.into());
             let m = match rcvd.into_circid_and_msg().1 {
-                ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
-            assert!(matches!(m.msg(), RelayMsg::BeginDir));
+            assert!(matches!(m.msg(), AnyRelayMsg::BeginDir(_)));
         });
     }
 
@@ -1157,11 +1161,11 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, 128.into());
                 let rmsg = match chmsg {
-                    ChanMsg::RelayEarly(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::RelayEarly(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let e2 = match rmsg.msg() {
-                    RelayMsg::Extend2(e2) => e2,
+                    AnyRelayMsg::Extend2(e2) => e2,
                     _ => panic!(),
                 };
                 let mut rng = testing_rng();
@@ -1294,11 +1298,11 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, 128.into()); // hardcoded circid.
                 let rmsg = match chmsg {
-                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-                assert!(matches!(rmsg, RelayMsg::BeginDir));
+                assert!(matches!(rmsg, AnyRelayMsg::BeginDir(_)));
 
                 // Reply with a Connected cell to indicate success.
                 let connected = relaymsg::Connected::new_empty().into();
@@ -1308,12 +1312,12 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, 128.into());
                 let rmsg = match chmsg {
-                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid_2, rmsg) = rmsg.into_streamid_and_msg();
                 assert_eq!(streamid_2, streamid);
-                if let RelayMsg::Data(d) = rmsg {
+                if let AnyRelayMsg::Data(d) = rmsg {
                     assert_eq!(d.as_ref(), &b"HTTP/1.0 GET /\r\n"[..]);
                 } else {
                     panic!();
@@ -1346,8 +1350,8 @@ mod test {
         mpsc::Sender<ClientCircChanMsg>,
         StreamId,
         usize,
-        Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, CodecError>>,
+        Receiver<AnyChanCell>,
+        Sender<std::result::Result<AnyChanCell, CodecError>>,
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
@@ -1374,11 +1378,11 @@ mod test {
             // Read the begindir cell.
             let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             let rmsg = match chmsg {
-                ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
             let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-            assert!(matches!(rmsg, RelayMsg::Begin(_)));
+            assert!(matches!(rmsg, AnyRelayMsg::Begin(_)));
             // Reply with a connected cell...
             let connected = relaymsg::Connected::new_empty().into();
             sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
@@ -1391,12 +1395,12 @@ mod test {
                 assert_eq!(id, 128.into());
 
                 let rmsg = match chmsg {
-                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid2, rmsg) = rmsg.into_streamid_and_msg();
                 assert_eq!(streamid2, streamid);
-                if let RelayMsg::Data(dat) = rmsg {
+                if let AnyRelayMsg::Data(dat) = rmsg {
                     cells_received += 1;
                     bytes_received += dat.as_ref().len();
                 } else {

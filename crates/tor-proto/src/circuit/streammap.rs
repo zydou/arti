@@ -6,7 +6,7 @@ use crate::{Error, Result};
 /// Mapping from stream ID to streams.
 // NOTE: This is a work in progress and I bet I'll refactor it a lot;
 // it needs to stay opaque!
-use tor_cell::relaycell::{msg::RelayMsg, StreamId};
+use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 
 use futures::channel::mpsc;
 use std::collections::hash_map::Entry;
@@ -24,9 +24,9 @@ pub(super) enum StreamEnt {
     /// An open stream.
     Open {
         /// Sink to send relay cells tagged for this stream into.
-        sink: mpsc::Sender<RelayMsg>,
+        sink: mpsc::Sender<AnyRelayMsg>,
         /// Stream for cells that should be sent down this stream.
-        rx: mpsc::Receiver<RelayMsg>,
+        rx: mpsc::Receiver<AnyRelayMsg>,
         /// Send window, for congestion control purposes.
         send_window: sendme::StreamSendWindow,
         /// Number of cells dropped due to the stream disappearing before we can
@@ -105,8 +105,8 @@ impl StreamMap {
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
-        sink: mpsc::Sender<RelayMsg>,
-        rx: mpsc::Receiver<RelayMsg>,
+        sink: mpsc::Sender<AnyRelayMsg>,
+        rx: mpsc::Receiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
     ) -> Result<StreamId> {
         let stream_ent = StreamEnt::Open {

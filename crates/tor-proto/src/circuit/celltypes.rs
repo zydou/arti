@@ -6,7 +6,10 @@
 
 use crate::{Error, Result};
 use std::fmt::{self, Display};
-use tor_cell::chancell::msg::{self as chanmsg, ChanMsg};
+use tor_cell::chancell::{
+    msg::{self as chanmsg, AnyChanMsg},
+    ChanMsg,
+};
 
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
@@ -34,14 +37,14 @@ impl Display for CreateResponse {
     }
 }
 
-impl TryFrom<ChanMsg> for CreateResponse {
+impl TryFrom<AnyChanMsg> for CreateResponse {
     type Error = crate::Error;
 
-    fn try_from(m: ChanMsg) -> Result<CreateResponse> {
+    fn try_from(m: AnyChanMsg) -> Result<CreateResponse> {
         match m {
-            ChanMsg::Destroy(m) => Ok(CreateResponse::Destroy(m)),
-            ChanMsg::CreatedFast(m) => Ok(CreateResponse::CreatedFast(m)),
-            ChanMsg::Created2(m) => Ok(CreateResponse::Created2(m)),
+            AnyChanMsg::Destroy(m) => Ok(CreateResponse::Destroy(m)),
+            AnyChanMsg::CreatedFast(m) => Ok(CreateResponse::CreatedFast(m)),
+            AnyChanMsg::Created2(m) => Ok(CreateResponse::Created2(m)),
             _ => Err(Error::ChanProto(format!(
                 "Got a {} in response to circuit creation",
                 m.cmd()
@@ -63,13 +66,13 @@ pub enum ClientCircChanMsg {
     // Note: RelayEarly is not valid for clients!
 }
 
-impl TryFrom<ChanMsg> for ClientCircChanMsg {
+impl TryFrom<AnyChanMsg> for ClientCircChanMsg {
     type Error = crate::Error;
 
-    fn try_from(m: ChanMsg) -> Result<ClientCircChanMsg> {
+    fn try_from(m: AnyChanMsg) -> Result<ClientCircChanMsg> {
         match m {
-            ChanMsg::Destroy(m) => Ok(ClientCircChanMsg::Destroy(m)),
-            ChanMsg::Relay(m) => Ok(ClientCircChanMsg::Relay(m)),
+            AnyChanMsg::Destroy(m) => Ok(ClientCircChanMsg::Destroy(m)),
+            AnyChanMsg::Relay(m) => Ok(ClientCircChanMsg::Relay(m)),
             _ => Err(Error::ChanProto(format!(
                 "Got a {} cell on an open circuit",
                 m.cmd()
@@ -94,11 +97,11 @@ mod test {
 
     #[test]
     fn create_response() {
-        use tor_cell::chancell::msg::{self, ChanMsg};
-        fn good(m: ChanMsg) {
+        use tor_cell::chancell::msg::{self, AnyChanMsg};
+        fn good(m: AnyChanMsg) {
             assert!(CreateResponse::try_from(m).is_ok());
         }
-        fn bad(m: ChanMsg) {
+        fn bad(m: AnyChanMsg) {
             assert!(CreateResponse::try_from(m).is_err());
         }
 
@@ -111,11 +114,11 @@ mod test {
 
     #[test]
     fn client_circ_chan_msg() {
-        use tor_cell::chancell::msg::{self, ChanMsg};
-        fn good(m: ChanMsg) {
+        use tor_cell::chancell::msg::{self, AnyChanMsg};
+        fn good(m: AnyChanMsg) {
             assert!(ClientCircChanMsg::try_from(m).is_ok());
         }
-        fn bad(m: ChanMsg) {
+        fn bad(m: AnyChanMsg) {
             assert!(ClientCircChanMsg::try_from(m).is_err());
         }
 
@@ -123,7 +126,7 @@ mod test {
         bad(msg::CreatedFast::new(&b"guaranteed in this world"[..]).into());
         bad(msg::Created2::new(&b"and the next"[..]).into());
         good(msg::Relay::new(&b"guaranteed guaranteed"[..]).into());
-        bad(msg::ChanMsg::RelayEarly(msg::Relay::new(
+        bad(msg::AnyChanMsg::RelayEarly(msg::Relay::new(
             &b"for the world and its mother"[..],
         )));
         bad(msg::Versions::new([1, 2, 3]).unwrap().into());

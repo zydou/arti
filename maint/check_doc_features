@@ -54,6 +54,11 @@ additional_provided['tor-netdoc']= [
 ]
 
 
+additional_provided['tor-cell'] = [
+    ('{', 'feature = "onion-service"'),
+    ('{ConnectUdp, ConnectedUdp, Datagram}', 'feature = "experimental-udp"'),
+]
+
 def extract_feature_pub_use(path):
     START_CFG = '#[cfg('
     END_CFG = ')]'

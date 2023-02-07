@@ -14,9 +14,9 @@ use crate::{Error, Result};
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use tor_cell::chancell::msg::{ChanMsg, Relay};
-use tor_cell::relaycell::msg::{End, RelayMsg, Sendme};
-use tor_cell::relaycell::{RelayCell, RelayCmd, StreamId};
+use tor_cell::chancell::msg::{AnyChanMsg, Relay};
+use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
+use tor_cell::relaycell::{AnyRelayCell, RelayCmd, RelayMsg, StreamId};
 
 use futures::channel::{mpsc, oneshot};
 use futures::Sink;
@@ -34,8 +34,8 @@ use crate::circuit::sendme::StreamSendWindow;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
-use tor_cell::chancell;
-use tor_cell::chancell::{ChanCell, CircId};
+use tor_cell::chancell::{self, ChanMsg};
+use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_linkspec::{LinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
 use tracing::{debug, trace, warn};
@@ -111,16 +111,16 @@ pub(super) enum CtrlMsg {
         /// The hop number to begin the stream with.
         hop_num: HopNum,
         /// The message to send.
-        message: RelayMsg,
+        message: AnyRelayMsg,
         /// A channel to send messages on this stream down.
         ///
         /// This sender shouldn't ever block, because we use congestion control and only send
         /// SENDME cells once we've read enough out of the other end. If it *does* block, we
         /// can assume someone is trying to send us more cells than they should, and abort
         /// the stream.
-        sender: mpsc::Sender<RelayMsg>,
+        sender: mpsc::Sender<AnyRelayMsg>,
         /// A channel to receive messages to send on this stream from.
-        rx: mpsc::Receiver<RelayMsg>,
+        rx: mpsc::Receiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<StreamId>,
     },
@@ -153,7 +153,7 @@ pub(super) enum CtrlMsg {
     SendRelayCell {
         hop: HopNum,
         early: bool,
-        cell: RelayCell,
+        cell: AnyRelayCell,
     },
 }
 /// Represents the reactor's view of a single hop.
@@ -182,7 +182,7 @@ pub(super) struct CircHop {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    outbound: VecDeque<(bool, RelayCell)>,
+    outbound: VecDeque<(bool, AnyRelayCell)>,
 }
 
 /// Enumeration to determine whether we require circuit-level SENDME cells to be
@@ -260,7 +260,7 @@ pub(super) trait MetaCellHandler: Send {
     /// Called when the message we were waiting for arrives.
     ///
     /// Gets a copy of the `Reactor` in order to do anything it likes there.
-    fn finish(&mut self, msg: RelayMsg, reactor: &mut Reactor) -> Result<()>;
+    fn finish(&mut self, msg: AnyRelayMsg, reactor: &mut Reactor) -> Result<()>;
 }
 
 /// An object that can extend a circuit by one hop, using the `MetaCellHandler` trait.
@@ -339,7 +339,7 @@ where
         );
 
         let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
-        let cell = RelayCell::new(0.into(), extend_msg.into_message());
+        let cell = AnyRelayCell::new(0.into(), extend_msg.into_message());
 
         // Send the message to the last hop...
         reactor.send_relay_cell(
@@ -373,7 +373,7 @@ where
     fn expected_hop(&self) -> HopNum {
         self.expected_hop
     }
-    fn finish(&mut self, msg: RelayMsg, reactor: &mut Reactor) -> Result<()> {
+    fn finish(&mut self, msg: AnyRelayMsg, reactor: &mut Reactor) -> Result<()> {
         // Did we get the right response?
         if msg.cmd() != RelayCmd::EXTENDED2 {
             return Err(Error::CircProto(format!(
@@ -386,7 +386,7 @@ where
         // ???? cases in this function?
 
         let msg = match msg {
-            RelayMsg::Extended2(e) => e,
+            AnyRelayMsg::Extended2(e) => e,
             _ => {
                 return Err(Error::from(internal!(
                     "Message body {:?} didn't match cmd {:?}",
@@ -442,7 +442,7 @@ pub struct Reactor {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    pub(super) outbound: VecDeque<ChanCell>,
+    pub(super) outbound: VecDeque<AnyChanCell>,
     /// The channel this circuit is using to send cells through.
     pub(super) channel: Channel,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
@@ -602,7 +602,7 @@ impl Reactor {
                                     match Pin::new(rx).poll_next(cx) {
                                         Poll::Ready(Some(m)) => {
                                             stream_relaycells
-                                                .push((hop_num, RelayCell::new(*id, m)));
+                                                .push((hop_num, AnyRelayCell::new(*id, m)));
                                         }
                                         Poll::Ready(None) => {
                                             // Stream receiver was dropped; close the stream.
@@ -822,12 +822,12 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: RelayMsg) -> Result<CellStatus> {
+    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: AnyRelayMsg) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
-        if let RelayMsg::Sendme(s) = msg {
+        if let AnyRelayMsg::Sendme(s) = msg {
             return self.handle_sendme(hopnum, s);
         }
-        if let RelayMsg::Truncated(t) = msg {
+        if let AnyRelayMsg::Truncated(t) = msg {
             let reason = t.reason();
             debug!(
                 "{}: Truncated from hop {}. Reason: {} [{}]",
@@ -918,8 +918,8 @@ impl Reactor {
     /// check whether the channel is ready to receive messages (`self.channel.poll_ready`), and
     /// ideally use this to implement backpressure (such that you do not read from other sources
     /// that would send here while you know you're unable to forward the messages on).
-    fn send_msg_direct(&mut self, cx: &mut Context<'_>, msg: ChanMsg) -> Result<()> {
-        let cell = ChanCell::new(self.channel_id, msg);
+    fn send_msg_direct(&mut self, cx: &mut Context<'_>, msg: AnyChanMsg) -> Result<()> {
+        let cell = AnyChanCell::new(self.channel_id, msg);
         // NOTE(eta): We need to check whether the outbound queue is empty before trying to send:
         //            if we just checked whether the channel was ready, it'd be possible for
         //            cells to be sent out of order, since it could transition from not ready to
@@ -950,7 +950,7 @@ impl Reactor {
     }
 
     /// Wrapper around `send_msg_direct` that uses `futures::future::poll_fn` to get a `Context`.
-    async fn send_msg(&mut self, msg: ChanMsg) -> Result<()> {
+    async fn send_msg(&mut self, msg: AnyChanMsg) -> Result<()> {
         // HACK(eta): technically the closure passed to `poll_fn` is a `FnMut` closure, since it
         //            can be polled multiple times.
         //            We're going to return Ready immediately since we're only using `poll_fn` to
@@ -974,7 +974,7 @@ impl Reactor {
         cx: &mut Context<'_>,
         hop: HopNum,
         early: bool,
-        cell: RelayCell,
+        cell: AnyRelayCell,
     ) -> Result<()> {
         let c_t_w = sendme::cell_counts_towards_windows(&cell);
         let stream_id = cell.stream_id();
@@ -1007,9 +1007,9 @@ impl Reactor {
         //            the whole circuit (e.g. by returning an error).
         let msg = chancell::msg::Relay::from_raw(body.into());
         let msg = if early {
-            ChanMsg::RelayEarly(msg)
+            AnyChanMsg::RelayEarly(msg)
         } else {
-            ChanMsg::Relay(msg)
+            AnyChanMsg::Relay(msg)
         };
         // If the cell counted towards our sendme window, decrement
         // that window, and maybe remember the authentication tag.
@@ -1102,7 +1102,7 @@ impl Reactor {
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
-                let cell = RelayCell::new(stream_id, sendme.into());
+                let cell = AnyRelayCell::new(stream_id, sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
             }
             #[cfg(test)]
@@ -1158,16 +1158,16 @@ impl Reactor {
         &mut self,
         cx: &mut Context<'_>,
         hopnum: HopNum,
-        message: RelayMsg,
-        sender: mpsc::Sender<RelayMsg>,
-        rx: mpsc::Receiver<RelayMsg>,
+        message: AnyRelayMsg,
+        sender: mpsc::Sender<AnyRelayMsg>,
+        rx: mpsc::Receiver<AnyRelayMsg>,
     ) -> Result<StreamId> {
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::from(internal!("No such hop {:?}", hopnum)))?;
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
         let r = hop.map.add_ent(sender, rx, send_window)?;
-        let cell = RelayCell::new(r, message);
+        let cell = AnyRelayCell::new(r, message);
         self.send_relay_cell(cx, hopnum, false, cell)?;
         Ok(r)
     }
@@ -1195,7 +1195,7 @@ impl Reactor {
         // TODO: I am about 80% sure that we only send an END cell if
         // we didn't already get an END cell.  But I should double-check!
         if should_send_end == ShouldSendEnd::Send {
-            let end_cell = RelayCell::new(id, End::new_misc().into());
+            let end_cell = AnyRelayCell::new(id, End::new_misc().into());
             self.send_relay_cell(cx, hopnum, false, end_cell)?;
         }
         Ok(())
@@ -1242,8 +1242,8 @@ impl Reactor {
             tag_copy
         };
         // Decode the cell.
-        let msg =
-            RelayCell::decode(body.into()).map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+        let msg = AnyRelayCell::decode(body.into())
+            .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
 
         let c_t_w = sendme::cell_counts_towards_windows(&msg);
 
@@ -1264,7 +1264,7 @@ impl Reactor {
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
             let sendme = Sendme::new_tag(tag);
-            let cell = RelayCell::new(0.into(), sendme.into());
+            let cell = AnyRelayCell::new(0.into(), sendme.into());
             self.send_relay_cell(cx, hopnum, false, cell)?;
             self.hop_mut(hopnum)
                 .ok_or_else(|| {
@@ -1309,7 +1309,7 @@ impl Reactor {
             }) => {
                 // The stream for this message exists, and is open.
 
-                if let RelayMsg::Sendme(_) = msg {
+                if let AnyRelayMsg::Sendme(_) = msg {
                     // We need to handle sendmes here, not in the stream's
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
@@ -1317,7 +1317,7 @@ impl Reactor {
                     return Ok(CellStatus::Continue);
                 }
 
-                if matches!(msg, RelayMsg::Connected(_)) {
+                if matches!(msg, AnyRelayMsg::Connected(_)) {
                     // Remember that we've received a Connected cell, and can't get another,
                     // even if we become a HalfStream.  (This rule is enforced separately at
                     // DataStreamReader.)
@@ -1326,7 +1326,7 @@ impl Reactor {
 
                 // Remember whether this was an end cell: if so we should
                 // close the stream.
-                let is_end_cell = matches!(msg, RelayMsg::End(_));
+                let is_end_cell = matches!(msg, AnyRelayMsg::End(_));
 
                 // TODO: Add a wrapper type here to reject cells that should
                 // never go to a client, like BEGIN.
@@ -1354,7 +1354,7 @@ impl Reactor {
             Some(StreamEnt::EndSent(halfstream)) => {
                 // We sent an end but maybe the other side hasn't heard.
 
-                if matches!(msg, RelayMsg::End(_)) {
+                if matches!(msg, AnyRelayMsg::End(_)) {
                     hop.map.end_received(streamid)?;
                 } else {
                     halfstream.handle_msg(&msg)?;

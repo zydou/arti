@@ -3,6 +3,7 @@
 
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::EndReason;
+use tor_cell::relaycell::RelayMsg;
 
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::{Context, Poll};
@@ -24,7 +25,7 @@ use educe::Educe;
 use crate::circuit::StreamTarget;
 use crate::stream::StreamReader;
 use tor_basic_utils::skip_fmt;
-use tor_cell::relaycell::msg::{Data, RelayMsg};
+use tor_cell::relaycell::msg::{AnyRelayMsg, Data};
 use tor_error::internal;
 
 /// An anonymized stream over the Tor network.
@@ -594,15 +595,15 @@ impl DataReaderImpl {
         let cell = self.s.recv().await;
 
         let result = match cell {
-            Ok(RelayMsg::Connected(_)) if !self.connected => {
+            Ok(AnyRelayMsg::Connected(_)) if !self.connected => {
                 self.connected = true;
                 Ok(())
             }
-            Ok(RelayMsg::Data(d)) if self.connected => {
+            Ok(AnyRelayMsg::Data(d)) if self.connected => {
                 self.add_data(d.into());
                 Ok(())
             }
-            Ok(RelayMsg::End(e)) => Err(Error::EndReceived(e.reason())),
+            Ok(AnyRelayMsg::End(e)) => Err(Error::EndReceived(e.reason())),
             Err(e) => Err(e),
             Ok(m) => {
                 self.s.protocol_error();

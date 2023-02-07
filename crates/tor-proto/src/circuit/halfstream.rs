@@ -5,7 +5,7 @@
 
 use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
 use crate::{Error, Result};
-use tor_cell::relaycell::msg::RelayMsg;
+use tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg};
 use tor_error::internal;
 
 /// Type to track state of half-closed streams.
@@ -47,17 +47,17 @@ impl HalfStream {
     /// The caller must handle END cells; it is an internal error to pass
     /// END cells to this method.
     /// no ends here.
-    pub(super) fn handle_msg(&mut self, msg: &RelayMsg) -> Result<()> {
+    pub(super) fn handle_msg(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         match msg {
-            RelayMsg::Sendme(_) => {
+            AnyRelayMsg::Sendme(_) => {
                 self.sendw.put(Some(()))?;
                 Ok(())
             }
-            RelayMsg::Data(_) => {
+            AnyRelayMsg::Data(_) => {
                 self.recvw.take()?;
                 Ok(())
             }
-            RelayMsg::Connected(_) => {
+            AnyRelayMsg::Connected(_) => {
                 if self.connected_ok {
                     self.connected_ok = false;
                     Ok(())
@@ -67,7 +67,7 @@ impl HalfStream {
                     ))
                 }
             }
-            RelayMsg::End(_) => Err(Error::from(internal!(
+            AnyRelayMsg::End(_) => Err(Error::from(internal!(
                 "END cell in HalfStream::handle_msg()"
             ))),
             _ => Err(Error::CircProto(format!(

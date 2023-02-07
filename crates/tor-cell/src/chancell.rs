@@ -154,18 +154,38 @@ impl ChanCmd {
     }
 }
 
+/// A decoded and parsed channel cell of unrestricted type.
+pub type AnyChanCell = ChanCell<msg::AnyChanMsg>;
+
+/// Trait implemented by anything that can serve as a channel message.
+///
+/// Typically, this will be [`AnyChanMsg`](msg::AnyChanMsg) (to represent an unrestricted relay
+/// message), or some restricted subset of those messages.
+pub trait ChanMsg {
+    /// Return the [`ChanCmd`] for this message.
+    fn cmd(&self) -> ChanCmd;
+    /// Write the body of this message (not including length or command).
+    fn encode_onto<W: tor_bytes::Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()>;
+    /// Decode this message from a given reader, according to a specified
+    /// command value. The reader must be truncated to the exact length
+    /// of the body.
+    fn decode_from_reader(cmd: ChanCmd, r: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self>
+    where
+        Self: Sized;
+}
+
 /// A decoded channel cell, to be sent or received on a channel.
 #[derive(Debug)]
-pub struct ChanCell {
+pub struct ChanCell<M> {
     /// Circuit ID associated with this cell
     circid: CircId,
     /// Underlying message in this cell
-    msg: msg::ChanMsg,
+    msg: M,
 }
 
-impl ChanCell {
+impl<M: ChanMsg> ChanCell<M> {
     /// Construct a new channel cell.
-    pub fn new(circid: CircId, msg: msg::ChanMsg) -> Self {
+    pub fn new(circid: CircId, msg: M) -> Self {
         ChanCell { circid, msg }
     }
     /// Return the circuit ID for this cell.
@@ -173,11 +193,11 @@ impl ChanCell {
         self.circid
     }
     /// Return a reference to the underlying message of this cell.
-    pub fn msg(&self) -> &msg::ChanMsg {
+    pub fn msg(&self) -> &M {
         &self.msg
     }
     /// Consume this cell and return its components.
-    pub fn into_circid_and_msg(self) -> (CircId, msg::ChanMsg) {
+    pub fn into_circid_and_msg(self) -> (CircId, M) {
         (self.circid, self.msg)
     }
 }

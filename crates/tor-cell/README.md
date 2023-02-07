@@ -10,7 +10,7 @@ protocol: the channel-cell layer, and the relay-cell layer.
 
 [Channel cells](chancell::ChanCell) are sent between relays, or
 between a client and a relay, over a TLS connection.  Each of them
-encodes a single [Channel Message](chancell::msg::ChanMsg).
+encodes a single [Channel Message](chancell::ChanMsg).
 Channel messages can affect the channel itself (such as those used
 to negotiate and authenticate the channel), but more frequently are
 used with respect to a given multi-hop circuit.
@@ -25,7 +25,7 @@ message to a given hop along a circuit.
 Each RELAY cell is encrypted and decrypted (according to protocols
 not implemented in this crate) until it reaches its target.  When
 it does, it is decoded into a single [Relay
-Message](relaycell::msg::RelayMsg).  Some of these relay messages
+Message](relaycell::RelayMsg).  Some of these relay messages
 are used to manipulate circuits (e.g., by extending the circuit to
 a new hop); others are used to manipulate anonymous data-streams
 (by creating them, ending them, or sending data); and still others

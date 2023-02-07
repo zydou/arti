@@ -11,7 +11,7 @@ use crate::channel::codec::{ChannelCodec, CodecError};
 use crate::channel::UniqId;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
-use tor_cell::chancell::{msg, ChanCmd};
+use tor_cell::chancell::{msg, ChanCmd, ChanMsg};
 use tor_rtcompat::SleepProvider;
 
 use std::net::SocketAddr;
@@ -221,12 +221,12 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
         // Loop: reject duplicate and unexpected cells
         trace!("{}: waiting for rest of handshake.", self.unique_id);
         while let Some(m) = tls.next().await {
-            use msg::ChanMsg::*;
+            use msg::AnyChanMsg::*;
             let (_, m) = m.map_err(codec_err_to_handshake)?.into_circid_and_msg();
             trace!("{}: received a {} cell.", self.unique_id, m.cmd());
             match m {
                 // Are these technically allowed?
-                Padding(_) | VPadding(_) => (),
+                Padding(_) | Vpadding(_) => (),
                 // Unrecognized cells get ignored.
                 Unrecognized(_) => (),
                 // Clients don't care about AuthChallenge

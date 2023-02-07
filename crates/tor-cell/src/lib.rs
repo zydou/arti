@@ -41,6 +41,7 @@
 pub mod chancell;
 mod err;
 pub mod relaycell;
+pub mod restrict;
 
 pub use err::Error;
 

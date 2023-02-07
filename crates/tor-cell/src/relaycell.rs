@@ -177,26 +177,44 @@ impl StreamId {
     }
 }
 
+/// A decoded and parsed relay cell of unrestricted type.
+pub type AnyRelayCell = RelayCell<msg::AnyRelayMsg>;
+
+/// Trait implemented by anything that can serve as a relay message.
+///
+/// Typically, this will be [`RelayMsg`] (to represent an unrestricted relay
+/// message), or a restricted subset of `RelayMsg`.
+pub trait RelayMsg {
+    /// Return the stream command associated with this message.
+    fn cmd(&self) -> RelayCmd;
+    /// Encode the body of this message, not including command or length
+    fn encode_onto<W: tor_bytes::Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()>;
+    /// Extract the body of a message with command `cmd` from reader `r`.
+    fn decode_from_reader(cmd: RelayCmd, r: &mut Reader<'_>) -> Result<Self>
+    where
+        Self: Sized;
+}
+
 /// A decoded and parsed relay cell.
 ///
 /// Each relay cell represents a message that can be sent along a
 /// circuit, along with the ID for an associated stream that the
 /// message is meant for.
 #[derive(Debug)]
-pub struct RelayCell {
+pub struct RelayCell<M> {
     /// The stream ID for the stream that this cell corresponds to.
     streamid: StreamId,
     /// The relay message for this cell.
-    msg: msg::RelayMsg,
+    msg: M,
 }
 
-impl RelayCell {
+impl<M: RelayMsg> RelayCell<M> {
     /// Construct a new relay cell.
-    pub fn new(streamid: StreamId, msg: msg::RelayMsg) -> Self {
+    pub fn new(streamid: StreamId, msg: M) -> Self {
         RelayCell { streamid, msg }
     }
     /// Consume this cell and return its components.
-    pub fn into_streamid_and_msg(self) -> (StreamId, msg::RelayMsg) {
+    pub fn into_streamid_and_msg(self) -> (StreamId, M) {
         (self.streamid, self.msg)
     }
     /// Return the command for this cell.
@@ -208,7 +226,7 @@ impl RelayCell {
         self.streamid
     }
     /// Return the underlying message for this cell.
-    pub fn msg(&self) -> &msg::RelayMsg {
+    pub fn msg(&self) -> &M {
         &self.msg
     }
     /// Consume this relay message and encode it as a 509-byte padded cell
@@ -262,7 +280,7 @@ impl RelayCell {
     /// performed
     pub fn decode(body: RawCellBody) -> Result<Self> {
         let mut reader = Reader::from_slice(body.as_ref());
-        RelayCell::decode_from_reader(&mut reader)
+        Self::decode_from_reader(&mut reader)
     }
     /// Parse a RELAY or RELAY_EARLY cell body into a RelayCell from a reader.
     ///
@@ -278,7 +296,7 @@ impl RelayCell {
             return Err(Error::BadMessage("Insufficient data in relay cell"));
         }
         r.truncate(len);
-        let msg = msg::RelayMsg::decode_from_reader(cmd, r)?;
-        Ok(RelayCell { streamid, msg })
+        let msg = M::decode_from_reader(cmd, r)?;
+        Ok(Self { streamid, msg })
     }
 }
