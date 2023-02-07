@@ -940,6 +940,20 @@ impl NetDir {
         self.by_rsa_id_unchecked(rsa_id).is_some()
     }
 
+    /// List the hsdirs in this NetDir, that should be in the HSDir rings
+    ///
+    /// The results are not returned in any particular order.
+    #[cfg(feature = "onion-common")]
+    #[allow(dead_code)] // TODO hs
+    fn all_hsdirs(&self) -> impl Iterator<Item = (RouterStatusIdx, Relay<'_>)> {
+        self.c_relays().iter_enumerated().filter_map(|(rsi, rs)| {
+            let relay = self.relay_from_rs_and_idx(rs, rsi);
+            relay.is_hsdir_for_ring().then_some(())?;
+            let relay = relay.into_relay()?;
+            Some((rsi, relay))
+        })
+    }
+
     /// Return the parameters from the consensus, clamped to the
     /// correct ranges, with defaults filled in.
     ///
@@ -1271,6 +1285,17 @@ impl<'a> UncheckedRelay<'a> {
     /// Return true if this relay is a potential directory cache.
     pub fn is_dir_cache(&self) -> bool {
         rs_is_dir_cache(self.rs)
+    }
+    /// Return true if this relay is a hidden service directory
+    ///
+    /// Ie, if it is to be included in the hsdir ring.
+    pub fn is_hsdir_for_ring(&self) -> bool {
+        // TODO are there any other flags should we check?
+        // rend-spec-v3 2.2.3 says just
+        //   "each node listed in the current consensus with the HSDir flag"
+        // Do we need to check ed25519_id_is_usable ?
+        // See also https://gitlab.torproject.org/tpo/core/arti/-/issues/504
+        self.rs.is_flagged_hsdir()
     }
 }
 
