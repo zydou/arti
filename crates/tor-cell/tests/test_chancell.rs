@@ -3,6 +3,7 @@
 // Reminder: you can think of a cell as an message plus a circuitid.
 #![allow(clippy::uninlined_format_args)]
 
+use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{codec, msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
 use tor_cell::Error;
 
@@ -31,7 +32,7 @@ fn cell(body: &str, msg: msg::AnyChanMsg, id: CircId, pad_body: bool) {
         let mut bm = BytesMut::new();
         bm.extend_from_slice(&body[..]);
         bm.extend_from_slice(&b"next thing"[..]);
-        let decoded = codec.decode_cell(&mut bm).unwrap();
+        let decoded = codec.decode_cell::<AnyChanMsg>(&mut bm).unwrap();
         assert_eq!(bm.len(), 10);
         decoded.unwrap()
     };
@@ -40,7 +41,7 @@ fn cell(body: &str, msg: msg::AnyChanMsg, id: CircId, pad_body: bool) {
         let mut bm = BytesMut::new();
         bm.extend_from_slice(&body[..]);
         // no extra bytes this time.
-        let decoded = codec.decode_cell(&mut bm).unwrap();
+        let decoded = codec.decode_cell::<AnyChanMsg>(&mut bm).unwrap();
         assert_eq!(bm.len(), 0);
         decoded.unwrap()
     };
@@ -90,7 +91,7 @@ fn test_simple_cells() {
         let mut bm = BytesMut::new();
         bm.extend_from_slice(&m);
         codec::ChannelCodec::new(4)
-            .decode_cell(&mut bm)
+            .decode_cell::<AnyChanMsg>(&mut bm)
             .unwrap()
             .unwrap()
     };
@@ -109,7 +110,7 @@ fn short_cell(body: &str) {
     let mut bm = BytesMut::new();
     bm.extend_from_slice(&body[..]);
     let len_orig = bm.len();
-    let d = codec.decode_cell(&mut bm);
+    let d = codec.decode_cell::<AnyChanMsg>(&mut bm);
     assert!(d.unwrap().is_none()); // "Ok(None)" means truncated.
     assert_eq!(bm.len(), len_orig);
 }
@@ -141,7 +142,7 @@ fn bad_cell(body: &str, err: Error, pad_body: bool) {
         let mut bm = BytesMut::new();
         bm.extend_from_slice(&body[..]);
         bm.extend_from_slice(&b"next thing"[..]);
-        codec.decode_cell(&mut bm).err().unwrap()
+        codec.decode_cell::<AnyChanMsg>(&mut bm).err().unwrap()
     };
 
     assert_eq!(format!("{:?}", decoded), format!("{:?}", err));
