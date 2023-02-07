@@ -109,7 +109,7 @@ impl HsDescInner {
         {
             let tok = header.required(CREATE2_FORMATS)?;
             // If we ever want to support a different HTYPE, we'll need to
-            // store at least the interesection between "their" and "our" supported
+            // store at least the intersection between "their" and "our" supported
             // HTYPEs.  For now we only support one, so either this set is empty
             // and failing now is fine, or `ntor` (2) is supported, so fine.
             if !tok.args().any(|s| s == "2") {
