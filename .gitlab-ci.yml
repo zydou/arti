@@ -32,7 +32,7 @@ maint-checks:
   stage: check
   image: debian:stable-slim
   script:
-    - apt-get update && apt-get install -y python3-toml python-is-python3
+    - apt-get update && apt-get install -y python3-toml python-is-python3 git
     - ./maint/check_toposort
     - ./maint/add_warning --check
 
@@ -46,6 +46,7 @@ doc-features:
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_doc_features
+    - ./maint/shebang
 
 rust-checks:
   # This is too slow (and the cacheing of the "cargo build" too flaky) to be a "check"
