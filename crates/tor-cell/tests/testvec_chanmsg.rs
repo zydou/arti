@@ -6,7 +6,7 @@ use tor_bytes::Error as BytesError;
 /// Except where noted, these were taken by instrumenting Tor
 /// 0.4.5.0-alpha-dev to dump all of its cells to the logs, and
 /// running in a chutney network with "test-network-all".
-use tor_cell::chancell::{msg, ChanCmd, ChanMsgClass};
+use tor_cell::chancell::{msg, ChanCmd, ChanMsg};
 use tor_units::IntegerMilliseconds;
 
 use std::net::IpAddr;
@@ -29,19 +29,19 @@ fn unhex(s: &str, pad_to_len: bool) -> Vec<u8> {
 fn decode_err(cmd: ChanCmd, s: &str, pad_to_len: bool) -> BytesError {
     let body = unhex(s, pad_to_len);
     let mut r = tor_bytes::Reader::from_slice(&body[..]);
-    msg::ChanMsg::decode_from_reader(cmd, &mut r).unwrap_err()
+    msg::AnyChanMsg::decode_from_reader(cmd, &mut r).unwrap_err()
 }
 
-fn test_decode(cmd: ChanCmd, s: &str, pad_to_len: bool) -> (Vec<u8>, msg::ChanMsg) {
+fn test_decode(cmd: ChanCmd, s: &str, pad_to_len: bool) -> (Vec<u8>, msg::AnyChanMsg) {
     let body = unhex(s, pad_to_len);
     let mut r = tor_bytes::Reader::from_slice(&body[..]);
-    let msg = msg::ChanMsg::decode_from_reader(cmd, &mut r).unwrap();
+    let msg = msg::AnyChanMsg::decode_from_reader(cmd, &mut r).unwrap();
 
     (body, msg)
 }
 
 /// check whether a cell body encoded in a hex string matches a given message.
-fn test_body(cmd: ChanCmd, s: &str, m: &msg::ChanMsg, pad_to_len: bool) {
+fn test_body(cmd: ChanCmd, s: &str, m: &msg::AnyChanMsg, pad_to_len: bool) {
     assert_eq!(cmd, m.cmd());
 
     let (body, decoded) = test_decode(cmd, s, pad_to_len);
@@ -66,12 +66,12 @@ fn test_body(cmd: ChanCmd, s: &str, m: &msg::ChanMsg, pad_to_len: bool) {
 }
 
 /// version for variable-length cells
-fn vbody(cmd: ChanCmd, s: &str, m: &msg::ChanMsg) {
+fn vbody(cmd: ChanCmd, s: &str, m: &msg::AnyChanMsg) {
     test_body(cmd, s, m, false)
 }
 
 /// version for fixed-length cells
-fn fbody(cmd: ChanCmd, s: &str, m: &msg::ChanMsg) {
+fn fbody(cmd: ChanCmd, s: &str, m: &msg::AnyChanMsg) {
     test_body(cmd, s, m, true)
 }
 
@@ -277,7 +277,7 @@ fn test_netinfo() {
          06 10 00000000000000000000000000000001",
         false,
     );
-    let expect: msg::ChanMsg =
+    let expect: msg::AnyChanMsg =
         msg::Netinfo::from_relay(0x5f6f859c, None, &[localhost_v6][..]).into();
     assert_eq!(format!("{:?}", netinfo), format!("{:?}", expect));
 

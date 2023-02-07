@@ -2,7 +2,7 @@
 //! crate.
 use std::io::Error as IoError;
 
-use tor_cell::chancell::{codec, ChanCell};
+use tor_cell::chancell::{codec, AnyChanCell};
 
 use asynchronous_codec as futures_codec;
 use bytes::BytesMut;
@@ -43,7 +43,7 @@ impl ChannelCodec {
 }
 
 impl futures_codec::Encoder for ChannelCodec {
-    type Item = ChanCell;
+    type Item = AnyChanCell;
     type Error = CodecError;
 
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
@@ -53,7 +53,7 @@ impl futures_codec::Encoder for ChannelCodec {
 }
 
 impl futures_codec::Decoder for ChannelCodec {
-    type Item = ChanCell;
+    type Item = AnyChanCell;
     type Error = CodecError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -72,7 +72,7 @@ pub(crate) mod test {
     use std::pin::Pin;
 
     use super::{futures_codec, ChannelCodec};
-    use tor_cell::chancell::{msg, ChanCell, ChanCmd, ChanMsgClass, CircId};
+    use tor_cell::chancell::{msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
 
     /// Helper type for reading and writing bytes to/from buffers.
     // TODO: We might want to move this
@@ -140,13 +140,13 @@ pub(crate) mod test {
 
             let destroycell = msg::Destroy::new(2.into());
             framed
-                .send(ChanCell::new(7.into(), destroycell.into()))
+                .send(AnyChanCell::new(7.into(), destroycell.into()))
                 .await
                 .unwrap();
 
             let nocerts = msg::Certs::new_empty();
             framed
-                .send(ChanCell::new(0.into(), nocerts.into()))
+                .send(AnyChanCell::new(0.into(), nocerts.into()))
                 .await
                 .unwrap();
 

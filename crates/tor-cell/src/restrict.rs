@@ -65,12 +65,12 @@ macro_rules! restricted_msg {
     } => {
         $crate::restrict::restricted_msg!{
             [
-            base_type: $crate::chancell::msg::ChanMsg,
+            base_type: $crate::chancell::msg::AnyChanMsg,
             msg_mod: $crate::chancell::msg,
             cmd_type: $crate::chancell::ChanCmd,
             unrecognized: $crate::chancell::msg::Unrecognized,
             body_trait: $crate::chancell::msg::Body,
-            msg_trait: $crate::chancell::ChanMsgClass
+            msg_trait: $crate::chancell::ChanMsg
             ]
             $(#[$meta])*
             $v enum $name { $($tt)*}

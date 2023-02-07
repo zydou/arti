@@ -59,7 +59,7 @@ use crate::crypto::cell::{HopNum, InboundClientCrypt, OutboundClientCrypt};
 use crate::stream::{DataStream, ResolveStream, StreamParameters, StreamReader};
 use crate::{Error, ResolveError, Result};
 use tor_cell::{
-    chancell::{self, msg::ChanMsg, CircId},
+    chancell::{self, msg::AnyChanMsg, CircId},
     relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
 };
 
@@ -695,7 +695,7 @@ impl PendingClientCirc {
 /// cell, and unwrap a CREATED* cell.
 trait CreateHandshakeWrap {
     /// Construct an appropriate ChanMsg to hold this kind of handshake.
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> ChanMsg;
+    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg;
     /// Decode a ChanMsg to an appropriate handshake value, checking
     /// its type.
     fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>>;
@@ -705,7 +705,7 @@ trait CreateHandshakeWrap {
 struct CreateFastWrap;
 
 impl CreateHandshakeWrap for CreateFastWrap {
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> ChanMsg {
+    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {
         chancell::msg::CreateFast::new(bytes).into()
     }
     fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>> {
@@ -729,7 +729,7 @@ struct Create2Wrap {
     handshake_type: u16,
 }
 impl CreateHandshakeWrap for Create2Wrap {
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> ChanMsg {
+    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {
         chancell::msg::Create2::new(self.handshake_type, bytes).into()
     }
     fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>> {
@@ -802,7 +802,7 @@ mod test {
     use super::*;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
-    use chanmsg::{ChanMsg, Created2, CreatedFast};
+    use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use futures::sink::SinkExt;
@@ -811,7 +811,7 @@ mod test {
     use hex_literal::hex;
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::chancell::{msg as chanmsg, ChanCell};
+    use tor_cell::chancell::{msg as chanmsg, AnyChanCell};
     use tor_cell::relaycell::{msg as relaymsg, RelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -856,8 +856,8 @@ mod test {
         rt: &R,
     ) -> (
         Channel,
-        Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, CodecError>>,
+        Receiver<AnyChanCell>,
+        Sender<std::result::Result<AnyChanCell, CodecError>>,
     ) {
         let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
         rt.spawn(async {
@@ -894,14 +894,14 @@ mod test {
             assert_eq!(create_cell.circid(), 128.into());
             let reply = if fast {
                 let cf = match create_cell.msg() {
-                    ChanMsg::CreateFast(cf) => cf,
+                    AnyChanMsg::CreateFast(cf) => cf,
                     _ => panic!(),
                 };
                 let (_, rep) = CreateFastServer::server(&mut rng, &[()], cf.handshake()).unwrap();
                 CreateResponse::CreatedFast(CreatedFast::new(rep))
             } else {
                 let c2 = match create_cell.msg() {
-                    ChanMsg::Create2(c2) => c2,
+                    AnyChanMsg::Create2(c2) => c2,
                     _ => panic!(),
                 };
                 let (_, rep) =
@@ -1065,7 +1065,7 @@ mod test {
             let rcvd = rx.next().await.unwrap();
             assert_eq!(rcvd.circid(), 128.into());
             let m = match rcvd.into_circid_and_msg().1 {
-                ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
             assert!(matches!(m.msg(), RelayMsg::BeginDir(_)));
@@ -1158,7 +1158,7 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, 128.into());
                 let rmsg = match chmsg {
-                    ChanMsg::RelayEarly(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::RelayEarly(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let e2 = match rmsg.msg() {
@@ -1295,7 +1295,7 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, 128.into()); // hardcoded circid.
                 let rmsg = match chmsg {
-                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
@@ -1309,7 +1309,7 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, 128.into());
                 let rmsg = match chmsg {
-                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid_2, rmsg) = rmsg.into_streamid_and_msg();
@@ -1347,8 +1347,8 @@ mod test {
         mpsc::Sender<ClientCircChanMsg>,
         StreamId,
         usize,
-        Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, CodecError>>,
+        Receiver<AnyChanCell>,
+        Sender<std::result::Result<AnyChanCell, CodecError>>,
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
@@ -1375,7 +1375,7 @@ mod test {
             // Read the begindir cell.
             let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             let rmsg = match chmsg {
-                ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
             let (streamid, rmsg) = rmsg.into_streamid_and_msg();
@@ -1392,7 +1392,7 @@ mod test {
                 assert_eq!(id, 128.into());
 
                 let rmsg = match chmsg {
-                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid2, rmsg) = rmsg.into_streamid_and_msg();

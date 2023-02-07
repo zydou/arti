@@ -155,13 +155,13 @@ impl ChanCmd {
 }
 
 /// A decoded and parsed channel cell of unrestricted type.
-pub type ChanCell = RestrictedChanCell<msg::ChanMsg>;
+pub type AnyChanCell = ChanCell<msg::AnyChanMsg>;
 
 /// Trait implemented by anything that can serve as a channel message.
 ///
 /// Typically, this will be [`RelayMsg`] (to represent an unrestricted relay
 /// message), or a restricted subset of `RelayMsg`.
-pub trait ChanMsgClass {
+pub trait ChanMsg {
     /// Return the [`ChanCmd`] for this message.
     fn cmd(&self) -> ChanCmd;
     /// Write the body of this message (not including length or command).
@@ -176,17 +176,17 @@ pub trait ChanMsgClass {
 
 /// A decoded channel cell, to be sent or received on a channel.
 #[derive(Debug)]
-pub struct RestrictedChanCell<M> {
+pub struct ChanCell<M> {
     /// Circuit ID associated with this cell
     circid: CircId,
     /// Underlying message in this cell
     msg: M,
 }
 
-impl<M: ChanMsgClass> RestrictedChanCell<M> {
+impl<M: ChanMsg> ChanCell<M> {
     /// Construct a new channel cell.
     pub fn new(circid: CircId, msg: M) -> Self {
-        RestrictedChanCell { circid, msg }
+        ChanCell { circid, msg }
     }
     /// Return the circuit ID for this cell.
     pub fn circid(&self) -> CircId {

@@ -14,7 +14,7 @@ use crate::{Error, Result};
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use tor_cell::chancell::msg::{ChanMsg, Relay};
+use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::relaycell::msg::{End, RelayMsg, Sendme};
 use tor_cell::relaycell::{RelayCell, RelayCmd, RelayMsgClass, StreamId};
 
@@ -34,8 +34,8 @@ use crate::circuit::sendme::StreamSendWindow;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
-use tor_cell::chancell::{self, ChanMsgClass};
-use tor_cell::chancell::{ChanCell, CircId};
+use tor_cell::chancell::{self, ChanMsg};
+use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_linkspec::{LinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
 use tracing::{debug, trace, warn};
@@ -442,7 +442,7 @@ pub struct Reactor {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    pub(super) outbound: VecDeque<ChanCell>,
+    pub(super) outbound: VecDeque<AnyChanCell>,
     /// The channel this circuit is using to send cells through.
     pub(super) channel: Channel,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
@@ -918,8 +918,8 @@ impl Reactor {
     /// check whether the channel is ready to receive messages (`self.channel.poll_ready`), and
     /// ideally use this to implement backpressure (such that you do not read from other sources
     /// that would send here while you know you're unable to forward the messages on).
-    fn send_msg_direct(&mut self, cx: &mut Context<'_>, msg: ChanMsg) -> Result<()> {
-        let cell = ChanCell::new(self.channel_id, msg);
+    fn send_msg_direct(&mut self, cx: &mut Context<'_>, msg: AnyChanMsg) -> Result<()> {
+        let cell = AnyChanCell::new(self.channel_id, msg);
         // NOTE(eta): We need to check whether the outbound queue is empty before trying to send:
         //            if we just checked whether the channel was ready, it'd be possible for
         //            cells to be sent out of order, since it could transition from not ready to
@@ -950,7 +950,7 @@ impl Reactor {
     }
 
     /// Wrapper around `send_msg_direct` that uses `futures::future::poll_fn` to get a `Context`.
-    async fn send_msg(&mut self, msg: ChanMsg) -> Result<()> {
+    async fn send_msg(&mut self, msg: AnyChanMsg) -> Result<()> {
         // HACK(eta): technically the closure passed to `poll_fn` is a `FnMut` closure, since it
         //            can be polled multiple times.
         //            We're going to return Ready immediately since we're only using `poll_fn` to
@@ -1007,9 +1007,9 @@ impl Reactor {
         //            the whole circuit (e.g. by returning an error).
         let msg = chancell::msg::Relay::from_raw(body.into());
         let msg = if early {
-            ChanMsg::RelayEarly(msg)
+            AnyChanMsg::RelayEarly(msg)
         } else {
-            ChanMsg::Relay(msg)
+            AnyChanMsg::Relay(msg)
         };
         // If the cell counted towards our sendme window, decrement
         // that window, and maybe remember the authentication tag.

@@ -3,7 +3,7 @@
 // Reminder: you can think of a cell as an message plus a circuitid.
 #![allow(clippy::uninlined_format_args)]
 
-use tor_cell::chancell::{codec, msg, ChanCell, ChanCmd, ChanMsgClass, CircId};
+use tor_cell::chancell::{codec, msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
 use tor_cell::Error;
 
 use bytes::BytesMut;
@@ -21,10 +21,10 @@ fn decode(body: &str, pad_body: bool) -> Vec<u8> {
     body
 }
 
-fn cell(body: &str, msg: msg::ChanMsg, id: CircId, pad_body: bool) {
+fn cell(body: &str, msg: msg::AnyChanMsg, id: CircId, pad_body: bool) {
     let body = decode(body, pad_body);
 
-    let cell = ChanCell::new(id, msg);
+    let cell = AnyChanCell::new(id, msg);
     let mut codec = codec::ChannelCodec::new(4);
 
     let decoded = {
@@ -57,11 +57,11 @@ fn cell(body: &str, msg: msg::ChanMsg, id: CircId, pad_body: bool) {
     assert_eq!(encoded1, body);
 }
 
-fn fcell(body: &str, msg: msg::ChanMsg, id: CircId) {
+fn fcell(body: &str, msg: msg::AnyChanMsg, id: CircId) {
     cell(body, msg, id, true);
 }
 
-fn vcell(body: &str, msg: msg::ChanMsg, id: CircId) {
+fn vcell(body: &str, msg: msg::AnyChanMsg, id: CircId) {
     cell(body, msg, id, false);
 }
 
@@ -180,6 +180,6 @@ fn versions() {
     assert_eq!(v.best_shared_link_protocol(&[4, 5]), Some(5));
 
     // Try converting into a ChanCell.
-    let cc: ChanCell = v.into();
+    let cc: AnyChanCell = v.into();
     assert_eq!(cc.circid(), 0.into());
 }
