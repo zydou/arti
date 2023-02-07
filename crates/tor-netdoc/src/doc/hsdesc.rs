@@ -10,6 +10,15 @@
 
 #![allow(dead_code, unused_variables, clippy::missing_panics_doc)] // TODO hs: remove.
 mod desc_enc;
+
+// TODO HS: Rename our terminology about these modules, the related types, and
+// the modules themselves:
+// * Call the three nested pieces of the HsDesc the "outer document", the
+//   "middle document", and the "inner document."
+// * Rename the modules to "outer", "middle", and "inner".
+// * Only use "layer" to refer to the two layers of encryption.  Call them the
+//   "encryption" layer and the "superencryption" layer for consistency with the
+//   spec.
 mod inner_layer;
 mod middle_layer;
 mod outer_layer;
