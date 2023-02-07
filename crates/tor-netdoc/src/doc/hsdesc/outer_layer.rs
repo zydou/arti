@@ -104,7 +104,7 @@ decl_keyword! {
 static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
     use HsOuterKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(HS_DESCRIPTOR.rule().required().args(1..));
     rules.add(DESCRIPTOR_LIFETIME.rule().required().args(1..));
     rules.add(DESCRIPTOR_SIGNING_KEY_CERT.rule().required().obj_required());
@@ -113,7 +113,7 @@ static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
     rules.add(SIGNATURE.rule().required().args(1..));
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
 
-    rules
+    rules.build()
 });
 
 impl HsDescOuter {

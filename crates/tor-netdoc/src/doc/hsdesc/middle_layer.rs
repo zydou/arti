@@ -181,14 +181,14 @@ decl_keyword! {
 static HS_MIDDLE_RULES: Lazy<SectionRules<HsMiddleKwd>> = Lazy::new(|| {
     use HsMiddleKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(DESC_AUTH_TYPE.rule().required().args(1..));
     rules.add(DESC_AUTH_EPHEMERAL_KEY.rule().required().args(1..));
     rules.add(AUTH_CLIENT.rule().required().may_repeat().args(3..));
     rules.add(ENCRYPTED.rule().required().obj_required());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
 
-    rules
+    rules.build()
 });
 
 impl HsDescMiddle {

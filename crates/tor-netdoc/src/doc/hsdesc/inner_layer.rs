@@ -50,13 +50,13 @@ decl_keyword! {
 static HS_INNER_HEADER_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     use HsInnerKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(CREATE2_FORMATS.rule().required().args(1..));
     rules.add(INTRO_AUTH_REQUIRED.rule().args(1..));
     rules.add(SINGLE_ONION_SERVICE.rule());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
 
-    rules
+    rules.build()
 });
 
 /// Rules about how keywords appear in each introduction-point section of an
@@ -64,7 +64,7 @@ static HS_INNER_HEADER_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
 static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     use HsInnerKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(INTRODUCTION_POINT.rule().required().args(1..));
     // Note: we're labeling ONION_KEY and ENC_KEY as "may_repeat", since even
     // though rend-spec labels them as "exactly once", they are allowed to
@@ -80,7 +80,7 @@ static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     // defend against those.  In fact, there's an easier distinguisher, since we
     // enforce UTF-8 in these documents, and C tor does not.)
 
-    rules
+    rules.build()
 });
 
 impl HsDescInner {
