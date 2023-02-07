@@ -336,7 +336,7 @@ mod test {
 
         let middle = HsDescMiddle::parse(body)?;
         let inner_body = middle
-            .decrypt_body(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
+            .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
         let inner_body = std::str::from_utf8(&inner_body).unwrap();
         let inner = HsDescInner::parse(inner_body)?;

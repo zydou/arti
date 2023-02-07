@@ -46,6 +46,8 @@ pub(super) struct HsDescEncryption<'a> {
 ///
 /// We do not yet have an identifier for this value in the spec, where we
 /// generally call it a "descriptor cookie".  Call it `N_hs_desc_enc` for now.
+//
+// TODO HS RENAME: Be consistent with the spec.
 #[derive(derive_more::AsRef, derive_more::From)]
 pub(super) struct DescEncryptionCookie([u8; 16]);
 

@@ -227,7 +227,7 @@ impl EncryptedHsDesc {
 
         // Decrypt and parse the inner layer.
         let inner = middle
-            .decrypt_body(
+            .decrypt_inner(
                 &blinded_id,
                 revision_counter,
                 subcredential,

@@ -27,43 +27,50 @@ pub(super) struct HsDescMiddle {
     /// yet have a name in our spec's list of keys.  Call it `KP_hs_desc_ephem`
     /// for now.  It is used along with `KS_hsc_desc_enc` to perform a
     /// diffie-hellman operation and decrypt the inner layer.
+    // TODO HS rename. Possibly to kp_hs_desc_ephem, depending.
     ephemeral_key: curve25519::PublicKey,
     /// One or more authorized clients, and the key exchange information that
     /// they use to compute shared keys for decrypting inner layer.
     ///
     /// Each of these is parsed from a `auth-client` line.
     auth_clients: Vec<AuthClient>,
-    /// The inner body of the onion service descriptor.
-    encrypted_body: Vec<u8>,
+    /// The (encrypted) inner document of the onion service descriptor.
+    encrypted: Vec<u8>,
 }
 
 impl HsDescMiddle {
-    /// Try to decrypt the body of an onion service descriptor middle layer.
+    /// Decrypt the encrypted inner document contained within this middle layer
+    /// document.
     ///
     /// If present, `key` is an authorization key, and we assume that the
     /// decryption is nontrivial.
-    pub(super) fn decrypt_body(
+    ///
+    /// A failure may mean either that the encryption was corrupted, or that we
+    /// didn't have the right key.
+    pub(super) fn decrypt_inner(
         &self,
         blinded_id: &BlindedOnionId,
         revision: RevisionCounter,
         subcredential: &Subcredential,
         key: Option<&ClientDescAuthSecretKey>,
     ) -> std::result::Result<Vec<u8>, DecryptionError> {
-        let encryption_cookie = key.and_then(|k| self.find_cookie(subcredential, k));
+        let descriptor_cookie = key.and_then(|k| self.find_cookie(subcredential, k));
         let decrypt = HsDescEncryption {
             blinded_id,
-            descriptor_cookie: encryption_cookie.as_ref(),
+            descriptor_cookie: descriptor_cookie.as_ref(),
             subcredential,
             revision,
             string_const: b"hsdir-encrypted-data",
         };
 
-        decrypt.decrypt(&self.encrypted_body)
+        decrypt.decrypt(&self.encrypted)
     }
 
     /// Use a `ClientDescAuthSecretKey` (`KS_hsc_desc_enc`) to see if there is any `auth-client`
-    /// entry for us in this descriptor.  If so, decrypt it and return its
-    /// corresponding `DescEncryptionCookie` (`N_hs_desc_enc`, not yet so named in the spec).
+    /// entry for us (a client who holds that secret key) in this descriptor.  
+    /// If so, decrypt it and return its
+    /// corresponding "DescriptorCookie" (`N_hs_desc_enc`, not yet so named in the spec).
+    // TODO HS Rename.  descriptor_cookie is what the spec says; see DescEncryptionCookie.
     ///
     /// If no such `N_hs_desc_enc` is found, then either we do not have
     /// permission to decrypt this layer, OR no encryption is required.
@@ -73,7 +80,7 @@ impl HsDescMiddle {
     fn find_cookie(
         &self,
         subcredential: &Subcredential,
-        key: &ClientDescAuthSecretKey,
+        ks_hsc_desc_enc: &ClientDescAuthSecretKey, // TODO HS RENAME?
     ) -> Option<DescEncryptionCookie> {
         use cipher::{KeyIvInit, StreamCipher};
         use digest::{ExtendableOutput, Update};
@@ -94,15 +101,15 @@ impl HsDescMiddle {
         // Where:
         //     hs_{X,y} = K{P,S}_hs_desc_ephem
         //     client_{X,Y} = K{P,S}_hsc_desc_enc
-        let seed = key.as_ref().diffie_hellman(&self.ephemeral_key);
+        let secret_seed = ks_hsc_desc_enc.as_ref().diffie_hellman(&self.ephemeral_key);
         let mut kdf = KDF::default();
         kdf.update(subcredential.as_ref());
-        kdf.update(seed.as_bytes());
-        let mut key_stream = kdf.finalize_xof();
+        kdf.update(secret_seed.as_bytes());
+        let mut keys = kdf.finalize_xof();
         let mut client_id = CtByteArray::from([0_u8; 8]);
         let mut cookie_key = [0_u8; 32];
-        key_stream.read(client_id.as_mut());
-        key_stream.read(&mut cookie_key);
+        keys.read(client_id.as_mut());
+        keys.read(&mut cookie_key);
 
         // See whether there is any matching client_id in self.auth_ids.
         // TODO HS: Perhaps we should use `tor_proto::util::ct::lookup`.  We would
@@ -233,7 +240,7 @@ impl HsDescMiddle {
         Ok(HsDescMiddle {
             ephemeral_key,
             auth_clients,
-            encrypted_body,
+            encrypted: encrypted_body,
         })
     }
 }
@@ -274,7 +281,7 @@ mod test {
 
         // TODO hs: write a test for the case where we _do_ have an encryption key.
         let inner_body = middle
-            .decrypt_body(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
+            .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
 
         // dbg!(std::str::from_utf8(&inner_body).unwrap());
