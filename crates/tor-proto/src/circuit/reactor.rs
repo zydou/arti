@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{ChanMsg, Relay};
 use tor_cell::relaycell::msg::{End, RelayMsg, Sendme};
-use tor_cell::relaycell::{RelayCell, RelayCmd, StreamId};
+use tor_cell::relaycell::{RelayCell, RelayCmd, RelayMsgClass, StreamId};
 
 use futures::channel::{mpsc, oneshot};
 use futures::Sink;

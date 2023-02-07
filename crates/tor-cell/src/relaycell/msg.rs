@@ -119,21 +119,6 @@ impl<B: Body> From<B> for RelayMsg {
     }
 }
 
-impl RelayMsg {
-    /// Return the stream command associated with this message.
-    pub fn cmd(&self) -> RelayCmd {
-        super::RelayMsgClass::cmd(self)
-    }
-    /// Encode the body of this message, not including command or length
-    pub fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()> {
-        super::RelayMsgClass::encode_onto(self, w)
-    }
-    /// Extract the body of a message with command `cmd` from reader `r`.
-    pub fn decode_from_reader(cmd: RelayCmd, r: &mut Reader<'_>) -> Result<Self> {
-        super::RelayMsgClass::decode_from_reader(cmd, r)
-    }
-}
-
 bitflags! {
     /// A set of recognized flags that can be attached to a begin cell.
     ///

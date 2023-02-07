@@ -3,6 +3,7 @@
 use crate::stream::StreamReader;
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::{RelayMsg, Resolved};
+use tor_cell::relaycell::RelayMsgClass;
 
 /// A ResolveStream represents a pending DNS request made with a RESOLVE
 /// cell.

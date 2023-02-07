@@ -5,7 +5,7 @@
 
 use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
 use crate::{Error, Result};
-use tor_cell::relaycell::msg::RelayMsg;
+use tor_cell::relaycell::{msg::RelayMsg, RelayMsgClass};
 use tor_error::internal;
 
 /// Type to track state of half-closed streams.

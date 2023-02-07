@@ -3,6 +3,7 @@
 
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::EndReason;
+use tor_cell::relaycell::RelayMsgClass;
 
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::{Context, Poll};

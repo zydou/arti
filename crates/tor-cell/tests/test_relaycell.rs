@@ -2,7 +2,7 @@
 #![allow(clippy::uninlined_format_args)]
 
 use tor_bytes::Error;
-use tor_cell::relaycell::{msg, msg::RelayMsg, RelayCell, RelayCmd, StreamId};
+use tor_cell::relaycell::{msg, msg::RelayMsg, RelayCell, RelayCmd, RelayMsgClass, StreamId};
 
 #[cfg(feature = "experimental-udp")]
 use std::{

@@ -7,7 +7,7 @@ use tor_bytes::Error as BytesError;
 /// Except where noted, these were taken by instrumenting Tor
 /// 0.4.5.0-alpha-dev to dump all of its cells to the logs, and
 /// running in a chutney network with "test-network-all".
-use tor_cell::relaycell::{msg, RelayCmd};
+use tor_cell::relaycell::{msg, RelayCmd, RelayMsgClass};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};

@@ -3,3 +3,4 @@ more uniform.
 BREAKING: RelayMsg no longer has any unit variants.
 BREAKING: Renamed VPadding to Vpadding, for consistent snake case.
 BREAKING: Moved ChanMsg methods into a trait.
+BREAKING: Moved RelayMsg methods into a trait.
