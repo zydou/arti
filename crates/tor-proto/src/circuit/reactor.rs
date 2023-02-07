@@ -34,7 +34,7 @@ use crate::circuit::sendme::StreamSendWindow;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
-use tor_cell::chancell;
+use tor_cell::chancell::{self, ChanMsgClass};
 use tor_cell::chancell::{ChanCell, CircId};
 use tor_linkspec::{LinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;

@@ -6,7 +6,7 @@ use tor_bytes::Error as BytesError;
 /// Except where noted, these were taken by instrumenting Tor
 /// 0.4.5.0-alpha-dev to dump all of its cells to the logs, and
 /// running in a chutney network with "test-network-all".
-use tor_cell::chancell::{msg, ChanCmd};
+use tor_cell::chancell::{msg, ChanCmd, ChanMsgClass};
 use tor_units::IntegerMilliseconds;
 
 use std::net::IpAddr;
@@ -29,13 +29,13 @@ fn unhex(s: &str, pad_to_len: bool) -> Vec<u8> {
 fn decode_err(cmd: ChanCmd, s: &str, pad_to_len: bool) -> BytesError {
     let body = unhex(s, pad_to_len);
     let mut r = tor_bytes::Reader::from_slice(&body[..]);
-    msg::ChanMsg::take(&mut r, cmd).unwrap_err()
+    msg::ChanMsg::decode_from_reader(cmd, &mut r).unwrap_err()
 }
 
 fn test_decode(cmd: ChanCmd, s: &str, pad_to_len: bool) -> (Vec<u8>, msg::ChanMsg) {
     let body = unhex(s, pad_to_len);
     let mut r = tor_bytes::Reader::from_slice(&body[..]);
-    let msg = msg::ChanMsg::take(&mut r, cmd).unwrap();
+    let msg = msg::ChanMsg::decode_from_reader(cmd, &mut r).unwrap();
 
     (body, msg)
 }
@@ -53,12 +53,8 @@ fn test_body(cmd: ChanCmd, s: &str, m: &msg::ChanMsg, pad_to_len: bool) {
 
     let mut encoded1 = Vec::new();
     let mut encoded2 = Vec::new();
-    decoded
-        .write_body_onto(&mut encoded1)
-        .expect("encode error");
-    m.clone()
-        .write_body_onto(&mut encoded2)
-        .expect("encode error");
+    decoded.encode_onto(&mut encoded1).expect("encode error");
+    m.clone().encode_onto(&mut encoded2).expect("encode error");
     if pad_to_len {
         assert!(encoded1.len() <= CELL_SIZE);
         assert!(encoded2.len() <= CELL_SIZE);

@@ -11,7 +11,7 @@ use crate::channel::codec::{ChannelCodec, CodecError};
 use crate::channel::UniqId;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
-use tor_cell::chancell::{msg, ChanCmd};
+use tor_cell::chancell::{msg, ChanCmd, ChanMsgClass};
 use tor_rtcompat::SleepProvider;
 
 use std::net::SocketAddr;

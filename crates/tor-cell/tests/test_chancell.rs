@@ -3,7 +3,7 @@
 // Reminder: you can think of a cell as an message plus a circuitid.
 #![allow(clippy::uninlined_format_args)]
 
-use tor_cell::chancell::{codec, msg, ChanCell, ChanCmd, CircId};
+use tor_cell::chancell::{codec, msg, ChanCell, ChanCmd, ChanMsgClass, CircId};
 use tor_cell::Error;
 
 use bytes::BytesMut;

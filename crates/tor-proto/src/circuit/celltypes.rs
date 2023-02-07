@@ -6,7 +6,10 @@
 
 use crate::{Error, Result};
 use std::fmt::{self, Display};
-use tor_cell::chancell::msg::{self as chanmsg, ChanMsg};
+use tor_cell::chancell::{
+    msg::{self as chanmsg, ChanMsg},
+    ChanMsgClass,
+};
 
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.

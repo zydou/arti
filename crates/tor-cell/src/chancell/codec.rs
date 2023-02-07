@@ -1,7 +1,7 @@
 //! Implementation for encoding and decoding of ChanCells.
 
 use super::CELL_DATA_LEN;
-use crate::chancell::{msg, ChanCell, ChanCmd, CircId};
+use crate::chancell::{msg, ChanCell, ChanCmd, ChanMsgClass, CircId};
 use crate::Error;
 use arrayref::{array_mut_ref, array_ref};
 use tor_bytes::{self, Reader, Writer};
@@ -60,7 +60,7 @@ impl ChannelCodec {
         // now write the cell body and handle the length.
         if cmd.is_var_cell() {
             dst.write_u16(0);
-            msg.write_body_onto(dst)?;
+            msg.encode_onto(dst)?;
             let len = dst.len() - pos - 2;
             if len > std::u16::MAX as usize {
                 return Err(Error::Internal(internal!("ran out of space for varcell")));
@@ -68,7 +68,7 @@ impl ChannelCodec {
             // go back and set the length.
             *(array_mut_ref![&mut dst[pos..pos + 2], 0, 2]) = (len as u16).to_be_bytes();
         } else {
-            msg.write_body_onto(dst)?;
+            msg.encode_onto(dst)?;
             let len = dst.len() - pos;
             if len > CELL_DATA_LEN {
                 return Err(Error::Internal(internal!("ran out of space for cell")));
@@ -113,7 +113,7 @@ impl ChannelCodec {
         let mut r = Reader::from_bytes(&cell);
         let circid: CircId = r.take_u32().map_err(wrap_err)?.into();
         r.advance(if varcell { 3 } else { 1 }).map_err(wrap_err)?;
-        let msg = msg::ChanMsg::take(&mut r, cmd).map_err(wrap_err)?;
+        let msg = msg::ChanMsg::decode_from_reader(cmd, &mut r).map_err(wrap_err)?;
 
         if !cmd.accepts_circid_val(circid) {
             return Err(Error::ChanProto(format!(

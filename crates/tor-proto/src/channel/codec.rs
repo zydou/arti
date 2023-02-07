@@ -72,7 +72,7 @@ pub(crate) mod test {
     use std::pin::Pin;
 
     use super::{futures_codec, ChannelCodec};
-    use tor_cell::chancell::{msg, ChanCell, ChanCmd, CircId};
+    use tor_cell::chancell::{msg, ChanCell, ChanCmd, ChanMsgClass, CircId};
 
     /// Helper type for reading and writing bytes to/from buffers.
     // TODO: We might want to move this

@@ -79,25 +79,6 @@ pub enum ChanMsg : ChanMsg {
 }
 }
 
-impl ChanMsg {
-    /// Return the ChanCmd for this message.
-    pub fn cmd(&self) -> ChanCmd {
-        super::ChanMsgClass::cmd(self)
-    }
-
-    /// Write the body of this message (not including length or command).
-    pub fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        super::ChanMsgClass::encode_onto(self, w)
-    }
-
-    /// Decode this message from a given reader, according to a specified
-    /// command value. The reader must be truncated to the exact length
-    /// of the body.
-    pub fn take(r: &mut Reader<'_>, cmd: ChanCmd) -> Result<Self> {
-        super::ChanMsgClass::decode_from_reader(cmd, r)
-    }
-}
-
 /// A Padding message is a fixed-length message on a channel that is
 /// ignored.
 ///

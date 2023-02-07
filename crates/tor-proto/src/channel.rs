@@ -75,6 +75,7 @@ use safelog::sensitive as sv;
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
+use tor_cell::chancell::ChanMsgClass;
 use tor_cell::chancell::{msg, msg::PaddingNegotiate, ChanCell, CircId};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};

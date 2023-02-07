@@ -12,6 +12,7 @@ use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use tor_basic_utils::futures::SinkExt as _;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
+use tor_cell::chancell::ChanMsgClass;
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
 use tor_rtcompat::SleepProvider;
 
