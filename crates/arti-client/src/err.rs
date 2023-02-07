@@ -333,6 +333,145 @@ impl From<TorAddrError> for Error {
     }
 }
 
+/// Verbose information about an error, meant to provide detail or justification
+/// for user-facing errors, rather than the normal short message for
+/// developer-facing errors.
+///
+/// User-facing code may attempt to produce this by calling [`Error::hint`].
+/// Not all errors may wish to provide verbose messages. `Some(ErrorHint)` will be
+/// returned if hinting is supported for the error. Err(()) will be returned otherwise.
+/// Which errors support hinting, and the hint content, have no SemVer warranty and may
+/// change in patch versions without warning. Callers should handle both cases,
+/// falling back on the original error message in case of Err.
+///
+/// Since the internal machinery for constructing and displaying hints may change over time,
+/// no data members are currently exposed. In the future we may wish to offer an unstable
+/// API locked behind a feature, like we do with ErrorDetail.
+#[derive(Clone, Debug)]
+pub struct ErrorHint<'a> {
+    /// The pieces of the message to display to the user
+    inner: ErrorHintInner<'a>,
+}
+
+/// An inner enumeration, describing different kinds of error hint that we know how to give.
+#[derive(Clone, Debug)]
+enum ErrorHintInner<'a> {
+    /// There is a misconfigured filesystem permission, reported by `fs-mistrust`.
+    ///
+    /// Tell the user to make their file more private, or to disable `fs-mistrust`.
+    BadPermission {
+        /// The location of the file.
+        filename: &'a std::path::Path,
+        /// The access bits set on the file.
+        bits: u32,
+        /// The access bits that, according to fs-mistrust, should not be set.
+        badbits: u32,
+    },
+}
+
+impl<'a> ErrorHint<'a> {
+    /// construct from supported `fs_mistrust::Error` variants
+    fn tryfrom_fsmistrust(src: &fs_mistrust::Error) -> Option<ErrorHint> {
+        use fs_mistrust::Error as E;
+        match src {
+            E::BadPermission(buf, bits, badbits) => {
+                Some(ErrorHint::from_badpermission(buf, *bits, *badbits))
+            }
+            _ => None,
+        }
+    }
+    /// construct from supported `tor_persist::Error` variants
+    fn tryfrom_torpersist(src: &tor_persist::Error) -> Option<ErrorHint> {
+        use tor_persist::ErrorSource as ES;
+        match src.source() {
+            ES::Permissions(e) => Self::tryfrom_fsmistrust(e),
+            _ => None,
+        }
+    }
+
+    /// inform user of overpermission risks
+    /// provide chmod to fix it, or options to mute the error if they accept the risk
+    fn from_badpermission(filename: &std::path::Path, bits: u32, badbits: u32) -> ErrorHint<'_> {
+        ErrorHint {
+            inner: ErrorHintInner::BadPermission {
+                filename,
+                bits,
+                badbits,
+            },
+        }
+    }
+}
+
+// TODO: Perhaps we want to lower this logic to fs_mistrust crate, and have a
+// separate `ErrorHint` type for each crate that can originate a hint.  But I'd
+// rather _not_ have that turn into something that forces us to give a Hint for
+// every intermediate crate.
+impl<'a> Display for ErrorHint<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use fs_mistrust::anon_home::PathExt as _;
+
+        match self.inner {
+            ErrorHintInner::BadPermission {
+                filename,
+                bits,
+                badbits,
+            } => {
+                writeln!(
+                    f,
+                    "Permissions are set too permissively on {}: currently {}",
+                    filename.anonymize_home(),
+                    fs_mistrust::format_access_bits(bits, '=')
+                )?;
+                if 0 != badbits & 0o222 {
+                    writeln!(
+                        f,
+                        "* Untrusted users could modify its contents and override our behavior.",
+                    )?;
+                }
+                if 0 != badbits & 0o444 {
+                    writeln!(f, "* Untrusted users could read its contents.")?;
+                }
+                writeln!(f,
+                    "You can fix this by further restricting the permissions of your filesystem, using:\n\
+                         chmod {} {}",
+                        fs_mistrust::format_access_bits(badbits, '-'),
+                        filename.anonymize_home())?;
+                writeln!(f, "You can suppress this message by setting storage.permissions.dangerously_trust_everyone=true,\n\
+                    or setting ARTI_FS_DISABLE_PERMISSION_CHECKS=yes in your environment.")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Error {
+    /// Return a hint object explaining how to solve this error, if we have one.
+    ///
+    /// Most errors won't have obvious hints, but some do.  For the ones that
+    /// do, we can return an [`ErrorHint`].
+    ///
+    /// Right now, `ErrorHint` is completely opaque: the only supported option
+    /// is to format it for human consumption.
+    pub fn hint(&self) -> Option<ErrorHint> {
+        use tor_circmgr::Error as CircE;
+        use tor_dirmgr::Error as DirE;
+        use tor_guardmgr::GuardMgrError as GuardE;
+        use ErrorDetail as E;
+        match &(*self.detail) {
+            // fs_mistrust errors, possibly nonexhaustive
+            E::DirMgrSetup(DirE::CachePermissions(e)) => ErrorHint::tryfrom_fsmistrust(e),
+            // tor_persist errors, possibly nonexhaustive
+            E::StateMgrSetup(e)
+            | E::StateAccess(e)
+            | E::CircMgrSetup(CircE::State(e))
+            | E::CircMgrSetup(CircE::GuardMgr(GuardE::State(e))) => {
+                ErrorHint::tryfrom_torpersist(e)
+            }
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
