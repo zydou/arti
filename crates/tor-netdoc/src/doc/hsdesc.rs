@@ -79,8 +79,8 @@ pub struct HsDesc {
     /// descriptor.
     idx_info: IndexInfo,
 
-    /// The public key for the `KS_hsc_desc_enc` private key that we used to
-    /// decrypt this descriptor.
+    /// `KP_hsc_desc_enc`, the public key corresponding to the private key that
+    /// we used to decrypt this descriptor.
     ///
     /// This is set to None if we did not have to use a private key to decrypt
     /// the descriptor.
@@ -138,8 +138,8 @@ pub struct IntroPointDesc {
     /// (`KP_hs_intro_tid`)
     auth_key: IntroPtAuthKey,
 
-    /// The key used to encrypt a handshake _to the onion service_ when using
-    /// this introduction point. (`KP_hs_intro_ntor`)
+    /// `KP_hs_intro_ntor`, the key used to encrypt a handshake _to the onion
+    /// service_ when using this introduction point.
     ///
     /// The onion service uses a separate key of this type with each
     /// introduction point as part of its strategy for preventing replay
@@ -209,16 +209,22 @@ impl EncryptedHsDesc {
     /// Attempt to decrypt both layers of encryption in this onion service
     /// descriptor.
     ///
-    /// If `using_key` is provided, we use it to decrypt the inner layer;
+    /// If `hsc_desc_enc` is provided, we use it to decrypt the inner layer;
     /// otherwise, we require that the inner layer is encrypted using the "no
     /// client authorization" method.
+    ///
+    ///
+    /// Note that `hsc_desc_enc` must be a key *pair* - ie, a KP_hsc_desc_enc
+    /// and corresponding KS_hsc_desc_enc. This function **does not check**
+    /// this.
     //
-    // TODO hs: I'm not sure that taking `using_key` as an argument is correct. Instead, maybe
+    // TODO hs: I'm not sure that taking `hsc_desc_enc` as an argument is correct. Instead, maybe
     // we should take a keystore trait?  Or a function from &ClientDescAuthKey to &ClientDescAuthSecretKey?
     pub fn decrypt(
         self,
         subcredential: &Subcredential,
-        using_key: Option<(&ClientDescAuthKey, &ClientDescAuthSecretKey)>,
+        // TODO HS: rename depending on how the spec goes.
+        hsc_desc_enc: Option<(&ClientDescAuthKey, &ClientDescAuthSecretKey)>,
     ) -> Result<HsDesc> {
         let blinded_id = self.outer_layer.blinded_id();
         let revision_counter = self.outer_layer.revision_counter;
@@ -237,7 +243,7 @@ impl EncryptedHsDesc {
                 &blinded_id,
                 revision_counter,
                 subcredential,
-                using_key.map(|keys| keys.1),
+                hsc_desc_enc.map(|keys| keys.1),
             )
             .map_err(|e| {
                 EK::BadObjectVal.with_msg("onion service descriptor encryption failed.")
@@ -253,7 +259,7 @@ impl EncryptedHsDesc {
         // Construct the HsDesc!
         Ok(HsDesc {
             idx_info: IndexInfo::from_outer_layer(&self.outer_layer),
-            decrypted_with_id: using_key.map(|keys| keys.0.clone()),
+            decrypted_with_id: hsc_desc_enc.map(|keys| keys.0.clone()),
             auth_required: inner.intro_auth_types,
             is_single_onion_service: inner.single_onion_service,
             intro_points: inner.intro_points,
