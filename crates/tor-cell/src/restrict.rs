@@ -4,8 +4,8 @@
 pub use tor_bytes;
 
 /// Declare a restricted version of
-/// [`RelayMsg`](crate::relaycell::msg::RelayMsg) or
-/// [`ChanMsg`](crate::chancell::msg::ChanMsg).
+/// [`AnyRelayMsg`](crate::relaycell::msg::AnyRelayMsg) or
+/// [`AnyChanMsg`](crate::chancell::msg::AnyChanMsg).
 ///
 /// Frequently we only want to handle a subset of the possible channel or relay
 /// commands that we might see.  In those situations, it makes sense to define a

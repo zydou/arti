@@ -159,8 +159,8 @@ pub type AnyChanCell = ChanCell<msg::AnyChanMsg>;
 
 /// Trait implemented by anything that can serve as a channel message.
 ///
-/// Typically, this will be [`RelayMsg`] (to represent an unrestricted relay
-/// message), or a restricted subset of `RelayMsg`.
+/// Typically, this will be [`AnyChanMsg`](msg::AnyChanMsg) (to represent an unrestricted relay
+/// message), or some restricted subset of those messages.
 pub trait ChanMsg {
     /// Return the [`ChanCmd`] for this message.
     fn cmd(&self) -> ChanCmd;
