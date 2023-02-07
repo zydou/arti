@@ -17,12 +17,15 @@ use tor_llcrypto::pk::{curve25519, ed25519};
 pub(super) struct HsDescInner {
     /// The authentication types that this onion service accepts when
     /// connecting.
-    pub(super) authtypes: Option<SmallVec<[IntroAuthType; 2]>>,
+    // TODO HS: This should probably be a bitfield or enum-set of something.
+    // Once we know whether the "password" authentication type really exists,
+    // let's change to a better representation here.
+    pub(super) intro_auth_types: Option<SmallVec<[IntroAuthType; 2]>>,
     /// Is this onion service a "single onion service?"
     ///
     /// (A "single onion service" is one that is not attempting to anonymize
     /// itself.)
-    pub(super) is_single_onion_service: bool,
+    pub(super) single_onion_service: bool,
     /// A list of advertised introduction points and their contact info.
     pub(super) intro_points: Vec<IntroPointDesc>,
 }
@@ -101,10 +104,14 @@ impl HsDescInner {
         // Parse the header.
         let header = HS_INNER_HEADER_RULES.parse(&mut iter)?;
 
-        // Make sure that the "ntor" handshake is supported in the list of `create2-formats`.
+        // Make sure that the "ntor" handshake is supported in the list of
+        // `HTYPE`s (handshake types) in `create2-formats`.
         {
             let tok = header.required(CREATE2_FORMATS)?;
-            // TODO hs: actually, do we need to store these?  Would a bit-array make more sense?
+            // If we ever want to support a different HTYPE, we'll need to
+            // store at least the interesection between "their" and "our" supported
+            // HTYPEs.  For now we only support one, so either this set is empty
+            // and failing now is fine, or `ntor` (2) is supported, so fine.
             if !tok.args().any(|s| s == "2") {
                 return Err(EK::BadArgument
                     .at_pos(tok.pos())
@@ -113,11 +120,11 @@ impl HsDescInner {
         }
         // Check whether any kind of introduction-point authentication is
         // specified in an `intro-auth-required` line.
-        let authtypes = if let Some(tok) = header.get(INTRO_AUTH_REQUIRED) {
-            let mut authtypes: SmallVec<[IntroAuthType; 2]> = SmallVec::new();
+        let auth_types = if let Some(tok) = header.get(INTRO_AUTH_REQUIRED) {
+            let mut auth_types: SmallVec<[IntroAuthType; 2]> = SmallVec::new();
             let mut push = |at| {
-                if !authtypes.contains(&at) {
-                    authtypes.push(at);
+                if !auth_types.contains(&at) {
+                    auth_types.push(at);
                 }
             };
             for arg in tok.args() {
@@ -128,13 +135,13 @@ impl HsDescInner {
                 }
             }
             // .. but if no types are recognized, we can't connect.
-            if authtypes.is_empty() {
+            if auth_types.is_empty() {
                 return Err(EK::BadArgument
                     .at_pos(tok.pos())
                     .with_msg("No recognized introduction authentication methods."));
             }
 
-            Some(authtypes)
+            Some(auth_types)
         } else {
             None
         };
@@ -164,22 +171,23 @@ impl HsDescInner {
                 false
             });
 
-            let body = HS_INNER_INTRO_RULES.parse(&mut iter)?;
+            let ipt_section = HS_INNER_INTRO_RULES.parse(&mut iter)?;
 
             // Parse link-specifiers
             let link_specifiers = {
-                let tok = body.required(INTRODUCTION_POINT)?;
+                let tok = ipt_section.required(INTRODUCTION_POINT)?;
                 let ls = tok.parse_arg::<B64>(0)?;
                 let mut r = tor_bytes::Reader::from_slice(ls.as_bytes());
                 let n = r.take_u8()?;
                 let res = r.extract_n(n.into())?;
+                // TODO hs: Check whether c tor enforces that this field is exhausted.
                 r.should_be_exhausted()?;
                 res
             };
 
             // Parse the ntor "onion-key" (`KP_onion_ntor`) of the introduction point.
             let ntor_onion_key = {
-                let tok = body
+                let tok = ipt_section
                     .slice(ONION_KEY)
                     .iter()
                     .filter(|item| item.arg(0) == Some("ntor"))
@@ -208,7 +216,16 @@ impl HsDescInner {
                 // TODO HS: Either we should specify that it is okay to skip
                 // validation here, or we should validate the silly certificate
                 // anyway.
-                let tok = body.required(AUTH_KEY)?;
+                //
+                // TODO HS: Additionally, though the spec says "the signing key
+                //    extension is mandatory" we don't check that either.  The
+                // spec, or the code, should be fixed. There may be
+                // distinguishability implications to both these questions.
+                //
+                // TODO HS: We need investigate what c tor does, and either just
+                // do that, or decide that it is wrong. Either way we should
+                // amend the spec for further clarity.
+                let tok = ipt_section.required(AUTH_KEY)?;
                 let cert = tok
                     .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
                     .check_cert_type(tor_cert::CertType::HS_IP_V_SIGNING)?
@@ -234,8 +251,9 @@ impl HsDescInner {
             // Extract the key `KP_hs_intro_ntor` that we'll use for our
             // handshake with the onion service itself.  This comes from the
             // "enc-key" item.
+            // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
             let hs_enc_key: IntroPtEncKey = {
-                let tok = body
+                let tok = ipt_section
                     .slice(ENC_KEY)
                     .iter()
                     .filter(|item| item.arg(0) == Some("ntor"))
@@ -253,9 +271,9 @@ impl HsDescInner {
                 // the subject key is as expected. Probably that is not even
                 // necessary, and we could remove this whole section.
                 //
-                // TODO HS: Either specify that our behavior is okay, or begin
-                // validating this certificate.
-                let tok = body.required(ENC_KEY_CERT)?;
+                // TODO HS: See all "TODO HS" notes above for the "AUTH_KEY" certificate.
+                // Additionally, there is a bunch of code duplication here that we should fix.
+                let tok = ipt_section.required(ENC_KEY_CERT)?;
                 let cert = tok
                     .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
                     .check_cert_type(tor_cert::CertType::HS_IP_CC_SIGNING)?
@@ -296,8 +314,8 @@ impl HsDescInner {
         }
 
         Ok(HsDescInner {
-            authtypes,
-            is_single_onion_service,
+            intro_auth_types: auth_types,
+            single_onion_service: is_single_onion_service,
             intro_points,
         })
     }

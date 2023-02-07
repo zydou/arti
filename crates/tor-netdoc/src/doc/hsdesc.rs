@@ -122,7 +122,12 @@ pub struct IntroPointDesc {
     // TODO hs: perhaps we should make certain link specifiers mandatory? That
     // would make it possible for IntroPointDesc to implement CircTarget.
     //
-    // TODO hs: perhaps it would be better to have this be a lazily parsed Vec<u8>
+    // TODO hs: We should not be parsing this eagerly.  Instead, we should
+    // have an `UnparsedLinkSpec` type containing the type and data, and
+    // maybe `LinkSpec` should become `UseableLinkSpec` (and lose its `Unrecognized` arm).
+    // See rend-spec 2.5.2.2 for example.  The current approach will allow a peer to
+    // discover whether this Arti supports a particular LSTYPE, by sending a link spec
+    // of that type but with wrong data (eg, the wrong length).
     link_specifiers: Vec<LinkSpec>,
 
     /// The key used to extend a circuit _to the introduction point_, using the
@@ -139,6 +144,7 @@ pub struct IntroPointDesc {
     /// The onion service uses a separate key of this type with each
     /// introduction point as part of its strategy for preventing replay
     /// attacks.
+    // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
     hs_enc_key: IntroPtEncKey,
 }
 
@@ -248,8 +254,8 @@ impl EncryptedHsDesc {
         Ok(HsDesc {
             idx_info: IndexInfo::from_outer_layer(&self.outer_layer),
             decrypted_with_id: using_key.map(|keys| keys.0.clone()),
-            auth_required: inner.authtypes,
-            is_single_onion_service: inner.is_single_onion_service,
+            auth_required: inner.intro_auth_types,
+            is_single_onion_service: inner.single_onion_service,
             intro_points: inner.intro_points,
         })
     }
