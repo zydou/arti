@@ -129,7 +129,7 @@ impl HsDescInner {
             };
             for arg in tok.args() {
                 match arg {
-                    "password" => push(IntroAuthType::Passwd),
+                    "password" => push(IntroAuthType::Password),
                     "ed25519" => push(IntroAuthType::Ed25519),
                     _ => (), // Ignore unrecognized types.
                 }
