@@ -12,8 +12,8 @@
 
 use std::collections::VecDeque;
 
-use tor_cell::relaycell::msg::RelayMsg;
-use tor_cell::relaycell::RelayCell;
+use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_cell::relaycell::AnyRelayCell;
 use tor_error::internal;
 
 use crate::{Error, Result};
@@ -268,12 +268,12 @@ impl<P: WindowParams> RecvWindow<P> {
 }
 
 /// Return true if this message is counted by flow-control windows.
-pub(crate) fn msg_counts_towards_windows(msg: &RelayMsg) -> bool {
-    matches!(msg, RelayMsg::Data(_))
+pub(crate) fn msg_counts_towards_windows(msg: &AnyRelayMsg) -> bool {
+    matches!(msg, AnyRelayMsg::Data(_))
 }
 
 /// Return true if this message is counted by flow-control windows.
-pub(crate) fn cell_counts_towards_windows(cell: &RelayCell) -> bool {
+pub(crate) fn cell_counts_towards_windows(cell: &AnyRelayCell) -> bool {
     msg_counts_towards_windows(cell.msg())
 }
 
@@ -290,7 +290,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_cell::relaycell::{msg, RelayCell};
+    use tor_cell::relaycell::{msg, AnyRelayCell};
 
     #[test]
     fn what_counts() {
@@ -298,11 +298,17 @@ mod test {
             .unwrap()
             .into();
         assert!(!msg_counts_towards_windows(&m));
-        assert!(!cell_counts_towards_windows(&RelayCell::new(77.into(), m)));
+        assert!(!cell_counts_towards_windows(&AnyRelayCell::new(
+            77.into(),
+            m
+        )));
 
         let m = msg::Data::new(&b"Education is not a prerequisite to political control-political control is the cause of popular education."[..]).unwrap().into(); // Du Bois
         assert!(msg_counts_towards_windows(&m));
-        assert!(cell_counts_towards_windows(&RelayCell::new(128.into(), m)));
+        assert!(cell_counts_towards_windows(&AnyRelayCell::new(
+            128.into(),
+            m
+        )));
     }
 
     #[test]

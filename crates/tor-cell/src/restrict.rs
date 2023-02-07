@@ -14,7 +14,7 @@ pub use tor_bytes;
 ///
 /// The restricted message type is an enum, and is declared with a syntax as follows:
 /// ```
-/// use tor_cell::{restrict::restricted_msg, relaycell::RestrictedRelayCell};
+/// use tor_cell::{restrict::restricted_msg, relaycell::RelayCell};
 ///
 /// restricted_msg! {
 ///     enum OpenStreamMsg : RelayMsg {
@@ -25,7 +25,7 @@ pub use tor_bytes;
 ///    }
 /// }
 ///
-/// type OpenStreamCell = RestrictedRelayCell<OpenStreamMsg>;
+/// type OpenStreamCell = RelayCell<OpenStreamMsg>;
 /// ```
 ///
 /// Instead of `RelayMsg`, you can say `ChanMsg` to get a restricted channel
@@ -46,12 +46,12 @@ macro_rules! restricted_msg {
     } => {
         $crate::restrict::restricted_msg!{
             [
-            base_type: $crate::relaycell::msg::RelayMsg,
+            base_type: $crate::relaycell::msg::AnyRelayMsg,
             msg_mod: $crate::relaycell::msg,
             cmd_type: $crate::relaycell::RelayCmd,
             unrecognized: $crate::relaycell::msg::Unrecognized,
             body_trait: $crate::relaycell::msg::Body,
-            msg_trait: $crate::relaycell::RelayMsgClass
+            msg_trait: $crate::relaycell::RelayMsg
             ]
             $(#[$meta])*
             $v enum $name { $($tt)*}

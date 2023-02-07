@@ -3,7 +3,7 @@
 
 use crate::circuit::{sendme, StreamTarget};
 use crate::{Error, Result};
-use tor_cell::relaycell::msg::RelayMsg;
+use tor_cell::relaycell::msg::AnyRelayMsg;
 
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::channel::mpsc;
@@ -15,7 +15,7 @@ pub struct StreamReader {
     /// The underlying `StreamTarget` for this stream.
     pub(crate) target: StreamTarget,
     /// Channel to receive stream messages from the reactor.
-    pub(crate) receiver: mpsc::Receiver<RelayMsg>,
+    pub(crate) receiver: mpsc::Receiver<AnyRelayMsg>,
     /// Congestion control receive window for this stream.
     ///
     /// Having this here means we're only going to update it when the end consumer of this stream
@@ -29,7 +29,7 @@ pub struct StreamReader {
 
 impl StreamReader {
     /// Try to read the next relay message from this stream.
-    async fn recv_raw(&mut self) -> Result<RelayMsg> {
+    async fn recv_raw(&mut self) -> Result<AnyRelayMsg> {
         if self.ended {
             // Prevent reading from streams after they've ended.
             return Err(Error::NotConnected);
@@ -54,10 +54,10 @@ impl StreamReader {
 
     /// As recv_raw, but if there is an error or an end cell, note that this
     /// stream has ended.
-    pub async fn recv(&mut self) -> Result<RelayMsg> {
+    pub async fn recv(&mut self) -> Result<AnyRelayMsg> {
         let val = self.recv_raw().await;
         match val {
-            Err(_) | Ok(RelayMsg::End(_)) => {
+            Err(_) | Ok(AnyRelayMsg::End(_)) => {
                 self.ended = true;
             }
             _ => {}

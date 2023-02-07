@@ -188,8 +188,8 @@ impl ConnectUdp {
 }
 
 impl msg::Body for ConnectUdp {
-    fn into_message(self) -> msg::RelayMsg {
-        msg::RelayMsg::ConnectUdp(self)
+    fn into_message(self) -> msg::AnyRelayMsg {
+        msg::AnyRelayMsg::ConnectUdp(self)
     }
 
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
@@ -230,8 +230,8 @@ impl ConnectedUdp {
 }
 
 impl msg::Body for ConnectedUdp {
-    fn into_message(self) -> msg::RelayMsg {
-        msg::RelayMsg::ConnectedUdp(self)
+    fn into_message(self) -> msg::AnyRelayMsg {
+        msg::AnyRelayMsg::ConnectedUdp(self)
     }
 
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
@@ -305,8 +305,8 @@ impl AsRef<[u8]> for Datagram {
 }
 
 impl msg::Body for Datagram {
-    fn into_message(self) -> msg::RelayMsg {
-        msg::RelayMsg::Datagram(self)
+    fn into_message(self) -> msg::AnyRelayMsg {
+        msg::AnyRelayMsg::Datagram(self)
     }
 
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {

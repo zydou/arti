@@ -2,8 +2,8 @@
 
 use crate::stream::StreamReader;
 use crate::{Error, Result};
-use tor_cell::relaycell::msg::{RelayMsg, Resolved};
-use tor_cell::relaycell::RelayMsgClass;
+use tor_cell::relaycell::msg::{AnyRelayMsg, Resolved};
+use tor_cell::relaycell::RelayMsg;
 
 /// A ResolveStream represents a pending DNS request made with a RESOLVE
 /// cell.
@@ -26,8 +26,8 @@ impl ResolveStream {
     pub async fn read_msg(&mut self) -> Result<Resolved> {
         let cell = self.s.recv().await?;
         match cell {
-            RelayMsg::End(e) => Err(Error::EndReceived(e.reason())),
-            RelayMsg::Resolved(r) => Ok(r),
+            AnyRelayMsg::End(e) => Err(Error::EndReceived(e.reason())),
+            AnyRelayMsg::Resolved(r) => Ok(r),
             m => {
                 self.s.protocol_error();
                 Err(Error::StreamProto(format!(

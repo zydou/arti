@@ -178,13 +178,13 @@ impl StreamId {
 }
 
 /// A decoded and parsed relay cell of unrestricted type.
-pub type RelayCell = RestrictedRelayCell<msg::RelayMsg>;
+pub type AnyRelayCell = RelayCell<msg::AnyRelayMsg>;
 
 /// Trait implemented by anything that can serve as a relay message.
 ///
 /// Typically, this will be [`RelayMsg`] (to represent an unrestricted relay
 /// message), or a restricted subset of `RelayMsg`.
-pub trait RelayMsgClass {
+pub trait RelayMsg {
     /// Return the stream command associated with this message.
     fn cmd(&self) -> RelayCmd;
     /// Encode the body of this message, not including command or length
@@ -201,17 +201,17 @@ pub trait RelayMsgClass {
 /// circuit, along with the ID for an associated stream that the
 /// message is meant for.
 #[derive(Debug)]
-pub struct RestrictedRelayCell<M> {
+pub struct RelayCell<M> {
     /// The stream ID for the stream that this cell corresponds to.
     streamid: StreamId,
     /// The relay message for this cell.
     msg: M,
 }
 
-impl<M: RelayMsgClass> RestrictedRelayCell<M> {
+impl<M: RelayMsg> RelayCell<M> {
     /// Construct a new relay cell.
     pub fn new(streamid: StreamId, msg: M) -> Self {
-        RestrictedRelayCell { streamid, msg }
+        RelayCell { streamid, msg }
     }
     /// Consume this cell and return its components.
     pub fn into_streamid_and_msg(self) -> (StreamId, M) {

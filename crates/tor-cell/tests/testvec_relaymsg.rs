@@ -7,7 +7,7 @@ use tor_bytes::Error as BytesError;
 /// Except where noted, these were taken by instrumenting Tor
 /// 0.4.5.0-alpha-dev to dump all of its cells to the logs, and
 /// running in a chutney network with "test-network-all".
-use tor_cell::relaycell::{msg, RelayCmd, RelayMsgClass};
+use tor_cell::relaycell::{msg, RelayCmd, RelayMsg};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -28,15 +28,15 @@ fn unhex(s: &str) -> Vec<u8> {
     hex::decode(s).unwrap()
 }
 
-fn decode(cmd: RelayCmd, body: &[u8]) -> Result<msg::RelayMsg, BytesError> {
+fn decode(cmd: RelayCmd, body: &[u8]) -> Result<msg::AnyRelayMsg, BytesError> {
     let mut r = tor_bytes::Reader::from_slice(body);
-    msg::RelayMsg::decode_from_reader(cmd, &mut r)
+    msg::AnyRelayMsg::decode_from_reader(cmd, &mut r)
 }
 
 /// Assert that, when treated as a cell of type `cmd`, the hexadecimal
 /// body `s` decodes into the message `msg`, and then re-encodes into
 /// `s2`.
-fn msg_noncanonical(cmd: RelayCmd, s: &str, s2: &str, msg: &msg::RelayMsg) {
+fn msg_noncanonical(cmd: RelayCmd, s: &str, s2: &str, msg: &msg::AnyRelayMsg) {
     assert_eq!(msg.cmd(), cmd);
     let body = unhex(s);
     let body2 = unhex(s2);
@@ -60,7 +60,7 @@ fn msg_noncanonical(cmd: RelayCmd, s: &str, s2: &str, msg: &msg::RelayMsg) {
 /// Assert that, when treated as a cell of type `cmd`, the hexadecimal
 /// body `s` decodes into the message `msg`, and then re-encodes into
 /// `s`.
-fn msg(cmd: RelayCmd, s: &str, msg: &msg::RelayMsg) {
+fn msg(cmd: RelayCmd, s: &str, msg: &msg::AnyRelayMsg) {
     msg_noncanonical(cmd, s, s, msg);
 }
 
@@ -123,7 +123,7 @@ fn test_begindir() {
     let cmd = RelayCmd::BEGIN_DIR;
     assert_eq!(Into::<u8>::into(cmd), 13_u8);
 
-    msg(cmd, "", &msg::RelayMsg::BeginDir(Default::default()));
+    msg(cmd, "", &msg::AnyRelayMsg::BeginDir(Default::default()));
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn test_drop() {
     let cmd = RelayCmd::DROP;
     assert_eq!(Into::<u8>::into(cmd), 10_u8);
 
-    msg(cmd, "", &msg::RelayMsg::Drop(Default::default()));
+    msg(cmd, "", &msg::AnyRelayMsg::Drop(Default::default()));
 }
 
 #[test]
@@ -225,7 +225,7 @@ fn test_extend2() {
     );
 
     let message = decode(cmd, &unhex(body)[..]).unwrap();
-    if let msg::RelayMsg::Extend2(message) = message {
+    if let msg::AnyRelayMsg::Extend2(message) = message {
         assert_eq!(message.handshake_type(), 2);
         assert_eq!(message.handshake(), &handshake[..]);
     } else {
@@ -385,7 +385,7 @@ fn test_resolved() {
         &unhex("06 10 12340000000000000000000000005678 00000080")[..],
     )
     .unwrap();
-    if let msg::RelayMsg::Resolved(res) = message {
+    if let msg::AnyRelayMsg::Resolved(res) = message {
         assert_eq!(
             res.into_answers(),
             vec![(msg::ResolvedVal::Ip("1234::5678".parse().unwrap()), 128_u32)]
@@ -443,7 +443,7 @@ fn test_truncate() {
     let cmd = RelayCmd::TRUNCATE;
     assert_eq!(Into::<u8>::into(cmd), 8_u8);
 
-    msg(cmd, "", &msg::RelayMsg::Truncate(Default::default()));
+    msg(cmd, "", &msg::AnyRelayMsg::Truncate(Default::default()));
 }
 
 #[test]
@@ -659,7 +659,7 @@ fn test_establish_rendezvous() {
 #[test]
 fn test_establish_intro() {
     use tor_cell::relaycell::{
-        msg::RelayMsg,
+        msg::AnyRelayMsg,
         onion_service::{AuthKeyType, EstIntroExtDoS, EstablishIntro},
     };
 
@@ -715,7 +715,7 @@ fn test_establish_intro() {
         .expect("Encode msg onto byte vector");
     let mut es_intro = EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig);
     es_intro.set_extension_dos(extension_dos);
-    let expected_msg: RelayMsg = es_intro.into();
+    let expected_msg: AnyRelayMsg = es_intro.into();
     expected_msg
         .encode_onto(&mut expect_bytes)
         .expect("Encode msg onto byte vector");
@@ -726,7 +726,7 @@ fn test_establish_intro() {
 #[test]
 fn test_introduce() {
     use tor_cell::relaycell::{
-        msg::RelayMsg,
+        msg::AnyRelayMsg,
         onion_service::{AuthKeyType, Introduce1},
     };
 
@@ -760,7 +760,7 @@ fn test_introduce() {
     actual_msg
         .encode_onto(&mut actual_bytes)
         .expect("Encode msg onto byte vector");
-    let expected_msg: RelayMsg = intro1.into();
+    let expected_msg: AnyRelayMsg = intro1.into();
     expected_msg
         .encode_onto(&mut expect_bytes)
         .expect("Encode msg onto byte vector");
