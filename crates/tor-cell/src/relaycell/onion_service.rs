@@ -157,9 +157,6 @@ pub struct EstablishIntro {
 }
 
 impl msg::Body for EstablishIntro {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        msg::AnyRelayMsg::EstablishIntro(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let auth_key_type = r.take_u8()?.into();
         let auth_key_len = r.take_u16()?;
@@ -259,9 +256,6 @@ impl EstablishRendezvous {
     }
 }
 impl msg::Body for EstablishRendezvous {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        msg::AnyRelayMsg::EstablishRendezvous(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let cookie = r.extract()?;
         r.take_rest();
@@ -277,9 +271,6 @@ impl msg::Body for EstablishRendezvous {
 pub struct Introduce1(Introduce);
 
 impl msg::Body for Introduce1 {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        msg::AnyRelayMsg::Introduce1(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Self(Introduce::decode_from_reader(r)?))
     }
@@ -300,9 +291,6 @@ impl Introduce1 {
 pub struct Introduce2(Introduce);
 
 impl msg::Body for Introduce2 {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        msg::AnyRelayMsg::Introduce2(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Self(Introduce::decode_from_reader(r)?))
     }
@@ -387,10 +375,6 @@ pub struct Rendezvous1 {
 }
 
 impl Body for Rendezvous1 {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        todo!()
-    }
-
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         todo!()
     }
@@ -409,10 +393,6 @@ pub struct Rendezvous2 {
 }
 
 impl Body for Rendezvous2 {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        todo!()
-    }
-
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         todo!()
     }
@@ -434,10 +414,6 @@ pub struct IntroEstablished {
 }
 
 impl Body for IntroEstablished {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        todo!()
-    }
-
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         todo!()
     }
@@ -466,10 +442,6 @@ pub struct IntroduceAck {
 }
 
 impl Body for IntroduceAck {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        todo!()
-    }
-
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         todo!()
     }

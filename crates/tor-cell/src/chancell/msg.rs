@@ -32,6 +32,7 @@ crate::restrict::restricted_msg! {
 /// a TLS connection.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+@omit_from "avoid_conflict_with_a_blanket_implementation"
 pub enum AnyChanMsg : ChanMsg {
     /// A Padding message
     Padding,
@@ -52,6 +53,7 @@ pub enum AnyChanMsg : ChanMsg {
     /// A message sent along a circuit, likely to a more-distant relay.
     Relay,
     /// A message sent along a circuit (limited supply)
+    [omit_from = "relay_and_relay_early_are_the_same_type"]
     RelayEarly,
     /// Tear down a circuit
     Destroy,
@@ -1164,12 +1166,6 @@ impl Readable for Unrecognized {
             cmd: 0.into(),
             content: r.take(r.remaining())?.into(),
         })
-    }
-}
-
-impl<B: Body> From<B> for AnyChanMsg {
-    fn from(body: B) -> Self {
-        body.into_message()
     }
 }
 

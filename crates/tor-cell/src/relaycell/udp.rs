@@ -188,10 +188,6 @@ impl ConnectUdp {
 }
 
 impl msg::Body for ConnectUdp {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        msg::AnyRelayMsg::ConnectUdp(self)
-    }
-
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let flags = r.take_u32()?;
         let addr = r.extract()?;
@@ -230,10 +226,6 @@ impl ConnectedUdp {
 }
 
 impl msg::Body for ConnectedUdp {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        msg::AnyRelayMsg::ConnectedUdp(self)
-    }
-
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let our_address: AddressPort = r.extract()?;
         if our_address.addr.is_hostname() {
@@ -305,10 +297,6 @@ impl AsRef<[u8]> for Datagram {
 }
 
 impl msg::Body for Datagram {
-    fn into_message(self) -> msg::AnyRelayMsg {
-        msg::AnyRelayMsg::Datagram(self)
-    }
-
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Datagram {
             body: r.take(r.remaining())?.into(),

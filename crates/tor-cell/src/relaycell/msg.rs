@@ -31,6 +31,7 @@ crate::restrict::restricted_msg! {
 /// A single parsed relay message, sent or received along a circuit
 #[derive(Debug, Clone)]
 #[non_exhaustive]
+@omit_from "avoid_conflict_with_a_blanket_implementation"
 pub enum AnyRelayMsg : RelayMsg {
     /// Create a stream
     Begin,
@@ -107,18 +108,10 @@ pub enum AnyRelayMsg : RelayMsg {
 
 /// Internal: traits in common different cell bodies.
 pub trait Body: Sized {
-    /// Convert this type into a RelayMsg, wrapped appropriate.
-    fn into_message(self) -> AnyRelayMsg;
     /// Decode a relay cell body from a provided reader.
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self>;
     /// Encode the body of this cell into the end of a writer.
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()>;
-}
-
-impl<B: Body> From<B> for AnyRelayMsg {
-    fn from(b: B) -> AnyRelayMsg {
-        b.into_message()
-    }
 }
 
 bitflags! {
@@ -209,9 +202,6 @@ impl Begin {
 }
 
 impl Body for Begin {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Begin(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let addr = {
             if r.peek(1)? == b"[" {
@@ -324,9 +314,6 @@ impl AsRef<[u8]> for Data {
 }
 
 impl Body for Data {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Data(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Data {
             body: r.take(r.remaining())?.into(),
@@ -437,9 +424,6 @@ impl End {
     }
 }
 impl Body for End {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::End(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         if r.remaining() == 0 {
             return Ok(End {
@@ -528,9 +512,6 @@ impl Connected {
     }
 }
 impl Body for Connected {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Connected(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         if r.remaining() == 0 {
             return Ok(Connected { addr: None });
@@ -607,9 +588,6 @@ impl Sendme {
     }
 }
 impl Body for Sendme {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Sendme(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let digest = if r.remaining() == 0 {
             None
@@ -672,9 +650,6 @@ impl Extend {
     }
 }
 impl Body for Extend {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extend(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let addr = r.extract()?;
         let port = r.take_u16()?;
@@ -713,9 +688,6 @@ impl Extended {
     }
 }
 impl Body for Extended {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extended(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let handshake = r.take(TAP_S_HANDSHAKE_LEN)?.into();
         Ok(Extended { handshake })
@@ -777,9 +749,6 @@ impl Extend2 {
 }
 
 impl Body for Extend2 {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extend2(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let n = r.take_u8()?;
         let linkspec = r.extract_n(n as usize)?;
@@ -836,9 +805,6 @@ impl Extended2 {
     }
 }
 impl Body for Extended2 {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extended2(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let hlen = r.take_u16()?;
         let handshake = r.take(hlen as usize)?;
@@ -881,9 +847,6 @@ impl Truncated {
     }
 }
 impl Body for Truncated {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Truncated(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Truncated {
             reason: r.take_u8()?.into(),
@@ -937,9 +900,6 @@ impl Resolve {
     }
 }
 impl Body for Resolve {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Resolve(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let query = r.take_until(0)?;
         Ok(Resolve {
@@ -1106,9 +1066,6 @@ impl Resolved {
     }
 }
 impl Body for Resolved {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Resolved(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let mut answers = Vec::new();
         while r.remaining() > 0 {
@@ -1161,9 +1118,6 @@ impl Unrecognized {
 }
 
 impl Body for Unrecognized {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Unrecognized(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Unrecognized {
             cmd: 0.into(),
@@ -1187,9 +1141,6 @@ macro_rules! empty_body {
        #[non_exhaustive]
        pub struct $name {}
        impl $crate::relaycell::msg::Body for $name {
-           fn into_message(self) -> $crate::relaycell::msg::AnyRelayMsg {
-               $crate::relaycell::msg::AnyRelayMsg::$name(self)
-           }
            fn decode_from_reader(_r: &mut Reader<'_>) -> Result<Self> {
                Ok(Self::default())
            }
