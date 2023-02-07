@@ -89,6 +89,7 @@ macro_rules! restricted_msg {
         $v:vis enum $name:ident {
             $(
                 $(#[$case_meta:meta])*
+                $([feature=$feat:literal])?
                 $case:ident
             ),*
             $(, _ =>
@@ -102,6 +103,7 @@ macro_rules! restricted_msg {
         $v enum $name {
             $(
                 $(#[$case_meta])*
+                $( #[cfg(feature=$feat)] )?
                 $case($msg_mod :: $case),
             )*
             $(
@@ -114,6 +116,7 @@ macro_rules! restricted_msg {
             fn cmd(&self) -> $cmd_type {
                 match self {
                     $(
+                        $( #[cfg(feature=$feat)] )?
                         Self::$case(_) => $cmd_type:: [<$case:snake:upper>] ,
                     )*
                     $(
@@ -129,6 +132,7 @@ macro_rules! restricted_msg {
                 use $body_type;
                 match self {
                     $(
+                        $( #[cfg(feature=$feat)] )?
                         Self::$case(m) => m.encode_onto(w),
                     )*
                     $(
@@ -141,6 +145,7 @@ macro_rules! restricted_msg {
                 use $body_type;
                 Ok(match cmd {
                     $(
+                        $( #[cfg(feature=$feat)] )?
                         $cmd_type:: [<$case:snake:upper>] => Self::$case( $msg_mod :: $case :: decode_from_reader(r)? ),
                     )*
                     $(

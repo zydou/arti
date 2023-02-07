@@ -61,40 +61,40 @@ pub enum AnyRelayMsg : RelayMsg {
     /// Start a directory stream
     BeginDir,
     /// Start a UDP stream.
-    #[cfg(feature = "experimental-udp")]
+    [feature = "experimental-udp"]
     ConnectUdp,
     /// Successful response to a ConnectUdp message
-    #[cfg(feature = "experimental-udp")]
+    [feature = "experimental-udp"]
     ConnectedUdp,
     /// UDP stream data
-    #[cfg(feature = "experimental-udp")]
+    [feature = "experimental-udp"]
     Datagram,
     /// Establish Introduction
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     EstablishIntro,
     /// Establish Rendezvous
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     EstablishRendezvous,
     /// Introduce1 (client to introduction point)
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     Introduce1,
     /// Introduce2 (introduction point to service)
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     Introduce2,
     /// Rendezvous1 (service to rendezvous point)
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     Rendezvous1,
     /// Rendezvous2 (rendezvous point to client)
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     Rendezvous2,
     /// Acknowledgement for EstablishIntro.
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     IntroEstablished,
     /// Acknowledgment for EstablishRendezvous.
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     RendezvousEstablished,
     /// Acknowledgement for Introduce1.
-    #[cfg(feature = "onion-service")]
+    [feature = "onion-service"]
     IntroduceAck,
 
     _ =>
