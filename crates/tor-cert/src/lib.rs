@@ -92,18 +92,39 @@ caret_int! {
         /// crosscert format. (Legacy)
         RSA_ID_V_IDENTITY = 0x07,
 
-        /// For onion services: short-term signing key authenticated with
-        /// blinded service identity.
+        /// For onion services: short-term descriptor signing key
+        /// (`KP_hs_desc_sign`), signed with blinded onion service identity
+        /// (`KP_hs_blind_id`).
         HS_BLINDED_ID_V_SIGNING = 0x08,
 
-        /// For onion services: to be documented.
+        /// For onion services: Introduction point authentication key
+        /// (`KP_hs_intro_tid`), signed with short term descriptor signing key
+        /// (`KP_hs_desc_sign`).
+        ///
+        /// This one is, sadly, a bit complicated. In the original specification
+        /// it was meant to be a cross-certificate, where the signature would be
+        /// _on_ the descriptor signing key, _signed with_ the intro TID key.
+        /// But we got it backwards in the C Tor implementation, and now, for
+        /// compatibility, we are stuck doing it backwards in the future.
+        ///
+        /// If we find in the future that it is actually important to
+        /// cross-certify these keys (as originally intended), then we should
+        /// add a new certificate type, and put the new certificate in the onion
+        /// service descriptor.
         HS_IP_V_SIGNING = 0x09,
 
         /// An ntor key converted to a ed25519 key, cross-certifying an
         /// identity key.
         NTOR_CC_IDENTITY = 0x0A,
 
-        /// For onion services: to be documented.
+        /// For onion services: Ntor encryption key (`KP_hs_intro_ntor`),
+        /// converted to ed25519, signed with the descriptor signing key
+        /// (`KP_hs_desc_sign`).
+        ///
+        /// As with [`HS_IP_V_SIGNING`](CertType::HS_IP_V_SIGNING), this
+        /// certificate type is backwards.  In the original specification it was
+        /// meant to be a cross certificate, with the signing and signed keys
+        /// reversed.
         HS_IP_CC_SIGNING = 0x0B,
     }
 }
@@ -506,11 +527,12 @@ impl tor_checkable::SelfSigned<SigCheckedCert> for UncheckedCert {
     }
 }
 
-impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
+impl tor_checkable::Timebound<Ed25519Cert> for Ed25519Cert {
     type Error = tor_checkable::TimeValidityError;
-    fn is_valid_at(&self, t: &time::SystemTime) -> std::result::Result<(), Self::Error> {
-        if self.cert.is_expired_at(*t) {
-            let expiry = self.cert.expiry();
+
+    fn is_valid_at(&self, t: &time::SystemTime) -> Result<(), Self::Error> {
+        if self.is_expired_at(*t) {
+            let expiry = self.expiry();
             Err(Self::Error::Expired(
                 t.duration_since(expiry)
                     .expect("certificate expiry time inconsistent"),
@@ -518,6 +540,17 @@ impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
         } else {
             Ok(())
         }
+    }
+
+    fn dangerously_assume_timely(self) -> Ed25519Cert {
+        self
+    }
+}
+
+impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
+    type Error = tor_checkable::TimeValidityError;
+    fn is_valid_at(&self, t: &time::SystemTime) -> std::result::Result<(), Self::Error> {
+        self.cert.is_valid_at(t)
     }
 
     fn dangerously_assume_timely(self) -> Ed25519Cert {

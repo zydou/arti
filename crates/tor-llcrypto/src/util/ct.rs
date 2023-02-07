@@ -1,6 +1,7 @@
 //! Define helpers for working with types in constant time.
 
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
+use zeroize::Zeroize;
 
 /// A byte array of length N for which comparisons are performed in constant
 /// time.
@@ -13,7 +14,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 ///
 /// (The decision to avoid implementing `Deref`/`DerefMut` is deliberate.)
 #[allow(clippy::derive_hash_xor_eq)]
-#[derive(Clone, Copy, Debug, Hash)]
+#[derive(Clone, Copy, Debug, Hash, Zeroize)]
 pub struct CtByteArray<const N: usize>([u8; N]);
 
 impl<const N: usize> ConstantTimeEq for CtByteArray<N> {

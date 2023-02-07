@@ -63,7 +63,9 @@ pub struct Subcredential([u8; 32]);
 ///
 /// There can be gaps in this numbering. A descriptor with a higher-valued
 /// revision counter supersedes one with a lower revision counter.
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(
+    Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, derive_more::From, derive_more::Into,
+)]
 pub struct RevisionCounter(u64);
 
 define_bytes! {

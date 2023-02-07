@@ -52,19 +52,23 @@ experimental-api = []
 dangerous-expose-struct-fields = ["visible", "visibility"]
 
 [dependencies]
+arrayref = "0.3"
 base64ct = { version = "1.5.1", features = ["alloc"] }
 bitflags = "1"
+cipher = { version = "0.4.1", features = ["zeroize"] }
 derive_more = "0.99.3"
 digest = "0.10.0"
 educe = "0.4.6"
 hex = "0.4"
 humantime = "2"
+itertools = "0.10.1"
 once_cell = "1"
 phf = { version = "0.11.1", features = ["macros"] }
 rand = { version = "0.8", optional = true }
 serde = "1.0.103"
 serde_with = "2.0.1"
 signature = "1"
+smallvec = "1.10"
 thiserror = "1"
 time = { version = "0.3", features = ["std", "parsing", "macros"] }
 tinystr = "0.7.0"
@@ -72,18 +76,21 @@ tor-bytes = { path = "../tor-bytes", version = "0.6.1" }
 tor-cert = { path = "../tor-cert", version = "0.6.1" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.0" }
 tor-error = { path = "../tor-error", version = "0.4.1" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.0", optional = true } 
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.6.0", optional = true }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
 tor-protover = { path = "../tor-protover", version = "0.4.0" }
 visibility = { version = "0.0.1", optional = true }
 visible = { version = "0.0.1", optional = true }
 weak-table = "0.3.0"
+zeroize = "1"
 
 [dev-dependencies]
 hex-literal = "0.3"
 itertools = "0.10.1"
 serde_json = "1.0.50"
+tor-basic-utils = { version = "0.5.0", path = "../tor-basic-utils" }
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

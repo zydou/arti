@@ -19,6 +19,23 @@ impl<T> SignatureGated<T> {
     pub fn new(obj: T, signatures: Vec<Box<dyn ValidatableSignature>>) -> Self {
         SignatureGated { obj, signatures }
     }
+
+    /// Consume this [`SignatureGated`], and return a new one with the same
+    /// bounds, applying `f` to its protected value.
+    ///
+    /// The caller must ensure that `f` does not make any assumptions about the
+    /// well-signedness of the protected value, or leak any of its contents in
+    /// an inappropriate way.
+    #[must_use]
+    pub fn dangerously_map<F, U>(self, f: F) -> SignatureGated<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        SignatureGated {
+            obj: f(self.obj),
+            signatures: self.signatures,
+        }
+    }
 }
 
 impl<T> super::SelfSigned<T> for SignatureGated<T> {
@@ -87,5 +104,17 @@ mod test {
             vec![Box::new(GoodSig), Box::new(GoodSig), Box::new(GoodSig)],
         );
         assert_eq!(sg.check_signature().unwrap(), 104_u32);
+    }
+
+    #[test]
+    fn test_map() {
+        let good = SignatureGated::new("hello world...", vec![Box::new(GoodSig)]);
+        let good = good.dangerously_map(|s| &s[..11]);
+        let s = good.check_signature().unwrap();
+        assert_eq!(s, "hello world");
+
+        let bad = SignatureGated::new("hello world...", vec![Box::new(BadSig)]);
+        let still_bad = bad.dangerously_map(|s| &s[..11]);
+        assert!(still_bad.check_signature().is_err());
     }
 }
