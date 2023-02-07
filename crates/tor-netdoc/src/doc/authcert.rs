@@ -48,7 +48,7 @@ decl_keyword! {
 static AUTHCERT_RULES: Lazy<SectionRules<AuthCertKwd>> = Lazy::new(|| {
     use AuthCertKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(DIR_KEY_CERTIFICATE_VERSION.rule().required().args(1..));
     rules.add(DIR_ADDRESS.rule().args(1..));
     rules.add(FINGERPRINT.rule().required().args(1..));
@@ -57,6 +57,7 @@ static AUTHCERT_RULES: Lazy<SectionRules<AuthCertKwd>> = Lazy::new(|| {
     rules.add(DIR_KEY_PUBLISHED.rule().required());
     rules.add(DIR_KEY_EXPIRES.rule().required());
     rules.add(DIR_KEY_CROSSCERT.rule().required().no_args().obj_required());
+    rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
     rules.add(
         DIR_KEY_CERTIFICATION
             .rule()
@@ -64,7 +65,7 @@ static AUTHCERT_RULES: Lazy<SectionRules<AuthCertKwd>> = Lazy::new(|| {
             .no_args()
             .obj_required(),
     );
-    rules
+    rules.build()
 });
 
 /// A single authority certificate.

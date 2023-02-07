@@ -242,29 +242,34 @@ decl_keyword! {
 static ROUTER_ANNOTATIONS: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     use RouterKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(ANN_SOURCE.rule());
     rules.add(ANN_DOWNLOADED_AT.rule().args(1..));
     rules.add(ANN_PURPOSE.rule().args(1..));
     rules.add(ANN_UNRECOGNIZED.rule().may_repeat().obj_optional());
-    rules
+    // Unrecognized annotations are fine; anything else is an error in this
+    // context.
+    rules.reject_unrecognized();
+    rules.build()
 });
 /// Rules for tokens that are allowed in the first part of a
 /// router descriptor.
 static ROUTER_HEADER_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     use RouterKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(ROUTER.rule().required().args(5..));
     rules.add(IDENTITY_ED25519.rule().required().no_args().obj_required());
-    rules
+    // No other intervening tokens are permitted in the header.
+    rules.reject_unrecognized();
+    rules.build()
 });
 /// Rules for  tokens that are allowed in the first part of a
 /// router descriptor.
 static ROUTER_BODY_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     use RouterKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(MASTER_KEY_ED25519.rule().required().args(1..));
     rules.add(PLATFORM.rule());
     rules.add(PUBLISHED.rule().required());
@@ -306,17 +311,19 @@ static ROUTER_BODY_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     {
         rules.add(EXTRA_INFO_DIGEST.rule().args(1..));
     }
-    rules
+    rules.build()
 });
 
 /// Rules for items that appear at the end of a router descriptor.
 static ROUTER_SIG_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     use RouterKwd::*;
 
-    let mut rules = SectionRules::new();
+    let mut rules = SectionRules::builder();
     rules.add(ROUTER_SIG_ED25519.rule().required().args(1..));
     rules.add(ROUTER_SIGNATURE.rule().required().no_args().obj_required());
-    rules
+    // No intervening tokens are allowed in the footer.
+    rules.reject_unrecognized();
+    rules.build()
 });
 
 impl RouterAnnotation {

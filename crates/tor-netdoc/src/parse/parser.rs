@@ -160,25 +160,62 @@ impl<'a, T: Keyword> Section<'a, T> {
     }
 }
 
-impl<T: Keyword> SectionRules<T> {
-    /// Create a new SectionRules with no rules.
-    ///
-    /// By default, no Keyword is allowed by this SectionRules.
-    pub(crate) fn new() -> Self {
-        let n = T::n_vals();
-        let mut rules = Vec::with_capacity(n);
-        rules.resize(n, None);
-        SectionRules { rules }
-    }
+/// A builder for a set of section rules.
+#[derive(Clone)]
+pub(crate) struct SectionRulesBuilder<T: Keyword> {
+    /// Have we been told, explicitly, to reject unrecognized tokens?
+    strict: bool,
+    /// The rules we're building.
+    rules: SectionRules<T>,
+}
 
-    /// Add a rule to this SectionRules, based on a TokenFmtBuilder.
+impl<T: Keyword> SectionRulesBuilder<T> {
+    /// Add a rule to this SectionRulesBuilder, based on a TokenFmtBuilder.
     ///
     /// Requires that no rule yet exists for the provided keyword.
     pub(crate) fn add(&mut self, t: TokenFmtBuilder<T>) {
         let rule: TokenFmt<_> = t.into();
         let idx = rule.kwd().idx();
-        assert!(self.rules[idx].is_none());
-        self.rules[idx] = Some(rule);
+        assert!(self.rules.rules[idx].is_none());
+        self.rules.rules[idx] = Some(rule);
+    }
+
+    /// Explicitly reject any unrecognized tokens.
+    ///
+    /// To avoid errors, you must either explicitly reject unrecognized tokens,
+    /// or you must define how they are handled.  
+    pub(crate) fn reject_unrecognized(&mut self) {
+        self.strict = true;
+    }
+
+    /// Construct the SectionRules from this builder.
+    ///
+    /// # Panics
+    ///
+    /// Panics if you did not specify the behavior for unrecognized tokens,
+    /// using either `reject_unrecognized` or `add(UNRECOGNIZED.rule()...)`
+    pub(crate) fn build(self) -> SectionRules<T> {
+        let unrecognized_idx = T::unrecognized().idx();
+        assert!(
+            self.strict || self.rules.rules[unrecognized_idx].is_some(),
+            "BUG: Section has to handle UNRECOGNIZED tokens explicitly."
+        );
+        self.rules
+    }
+}
+
+impl<T: Keyword> SectionRules<T> {
+    /// Create a new builder for a SectionRules with no rules.
+    ///
+    /// By default, no Keyword is allowed by this SectionRules.
+    pub(crate) fn builder() -> SectionRulesBuilder<T> {
+        let n = T::n_vals();
+        let mut rules = Vec::with_capacity(n);
+        rules.resize(n, None);
+        SectionRulesBuilder {
+            strict: false,
+            rules: SectionRules { rules },
+        }
     }
 
     /// Parse a stream of tokens into a Section object without (fully)
@@ -289,13 +326,14 @@ mod test {
     /// Rules for parsing a set of router annotations.
     static FRUIT_SALAD: Lazy<SectionRules<Fruit>> = Lazy::new(|| {
         use Fruit::*;
-        let mut rules = SectionRules::new();
+        let mut rules = SectionRules::builder();
         rules.add(ANN_TASTY.rule().required().args(1..=1));
         rules.add(ORANGE.rule().args(1..));
         rules.add(STONEFRUIT.rule().may_repeat());
         rules.add(GUAVA.rule().obj_optional());
         rules.add(LEMON.rule().no_args().obj_required());
-        rules
+        rules.reject_unrecognized();
+        rules.build()
     });
 
     #[test]
