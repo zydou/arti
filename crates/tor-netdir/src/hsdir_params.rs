@@ -90,18 +90,18 @@ impl HsRingParams {
                 "Consensus valid-after did not fall in a time period",
             ))?;
 
-        let main_ring = find_params_for_time(&srvs[..], cur_period)?
+        let current = find_params_for_time(&srvs[..], cur_period)?
             .unwrap_or_else(|| disaster_params(cur_period));
 
         // When computing secondary rings, we don't try so many fallback operations:
         // if they aren't available, they aren't available.
-        let other_rings = [cur_period.prev(), cur_period.next()]
+        let secondary = [cur_period.prev(), cur_period.next()]
             .iter()
             .flatten()
             .flat_map(|period| find_params_for_time(&srvs[..], *period).ok().flatten())
             .collect();
 
-        Ok((main_ring, other_rings))
+        Ok((current, secondary))
     }
 }
 
@@ -428,14 +428,14 @@ mod test {
         // 12 hours.
         let consensus = example_consensus_builder().testing_consensus().unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (cur, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
+        let (current, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
-            cur.time_period,
+            current.time_period,
             TimePeriod::new(d("1 day"), t("1985-10-25T07:00:00Z"), d("12 hours")).unwrap()
         );
         // We use the "previous" SRV since the start of this time period was 12:00 on the 24th.
-        assert_eq!(cur.shared_rand.as_ref(), &SRV1);
+        assert_eq!(current.shared_rand.as_ref(), &SRV1);
 
         // Our secondary SRV will be the one that starts when we move into the
         // next time period.
@@ -457,13 +457,13 @@ mod test {
             .testing_consensus()
             .unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (cur, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
+        let (current, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
-            cur.time_period,
+            current.time_period,
             TimePeriod::new(d("2 hours"), t("1985-10-25T07:00:00Z"), d("12 hours")).unwrap()
         );
-        assert_eq!(cur.shared_rand.as_ref(), &SRV2);
+        assert_eq!(current.shared_rand.as_ref(), &SRV2);
 
         assert_eq!(secondary.len(), 2);
         assert_eq!(

@@ -52,7 +52,7 @@ pub mod testnet;
 pub mod testprovider;
 
 #[cfg(feature = "onion-common")]
-use hsdir_ring::HsDirRing;
+use {hsdir_ring::HsDirRing, hsdir_params::HsRingParams};
 use static_assertions::const_assert;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
@@ -594,7 +594,7 @@ impl PartialNetDir {
         #[cfg(feature = "onion-common")]
         let hsdir_ring = {
             let (cur_hsparams, secondary_hsparams) =
-                hsdir_params::HsRingParams::compute(&consensus, &params)
+                HsRingParams::compute(&consensus, &params)
                     .expect("Invalid consensus!");
             // TODO HS: I dislike using expect above, but this function does not
             // return a Result. Perhaps we should change it so that it can?  Or as an alternative
