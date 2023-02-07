@@ -35,7 +35,7 @@ use tor_netdoc::doc::netstatus::{Lifetime, MdConsensus, SharedRandVal};
 /// These parameters are derived from the shared random values and time
 /// parameters in the consensus, and are used to determine the
 /// position of each HsDir within the ring.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct HsDirParams {
     /// The time period for this ring.  It's used to ensure that blinded onion
     /// keys rotate in a _predictable_ way over time.
