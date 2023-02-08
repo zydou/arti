@@ -185,7 +185,7 @@ impl HsDescInner {
                 res
             };
 
-            // Parse the ntor "onion-key" (`KP_onion_ntor`) of the introduction point.
+            // Parse the ntor "onion-key" (`KP_ntor`) of the introduction point.
             let ntor_onion_key = {
                 let tok = ipt_section
                     .slice(ONION_KEY)
@@ -196,17 +196,17 @@ impl HsDescInner {
                 tok.parse_arg::<B64>(1)?.into_array()?.into()
             };
 
-            // Extract the auth_key (`KP_hs_intro_tid`) from the (unchecked)
+            // Extract the auth_key (`KP_hs_ipt_sid`) from the (unchecked)
             // "auth-key" certificate.
             let auth_key: IntroPtAuthKey = {
                 // Note that this certificate does not actually serve any
                 // function _as_ a certificate; it was meant to cross-certify
                 // the descriptor signing key (`KP_hs_desc_sign`) using the
-                // authentication key (`KP_hs_intro_tid`).  But the C tor
+                // authentication key (`KP_hs_ipt_sid`).  But the C tor
                 // implementation got it backwards.
                 //
                 // We have to parse this certificate to extract
-                // `KP_hs_intro_tid`, but we don't actually need to validate it:
+                // `KP_hs_ipt_sid`, but we don't actually need to validate it:
                 // it appears inside the inner layer, which is already signed
                 // with `KP_hs_desc_sign`.
                 //
@@ -248,7 +248,7 @@ impl HsDescInner {
                 ed_key.into()
             };
 
-            // Extract the key `KP_hs_intro_ntor` that we'll use for our
+            // Extract the key `KP_hss_ntor` that we'll use for our
             // handshake with the onion service itself.  This comes from the
             // "enc-key" item.
             // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
@@ -264,7 +264,7 @@ impl HsDescInner {
             };
 
             // Check that the key in the "enc-key-cert" item matches the
-            // `KP_hs_intro_ntor` we just extracted.
+            // `KP_hss_ntor` we just extracted.
             {
                 // NOTE: As above, this certificate is backwards, and hence
                 // useless. Therefore, we do not validate it: we only check that

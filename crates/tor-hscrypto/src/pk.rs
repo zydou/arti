@@ -254,7 +254,7 @@ pub struct DescSigningKey(ed25519::PublicKey) / DescSigningSecretKey(ed25519::Se
 
 define_pk_keypair! {
 /// A key used to identify and authenticate an onion service at a single
-/// introduction point. (`KP_hs_intro_tid`)
+/// introduction point. (`KP_hs_ipt_sid`)
 ///
 /// This key is included in the onion service's descriptor; a different one is
 /// used at each introduction point.  Introduction points don't know the

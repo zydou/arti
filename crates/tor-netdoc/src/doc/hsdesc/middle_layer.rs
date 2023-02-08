@@ -24,7 +24,7 @@ pub(super) struct HsDescMiddle {
     /// in use.
     ///
     /// This is `desc-auth-ephemeral-key` in the document format; it does not
-    /// yet have a name in our spec's list of keys.  Call it `KP_hs_desc_ephem`
+    /// yet have a name in our spec's list of keys.  Call it `KP_hss_desc_enc`
     /// for now.  It is used along with `KS_hsc_desc_enc` to perform a
     /// diffie-hellman operation and decrypt the inner layer.
     // TODO HS rename. Possibly to kp_hs_desc_ephem, depending.
@@ -87,7 +87,7 @@ impl HsDescMiddle {
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
         use tor_llcrypto::d::Shake256 as KDF;
 
-        // Perform a diffie hellman handshake using `KS_hsc_desc_enc` and `KP_hs_desc_ephem`,
+        // Perform a diffie hellman handshake using `KS_hsc_desc_enc` and `KP_hss_desc_enc`,
         // and use it to find our client_id and cookie_key.
         //
         // The spec says:
@@ -220,7 +220,7 @@ impl HsDescMiddle {
             }
         }
 
-        // Extract `KP_hs_desc_ephem` from DESC_AUTH_EPHEMERAL_KEY
+        // Extract `KP_hss_desc_enc` from DESC_AUTH_EPHEMERAL_KEY
         let ephemeral_key: curve25519::PublicKey = {
             let token = body.required(DESC_AUTH_EPHEMERAL_KEY)?;
             let bytes = token.parse_arg::<B64>(0)?.into_array()?;

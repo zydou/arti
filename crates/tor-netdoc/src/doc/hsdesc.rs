@@ -140,14 +140,14 @@ pub struct IntroPointDesc {
     link_specifiers: Vec<LinkSpec>,
 
     /// The key used to extend a circuit _to the introduction point_, using the
-    /// ntor or ntor3 handshakes.  (`KP_onion_ntor`)
+    /// ntor or ntor3 handshakes.  (`KP_ntor`)
     ntor_onion_key: curve25519::PublicKey,
 
     /// A key used to identify the onion service at this introduction point.
-    /// (`KP_hs_intro_tid`)
+    /// (`KP_hs_ipt_sid`)
     auth_key: IntroPtAuthKey,
 
-    /// `KP_hs_intro_ntor`, the key used to encrypt a handshake _to the onion
+    /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
     /// service_ when using this introduction point.
     ///
     /// The onion service uses a separate key of this type with each
