@@ -24,10 +24,10 @@ define_bytes! {
 /// `${base32}.onion` address.  When expanded, it is a public key whose
 /// corresponding secret key is controlled by the onion service.
 ///
-/// Note: This is a separate type from [`OnionIdKey`] because it is about 6x
+/// Note: This is a separate type from [`HsIdKey`] because it is about 6x
 /// smaller.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub struct OnionId([u8; 32]);
+pub struct HsId([u8; 32]);
 }
 
 define_pk_keypair! {
@@ -37,14 +37,14 @@ define_pk_keypair! {
 /// a `${base32}.onion` address.
 ///
 /// This key is not used to sign or validate anything on its own; instead, it is
-/// used to derive a `BlindedOnionIdKey`.
+/// used to derive a [`HsBlindIdKey`].
 ///
-/// Note: This is a separate type from [`OnionId`] because it is about 6x
+/// Note: This is a separate type from [`HsId`] because it is about 6x
 /// larger.  It is an expanded form, used for doing actual cryptography.
 //
 // NOTE: This is called the "master" key in rend-spec-v3, but we're deprecating
 // that vocabulary generally.
-pub struct OnionIdKey(ed25519::PublicKey) /
+pub struct HsIdKey(ed25519::PublicKey) /
     ///
     /// This is stored as an expanded secret key, for compatibility with the C
     /// tor implementation, and in order to support custom-generated addresses.
@@ -58,36 +58,36 @@ pub struct OnionIdKey(ed25519::PublicKey) /
     /// major drawback is that once you have found a good `a`, you can't get an
     /// `s` for it, since you presumably can't find SHA512 preimages.  And that
     /// is why we store the private key in (a,r) form.)
-    OnionIdSecretKey(ed25519::ExpandedSecretKey);
+    HsIdSecretKey(ed25519::ExpandedSecretKey);
 }
 
-impl OnionIdKey {
-    /// Return a representation of this key as an [`OnionId`].
+impl HsIdKey {
+    /// Return a representation of this key as an [`HsId`].
     ///
-    /// ([`OnionId`] is much smaller, and easier to store.)
-    pub fn id(&self) -> OnionId {
-        OnionId(self.0.to_bytes().into())
+    /// ([`HsId`] is much smaller, and easier to store.)
+    pub fn id(&self) -> HsId {
+        HsId(self.0.to_bytes().into())
     }
 }
-impl TryFrom<OnionId> for OnionIdKey {
+impl TryFrom<HsId> for HsIdKey {
     type Error = signature::Error;
 
-    fn try_from(value: OnionId) -> Result<Self, Self::Error> {
-        ed25519::PublicKey::from_bytes(value.0.as_ref()).map(OnionIdKey)
+    fn try_from(value: HsId) -> Result<Self, Self::Error> {
+        ed25519::PublicKey::from_bytes(value.0.as_ref()).map(HsIdKey)
     }
 }
-impl From<OnionIdKey> for OnionId {
-    fn from(value: OnionIdKey) -> Self {
+impl From<HsIdKey> for HsId {
+    fn from(value: HsIdKey) -> Self {
         value.id()
     }
 }
 
-impl OnionIdKey {
+impl HsIdKey {
     /// Derive the blinded key and subcredential for this identity during `cur_period`.
     pub fn compute_blinded_key(
         &self,
         cur_period: TimePeriod,
-    ) -> Result<(BlindedOnionIdKey, crate::Subcredential), keymanip::BlindingError> {
+    ) -> Result<(HsBlindIdKey, crate::Subcredential), keymanip::BlindingError> {
         // TODO hs: decide whether we want to support this kind of shared secret; C Tor does not.
         let secret = b"";
         let param = self.blinding_parameter(secret, cur_period);
@@ -148,19 +148,13 @@ impl OnionIdKey {
     }
 }
 
-impl OnionIdSecretKey {
+impl HsIdSecretKey {
     /// Derive the blinded key and subcredential for this identity during `cur_period`.
     pub fn compute_blinded_key(
         &self,
         cur_period: TimePeriod,
-    ) -> Result<
-        (
-            BlindedOnionIdKey,
-            BlindedOnionIdSecretKey,
-            crate::Subcredential,
-        ),
-        keymanip::BlindingError,
-    > {
+    ) -> Result<(HsBlindIdKey, HsBlindIdSecretKey, crate::Subcredential), keymanip::BlindingError>
+    {
         // TODO hs: as above, decide if we want this.
         let secret = b"";
 
@@ -169,7 +163,7 @@ impl OnionIdSecretKey {
         // only do this on an onion service once per time period: the
         // performance does not matter.
 
-        let public_key: OnionIdKey = ed25519::PublicKey::from(&self.0).into();
+        let public_key: HsIdKey = ed25519::PublicKey::from(&self.0).into();
         let (blinded_public_key, subcredential) = public_key.compute_blinded_key(cur_period)?;
 
         let param = public_key.blinding_parameter(secret, cur_period);
@@ -183,54 +177,54 @@ define_pk_keypair! {
 /// The "blinded" identity of a v3 onion service. (`KP_hs_blind_id`)
 ///
 /// This key is derived via a one-way transformation from an
-/// `OnionIdKey` and the current time period.
+/// `HsIdKey` and the current time period.
 ///
 /// It is used for two purposes: first, to compute an index into the HSDir
 /// ring, and second, to sign a `DescSigningKey`.
 ///
-/// Note: This is a separate type from [`BlindedOnionId`] because it is about 6x
+/// Note: This is a separate type from [`HsBlindId`] because it is about 6x
 /// larger.  It is an expanded form, used for doing actual cryptography.
-pub struct BlindedOnionIdKey(ed25519::PublicKey) / BlindedOnionIdSecretKey(ed25519::ExpandedSecretKey);
+pub struct HsBlindIdKey(ed25519::PublicKey) / HsBlindIdSecretKey(ed25519::ExpandedSecretKey);
 }
 
 define_bytes! {
 /// A blinded onion service identity, represented in a compact format. (`KP_hs_blind_id`)
 ///
-/// Note: This is a separate type from [`BlindedOnionIdKey`] because it is about
+/// Note: This is a separate type from [`HsBlindIdKey`] because it is about
 /// 6x smaller.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub struct BlindedOnionId([u8; 32]);
+pub struct HsBlindId([u8; 32]);
 }
 
-impl BlindedOnionIdKey {
-    /// Return a representation of this key as a [`BlindedOnionId`].
+impl HsBlindIdKey {
+    /// Return a representation of this key as a [`HsBlindId`].
     ///
-    /// ([`BlindedOnionId`] is much smaller, and easier to store.)
-    pub fn id(&self) -> BlindedOnionId {
-        BlindedOnionId(self.0.to_bytes().into())
+    /// ([`HsBlindId`] is much smaller, and easier to store.)
+    pub fn id(&self) -> HsBlindId {
+        HsBlindId(self.0.to_bytes().into())
     }
 }
-impl TryFrom<BlindedOnionId> for BlindedOnionIdKey {
+impl TryFrom<HsBlindId> for HsBlindIdKey {
     type Error = signature::Error;
 
-    fn try_from(value: BlindedOnionId) -> Result<Self, Self::Error> {
-        ed25519::PublicKey::from_bytes(value.0.as_ref()).map(BlindedOnionIdKey)
+    fn try_from(value: HsBlindId) -> Result<Self, Self::Error> {
+        ed25519::PublicKey::from_bytes(value.0.as_ref()).map(HsBlindIdKey)
     }
 }
-impl From<BlindedOnionIdKey> for BlindedOnionId {
-    fn from(value: BlindedOnionIdKey) -> Self {
+impl From<HsBlindIdKey> for HsBlindId {
+    fn from(value: HsBlindIdKey) -> Self {
         value.id()
     }
 }
-impl From<ed25519::Ed25519Identity> for BlindedOnionId {
+impl From<ed25519::Ed25519Identity> for HsBlindId {
     fn from(value: ed25519::Ed25519Identity) -> Self {
         Self(CtByteArray::from(<[u8; 32]>::from(value)))
     }
 }
 
-impl BlindedOnionIdSecretKey {
+impl HsBlindIdSecretKey {
     /// Compute a signature of `message` with this key, using the corresponding `public_key`.
-    pub fn sign(&self, message: &[u8], public_key: &BlindedOnionIdKey) -> ed25519::Signature {
+    pub fn sign(&self, message: &[u8], public_key: &HsBlindIdKey) -> ed25519::Signature {
         self.0.sign(message, &public_key.0)
     }
 }
@@ -238,18 +232,18 @@ impl BlindedOnionIdSecretKey {
 define_pk_keypair! {
 /// A key used to sign onion service descriptors. (`KP_desc_sign`)
 ///
-/// It is authenticated with a `BlindedOnionIdKeys` to prove that it belongs to
+/// It is authenticated with a [`HsBlindIdKey`] to prove that it belongs to
 /// the right onion service, and is used in turn to sign the descriptor that
 /// tells clients what they need to know about contacting an onion service.
 ///
 /// Onion services create a new `DescSigningKey` every time the
-/// `BlindedOnionIdKeys` rotates, to prevent descriptors made in one time period
+/// `HsBlindIdKey` rotates, to prevent descriptors made in one time period
 /// from being linkable to those made in another.
 ///
 /// Note: we use a separate signing key here, rather than using the
-/// BlindedOnionIdKey directly, so that the secret key for the BlindedOnionIdKey
+/// `HsBlindIdKey` directly, so that the [`HsBlindIdSecretKey`]
 /// can be kept offline.
-pub struct DescSigningKey(ed25519::PublicKey) / DescSigningSecretKey(ed25519::SecretKey);
+pub struct HsDescSigningKey(ed25519::PublicKey) / HsDescSigningSecretKey(ed25519::SecretKey);
 }
 
 define_pk_keypair! {
@@ -260,17 +254,17 @@ define_pk_keypair! {
 /// used at each introduction point.  Introduction points don't know the
 /// relation of this key to the onion service: they only recognize the same key
 /// when they see it again.
-pub struct IntroPtAuthKey(ed25519::PublicKey) / IntroPtAuthSecretKey(ed25519::SecretKey);
+pub struct HsIntroPtSessionIdKey(ed25519::PublicKey) / HsIntroPtSessionIdSecretKey(ed25519::SecretKey);
 }
 
 define_pk_keypair! {
 /// A key used in the HsNtor handshake between the client and the onion service.
-/// (`KP_hs_into_ntor`)
+/// (`KP_hss_ntor`)
 ///
 /// The onion service chooses a different one of these to use with each
 /// introduction point, though it does not need to tell the introduction points
 /// about these keys.
-pub struct IntroPtEncKey(curve25519::PublicKey) / IntroPtEncSecretKey(curve25519::StaticSecret);
+pub struct HsSvcNtorKey(curve25519::PublicKey) / HsSvcNtorSecretKey(curve25519::StaticSecret);
 }
 
 define_pk_keypair! {
@@ -279,7 +273,7 @@ define_pk_keypair! {
 ///
 /// This is used to sign a nonce included in an extension in the encrypted
 /// portion of an introduce cell.
-pub struct ClientIntroAuthKey(ed25519::PublicKey) / ClientIntroAuthSecretKey(ed25519::SecretKey);
+pub struct HsClientIntroAuthKey(ed25519::PublicKey) / HsClientIntroAuthSecretKey(ed25519::SecretKey);
 }
 
 define_pk_keypair! {
@@ -288,7 +282,7 @@ define_pk_keypair! {
 ///
 /// Any client who knows the secret key corresponding to this key can decrypt
 /// the inner layer of the onion service descriptor.
-pub struct ClientDescAuthKey(curve25519::PublicKey) / ClientDescAuthSecretKey(curve25519::StaticSecret);
+pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
 }
 
 /// A set of keys to tell the client to use when connecting to an onion service.
@@ -296,10 +290,10 @@ pub struct ClientDescAuthKey(curve25519::PublicKey) / ClientDescAuthSecretKey(cu
 // TODO hs
 pub struct ClientSecretKeys {
     /// Possibly, a key that is used to decrypt a descriptor.
-    desc_auth: Option<ClientDescAuthSecretKey>,
+    desc_auth: Option<HsClientDescEncSecretKey>,
     /// Possibly, a key that is used to authenticate while
     /// introducing.
-    intro_auth: Option<ClientIntroAuthSecretKey>,
+    intro_auth: Option<HsClientIntroAuthSecretKey>,
 }
 
 #[cfg(test)]
@@ -329,8 +323,8 @@ mod test {
         let offset = Duration::new(12 * 60 * 60, 0);
         let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now(), offset).unwrap();
         let keypair = ed25519::Keypair::generate(&mut rng);
-        let id_pub = OnionIdKey::from(keypair.public);
-        let id_sec = OnionIdSecretKey::from(ed25519::ExpandedSecretKey::from(&keypair.secret));
+        let id_pub = HsIdKey::from(keypair.public);
+        let id_sec = HsIdSecretKey::from(ed25519::ExpandedSecretKey::from(&keypair.secret));
 
         let (blinded_pub, subcred1) = id_pub.compute_blinded_key(when).unwrap();
         let (blinded_pub2, blinded_sec, subcred2) = id_sec.compute_blinded_key(when).unwrap();
@@ -350,11 +344,11 @@ mod test {
     #[test]
     fn key_blinding_testvec() {
         // Test vectors generated with C tor.
-        let id = OnionId::from(hex!(
+        let id = HsId::from(hex!(
             "833990B085C1A688C1D4C8B1F6B56AFAF5A2ECA674449E1D704F83765CCB7BC6"
         ));
-        let id_pubkey = OnionIdKey::try_from(id).unwrap();
-        let id_seckey = OnionIdSecretKey::from(
+        let id_pubkey = HsIdKey::try_from(id).unwrap();
+        let id_seckey = HsIdSecretKey::from(
             ed25519::ExpandedSecretKey::from_bytes(&hex!(
                 "D8C7FF0E31295B66540D789AF3E3DF992038A9592EEA01D8B7CBA06D6E66D159
                  4D6167696320576F7264733A20737065697373636F62616C742062697669756D"

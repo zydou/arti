@@ -2,7 +2,7 @@
 //!
 //! TODO hs: It's possible that this should move to tor-netdoc.
 
-use tor_hscrypto::{pk::BlindedOnionId, RevisionCounter, Subcredential};
+use tor_hscrypto::{pk::HsBlindId, RevisionCounter, Subcredential};
 use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
 use tor_llcrypto::d::Sha3_256 as Hash;
 use tor_llcrypto::d::Shake256 as KDF;
@@ -22,7 +22,7 @@ pub(super) struct HsDescEncryption<'a> {
     /// First half of the "SECRET_DATA" field.
     ///
     /// (See rend-spec v3 2.5.1.1 and 2.5.2.1.)
-    pub(super) blinded_id: &'a BlindedOnionId,
+    pub(super) blinded_id: &'a HsBlindId,
     /// Second half of the "SECRET_DATA" field.
     ///
     /// This is absent when handling the middle layer (2.5.1.1).

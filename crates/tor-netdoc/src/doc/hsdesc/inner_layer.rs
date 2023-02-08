@@ -9,7 +9,7 @@ use crate::{ParseErrorKind as EK, Result};
 use itertools::Itertools as _;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
-use tor_hscrypto::pk::{IntroPtAuthKey, IntroPtEncKey};
+use tor_hscrypto::pk::{HsIntroPtSessionIdKey, HsSvcNtorKey};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 /// The contents of the inner layer of an onion service descriptor.
@@ -198,7 +198,7 @@ impl HsDescInner {
 
             // Extract the auth_key (`KP_hs_ipt_sid`) from the (unchecked)
             // "auth-key" certificate.
-            let auth_key: IntroPtAuthKey = {
+            let auth_key: HsIntroPtSessionIdKey = {
                 // Note that this certificate does not actually serve any
                 // function _as_ a certificate; it was meant to cross-certify
                 // the descriptor signing key (`KP_hs_desc_sign`) using the
@@ -252,7 +252,7 @@ impl HsDescInner {
             // handshake with the onion service itself.  This comes from the
             // "enc-key" item.
             // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
-            let hs_enc_key: IntroPtEncKey = {
+            let hs_enc_key: HsSvcNtorKey = {
                 let tok = ipt_section
                     .slice(ENC_KEY)
                     .iter()

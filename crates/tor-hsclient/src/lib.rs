@@ -8,7 +8,7 @@ mod state;
 
 use async_trait::async_trait;
 use std::sync::Arc;
-use tor_hscrypto::pk::{ClientSecretKeys, OnionId};
+use tor_hscrypto::pk::{ClientSecretKeys, HsId};
 use tor_proto::circuit::ClientCirc;
 
 use tor_circmgr::{CircMgr, OnionConnectError, OnionServiceConnector};
@@ -59,7 +59,7 @@ impl<R: Runtime> HsClientConnector<R> {
 impl<R: Runtime> OnionServiceConnector for HsClientConnector<R> {
     async fn create_connection(
         &self,
-        service_id: OnionId,
+        service_id: HsId,
         using_keys: Option<ClientSecretKeys>,
     ) -> Result<ClientCirc, OnionConnectError> {
         todo!() // TODO hs

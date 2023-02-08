@@ -5,7 +5,7 @@ use tor_cert::Ed25519Cert;
 use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
-use tor_hscrypto::pk::BlindedOnionId;
+use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::ed25519::{self, ValidatableEd25519Signature};
 
@@ -45,7 +45,7 @@ pub(super) struct HsDescOuter {
 
 impl HsDescOuter {
     /// Return the blinded Id for this onion service descriptor.
-    pub(super) fn blinded_id(&self) -> BlindedOnionId {
+    pub(super) fn blinded_id(&self) -> HsBlindId {
         let ident = self
             .desc_signing_key_cert
             .signing_key()

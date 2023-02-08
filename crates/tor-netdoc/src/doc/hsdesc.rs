@@ -31,7 +31,8 @@ use smallvec::SmallVec;
 use tor_checkable::{signed, timed};
 use tor_hscrypto::{
     pk::{
-        BlindedOnionId, ClientDescAuthKey, ClientDescAuthSecretKey, IntroPtAuthKey, IntroPtEncKey,
+        HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey,
+        HsSvcNtorKey,
     },
     RevisionCounter, Subcredential,
 };
@@ -50,7 +51,7 @@ use tor_llcrypto::pk::curve25519;
 pub struct StoredHsDescMeta {
     /// The blinded onion identity for this descriptor.  (This is the only
     /// identity that the HsDir knows.)
-    blinded_id: BlindedOnionId,
+    blinded_id: HsBlindId,
 
     /// Information about the expiration and revision counter for this
     /// descriptor.
@@ -93,7 +94,7 @@ pub struct HsDesc {
     ///
     /// This is set to None if we did not have to use a private key to decrypt
     /// the descriptor.
-    decrypted_with_id: Option<ClientDescAuthKey>,
+    decrypted_with_id: Option<HsClientDescEncKey>,
 
     /// A list of recognized CREATE handshakes that this onion service supports.
     // TODO hs: this should probably be a caret enum, not an integer
@@ -145,7 +146,7 @@ pub struct IntroPointDesc {
 
     /// A key used to identify the onion service at this introduction point.
     /// (`KP_hs_ipt_sid`)
-    auth_key: IntroPtAuthKey,
+    auth_key: HsIntroPtSessionIdKey,
 
     /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
     /// service_ when using this introduction point.
@@ -154,7 +155,7 @@ pub struct IntroPointDesc {
     /// introduction point as part of its strategy for preventing replay
     /// attacks.
     // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
-    hs_enc_key: IntroPtEncKey,
+    hs_enc_key: HsSvcNtorKey,
 }
 
 /// An onion service after it has been parsed by the client, but not yet decrypted.
@@ -193,7 +194,7 @@ impl HsDesc {
         input: &str,
         // We don't actually need this to parse the HsDesc, but we _do_ need it to prevent
         // a nasty pattern where we forget to check that we got the right one.
-        blinded_onion_id: &BlindedOnionId,
+        blinded_onion_id: &HsBlindId,
     ) -> Result<UncheckedEncryptedHsDesc> {
         let outer = outer_layer::HsDescOuter::parse(input)?;
         let mut id_matches = false;
@@ -233,7 +234,7 @@ impl EncryptedHsDesc {
         self,
         subcredential: &Subcredential,
         // TODO HS: rename depending on how the spec goes.
-        hsc_desc_enc: Option<(&ClientDescAuthKey, &ClientDescAuthSecretKey)>,
+        hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
     ) -> Result<HsDesc> {
         let blinded_id = self.outer_layer.blinded_id();
         let revision_counter = self.outer_layer.revision_counter;

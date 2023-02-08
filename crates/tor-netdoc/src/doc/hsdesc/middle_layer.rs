@@ -2,7 +2,7 @@
 
 use digest::XofReader;
 use once_cell::sync::Lazy;
-use tor_hscrypto::pk::{BlindedOnionId, ClientDescAuthSecretKey};
+use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::util::ct::CtByteArray;
@@ -47,10 +47,10 @@ impl HsDescMiddle {
     /// didn't have the right key.
     pub(super) fn decrypt_inner(
         &self,
-        blinded_id: &BlindedOnionId,
+        blinded_id: &HsBlindId,
         revision: RevisionCounter,
         subcredential: &Subcredential,
-        key: Option<&ClientDescAuthSecretKey>,
+        key: Option<&HsClientDescEncSecretKey>,
     ) -> std::result::Result<Vec<u8>, DecryptionError> {
         let desc_enc_nonce = key.and_then(|k| self.find_cookie(subcredential, k));
         let decrypt = HsDescEncryption {
@@ -77,7 +77,7 @@ impl HsDescMiddle {
     fn find_cookie(
         &self,
         subcredential: &Subcredential,
-        ks_hsc_desc_enc: &ClientDescAuthSecretKey,
+        ks_hsc_desc_enc: &HsClientDescEncSecretKey,
     ) -> Option<DescEncNonce> {
         use cipher::{KeyIvInit, StreamCipher};
         use digest::{ExtendableOutput, Update};
