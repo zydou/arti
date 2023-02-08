@@ -115,8 +115,6 @@ pub struct HsDesc {
 /// service.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum IntroAuthType {
-    /// Password (or rather, shared-secret) authentication is required.
-    Password,
     /// Ed25519 authentication is required.
     Ed25519,
 }
