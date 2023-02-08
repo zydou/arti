@@ -11,8 +11,6 @@ use educe::Educe;
 
 /// Trait for the 'bodies' of channel messages.
 pub trait Body: Readable {
-    /// Convert this type into a ChanMsg, wrapped as appropriate.
-    fn into_message(self) -> AnyChanMsg;
     /// Decode a channel cell body from a provided reader.
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         r.extract()
@@ -97,9 +95,6 @@ impl Padding {
     }
 }
 impl Body for Padding {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Padding(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, _w: &mut W) -> EncodeResult<()> {
         Ok(())
     }
@@ -125,9 +120,6 @@ impl Vpadding {
     }
 }
 impl Body for Vpadding {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Vpadding(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_zeros(self.len as usize);
         Ok(())
@@ -166,9 +158,6 @@ macro_rules! fixed_len_handshake {
             }
         }
         impl Body for $name {
-            fn into_message(self) -> AnyChanMsg {
-                AnyChanMsg::$name(self)
-            }
             fn encode_onto<W: Writer + ?Sized>(self, w: &mut W)  -> EncodeResult<()> {
                 w.write_all(&self.handshake[..]);
                 Ok(())
@@ -262,9 +251,6 @@ pub struct Create2 {
     handshake: Vec<u8>,
 }
 impl Body for Create2 {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Create2(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u16(self.handshake_type);
         let handshake_len = self
@@ -336,9 +322,6 @@ impl Created2 {
     }
 }
 impl Body for Created2 {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Created2(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         let handshake_len = self
             .handshake
@@ -412,9 +395,6 @@ impl Relay {
     }
 }
 impl Body for Relay {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Relay(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.body[..]);
         Ok(())
@@ -439,10 +419,6 @@ impl Readable for RelayEarly {
     }
 }
 impl Body for RelayEarly {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::RelayEarly(self)
-    }
-
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         self.0.encode_onto(w)
     }
@@ -479,9 +455,6 @@ impl Destroy {
     }
 }
 impl Body for Destroy {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Destroy(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(self.reason.into());
         Ok(())
@@ -636,9 +609,6 @@ impl Netinfo {
     }
 }
 impl Body for Netinfo {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Netinfo(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u32(self.timestamp);
         let their_addr = self
@@ -736,9 +706,6 @@ impl Versions {
     }
 }
 impl Body for Versions {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Versions(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         for v in &self.versions {
             w.write_u16(*v);
@@ -842,9 +809,6 @@ impl Default for PaddingNegotiate {
 }
 
 impl Body for PaddingNegotiate {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::PaddingNegotiate(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(0); // version
         w.write_u8(self.command.get());
@@ -968,9 +932,6 @@ impl Certs {
 }
 
 impl Body for Certs {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Certs(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         let n_certs: u8 = self
             .certs
@@ -1029,9 +990,6 @@ impl AuthChallenge {
 }
 
 impl Body for AuthChallenge {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::AuthChallenge(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.challenge[..]);
         let n_methods = self
@@ -1085,9 +1043,6 @@ impl Authenticate {
     }
 }
 impl Body for Authenticate {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Authenticate(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u16(self.authtype);
         let authlen = self
@@ -1126,9 +1081,6 @@ impl Authorize {
     }
 }
 impl Body for Authorize {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Authorize(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.content[..]);
         Ok(())
@@ -1178,9 +1130,6 @@ impl Unrecognized {
     }
 }
 impl Body for Unrecognized {
-    fn into_message(self) -> AnyChanMsg {
-        AnyChanMsg::Unrecognized(self)
-    }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.content[..]);
         Ok(())
@@ -1203,7 +1152,7 @@ macro_rules! msg_into_cell {
             fn from(body: $body) -> super::AnyChanCell {
                 super::AnyChanCell {
                     circid: 0.into(),
-                    msg: body.into_message(),
+                    msg: body.into(),
                 }
             }
         }
