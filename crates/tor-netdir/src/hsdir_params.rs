@@ -19,6 +19,10 @@
 //!
 //! This module could conceivably be part of `tor-netdoc`, but it seems better
 //! to make it part of `tor-netdir`: this is where we put our complexity.
+///
+/// (Here in Arti we use the word "ring" in types and variable names only
+/// to refer to the actual actual reified ring, not to HSDir parameters, or
+/// or other aspects of the HSDir ring structure.)
 use std::time::{Duration, SystemTime};
 
 use crate::{params::NetParameters, Error, Result};
@@ -32,7 +36,7 @@ use tor_netdoc::doc::netstatus::{Lifetime, MdConsensus, SharedRandVal};
 /// parameters in the consensus, and are used to determine the
 /// position of each HsDir within the ring.
 #[derive(Clone, Debug)]
-pub(crate) struct HsRingParams {
+pub(crate) struct HsDirParams {
     /// The time period for this ring.  It's used to ensure that blinded onion
     /// keys rotate in a _predictable_ way over time.
     pub(crate) time_period: TimePeriod,
@@ -58,8 +62,8 @@ const VOTING_PERIODS_IN_SRV_ROUND: u32 = 24;
 /// One day.
 const ONE_DAY: Duration = Duration::new(86400, 0);
 
-impl HsRingParams {
-    /// Compute the `HsRingParams` for the current time period, according to a given
+impl HsDirParams {
+    /// Compute the `HsDirParams` for the current time period, according to a given
     /// consensus.
     ///
     /// rend-spec-v3 section 2.2.1 et seq
@@ -77,7 +81,7 @@ impl HsRingParams {
     pub(crate) fn compute(
         consensus: &MdConsensus,
         params: &NetParameters,
-    ) -> Result<(HsRingParams, Vec<HsRingParams>)> {
+    ) -> Result<(HsDirParams, Vec<HsDirParams>)> {
         let srvs = extract_srvs(consensus)?;
         let tp_length: Duration = params.hsdir_timeperiod_length.try_into().map_err(|_| {
             Error::InvalidConsensus(
@@ -106,8 +110,8 @@ impl HsRingParams {
 }
 
 /// Compute ring parameters using a Disaster SRV for this period.
-fn disaster_params(period: TimePeriod) -> HsRingParams {
-    HsRingParams {
+fn disaster_params(period: TimePeriod) -> HsDirParams {
+    HsDirParams {
         time_period: period,
         shared_rand: disaster_srv(period),
     }
@@ -134,7 +138,7 @@ type SrvInfo = (SharedRandVal, std::ops::Range<SystemTime>);
 
 /// Given a list of SrvInfo, return an HsRingParames instance for a given time
 /// period, if possible.
-fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<HsRingParams>> {
+fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<HsDirParams>> {
     let start = period
         .range()
         .ok_or(Error::InvalidConsensus(
@@ -142,7 +146,7 @@ fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<H
         ))?
         .start;
 
-    Ok(find_srv_for_time(info, start).map(|srv| HsRingParams {
+    Ok(find_srv_for_time(info, start).map(|srv| HsDirParams {
         time_period: period,
         shared_rand: srv,
     }))
@@ -428,7 +432,7 @@ mod test {
         // 12 hours.
         let consensus = example_consensus_builder().testing_consensus().unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (current, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
+        let (current, secondary) = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
             current.time_period,
@@ -457,7 +461,7 @@ mod test {
             .testing_consensus()
             .unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (current, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
+        let (current, secondary) = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
             current.time_period,

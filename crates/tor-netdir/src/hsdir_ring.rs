@@ -18,7 +18,7 @@
 use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
-use crate::hsdir_params::HsRingParams;
+use crate::hsdir_params::HsDirParams;
 use crate::RouterStatusIdx;
 
 /// A sort key determining a position in the onion service directory ring.
@@ -45,7 +45,7 @@ pub(crate) struct HsDirIndex([u8; 32]);
 #[derive(Clone, Debug)]
 pub(crate) struct HsDirRing {
     /// The parameters (time period and shared random value)
-    params: HsRingParams,
+    params: HsDirParams,
 
     /// The ring itself.
     ///
@@ -61,7 +61,7 @@ pub(crate) struct HsDirRing {
 /// Compute the [`HsDirIndex`] for a given relay.
 pub(crate) fn relay_index(
     id: Ed25519Identity,
-    params: &HsRingParams,
+    params: &HsDirParams,
 ) -> HsDirIndex {
     //  TODO hs implement this.
     //
@@ -79,7 +79,7 @@ pub(crate) fn relay_index(
 pub(crate) fn service_index(
     id: HsBlindId,
     replica: u8,
-    params: &HsRingParams,
+    params: &HsDirParams,
 ) -> HsDirIndex {
     // TODO hs implement this
     //
@@ -96,7 +96,7 @@ pub(crate) fn service_index(
 
 impl HsDirRing {
     /// Return a new empty HsDirRing from a given set of parameters.
-    pub(crate) fn empty_from_params(params: HsRingParams) -> Self {
+    pub(crate) fn empty_from_params(params: HsDirParams) -> Self {
         Self {
             params,
             ring: Vec::new(),
