@@ -1,4 +1,4 @@
-//! Implement parsing for the outer layer of an onion service descriptor.
+//! Implement parsing for the outer document of an onion service descriptor.
 
 use once_cell::sync::Lazy;
 use tor_cert::Ed25519Cert;
@@ -15,8 +15,8 @@ use crate::{Pos, Result};
 
 use super::desc_enc;
 
-/// A more-or-less verbatim representation of the outermost layer of an onion
-/// service descriptor.
+/// A more-or-less verbatim representation of the outermost plaintext document
+/// of an onion service descriptor.
 #[derive(Clone, Debug)]
 pub(super) struct HsDescOuter {
     /// The lifetime of this descriptor, in minutes.
@@ -58,7 +58,7 @@ impl HsDescOuter {
         self.revision_counter
     }
 
-    /// Decrypt and return the encrypted (middle-layer) body of this onion
+    /// Decrypt and return the encrypted (middle document) body of this onion
     /// service descriptor.
     pub(super) fn decrypt_body(
         &self,
@@ -76,7 +76,7 @@ impl HsDescOuter {
         let n_padding = body.iter().rev().take_while(|n| **n == 0).count();
         body.truncate(body.len() - n_padding);
         // Work around a bug in the C tor implementation: it doesn't
-        // NL-terminate the final line of the middle layer.
+        // NL-terminate the final line of the middle document.
         if !body.ends_with(b"\n") {
             body.push(b'\n');
         }
@@ -99,7 +99,7 @@ decl_keyword! {
     }
 }
 
-/// Rules about how keywords appear in the outer layer of an onion service
+/// Rules about how keywords appear in the outer document of an onion service
 /// descriptor.
 static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
     use HsOuterKwd::*;
@@ -117,7 +117,7 @@ static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
 });
 
 impl HsDescOuter {
-    /// Try to parse an outer layer of an onion service descriptor from a string.
+    /// Try to parse an outer document of an onion service descriptor from a string.
     pub(super) fn parse(s: &str) -> Result<UncheckedHsDescOuter> {
         // XXXX needs to be unchecked.
         let mut reader = NetDocReader::new(s);

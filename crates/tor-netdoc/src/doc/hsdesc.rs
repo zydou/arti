@@ -11,13 +11,6 @@
 #![allow(dead_code, unused_variables, clippy::missing_panics_doc)] // TODO hs: remove.
 mod desc_enc;
 
-// TODO HS: Rename our terminology about these modules, the related types, and
-// the modules themselves:
-// * Call the three nested pieces of the HsDesc the "outer document", the
-//   "middle document", and the "inner document."
-// * Only use "layer" to refer to the two layers of encryption.  Call them the
-//   "encryption" layer and the "superencryption" layer for consistency with the
-//   spec.
 mod inner;
 mod middle;
 mod outer;
@@ -40,9 +33,9 @@ use tor_llcrypto::pk::curve25519;
 
 /// Metadata about an onion service descriptor, as stored at an HsDir.
 ///
-/// This object is parsed from the outermost layer of an onion service
+/// This object is parsed from the outermost document of an onion service
 /// descriptor, and used on the HsDir to maintain its index.  It does not
-/// include the inner layers' information about introduction points, since the
+/// include the inner documents' information about introduction points, since the
 /// HsDir cannot decrypt those without knowing the onion service's un-blinded
 /// identity.
 ///
@@ -78,8 +71,8 @@ struct IndexInfo {
 
 /// A decrypted, decoded onion service descriptor.
 ///
-/// This object includes information from both the outer (plaintext) layer of
-/// the descriptor, and the inner (encrypted) layers.  It tells the client the
+/// This object includes information from both the outer (plaintext) document of
+/// the descriptor, and the inner (encrypted) documents.  It tells the client the
 /// information it needs to contact the onion service, including necessary
 /// introduction points and public keys.
 #[derive(Debug, Clone)]
@@ -157,8 +150,8 @@ pub struct IntroPointDesc {
 
 /// An onion service after it has been parsed by the client, but not yet decrypted.
 pub struct EncryptedHsDesc {
-    /// The un-decoded outer layer of our onion service descriptor.
-    outer_layer: outer::HsDescOuter,
+    /// The un-decoded outer document of our onion service descriptor.
+    outer_doc: outer::HsDescOuter,
 }
 
 /// An unchecked HsDesc: parsed, but not checked for liveness or validity.
@@ -173,7 +166,7 @@ impl StoredHsDescMeta {
     pub fn parse(input: &str) -> Result<UncheckedStoredHsDescMeta> {
         let outer = outer::HsDescOuter::parse(input)?;
         Ok(outer.dangerously_map(|timebound| {
-            timebound.dangerously_map(|outer| StoredHsDescMeta::from_outer_layer(&outer))
+            timebound.dangerously_map(|outer| StoredHsDescMeta::from_outer_doc(&outer))
         }))
     }
 }
@@ -182,7 +175,7 @@ impl HsDesc {
     // TODO hs: needs accessor functions too.  (Let's not use public fields; we
     // are likely to want to mess with the repr of these types.)
 
-    /// Parse the outermost layer of the descriptor in `input`, and validate
+    /// Parse the outermost document of the descriptor in `input`, and validate
     /// that its identity is consistent with `blinded_onion_id`.
     ///
     /// On success, the caller will get a wrapped object which they must
@@ -198,7 +191,7 @@ impl HsDesc {
         let result = outer.dangerously_map(|timebound| {
             timebound.dangerously_map(|outer| {
                 id_matches = blinded_onion_id == &outer.blinded_id();
-                EncryptedHsDesc::from_outer_layer(outer)
+                EncryptedHsDesc::from_outer_doc(outer)
             })
         });
         if !id_matches {
@@ -216,10 +209,9 @@ impl EncryptedHsDesc {
     /// Attempt to decrypt both layers of encryption in this onion service
     /// descriptor.
     ///
-    /// If `hsc_desc_enc` is provided, we use it to decrypt the inner layer;
-    /// otherwise, we require that the inner layer is encrypted using the "no
+    /// If `hsc_desc_enc` is provided, we use it to decrypt the inner encryption layer;
+    /// otherwise, we require that the inner document is encrypted using the "no
     /// client authorization" method.
-    ///
     ///
     /// Note that `hsc_desc_enc` must be a key *pair* - ie, a KP_hsc_desc_enc
     /// and corresponding KS_hsc_desc_enc. This function **does not check**
@@ -233,18 +225,18 @@ impl EncryptedHsDesc {
         // TODO HS: rename depending on how the spec goes.
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
     ) -> Result<HsDesc> {
-        let blinded_id = self.outer_layer.blinded_id();
-        let revision_counter = self.outer_layer.revision_counter;
+        let blinded_id = self.outer_doc.blinded_id();
+        let revision_counter = self.outer_doc.revision_counter;
 
-        // Decrypt and parse the middle layer.
-        let middle = self.outer_layer.decrypt_body(subcredential).map_err(|e| {
+        // Decrypt the superencryption layer; parse the middle document.
+        let middle = self.outer_doc.decrypt_body(subcredential).map_err(|e| {
             EK::BadObjectVal.with_msg("onion service descriptor superencryption failed.")
         })?;
         let middle = std::str::from_utf8(&middle[..])
-            .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in middle layer"))?;
+            .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in middle document"))?;
         let middle = middle::HsDescMiddle::parse(middle)?;
 
-        // Decrypt and parse the inner layer.
+        // Decrypt tne encryption layer and parse the inner document.
         let inner = middle
             .decrypt_inner(
                 &blinded_id,
@@ -256,16 +248,16 @@ impl EncryptedHsDesc {
                 EK::BadObjectVal.with_msg("onion service descriptor encryption failed.")
             })?;
         let inner = std::str::from_utf8(&inner[..])
-            .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in inner layer"))?;
+            .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))?;
         let inner = inner::HsDescInner::parse(inner)?;
 
         // TODO hs: if we decide that we need to verify and time-check the
-        // certificates in the inner layer, we need to return a
+        // certificates in the inner document, we need to return a
         // SignatureGated<TimerangeBound<HsDesc>> instead.
 
         // Construct the HsDesc!
         Ok(HsDesc {
-            idx_info: IndexInfo::from_outer_layer(&self.outer_layer),
+            idx_info: IndexInfo::from_outer_doc(&self.outer_doc),
             decrypted_with_id: hsc_desc_enc.map(|keys| keys.0.clone()),
             auth_required: inner.intro_auth_types,
             is_single_onion_service: inner.single_onion_service,
@@ -273,15 +265,17 @@ impl EncryptedHsDesc {
         })
     }
 
-    /// Create a new `IndexInfo` from the outer layer of an onion service descriptor.
-    fn from_outer_layer(outer_layer: outer::HsDescOuter) -> Self {
-        EncryptedHsDesc { outer_layer }
+    /// Create a new `IndexInfo` from the outer part of an onion service descriptor.
+    fn from_outer_doc(outer_layer: outer::HsDescOuter) -> Self {
+        EncryptedHsDesc {
+            outer_doc: outer_layer,
+        }
     }
 }
 
 impl IndexInfo {
-    /// Create a new `IndexInfo` from the outer layer of an onion service descriptor.
-    fn from_outer_layer(outer: &outer::HsDescOuter) -> Self {
+    /// Create a new `IndexInfo` from the outer part of an onion service descriptor.
+    fn from_outer_doc(outer: &outer::HsDescOuter) -> Self {
         IndexInfo {
             lifetime_minutes: outer.lifetime_minutes,
             signing_cert_expires: outer.desc_signing_key_cert.expiry(),
@@ -291,10 +285,10 @@ impl IndexInfo {
 }
 
 impl StoredHsDescMeta {
-    /// Create a new `StoredHsDescMeta` from the outer layer of an onion service descriptor.
-    fn from_outer_layer(outer: &outer::HsDescOuter) -> Self {
+    /// Create a new `StoredHsDescMeta` from the outer part of an onion service descriptor.
+    fn from_outer_doc(outer: &outer::HsDescOuter) -> Self {
         let blinded_id = outer.blinded_id();
-        let idx_info = IndexInfo::from_outer_layer(outer);
+        let idx_info = IndexInfo::from_outer_doc(outer);
         StoredHsDescMeta {
             blinded_id,
             idx_info,

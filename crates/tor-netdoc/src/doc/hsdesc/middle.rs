@@ -1,4 +1,4 @@
-//! Handle the middle layer of an onion service descriptor.
+//! Handle the middle document of an onion service descriptor.
 
 use digest::XofReader;
 use once_cell::sync::Lazy;
@@ -15,20 +15,20 @@ use crate::{Pos, Result};
 use super::desc_enc::{DescEncNonce, HsDescEncryption};
 use super::DecryptionError;
 
-/// A more-or-less verbatim representation of the middle layer of an onion
+/// A more-or-less verbatim representation of the middle document of an onion
 /// service descriptor.
 #[derive(Debug, Clone)]
 pub(super) struct HsDescMiddle {
     /// A public key used by authorized clients to decrypt the key used to
-    /// decrypt the inner layer.  This is ignored if client authorization is not
-    /// in use.
+    /// decrypt the encryption layer and decode the inner document.  This is
+    /// ignored if client authorization is not in use.
     ///
-    /// This is `KP_hss_desc_enc`, and appears as `desc-auth-ephemeral-key` in the document format;
-    /// It is used along with `KS_hsc_desc_enc` to perform a
-    /// diffie-hellman operation and decrypt the inner layer.
+    /// This is `KP_hss_desc_enc`, and appears as `desc-auth-ephemeral-key` in
+    /// the document format; It is used along with `KS_hsc_desc_enc` to perform
+    /// a diffie-hellman operation and decrypt the encryption layer.
     ephemeral_key: HsSvcDescEncKey,
     /// One or more authorized clients, and the key exchange information that
-    /// they use to compute shared keys for decrypting inner layer.
+    /// they use to compute shared keys for decrypting the encryption layer.
     ///
     /// Each of these is parsed from a `auth-client` line.
     auth_clients: Vec<AuthClient>,
@@ -37,7 +37,7 @@ pub(super) struct HsDescMiddle {
 }
 
 impl HsDescMiddle {
-    /// Decrypt the encrypted inner document contained within this middle layer
+    /// Decrypt the encrypted inner document contained within this middle
     /// document.
     ///
     /// If present, `key` is an authorization key, and we assume that the
@@ -70,7 +70,7 @@ impl HsDescMiddle {
     /// corresponding "Descriptor Cookie" (`N_hs_desc_enc`)
     ///
     /// If no such `N_hs_desc_enc` is found, then either we do not have
-    /// permission to decrypt this layer, OR no encryption is required.
+    /// permission to decrypt the encryption layer, OR no permission is required.
     ///
     /// (The protocol makes it intentionally impossible to distinguish any error
     /// conditions here other than "no cookie for you.")
@@ -174,7 +174,7 @@ decl_keyword! {
     }
 }
 
-/// Rules about how keywords appear in the outer layer of an onion service
+/// Rules about how keywords appear in the middle document of an onion service
 /// descriptor.
 static HS_MIDDLE_RULES: Lazy<SectionRules<HsMiddleKwd>> = Lazy::new(|| {
     use HsMiddleKwd::*;
@@ -190,7 +190,7 @@ static HS_MIDDLE_RULES: Lazy<SectionRules<HsMiddleKwd>> = Lazy::new(|| {
 });
 
 impl HsDescMiddle {
-    /// Try to parse the middle layer of an onion service descriptor from a provided
+    /// Try to parse the middle document of an onion service descriptor from a provided
     /// string.
     pub(super) fn parse(s: &str) -> Result<HsDescMiddle> {
         let mut reader = NetDocReader::new(s);
@@ -198,7 +198,7 @@ impl HsDescMiddle {
         Ok(result)
     }
 
-    /// Extract an HsDescOuter from a reader.  
+    /// Extract an HsDescMiddle from a reader.  
     ///
     /// The reader must contain a single HsDescOuter; we return an error if not.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsMiddleKwd>) -> Result<HsDescMiddle> {

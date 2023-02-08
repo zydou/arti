@@ -1,4 +1,4 @@
-//! Code to handle the inner layer of an onion service descriptor.
+//! Code to handle the inner document of an onion service descriptor.
 
 use super::{IntroAuthType, IntroPointDesc};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
@@ -12,7 +12,7 @@ use smallvec::SmallVec;
 use tor_hscrypto::pk::{HsIntroPtSessionIdKey, HsSvcNtorKey};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
-/// The contents of the inner layer of an onion service descriptor.
+/// The contents of the inner document of an onion service descriptor.
 #[derive(Debug, Clone)]
 pub(super) struct HsDescInner {
     /// The authentication types that this onion service accepts when
@@ -84,7 +84,7 @@ static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
 });
 
 impl HsDescInner {
-    /// Attempt to parse the inner layer of an onion service descriptor from a
+    /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided string.
     pub(super) fn parse(s: &str) -> Result<HsDescInner> {
         let mut reader = NetDocReader::new(s);
@@ -92,7 +92,7 @@ impl HsDescInner {
         Ok(result)
     }
 
-    /// Attempt to parse the inner layer of an onion service descriptor from a
+    /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided reader.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsInnerKwd>) -> Result<HsDescInner> {
         use HsInnerKwd::*;
@@ -151,7 +151,7 @@ impl HsDescInner {
 
         // Now we parse the introduction points.  Each of these will be a
         // section starting with `introduction-point`, ending right before the
-        // next `introduction-point` (or before the end of the layer.)
+        // next `introduction-point` (or before the end of the document.)
         let mut intro_points = Vec::new();
         while reader.iter().peek().is_some() {
             // Construct a new PauseAt to parse at the _second_ time we see an INTRODUCTION_POINT
@@ -207,7 +207,7 @@ impl HsDescInner {
                 //
                 // We have to parse this certificate to extract
                 // `KP_hs_ipt_sid`, but we don't actually need to validate it:
-                // it appears inside the inner layer, which is already signed
+                // it appears inside the inner document, which is already signed
                 // with `KP_hs_desc_sign`.
                 //
                 // See documentation for `CertType::HS_IP_V_SIGNING for more

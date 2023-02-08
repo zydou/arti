@@ -25,8 +25,8 @@ pub(super) struct HsDescEncryption<'a> {
     pub(super) blinded_id: &'a HsBlindId,
     /// Second half of the "SECRET_DATA" field.
     ///
-    /// This is absent when handling the middle layer (2.5.1.1).
-    /// For the inner layer, it is `descriptor_cookie` (2.5.2.1)
+    /// This is absent when handling the superencryption layer (2.5.1.1).
+    /// For the encryption layer, it is `descriptor_cookie` (2.5.2.1)
     /// which is present when descriptor-encryption authentication via
     /// `KP_hsc_desc_enc` is in use.
     pub(super) desc_enc_nonce: Option<&'a DescEncNonce>,
@@ -41,11 +41,11 @@ pub(super) struct HsDescEncryption<'a> {
     pub(super) string_const: &'a [u8],
 }
 
-/// A value used in deriving the encryption key for the inner layer of onion
-/// service encryption.
+/// A value used in deriving the encryption key for the inner (encryption) layer
+/// of onion service encryption.
 ///
-/// This is  `N_hs_desc_enc` in the spec, where sometimes we also call it
-/// a "descriptor cookie".
+/// This is  `N_hs_desc_enc` in the spec, where sometimes we also call it a
+/// "descriptor cookie".
 #[derive(derive_more::AsRef, derive_more::From)]
 pub(super) struct DescEncNonce([u8; 16]);
 
