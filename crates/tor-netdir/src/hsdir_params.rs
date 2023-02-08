@@ -120,7 +120,7 @@ fn disaster_srv(period: TimePeriod) -> SharedRandVal {
     use digest::Digest;
     let mut d = tor_llcrypto::d::Sha3_256::new();
     d.update(b"shared-random-disaster");
-    d.update((period.length_in_sec() / 60).to_be_bytes());
+    d.update(u64::from(period.length().as_minutes()).to_be_bytes());
     d.update(period.interval_num().to_be_bytes());
 
     let v: [u8; 32] = d.finalize().into();
@@ -406,7 +406,7 @@ mod test {
         use digest::Digest;
         use tor_llcrypto::d::Sha3_256;
         let period = TimePeriod::new(d("1 day"), t("1970-01-02T17:33:00Z"), d("12 hours")).unwrap();
-        assert_eq!(period.length_in_sec(), 86400);
+        assert_eq!(period.length().as_minutes(), 86400 / 60);
         assert_eq!(period.interval_num(), 1);
 
         let dsrv = disaster_srv(period);

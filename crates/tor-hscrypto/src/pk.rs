@@ -142,7 +142,10 @@ impl HsIdKey {
         h.update(ED25519_BASEPOINT);
         h.update(b"key-blind");
         h.update(cur_period.interval_num.to_be_bytes());
-        h.update(u64::from(cur_period.length_in_sec).to_be_bytes());
+        // TODO hs: shouldn't this be the period length in *minutes*, not seconds ?
+        // The spec just says `period_length` which elsewhere means minutes.
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/768
+        h.update((u64::from(cur_period.length.as_minutes()) * 60).to_be_bytes());
 
         h.finalize().into()
     }
