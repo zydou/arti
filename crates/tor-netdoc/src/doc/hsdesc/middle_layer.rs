@@ -23,11 +23,9 @@ pub(super) struct HsDescMiddle {
     /// decrypt the inner layer.  This is ignored if client authorization is not
     /// in use.
     ///
-    /// This is `desc-auth-ephemeral-key` in the document format; it does not
-    /// yet have a name in our spec's list of keys.  Call it `KP_hss_desc_enc`
-    /// for now.  It is used along with `KS_hsc_desc_enc` to perform a
+    /// This is `KP_hss_desc_enc`, and appears as `desc-auth-ephemeral-key` in the document format;
+    /// It is used along with `KS_hsc_desc_enc` to perform a
     /// diffie-hellman operation and decrypt the inner layer.
-    // TODO HS rename. Possibly to kp_hs_desc_ephem, depending.
     ephemeral_key: curve25519::PublicKey,
     /// One or more authorized clients, and the key exchange information that
     /// they use to compute shared keys for decrypting inner layer.
@@ -69,8 +67,7 @@ impl HsDescMiddle {
     /// Use a `ClientDescAuthSecretKey` (`KS_hsc_desc_enc`) to see if there is any `auth-client`
     /// entry for us (a client who holds that secret key) in this descriptor.  
     /// If so, decrypt it and return its
-    /// corresponding "DescriptorCookie" (`N_hs_desc_enc`, not yet so named in the spec).
-    // TODO HS Rename.  descriptor_cookie is what the spec says; see DescEncryptionCookie.
+    /// corresponding "Descriptor Cookie" (`N_hs_desc_enc`)
     ///
     /// If no such `N_hs_desc_enc` is found, then either we do not have
     /// permission to decrypt this layer, OR no encryption is required.
@@ -80,7 +77,7 @@ impl HsDescMiddle {
     fn find_cookie(
         &self,
         subcredential: &Subcredential,
-        ks_hsc_desc_enc: &ClientDescAuthSecretKey, // TODO HS RENAME?
+        ks_hsc_desc_enc: &ClientDescAuthSecretKey,
     ) -> Option<DescEncryptionCookie> {
         use cipher::{KeyIvInit, StreamCipher};
         use digest::{ExtendableOutput, Update};
@@ -99,7 +96,7 @@ impl HsDescMiddle {
         //     COOKIE-KEY = last 32 bytes of KEYS
         //
         // Where:
-        //     hs_{X,y} = K{P,S}_hs_desc_ephem
+        //     hs_{X,y} = K{P,S}_hss_desc_enc
         //     client_{X,Y} = K{P,S}_hsc_desc_enc
         let secret_seed = ks_hsc_desc_enc.as_ref().diffie_hellman(&self.ephemeral_key);
         let mut kdf = KDF::default();
