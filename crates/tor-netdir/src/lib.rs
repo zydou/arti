@@ -51,8 +51,6 @@ pub mod testnet;
 #[cfg(feature = "testing")]
 pub mod testprovider;
 
-#[cfg(feature = "onion-common")]
-use {hsdir_ring::HsDirRing, hsdir_params::HsDirParams};
 use static_assertions::const_assert;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
@@ -62,6 +60,8 @@ use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
+#[cfg(feature = "onion-common")]
+use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing};
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
@@ -624,9 +624,7 @@ impl PartialNetDir {
 
         #[cfg(feature = "onion-common")]
         let hsdir_rings = {
-            let params =
-                HsDirParams::compute(&consensus, &params)
-                    .expect("Invalid consensus!");
+            let params = HsDirParams::compute(&consensus, &params).expect("Invalid consensus!");
             // TODO HS: I dislike using expect above, but this function does not
             // return a Result. Perhaps we should change it so that it can?  Or as an alternative
             // we could let this object exist in a state without any HsDir rings.
@@ -1202,7 +1200,8 @@ impl NetDir {
     /// acting as an onion service.
     #[cfg(feature = "onion-service")]
     pub fn onion_service_secondary_time_periods(&self) -> Vec<TimePeriod> {
-        self.hsdir_rings.secondary
+        self.hsdir_rings
+            .secondary
             .iter()
             .map(HsDirRing::time_period)
             .collect()
