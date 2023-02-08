@@ -15,6 +15,8 @@
 
 #![allow(unused_variables, dead_code)] //TODO hs: remove
 
+use derive_more::AsRef;
+
 use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
@@ -34,8 +36,8 @@ use crate::RouterStatusIdx;
 ///
 /// Note that this is _not_ an index into any array; it is instead an index into
 /// a space of possible values in a (virtual!) ring of 2^256 elements.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct HsDirIndex([u8; 32]);
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, AsRef)]
+pub(crate) struct HsDirIndex(#[as_ref] [u8; 32]);
 
 /// A hash ring as used in `NetDir`.
 ///
