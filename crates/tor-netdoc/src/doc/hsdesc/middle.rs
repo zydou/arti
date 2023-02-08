@@ -260,7 +260,7 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::{
-        outer_layer::HsDescOuter,
+        outer::HsDescOuter,
         test::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
 

@@ -15,13 +15,12 @@ mod desc_enc;
 // the modules themselves:
 // * Call the three nested pieces of the HsDesc the "outer document", the
 //   "middle document", and the "inner document."
-// * Rename the modules to "outer", "middle", and "inner".
 // * Only use "layer" to refer to the two layers of encryption.  Call them the
 //   "encryption" layer and the "superencryption" layer for consistency with the
 //   spec.
-mod inner_layer;
-mod middle_layer;
-mod outer_layer;
+mod inner;
+mod middle;
+mod outer;
 
 use std::time::SystemTime;
 
@@ -159,7 +158,7 @@ pub struct IntroPointDesc {
 /// An onion service after it has been parsed by the client, but not yet decrypted.
 pub struct EncryptedHsDesc {
     /// The un-decoded outer layer of our onion service descriptor.
-    outer_layer: outer_layer::HsDescOuter,
+    outer_layer: outer::HsDescOuter,
 }
 
 /// An unchecked HsDesc: parsed, but not checked for liveness or validity.
@@ -172,7 +171,7 @@ impl StoredHsDescMeta {
     /// Parse the outermost layer of the descriptor in `input`, and return the
     /// resulting metadata (if possible).
     pub fn parse(input: &str) -> Result<UncheckedStoredHsDescMeta> {
-        let outer = outer_layer::HsDescOuter::parse(input)?;
+        let outer = outer::HsDescOuter::parse(input)?;
         Ok(outer.dangerously_map(|timebound| {
             timebound.dangerously_map(|outer| StoredHsDescMeta::from_outer_layer(&outer))
         }))
@@ -194,7 +193,7 @@ impl HsDesc {
         // a nasty pattern where we forget to check that we got the right one.
         blinded_onion_id: &HsBlindId,
     ) -> Result<UncheckedEncryptedHsDesc> {
-        let outer = outer_layer::HsDescOuter::parse(input)?;
+        let outer = outer::HsDescOuter::parse(input)?;
         let mut id_matches = false;
         let result = outer.dangerously_map(|timebound| {
             timebound.dangerously_map(|outer| {
@@ -243,7 +242,7 @@ impl EncryptedHsDesc {
         })?;
         let middle = std::str::from_utf8(&middle[..])
             .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in middle layer"))?;
-        let middle = middle_layer::HsDescMiddle::parse(middle)?;
+        let middle = middle::HsDescMiddle::parse(middle)?;
 
         // Decrypt and parse the inner layer.
         let inner = middle
@@ -258,7 +257,7 @@ impl EncryptedHsDesc {
             })?;
         let inner = std::str::from_utf8(&inner[..])
             .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in inner layer"))?;
-        let inner = inner_layer::HsDescInner::parse(inner)?;
+        let inner = inner::HsDescInner::parse(inner)?;
 
         // TODO hs: if we decide that we need to verify and time-check the
         // certificates in the inner layer, we need to return a
@@ -275,14 +274,14 @@ impl EncryptedHsDesc {
     }
 
     /// Create a new `IndexInfo` from the outer layer of an onion service descriptor.
-    fn from_outer_layer(outer_layer: outer_layer::HsDescOuter) -> Self {
+    fn from_outer_layer(outer_layer: outer::HsDescOuter) -> Self {
         EncryptedHsDesc { outer_layer }
     }
 }
 
 impl IndexInfo {
     /// Create a new `IndexInfo` from the outer layer of an onion service descriptor.
-    fn from_outer_layer(outer: &outer_layer::HsDescOuter) -> Self {
+    fn from_outer_layer(outer: &outer::HsDescOuter) -> Self {
         IndexInfo {
             lifetime_minutes: outer.lifetime_minutes,
             signing_cert_expires: outer.desc_signing_key_cert.expiry(),
@@ -293,7 +292,7 @@ impl IndexInfo {
 
 impl StoredHsDescMeta {
     /// Create a new `StoredHsDescMeta` from the outer layer of an onion service descriptor.
-    fn from_outer_layer(outer: &outer_layer::HsDescOuter) -> Self {
+    fn from_outer_layer(outer: &outer::HsDescOuter) -> Self {
         let blinded_id = outer.blinded_id();
         let idx_info = IndexInfo::from_outer_layer(outer);
         StoredHsDescMeta {

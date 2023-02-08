@@ -338,8 +338,8 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::{
-        middle_layer::HsDescMiddle,
-        outer_layer::HsDescOuter,
+        middle::HsDescMiddle,
+        outer::HsDescOuter,
         test::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
 
