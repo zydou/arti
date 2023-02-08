@@ -428,7 +428,7 @@ impl<T> IntegerMinutes<T> {
     ///
     /// Use only in contexts where it's no longer possible to
     /// use the Rust type system to ensure secs vs ms vs us correctness.
-    pub fn as_days(self) -> T {
+    pub fn as_minutes(self) -> T {
         self.value
     }
 
