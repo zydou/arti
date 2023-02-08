@@ -1,8 +1,9 @@
 //! Wrap tor_cell::...:::ChannelCodec for use with the futures_codec
 //! crate.
-use std::io::Error as IoError;
+use std::{io::Error as IoError, marker::PhantomData};
 
-use tor_cell::chancell::{codec, AnyChanCell};
+use futures::{AsyncRead, AsyncWrite};
+use tor_cell::chancell::{codec, ChanCell, ChanMsg};
 
 use asynchronous_codec as futures_codec;
 use bytes::BytesMut;
@@ -31,34 +32,87 @@ pub(crate) enum CodecError {
 /// for use with futures_codec.
 ///
 /// This type lets us wrap a TLS channel (or some other secure
-/// AsyncRead+AsyncWrite type) as a Sink and a Stream of ChanCell, so we
-/// can forget about byte-oriented communication.
-pub(crate) struct ChannelCodec(codec::ChannelCodec);
+/// AsyncRead+AsyncWrite type) as a Sink and a Stream of ChanCell, so we can
+/// forget about byte-oriented communication.
+///
+/// It's parameterized on two message types: one that we're allowed to receive
+/// (`IN`), and one that we're allowed to send (`OUT`).
+pub(crate) struct ChannelCodec<IN, OUT> {
+    /// The cell codec that we'll use to encode and decode our cells.
+    inner: codec::ChannelCodec,
+    /// Tells the compiler that we're using IN, and we might
+    /// consume values of type IN.
+    _phantom_in: PhantomData<fn(IN)>,
+    /// Tells the compiler that we're using OUT, and we might
+    /// produce values of type OUT.
+    _phantom_out: PhantomData<fn() -> OUT>,
+}
 
-impl ChannelCodec {
+impl<IN, OUT> ChannelCodec<IN, OUT> {
     /// Create a new ChannelCodec with a given link protocol.
     pub(crate) fn new(link_proto: u16) -> Self {
-        ChannelCodec(codec::ChannelCodec::new(link_proto))
+        ChannelCodec {
+            inner: codec::ChannelCodec::new(link_proto),
+            _phantom_in: PhantomData,
+            _phantom_out: PhantomData,
+        }
+    }
+
+    /// Consume this codec, and return a new one that sends and receives
+    /// different message types.
+    pub(crate) fn change_message_types<IN2, OUT2>(self) -> ChannelCodec<IN2, OUT2> {
+        ChannelCodec {
+            inner: self.inner,
+            _phantom_in: PhantomData,
+            _phantom_out: PhantomData,
+        }
     }
 }
 
-impl futures_codec::Encoder for ChannelCodec {
-    type Item = AnyChanCell;
+impl<IN, OUT> futures_codec::Encoder for ChannelCodec<IN, OUT>
+where
+    OUT: ChanMsg,
+{
+    type Item = ChanCell<OUT>;
     type Error = CodecError;
 
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        self.0.write_cell(item, dst).map_err(CodecError::EncCell)?;
+        self.inner
+            .write_cell(item, dst)
+            .map_err(CodecError::EncCell)?;
         Ok(())
     }
 }
 
-impl futures_codec::Decoder for ChannelCodec {
-    type Item = AnyChanCell;
+impl<IN, OUT> futures_codec::Decoder for ChannelCodec<IN, OUT>
+where
+    IN: ChanMsg,
+{
+    type Item = ChanCell<IN>;
     type Error = CodecError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        self.0.decode_cell(src).map_err(CodecError::DecCell)
+        self.inner.decode_cell(src).map_err(CodecError::DecCell)
     }
+}
+
+/// Consume a [`Framed`](futures_codec::Framed) codec user, and produce one that
+/// sends and receives different message types.
+pub(crate) fn change_message_types<T, IN, OUT, IN2, OUT2>(
+    framed: futures_codec::Framed<T, ChannelCodec<IN, OUT>>,
+) -> futures_codec::Framed<T, ChannelCodec<IN2, OUT2>>
+where
+    T: AsyncRead + AsyncWrite,
+    IN: ChanMsg,
+    OUT: ChanMsg,
+    IN2: ChanMsg,
+    OUT2: ChanMsg,
+{
+    futures_codec::Framed::from_parts(
+        framed
+            .into_parts()
+            .map_codec(ChannelCodec::change_message_types),
+    )
 }
 
 #[cfg(test)]
@@ -70,6 +124,7 @@ pub(crate) mod test {
     use futures::task::{Context, Poll};
     use hex_literal::hex;
     use std::pin::Pin;
+    use tor_cell::chancell::msg::AnyChanMsg;
 
     use super::{futures_codec, ChannelCodec};
     use tor_cell::chancell::{msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
@@ -128,7 +183,9 @@ pub(crate) mod test {
         }
     }
 
-    fn frame_buf(mbuf: MsgBuf) -> futures_codec::Framed<MsgBuf, ChannelCodec> {
+    fn frame_buf(
+        mbuf: MsgBuf,
+    ) -> futures_codec::Framed<MsgBuf, ChannelCodec<AnyChanMsg, AnyChanMsg>> {
         futures_codec::Framed::new(mbuf, ChannelCodec::new(4))
     }
 

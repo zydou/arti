@@ -75,6 +75,7 @@ use safelog::sensitive as sv;
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
+use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg, msg::PaddingNegotiate, AnyChanCell, CircId};
 use tor_error::internal;
@@ -116,7 +117,8 @@ pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel}
 
 /// Type alias: A Sink and Stream that transforms a TLS connection into
 /// a cell-based communication mechanism.
-type CellFrame<T> = futures_codec::Framed<T, crate::channel::codec::ChannelCodec>;
+type CellFrame<T> =
+    futures_codec::Framed<T, crate::channel::codec::ChannelCodec<AnyChanMsg, AnyChanMsg>>;
 
 /// An open client channel, ready to send and receive Tor cells.
 ///
