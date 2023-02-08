@@ -76,8 +76,9 @@ use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg, msg::PaddingNegotiate, AnyChanCell, CircId};
+use tor_cell::chancell::{ChanCell, ChanMsg};
+use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
@@ -115,10 +116,39 @@ use crate::channel::unique_id::CircUniqIdContext;
 pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
+restricted_msg! {
+    /// A channel message that we're willing to parse on an _open_ _client_
+    /// channel.
+    ///
+    /// (An Open channel here is one on which we have received a NETINFO cell. A
+    /// client channel is one where we are not acting as a relay.)
+    ///
+    /// Note that an unexpected message type will _not_ be ignored: instead, it
+    /// will cause the channel to shut down.
+    #[derive(Clone, Debug)]
+    pub(crate) enum OpenClientChanMsg : ChanMsg {
+        Padding,
+        Vpadding,
+        // Not Create*, since we are not a relay.
+        // Not Created, since we never send CREATE.
+        CreatedFast,
+        Created2,
+        Relay,
+        // Not RelayEarly, since we are a client.
+        Destroy,
+        // Not PaddingNegotiate, since we are not a relay.
+        // Not Versions, Certs, AuthChallenge, Authenticate: they are for handshakes.
+        // Not Authorize: it is reserved, but unused.
+    }
+}
+
+/// A channel cell that we're willing to parse on an open client channel.
+pub(crate) type OpenClientChanCell = ChanCell<OpenClientChanMsg>;
+
 /// Type alias: A Sink and Stream that transforms a TLS connection into
 /// a cell-based communication mechanism.
 type CellFrame<T> =
-    futures_codec::Framed<T, crate::channel::codec::ChannelCodec<AnyChanMsg, AnyChanMsg>>;
+    futures_codec::Framed<T, crate::channel::codec::ChannelCodec<OpenClientChanMsg, AnyChanMsg>>;
 
 /// An open client channel, ready to send and receive Tor cells.
 ///
