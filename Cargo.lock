@@ -4100,6 +4100,7 @@ dependencies = [
  "tor-linkspec",
  "tor-llcrypto",
  "tor-protover",
+ "tor-units",
  "visibility",
  "visible",
  "weak-table",

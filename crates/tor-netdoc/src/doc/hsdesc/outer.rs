@@ -8,6 +8,7 @@ use tor_checkable::Timebound;
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::ed25519::{self, ValidatableEd25519Signature};
+use tor_units::IntegerMinutes;
 
 use crate::parse::{keyword::Keyword, parser::SectionRules, tokenize::NetDocReader};
 use crate::types::misc::{UnvalidatedEdCert, B64};
@@ -24,8 +25,7 @@ pub(super) struct HsDescOuter {
     /// This doesn't actually list the starting time or the end time for the
     /// descriptor: presumably, because we didn't want to leak the onion
     /// service's view of the wallclock.
-    // TODO HS: Use IntegerMinutes, and rename to `Lifetime`.
-    pub(super) lifetime_minutes: u16,
+    pub(super) lifetime: IntegerMinutes<u16>,
     /// A certificate containing the descriptor-signing-key for this onion
     /// service (`KP_hs_desc_sign`) signed by the blinded ed25519 identity
     /// (`HS_blind_id`) for this onion service.
@@ -185,7 +185,7 @@ impl HsDescOuter {
         }
 
         // Parse `descryptor-lifetime`.
-        let lifetime_minutes = {
+        let lifetime: IntegerMinutes<u16> = {
             let tok = body.required(DESCRIPTOR_LIFETIME)?;
             let lifetime_minutes: u16 = tok.parse_arg(0)?;
             if !(30..=720).contains(&lifetime_minutes) {
@@ -193,7 +193,7 @@ impl HsDescOuter {
                     .with_msg(format!("Invalid HsDesc lifetime {}", lifetime_minutes))
                     .at_pos(tok.pos()));
             }
-            lifetime_minutes
+            lifetime_minutes.into()
         };
 
         // Parse `descriptor-signing-key-cert`.  This certificate is signed with
@@ -249,7 +249,7 @@ impl HsDescOuter {
 
         // Build our return value.
         let desc = HsDescOuter {
-            lifetime_minutes,
+            lifetime,
             desc_signing_key_cert,
             revision_counter,
             superencrypted: encrypted_body,

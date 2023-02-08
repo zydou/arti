@@ -30,6 +30,7 @@ use tor_hscrypto::{
 };
 use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::curve25519;
+use tor_units::IntegerMinutes;
 
 /// Metadata about an onion service descriptor, as stored at an HsDir.
 ///
@@ -60,7 +61,7 @@ pub type UncheckedStoredHsDescMeta =
 struct IndexInfo {
     /// The lifetime in minutes that this descriptor should be held after it is
     /// received.
-    lifetime_minutes: u16,
+    lifetime: IntegerMinutes<u16>,
     /// The expiration time on the `descriptor-signing-key-cert` included in this
     /// descriptor.
     signing_cert_expires: SystemTime,
@@ -275,7 +276,7 @@ impl IndexInfo {
     /// Create a new `IndexInfo` from the outer part of an onion service descriptor.
     fn from_outer_doc(outer: &outer::HsDescOuter) -> Self {
         IndexInfo {
-            lifetime_minutes: outer.lifetime_minutes,
+            lifetime: outer.lifetime,
             signing_cert_expires: outer.desc_signing_key_cert.expiry(),
             revision: outer.revision_counter,
         }
@@ -311,6 +312,8 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->    
+    use std::time::Duration;
+
     use super::*;
     use hex_literal::hex;
     use tor_checkable::{SelfSigned, Timebound};
@@ -330,7 +333,10 @@ mod test {
             meta.blinded_id.as_ref(),
             &hex!("43cc0d62fc6252f578705ca645a46109e265290343b1137e90189744b20b3f2d")
         );
-        assert_eq!(meta.idx_info.lifetime_minutes, 180);
+        assert_eq!(
+            Duration::try_from(meta.idx_info.lifetime).unwrap(),
+            Duration::from_secs(60 * 180)
+        );
         assert_eq!(
             meta.idx_info.signing_cert_expires,
             humantime::parse_rfc3339("2023-01-26T03:00:00Z").unwrap()
@@ -353,7 +359,10 @@ mod test {
             .unwrap()
             .decrypt(&TEST_SUBCREDENTIAL.into(), None)?;
 
-        assert_eq!(desc.idx_info.lifetime_minutes, 180);
+        assert_eq!(
+            Duration::try_from(desc.idx_info.lifetime).unwrap(),
+            Duration::from_secs(60 * 180)
+        );
         assert_eq!(
             desc.idx_info.signing_cert_expires,
             humantime::parse_rfc3339("2023-01-26T03:00:00Z").unwrap()
