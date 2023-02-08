@@ -66,7 +66,7 @@ impl HsDescOuter {
     ) -> std::result::Result<Vec<u8>, desc_enc::DecryptionError> {
         let decrypt = desc_enc::HsDescEncryption {
             blinded_id: &self.blinded_id(),
-            descriptor_cookie: None,
+            desc_enc_nonce: None,
             subcredential,
             revision: self.revision_counter,
             string_const: b"hsdir-superencrypted-data",

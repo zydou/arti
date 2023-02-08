@@ -12,7 +12,7 @@ use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::B64;
 use crate::{Pos, Result};
 
-use super::desc_enc::{DescEncryptionCookie, HsDescEncryption};
+use super::desc_enc::{DescEncNonce, HsDescEncryption};
 use super::DecryptionError;
 
 /// A more-or-less verbatim representation of the middle layer of an onion
@@ -52,10 +52,10 @@ impl HsDescMiddle {
         subcredential: &Subcredential,
         key: Option<&ClientDescAuthSecretKey>,
     ) -> std::result::Result<Vec<u8>, DecryptionError> {
-        let descriptor_cookie = key.and_then(|k| self.find_cookie(subcredential, k));
+        let desc_enc_nonce = key.and_then(|k| self.find_cookie(subcredential, k));
         let decrypt = HsDescEncryption {
             blinded_id,
-            descriptor_cookie: descriptor_cookie.as_ref(),
+            desc_enc_nonce: desc_enc_nonce.as_ref(),
             subcredential,
             revision,
             string_const: b"hsdir-encrypted-data",
@@ -78,7 +78,7 @@ impl HsDescMiddle {
         &self,
         subcredential: &Subcredential,
         ks_hsc_desc_enc: &ClientDescAuthSecretKey,
-    ) -> Option<DescEncryptionCookie> {
+    ) -> Option<DescEncNonce> {
         use cipher::{KeyIvInit, StreamCipher};
         use digest::{ExtendableOutput, Update};
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
@@ -136,7 +136,8 @@ struct AuthClient {
     ///
     /// This is the second item on the `auth-client` line.
     iv: [u8; 16],
-    /// An encrypted value used to find the descriptor cookie, which in turn is
+    /// An encrypted value used to find the descriptor cookie `N_hs_desc_enc`,
+    /// which in turn is
     /// needed to decrypt the [HsDescMiddle]'s `encrypted_body`.
     ///
     /// This is the third item on the `auth-client` line.  When decrypted, it
