@@ -1007,7 +1007,7 @@ impl Reactor {
         //            the whole circuit (e.g. by returning an error).
         let msg = chancell::msg::Relay::from_raw(body.into());
         let msg = if early {
-            AnyChanMsg::RelayEarly(msg)
+            AnyChanMsg::RelayEarly(msg.into())
         } else {
             AnyChanMsg::Relay(msg)
         };

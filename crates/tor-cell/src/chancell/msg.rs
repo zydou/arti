@@ -53,7 +53,6 @@ pub enum AnyChanMsg : ChanMsg {
     /// A message sent along a circuit, likely to a more-distant relay.
     Relay,
     /// A message sent along a circuit (limited supply)
-    [omit_from = "relay_and_relay_early_are_the_same_type"]
     RelayEarly,
     /// Tear down a circuit
     Destroy,
@@ -409,7 +408,7 @@ impl Relay {
     }
     /// Wrap this Relay message into a RelayMsg as a RELAY_EARLY cell.
     pub fn into_early(self) -> AnyChanMsg {
-        AnyChanMsg::RelayEarly(self)
+        AnyChanMsg::RelayEarly(RelayEarly(self))
     }
 }
 impl Body for Relay {
@@ -429,8 +428,35 @@ impl Readable for Relay {
     }
 }
 
-/// Alias for Relay: these two cell types have the same body.
-pub type RelayEarly = Relay;
+/// A Relay cell that is allowed to contain a CREATE message.
+///
+/// Only a limited number of these may be sent on each circuit.
+#[derive(Clone, Debug, derive_more::Deref, derive_more::From, derive_more::Into)]
+pub struct RelayEarly(Relay);
+impl Readable for RelayEarly {
+    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+        Ok(RelayEarly(Relay::take_from(r)?))
+    }
+}
+impl Body for RelayEarly {
+    fn into_message(self) -> AnyChanMsg {
+        AnyChanMsg::RelayEarly(self)
+    }
+
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        self.0.encode_onto(w)
+    }
+}
+impl RelayEarly {
+    /// Consume this RelayEarly message and return a RelayCellBody for
+    /// encryption/decryption.
+    //
+    // (Since this method takes `self` by value, we can't take advantage of
+    // Deref.)
+    pub fn into_relay_body(self) -> RawCellBody {
+        *self.0.body
+    }
+}
 
 /// The Destroy message tears down a circuit.
 ///

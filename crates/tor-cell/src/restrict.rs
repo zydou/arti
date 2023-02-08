@@ -95,7 +95,6 @@ macro_rules! restricted_msg {
             $(
                 $(#[$case_meta:meta])*
                 $([feature=$feat:literal])?
-                $([omit_from=$c_omit_from:literal])?
                 $case:ident
             ),*
             $(, _ =>
@@ -201,9 +200,6 @@ macro_rules! restricted_msg {
             }
         }
         $(
-            $(
-                #[cfg(feature = $c_omit_from)]
-            )?
             $( #[cfg(feature=$feat)] )?
             impl From<$msg_mod :: $case> for $name {
                 fn from(m: $msg_mod::$case) -> $name {

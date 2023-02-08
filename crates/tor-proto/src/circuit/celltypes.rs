@@ -126,9 +126,9 @@ mod test {
         bad(msg::CreatedFast::new(&b"guaranteed in this world"[..]).into());
         bad(msg::Created2::new(&b"and the next"[..]).into());
         good(msg::Relay::new(&b"guaranteed guaranteed"[..]).into());
-        bad(msg::AnyChanMsg::RelayEarly(msg::Relay::new(
-            &b"for the world and its mother"[..],
-        )));
+        bad(msg::AnyChanMsg::RelayEarly(
+            msg::Relay::new(&b"for the world and its mother"[..]).into(),
+        ));
         bad(msg::Versions::new([1, 2, 3]).unwrap().into());
     }
 }

@@ -3604,6 +3604,7 @@ dependencies = [
  "bitflags",
  "bytes",
  "caret",
+ "derive_more",
  "educe",
  "hex",
  "hex-literal",
