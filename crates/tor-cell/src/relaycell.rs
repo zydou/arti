@@ -293,7 +293,9 @@ impl<M: RelayMsg> RelayCell<M> {
         r.advance(4)?; // digest
         let len = r.take_u16()? as usize;
         if r.remaining() < len {
-            return Err(Error::BadMessage("Insufficient data in relay cell"));
+            return Err(Error::InvalidMessage(
+                "Insufficient data in relay cell".into(),
+            ));
         }
         r.truncate(len);
         let msg = M::decode_from_reader(cmd, r)?;

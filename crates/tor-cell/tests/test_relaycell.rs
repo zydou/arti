@@ -91,7 +91,9 @@ fn test_cells() {
     let m = decode("02 0000 9999 12345678 01f3 6e6565642d746f2d6b6e6f77 00000000");
     assert_eq!(
         AnyRelayCell::decode(m).err(),
-        Some(Error::BadMessage("Insufficient data in relay cell"))
+        Some(Error::InvalidMessage(
+            "Insufficient data in relay cell".into()
+        ))
     );
 
     // check accessors.
@@ -173,7 +175,10 @@ fn test_address() {
     let hostname = "a".repeat(256);
     let addr = Address::from_str(hostname.as_str());
     assert!(addr.is_err());
-    assert_eq!(addr.err(), Some(Error::BadMessage("Hostname too long")));
+    assert_eq!(
+        addr.err(),
+        Some(Error::InvalidMessage("Hostname too long".into()))
+    );
 
     // Some Unicode emojis (go Gen-Z!).
     let hostname = "👍️👍️👍️";
@@ -187,6 +192,6 @@ fn test_address() {
     assert!(addr.is_err());
     assert_eq!(
         addr.err(),
-        Some(Error::BadMessage("Nul byte not permitted"))
+        Some(Error::InvalidMessage("Nul byte not permitted".into()))
     );
 }

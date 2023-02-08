@@ -41,18 +41,20 @@ impl Readable for SocksAddr {
                 let hlen = r.take_u8()?;
                 let hostname = r.take(hlen as usize)?;
                 let hostname = std::str::from_utf8(hostname)
-                    .map_err(|_| BytesError::BadMessage("bad utf8 on hostname"))?
+                    .map_err(|_| BytesError::InvalidMessage("bad utf8 on hostname".into()))?
                     .to_string();
                 let hostname = hostname
                     .try_into()
-                    .map_err(|_| BytesError::BadMessage("hostname too long"))?;
+                    .map_err(|_| BytesError::InvalidMessage("hostname too long".into()))?;
                 Ok(SocksAddr::Hostname(hostname))
             }
             4 => {
                 let ip6: std::net::Ipv6Addr = r.extract()?;
                 Ok(SocksAddr::Ip(ip6.into()))
             }
-            _ => Err(BytesError::BadMessage("unrecognized address type.")),
+            _ => Err(BytesError::InvalidMessage(
+                "unrecognized address type.".into(),
+            )),
         }
     }
 }

@@ -158,7 +158,7 @@ macro_rules! restricted_msg {
                     )?
                     // TODO: This message is too terse! This message type should maybe take a Cow?
                     #[allow(unreachable_patterns)] // This is unreachable if we had an Unrecognized variant above.
-                    _ => return Err($crate::restrict::tor_bytes::Error::BadMessage("Unexpected command")),
+                    _ => return Err($crate::restrict::tor_bytes::Error::InvalidMessage("Unexpected command".into())),
                 })
             }
         }

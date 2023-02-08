@@ -301,13 +301,15 @@ impl Readable for CertExt {
 
         Ok(match ext_type {
             ExtType::SIGNED_WITH_ED25519_KEY => CertExt::SignedWithEd25519(SignedWithEd25519Ext {
-                pk: ed25519::Ed25519Identity::from_bytes(body)
-                    .ok_or(BytesError::BadMessage("wrong length on Ed25519 key"))?,
+                pk: ed25519::Ed25519Identity::from_bytes(body).ok_or(
+                    BytesError::InvalidMessage("wrong length on Ed25519 key".into()),
+                )?,
             }),
             _ => {
                 if (flags & 1) != 0 {
-                    return Err(BytesError::BadMessage(
-                        "unrecognized certificate extension, with 'affects_validation' flag set.",
+                    return Err(BytesError::InvalidMessage(
+                        "unrecognized certificate extension, with 'affects_validation' flag set."
+                            .into(),
                     ));
                 }
                 CertExt::Unrecognized(UnrecognizedExt {
@@ -335,7 +337,9 @@ impl Ed25519Cert {
         if v != 1 {
             // This would be something other than a "v1" certificate. We don't
             // understand those.
-            return Err(BytesError::BadMessage("Unrecognized certificate version"));
+            return Err(BytesError::InvalidMessage(
+                "Unrecognized certificate version".into(),
+            ));
         }
         let cert_type = r.take_u8()?.into();
         let exp_hours = r.take_u32()?;
@@ -591,8 +595,8 @@ mod test {
         assert!(e.is_err());
         assert_eq!(
             e.err().unwrap(),
-            BytesError::BadMessage(
-                "unrecognized certificate extension, with 'affects_validation' flag set."
+            BytesError::InvalidMessage(
+                "unrecognized certificate extension, with 'affects_validation' flag set.".into()
             )
         );
 

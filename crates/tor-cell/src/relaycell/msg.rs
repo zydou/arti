@@ -210,7 +210,7 @@ impl Body for Begin {
                 let a = r.take_until(b']')?;
                 let colon = r.take_u8()?;
                 if colon != b':' {
-                    return Err(Error::BadMessage("missing port in begin cell"));
+                    return Err(Error::InvalidMessage("missing port in begin cell".into()));
                 }
                 a
             } else {
@@ -222,15 +222,17 @@ impl Body for Begin {
         let flags = if r.remaining() >= 4 { r.take_u32()? } else { 0 };
 
         if !addr.is_ascii() {
-            return Err(Error::BadMessage("target address in begin cell not ascii"));
+            return Err(Error::InvalidMessage(
+                "target address in begin cell not ascii".into(),
+            ));
         }
 
         let port = std::str::from_utf8(port)
-            .map_err(|_| Error::BadMessage("port in begin cell not utf8"))?;
+            .map_err(|_| Error::InvalidMessage("port in begin cell not utf8".into()))?;
 
         let port = port
             .parse()
-            .map_err(|_| Error::BadMessage("port in begin cell not a valid port"))?;
+            .map_err(|_| Error::InvalidMessage("port in begin cell not a valid port".into()))?;
 
         Ok(Begin {
             addr: addr.into(),
@@ -519,7 +521,9 @@ impl Body for Connected {
         let ipv4 = r.take_u32()?;
         let addr = if ipv4 == 0 {
             if r.take_u8()? != 6 {
-                return Err(Error::BadMessage("Invalid address type in CONNECTED cell"));
+                return Err(Error::InvalidMessage(
+                    "Invalid address type in CONNECTED cell".into(),
+                ));
             }
             IpAddr::V6(r.extract()?)
         } else {
@@ -600,7 +604,7 @@ impl Body for Sendme {
                     Some(r.take(dlen as usize)?.into())
                 }
                 _ => {
-                    return Err(Error::BadMessage("Unrecognized SENDME version."));
+                    return Err(Error::InvalidMessage("Unrecognized SENDME version.".into()));
                 }
             }
         };
@@ -955,7 +959,9 @@ impl Readable for ResolvedVal {
         let len = r.take_u8()? as usize;
         if let Some(expected_len) = res_len(tp) {
             if len != expected_len {
-                return Err(Error::BadMessage("Wrong length for RESOLVED answer"));
+                return Err(Error::InvalidMessage(
+                    "Wrong length for RESOLVED answer".into(),
+                ));
             }
         }
         Ok(match tp {

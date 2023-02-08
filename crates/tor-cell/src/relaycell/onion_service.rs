@@ -331,7 +331,9 @@ impl Introduce {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let legacy_key_id: RsaIdentity = r.extract()?;
         if !legacy_key_id.is_zero() {
-            return Err(BytesError::BadMessage("legacy key id in Introduce1."));
+            return Err(BytesError::InvalidMessage(
+                "legacy key id in Introduce1.".into(),
+            ));
         }
         let auth_key_type = r.take_u8()?.into();
         let auth_key_len = r.take_u16()?;

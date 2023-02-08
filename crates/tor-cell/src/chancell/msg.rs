@@ -128,7 +128,9 @@ impl Body for Vpadding {
 impl Readable for Vpadding {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         if r.remaining() > std::u16::MAX as usize {
-            return Err(Error::BadMessage("Too many bytes in VPADDING cell"));
+            return Err(Error::InvalidMessage(
+                "Too many bytes in VPADDING cell".into(),
+            ));
         }
         Ok(Vpadding {
             len: r.remaining() as u16,
@@ -821,8 +823,8 @@ impl Readable for PaddingNegotiate {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let v = r.take_u8()?;
         if v != 0 {
-            return Err(Error::BadMessage(
-                "Unrecognized padding negotiation version",
+            return Err(Error::InvalidMessage(
+                "Unrecognized padding negotiation version".into(),
             ));
         }
         let command = r.take_u8()?.into();

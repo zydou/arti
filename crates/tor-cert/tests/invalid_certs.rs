@@ -17,7 +17,7 @@ fn cant_parse() {
 
     assert_eq!(
         decode_err(&hex!("03")),
-        Error::BadMessage("Unrecognized certificate version")
+        Error::InvalidMessage("Unrecognized certificate version".into())
     );
 
     assert_eq!(
@@ -30,7 +30,7 @@ fn cant_parse() {
        FF1A5203FA27F86EF7528D89A0845D2520166E340754FFEA2AAE0F612B7CE5DA
        094A0236CDAC45034B0B6842C18E7F6B51B93A3CF7E60663B8AD061C30A62602"
         )),
-        Error::BadMessage("wrong length on Ed25519 key")
+        Error::InvalidMessage("wrong length on Ed25519 key".into())
     );
 
     assert_eq!(
@@ -43,8 +43,8 @@ fn cant_parse() {
        FF1A5203FA27F86EF7528D89A0845D2520166E340754FFEA2AAE0F612B7CE5DA
        094A0236CDAC45034B0B6842C18E7F6B51B93A3CF7E60663B8AD061C30A62602"
         )),
-        Error::BadMessage(
-            "unrecognized certificate extension, with 'affects_validation' flag set."
+        Error::InvalidMessage(
+            "unrecognized certificate extension, with 'affects_validation' flag set.".into()
         )
     );
 }
