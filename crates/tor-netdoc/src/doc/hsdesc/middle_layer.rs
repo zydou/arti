@@ -2,7 +2,7 @@
 
 use digest::XofReader;
 use once_cell::sync::Lazy;
-use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey};
+use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey, HsSvcDescEncKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::util::ct::CtByteArray;
@@ -26,7 +26,7 @@ pub(super) struct HsDescMiddle {
     /// This is `KP_hss_desc_enc`, and appears as `desc-auth-ephemeral-key` in the document format;
     /// It is used along with `KS_hsc_desc_enc` to perform a
     /// diffie-hellman operation and decrypt the inner layer.
-    ephemeral_key: curve25519::PublicKey,
+    ephemeral_key: HsSvcDescEncKey,
     /// One or more authorized clients, and the key exchange information that
     /// they use to compute shared keys for decrypting inner layer.
     ///
@@ -219,10 +219,10 @@ impl HsDescMiddle {
         }
 
         // Extract `KP_hss_desc_enc` from DESC_AUTH_EPHEMERAL_KEY
-        let ephemeral_key: curve25519::PublicKey = {
+        let ephemeral_key: HsSvcDescEncKey = {
             let token = body.required(DESC_AUTH_EPHEMERAL_KEY)?;
-            let bytes = token.parse_arg::<B64>(0)?.into_array()?;
-            bytes.into()
+            let key = curve25519::PublicKey::from(token.parse_arg::<B64>(0)?.into_array()?);
+            key.into()
         };
 
         // Parse all the auth-client lines.

@@ -285,6 +285,14 @@ define_pk_keypair! {
 pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
 }
 
+define_pk_keypair! {
+/// Server key, used for diffie hellman during onion descriptor decryption.
+/// (`KP_hss_desc_enc`)
+///
+/// This key is created for a single descriptor, and then thrown away.
+pub struct HsSvcDescEncKey(curve25519::PublicKey) / HsSvcDescEncSecretKey(curve25519::StaticSecret);
+}
+
 /// A set of keys to tell the client to use when connecting to an onion service.
 //
 // TODO hs
