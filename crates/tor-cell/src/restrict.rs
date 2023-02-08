@@ -156,9 +156,10 @@ macro_rules! restricted_msg {
                     $(
                         _ => Self::$unrecognized($unrec_type::decode_with_cmd(cmd, r)?),
                     )?
-                    // TODO: This message is too terse! This message type should maybe take a Cow?
                     #[allow(unreachable_patterns)] // This is unreachable if we had an Unrecognized variant above.
-                    _ => return Err($crate::restrict::tor_bytes::Error::InvalidMessage("Unexpected command".into())),
+                    _ => return Err($crate::restrict::tor_bytes::Error::InvalidMessage(
+                        format!("Unexpected command {} in {}", cmd, stringify!($name)).into()
+                    )),
                 })
             }
         }
