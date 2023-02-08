@@ -25,7 +25,7 @@
 /// or other aspects of the HSDir ring structure.)
 use std::time::{Duration, SystemTime};
 
-use crate::{params::NetParameters, Error, Result};
+use crate::{params::NetParameters, Error, HsDirs, Result};
 use time::{OffsetDateTime, UtcOffset};
 use tor_hscrypto::time::TimePeriod;
 use tor_netdoc::doc::netstatus::{Lifetime, MdConsensus, SharedRandVal};
@@ -80,7 +80,7 @@ impl HsDirParams {
     pub(crate) fn compute(
         consensus: &MdConsensus,
         params: &NetParameters,
-    ) -> Result<(HsDirParams, Vec<HsDirParams>)> {
+    ) -> Result<HsDirs<HsDirParams>> {
         let srvs = extract_srvs(consensus)?;
         let tp_length: Duration = params.hsdir_timeperiod_length.try_into().map_err(|_| {
             Error::InvalidConsensus(
@@ -104,7 +104,7 @@ impl HsDirParams {
             .flat_map(|period| find_params_for_time(&srvs[..], *period).ok().flatten())
             .collect();
 
-        Ok((current, secondary))
+        Ok(HsDirs { current, secondary })
     }
 }
 
@@ -431,7 +431,7 @@ mod test {
         // 12 hours.
         let consensus = example_consensus_builder().testing_consensus().unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (current, secondary) = HsDirParams::compute(&consensus, &netparams).unwrap();
+        let HsDirs { current, secondary } = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
             current.time_period,
@@ -460,7 +460,7 @@ mod test {
             .testing_consensus()
             .unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (current, secondary) = HsDirParams::compute(&consensus, &netparams).unwrap();
+        let HsDirs { current, secondary } = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
             current.time_period,

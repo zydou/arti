@@ -65,9 +65,11 @@ use tor_netdoc::types::policy::PortPolicy;
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
+use itertools::chain;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::iter;
 use std::net::IpAddr;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -315,10 +317,35 @@ pub struct NetDir {
     /// can be immutable.
     rs_idx_by_rsa: Arc<HashMap<RsaIdentity, RouterStatusIdx>>,
 
-    /// A hash ring describing the onion service directory.
+    /// Hash ring(s) describing the onion service directory.
     ///
     /// This is empty in a PartialNetDir, and is filled in before the NetDir is
     /// built.
+    //
+    // TODO hs: It is ugly to have this exist in a partially constructed state
+    // in a PartialNetDir.
+    // Ideally, a PartialNetDir would contain only an HsDirs<HsDirParams>,
+    // or perhaps nothing at all, here.
+    #[cfg(feature = "onion-common")]
+    hsdir_rings: HsDirs<HsDirRing>,
+
+    /// Weight values to apply to a given relay when deciding how frequently
+    /// to choose it for a given role.
+    weights: weight::WeightSet,
+}
+
+/// Collection of hidden service directories (or parameters for them)
+///
+/// In [`NetDir`] this is used to store the actual hash rings.
+/// (But, in a NetDir in a [`PartialNetDir`], it contains [`HsDirRing`]s
+/// where only the `params` are populated, and the `ring` is empty.)
+///
+/// This same generic type is used as the return type from
+/// [`HsDirParams::compute`](HsDirParams::compute),
+/// where it contains the *parameters* for the primary and secondary rings.
+#[derive(Debug, Clone)]
+pub(crate) struct HsDirs<D> {
+    /// The current ring
     ///
     /// It corresponds to the time period containing the `valid-after` time in
     /// the consensus. Its SRV is whatever SRV was most current at the time when
@@ -326,14 +353,9 @@ pub struct NetDir {
     ///
     /// This is the hash ring that we should use whenever we are fetching an
     /// onion service descriptor.
-    //
-    // TODO hs: It is ugly to have this exist in a partially constructed state
-    // in a PartialNetDir.
-    #[cfg(feature = "onion-common")]
-    hsdir_ring: HsDirRing,
+    current: D,
 
-    /// A hash ring describing the onion service directory based on the
-    /// parameters for the previous and next time periods.
+    /// Secondary rings (based on the parameters for the previous and next time periods)
     ///
     /// Onion services upload to positions on these ring as well, based on how
     /// far into the current time period this directory is, so that
@@ -344,22 +366,35 @@ pub struct NetDir {
     /// secondary rings will be active at a time.  We have two here in order
     /// to conform with a more flexible regime in proposal 342.
     //
-    // TODO hs: It is sort of ugly to have these be partially constructed in a
-    // PartialNetDir.
-    //
     // TODO hs: hs clients never need this; so I've made it not-present for thm.
     // But does that risk too much with respect to side channels?
     //
     // TODO hs: Perhaps we should refactor this so that it is clear that these
     // are immutable?  On the other hand, the documentation for this type
     // declares that it is immutable, so we are likely okay.
+    //
+    // TODO hs: this `Vec` is only ever 0,1,2 elements.
+    // Maybe it should be an ArrayVec or something.
     #[cfg(feature = "onion-service")]
     #[allow(dead_code)]
-    hsdir_secondary_rings: Vec<HsDirRing>,
+    secondary: Vec<D>,
+}
 
-    /// Weight values to apply to a given relay when deciding how frequently
-    /// to choose it for a given role.
-    weights: weight::WeightSet,
+impl<D> HsDirs<D> {
+    /// Convert an `HsDirs<D>` to `HsDirs<D2>` by mapping each contained `D`
+    pub(crate) fn map<D2>(self, mut f: impl FnMut(D) -> D2) -> HsDirs<D2> {
+        HsDirs {
+            current: f(self.current),
+            #[cfg(feature = "onion-service")]
+            secondary: self.secondary.into_iter().map(f).collect(),
+        }
+    }
+
+    /// Iterate over the contained hsdirs
+    #[allow(dead_code)] // TODO hs
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &D> {
+        chain!(iter::once(&self.current), self.secondary.iter(),)
+    }
 }
 
 /// An event that a [`NetDirProvider`] can broadcast to indicate that a change in
@@ -589,26 +624,16 @@ impl PartialNetDir {
             .map(|(rs_idx, rs)| (*rs.rsa_identity(), rs_idx))
             .collect();
 
-        #[cfg(feature = "onion-service")]
-        let hsdir_secondary_rings;
         #[cfg(feature = "onion-common")]
-        let hsdir_ring = {
-            let (cur_hsparams, secondary_hsparams) =
+        let hsdir_rings = {
+            let params =
                 HsDirParams::compute(&consensus, &params)
                     .expect("Invalid consensus!");
             // TODO HS: I dislike using expect above, but this function does not
             // return a Result. Perhaps we should change it so that it can?  Or as an alternative
             // we could let this object exist in a state without any HsDir rings.
 
-            #[cfg(feature = "onion-service")]
-            {
-                hsdir_secondary_rings = secondary_hsparams
-                    .into_iter()
-                    .map(HsDirRing::empty_from_params)
-                    .collect();
-            }
-
-            HsDirRing::empty_from_params(cur_hsparams)
+            params.map(HsDirRing::empty_from_params)
         };
 
         let netdir = NetDir {
@@ -619,9 +644,7 @@ impl PartialNetDir {
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
             rs_idx_by_ed: HashMap::with_capacity(n_relays),
             #[cfg(feature = "onion-common")]
-            hsdir_ring,
-            #[cfg(feature = "onion-service")]
-            hsdir_secondary_rings,
+            hsdir_rings,
             weights,
         };
 
@@ -1166,7 +1189,7 @@ impl NetDir {
     /// is the one we use when acting as an onion service client.
     #[cfg(feature = "onion-common")]
     pub fn onion_service_time_period(&self) -> TimePeriod {
-        self.hsdir_ring.time_period()
+        self.hsdir_rings.current.time_period()
     }
 
     /// Return the secondary onion service directory "time periods".
@@ -1175,7 +1198,7 @@ impl NetDir {
     /// acting as an onion service.
     #[cfg(feature = "onion-service")]
     pub fn onion_service_secondary_time_periods(&self) -> Vec<TimePeriod> {
-        self.hsdir_secondary_rings
+        self.hsdir_rings.secondary
             .iter()
             .map(HsDirRing::time_period)
             .collect()
