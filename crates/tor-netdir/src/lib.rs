@@ -376,7 +376,6 @@ pub(crate) struct HsDirs<D> {
     // TODO hs: this `Vec` is only ever 0,1,2 elements.
     // Maybe it should be an ArrayVec or something.
     #[cfg(feature = "onion-service")]
-    #[allow(dead_code)]
     secondary: Vec<D>,
 }
 
@@ -391,7 +390,6 @@ impl<D> HsDirs<D> {
     }
 
     /// Iterate over the contained hsdirs
-    #[allow(dead_code)] // TODO hs
     pub(crate) fn iter(&self) -> impl Iterator<Item = &D> {
         chain!(iter::once(&self.current), self.secondary.iter(),)
     }
@@ -800,7 +798,6 @@ impl NetDir {
     }
 
     /// Look up a relay's `MicroDesc` by its `RouterStatusIdc`
-    #[allow(dead_code)] // TODO hs
     pub(crate) fn md_by_idx(&self, rsi: RouterStatusIdx) -> Option<&Microdesc> {
         self.mds.get(rsi)?.as_deref()
     }
@@ -944,7 +941,6 @@ impl NetDir {
     ///
     /// The results are not returned in any particular order.
     #[cfg(feature = "onion-common")]
-    #[allow(dead_code)] // TODO hs
     fn all_hsdirs(&self) -> impl Iterator<Item = (RouterStatusIdx, Relay<'_>)> {
         self.c_relays().iter_enumerated().filter_map(|(rsi, rs)| {
             let relay = self.relay_from_rs_and_idx(rs, rsi);

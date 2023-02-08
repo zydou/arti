@@ -15,6 +15,8 @@
 
 #![allow(unused_variables, dead_code)] //TODO hs: remove
 
+use std::collections::HashMap;
+
 use derive_more::AsRef;
 use digest::Digest;
 
@@ -131,13 +133,65 @@ impl HsDirRing {
         this_netdir: &NetDir,
         prev_netdir: Option<&NetDir>,
     ) -> Self {
-        // TODO hs: compute the ring based on the time period and shared random
-        // value of the consensus.
-        //
         // TODO hs: The ring itself can be a bit expensive to compute, so maybe we should
         // make sure this happens in a separate task or something, and expose a
         // way to do that?
-        Self::empty_from_params(new_params)
+        // But: this is being done during netdir ingestion, which is already happening
+        // on the dirmgr task.  So I think this is fine?  -Diziet
+
+        // We would like to avoid re-computing the hsdir indexes, since they're a hash
+        // each.  Instead, we look to see if our previous netdir contains a hash ring
+        // using the same parameters.  If so, we make a hashmap of hsring_index values
+        // to reuse.
+        //
+        // TODO: Actually, the relays in the consensus are ordered by their RSA identity.
+        // So we could do a merge join on the previous and last relay lists, and avoid
+        // building this separate hashmap.  (We'd have to *check* that the ed25519 ids
+        // matched, but it would be OK to recompute the index values for relays that
+        // have a different correspondence between ed25519 and RSA ids in subsequent
+        // consensuses, since that's really not supposed to happen.
+        //
+        // However, that would involve tor-netdoc offering the ordering property as a
+        // *guarantee*.  It's also quite subtle.  This algorithm is O(N.log(N)) which
+        // is the same complexity as the (unavoidable) sort by hsdir_index.
+        let reuse_index_values: HashMap<&Ed25519Identity, &HsDirIndex> = (|| {
+            let prev_netdir = prev_netdir?;
+            let prev_ring = prev_netdir
+                .hsdir_rings
+                .iter()
+                .find(|prev_ring| prev_ring.params == new_params)?;
+
+            let reuse_index_values = prev_ring
+                .ring
+                .iter()
+                .filter_map(|(hsdir_index, rsi)| {
+                    Some((prev_netdir.md_by_idx(*rsi)?.ed25519_id(), hsdir_index))
+                })
+                .collect();
+            Some(reuse_index_values)
+        })()
+        .unwrap_or_default();
+
+        let mut new_ring: Vec<_> = this_netdir
+            .all_hsdirs()
+            .map(|(rsi, relay)| {
+                let ed_id = relay.md.ed25519_id();
+                let hsdir_index = reuse_index_values
+                    .get(ed_id)
+                    .cloned()
+                    .cloned()
+                    .unwrap_or_else(|| relay_index(ed_id, &new_params));
+                (hsdir_index, rsi)
+            })
+            .collect();
+
+        // rsi are all different, so no need to think about comparing them
+        new_ring.sort_by_key(|(hsdir_index, _rsi)| *hsdir_index);
+
+        HsDirRing {
+            ring: new_ring,
+            params: new_params,
+        }
     }
 
     /// Find the location or (notional) insertion point for `idx` within `ring`.
