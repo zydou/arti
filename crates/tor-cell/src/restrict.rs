@@ -1,7 +1,7 @@
 //! Declare a restricted variant of our message types.
 
-/// Re-export tor_bytes here, so that the macro can use it.
-pub use tor_bytes;
+/// Re-export tor_bytes and paste here, so that the macro can use it.
+pub use {paste, tor_bytes};
 
 /// Declare a restricted version of
 /// [`AnyRelayMsg`](crate::relaycell::msg::AnyRelayMsg) or
@@ -103,7 +103,7 @@ macro_rules! restricted_msg {
             $(,)?
         }
     } => {
-    paste::paste!{
+    $crate::restrict::paste::paste!{
         $(#[$meta])*
         $v enum $name {
             $(
