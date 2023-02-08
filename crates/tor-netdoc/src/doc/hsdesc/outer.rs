@@ -29,7 +29,6 @@ pub(super) struct HsDescOuter {
     /// A certificate containing the descriptor-signing-key for this onion
     /// service (`KP_hs_desc_sign`) signed by the blinded ed25519 identity
     /// (`HS_blind_id`) for this onion service.
-    // TODO HS: decide what to call this, and RENAME.
     pub(super) desc_signing_key_cert: Ed25519Cert,
     /// A revision counter to tell whether this descriptor is more or less recent
     /// than another one for the same blinded ID.

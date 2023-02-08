@@ -132,11 +132,11 @@ pub struct IntroPointDesc {
 
     /// The key used to extend a circuit _to the introduction point_, using the
     /// ntor or ntor3 handshakes.  (`KP_ntor`)
-    ntor_onion_key: curve25519::PublicKey,
+    ipt_ntor_key: curve25519::PublicKey,
 
     /// A key used to identify the onion service at this introduction point.
     /// (`KP_hs_ipt_sid`)
-    auth_key: HsIntroPtSessionIdKey,
+    ipt_sid_key: HsIntroPtSessionIdKey,
 
     /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
     /// service_ when using this introduction point.
@@ -144,8 +144,7 @@ pub struct IntroPointDesc {
     /// The onion service uses a separate key of this type with each
     /// introduction point as part of its strategy for preventing replay
     /// attacks.
-    // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
-    hs_enc_key: HsSvcNtorKey,
+    svc_ntor_key: HsSvcNtorKey,
 }
 
 /// An onion service after it has been parsed by the client, but not yet decrypted.
@@ -218,11 +217,10 @@ impl EncryptedHsDesc {
     /// this.
     //
     // TODO hs: I'm not sure that taking `hsc_desc_enc` as an argument is correct. Instead, maybe
-    // we should take a keystore trait?  Or a function from &ClientDescAuthKey to &ClientDescAuthSecretKey?
+    // we should take a set of keys?
     pub fn decrypt(
         self,
         subcredential: &Subcredential,
-        // TODO HS: rename depending on how the spec goes.
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
     ) -> Result<HsDesc> {
         let blinded_id = self.outer_doc.blinded_id();

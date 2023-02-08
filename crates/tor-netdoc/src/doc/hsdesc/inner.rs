@@ -251,8 +251,7 @@ impl HsDescInner {
             // Extract the key `KP_hss_ntor` that we'll use for our
             // handshake with the onion service itself.  This comes from the
             // "enc-key" item.
-            // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
-            let hs_enc_key: HsSvcNtorKey = {
+            let svc_ntor_key: HsSvcNtorKey = {
                 let tok = ipt_section
                     .slice(ENC_KEY)
                     .iter()
@@ -295,7 +294,7 @@ impl HsDescInner {
                     })?;
                 let expected_ed_key =
                     tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public(
-                        &hs_enc_key,
+                        &svc_ntor_key,
                         0,
                     );
                 if expected_ed_key != Some(ed_key) {
@@ -307,9 +306,9 @@ impl HsDescInner {
 
             intro_points.push(IntroPointDesc {
                 link_specifiers,
-                ntor_onion_key,
-                auth_key,
-                hs_enc_key,
+                ipt_ntor_key: ntor_onion_key,
+                ipt_sid_key: auth_key,
+                svc_ntor_key,
             });
         }
 

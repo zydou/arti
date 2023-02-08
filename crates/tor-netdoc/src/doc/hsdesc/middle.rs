@@ -26,7 +26,7 @@ pub(super) struct HsDescMiddle {
     /// This is `KP_hss_desc_enc`, and appears as `desc-auth-ephemeral-key` in
     /// the document format; It is used along with `KS_hsc_desc_enc` to perform
     /// a diffie-hellman operation and decrypt the encryption layer.
-    ephemeral_key: HsSvcDescEncKey,
+    svc_desc_enc_key: HsSvcDescEncKey,
     /// One or more authorized clients, and the key exchange information that
     /// they use to compute shared keys for decrypting the encryption layer.
     ///
@@ -98,7 +98,9 @@ impl HsDescMiddle {
         // Where:
         //     hs_{X,y} = K{P,S}_hss_desc_enc
         //     client_{X,Y} = K{P,S}_hsc_desc_enc
-        let secret_seed = ks_hsc_desc_enc.as_ref().diffie_hellman(&self.ephemeral_key);
+        let secret_seed = ks_hsc_desc_enc
+            .as_ref()
+            .diffie_hellman(&self.svc_desc_enc_key);
         let mut kdf = KDF::default();
         kdf.update(subcredential.as_ref());
         kdf.update(secret_seed.as_bytes());
@@ -236,7 +238,7 @@ impl HsDescMiddle {
         let encrypted_body: Vec<u8> = body.required(ENCRYPTED)?.obj("MESSAGE")?;
 
         Ok(HsDescMiddle {
-            ephemeral_key,
+            svc_desc_enc_key: ephemeral_key,
             auth_clients,
             encrypted: encrypted_body,
         })
