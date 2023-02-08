@@ -110,7 +110,6 @@ pub(crate) trait ConsensusRelays {
     /// Obtain the list of relays in the consensus
     //
     fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus>;
-    // TODO hs: This will return a TiSlice, shortly
 }
 impl ConsensusRelays for MdConsensus {
     fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
