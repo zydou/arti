@@ -138,7 +138,8 @@ impl HsDirRing {
 
         // We would like to avoid re-computing the hsdir indexes, since they're a hash
         // each.  Instead, we look to see if our previous netdir contains a hash ring
-        // using the same parameters.  If so, we make a hashmap of hsring_index values
+        // using the same parameters.  If so, we make a hashmap from relay identities
+        // to hsring_index positions _in the previous netdir_
         // to reuse.
         //
         // TODO: Actually, the relays in the consensus are ordered by their RSA identity.
