@@ -117,16 +117,15 @@ pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
 restricted_msg! {
-    /// A channel message that we're willing to parse on an _open_ _client_
-    /// channel.
+    /// A channel message that we allow to be sent from a server to a client on
+    /// an open channel.
     ///
-    /// (An Open channel here is one on which we have received a NETINFO cell. A
-    /// client channel is one where we are not acting as a relay.)
+    /// (An Open channel here is one on which we have received a NETINFO cell.)
     ///
     /// Note that an unexpected message type will _not_ be ignored: instead, it
     /// will cause the channel to shut down.
     #[derive(Clone, Debug)]
-    pub(crate) enum OpenClientChanMsg : ChanMsg {
+    pub(crate) enum OpenChanMsgS2C : ChanMsg {
         Padding,
         Vpadding,
         // Not Create*, since we are not a relay.
@@ -142,13 +141,14 @@ restricted_msg! {
     }
 }
 
-/// A channel cell that we're willing to parse on an open client channel.
-pub(crate) type OpenClientChanCell = ChanCell<OpenClientChanMsg>;
+/// A channel cell that we allot to be sent on an open channel from
+/// a server to a client.
+pub(crate) type OpenChanCellS2C = ChanCell<OpenChanMsgS2C>;
 
 /// Type alias: A Sink and Stream that transforms a TLS connection into
 /// a cell-based communication mechanism.
 type CellFrame<T> =
-    futures_codec::Framed<T, crate::channel::codec::ChannelCodec<OpenClientChanMsg, AnyChanMsg>>;
+    futures_codec::Framed<T, crate::channel::codec::ChannelCodec<OpenChanMsgS2C, AnyChanMsg>>;
 
 /// An open client channel, ready to send and receive Tor cells.
 ///

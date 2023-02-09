@@ -803,7 +803,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::channel::OpenClientChanCell;
+    use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
@@ -861,7 +861,7 @@ mod test {
     ) -> (
         Channel,
         Receiver<AnyChanCell>,
-        Sender<std::result::Result<OpenClientChanCell, CodecError>>,
+        Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
     ) {
         let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
         rt.spawn(async {
@@ -1352,7 +1352,7 @@ mod test {
         StreamId,
         usize,
         Receiver<AnyChanCell>,
-        Sender<std::result::Result<OpenClientChanCell, CodecError>>,
+        Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
