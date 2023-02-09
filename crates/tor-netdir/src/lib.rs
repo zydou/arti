@@ -61,15 +61,13 @@ use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 #[cfg(feature = "onion-common")]
-use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing};
+use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, itertools::chain, std::iter};
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
-use itertools::chain;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::iter;
 use std::net::IpAddr;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -344,6 +342,7 @@ pub struct NetDir {
 /// [`HsDirParams::compute`](HsDirParams::compute),
 /// where it contains the *parameters* for the primary and secondary rings.
 #[derive(Debug, Clone)]
+#[cfg(feature = "onion-common")]
 pub(crate) struct HsDirs<D> {
     /// The current ring
     ///
@@ -379,6 +378,7 @@ pub(crate) struct HsDirs<D> {
     secondary: Vec<D>,
 }
 
+#[cfg(feature = "onion-common")]
 impl<D> HsDirs<D> {
     /// Convert an `HsDirs<D>` to `HsDirs<D2>` by mapping each contained `D`
     pub(crate) fn map<D2>(self, mut f: impl FnMut(D) -> D2) -> HsDirs<D2> {
@@ -391,7 +391,16 @@ impl<D> HsDirs<D> {
 
     /// Iterate over the contained hsdirs
     pub(crate) fn iter(&self) -> impl Iterator<Item = &D> {
-        chain!(iter::once(&self.current), self.secondary.iter(),)
+        chain!(iter::once(&self.current), {
+            // This is necessary because chain!'s expansion happens *before*
+            // the #[cfg] is applied, so we can't have an argument to chain!
+            // which is conditionally present.
+            #[allow(unused_variables)]
+            let i = iter::empty::<&D>();
+            #[cfg(feature = "onion-service")]
+            let i = self.secondary.iter();
+            i
+        },)
     }
 }
 
@@ -693,8 +702,11 @@ impl PartialNetDir {
     }
     /// If this directory has enough information to build multihop
     /// circuits, return it.
-    pub fn unwrap_if_sufficient(mut self) -> std::result::Result<NetDir, PartialNetDir> {
+    pub fn unwrap_if_sufficient(
+        #[allow(unused_mut)] mut self,
+    ) -> std::result::Result<NetDir, PartialNetDir> {
         if self.netdir.have_enough_paths() {
+            #[cfg(feature = "onion-common")]
             self.compute_rings();
             Ok(self.netdir)
         } else {
@@ -796,6 +808,7 @@ impl NetDir {
     }
 
     /// Look up a relay's `MicroDesc` by its `RouterStatusIdc`
+    #[cfg_attr(not(feature = "onion-common"), allow(dead_code))]
     pub(crate) fn md_by_idx(&self, rsi: RouterStatusIdx) -> Option<&Microdesc> {
         self.mds.get(rsi)?.as_deref()
     }
