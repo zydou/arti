@@ -7,6 +7,8 @@
 //! or in the error handling behavior.
 
 use super::circmap::{CircEnt, CircMap};
+use super::OpenChanCellS2C;
+use crate::channel::OpenChanMsgS2C;
 use crate::circuit::halfcirc::HalfCirc;
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
@@ -35,8 +37,9 @@ use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
-pub(super) type BoxedChannelStream =
-    Box<dyn Stream<Item = std::result::Result<AnyChanCell, CodecError>> + Send + Unpin + 'static>;
+pub(super) type BoxedChannelStream = Box<
+    dyn Stream<Item = std::result::Result<OpenChanCellS2C, CodecError>> + Send + Unpin + 'static,
+>;
 /// A boxed trait object that can sink `ChanCell`s.
 pub(super) type BoxedChannelSink =
     Box<dyn Sink<AnyChanCell, Error = CodecError> + Send + Unpin + 'static>;
@@ -303,9 +306,9 @@ impl<S: SleepProvider> Reactor<S> {
 
     /// Helper: process a cell on a channel.  Most cell types get ignored
     /// or rejected; a few get delivered to circuits.
-    async fn handle_cell(&mut self, cell: AnyChanCell) -> Result<()> {
+    async fn handle_cell(&mut self, cell: OpenChanCellS2C) -> Result<()> {
         let (circid, msg) = cell.into_circid_and_msg();
-        use AnyChanMsg::*;
+        use OpenChanMsgS2C::*;
 
         match msg {
             Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
@@ -313,41 +316,15 @@ impl<S: SleepProvider> Reactor<S> {
         }
 
         match msg {
-            // These aren't allowed on clients.
-            Create(_) | CreateFast(_) | Create2(_) | RelayEarly(_) | PaddingNegotiate(_) => Err(
-                Error::ChanProto(format!("{} cell on client channel", msg.cmd())),
-            ),
-
-            // In theory this is allowed in clients, but we should never get
-            // one, since we don't use TAP.
-            Created(_) => Err(Error::ChanProto(format!(
-                "{} cell received, but we never send CREATEs",
-                msg.cmd()
-            ))),
-
-            // These aren't allowed after handshaking is done.
-            Versions(_) | Certs(_) | Authorize(_) | Authenticate(_) | AuthChallenge(_)
-            | Netinfo(_) => Err(Error::ChanProto(format!(
-                "{} cell after handshake is done",
-                msg.cmd()
-            ))),
-
             // These are allowed, and need to be handled.
-            Relay(_) => self.deliver_relay(circid, msg).await,
+            Relay(_) => self.deliver_relay(circid, msg.into()).await,
 
-            Destroy(_) => self.deliver_destroy(circid, msg).await,
+            Destroy(_) => self.deliver_destroy(circid, msg.into()).await,
 
-            CreatedFast(_) | Created2(_) => self.deliver_created(circid, msg).await,
+            CreatedFast(_) | Created2(_) => self.deliver_created(circid, msg.into()).await,
 
             // These are always ignored.
             Padding(_) | Vpadding(_) => Ok(()),
-
-            // Unrecognized cell types should be safe to allow _on channels_,
-            // since they can't propagate.
-            Unrecognized(_) => Ok(()),
-
-            // tor_cells knows about this type, but we don't.
-            _ => Ok(()),
         }
     }
 
@@ -476,7 +453,7 @@ pub(crate) mod test {
     use tor_linkspec::OwnedChanTarget;
     use tor_rtcompat::Runtime;
 
-    type CodecResult = std::result::Result<AnyChanCell, CodecError>;
+    type CodecResult = std::result::Result<OpenChanCellS2C, CodecError>;
 
     pub(crate) fn new_reactor<R: Runtime>(
         runtime: R,
@@ -617,7 +594,7 @@ pub(crate) mod test {
                 rtc.sleep(Duration::from_millis(100)).await;
                 trace!("sending createdfast");
                 // We'll get a bad handshake result from this createdfast cell.
-                let created_cell = AnyChanCell::new(id, msg::CreatedFast::new(*b"x").into());
+                let created_cell = OpenChanCellS2C::new(id, msg::CreatedFast::new(*b"x").into());
                 input.send(Ok(created_cell)).await.unwrap();
                 reactor.run_once().await.unwrap();
             };
@@ -646,25 +623,12 @@ pub(crate) mod test {
             use tor_cell::chancell::msg;
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
-            // We shouldn't get create cells, ever.
-            let create_cell = msg::Create2::new(4, *b"hihi").into();
-            input
-                .send(Ok(AnyChanCell::new(9.into(), create_cell)))
-                .await
-                .unwrap();
-
             // shouldn't get created2 cells for nonexistent circuits
             let created2_cell = msg::Created2::new(*b"hihi").into();
             input
-                .send(Ok(AnyChanCell::new(7.into(), created2_cell)))
+                .send(Ok(OpenChanCellS2C::new(7.into(), created2_cell)))
                 .await
                 .unwrap();
-
-            let e = reactor.run_once().await.unwrap_err().unwrap_err();
-            assert_eq!(
-                format!("{}", e),
-                "Channel protocol violation: CREATE2 cell on client channel"
-            );
 
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
@@ -675,7 +639,7 @@ pub(crate) mod test {
             // Can't get a relay cell on a circuit we've never heard of.
             let relay_cell = msg::Relay::new(b"abc").into();
             input
-                .send(Ok(AnyChanCell::new(4.into(), relay_cell)))
+                .send(Ok(OpenChanCellS2C::new(4.into(), relay_cell)))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -684,29 +648,9 @@ pub(crate) mod test {
                 "Channel protocol violation: Relay cell on nonexistent circuit"
             );
 
-            // Can't get handshaking cells while channel is open.
-            let versions_cell = msg::Versions::new([3]).unwrap().into();
-            input
-                .send(Ok(AnyChanCell::new(0.into(), versions_cell)))
-                .await
-                .unwrap();
-            let e = reactor.run_once().await.unwrap_err().unwrap_err();
-            assert_eq!(
-                format!("{}", e),
-                "Channel protocol violation: VERSIONS cell after handshake is done"
-            );
-
-            // We don't accept CREATED.
-            let created_cell = msg::Created::new(&b"xyzzy"[..]).into();
-            input
-                .send(Ok(AnyChanCell::new(25.into(), created_cell)))
-                .await
-                .unwrap();
-            let e = reactor.run_once().await.unwrap_err().unwrap_err();
-            assert_eq!(
-                format!("{}", e),
-                "Channel protocol violation: CREATED cell received, but we never send CREATEs"
-            );
+            // There used to be tests here for other types, but now that we only
+            // accept OpenClientChanCell, we know that the codec can't even try
+            // to give us e.g. VERSIONS or CREATE.
         });
     }
 
@@ -737,9 +681,9 @@ pub(crate) mod test {
 
             // If a relay cell is sent on an open channel, the correct circuit
             // should get it.
-            let relaycell: AnyChanMsg = msg::Relay::new(b"do you suppose").into();
+            let relaycell: OpenChanMsgS2C = msg::Relay::new(b"do you suppose").into();
             input
-                .send(Ok(AnyChanCell::new(13.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(13.into(), relaycell.clone())))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
@@ -748,7 +692,7 @@ pub(crate) mod test {
 
             // If a relay cell is sent on an opening channel, that's an error.
             input
-                .send(Ok(AnyChanCell::new(7.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(7.into(), relaycell.clone())))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -759,7 +703,7 @@ pub(crate) mod test {
 
             // If a relay cell is sent on a non-existent channel, that's an error.
             input
-                .send(Ok(AnyChanCell::new(101.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(101.into(), relaycell.clone())))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -774,7 +718,7 @@ pub(crate) mod test {
             // We can do this 25 more times according to our setup:
             for _ in 0..25 {
                 input
-                    .send(Ok(AnyChanCell::new(23.into(), relaycell.clone())))
+                    .send(Ok(OpenChanCellS2C::new(23.into(), relaycell.clone())))
                     .await
                     .unwrap();
                 reactor.run_once().await.unwrap(); // should be fine.
@@ -782,7 +726,7 @@ pub(crate) mod test {
 
             // This one will fail.
             input
-                .send(Ok(AnyChanCell::new(23.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(23.into(), relaycell.clone())))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -819,9 +763,9 @@ pub(crate) mod test {
             };
 
             // Destroying an opening circuit is fine.
-            let destroycell: AnyChanMsg = msg::Destroy::new(0.into()).into();
+            let destroycell: OpenChanMsgS2C = msg::Destroy::new(0.into()).into();
             input
-                .send(Ok(AnyChanCell::new(7.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(7.into(), destroycell.clone())))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
@@ -830,7 +774,7 @@ pub(crate) mod test {
 
             // Destroying an open circuit is fine.
             input
-                .send(Ok(AnyChanCell::new(13.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(13.into(), destroycell.clone())))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
@@ -839,14 +783,14 @@ pub(crate) mod test {
 
             // Destroying a DestroySent circuit is fine.
             input
-                .send(Ok(AnyChanCell::new(23.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(23.into(), destroycell.clone())))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
 
             // Destroying a nonexistent circuit is an error.
             input
-                .send(Ok(AnyChanCell::new(101.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(101.into(), destroycell.clone())))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();

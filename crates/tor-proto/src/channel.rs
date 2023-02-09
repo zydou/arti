@@ -75,8 +75,10 @@ use safelog::sensitive as sv;
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
-use tor_cell::chancell::ChanMsg;
+use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{msg, msg::PaddingNegotiate, AnyChanCell, CircId};
+use tor_cell::chancell::{ChanCell, ChanMsg};
+use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
@@ -114,9 +116,39 @@ use crate::channel::unique_id::CircUniqIdContext;
 pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
+restricted_msg! {
+    /// A channel message that we allow to be sent from a server to a client on
+    /// an open channel.
+    ///
+    /// (An Open channel here is one on which we have received a NETINFO cell.)
+    ///
+    /// Note that an unexpected message type will _not_ be ignored: instead, it
+    /// will cause the channel to shut down.
+    #[derive(Clone, Debug)]
+    pub(crate) enum OpenChanMsgS2C : ChanMsg {
+        Padding,
+        Vpadding,
+        // Not Create*, since we are not a relay.
+        // Not Created, since we never send CREATE.
+        CreatedFast,
+        Created2,
+        Relay,
+        // Not RelayEarly, since we are a client.
+        Destroy,
+        // Not PaddingNegotiate, since we are not a relay.
+        // Not Versions, Certs, AuthChallenge, Authenticate: they are for handshakes.
+        // Not Authorize: it is reserved, but unused.
+    }
+}
+
+/// A channel cell that we allot to be sent on an open channel from
+/// a server to a client.
+pub(crate) type OpenChanCellS2C = ChanCell<OpenChanMsgS2C>;
+
 /// Type alias: A Sink and Stream that transforms a TLS connection into
 /// a cell-based communication mechanism.
-type CellFrame<T> = futures_codec::Framed<T, crate::channel::codec::ChannelCodec>;
+type CellFrame<T> =
+    futures_codec::Framed<T, crate::channel::codec::ChannelCodec<OpenChanMsgS2C, AnyChanMsg>>;
 
 /// An open client channel, ready to send and receive Tor cells.
 ///

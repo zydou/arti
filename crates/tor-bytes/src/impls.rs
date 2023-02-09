@@ -182,7 +182,7 @@ mod ed25519_impls {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
             let bytes = b.take(32)?;
             Self::from_bytes(array_ref![bytes, 0, 32])
-                .map_err(|_| Error::BadMessage("Couldn't decode Ed25519 public key"))
+                .map_err(|_| Error::InvalidMessage("Couldn't decode Ed25519 public key".into()))
         }
     }
 
@@ -208,7 +208,7 @@ mod ed25519_impls {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
             let bytes = b.take(64)?;
             Self::from_bytes(array_ref![bytes, 0, 64])
-                .map_err(|_| Error::BadMessage("Couldn't decode Ed25519 signature."))
+                .map_err(|_| Error::InvalidMessage("Couldn't decode Ed25519 signature.".into()))
         }
     }
 }

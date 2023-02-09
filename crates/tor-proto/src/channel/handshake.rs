@@ -5,9 +5,10 @@ use asynchronous_codec as futures_codec;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
+use tor_cell::restricted_msg;
 use tor_error::internal;
 
-use crate::channel::codec::{ChannelCodec, CodecError};
+use crate::channel::codec::{self, ChannelCodec, CodecError};
 use crate::channel::UniqId;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -104,6 +105,26 @@ pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S
     rsa_id: RsaIdentity,
     /// Authenticated clock skew for this peer.
     clock_skew: ClockSkew,
+}
+
+restricted_msg! {
+    /// A restricted subset of ChanMsg that can arrive during a handshake.
+    ///
+    /// (These are messages that come after the VERSIONS cell, up to and
+    /// including the NETINFO.)
+    ///
+    /// Note that unrecognized message types (ones not yet implemented in Arti)
+    /// cause an error, rather than getting ignored.  That's intentional: if we
+    /// start to allow them in the future, we should negotiate a new Channel
+    /// protocol for the VERSIONS cell.
+    #[derive(Clone,Debug)]
+    enum HandshakeMsg : ChanMsg {
+        Padding,
+        Vpadding,
+        AuthChallenge,
+        Certs,
+        Netinfo
+    }
 }
 
 /// Convert a CodecError to an Error, under the context that it occurs while
@@ -210,7 +231,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
         // Now we can switch to using a "Framed". We can ignore the
         // AsyncRead/AsyncWrite aspects of the tls, and just treat it
         // as a stream and a sink for cells.
-        let codec = ChannelCodec::new(link_protocol);
+        let codec = ChannelCodec::<HandshakeMsg, HandshakeMsg>::new(link_protocol);
         let mut tls = futures_codec::Framed::new(self.tls, codec);
 
         // Read until we have the netinfo cells.
@@ -221,14 +242,12 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
         // Loop: reject duplicate and unexpected cells
         trace!("{}: waiting for rest of handshake.", self.unique_id);
         while let Some(m) = tls.next().await {
-            use msg::AnyChanMsg::*;
+            use HandshakeMsg::*;
             let (_, m) = m.map_err(codec_err_to_handshake)?.into_circid_and_msg();
             trace!("{}: received a {} cell.", self.unique_id, m.cmd());
             match m {
                 // Are these technically allowed?
                 Padding(_) | Vpadding(_) => (),
-                // Unrecognized cells get ignored.
-                Unrecognized(_) => (),
                 // Clients don't care about AuthChallenge
                 AuthChallenge(_) => {
                     if seen_authchallenge {
@@ -252,13 +271,6 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
                     }
                     netinfo = Some((n, coarsetime::Instant::now()));
                     break;
-                }
-                // No other cell types are allowed.
-                m => {
-                    return Err(Error::HandshakeProto(format!(
-                        "Unexpected cell type {}",
-                        m.cmd()
-                    )))
                 }
             }
         }
@@ -285,7 +297,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
                 };
                 Ok(UnverifiedChannel {
                     link_protocol,
-                    tls,
+                    tls: codec::change_message_types(tls),
                     certs_cell,
                     netinfo_cell,
                     clock_skew,
@@ -806,7 +818,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Unexpected cell type CREATE"
+                "Handshake protocol violation: Invalid cell on handshake: Error while parsing channel cell"
             );
         });
     }

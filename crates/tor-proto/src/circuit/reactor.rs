@@ -324,7 +324,7 @@ where
         let mut rng = rand::thread_rng();
         let unique_id = reactor.unique_id;
 
-        use tor_cell::relaycell::msg::{Body, Extend2};
+        use tor_cell::relaycell::msg::Extend2;
         // Perform the first part of the cryptographic handshake
         let (state, msg) = H::client1(&mut rng, key)?;
 
@@ -339,7 +339,7 @@ where
         );
 
         let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
-        let cell = AnyRelayCell::new(0.into(), extend_msg.into_message());
+        let cell = AnyRelayCell::new(0.into(), extend_msg.into());
 
         // Send the message to the last hop...
         reactor.send_relay_cell(
@@ -1007,7 +1007,7 @@ impl Reactor {
         //            the whole circuit (e.g. by returning an error).
         let msg = chancell::msg::Relay::from_raw(body.into());
         let msg = if early {
-            AnyChanMsg::RelayEarly(msg)
+            AnyChanMsg::RelayEarly(msg.into())
         } else {
             AnyChanMsg::Relay(msg)
         };

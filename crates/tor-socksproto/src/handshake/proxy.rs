@@ -124,7 +124,7 @@ impl SocksProxyHandshake {
                 .to_string();
             let hostname = hostname
                 .try_into()
-                .map_err(|_| BytesError::BadMessage("hostname too long"))?;
+                .map_err(|_| BytesError::InvalidMessage("hostname too long".into()))?;
             SocksAddr::Hostname(hostname)
         } else {
             let ip4: std::net::Ipv4Addr = ip.into();

@@ -101,14 +101,14 @@ fn test_begin() {
     msg_error(
         cmd,
         "5b3a3a5d21", // [::]!
-        BytesError::BadMessage("missing port in begin cell"),
+        BytesError::InvalidMessage("missing port in begin cell".into()),
     );
 
     // hand-generated failure case: not ascii.
     msg_error(
         cmd,
         "746f7270726f6a656374e284a22e6f72673a34343300", // torproject™.org:443
-        BytesError::BadMessage("target address in begin cell not ascii"),
+        BytesError::InvalidMessage("target address in begin cell not ascii".into()),
     );
 
     // failure on construction: bad address.
@@ -151,7 +151,7 @@ fn test_connected() {
     msg_error(
         cmd,
         "00000000 07 20010db8 00000000 00000000 00001122 00000E10",
-        BytesError::BadMessage("Invalid address type in CONNECTED cell"),
+        BytesError::InvalidMessage("Invalid address type in CONNECTED cell".into()),
     );
 }
 
@@ -418,7 +418,7 @@ fn test_resolved() {
     msg_error(
         cmd,
         "04 03 010203 00000001",
-        BytesError::BadMessage("Wrong length for RESOLVED answer"),
+        BytesError::InvalidMessage("Wrong length for RESOLVED answer".into()),
     );
 }
 
@@ -564,7 +564,7 @@ fn test_connect_udp() {
     msg_error(
         cmd,
         "00000000 07 04 01020304",
-        BytesError::BadMessage("Invalid address type"),
+        BytesError::InvalidMessage("Invalid address type".into()),
     );
 
     // A zero length address with and without hostname payload.
@@ -608,14 +608,14 @@ fn test_connected_udp() {
         cmd,
         "01 04 01020304 0050
          04 04 05060708 0050",
-        BytesError::BadMessage("Our address is a Hostname"),
+        BytesError::InvalidMessage("Our address is a Hostname".into()),
     );
     // Invalid their_address
     msg_error(
         cmd,
         "04 04 01020304 0050
          01 04 05060708 0050",
-        BytesError::BadMessage("Their address is a Hostname"),
+        BytesError::InvalidMessage("Their address is a Hostname".into()),
     );
 }
 
@@ -773,7 +773,7 @@ fn test_introduce() {
          02 0004 00010203
          00
          01090804",
-        BytesError::BadMessage("legacy key id in Introduce1."),
+        BytesError::InvalidMessage("legacy key id in Introduce1.".into()),
     );
 }
 // TODO: need to add tests for:

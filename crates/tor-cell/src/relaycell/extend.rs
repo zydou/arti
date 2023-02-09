@@ -91,16 +91,16 @@ impl Readable for NtorV3Extension {
         Ok(match tag {
             NtorV3ExtensionType::CC_REQUEST => {
                 if len != 0 {
-                    return Err(tor_bytes::Error::BadMessage(
-                        "invalid length for RequestCongestionControl",
+                    return Err(tor_bytes::Error::InvalidMessage(
+                        "invalid length for RequestCongestionControl".into(),
                     ));
                 }
                 NtorV3Extension::RequestCongestionControl
             }
             NtorV3ExtensionType::CC_RESPONSE => {
                 if len != 1 {
-                    return Err(tor_bytes::Error::BadMessage(
-                        "invalid length for AckCongestionControl",
+                    return Err(tor_bytes::Error::InvalidMessage(
+                        "invalid length for AckCongestionControl".into(),
                     ));
                 }
                 let sendme_inc = reader.take_u8()?;

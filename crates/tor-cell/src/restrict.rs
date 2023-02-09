@@ -1,7 +1,7 @@
 //! Declare a restricted variant of our message types.
 
-/// Re-export tor_bytes here, so that the macro can use it.
-pub use tor_bytes;
+/// Re-export tor_bytes and paste here, so that the macro can use it.
+pub use {paste, tor_bytes};
 
 /// Declare a restricted version of
 /// [`AnyRelayMsg`](crate::relaycell::msg::AnyRelayMsg) or
@@ -40,18 +40,20 @@ pub use tor_bytes;
 macro_rules! restricted_msg {
     {
         $(#[$meta:meta])*
+        $(@omit_from $omit_from:literal)?
         $v:vis enum $name:ident : RelayMsg {
             $($tt:tt)*
         }
     } => {
         $crate::restrict::restricted_msg!{
             [
-            base_type: $crate::relaycell::msg::AnyRelayMsg,
+            any_type: $crate::relaycell::msg::AnyRelayMsg,
             msg_mod: $crate::relaycell::msg,
             cmd_type: $crate::relaycell::RelayCmd,
             unrecognized: $crate::relaycell::msg::Unrecognized,
             body_trait: $crate::relaycell::msg::Body,
-            msg_trait: $crate::relaycell::RelayMsg
+            msg_trait: $crate::relaycell::RelayMsg,
+            omit_from: $($omit_from)?
             ]
             $(#[$meta])*
             $v enum $name { $($tt)*}
@@ -59,18 +61,20 @@ macro_rules! restricted_msg {
     };
     {
         $(#[$meta:meta])*
+        $(@omit_from $omit_from:literal)?
         $v:vis enum $name:ident : ChanMsg {
             $($tt:tt)*
         }
     } => {
         $crate::restrict::restricted_msg!{
             [
-            base_type: $crate::chancell::msg::AnyChanMsg,
+            any_type: $crate::chancell::msg::AnyChanMsg,
             msg_mod: $crate::chancell::msg,
             cmd_type: $crate::chancell::ChanCmd,
             unrecognized: $crate::chancell::msg::Unrecognized,
             body_trait: $crate::chancell::msg::Body,
-            msg_trait: $crate::chancell::ChanMsg
+            msg_trait: $crate::chancell::ChanMsg,
+            omit_from: $($omit_from)?
             ]
             $(#[$meta])*
             $v enum $name { $($tt)*}
@@ -78,12 +82,13 @@ macro_rules! restricted_msg {
     };
     {
         [
-          base_type: $base:ty,
+          any_type: $any_msg:ty,
           msg_mod: $msg_mod:path,
           cmd_type: $cmd_type:ty,
           unrecognized: $unrec_type:ty,
           body_trait: $body_type:ty,
-          msg_trait: $msg_trait:ty
+          msg_trait: $msg_trait:ty,
+          omit_from: $($omit_from:literal)?
         ]
         $(#[$meta:meta])*
         $v:vis enum $name:ident {
@@ -98,7 +103,7 @@ macro_rules! restricted_msg {
             $(,)?
         }
     } => {
-    paste::paste!{
+    $crate::restrict::paste::paste!{
         $(#[$meta])*
         $v enum $name {
             $(
@@ -151,12 +156,65 @@ macro_rules! restricted_msg {
                     $(
                         _ => Self::$unrecognized($unrec_type::decode_with_cmd(cmd, r)?),
                     )?
-                    // TODO: This message is too terse! This message type should maybe take a Cow?
                     #[allow(unreachable_patterns)] // This is unreachable if we had an Unrecognized variant above.
-                    _ => return Err($crate::restrict::tor_bytes::Error::BadMessage("Unexpected command")),
+                    _ => return Err($crate::restrict::tor_bytes::Error::InvalidMessage(
+                        format!("Unexpected command {} in {}", cmd, stringify!($name)).into()
+                    )),
                 })
             }
         }
+
+        $(
+            #[cfg(feature = $omit_from)]
+        )?
+        impl From<$name> for $any_msg {
+            fn from(msg: $name) -> $any_msg {
+                match msg {
+                    $(
+                        $( #[cfg(feature=$feat)] )?
+                        $name::$case(b) => Self::$case(b),
+                    )*
+                    $(
+                        $name::$unrecognized(u) => $any_msg::Unrecognized(u),
+                    )?
+                }
+            }
+        }
+
+        $(
+            #[cfg(feature = $omit_from)]
+        )?
+        impl TryFrom<$any_msg> for $name {
+            type Error = $any_msg;
+            fn try_from(msg: $any_msg) -> std::result::Result<$name, $any_msg> {
+                Ok(match msg {
+                    $(
+                        $( #[cfg(feature=$feat)] )?
+                        $any_msg::$case(b) => $name::$case(b),
+                    )*
+                    $(
+                        $any_msg::Unrecognized(u) => Self::$unrecognized(u),
+                    )?
+                    #[allow(unreachable_patterns)]
+                    other => return Err(other),
+                })
+            }
+        }
+        $(
+            $( #[cfg(feature=$feat)] )?
+            impl From<$msg_mod :: $case> for $name {
+                fn from(m: $msg_mod::$case) -> $name {
+                    $name :: $case(m)
+                }
+            }
+        )*
+        $(
+            impl From<$unrec_type> for $name {
+                fn from (u: $unrec_type) -> $name {
+                    $name::$unrecognized(u)
+                }
+            }
+        )?
     }
     }
 }

@@ -31,6 +31,7 @@ crate::restrict::restricted_msg! {
 /// A single parsed relay message, sent or received along a circuit
 #[derive(Debug, Clone)]
 #[non_exhaustive]
+@omit_from "avoid_conflict_with_a_blanket_implementation"
 pub enum AnyRelayMsg : RelayMsg {
     /// Create a stream
     Begin,
@@ -107,18 +108,10 @@ pub enum AnyRelayMsg : RelayMsg {
 
 /// Internal: traits in common different cell bodies.
 pub trait Body: Sized {
-    /// Convert this type into a RelayMsg, wrapped appropriate.
-    fn into_message(self) -> AnyRelayMsg;
     /// Decode a relay cell body from a provided reader.
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self>;
     /// Encode the body of this cell into the end of a writer.
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()>;
-}
-
-impl<B: Body> From<B> for AnyRelayMsg {
-    fn from(b: B) -> AnyRelayMsg {
-        b.into_message()
-    }
 }
 
 bitflags! {
@@ -209,9 +202,6 @@ impl Begin {
 }
 
 impl Body for Begin {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Begin(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let addr = {
             if r.peek(1)? == b"[" {
@@ -220,7 +210,7 @@ impl Body for Begin {
                 let a = r.take_until(b']')?;
                 let colon = r.take_u8()?;
                 if colon != b':' {
-                    return Err(Error::BadMessage("missing port in begin cell"));
+                    return Err(Error::InvalidMessage("missing port in begin cell".into()));
                 }
                 a
             } else {
@@ -232,15 +222,17 @@ impl Body for Begin {
         let flags = if r.remaining() >= 4 { r.take_u32()? } else { 0 };
 
         if !addr.is_ascii() {
-            return Err(Error::BadMessage("target address in begin cell not ascii"));
+            return Err(Error::InvalidMessage(
+                "target address in begin cell not ascii".into(),
+            ));
         }
 
         let port = std::str::from_utf8(port)
-            .map_err(|_| Error::BadMessage("port in begin cell not utf8"))?;
+            .map_err(|_| Error::InvalidMessage("port in begin cell not utf8".into()))?;
 
         let port = port
             .parse()
-            .map_err(|_| Error::BadMessage("port in begin cell not a valid port"))?;
+            .map_err(|_| Error::InvalidMessage("port in begin cell not a valid port".into()))?;
 
         Ok(Begin {
             addr: addr.into(),
@@ -324,9 +316,6 @@ impl AsRef<[u8]> for Data {
 }
 
 impl Body for Data {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Data(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Data {
             body: r.take(r.remaining())?.into(),
@@ -437,9 +426,6 @@ impl End {
     }
 }
 impl Body for End {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::End(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         if r.remaining() == 0 {
             return Ok(End {
@@ -528,9 +514,6 @@ impl Connected {
     }
 }
 impl Body for Connected {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Connected(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         if r.remaining() == 0 {
             return Ok(Connected { addr: None });
@@ -538,7 +521,9 @@ impl Body for Connected {
         let ipv4 = r.take_u32()?;
         let addr = if ipv4 == 0 {
             if r.take_u8()? != 6 {
-                return Err(Error::BadMessage("Invalid address type in CONNECTED cell"));
+                return Err(Error::InvalidMessage(
+                    "Invalid address type in CONNECTED cell".into(),
+                ));
             }
             IpAddr::V6(r.extract()?)
         } else {
@@ -607,9 +592,6 @@ impl Sendme {
     }
 }
 impl Body for Sendme {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Sendme(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let digest = if r.remaining() == 0 {
             None
@@ -622,7 +604,7 @@ impl Body for Sendme {
                     Some(r.take(dlen as usize)?.into())
                 }
                 _ => {
-                    return Err(Error::BadMessage("Unrecognized SENDME version."));
+                    return Err(Error::InvalidMessage("Unrecognized SENDME version.".into()));
                 }
             }
         };
@@ -672,9 +654,6 @@ impl Extend {
     }
 }
 impl Body for Extend {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extend(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let addr = r.extract()?;
         let port = r.take_u16()?;
@@ -713,9 +692,6 @@ impl Extended {
     }
 }
 impl Body for Extended {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extended(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let handshake = r.take(TAP_S_HANDSHAKE_LEN)?.into();
         Ok(Extended { handshake })
@@ -777,9 +753,6 @@ impl Extend2 {
 }
 
 impl Body for Extend2 {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extend2(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let n = r.take_u8()?;
         let linkspec = r.extract_n(n as usize)?;
@@ -836,9 +809,6 @@ impl Extended2 {
     }
 }
 impl Body for Extended2 {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Extended2(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let hlen = r.take_u16()?;
         let handshake = r.take(hlen as usize)?;
@@ -881,9 +851,6 @@ impl Truncated {
     }
 }
 impl Body for Truncated {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Truncated(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Truncated {
             reason: r.take_u8()?.into(),
@@ -937,9 +904,6 @@ impl Resolve {
     }
 }
 impl Body for Resolve {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Resolve(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let query = r.take_until(0)?;
         Ok(Resolve {
@@ -995,7 +959,9 @@ impl Readable for ResolvedVal {
         let len = r.take_u8()? as usize;
         if let Some(expected_len) = res_len(tp) {
             if len != expected_len {
-                return Err(Error::BadMessage("Wrong length for RESOLVED answer"));
+                return Err(Error::InvalidMessage(
+                    "Wrong length for RESOLVED answer".into(),
+                ));
             }
         }
         Ok(match tp {
@@ -1106,9 +1072,6 @@ impl Resolved {
     }
 }
 impl Body for Resolved {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Resolved(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let mut answers = Vec::new();
         while r.remaining() > 0 {
@@ -1161,9 +1124,6 @@ impl Unrecognized {
 }
 
 impl Body for Unrecognized {
-    fn into_message(self) -> AnyRelayMsg {
-        AnyRelayMsg::Unrecognized(self)
-    }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Unrecognized {
             cmd: 0.into(),
@@ -1187,9 +1147,6 @@ macro_rules! empty_body {
        #[non_exhaustive]
        pub struct $name {}
        impl $crate::relaycell::msg::Body for $name {
-           fn into_message(self) -> $crate::relaycell::msg::AnyRelayMsg {
-               $crate::relaycell::msg::AnyRelayMsg::$name(self)
-           }
            fn decode_from_reader(_r: &mut Reader<'_>) -> Result<Self> {
                Ok(Self::default())
            }

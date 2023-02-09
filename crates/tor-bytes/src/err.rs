@@ -1,5 +1,7 @@
 //! Internal: Declare an Error type for tor-bytes
 
+use std::borrow::Cow;
+
 use thiserror::Error;
 use tor_error::{into_internal, Bug};
 
@@ -26,8 +28,13 @@ pub enum Error {
     BadLengthValue,
     /// An attempt to parse an object failed for some reason related to its
     /// contents.
+    #[deprecated(since = "0.6.2", note = "Use InvalidMessage instead.")]
     #[error("Bad object: {0}")]
     BadMessage(&'static str),
+    /// An attempt to parse an object failed for some reason related to its
+    /// contents.
+    #[error("Bad object: {0}")]
+    InvalidMessage(Cow<'static, str>),
     /// A parsing error that should never happen.
     ///
     /// We use this one in lieu of calling assert() and expect() and
@@ -42,7 +49,9 @@ impl PartialEq for Error {
         match (self, other) {
             (Truncated, Truncated) => true,
             (ExtraneousBytes, ExtraneousBytes) => true,
+            #[allow(deprecated)]
             (BadMessage(a), BadMessage(b)) => a == b,
+            (InvalidMessage(a), InvalidMessage(b)) => a == b,
             (BadLengthValue, BadLengthValue) => true,
             // notably, this means that an internal error is equal to nothing, not even itself.
             (_, _) => false,

@@ -406,6 +406,6 @@ fn test_padding_negotiate() {
 
     assert_eq!(
         decode_err(cmd, "90 0303", true),
-        BytesError::BadMessage("Unrecognized padding negotiation version")
+        BytesError::InvalidMessage("Unrecognized padding negotiation version".into())
     );
 }

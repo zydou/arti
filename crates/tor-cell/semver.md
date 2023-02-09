@@ -6,3 +6,5 @@ BREAKING: Moved ChanMsg methods into a trait.
 BREAKING: Moved RelayMsg methods into a trait.
 BREAKING: Renamed ChanCell->AnyChanCell, ChanMsg->AnyChanMsg.
 BREAKING: Renamed RelayCell->AnyRelayCell, RelayMsg->AnyRelayMsg.
+BREAKING: Make ChannelCodec::decode() parameterized.
+BREAKING: RelayEarly is now a real type.

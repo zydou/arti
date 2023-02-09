@@ -1,7 +1,7 @@
 //! Implementation for encoding and decoding of ChanCells.
 
-use super::CELL_DATA_LEN;
-use crate::chancell::{msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
+use super::{ChanCell, CELL_DATA_LEN};
+use crate::chancell::{ChanCmd, ChanMsg, CircId};
 use crate::Error;
 use arrayref::{array_mut_ref, array_ref};
 use tor_bytes::{self, Reader, Writer};
@@ -49,8 +49,12 @@ impl ChannelCodec {
     }
 
     /// Write the given cell into the provided BytesMut object.
-    pub fn write_cell(&mut self, item: AnyChanCell, dst: &mut BytesMut) -> crate::Result<()> {
-        let AnyChanCell { circid, msg } = item;
+    pub fn write_cell<M: ChanMsg>(
+        &mut self,
+        item: ChanCell<M>,
+        dst: &mut BytesMut,
+    ) -> crate::Result<()> {
+        let ChanCell { circid, msg } = item;
         let cmd = msg.cmd();
         dst.write_u32(circid.into());
         dst.write_u8(cmd.into());
@@ -83,7 +87,10 @@ impl ChannelCodec {
     ///
     /// On a definite decoding error, return Err(_).  On a cell that might
     /// just be truncated, return Ok(None).
-    pub fn decode_cell(&mut self, src: &mut BytesMut) -> crate::Result<Option<AnyChanCell>> {
+    pub fn decode_cell<M: ChanMsg>(
+        &mut self,
+        src: &mut BytesMut,
+    ) -> crate::Result<Option<ChanCell<M>>> {
         /// Wrap `be` as an appropriate type.
         fn wrap_err(be: tor_bytes::Error) -> crate::Error {
             crate::Error::BytesErr {
@@ -113,7 +120,7 @@ impl ChannelCodec {
         let mut r = Reader::from_bytes(&cell);
         let circid: CircId = r.take_u32().map_err(wrap_err)?.into();
         r.advance(if varcell { 3 } else { 1 }).map_err(wrap_err)?;
-        let msg = msg::AnyChanMsg::decode_from_reader(cmd, &mut r).map_err(wrap_err)?;
+        let msg = M::decode_from_reader(cmd, &mut r).map_err(wrap_err)?;
 
         if !cmd.accepts_circid_val(circid) {
             return Err(Error::ChanProto(format!(
@@ -121,6 +128,6 @@ impl ChannelCodec {
                 circid, cmd
             )));
         }
-        Ok(Some(AnyChanCell { circid, msg }))
+        Ok(Some(ChanCell { circid, msg }))
     }
 }
