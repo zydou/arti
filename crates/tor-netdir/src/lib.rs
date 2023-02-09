@@ -955,7 +955,7 @@ impl NetDir {
     fn all_hsdirs(&self) -> impl Iterator<Item = (RouterStatusIdx, Relay<'_>)> {
         self.c_relays().iter_enumerated().filter_map(|(rsi, rs)| {
             let relay = self.relay_from_rs_and_idx(rs, rsi);
-            relay.is_hsdir_for_ring().then_some(())?;
+            relay.is_hsdir_for_ring().then(|| ())?;
             let relay = relay.into_relay()?;
             Some((rsi, relay))
         })
