@@ -548,7 +548,7 @@ pub struct PartialNetDir {
 
     /// The previous netdir, if we had one
     ///
-    /// Used as a cache, so we can reusing information
+    /// Used as a cache, so we can reuse information
     #[cfg(feature = "onion-common")]
     prev_netdir: Option<Arc<NetDir>>,
 }
@@ -807,7 +807,7 @@ impl NetDir {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
     }
 
-    /// Look up a relay's `MicroDesc` by its `RouterStatusIdc`
+    /// Look up a relay's `MicroDesc` by its `RouterStatusIdx`
     #[cfg_attr(not(feature = "onion-common"), allow(dead_code))]
     pub(crate) fn md_by_idx(&self, rsi: RouterStatusIdx) -> Option<&Microdesc> {
         self.mds.get(rsi)?.as_deref()
