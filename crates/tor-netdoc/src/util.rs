@@ -111,10 +111,10 @@ mod tests {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
 
     #[test]
     fn test_pause_at() {
-        use super::PauseAt;
         let mut iter = (1..10).into_iter().peekable();
         let mut iter = PauseAt::from_peekable(&mut iter, |x| *x == 3);
 
@@ -141,7 +141,6 @@ mod tests {
 
     #[test]
     fn test_parse_at_mutable() {
-        use super::PauseAt;
         let mut count = 0;
         let mut iter = (1..10).into_iter().peekable();
         // pause at the third item, using mutable state in the closure.
