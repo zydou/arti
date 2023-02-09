@@ -12,7 +12,7 @@ use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::B64;
 use crate::{Pos, Result};
 
-use super::desc_enc::{DescEncNonce, HsDescEncryption};
+use super::desc_enc::{HsDescEncNonce, HsDescEncryption};
 use super::DecryptionError;
 
 /// A more-or-less verbatim representation of the middle document of an onion
@@ -78,7 +78,7 @@ impl HsDescMiddle {
         &self,
         subcredential: &Subcredential,
         ks_hsc_desc_enc: &HsClientDescEncSecretKey,
-    ) -> Option<DescEncNonce> {
+    ) -> Option<HsDescEncNonce> {
         use cipher::{KeyIvInit, StreamCipher};
         use digest::{ExtendableOutput, Update};
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
