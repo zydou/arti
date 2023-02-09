@@ -29,7 +29,7 @@ pub(super) struct HsDescEncryption<'a> {
     /// For the encryption layer, it is `descriptor_cookie` (2.5.2.1)
     /// which is present when descriptor-encryption authentication via
     /// `KP_hsc_desc_enc` is in use.
-    pub(super) desc_enc_nonce: Option<&'a DescEncNonce>,
+    pub(super) desc_enc_nonce: Option<&'a HsDescEncNonce>,
     /// The "subcredential" of the onion service.
     pub(super) subcredential: &'a Subcredential,
     /// The current revision of the onion service descriptor being decrypted.
@@ -47,7 +47,7 @@ pub(super) struct HsDescEncryption<'a> {
 /// This is  `N_hs_desc_enc` in the spec, where sometimes we also call it a
 /// "descriptor cookie".
 #[derive(derive_more::AsRef, derive_more::From)]
-pub(super) struct DescEncNonce([u8; 16]);
+pub(super) struct HsDescEncNonce([u8; 16]);
 
 /// Length of our cryptographic salt.
 const SALT_LEN: usize = 16;
