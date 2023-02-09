@@ -5,6 +5,8 @@ pub(crate) mod str;
 
 use std::iter::Peekable;
 
+pub mod batching_split_before;
+
 /// An iterator adaptor that pauses when a given predicate is true.
 ///
 /// Unlike std::iter::TakeWhile, it doesn't consume the first non-returned
