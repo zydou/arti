@@ -15,7 +15,7 @@
 
 #![allow(unused_variables, dead_code)] //TODO hs: remove
 
-use tor_hscrypto::{pk::BlindedOnionId, time::TimePeriod};
+use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdoc::doc::netstatus::SharedRandVal;
 
@@ -81,7 +81,7 @@ pub(crate) fn relay_index(
 
 /// Compute the starting [`HsDirIndex`] for a given descriptor replica.
 pub(crate) fn service_index(
-    id: BlindedOnionId,
+    id: HsBlindId,
     replica: u8,
     rand: SharedRandVal,
     period: TimePeriod,

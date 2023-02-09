@@ -3,9 +3,9 @@
 
 use std::{collections::HashMap, sync::Mutex};
 
-use tor_hscrypto::pk::{ClientSecretKeys, OnionId};
+use tor_hscrypto::pk::{ClientSecretKeys, HsId};
 
 pub(crate) struct Keys {
     /// The
-    keys: Mutex<HashMap<OnionId, ClientSecretKeys>>,
+    keys: Mutex<HashMap<HsId, ClientSecretKeys>>,
 }

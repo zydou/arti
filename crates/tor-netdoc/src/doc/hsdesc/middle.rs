@@ -1,8 +1,8 @@
-//! Handle the middle layer of an onion service descriptor.
+//! Handle the middle document of an onion service descriptor.
 
 use digest::XofReader;
 use once_cell::sync::Lazy;
-use tor_hscrypto::pk::{BlindedOnionId, ClientDescAuthSecretKey};
+use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey, HsSvcDescEncKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::util::ct::CtByteArray;
@@ -12,25 +12,23 @@ use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::B64;
 use crate::{Pos, Result};
 
-use super::desc_enc::{DescEncryptionCookie, HsDescEncryption};
+use super::desc_enc::{DescEncNonce, HsDescEncryption};
 use super::DecryptionError;
 
-/// A more-or-less verbatim representation of the middle layer of an onion
+/// A more-or-less verbatim representation of the middle document of an onion
 /// service descriptor.
 #[derive(Debug, Clone)]
 pub(super) struct HsDescMiddle {
     /// A public key used by authorized clients to decrypt the key used to
-    /// decrypt the inner layer.  This is ignored if client authorization is not
-    /// in use.
+    /// decrypt the encryption layer and decode the inner document.  This is
+    /// ignored if client authorization is not in use.
     ///
-    /// This is `desc-auth-ephemeral-key` in the document format; it does not
-    /// yet have a name in our spec's list of keys.  Call it `KP_hs_desc_ephem`
-    /// for now.  It is used along with `KS_hsc_desc_enc` to perform a
-    /// diffie-hellman operation and decrypt the inner layer.
-    // TODO HS rename. Possibly to kp_hs_desc_ephem, depending.
-    ephemeral_key: curve25519::PublicKey,
+    /// This is `KP_hss_desc_enc`, and appears as `desc-auth-ephemeral-key` in
+    /// the document format; It is used along with `KS_hsc_desc_enc` to perform
+    /// a diffie-hellman operation and decrypt the encryption layer.
+    svc_desc_enc_key: HsSvcDescEncKey,
     /// One or more authorized clients, and the key exchange information that
-    /// they use to compute shared keys for decrypting inner layer.
+    /// they use to compute shared keys for decrypting the encryption layer.
     ///
     /// Each of these is parsed from a `auth-client` line.
     auth_clients: Vec<AuthClient>,
@@ -39,7 +37,7 @@ pub(super) struct HsDescMiddle {
 }
 
 impl HsDescMiddle {
-    /// Decrypt the encrypted inner document contained within this middle layer
+    /// Decrypt the encrypted inner document contained within this middle
     /// document.
     ///
     /// If present, `key` is an authorization key, and we assume that the
@@ -49,15 +47,15 @@ impl HsDescMiddle {
     /// didn't have the right key.
     pub(super) fn decrypt_inner(
         &self,
-        blinded_id: &BlindedOnionId,
+        blinded_id: &HsBlindId,
         revision: RevisionCounter,
         subcredential: &Subcredential,
-        key: Option<&ClientDescAuthSecretKey>,
+        key: Option<&HsClientDescEncSecretKey>,
     ) -> std::result::Result<Vec<u8>, DecryptionError> {
-        let descriptor_cookie = key.and_then(|k| self.find_cookie(subcredential, k));
+        let desc_enc_nonce = key.and_then(|k| self.find_cookie(subcredential, k));
         let decrypt = HsDescEncryption {
             blinded_id,
-            descriptor_cookie: descriptor_cookie.as_ref(),
+            desc_enc_nonce: desc_enc_nonce.as_ref(),
             subcredential,
             revision,
             string_const: b"hsdir-encrypted-data",
@@ -69,25 +67,24 @@ impl HsDescMiddle {
     /// Use a `ClientDescAuthSecretKey` (`KS_hsc_desc_enc`) to see if there is any `auth-client`
     /// entry for us (a client who holds that secret key) in this descriptor.  
     /// If so, decrypt it and return its
-    /// corresponding "DescriptorCookie" (`N_hs_desc_enc`, not yet so named in the spec).
-    // TODO HS Rename.  descriptor_cookie is what the spec says; see DescEncryptionCookie.
+    /// corresponding "Descriptor Cookie" (`N_hs_desc_enc`)
     ///
     /// If no such `N_hs_desc_enc` is found, then either we do not have
-    /// permission to decrypt this layer, OR no encryption is required.
+    /// permission to decrypt the encryption layer, OR no permission is required.
     ///
     /// (The protocol makes it intentionally impossible to distinguish any error
     /// conditions here other than "no cookie for you.")
     fn find_cookie(
         &self,
         subcredential: &Subcredential,
-        ks_hsc_desc_enc: &ClientDescAuthSecretKey, // TODO HS RENAME?
-    ) -> Option<DescEncryptionCookie> {
+        ks_hsc_desc_enc: &HsClientDescEncSecretKey,
+    ) -> Option<DescEncNonce> {
         use cipher::{KeyIvInit, StreamCipher};
         use digest::{ExtendableOutput, Update};
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
         use tor_llcrypto::d::Shake256 as KDF;
 
-        // Perform a diffie hellman handshake using `KS_hsc_desc_enc` and `KP_hs_desc_ephem`,
+        // Perform a diffie hellman handshake using `KS_hsc_desc_enc` and `KP_hss_desc_enc`,
         // and use it to find our client_id and cookie_key.
         //
         // The spec says:
@@ -99,9 +96,11 @@ impl HsDescMiddle {
         //     COOKIE-KEY = last 32 bytes of KEYS
         //
         // Where:
-        //     hs_{X,y} = K{P,S}_hs_desc_ephem
+        //     hs_{X,y} = K{P,S}_hss_desc_enc
         //     client_{X,Y} = K{P,S}_hsc_desc_enc
-        let secret_seed = ks_hsc_desc_enc.as_ref().diffie_hellman(&self.ephemeral_key);
+        let secret_seed = ks_hsc_desc_enc
+            .as_ref()
+            .diffie_hellman(&self.svc_desc_enc_key);
         let mut kdf = KDF::default();
         kdf.update(subcredential.as_ref());
         kdf.update(secret_seed.as_bytes());
@@ -139,7 +138,8 @@ struct AuthClient {
     ///
     /// This is the second item on the `auth-client` line.
     iv: [u8; 16],
-    /// An encrypted value used to find the descriptor cookie, which in turn is
+    /// An encrypted value used to find the descriptor cookie `N_hs_desc_enc`,
+    /// which in turn is
     /// needed to decrypt the [HsDescMiddle]'s `encrypted_body`.
     ///
     /// This is the third item on the `auth-client` line.  When decrypted, it
@@ -176,7 +176,7 @@ decl_keyword! {
     }
 }
 
-/// Rules about how keywords appear in the outer layer of an onion service
+/// Rules about how keywords appear in the middle document of an onion service
 /// descriptor.
 static HS_MIDDLE_RULES: Lazy<SectionRules<HsMiddleKwd>> = Lazy::new(|| {
     use HsMiddleKwd::*;
@@ -192,7 +192,7 @@ static HS_MIDDLE_RULES: Lazy<SectionRules<HsMiddleKwd>> = Lazy::new(|| {
 });
 
 impl HsDescMiddle {
-    /// Try to parse the middle layer of an onion service descriptor from a provided
+    /// Try to parse the middle document of an onion service descriptor from a provided
     /// string.
     pub(super) fn parse(s: &str) -> Result<HsDescMiddle> {
         let mut reader = NetDocReader::new(s);
@@ -200,7 +200,7 @@ impl HsDescMiddle {
         Ok(result)
     }
 
-    /// Extract an HsDescOuter from a reader.  
+    /// Extract an HsDescMiddle from a reader.  
     ///
     /// The reader must contain a single HsDescOuter; we return an error if not.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsMiddleKwd>) -> Result<HsDescMiddle> {
@@ -220,11 +220,11 @@ impl HsDescMiddle {
             }
         }
 
-        // Extract `KP_hs_desc_ephem` from DESC_AUTH_EPHEMERAL_KEY
-        let ephemeral_key: curve25519::PublicKey = {
+        // Extract `KP_hss_desc_enc` from DESC_AUTH_EPHEMERAL_KEY
+        let ephemeral_key: HsSvcDescEncKey = {
             let token = body.required(DESC_AUTH_EPHEMERAL_KEY)?;
-            let bytes = token.parse_arg::<B64>(0)?.into_array()?;
-            bytes.into()
+            let key = curve25519::PublicKey::from(token.parse_arg::<B64>(0)?.into_array()?);
+            key.into()
         };
 
         // Parse all the auth-client lines.
@@ -238,7 +238,7 @@ impl HsDescMiddle {
         let encrypted_body: Vec<u8> = body.required(ENCRYPTED)?.obj("MESSAGE")?;
 
         Ok(HsDescMiddle {
-            ephemeral_key,
+            svc_desc_enc_key: ephemeral_key,
             auth_clients,
             encrypted: encrypted_body,
         })
@@ -262,7 +262,7 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::{
-        outer_layer::HsDescOuter,
+        outer::HsDescOuter,
         test::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
 

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 
-use tor_hscrypto::pk::BlindedOnionId;
+use tor_hscrypto::pk::HsBlindId;
 
 /// Information about onion services and our history of connecting to them.
 pub(crate) struct StateMap {
@@ -13,7 +13,7 @@ pub(crate) struct StateMap {
     ///
     /// If the map is to `None`, then a download is in progress for that state's
     /// descriptor.
-    members: Mutex<HashMap<BlindedOnionId, Option<State>>>,
+    members: Mutex<HashMap<HsBlindId, Option<State>>>,
 }
 
 /// Information about our history of connecting to an onion service.

@@ -2,7 +2,7 @@
 //!
 //! TODO hs: It's possible that this should move to tor-netdoc.
 
-use tor_hscrypto::{pk::BlindedOnionId, RevisionCounter, Subcredential};
+use tor_hscrypto::{pk::HsBlindId, RevisionCounter, Subcredential};
 use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
 use tor_llcrypto::d::Sha3_256 as Hash;
 use tor_llcrypto::d::Shake256 as KDF;
@@ -22,14 +22,14 @@ pub(super) struct HsDescEncryption<'a> {
     /// First half of the "SECRET_DATA" field.
     ///
     /// (See rend-spec v3 2.5.1.1 and 2.5.2.1.)
-    pub(super) blinded_id: &'a BlindedOnionId,
+    pub(super) blinded_id: &'a HsBlindId,
     /// Second half of the "SECRET_DATA" field.
     ///
-    /// This is absent when handling the middle layer (2.5.1.1).
-    /// For the inner layer, it is `descriptor_cookie` (2.5.2.1)
+    /// This is absent when handling the superencryption layer (2.5.1.1).
+    /// For the encryption layer, it is `descriptor_cookie` (2.5.2.1)
     /// which is present when descriptor-encryption authentication via
     /// `KP_hsc_desc_enc` is in use.
-    pub(super) descriptor_cookie: Option<&'a DescEncryptionCookie>,
+    pub(super) desc_enc_nonce: Option<&'a DescEncNonce>,
     /// The "subcredential" of the onion service.
     pub(super) subcredential: &'a Subcredential,
     /// The current revision of the onion service descriptor being decrypted.
@@ -41,15 +41,13 @@ pub(super) struct HsDescEncryption<'a> {
     pub(super) string_const: &'a [u8],
 }
 
-/// A value used in deriving the encryption key for the inner layer of onion
-/// service encryption.
+/// A value used in deriving the encryption key for the inner (encryption) layer
+/// of onion service encryption.
 ///
-/// We do not yet have an identifier for this value in the spec, where we
-/// generally call it a "descriptor cookie".  Call it `N_hs_desc_enc` for now.
-//
-// TODO HS RENAME: Be consistent with the spec.
+/// This is  `N_hs_desc_enc` in the spec, where sometimes we also call it a
+/// "descriptor cookie".
 #[derive(derive_more::AsRef, derive_more::From)]
-pub(super) struct DescEncryptionCookie([u8; 16]);
+pub(super) struct DescEncNonce([u8; 16]);
 
 /// Length of our cryptographic salt.
 const SALT_LEN: usize = 16;
@@ -156,9 +154,9 @@ impl<'a> HsDescEncryption<'a> {
 
         // secret_input = SECRET_DATA | N_hs_subcred | INT_8(revision_counter)
         //
-        // (SECRET_DATA is always blinded_id (2.5.1.1), or blinded_id | descriptor_cookie) (2.5.2.1).
+        // (SECRET_DATA is always KP_blind_id (2.5.1.1), or KP_blind_id | N_hs_desc_nonce) (2.5.2.1).
         kdf.update(self.blinded_id.as_ref());
-        if let Some(cookie) = self.descriptor_cookie {
+        if let Some(cookie) = self.desc_enc_nonce {
             kdf.update(cookie.as_ref());
         }
         kdf.update(self.subcredential.as_ref());
@@ -204,7 +202,7 @@ mod test {
         let string_const = "greetings puny humans";
         let params = HsDescEncryption {
             blinded_id: &blinded_id,
-            descriptor_cookie: None,
+            desc_enc_nonce: None,
             subcredential: &subcredential,
             revision,
             string_const: string_const.as_bytes(),
@@ -237,7 +235,7 @@ mod test {
         let string_const = "greetings puny humans";
         let params = HsDescEncryption {
             blinded_id: &blinded_id,
-            descriptor_cookie: None,
+            desc_enc_nonce: None,
             subcredential: &subcredential,
             revision,
             string_const: string_const.as_bytes(),

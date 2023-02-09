@@ -76,7 +76,7 @@ use tracing::warn;
 use typed_index_collections::{TiSlice, TiVec};
 
 #[cfg(feature = "onion-common")]
-use tor_hscrypto::{pk::BlindedOnionId, time::TimePeriod};
+use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
 
 pub use err::Error;
 pub use weight::WeightRole;
@@ -1174,7 +1174,7 @@ impl NetDir {
     #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
     pub fn onion_service_dirs(
         &self,
-        id: BlindedOnionId,
+        id: HsBlindId,
         op: OnionServiceDirOp,
         when: TimePeriod,
     ) -> std::result::Result<Vec<Relay<'_>>, OnionDirLookupError> {

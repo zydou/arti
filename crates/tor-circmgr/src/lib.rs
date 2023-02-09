@@ -445,7 +445,7 @@ impl<R: Runtime> CircMgr<R> {
     #[allow(clippy::missing_panics_doc, unused_variables)]
     pub async fn get_or_launch_onion_client(
         &self,
-        service_id: tor_hscrypto::pk::OnionId,
+        service_id: tor_hscrypto::pk::HsId,
         using_keys: Option<tor_hscrypto::pk::ClientSecretKeys>,
         isolation: StreamIsolation,
     ) -> Result<ClientCirc> {

@@ -47,7 +47,7 @@ these offline keys:
 To operate, an onion service needs these secret keys, which do not have to be
 persistent.
 The corresponding public keys are published in the service descriptor:
-  * A ntor key for its cryptographic handshake (`KS_hs_intro_ntor`).
+  * A ntor key for its cryptographic handshake (`KS_hss_ntor`).
   * A signing key associated with each active introduction point.
     (`KS_hs_intro_auth`)
 

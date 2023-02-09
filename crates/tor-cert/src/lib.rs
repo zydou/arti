@@ -98,7 +98,7 @@ caret_int! {
         HS_BLINDED_ID_V_SIGNING = 0x08,
 
         /// For onion services: Introduction point authentication key
-        /// (`KP_hs_intro_tid`), signed with short term descriptor signing key
+        /// (`KP_hs_ipt_sid`), signed with short term descriptor signing key
         /// (`KP_hs_desc_sign`).
         ///
         /// This one is, sadly, a bit complicated. In the original specification
@@ -117,7 +117,7 @@ caret_int! {
         /// identity key.
         NTOR_CC_IDENTITY = 0x0A,
 
-        /// For onion services: Ntor encryption key (`KP_hs_intro_ntor`),
+        /// For onion services: Ntor encryption key (`KP_hss_ntor`),
         /// converted to ed25519, signed with the descriptor signing key
         /// (`KP_hs_desc_sign`).
         ///

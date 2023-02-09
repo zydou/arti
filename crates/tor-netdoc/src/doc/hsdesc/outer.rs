@@ -1,13 +1,14 @@
-//! Implement parsing for the outer layer of an onion service descriptor.
+//! Implement parsing for the outer document of an onion service descriptor.
 
 use once_cell::sync::Lazy;
 use tor_cert::Ed25519Cert;
 use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
-use tor_hscrypto::pk::BlindedOnionId;
+use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::ed25519::{self, ValidatableEd25519Signature};
+use tor_units::IntegerMinutes;
 
 use crate::parse::{keyword::Keyword, parser::SectionRules, tokenize::NetDocReader};
 use crate::types::misc::{UnvalidatedEdCert, B64};
@@ -15,8 +16,8 @@ use crate::{Pos, Result};
 
 use super::desc_enc;
 
-/// A more-or-less verbatim representation of the outermost layer of an onion
-/// service descriptor.
+/// A more-or-less verbatim representation of the outermost plaintext document
+/// of an onion service descriptor.
 #[derive(Clone, Debug)]
 pub(super) struct HsDescOuter {
     /// The lifetime of this descriptor, in minutes.
@@ -24,12 +25,10 @@ pub(super) struct HsDescOuter {
     /// This doesn't actually list the starting time or the end time for the
     /// descriptor: presumably, because we didn't want to leak the onion
     /// service's view of the wallclock.
-    // TODO HS: Use IntegerMinutes, and rename to `Lifetime`.
-    pub(super) lifetime_minutes: u16,
+    pub(super) lifetime: IntegerMinutes<u16>,
     /// A certificate containing the descriptor-signing-key for this onion
     /// service (`KP_hs_desc_sign`) signed by the blinded ed25519 identity
     /// (`HS_blind_id`) for this onion service.
-    // TODO HS: decide what to call this, and RENAME.
     pub(super) desc_signing_key_cert: Ed25519Cert,
     /// A revision counter to tell whether this descriptor is more or less recent
     /// than another one for the same blinded ID.
@@ -45,7 +44,7 @@ pub(super) struct HsDescOuter {
 
 impl HsDescOuter {
     /// Return the blinded Id for this onion service descriptor.
-    pub(super) fn blinded_id(&self) -> BlindedOnionId {
+    pub(super) fn blinded_id(&self) -> HsBlindId {
         let ident = self
             .desc_signing_key_cert
             .signing_key()
@@ -58,7 +57,7 @@ impl HsDescOuter {
         self.revision_counter
     }
 
-    /// Decrypt and return the encrypted (middle-layer) body of this onion
+    /// Decrypt and return the encrypted (middle document) body of this onion
     /// service descriptor.
     pub(super) fn decrypt_body(
         &self,
@@ -66,7 +65,7 @@ impl HsDescOuter {
     ) -> std::result::Result<Vec<u8>, desc_enc::DecryptionError> {
         let decrypt = desc_enc::HsDescEncryption {
             blinded_id: &self.blinded_id(),
-            descriptor_cookie: None,
+            desc_enc_nonce: None,
             subcredential,
             revision: self.revision_counter,
             string_const: b"hsdir-superencrypted-data",
@@ -76,7 +75,7 @@ impl HsDescOuter {
         let n_padding = body.iter().rev().take_while(|n| **n == 0).count();
         body.truncate(body.len() - n_padding);
         // Work around a bug in the C tor implementation: it doesn't
-        // NL-terminate the final line of the middle layer.
+        // NL-terminate the final line of the middle document.
         if !body.ends_with(b"\n") {
             body.push(b'\n');
         }
@@ -99,7 +98,7 @@ decl_keyword! {
     }
 }
 
-/// Rules about how keywords appear in the outer layer of an onion service
+/// Rules about how keywords appear in the outer document of an onion service
 /// descriptor.
 static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
     use HsOuterKwd::*;
@@ -117,7 +116,7 @@ static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
 });
 
 impl HsDescOuter {
-    /// Try to parse an outer layer of an onion service descriptor from a string.
+    /// Try to parse an outer document of an onion service descriptor from a string.
     pub(super) fn parse(s: &str) -> Result<UncheckedHsDescOuter> {
         // XXXX needs to be unchecked.
         let mut reader = NetDocReader::new(s);
@@ -186,7 +185,7 @@ impl HsDescOuter {
         }
 
         // Parse `descryptor-lifetime`.
-        let lifetime_minutes = {
+        let lifetime: IntegerMinutes<u16> = {
             let tok = body.required(DESCRIPTOR_LIFETIME)?;
             let lifetime_minutes: u16 = tok.parse_arg(0)?;
             if !(30..=720).contains(&lifetime_minutes) {
@@ -194,7 +193,7 @@ impl HsDescOuter {
                     .with_msg(format!("Invalid HsDesc lifetime {}", lifetime_minutes))
                     .at_pos(tok.pos()));
             }
-            lifetime_minutes
+            lifetime_minutes.into()
         };
 
         // Parse `descriptor-signing-key-cert`.  This certificate is signed with
@@ -250,7 +249,7 @@ impl HsDescOuter {
 
         // Build our return value.
         let desc = HsDescOuter {
-            lifetime_minutes,
+            lifetime,
             desc_signing_key_cert,
             revision_counter,
             superencrypted: encrypted_body,

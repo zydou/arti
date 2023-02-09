@@ -32,7 +32,7 @@ ns_consensus = []
 # TODO hs: mark these as part of "full" once they are done and stable.
 onion-client = ["onion-common"]
 onion-service = ["onion-common", "rand"]
-onion-common = ["tor-hscrypto", "tor-linkspec"]
+onion-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
@@ -80,6 +80,7 @@ tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.6.0", optional = true }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
 tor-protover = { path = "../tor-protover", version = "0.4.0" }
+tor-units = { version = "0.4.1", path = "../tor-units", optional = true }
 visibility = { version = "0.0.1", optional = true }
 visible = { version = "0.0.1", optional = true }
 weak-table = "0.3.0"

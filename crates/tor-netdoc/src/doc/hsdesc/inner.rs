@@ -1,4 +1,4 @@
-//! Code to handle the inner layer of an onion service descriptor.
+//! Code to handle the inner document of an onion service descriptor.
 
 use super::{IntroAuthType, IntroPointDesc};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
@@ -9,10 +9,10 @@ use crate::{ParseErrorKind as EK, Result};
 use itertools::Itertools as _;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
-use tor_hscrypto::pk::{IntroPtAuthKey, IntroPtEncKey};
+use tor_hscrypto::pk::{HsIntroPtSessionIdKey, HsSvcNtorKey};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
-/// The contents of the inner layer of an onion service descriptor.
+/// The contents of the inner document of an onion service descriptor.
 #[derive(Debug, Clone)]
 pub(super) struct HsDescInner {
     /// The authentication types that this onion service accepts when
@@ -84,7 +84,7 @@ static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
 });
 
 impl HsDescInner {
-    /// Attempt to parse the inner layer of an onion service descriptor from a
+    /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided string.
     pub(super) fn parse(s: &str) -> Result<HsDescInner> {
         let mut reader = NetDocReader::new(s);
@@ -92,7 +92,7 @@ impl HsDescInner {
         Ok(result)
     }
 
-    /// Attempt to parse the inner layer of an onion service descriptor from a
+    /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided reader.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsInnerKwd>) -> Result<HsDescInner> {
         use HsInnerKwd::*;
@@ -128,8 +128,8 @@ impl HsDescInner {
                 }
             };
             for arg in tok.args() {
+                #[allow(clippy::single_match)]
                 match arg {
-                    "password" => push(IntroAuthType::Password),
                     "ed25519" => push(IntroAuthType::Ed25519),
                     _ => (), // Ignore unrecognized types.
                 }
@@ -151,7 +151,7 @@ impl HsDescInner {
 
         // Now we parse the introduction points.  Each of these will be a
         // section starting with `introduction-point`, ending right before the
-        // next `introduction-point` (or before the end of the layer.)
+        // next `introduction-point` (or before the end of the document.)
         let mut intro_points = Vec::new();
         while reader.iter().peek().is_some() {
             // Construct a new PauseAt to parse at the _second_ time we see an INTRODUCTION_POINT
@@ -185,7 +185,7 @@ impl HsDescInner {
                 res
             };
 
-            // Parse the ntor "onion-key" (`KP_onion_ntor`) of the introduction point.
+            // Parse the ntor "onion-key" (`KP_ntor`) of the introduction point.
             let ntor_onion_key = {
                 let tok = ipt_section
                     .slice(ONION_KEY)
@@ -196,18 +196,18 @@ impl HsDescInner {
                 tok.parse_arg::<B64>(1)?.into_array()?.into()
             };
 
-            // Extract the auth_key (`KP_hs_intro_tid`) from the (unchecked)
+            // Extract the auth_key (`KP_hs_ipt_sid`) from the (unchecked)
             // "auth-key" certificate.
-            let auth_key: IntroPtAuthKey = {
+            let auth_key: HsIntroPtSessionIdKey = {
                 // Note that this certificate does not actually serve any
                 // function _as_ a certificate; it was meant to cross-certify
                 // the descriptor signing key (`KP_hs_desc_sign`) using the
-                // authentication key (`KP_hs_intro_tid`).  But the C tor
+                // authentication key (`KP_hs_ipt_sid`).  But the C tor
                 // implementation got it backwards.
                 //
                 // We have to parse this certificate to extract
-                // `KP_hs_intro_tid`, but we don't actually need to validate it:
-                // it appears inside the inner layer, which is already signed
+                // `KP_hs_ipt_sid`, but we don't actually need to validate it:
+                // it appears inside the inner document, which is already signed
                 // with `KP_hs_desc_sign`.
                 //
                 // See documentation for `CertType::HS_IP_V_SIGNING for more
@@ -248,11 +248,10 @@ impl HsDescInner {
                 ed_key.into()
             };
 
-            // Extract the key `KP_hs_intro_ntor` that we'll use for our
+            // Extract the key `KP_hss_ntor` that we'll use for our
             // handshake with the onion service itself.  This comes from the
             // "enc-key" item.
-            // TODO HS RENAME: Rename to KP_hs_intro_intor, or whatever we wind up with.
-            let hs_enc_key: IntroPtEncKey = {
+            let svc_ntor_key: HsSvcNtorKey = {
                 let tok = ipt_section
                     .slice(ENC_KEY)
                     .iter()
@@ -264,7 +263,7 @@ impl HsDescInner {
             };
 
             // Check that the key in the "enc-key-cert" item matches the
-            // `KP_hs_intro_ntor` we just extracted.
+            // `KP_hss_ntor` we just extracted.
             {
                 // NOTE: As above, this certificate is backwards, and hence
                 // useless. Therefore, we do not validate it: we only check that
@@ -295,7 +294,7 @@ impl HsDescInner {
                     })?;
                 let expected_ed_key =
                     tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public(
-                        &hs_enc_key,
+                        &svc_ntor_key,
                         0,
                     );
                 if expected_ed_key != Some(ed_key) {
@@ -307,9 +306,9 @@ impl HsDescInner {
 
             intro_points.push(IntroPointDesc {
                 link_specifiers,
-                ntor_onion_key,
-                auth_key,
-                hs_enc_key,
+                ipt_ntor_key: ntor_onion_key,
+                ipt_sid_key: auth_key,
+                svc_ntor_key,
             });
         }
 
@@ -338,8 +337,8 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::{
-        middle_layer::HsDescMiddle,
-        outer_layer::HsDescOuter,
+        middle::HsDescMiddle,
+        outer::HsDescOuter,
         test::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
 
