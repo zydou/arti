@@ -1297,7 +1297,8 @@ impl<'a> UncheckedRelay<'a> {
     /// Return true if this relay is a hidden service directory
     ///
     /// Ie, if it is to be included in the hsdir ring.
-    pub fn is_hsdir_for_ring(&self) -> bool {
+    #[cfg(feature = "onion-common")]
+    pub(crate) fn is_hsdir_for_ring(&self) -> bool {
         // TODO are there any other flags should we check?
         // rend-spec-v3 2.2.3 says just
         //   "each node listed in the current consensus with the HSDir flag"
