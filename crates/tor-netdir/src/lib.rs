@@ -51,8 +51,6 @@ pub mod testnet;
 #[cfg(feature = "testing")]
 pub mod testprovider;
 
-#[cfg(feature = "onion-common")]
-use hsdir_ring::HsDirRing;
 use static_assertions::const_assert;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
@@ -62,6 +60,8 @@ use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
+#[cfg(feature = "onion-common")]
+use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, itertools::chain, std::iter};
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
@@ -110,7 +110,6 @@ pub(crate) trait ConsensusRelays {
     /// Obtain the list of relays in the consensus
     //
     fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus>;
-    // TODO hs: This will return a TiSlice, shortly
 }
 impl ConsensusRelays for MdConsensus {
     fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
@@ -316,10 +315,36 @@ pub struct NetDir {
     /// can be immutable.
     rs_idx_by_rsa: Arc<HashMap<RsaIdentity, RouterStatusIdx>>,
 
-    /// A hash ring describing the onion service directory.
+    /// Hash ring(s) describing the onion service directory.
     ///
     /// This is empty in a PartialNetDir, and is filled in before the NetDir is
     /// built.
+    //
+    // TODO hs: It is ugly to have this exist in a partially constructed state
+    // in a PartialNetDir.
+    // Ideally, a PartialNetDir would contain only an HsDirs<HsDirParams>,
+    // or perhaps nothing at all, here.
+    #[cfg(feature = "onion-common")]
+    hsdir_rings: HsDirs<HsDirRing>,
+
+    /// Weight values to apply to a given relay when deciding how frequently
+    /// to choose it for a given role.
+    weights: weight::WeightSet,
+}
+
+/// Collection of hidden service directories (or parameters for them)
+///
+/// In [`NetDir`] this is used to store the actual hash rings.
+/// (But, in a NetDir in a [`PartialNetDir`], it contains [`HsDirRing`]s
+/// where only the `params` are populated, and the `ring` is empty.)
+///
+/// This same generic type is used as the return type from
+/// [`HsDirParams::compute`](HsDirParams::compute),
+/// where it contains the *parameters* for the primary and secondary rings.
+#[derive(Debug, Clone)]
+#[cfg(feature = "onion-common")]
+pub(crate) struct HsDirs<D> {
+    /// The current ring
     ///
     /// It corresponds to the time period containing the `valid-after` time in
     /// the consensus. Its SRV is whatever SRV was most current at the time when
@@ -327,14 +352,9 @@ pub struct NetDir {
     ///
     /// This is the hash ring that we should use whenever we are fetching an
     /// onion service descriptor.
-    //
-    // TODO hs: It is ugly to have this exist in a partially constructed state
-    // in a PartialNetDir.
-    #[cfg(feature = "onion-common")]
-    hsdir_ring: HsDirRing,
+    current: D,
 
-    /// A hash ring describing the onion service directory based on the
-    /// parameters for the previous and next time periods.
+    /// Secondary rings (based on the parameters for the previous and next time periods)
     ///
     /// Onion services upload to positions on these ring as well, based on how
     /// far into the current time period this directory is, so that
@@ -345,22 +365,43 @@ pub struct NetDir {
     /// secondary rings will be active at a time.  We have two here in order
     /// to conform with a more flexible regime in proposal 342.
     //
-    // TODO hs: It is sort of ugly to have these be partially constructed in a
-    // PartialNetDir.
-    //
     // TODO hs: hs clients never need this; so I've made it not-present for thm.
     // But does that risk too much with respect to side channels?
     //
     // TODO hs: Perhaps we should refactor this so that it is clear that these
     // are immutable?  On the other hand, the documentation for this type
     // declares that it is immutable, so we are likely okay.
+    //
+    // TODO hs: this `Vec` is only ever 0,1,2 elements.
+    // Maybe it should be an ArrayVec or something.
     #[cfg(feature = "onion-service")]
-    #[allow(dead_code)]
-    hsdir_secondary_rings: Vec<HsDirRing>,
+    secondary: Vec<D>,
+}
 
-    /// Weight values to apply to a given relay when deciding how frequently
-    /// to choose it for a given role.
-    weights: weight::WeightSet,
+#[cfg(feature = "onion-common")]
+impl<D> HsDirs<D> {
+    /// Convert an `HsDirs<D>` to `HsDirs<D2>` by mapping each contained `D`
+    pub(crate) fn map<D2>(self, mut f: impl FnMut(D) -> D2) -> HsDirs<D2> {
+        HsDirs {
+            current: f(self.current),
+            #[cfg(feature = "onion-service")]
+            secondary: self.secondary.into_iter().map(f).collect(),
+        }
+    }
+
+    /// Iterate over the contained hsdirs
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &D> {
+        chain!(iter::once(&self.current), {
+            // This is necessary because chain!'s expansion happens *before*
+            // the #[cfg] is applied, so we can't have an argument to chain!
+            // which is conditionally present.
+            #[allow(unused_variables)]
+            let i = iter::empty::<&D>();
+            #[cfg(feature = "onion-service")]
+            let i = self.secondary.iter();
+            i
+        },)
+    }
 }
 
 /// An event that a [`NetDirProvider`] can broadcast to indicate that a change in
@@ -504,6 +545,12 @@ impl AsRef<NetParameters> for NetDir {
 pub struct PartialNetDir {
     /// The netdir that's under construction.
     netdir: NetDir,
+
+    /// The previous netdir, if we had one
+    ///
+    /// Used as a cache, so we can reuse information
+    #[cfg(feature = "onion-common")]
+    prev_netdir: Option<Arc<NetDir>>,
 }
 
 /// A view of a relay on the Tor network, suitable for building circuits.
@@ -584,26 +631,14 @@ impl PartialNetDir {
             .map(|(rs_idx, rs)| (*rs.rsa_identity(), rs_idx))
             .collect();
 
-        #[cfg(feature = "onion-service")]
-        let hsdir_secondary_rings;
         #[cfg(feature = "onion-common")]
-        let hsdir_ring = {
-            let (cur_hsparams, secondary_hsparams) =
-                hsdir_params::HsRingParams::compute(&consensus, &params)
-                    .expect("Invalid consensus!");
+        let hsdir_rings = {
+            let params = HsDirParams::compute(&consensus, &params).expect("Invalid consensus!");
             // TODO HS: I dislike using expect above, but this function does not
             // return a Result. Perhaps we should change it so that it can?  Or as an alternative
             // we could let this object exist in a state without any HsDir rings.
 
-            #[cfg(feature = "onion-service")]
-            {
-                hsdir_secondary_rings = secondary_hsparams
-                    .iter()
-                    .map(HsDirRing::empty_from_params)
-                    .collect();
-            }
-
-            HsDirRing::empty_from_params(&cur_hsparams)
+            params.map(HsDirRing::empty_from_params)
         };
 
         let netdir = NetDir {
@@ -614,13 +649,15 @@ impl PartialNetDir {
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
             rs_idx_by_ed: HashMap::with_capacity(n_relays),
             #[cfg(feature = "onion-common")]
-            hsdir_ring,
-            #[cfg(feature = "onion-service")]
-            hsdir_secondary_rings,
+            hsdir_rings,
             weights,
         };
 
-        PartialNetDir { netdir }
+        PartialNetDir {
+            netdir,
+            #[cfg(feature = "onion-common")]
+            prev_netdir: None,
+        }
     }
 
     /// Return the declared lifetime of this PartialNetDir.
@@ -628,39 +665,34 @@ impl PartialNetDir {
         self.netdir.lifetime()
     }
 
-    /// Fill in as many missing microdescriptors as possible in this
-    /// netdir, using the microdescriptors from the previous netdir.
-    pub fn fill_from_previous_netdir<'a>(&mut self, prev: &'a NetDir) -> Vec<&'a MdDigest> {
-        let mut loaded = Vec::new();
+    /// Record a previous netdir, which can be used for reusing cached information
+    //
+    // Fills in as many missing microdescriptors as possible in this
+    // netdir, using the microdescriptors from the previous netdir.
+    //
+    // With HS enabled, stores the netdir for reuse of relay hash ring index values.
+    #[allow(clippy::needless_pass_by_value)] // prev might, or might not, be stored
+    pub fn fill_from_previous_netdir(&mut self, prev: Arc<NetDir>) {
         for md in prev.mds.iter().flatten() {
-            if self.netdir.add_arc_microdesc(md.clone()) {
-                loaded.push(md.digest());
-            }
+            self.netdir.add_arc_microdesc(md.clone());
         }
 
         #[cfg(feature = "onion-common")]
         {
-            // TODO hs: cache the values for the hash rings if possible, maybe
-            // in the PartialNetDir, since we will want to use them in computing
-            // hash indices for the new hash ring.  This can let us save some
-            // computation?  Alternatively, we could compute the new rings at
-            // this point, but that could make this operation a bit expensive.
+            self.prev_netdir = Some(prev);
         }
-
-        loaded
     }
 
-    /// Compute the hash ring(s) for this NetDir, if one is not already computed.
+    /// Compute the hash ring(s) for this NetDir
     #[cfg(feature = "onion-common")]
     #[allow(clippy::missing_panics_doc)]
-    pub fn compute_ring(&mut self) {
-        // TODO hs: compute the ring based on the time period and shared random
-        // value of the consensus.
-        //
-        // The ring itself can be a bit expensive to compute, so maybe we should
-        // make sure this happens in a separate task or something, and expose a
-        // way to do that?
-        todo!()
+    fn compute_rings(&mut self) {
+        let params = HsDirParams::compute(&self.netdir.consensus, &self.netdir.params)
+            .expect("Invalid consensus");
+        // TODO hs: see TODO by similar expect in new()
+
+        self.netdir.hsdir_rings = params
+            .map(|params| HsDirRing::compute(params, &self.netdir, self.prev_netdir.as_deref()));
     }
 
     /// Return true if this are enough information in this directory
@@ -670,9 +702,12 @@ impl PartialNetDir {
     }
     /// If this directory has enough information to build multihop
     /// circuits, return it.
-    pub fn unwrap_if_sufficient(self) -> std::result::Result<NetDir, PartialNetDir> {
+    pub fn unwrap_if_sufficient(
+        #[allow(unused_mut)] mut self,
+    ) -> std::result::Result<NetDir, PartialNetDir> {
         if self.netdir.have_enough_paths() {
-            //  self.compute_ring(); // TODO hs
+            #[cfg(feature = "onion-common")]
+            self.compute_rings();
             Ok(self.netdir)
         } else {
             Err(self)
@@ -770,6 +805,12 @@ impl NetDir {
     /// Return an iterator over all usable Relays.
     pub fn relays(&self) -> impl Iterator<Item = Relay<'_>> {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
+    }
+
+    /// Look up a relay's `MicroDesc` by its `RouterStatusIdx`
+    #[cfg_attr(not(feature = "onion-common"), allow(dead_code))]
+    pub(crate) fn md_by_idx(&self, rsi: RouterStatusIdx) -> Option<&Microdesc> {
+        self.mds.get(rsi)?.as_deref()
     }
 
     /// Return a relay matching a given identity, if we have a
@@ -905,6 +946,19 @@ impl NetDir {
     /// isn't currently usable.
     fn rsa_id_is_listed(&self, rsa_id: &RsaIdentity) -> bool {
         self.by_rsa_id_unchecked(rsa_id).is_some()
+    }
+
+    /// List the hsdirs in this NetDir, that should be in the HSDir rings
+    ///
+    /// The results are not returned in any particular order.
+    #[cfg(feature = "onion-common")]
+    fn all_hsdirs(&self) -> impl Iterator<Item = (RouterStatusIdx, Relay<'_>)> {
+        self.c_relays().iter_enumerated().filter_map(|(rsi, rs)| {
+            let relay = self.relay_from_rs_and_idx(rs, rsi);
+            relay.is_hsdir_for_ring().then(|| ())?;
+            let relay = relay.into_relay()?;
+            Some((rsi, relay))
+        })
     }
 
     /// Return the parameters from the consensus, clamped to the
@@ -1150,7 +1204,7 @@ impl NetDir {
     /// is the one we use when acting as an onion service client.
     #[cfg(feature = "onion-common")]
     pub fn onion_service_time_period(&self) -> TimePeriod {
-        self.hsdir_ring.time_period()
+        self.hsdir_rings.current.time_period()
     }
 
     /// Return the secondary onion service directory "time periods".
@@ -1159,7 +1213,8 @@ impl NetDir {
     /// acting as an onion service.
     #[cfg(feature = "onion-service")]
     pub fn onion_service_secondary_time_periods(&self) -> Vec<TimePeriod> {
-        self.hsdir_secondary_rings
+        self.hsdir_rings
+            .secondary
             .iter()
             .map(HsDirRing::time_period)
             .collect()
@@ -1238,6 +1293,18 @@ impl<'a> UncheckedRelay<'a> {
     /// Return true if this relay is a potential directory cache.
     pub fn is_dir_cache(&self) -> bool {
         rs_is_dir_cache(self.rs)
+    }
+    /// Return true if this relay is a hidden service directory
+    ///
+    /// Ie, if it is to be included in the hsdir ring.
+    #[cfg(feature = "onion-common")]
+    pub(crate) fn is_hsdir_for_ring(&self) -> bool {
+        // TODO are there any other flags should we check?
+        // rend-spec-v3 2.2.3 says just
+        //   "each node listed in the current consensus with the HSDir flag"
+        // Do we need to check ed25519_id_is_usable ?
+        // See also https://gitlab.torproject.org/tpo/core/arti/-/issues/504
+        self.rs.is_flagged_hsdir()
     }
 }
 
@@ -1507,7 +1574,7 @@ mod test {
 
         let mut dir = PartialNetDir::new(consensus, None);
         assert_eq!(dir.missing_microdescs().count(), 40);
-        dir.fill_from_previous_netdir(&dir1);
+        dir.fill_from_previous_netdir(Arc::new(dir1));
         assert_eq!(dir.missing_microdescs().count(), 2);
     }
 

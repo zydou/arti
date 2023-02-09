@@ -19,9 +19,13 @@
 //!
 //! This module could conceivably be part of `tor-netdoc`, but it seems better
 //! to make it part of `tor-netdir`: this is where we put our complexity.
+///
+/// (Here in Arti we use the word "ring" in types and variable names only
+/// to refer to the actual actual reified ring, not to HSDir parameters, or
+/// or other aspects of the HSDir ring structure.)
 use std::time::{Duration, SystemTime};
 
-use crate::{params::NetParameters, Error, Result};
+use crate::{params::NetParameters, Error, HsDirs, Result};
 use time::{OffsetDateTime, UtcOffset};
 use tor_hscrypto::time::TimePeriod;
 use tor_netdoc::doc::netstatus::{Lifetime, MdConsensus, SharedRandVal};
@@ -31,8 +35,8 @@ use tor_netdoc::doc::netstatus::{Lifetime, MdConsensus, SharedRandVal};
 /// These parameters are derived from the shared random values and time
 /// parameters in the consensus, and are used to determine the
 /// position of each HsDir within the ring.
-#[derive(Clone, Debug)]
-pub(crate) struct HsRingParams {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct HsDirParams {
     /// The time period for this ring.  It's used to ensure that blinded onion
     /// keys rotate in a _predictable_ way over time.
     pub(crate) time_period: TimePeriod,
@@ -57,8 +61,8 @@ const VOTING_PERIODS_IN_SRV_ROUND: u32 = 24;
 /// One day.
 const ONE_DAY: Duration = Duration::new(86400, 0);
 
-impl HsRingParams {
-    /// Compute the `HsRingParams` for the current time period, according to a given
+impl HsDirParams {
+    /// Compute the `HsDirParams` for the current time period, according to a given
     /// consensus.
     ///
     /// rend-spec-v3 section 2.2.1 et seq
@@ -76,7 +80,7 @@ impl HsRingParams {
     pub(crate) fn compute(
         consensus: &MdConsensus,
         params: &NetParameters,
-    ) -> Result<(HsRingParams, Vec<HsRingParams>)> {
+    ) -> Result<HsDirs<HsDirParams>> {
         let srvs = extract_srvs(consensus)?;
         let tp_length: Duration = params.hsdir_timeperiod_length.try_into().map_err(|_| {
             Error::InvalidConsensus(
@@ -89,24 +93,29 @@ impl HsRingParams {
                 "Consensus valid-after did not fall in a time period",
             ))?;
 
-        let main_ring = find_params_for_time(&srvs[..], cur_period)?
+        let current = find_params_for_time(&srvs[..], cur_period)?
             .unwrap_or_else(|| disaster_params(cur_period));
 
         // When computing secondary rings, we don't try so many fallback operations:
         // if they aren't available, they aren't available.
-        let other_rings = [cur_period.prev(), cur_period.next()]
+        #[cfg(feature = "onion-service")]
+        let secondary = [cur_period.prev(), cur_period.next()]
             .iter()
             .flatten()
             .flat_map(|period| find_params_for_time(&srvs[..], *period).ok().flatten())
             .collect();
 
-        Ok((main_ring, other_rings))
+        Ok(HsDirs {
+            current,
+            #[cfg(feature = "onion-service")]
+            secondary,
+        })
     }
 }
 
 /// Compute ring parameters using a Disaster SRV for this period.
-fn disaster_params(period: TimePeriod) -> HsRingParams {
-    HsRingParams {
+fn disaster_params(period: TimePeriod) -> HsDirParams {
+    HsDirParams {
         time_period: period,
         shared_rand: disaster_srv(period),
     }
@@ -120,7 +129,7 @@ fn disaster_srv(period: TimePeriod) -> SharedRandVal {
     use digest::Digest;
     let mut d = tor_llcrypto::d::Sha3_256::new();
     d.update(b"shared-random-disaster");
-    d.update((period.length_in_sec() / 60).to_be_bytes());
+    d.update(u64::from(period.length().as_minutes()).to_be_bytes());
     d.update(period.interval_num().to_be_bytes());
 
     let v: [u8; 32] = d.finalize().into();
@@ -133,7 +142,7 @@ type SrvInfo = (SharedRandVal, std::ops::Range<SystemTime>);
 
 /// Given a list of SrvInfo, return an HsRingParames instance for a given time
 /// period, if possible.
-fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<HsRingParams>> {
+fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<HsDirParams>> {
     let start = period
         .range()
         .ok_or(Error::InvalidConsensus(
@@ -141,7 +150,7 @@ fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<H
         ))?
         .start;
 
-    Ok(find_srv_for_time(info, start).map(|srv| HsRingParams {
+    Ok(find_srv_for_time(info, start).map(|srv| HsDirParams {
         time_period: period,
         shared_rand: srv,
     }))
@@ -406,7 +415,7 @@ mod test {
         use digest::Digest;
         use tor_llcrypto::d::Sha3_256;
         let period = TimePeriod::new(d("1 day"), t("1970-01-02T17:33:00Z"), d("12 hours")).unwrap();
-        assert_eq!(period.length_in_sec(), 86400);
+        assert_eq!(period.length().as_minutes(), 86400 / 60);
         assert_eq!(period.interval_num(), 1);
 
         let dsrv = disaster_srv(period);
@@ -421,20 +430,21 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "onion-service")]
     fn ring_params_simple() {
         // Compute ring parameters in a legacy environment, where the time
         // period and the SRV lifetime are one day long, and they are offset by
         // 12 hours.
         let consensus = example_consensus_builder().testing_consensus().unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (cur, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
+        let HsDirs { current, secondary } = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
-            cur.time_period,
+            current.time_period,
             TimePeriod::new(d("1 day"), t("1985-10-25T07:00:00Z"), d("12 hours")).unwrap()
         );
         // We use the "previous" SRV since the start of this time period was 12:00 on the 24th.
-        assert_eq!(cur.shared_rand.as_ref(), &SRV1);
+        assert_eq!(current.shared_rand.as_ref(), &SRV1);
 
         // Our secondary SRV will be the one that starts when we move into the
         // next time period.
@@ -447,6 +457,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "onion-service")]
     fn ring_params_tricky() {
         // In this case we give the SRVs timestamps and we choose an odd hsdir_interval.
         let consensus = example_consensus_builder()
@@ -456,13 +467,13 @@ mod test {
             .testing_consensus()
             .unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (cur, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
+        let HsDirs { current, secondary } = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
-            cur.time_period,
+            current.time_period,
             TimePeriod::new(d("2 hours"), t("1985-10-25T07:00:00Z"), d("12 hours")).unwrap()
         );
-        assert_eq!(cur.shared_rand.as_ref(), &SRV2);
+        assert_eq!(current.shared_rand.as_ref(), &SRV2);
 
         assert_eq!(secondary.len(), 2);
         assert_eq!(

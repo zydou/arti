@@ -3950,6 +3950,7 @@ dependencies = [
  "thiserror",
  "tor-basic-utils",
  "tor-llcrypto",
+ "tor-units",
 ]
 
 [[package]]
@@ -4042,6 +4043,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
+ "itertools",
  "num_enum",
  "rand 0.8.5",
  "rand_chacha 0.3.1",

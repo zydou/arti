@@ -598,6 +598,9 @@ pub struct Consensus<RS> {
     voters: Vec<ConsensusVoterInfo>,
     /// A list of routerstatus entries for the relays on the network,
     /// with one entry per relay.
+    ///
+    /// These are currently ordered by the router's RSA identity, but this is not
+    /// to be relied on, since we may want to even abolish RSA at some point!
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     relays: Vec<RS>,
     /// Footer for the consensus object.

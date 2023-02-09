@@ -2,6 +2,8 @@
 
 use std::time::{Duration, SystemTime};
 
+use tor_units::IntegerMinutes;
+
 /// A period of time, as used in the onion service system.
 ///
 /// A `TimePeriod` is defined as a duration (in seconds), and the number of such
@@ -25,8 +27,10 @@ use std::time::{Duration, SystemTime};
 pub struct TimePeriod {
     /// Index of the time periods that have passed since the unix epoch.
     pub(crate) interval_num: u64,
-    /// The length of a time period, in seconds.
-    pub(crate) length_in_sec: u32,
+    /// The length of a time period, in **minutes**.
+    ///
+    /// The spec admits only periods which are a whole number of minutes.
+    pub(crate) length: IntegerMinutes<u32>,
     /// Our offset from the epoch, in seconds.
     pub(crate) offset_in_sec: u32,
 }
@@ -35,7 +39,7 @@ pub struct TimePeriod {
 /// same interval length and offset.
 impl PartialOrd for TimePeriod {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.length_in_sec == other.length_in_sec && self.offset_in_sec == other.offset_in_sec {
+        if self.length == other.length && self.offset_in_sec == other.offset_in_sec {
             Some(self.interval_num.cmp(&other.interval_num))
         } else {
             None
@@ -46,7 +50,8 @@ impl PartialOrd for TimePeriod {
 impl TimePeriod {
     /// Construct a time period of a given `length` that contains `when`.
     ///
-    /// The `length` value is rounded down to the nearest second.
+    /// The `length` value is rounded down to the nearest second,
+    /// and must then be a whole number of minutes.
     ///
     /// The `epoch_offset` value is the amount of time after the Unix epoch when
     /// our epoch begins.  It is also rounded down to the nearest second.
@@ -68,6 +73,11 @@ impl TimePeriod {
     pub fn new(length: Duration, when: SystemTime, epoch_offset: Duration) -> Option<Self> {
         // The algorithm here is specified in rend-spec-v3 section 2.2.1
         let length_in_sec = u32::try_from(length.as_secs()).ok()?;
+        if length_in_sec % 60 != 0 {
+            return None;
+        }
+        let length_in_minutes = length_in_sec / 60;
+        let length = IntegerMinutes::new(length_in_minutes);
         let offset_in_sec = u32::try_from(epoch_offset.as_secs()).ok()?;
         let interval_num = when
             .duration_since(SystemTime::UNIX_EPOCH + epoch_offset)
@@ -76,7 +86,7 @@ impl TimePeriod {
             / u64::from(length_in_sec);
         Some(TimePeriod {
             interval_num,
-            length_in_sec,
+            length,
             offset_in_sec,
         })
     }
@@ -116,8 +126,9 @@ impl TimePeriod {
     /// Return None if this time period contains any times that can be
     /// represented as a `SystemTime`.
     pub fn range(&self) -> Option<std::ops::Range<SystemTime>> {
-        let start_sec = u64::from(self.length_in_sec).checked_mul(self.interval_num)?;
-        let end_sec = start_sec.checked_add(self.length_in_sec.into())?;
+        let length_in_sec = u64::from(self.length.as_minutes()) * 60;
+        let start_sec = length_in_sec.checked_mul(self.interval_num)?;
+        let end_sec = start_sec.checked_add(length_in_sec)?;
         let epoch_offset = Duration::new(self.offset_in_sec.into(), 0);
         let start =
             (SystemTime::UNIX_EPOCH + epoch_offset).checked_add(Duration::from_secs(start_sec))?;
@@ -138,8 +149,8 @@ impl TimePeriod {
     ///
     /// This function should only be used when encoding the time period for
     /// cryptographic purposes.
-    pub fn length_in_sec(&self) -> u64 {
-        self.length_in_sec.into()
+    pub fn length(&self) -> IntegerMinutes<u32> {
+        self.length
     }
 }
 

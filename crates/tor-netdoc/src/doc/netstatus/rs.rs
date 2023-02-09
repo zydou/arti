@@ -155,6 +155,10 @@ macro_rules! implement_accessors {
             pub fn is_flagged_guard(&self) -> bool {
                 self.rs.flags.contains(RelayFlags::GUARD)
             }
+            /// Return true if this routerstatus is listed with the HSDir flag.
+            pub fn is_flagged_hsdir(&self) -> bool {
+                self.rs.flags.contains(RelayFlags::HSDIR)
+            }
         }
     };
 }

@@ -15,11 +15,17 @@
 
 #![allow(unused_variables, dead_code)] //TODO hs: remove
 
-use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
-use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_netdoc::doc::netstatus::SharedRandVal;
+use std::collections::HashMap;
 
-use crate::hsdir_params::HsRingParams;
+use derive_more::AsRef;
+use digest::Digest;
+
+use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
+use tor_llcrypto::d::Sha3_256;
+use tor_llcrypto::pk::ed25519::Ed25519Identity;
+
+use crate::hsdir_params::HsDirParams;
+use crate::{NetDir, RouterStatusIdx};
 
 /// A sort key determining a position in the onion service directory ring.
 ///
@@ -34,8 +40,8 @@ use crate::hsdir_params::HsRingParams;
 ///
 /// Note that this is _not_ an index into any array; it is instead an index into
 /// a space of possible values in a (virtual!) ring of 2^256 elements.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct HsDirIndex([u8; 32]);
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, AsRef)]
+pub(crate) struct HsDirIndex(#[as_ref] [u8; 32]);
 
 /// A hash ring as used in `NetDir`.
 ///
@@ -44,11 +50,8 @@ pub(crate) struct HsDirIndex([u8; 32]);
 /// document.
 #[derive(Clone, Debug)]
 pub(crate) struct HsDirRing {
-    /// The time period for which the ring is valid.
-    period: TimePeriod,
-
-    /// The shared random value that applies to the ring.
-    shared_rand: SharedRandVal,
+    /// The parameters (time period and shared random value)
+    params: HsDirParams,
 
     /// The ring itself.
     ///
@@ -58,16 +61,12 @@ pub(crate) struct HsDirRing {
     ///
     /// This vector is empty in a partial netdir; it is filled in when we
     /// convert to a complete netdir.
-    ring: Vec<(HsDirIndex, usize)>,
+    ring: Vec<(HsDirIndex, RouterStatusIdx)>,
 }
 
 /// Compute the [`HsDirIndex`] for a given relay.
-pub(crate) fn relay_index(
-    id: Ed25519Identity,
-    rand: SharedRandVal,
-    period: TimePeriod,
-) -> HsDirIndex {
-    //  TODO hs implement this.
+pub(crate) fn relay_index(kp_relayid_ed: &Ed25519Identity, params: &HsDirParams) -> HsDirIndex {
+    // rend-spec-v3 2.2.3 "hsdir_index(node)"
     //
     // hsdir_index(node) = H("node-idx" | node_identity |
     //      shared_random_value |
@@ -76,17 +75,22 @@ pub(crate) fn relay_index(
     //
     // Note that INT_8 means "u64" and H is sha3-256.
 
-    todo!()
+    let mut h = Sha3_256::default();
+    h.update(b"node-idx");
+    h.update(kp_relayid_ed.as_bytes());
+    h.update(params.shared_rand.as_ref());
+    h.update(params.time_period.interval_num().to_be_bytes());
+    h.update(u64::from(params.time_period.length().as_minutes()).to_be_bytes());
+    HsDirIndex(h.finalize().into())
 }
 
 /// Compute the starting [`HsDirIndex`] for a given descriptor replica.
 pub(crate) fn service_index(
-    id: HsBlindId,
+    kp_hs_blind_id: &HsBlindId,
     replica: u8,
-    rand: SharedRandVal,
-    period: TimePeriod,
+    params: &HsDirParams,
 ) -> HsDirIndex {
-    // TODO hs implement this
+    // rend-spec-v3 2.2.3 "hs_index(replicanum)"
     //
     // hs_index(replicanum) = H("store-at-idx" |
     //      blinded_public_key |
@@ -96,16 +100,95 @@ pub(crate) fn service_index(
     //
     // Note that INT_8 means "u64" and H is sha3-256
 
-    todo!()
+    let mut h = Sha3_256::new();
+    h.update(b"store-at-idx");
+    h.update(kp_hs_blind_id.as_ref());
+    h.update(u64::from(replica).to_be_bytes());
+    h.update(u64::from(params.time_period.length().as_minutes()).to_be_bytes());
+    h.update(params.time_period.interval_num().to_be_bytes());
+    HsDirIndex(h.finalize().into())
 }
 
 impl HsDirRing {
     /// Return a new empty HsDirRing from a given set of parameters.
-    pub(crate) fn empty_from_params(params: &HsRingParams) -> Self {
+    pub(crate) fn empty_from_params(params: HsDirParams) -> Self {
         Self {
-            period: params.time_period,
-            shared_rand: params.shared_rand,
+            params,
             ring: Vec::new(),
+        }
+    }
+
+    /// Compute the HsDirRing
+    ///
+    /// Reuses existing hash calculations from a previous netdir, if available.
+    ///
+    /// `this_netdir.hsdir_rings` is not used; the return values from this function
+    /// will be stored there by
+    /// [`PartialNetDir::compute_rings`](super::PartialNetDir::compute_rings).
+    pub(crate) fn compute(
+        new_params: HsDirParams,
+        this_netdir: &NetDir,
+        prev_netdir: Option<&NetDir>,
+    ) -> Self {
+        // TODO hs: The ring itself can be a bit expensive to compute, so maybe we should
+        // make sure this happens in a separate task or something, and expose a
+        // way to do that?
+        // But: this is being done during netdir ingestion, which is already happening
+        // on the dirmgr task.  So I think this is fine?  -Diziet
+
+        // We would like to avoid re-computing the hsdir indexes, since they're a hash
+        // each.  Instead, we look to see if our previous netdir contains a hash ring
+        // using the same parameters.  If so, we make a hashmap from relay identities
+        // to hsring_index positions _in the previous netdir_
+        // to reuse.
+        //
+        // TODO: Actually, the relays in the consensus are ordered by their RSA identity.
+        // So we could do a merge join on the previous and last relay lists, and avoid
+        // building this separate hashmap.  (We'd have to *check* that the ed25519 ids
+        // matched, but it would be OK to recompute the index values for relays that
+        // have a different correspondence between ed25519 and RSA ids in subsequent
+        // consensuses, since that's really not supposed to happen.
+        //
+        // However, that would involve tor-netdoc offering the ordering property as a
+        // *guarantee*.  It's also quite subtle.  This algorithm is O(N.log(N)) which
+        // is the same complexity as the (unavoidable) sort by hsdir_index.
+        let reuse_index_values: HashMap<&Ed25519Identity, &HsDirIndex> = (|| {
+            let prev_netdir = prev_netdir?;
+            let prev_ring = prev_netdir
+                .hsdir_rings
+                .iter()
+                .find(|prev_ring| prev_ring.params == new_params)?;
+
+            let reuse_index_values = prev_ring
+                .ring
+                .iter()
+                .filter_map(|(hsdir_index, rsi)| {
+                    Some((prev_netdir.md_by_idx(*rsi)?.ed25519_id(), hsdir_index))
+                })
+                .collect();
+            Some(reuse_index_values)
+        })()
+        .unwrap_or_default();
+
+        let mut new_ring: Vec<_> = this_netdir
+            .all_hsdirs()
+            .map(|(rsi, relay)| {
+                let ed_id = relay.md.ed25519_id();
+                let hsdir_index = reuse_index_values
+                    .get(ed_id)
+                    .cloned()
+                    .cloned()
+                    .unwrap_or_else(|| relay_index(ed_id, &new_params));
+                (hsdir_index, rsi)
+            })
+            .collect();
+
+        // rsi are all different, so no need to think about comparing them
+        new_ring.sort_by_key(|(hsdir_index, _rsi)| *hsdir_index);
+
+        HsDirRing {
+            ring: new_ring,
+            params: new_params,
         }
     }
 
@@ -120,13 +203,73 @@ impl HsDirRing {
     pub(crate) fn ring_items_at(
         &self,
         idx: HsDirIndex,
-    ) -> impl Iterator<Item = &(HsDirIndex, usize)> {
+    ) -> impl Iterator<Item = &(HsDirIndex, RouterStatusIdx)> {
         let idx = self.find_pos(idx);
         self.ring[idx..].iter().chain(&self.ring[..idx])
     }
 
     /// Return the time period for which this ring applies.
     pub(crate) fn time_period(&self) -> TimePeriod {
-        self.period
+        self.params.time_period
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    use std::time::Duration;
+
+    // mirrors C Tor src/test/test_hs_common.c:test_hs_indexes
+    #[test]
+    fn test_hs_indexes() {
+        // C Tor test vector simply has
+        //    uint64_t period_num = 42;
+        let time_period = TimePeriod::new(
+            Duration::from_secs(24 * 3600),
+            // ~43 days from the Unix epoch
+            humantime::parse_rfc3339("1970-02-13T01:00:00Z").unwrap(),
+            Duration::from_secs(12 * 3600),
+        )
+        .unwrap();
+        assert_eq!(time_period.interval_num(), 42);
+
+        let shared_rand = [0x43; 32].into();
+
+        let params = HsDirParams {
+            time_period,
+            shared_rand,
+        };
+
+        // service_index AKA hs_index
+        {
+            let kp_hs_blind_id = [0x42; 32].into();
+            let replica = 1;
+            let got = service_index(&kp_hs_blind_id, replica, &params);
+            assert_eq!(
+                hex::encode(got.as_ref()),
+                "37e5cbbd56a22823714f18f1623ece5983a0d64c78495a8cfab854245e5f9a8a",
+            );
+        }
+
+        // relay_index AKA hsdir_index
+        {
+            let kp_relayid_ed = [0x42; 32].into();
+            let got = relay_index(&kp_relayid_ed, &params);
+            assert_eq!(
+                hex::encode(got.as_ref()),
+                "db475361014a09965e7e5e4d4a25b8f8d4b8f16cb1d8a7e95eed50249cc1a2d5",
+            );
+        }
     }
 }
