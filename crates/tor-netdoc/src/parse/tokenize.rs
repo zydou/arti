@@ -626,6 +626,13 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     ) -> &mut std::iter::Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
         &mut self.tokens
     }
+    /// Convert into a peekable iterator over the string's tokens.
+    #[allow(dead_code)] // TODO
+    pub(crate) fn into_iter(
+        self,
+    ) -> std::iter::Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
+        self.tokens
+    }
     /// Return a PauseAt wrapper around the peekable iterator in this
     /// NetDocReader that reads tokens until it reaches an element where
     /// 'f' is true.
