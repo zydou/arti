@@ -1,6 +1,7 @@
 //! Code to handle the inner document of an onion service descriptor.
 
 use super::{IntroAuthType, IntroPointDesc};
+use crate::batching_split_before::IteratorExt as _;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::{UnvalidatedEdCert, B64};
@@ -94,15 +95,15 @@ impl HsDescInner {
 
     /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided reader.
-    fn take_from_reader(reader: &mut NetDocReader<'_, HsInnerKwd>) -> Result<HsDescInner> {
+    fn take_from_reader(input: &mut NetDocReader<'_, HsInnerKwd>) -> Result<HsDescInner> {
         use HsInnerKwd::*;
 
-        // Construct a PauseAt iterator that temporarily stops the stream when it is about to
-        // yield an INTRODUCTION_POINT Item.
-        let mut iter = reader.pause_at(|item| item.is_ok_with_kwd(INTRODUCTION_POINT));
-
+        // Split up the input at INTRODUCTION_POINT items
+        let mut sections = input
+            .iter()
+            .batching_split_before_prefixed(|item| item.is_ok_with_kwd(INTRODUCTION_POINT));
         // Parse the header.
-        let header = HS_INNER_HEADER_RULES.parse(&mut iter)?;
+        let header = HS_INNER_HEADER_RULES.parse(&mut sections)?;
 
         // Make sure that the "ntor" handshake is supported in the list of
         // `HTYPE`s (handshake types) in `create2-formats`.
@@ -153,25 +154,9 @@ impl HsDescInner {
         // section starting with `introduction-point`, ending right before the
         // next `introduction-point` (or before the end of the document.)
         let mut intro_points = Vec::new();
-        while reader.iter().peek().is_some() {
-            // Construct a new PauseAt to parse at the _second_ time we see an INTRODUCTION_POINT
-            // token
-            //
-            // TODO: This is a common pattern in this crate, and a bit ugly to type.  Maybe we
-            // can add functionality to ParseAt (like an `unpause_once?`) to make it unnecessary.
-            let mut seen_intro_point = false;
-            let mut iter = reader.pause_at(|item| {
-                if item.is_ok_with_kwd(INTRODUCTION_POINT) {
-                    if seen_intro_point {
-                        return true;
-                    } else {
-                        seen_intro_point = true;
-                    }
-                }
-                false
-            });
-
-            let ipt_section = HS_INNER_INTRO_RULES.parse(&mut iter)?;
+        let mut sections = sections.subsequent();
+        while let Some(mut ipt_section) = sections.next_batch() {
+            let ipt_section = HS_INNER_INTRO_RULES.parse(&mut ipt_section)?;
 
             // Parse link-specifiers
             let link_specifiers = {
