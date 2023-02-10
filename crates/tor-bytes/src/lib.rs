@@ -42,11 +42,13 @@ mod err;
 mod impls;
 mod reader;
 mod secretbuf;
+mod slicewriter;
 mod writer;
 
 pub use err::{EncodeError, Error};
 pub use reader::Reader;
 pub use secretbuf::SecretBuf;
+pub use slicewriter::{SliceWriter, SliceWriterError};
 pub use writer::Writer;
 
 use arrayref::array_ref;
