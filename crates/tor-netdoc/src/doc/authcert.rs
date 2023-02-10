@@ -6,8 +6,9 @@
 //! to keep their identity keys securely offline, while using the
 //! signing keys to sign votes and consensuses.
 
+use crate::batching_split_before::IteratorExt as _;
 use crate::parse::keyword::Keyword;
-use crate::parse::parser::SectionRules;
+use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublic};
 use crate::util::str::Extent;
@@ -141,14 +142,23 @@ impl AuthCert {
     /// check its expiration dates.
     pub fn parse(s: &str) -> Result<UncheckedAuthCert> {
         let mut reader = NetDocReader::new(s);
-        let result = AuthCert::take_from_reader(&mut reader).map_err(|e| e.within(s));
+        let body = AUTHCERT_RULES.parse(&mut reader.iter())?;
         reader.should_be_exhausted()?;
-        result
+        AuthCert::from_body(&body, s).map_err(|e| e.within(s))
     }
 
     /// Return an iterator yielding authority certificates from a string.
     pub fn parse_multiple(s: &str) -> impl Iterator<Item = Result<UncheckedAuthCert>> + '_ {
-        AuthCertIterator(NetDocReader::new(s))
+        use AuthCertKwd::*;
+        let sections = NetDocReader::new(s)
+            .into_iter()
+            .batching_split_before_loose(|item| item.is_ok_with_kwd(DIR_KEY_CERTIFICATE_VERSION));
+        sections
+            .map(|mut section| {
+                let body = AUTHCERT_RULES.parse(&mut section)?;
+                AuthCert::from_body(&body, s)
+            })
+            .map(|r| r.map_err(|e| e.within(s)))
     }
     /*
         /// Return true if this certificate is expired at a given time, or
@@ -189,19 +199,8 @@ impl AuthCert {
     }
 
     /// Parse an authority certificate from a reader.
-    fn take_from_reader(reader: &mut NetDocReader<'_, AuthCertKwd>) -> Result<UncheckedAuthCert> {
+    fn from_body(body: &Section<'_, AuthCertKwd>, s: &str) -> Result<UncheckedAuthCert> {
         use AuthCertKwd::*;
-
-        let mut start_found = false;
-        let mut iter = reader.pause_at(|item| {
-            let is_start = item.is_ok_with_kwd(DIR_KEY_CERTIFICATE_VERSION);
-            let pause = is_start && start_found;
-            if is_start {
-                start_found = true;
-            }
-            pause
-        });
-        let body = AUTHCERT_RULES.parse(&mut iter)?;
 
         // Make sure first and last element are correct types.  We can
         // safely call unwrap() on first and last, since there are required
@@ -305,7 +304,6 @@ impl AuthCert {
             let sig = signature.obj("SIGNATURE")?;
 
             let mut sha1 = d::Sha1::new();
-            let s = reader.str();
             // Unwrap should be safe because `.parse()` would have already
             // returned an Error
             #[allow(clippy::unwrap_used)]
@@ -328,7 +326,6 @@ impl AuthCert {
         };
 
         let location = {
-            let s = reader.str();
             let start_idx = start_pos.offset_within(s);
             let end_idx = end_pos.offset_within(s);
             match (start_idx, end_idx) {
@@ -357,24 +354,7 @@ impl AuthCert {
         };
         Ok(unchecked)
     }
-
-    /// Skip tokens from the reader until the next token (if any) is
-    /// the start of cert.
-    fn advance_reader_to_next(reader: &mut NetDocReader<'_, AuthCertKwd>) {
-        use AuthCertKwd::*;
-        let iter = reader.iter();
-        while let Some(Ok(item)) = iter.peek() {
-            if item.kwd() == DIR_KEY_CERTIFICATE_VERSION {
-                return;
-            }
-            iter.next();
-        }
-    }
 }
-
-/// Iterator type to read a series of concatenated certificates from a
-/// string.
-struct AuthCertIterator<'a>(NetDocReader<'a, AuthCertKwd>);
 
 impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAuthCert {
     type Error = signature::Error;
@@ -384,32 +364,6 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
     }
     fn is_well_signed(&self) -> std::result::Result<(), Self::Error> {
         self.c.is_well_signed()
-    }
-}
-
-impl<'a> Iterator for AuthCertIterator<'a> {
-    type Item = Result<UncheckedAuthCert>;
-    fn next(&mut self) -> Option<Result<UncheckedAuthCert>> {
-        if self.0.is_exhausted() {
-            return None;
-        }
-
-        let pos_orig = self.0.pos();
-        let result = AuthCert::take_from_reader(&mut self.0);
-        if result.is_err() {
-            if self.0.pos() == pos_orig {
-                // No tokens were consumed from the reader.  We need
-                // to drop at least one token to ensure we aren't in
-                // an infinite loop.
-                //
-                // (This might not be able to happen, but it's easier to
-                // explicitly catch this case than it is to prove that
-                // it's impossible.)
-                let _ = self.0.iter().next();
-            }
-            AuthCert::advance_reader_to_next(&mut self.0);
-        }
-        Some(result.map_err(|e| e.within(self.0.str())))
     }
 }
 

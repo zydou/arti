@@ -627,7 +627,6 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
         &mut self.tokens
     }
     /// Convert into a peekable iterator over the string's tokens.
-    #[allow(dead_code)] // TODO
     pub(crate) fn into_iter(
         self,
     ) -> std::iter::Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
@@ -650,6 +649,7 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     // The implementation sadly needs to mutate the inner state, even if it's not *semantically*
     // mutated..  We don't want inner mutability just to placate clippy for an internal API.
     #[allow(clippy::wrong_self_convention)]
+    #[allow(dead_code)] // TODO perhaps we should remove this ?
     pub(crate) fn is_exhausted(&mut self) -> bool {
         self.iter().peek().is_none()
     }
