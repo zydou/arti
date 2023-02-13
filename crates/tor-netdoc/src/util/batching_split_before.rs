@@ -1,4 +1,4 @@
-//! Iterator extension for splitting into batches, each introduced by a batch start item
+//! Iterator extension for splitting into batches, each introduced by a batch-starting item
 //!
 //! See
 //! [`IteratorExt::batching_split_before_loose`] and
@@ -41,8 +41,8 @@ pub struct BatchesWithPrefix<II, I, F> {
 struct Input<II, I, F> {
     /// The input iterator
     unfiltered: I,
-    /// Callback to test if this is a batch start item
-    batch_start: F,
+    /// Callback to test if this is batch-starting
+    batch_starting: F,
     /// We're like a function that yields II
     marker: PhantomData<fn() -> II>,
 }
@@ -61,7 +61,7 @@ pub struct Batches<II, I, F> {
     input: Input<II, I, F>,
     /// Should we avoid draining the end of the previous batch
     no_drain: Option<()>,
-    /// Should we yield even (one) start item
+    /// Should we yield even (one) batch-starting item
     yield_one: Option<()>,
 }
 
@@ -81,10 +81,10 @@ where
     I: Iterator<Item = II> + PeekableIterator,
     F: FnMut(&II) -> bool,
 {
-    /// Yield the next item - unless it is a start item.
-    fn next_non_start(&mut self) -> Option<II> {
+    /// Yield the next item - unless it is batch-starting.
+    fn next_non_starting(&mut self) -> Option<II> {
         let item = self.unfiltered.peek()?;
-        if (self.batch_start)(item) {
+        if (self.batch_starting)(item) {
             return None;
         };
         self.unfiltered.next()
@@ -99,7 +99,7 @@ where
     type Item = II;
 
     fn next(&mut self) -> Option<II> {
-        self.input.next_non_start()
+        self.input.next_non_starting()
     }
 }
 
@@ -134,7 +134,7 @@ where
         if self.parent.yield_one.take().is_some() {
             self.parent.input.unfiltered.next()
         } else {
-            self.parent.input.next_non_start()
+            self.parent.input.next_non_starting()
         }
     }
 }
@@ -174,11 +174,11 @@ pub trait IteratorExt: Iterator + Sized {
     /// Splits the input into a prefix followed by batches started according to a predicate
     ///
     /// The input is divided into:
-    ///  * A prefix, containing no batch start items
-    ///  * Zero or more subsequent batches, each starting with precisely one start item
+    ///  * A prefix, containing no batch-starting items
+    ///  * Zero or more subsequent batches, each with precisely one batch-starting item
     ///
     /// The returned value from `batching_split_before` is an iterator,
-    /// which yields the elements in the prefix - before the first batch start item.
+    /// which yields the elements in the prefix - before the first batch-starting item.
     ///
     /// After processing the prefix, call
     /// [`.subsequent()`](BatchesWithPrefix)
@@ -188,7 +188,7 @@ pub trait IteratorExt: Iterator + Sized {
     /// [`.next_batch()`](Batches::next_batch)
     /// which yields a separate sub-iterator.
     ///
-    /// A new batch is recognised for each input item for which `batch_start` returns true.
+    /// A new batch is recognised for each input item for which `batch_starting` returns true.
     ///
     /// This method is named **prefixed** because it separates out the prefix,
     /// using a typestate pattern, which is convenient for processing the prefix
@@ -222,31 +222,31 @@ pub trait IteratorExt: Iterator + Sized {
     /// ```
     fn batching_split_before_prefixed<F>(
         self,
-        batch_start: F,
+        batch_starting: F,
     ) -> BatchesWithPrefix<Self::Item, Self, F>
     where
         F: FnMut(&Self::Item) -> bool,
     {
         let input = Input {
             unfiltered: self,
-            batch_start,
+            batch_starting,
             marker: PhantomData,
         };
         BatchesWithPrefix { input }
     }
 
-    /// Splits the input into batches, with new batches starting with a predicate
+    /// Splits the input into batches, with new batches started according to a predicate
     ///
-    /// The input is divided into batches at start items.
-    /// The start item is included as the first item of every batch,
-    /// except if the input with a non-start-item.
+    /// The input is divided into batches, just before each batch-starting item.
+    /// The batch-starting item is included as the first item of every batch,
+    /// except the first batch if the input starts with a non-batch-starting-item.
     ///
     /// If the input iterator is empty, there are no batches.
     ///
     /// This method is named **loose** because it neither
-    /// insists that the iterator start with a start item,
-    /// nor returns batches which always start with a start item.
-    /// It is up to the caller to handle a possible first batches with no start item.
+    /// insists that the iterator start with a batch-starting item,
+    /// nor returns batches which always start with a batch-starting item.
+    /// It is up to the caller to handle a possible first batch with no batch-starting item.
     ///
     /// Each batch is returned by calling
     /// [`.next_batch()`](Batches::next_batch)
@@ -275,13 +275,13 @@ pub trait IteratorExt: Iterator + Sized {
     /// assert_eq!(batches.next_batch().unwrap().collect_vec(), [ 9 ]);
     /// assert!(batches.next_batch().is_none());
     /// ```
-    fn batching_split_before_loose<F>(self, batch_start: F) -> Batches<Self::Item, Self, F>
+    fn batching_split_before_loose<F>(self, batch_starting: F) -> Batches<Self::Item, Self, F>
     where
         F: FnMut(&Self::Item) -> bool,
     {
         let input = Input {
             unfiltered: self,
-            batch_start,
+            batch_starting,
             marker: PhantomData,
         };
         Batches {
@@ -360,10 +360,10 @@ mod tests {
 
             eprintln!("input {input:?}");
             let input = || TrackingPeekable(input.iter().cloned().peekable());
-            let is_start = |v: &u32| *v >= 10;
+            let is_starting = |v: &u32| *v >= 10;
 
             {
-                let mut prefix = input().batching_split_before_prefixed(is_start);
+                let mut prefix = input().batching_split_before_prefixed(is_starting);
 
                 chk_exp(&mut prefix, iexp);
                 eprintln!("    subsequent...");
@@ -373,7 +373,7 @@ mod tests {
             }
 
             {
-                let batches = input().batching_split_before_loose(is_start);
+                let batches = input().batching_split_before_loose(is_starting);
 
                 let mut sexp =
                     chain!(iter::once(iexp), sexp.iter().cloned(),).filter(|s| !s.is_empty());
