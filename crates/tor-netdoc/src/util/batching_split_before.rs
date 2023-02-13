@@ -76,10 +76,24 @@ pub struct Batches<II, I, F> {
     /// Input
     input: Input<II, I, F>,
     /// Should we avoid draining the end of the previous batch
-    no_drain: Option<()>,
+    no_drain: Option<NoDrainToken>,
     /// Should we yield even (one) batch-starting item
-    yield_one: Option<()>,
+    yield_one: Option<EvenYieldOneBatchStarting>,
 }
+
+/// Token stored (or not) in the state to indicate not to drain the previous batch
+///
+/// (We use `Option<NoDrainToken>` rather than `bool` because
+/// booleans can be very confusing, and because
+/// `Option` has good ergonomics with [`.take()`](Option::take) and `?`.)
+struct NoDrainToken;
+
+/// Token stored (or not) in the state to indicate to yield even a batch-starting item
+///
+/// (We use `Option<NoDrainToken>` rather than `bool` because
+/// booleans can be very confusing, and because
+/// `Option` has good ergonomics with [`.take()`](Option::take) and `?`.)
+struct EvenYieldOneBatchStarting;
 
 /// Iterator to yield the members of a batch. 
 ///
@@ -172,7 +186,7 @@ impl<II, I: Iterator<Item = II> + PeekableIterator, F: FnMut(&II) -> bool> Batch
             let _ = Batch { parent: self }.count();
         }
         let _: &II = self.input.unfiltered.peek()?;
-        self.yield_one = Some(());
+        self.yield_one = Some(EvenYieldOneBatchStarting);
         Some(Batch { parent: self })
     }
 
@@ -306,7 +320,7 @@ pub trait IteratorExt: Iterator + Sized {
         };
         Batches {
             input,
-            no_drain: Some(()),
+            no_drain: Some(NoDrainToken),
             yield_one: None,
         }
     }
