@@ -326,12 +326,16 @@ mod test {
 
     // This HsDesc uses DescEnc authentication.
     pub(super) const TEST_DATA_2: &str = include_str!("../../testdata/hsdesc2.txt");
+    pub(super) const TEST_DATA_TIMEPERIOD_2: u64 = 19397;
+    // paozpdhgz2okvc6kgbxvh2bnfsmt4xergrtcl4obkhopyvwxkpjzvoad.onion
     pub(super) const TEST_HSID_2: [u8; 32] =
         hex!("781D978CE6CE9CAA8BCA306F53E82D2C993E5C91346625F1C151DCFC56D753D3");
     pub(super) const TEST_SUBCREDENTIAL_2: [u8; 32] =
         hex!("24A133E905102BDA9A6AFE57F901366A1B8281865A91F1FE0853E4B50CC8B070");
+    // SACGOAEODFGCYY22NYZV45ZESFPFLDGLMBWFACKEO34XGHASSAMQ (base32)
     pub(super) const TEST_PUBKEY_2: [u8; 32] =
         hex!("900467008E194C2C635A6E335E7724915E558CCB606C50094476F9731C129019");
+    // SDZNMD4RP4SCH4EYTTUZPFRZINNFWAOPPKZ6BINZAC7LREV24RBQ (base32)
     pub(super) const TEST_SECKEY_2: [u8; 32] =
         hex!("90F2D60F917F2423F0989CE9979639435A5B01CF7AB3E0A1B900BEB892BAE443");
 
@@ -400,7 +404,7 @@ mod test {
             humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
-        assert_eq!(period.interval_num(), 19397);
+        assert_eq!(period.interval_num(), TEST_DATA_TIMEPERIOD_2);
         let (blind_id, subcredential) = id.compute_blinded_key(period).unwrap();
 
         assert_eq!(
