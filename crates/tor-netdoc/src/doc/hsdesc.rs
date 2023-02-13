@@ -317,10 +317,27 @@ mod test {
     use super::*;
     use hex_literal::hex;
     use tor_checkable::{SelfSigned, Timebound};
+    use tor_hscrypto::{pk::HsIdKey, time::TimePeriod};
+    use tor_llcrypto::pk::ed25519;
 
     pub(super) const TEST_DATA: &str = include_str!("../../testdata/hsdesc1.txt");
     pub(super) const TEST_SUBCREDENTIAL: [u8; 32] =
         hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37");
+
+    // This HsDesc uses DescEnc authentication.
+    pub(super) const TEST_DATA_2: &str = include_str!("../../testdata/hsdesc2.txt");
+    pub(super) const TEST_DATA_TIMEPERIOD_2: u64 = 19397;
+    // paozpdhgz2okvc6kgbxvh2bnfsmt4xergrtcl4obkhopyvwxkpjzvoad.onion
+    pub(super) const TEST_HSID_2: [u8; 32] =
+        hex!("781D978CE6CE9CAA8BCA306F53E82D2C993E5C91346625F1C151DCFC56D753D3");
+    pub(super) const TEST_SUBCREDENTIAL_2: [u8; 32] =
+        hex!("24A133E905102BDA9A6AFE57F901366A1B8281865A91F1FE0853E4B50CC8B070");
+    // SACGOAEODFGCYY22NYZV45ZESFPFLDGLMBWFACKEO34XGHASSAMQ (base32)
+    pub(super) const TEST_PUBKEY_2: [u8; 32] =
+        hex!("900467008E194C2C635A6E335E7724915E558CCB606C50094476F9731C129019");
+    // SDZNMD4RP4SCH4EYTTUZPFRZINNFWAOPPKZ6BINZAC7LREV24RBQ (base32)
+    pub(super) const TEST_SECKEY_2: [u8; 32] =
+        hex!("90F2D60F917F2423F0989CE9979639435A5B01CF7AB3E0A1B900BEB892BAE443");
 
     #[test]
     fn parse_meta_good() -> Result<()> {
@@ -376,5 +393,55 @@ mod test {
         // TODO hs: add checks that the intro point fields are as expected.
 
         Ok(())
+    }
+
+    /// Get an EncryptedHsDesc corresponding to `TEST_DATA_2`.
+    fn get_test2_encrypted() -> EncryptedHsDesc {
+        let id: HsIdKey = ed25519::PublicKey::from_bytes(&TEST_HSID_2).unwrap().into();
+        let period = TimePeriod::new(
+            humantime::parse_duration("24 hours").unwrap(),
+            humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap(),
+            humantime::parse_duration("12 hours").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(period.interval_num(), TEST_DATA_TIMEPERIOD_2);
+        let (blind_id, subcredential) = id.compute_blinded_key(period).unwrap();
+
+        assert_eq!(
+            blind_id.as_bytes(),
+            &hex!("706628758208395D461AA0F460A5E76E7B828C66B5E794768592B451302E961D")
+        );
+
+        assert_eq!(subcredential.as_ref(), &TEST_SUBCREDENTIAL_2);
+
+        HsDesc::parse(TEST_DATA_2, &blind_id.into())
+            .unwrap()
+            .check_signature()
+            .unwrap()
+            .check_valid_at(&humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap())
+            .unwrap()
+    }
+
+    #[test]
+    fn parse_desc_auth_missing() {
+        // If we try to decrypt TEST_DATA_2 with no ClientDescEncKey, we get a
+        // failure.
+        let encrypted = get_test2_encrypted();
+        let subcredential = TEST_SUBCREDENTIAL_2.into();
+        let with_no_auth = encrypted.decrypt(&subcredential, None);
+        assert!(dbg!(with_no_auth).is_err());
+    }
+
+    #[test]
+    fn parse_desc_auth_good() {
+        // But if we try to decrypt TEST_DATA_2 with the correct ClientDescEncKey, we get a
+        // the data inside!
+
+        let encrypted = get_test2_encrypted();
+        let subcredential = TEST_SUBCREDENTIAL_2.into();
+        let pk = curve25519::PublicKey::from(TEST_PUBKEY_2).into();
+        let sk = curve25519::StaticSecret::from(TEST_SECKEY_2).into();
+        let with_correct_auth = encrypted.decrypt(&subcredential, Some((&pk, &sk))).unwrap();
+        assert_eq!(with_correct_auth.intro_points.len(), 3);
     }
 }

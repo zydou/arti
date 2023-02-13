@@ -142,10 +142,7 @@ impl HsIdKey {
         h.update(ED25519_BASEPOINT);
         h.update(b"key-blind");
         h.update(cur_period.interval_num.to_be_bytes());
-        // TODO hs: shouldn't this be the period length in *minutes*, not seconds ?
-        // The spec just says `period_length` which elsewhere means minutes.
-        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/768
-        h.update((u64::from(cur_period.length.as_minutes()) * 60).to_be_bytes());
+        h.update((u64::from(cur_period.length.as_minutes())).to_be_bytes());
 
         h.finalize().into()
     }
@@ -366,11 +363,10 @@ mod test {
             ))
             .unwrap(),
         );
-        let offset = Duration::new(12 * 60 * 60, 0);
         let time_period = TimePeriod::new(
-            Duration::from_secs(1440),
-            humantime::parse_rfc3339("1970-01-22T01:50:33Z").unwrap(),
-            offset,
+            humantime::parse_duration("1 day").unwrap(),
+            humantime::parse_rfc3339("1973-05-20T01:50:33Z").unwrap(),
+            humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
         assert_eq!(time_period.interval_num, 1234);
