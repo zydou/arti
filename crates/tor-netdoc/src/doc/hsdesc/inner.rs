@@ -101,7 +101,7 @@ impl HsDescInner {
         // Split up the input at INTRODUCTION_POINT items
         let mut sections = input
             .iter()
-            .batching_split_before_prefixed(|item| item.is_ok_with_kwd(INTRODUCTION_POINT));
+            .batching_split_before_with_header(|item| item.is_ok_with_kwd(INTRODUCTION_POINT));
         // Parse the header.
         let header = HS_INNER_HEADER_RULES.parse(&mut sections)?;
 

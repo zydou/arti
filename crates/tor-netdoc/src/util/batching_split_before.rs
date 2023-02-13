@@ -2,7 +2,7 @@
 //!
 //! See
 //! [`IteratorExt::batching_split_before_loose`] and
-//! [`IteratorExt::batching_split_before_prefixed`].
+//! [`IteratorExt::batching_split_before_with_header`].
 
 use std::iter::{self, Peekable};
 use std::marker::PhantomData;
@@ -31,8 +31,8 @@ impl<I: PeekableIterator> PeekableIterator for &mut I {
     }
 }
 
-/// Iterator for the prefix, transformable into a [`Batches`] yielding subsequent batches
-pub struct BatchesWithPrefix<II, I, F> {
+/// Iterator for the header, transformable into a [`Batches`] yielding subsequent batches
+pub struct BatchesWithHeader<II, I, F> {
     /// Input
     input: Input<II, I, F>,
 }
@@ -91,7 +91,7 @@ where
     }
 }
 
-impl<II, I, F> Iterator for BatchesWithPrefix<II, I, F>
+impl<II, I, F> Iterator for BatchesWithHeader<II, I, F>
 where
     I: Iterator<Item = II> + PeekableIterator,
     F: FnMut(&II) -> bool,
@@ -103,16 +103,16 @@ where
     }
 }
 
-impl<II, I, F> BatchesWithPrefix<II, I, F>
+impl<II, I, F> BatchesWithHeader<II, I, F>
 where
     I: Iterator<Item = II> + PeekableIterator,
     F: FnMut(&II) -> bool,
 {
-    /// Proceed from the prefix to the subsequent batches
+    /// Proceed from the header to the subsequent batches
     ///
-    /// Any un-yielded items remaining in the prefix will be discarded.
+    /// Any un-yielded items remaining in the header will be discarded.
     pub fn subsequent(mut self) -> Batches<II, I, F> {
-        // Discard any un-yielded contents of the prefix
+        // Discard any un-yielded contents of the header
         let _ = self.by_ref().count();
 
         Batches {
@@ -171,17 +171,17 @@ impl<II, I: Iterator<Item = II> + PeekableIterator, F: FnMut(&II) -> bool> Batch
 
 /// **Extension trait providing `batching_split_before`**
 pub trait IteratorExt: Iterator + Sized {
-    /// Splits the input into a prefix followed by batches started according to a predicate
+    /// Splits the input into a header followed by batches started according to a predicate
     ///
     /// The input is divided into:
-    ///  * A prefix, containing no batch-starting items
+    ///  * A header, containing no batch-starting items
     ///  * Zero or more subsequent batches, each with precisely one batch-starting item
     ///
     /// The returned value from `batching_split_before` is an iterator,
-    /// which yields the elements in the prefix - before the first batch-starting item.
+    /// which yields the elements in the header - before the first batch-starting item.
     ///
-    /// After processing the prefix, call
-    /// [`.subsequent()`](BatchesWithPrefix)
+    /// After processing the header, call
+    /// [`.subsequent()`](BatchesWithHeader)
     /// which will return a meta-iterator for the subsequent batches.
     ///
     /// Each subsequent batch is then returned by calling
@@ -190,12 +190,12 @@ pub trait IteratorExt: Iterator + Sized {
     ///
     /// A new batch is recognised for each input item for which `batch_starting` returns true.
     ///
-    /// This method is named **prefixed** because it separates out the prefix,
-    /// using a typestate pattern, which is convenient for processing the prefix
+    /// This method is named **with_header** because it separates out the header,
+    /// using a typestate pattern, which is convenient for processing the header
     /// separately.
     ///
     /// (You will want to iterate the first batch by reference,
-    /// so that the iteration doesn't consume the [`BatchesWithPrefix`],
+    /// so that the iteration doesn't consume the [`BatchesWithHeader`],
     /// which is what you will need to call `.subsequent()`.
     /// You must process the batches sequentially;
     /// so can only be processing one batch at a time.)
@@ -211,7 +211,7 @@ pub trait IteratorExt: Iterator + Sized {
     /// use itertools::Itertools as _;
     /// use tor_netdoc::batching_split_before::IteratorExt as _;
     ///
-    /// let mut batches = (1..10).peekable().batching_split_before_prefixed(|v| v % 3 == 0);
+    /// let mut batches = (1..10).peekable().batching_split_before_with_header(|v| v % 3 == 0);
     /// assert_eq!(batches.by_ref().collect_vec(), [ 1, 2 ]);
     ///
     /// let mut batches = batches.subsequent();
@@ -220,10 +220,10 @@ pub trait IteratorExt: Iterator + Sized {
     /// assert_eq!(batches.next_batch().unwrap().collect_vec(), [ 9 ]);
     /// assert!(batches.next_batch().is_none());
     /// ```
-    fn batching_split_before_prefixed<F>(
+    fn batching_split_before_with_header<F>(
         self,
         batch_starting: F,
-    ) -> BatchesWithPrefix<Self::Item, Self, F>
+    ) -> BatchesWithHeader<Self::Item, Self, F>
     where
         F: FnMut(&Self::Item) -> bool,
     {
@@ -232,7 +232,7 @@ pub trait IteratorExt: Iterator + Sized {
             batch_starting,
             marker: PhantomData,
         };
-        BatchesWithPrefix { input }
+        BatchesWithHeader { input }
     }
 
     /// Splits the input into batches, with new batches started according to a predicate
@@ -363,11 +363,11 @@ mod tests {
             let is_starting = |v: &u32| *v >= 10;
 
             {
-                let mut prefix = input().batching_split_before_prefixed(is_starting);
+                let mut header = input().batching_split_before_with_header(is_starting);
 
-                chk_exp(&mut prefix, iexp);
+                chk_exp(&mut header, iexp);
                 eprintln!("    subsequent...");
-                let subseq = prefix.subsequent();
+                let subseq = header.subsequent();
                 let mut sexp = sexp.iter().cloned();
                 chk_batches(subseq, &mut sexp);
             }
