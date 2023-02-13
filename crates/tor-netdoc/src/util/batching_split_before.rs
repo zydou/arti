@@ -43,11 +43,11 @@ struct Input<II, I, F> {
     unfiltered: I,
     /// Callback to test if this is a batch start item
     batch_start: F,
-    /// We're like a function that yeilds II
+    /// We're like a function that yields II
     marker: PhantomData<fn() -> II>,
 }
 
-/// Meta-pseudo-iterator yielding batches
+/// An iterator-like object yielding an iterator for each batch.
 ///
 /// Each call to [`.next_batch()`](Batches::next_batch)
 /// yields an iterator for one subsequent batch,
@@ -65,7 +65,11 @@ pub struct Batches<II, I, F> {
     yield_one: Option<()>,
 }
 
-/// Batch (other than the prefix)
+/// Iterator to yield the members of a batch. 
+///
+/// (A batch is a group of elements beginning with the start element.  
+/// This is distinct from the prefix,
+/// which precedes any the batches and is not a batch itself.)
 ///
 /// This is the iterator returned by
 /// [`.next_batch()`](Batches::next_batch).
@@ -81,7 +85,7 @@ where
     I: Iterator<Item = II> + PeekableIterator,
     F: FnMut(&II) -> bool,
 {
-    /// Yield the next item - unless it is a non-start item
+    /// Yield the next item - unless it is a start item.
     fn next_non_start(&mut self) -> Option<II> {
         let item = self.unfiltered.peek()?;
         if (self.batch_start)(item) {
