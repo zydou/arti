@@ -33,6 +33,16 @@ impl<I: PeekableIterator> PeekableIterator for &mut I {
 
 /// Iterator for the header, transformable into a [`Batches`] yielding subsequent batches
 ///
+/// Returned by
+/// [`.batching_split_before_with_header()`](IteratorExt::batching_split_before_with_header).
+///
+/// This type is both:
+///  * An [`Iterator`], which returns the items in the header
+///    (before the first batch-starting item);
+///  * Transformable using [.subsequent()](BatchesWithHeader::subsequent)
+///    into a [`Batches`], which yields the remainder of the input,
+///    split into batches.
+///
 /// `II` is the iterator item type.  `I` is the input iterator.
 /// `F` is the predicate for testing if an item is batch-starting.
 pub struct BatchesWithHeader<II, I, F> {
