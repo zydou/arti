@@ -275,6 +275,10 @@ impl<M: RelayMsg> RelayCell<M> {
     pub fn msg(&self) -> &M {
         &self.msg
     }
+    /// Consume this cell and return the underlying message.
+    pub fn into_msg(self) -> M {
+        self.msg
+    }
     /// Consume this relay message and encode it as a 509-byte padded cell
     /// body.
     pub fn encode<R: Rng + CryptoRng>(self, rng: &mut R) -> crate::Result<BoxedCellBody> {
