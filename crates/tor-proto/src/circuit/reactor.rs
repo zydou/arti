@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
-use tor_cell::relaycell::{AnyRelayCell, RelayCmd, RelayMsg, StreamId, UnparsedRelayCell};
+use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
 
 use futures::channel::{mpsc, oneshot};
 use futures::Sink;
@@ -260,7 +260,7 @@ pub(super) trait MetaCellHandler: Send {
     /// Called when the message we were waiting for arrives.
     ///
     /// Gets a copy of the `Reactor` in order to do anything it likes there.
-    fn finish(&mut self, msg: AnyRelayMsg, reactor: &mut Reactor) -> Result<()>;
+    fn finish(&mut self, msg: UnparsedRelayCell, reactor: &mut Reactor) -> Result<()>;
 }
 
 /// An object that can extend a circuit by one hop, using the `MetaCellHandler` trait.
@@ -373,28 +373,12 @@ where
     fn expected_hop(&self) -> HopNum {
         self.expected_hop
     }
-    fn finish(&mut self, msg: AnyRelayMsg, reactor: &mut Reactor) -> Result<()> {
-        // Did we get the right response?
-        if msg.cmd() != RelayCmd::EXTENDED2 {
-            return Err(Error::CircProto(format!(
-                "wanted EXTENDED2; got {}",
-                msg.cmd(),
-            )));
-        }
+    fn finish(&mut self, msg: UnparsedRelayCell, reactor: &mut Reactor) -> Result<()> {
+        let msg = msg
+            .decode::<tor_cell::relaycell::msg::Extended2>()
+            .map_err(|e| Error::from_bytes_err(e, "extended2 message"))?
+            .into_msg();
 
-        // ???? Do we need to shutdown the circuit for the remaining error
-        // ???? cases in this function?
-
-        let msg = match msg {
-            AnyRelayMsg::Extended2(e) => e,
-            _ => {
-                return Err(Error::from(internal!(
-                    "Message body {:?} didn't match cmd {:?}",
-                    msg,
-                    msg.cmd()
-                )))
-            }
-        };
         let relay_handshake = msg.into_body();
 
         trace!(
@@ -823,18 +807,21 @@ impl Reactor {
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
     fn handle_meta_cell(&mut self, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
-        // XXXX: Defer this even further.
-        let (_, msg) = msg
-            .decode::<AnyRelayMsg>()
-            .map_err(|e| Error::from_bytes_err(e, "relay meta cell"))?
-            .into_streamid_and_msg();
-
         // SENDME cells and TRUNCATED get handled internally by the circuit.
-        if let AnyRelayMsg::Sendme(s) = msg {
-            return self.handle_sendme(hopnum, s);
+        if msg.cmd() == RelayCmd::SENDME {
+            let sendme = msg
+                .decode::<Sendme>()
+                .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
+                .into_msg();
+
+            return self.handle_sendme(hopnum, sendme);
         }
-        if let AnyRelayMsg::Truncated(t) = msg {
-            let reason = t.reason();
+        if msg.cmd() == RelayCmd::TRUNCATED {
+            let truncated = msg
+                .decode::<tor_cell::relaycell::msg::Truncated>()
+                .map_err(|e| Error::from_bytes_err(e, "truncated message"))?
+                .into_msg();
+            let reason = truncated.reason();
             debug!(
                 "{}: Truncated from hop {}. Reason: {} [{}]",
                 self.unique_id,
@@ -863,6 +850,9 @@ impl Reactor {
                     self.unique_id,
                     ret
                 );
+                // TODO: If the meta handler rejects the cell, we should
+                // probably kill the circuit depending on its type.
+                // (See #773.)
                 let _ = done.send(ret); // don't care if sender goes away
                 Ok(CellStatus::Continue)
             } else {

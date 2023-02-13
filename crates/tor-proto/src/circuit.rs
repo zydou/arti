@@ -1243,9 +1243,10 @@ mod test {
 
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             match error {
-                Error::CircProto(s) => {
-                    assert_eq!(s, "wanted EXTENDED2; got EXTENDED");
-                }
+                Error::BytesErr {
+                    err: tor_bytes::Error::InvalidMessage(_),
+                    object: "extended2 message",
+                } => {}
                 _ => panic!(),
             }
         });
