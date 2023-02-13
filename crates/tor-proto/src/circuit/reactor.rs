@@ -260,6 +260,8 @@ pub(super) trait MetaCellHandler: Send {
     /// Called when the message we were waiting for arrives.
     ///
     /// Gets a copy of the `Reactor` in order to do anything it likes there.
+    ///
+    /// If this function returns an error, the reactor will shut down.
     fn finish(&mut self, msg: UnparsedRelayCell, reactor: &mut Reactor) -> Result<()>;
 }
 
@@ -850,11 +852,12 @@ impl Reactor {
                     self.unique_id,
                     ret
                 );
-                // TODO: If the meta handler rejects the cell, we should
-                // probably kill the circuit depending on its type.
-                // (See #773.)
+                let status = match &ret {
+                    Ok(()) => Ok(CellStatus::Continue),
+                    Err(e) => Err(e.clone()),
+                };
                 let _ = done.send(ret); // don't care if sender goes away
-                Ok(CellStatus::Continue)
+                status
             } else {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
