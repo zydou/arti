@@ -2,7 +2,9 @@
 #![allow(clippy::uninlined_format_args)]
 
 use tor_bytes::Error;
-use tor_cell::relaycell::{msg, msg::AnyRelayMsg, AnyRelayCell, RelayCmd, RelayMsg, StreamId};
+use tor_cell::relaycell::{
+    msg, msg::AnyRelayMsg, AnyRelayCell, RelayCmd, RelayMsg, StreamId, UnparsedRelayCell,
+};
 
 #[cfg(feature = "experimental-udp")]
 use std::{
@@ -51,9 +53,19 @@ fn cell(body: &str, id: StreamId, msg: AnyRelayMsg) {
 
     let expected = AnyRelayCell::new(id, msg);
 
-    let decoded = AnyRelayCell::decode(body).unwrap();
+    let decoded = AnyRelayCell::decode(body.clone()).unwrap();
+
+    let decoded_from_partial = UnparsedRelayCell::from_body(body)
+        .decode::<AnyRelayMsg>()
+        .unwrap();
+    assert_eq!(decoded_from_partial.stream_id(), decoded.stream_id());
+    assert_eq!(decoded_from_partial.cmd(), decoded.cmd());
 
     assert_eq!(format!("{:?}", expected), format!("{:?}", decoded));
+    assert_eq!(
+        format!("{:?}", expected),
+        format!("{:?}", decoded_from_partial)
+    );
 
     let encoded1 = decoded.encode(&mut bad_rng).unwrap();
     let encoded2 = expected.encode(&mut bad_rng).unwrap();

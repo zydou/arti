@@ -177,6 +177,52 @@ impl StreamId {
     }
 }
 
+/// A relay cell that has not yet been fully parsed, but where we have access to
+/// the command and stream ID, for dispatching purposes.
+//
+// TODO HS: Settle on some names here. I would prefer "UnparsedRelayMsg" here so
+// it can eventually be compatible with proposal 340.  But that would make our
+// RelayCell and RelayMsg types below kind of illogical.  Perhaps we should rename...
+//     this -> UnparsedRelayMsg
+//     RelayCell -> ParsedRelayMsg
+//     RelayMsg -> RelayMsgBody?
+// Ideas appreciated -NM
+#[derive(Clone, Debug)]
+pub struct UnparsedRelayCell {
+    /// The body of the cell.
+    body: BoxedCellBody,
+    // NOTE: we could also have a separate command and stream ID field here, but
+    // we expect to be working with a TON of these, so we will be mildly
+    // over-optimized and just peek into the body.
+    //
+    // It *is* a bit ugly to have to encode so much knowledge about the format in
+    // different functions here, but that information shouldn't leak out of this module.
+}
+
+impl UnparsedRelayCell {
+    /// Wrap a BoxedCellBody as an UnparsedRelayCell.
+    pub fn from_body(body: BoxedCellBody) -> Self {
+        Self { body }
+    }
+    /// Return the command for this cell.
+    pub fn cmd(&self) -> RelayCmd {
+        /// Position of the command within the cell body.
+        const CMD_OFFSET: usize = 0;
+        self.body[CMD_OFFSET].into()
+    }
+    /// Return the stream ID for the stream that this cell corresponds to.
+    pub fn stream_id(&self) -> StreamId {
+        /// Position of the stream ID within the cell body.
+        const STREAM_ID_OFFSET: usize = 3;
+
+        u16::from_be_bytes(*arrayref::array_ref![self.body, STREAM_ID_OFFSET, 2]).into()
+    }
+    /// Decode this unparsed cell into a given cell type.
+    pub fn decode<M: RelayMsg>(self) -> Result<RelayCell<M>> {
+        RelayCell::decode(self.body)
+    }
+}
+
 /// A decoded and parsed relay cell of unrestricted type.
 pub type AnyRelayCell = RelayCell<msg::AnyRelayMsg>;
 
