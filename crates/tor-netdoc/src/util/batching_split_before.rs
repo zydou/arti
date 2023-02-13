@@ -3,6 +3,13 @@
 //! See
 //! [`IteratorExt::batching_split_before_loose`] and
 //! [`IteratorExt::batching_split_before_with_header`].
+//!
+//! # **UNSTABLE**
+//!
+//! This whole module is UNSTABLE and not part of the semver guarantees.
+//! You'll only see it if you ran rustdoc with `--document-private-items`.
+// This is achieved with `#[doc(hidden)]` on the top-level module reexport
+// in `lib.rs`, which is the only place all of this isactually exposed.
 
 use std::iter::{self, Peekable};
 use std::marker::PhantomData;
