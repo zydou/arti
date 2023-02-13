@@ -102,7 +102,7 @@ struct NoDrainToken;
 /// `Option` has good ergonomics with [`.take()`](Option::take) and `?`.)
 struct EvenYieldOneBatchStarting;
 
-/// Iterator to yield the members of a batch. 
+/// Iterator to yield the members of a batch.
 ///
 /// This is the iterator returned by
 /// [`.next_batch()`](Batches::next_batch).
