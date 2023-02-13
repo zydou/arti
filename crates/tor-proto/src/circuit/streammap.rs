@@ -114,6 +114,10 @@ impl StreamMap {
             rx,
             send_window,
             dropped: 0,
+            // TODO XXX: This is true for all streams at this point, but it is
+            // problematic to accept even one CONNECTED for RESOLVE/RESOLVED
+            // streams, and will become more so once UDP streams are
+            // implemented.
             received_connected: false,
         };
         // This "65536" seems too aggressive, but it's what tor does.

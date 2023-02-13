@@ -1,4 +1,5 @@
 //! Code to handle incoming cells on a circuit.
+use super::halfstream::HalfStreamStatus;
 use super::streammap::{ShouldSendEnd, StreamEnt};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::unique_id::UniqId;
@@ -1357,16 +1358,9 @@ impl Reactor {
             Some(StreamEnt::EndSent(halfstream)) => {
                 // We sent an end but maybe the other side hasn't heard.
 
-                // XXXX: Defer this decoding even further.
-                let (_, msg) = msg
-                    .decode::<AnyRelayMsg>()
-                    .map_err(|e| Error::from_bytes_err(e, "relay half-stream cell"))?
-                    .into_streamid_and_msg();
-
-                if matches!(msg, AnyRelayMsg::End(_)) {
-                    hop.map.end_received(streamid)?;
-                } else {
-                    halfstream.handle_msg(&msg)?;
+                match halfstream.handle_msg(msg)? {
+                    HalfStreamStatus::Open => {}
+                    HalfStreamStatus::Closed => hop.map.end_received(streamid)?,
                 }
             }
             _ => {
