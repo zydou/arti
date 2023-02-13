@@ -179,7 +179,9 @@ impl<II, I: Iterator<Item = II> + PeekableIterator, F: FnMut(&II) -> bool> Batch
     ///
     /// Any un-yielded items remaining in the previous batch will be discarded.
     //
-    // SubsquentBatches is a LendingIterator, so can't be Iterator.
+    // Batches is a LendingIterator - its returned item type borrows from the
+    // iterator itself - so can't impl Iterator.
+    // <https://rust-lang.github.io/generic-associated-types-initiative/design_patterns/iterable.html>
     pub fn next_batch(&mut self) -> Option<Batch<'_, II, I, F>> {
         // Drain to the end of the batch
         if self.no_drain.take().is_none() {
@@ -210,7 +212,7 @@ pub trait IteratorExt: Iterator + Sized {
     ///  * A header, containing no batch-starting items
     ///  * Zero or more subsequent batches, each with precisely one batch-starting item
     ///
-    /// The returned value from `batching_split_before` is an iterator,
+    /// The returned value from `batching_split_before_with_header` is an iterator,
     /// which yields the elements in the header - before the first batch-starting item.
     ///
     /// After processing the header, call
