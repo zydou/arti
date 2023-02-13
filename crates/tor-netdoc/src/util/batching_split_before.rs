@@ -233,8 +233,8 @@ pub trait IteratorExt: Iterator + Sized {
     /// (You will want to iterate the first batch by reference,
     /// so that the iteration doesn't consume the [`BatchesWithHeader`],
     /// which is what you will need to call `.subsequent()`.
-    /// You must process the batches sequentially;
-    /// so can only be processing one batch at a time.)
+    /// The API insists that you process the batches sequentially:
+    /// you can only be processing one batch at a time.)
     ///
     /// # **UNSTABLE**
     ///
@@ -290,8 +290,8 @@ pub trait IteratorExt: Iterator + Sized {
     ///
     /// A new batch is recognised for each input item for which `batch_start` returns true.
     ///
-    /// (You must process the batches sequentially;
-    /// so can only be processing one batch at a time.)
+    /// (The API insists that you process the batches sequentially:
+    /// you can only be processing one batch at a time.)
     ///
     /// # **UNSTABLE**
     ///
