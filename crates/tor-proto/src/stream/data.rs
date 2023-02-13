@@ -3,7 +3,6 @@
 
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::EndReason;
-use tor_cell::relaycell::RelayMsg;
 
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::{Context, Poll};
@@ -15,6 +14,7 @@ use tokio_crate::io::ReadBuf;
 use tokio_crate::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite};
 #[cfg(feature = "tokio")]
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
+use tor_cell::restricted_msg;
 
 use std::fmt::Debug;
 use std::io::Result as IoResult;
@@ -25,7 +25,7 @@ use educe::Educe;
 use crate::circuit::StreamTarget;
 use crate::stream::StreamReader;
 use tor_basic_utils::skip_fmt;
-use tor_cell::relaycell::msg::{AnyRelayMsg, Data};
+use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
 
 /// An anonymized stream over the Tor network.
@@ -148,6 +148,14 @@ pub struct DataReader {
     /// poll_read().  It might be possible to do better here, and we
     /// should refactor if so.
     state: Option<DataReaderState>,
+}
+
+restricted_msg! {
+    /// An allowable incoming message on a data stream.
+    enum DataStreamMsg:RelayMsg {
+        // SENDME is handled by the reactor.
+        Data, End, Connected,
+    }
 }
 
 impl DataStream {
@@ -592,26 +600,43 @@ impl DataReaderImpl {
     /// This function takes ownership of self so that we can avoid
     /// self-referential lifetimes.
     async fn read_cell(mut self) -> (Self, Result<()>) {
-        let cell = self.s.recv().await;
+        use DataStreamMsg::*;
+        let msg = match self.s.recv().await {
+            Ok(unparsed) => match unparsed.decode::<DataStreamMsg>() {
+                Ok(cell) => cell.into_msg(),
+                Err(e) => {
+                    self.s.protocol_error();
+                    return (
+                        self,
+                        Err(Error::from_bytes_err(e, "message on a data stream")),
+                    );
+                }
+            },
+            Err(e) => return (self, Err(e)),
+        };
 
-        let result = match cell {
-            Ok(AnyRelayMsg::Connected(_)) if !self.connected => {
+        let result = match msg {
+            Connected(_) if !self.connected => {
                 self.connected = true;
                 Ok(())
             }
-            Ok(AnyRelayMsg::Data(d)) if self.connected => {
+            Connected(_) => {
+                self.s.protocol_error();
+                Err(Error::StreamProto(
+                    "Received a second connect cell on a data stream".to_string(),
+                ))
+            }
+            Data(d) if self.connected => {
                 self.add_data(d.into());
                 Ok(())
             }
-            Ok(AnyRelayMsg::End(e)) => Err(Error::EndReceived(e.reason())),
-            Err(e) => Err(e),
-            Ok(m) => {
+            Data(_) => {
                 self.s.protocol_error();
-                Err(Error::StreamProto(format!(
-                    "Unexpected {} cell on stream",
-                    m.cmd()
-                )))
+                Err(Error::StreamProto(
+                    "Received a data cell an unconnected stream".to_string(),
+                ))
             }
+            End(e) => Err(Error::EndReceived(e.reason())),
         };
 
         (self, result)

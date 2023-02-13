@@ -3,6 +3,7 @@
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
 use crate::{Error, Result};
+use tor_cell::relaycell::UnparsedRelayCell;
 /// Mapping from stream ID to streams.
 // NOTE: This is a work in progress and I bet I'll refactor it a lot;
 // it needs to stay opaque!
@@ -24,7 +25,7 @@ pub(super) enum StreamEnt {
     /// An open stream.
     Open {
         /// Sink to send relay cells tagged for this stream into.
-        sink: mpsc::Sender<AnyRelayMsg>,
+        sink: mpsc::Sender<UnparsedRelayCell>,
         /// Stream for cells that should be sent down this stream.
         rx: mpsc::Receiver<AnyRelayMsg>,
         /// Send window, for congestion control purposes.
@@ -105,7 +106,7 @@ impl StreamMap {
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
-        sink: mpsc::Sender<AnyRelayMsg>,
+        sink: mpsc::Sender<UnparsedRelayCell>,
         rx: mpsc::Receiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
     ) -> Result<StreamId> {
@@ -114,10 +115,10 @@ impl StreamMap {
             rx,
             send_window,
             dropped: 0,
-            // TODO XXX: This is true for all streams at this point, but it is
+            // TODO: This is true for all streams at this point, but it is
             // problematic to accept even one CONNECTED for RESOLVE/RESOLVED
             // streams, and will become more so once UDP streams are
-            // implemented.
+            // implemented. This is #774.
             received_connected: false,
         };
         // This "65536" seems too aggressive, but it's what tor does.

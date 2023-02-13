@@ -2,8 +2,8 @@
 
 use crate::stream::StreamReader;
 use crate::{Error, Result};
-use tor_cell::relaycell::msg::{AnyRelayMsg, Resolved};
-use tor_cell::relaycell::RelayMsg;
+use tor_cell::relaycell::msg::Resolved;
+use tor_cell::restricted_msg;
 
 /// A ResolveStream represents a pending DNS request made with a RESOLVE
 /// cell.
@@ -12,11 +12,18 @@ pub struct ResolveStream {
     s: StreamReader,
 }
 
+restricted_msg! {
+    /// An allowable reply for a RESOLVE message.
+    enum ResolveResponseMsg : RelayMsg {
+        End,
+        Resolved,
+    }
+}
+
 impl ResolveStream {
     /// Wrap a RawCellStream into a ResolveStream.
     ///
     /// Call only after sending a RESOLVE cell.
-    #[allow(dead_code)] // need to implement a caller for this.
     pub(crate) fn new(s: StreamReader) -> Self {
         ResolveStream { s }
     }
@@ -24,17 +31,18 @@ impl ResolveStream {
     /// Read a message from this stream telling us the answer to our
     /// name lookup request.
     pub async fn read_msg(&mut self) -> Result<Resolved> {
+        use ResolveResponseMsg::*;
         let cell = self.s.recv().await?;
-        match cell {
-            AnyRelayMsg::End(e) => Err(Error::EndReceived(e.reason())),
-            AnyRelayMsg::Resolved(r) => Ok(r),
-            m => {
+        let msg = match cell.decode::<ResolveResponseMsg>() {
+            Ok(cell) => cell.into_msg(),
+            Err(e) => {
                 self.s.protocol_error();
-                Err(Error::StreamProto(format!(
-                    "Unexpected {} on resolve stream",
-                    m.cmd()
-                )))
+                return Err(Error::from_bytes_err(e, "response on a resolve stream"));
             }
+        };
+        match msg {
+            End(e) => Err(Error::EndReceived(e.reason())),
+            Resolved(r) => Ok(r),
         }
     }
 }

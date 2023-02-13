@@ -119,7 +119,7 @@ pub(super) enum CtrlMsg {
         /// SENDME cells once we've read enough out of the other end. If it *does* block, we
         /// can assume someone is trying to send us more cells than they should, and abort
         /// the stream.
-        sender: mpsc::Sender<AnyRelayMsg>,
+        sender: mpsc::Sender<UnparsedRelayCell>,
         /// A channel to receive messages to send on this stream from.
         rx: mpsc::Receiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
@@ -1159,7 +1159,7 @@ impl Reactor {
         cx: &mut Context<'_>,
         hopnum: HopNum,
         message: AnyRelayMsg,
-        sender: mpsc::Sender<AnyRelayMsg>,
+        sender: mpsc::Sender<UnparsedRelayCell>,
         rx: mpsc::Receiver<AnyRelayMsg>,
     ) -> Result<StreamId> {
         let hop = self
@@ -1307,13 +1307,11 @@ impl Reactor {
             }) => {
                 // The stream for this message exists, and is open.
 
-                // XXXX: Defer this decoding even further.
-                let (_, msg) = msg
-                    .decode::<AnyRelayMsg>()
-                    .map_err(|e| Error::from_bytes_err(e, "relay stream cell"))?
-                    .into_streamid_and_msg();
-
-                if let AnyRelayMsg::Sendme(_) = msg {
+                if msg.cmd() == RelayCmd::SENDME {
+                    let _sendme = msg
+                        .decode::<Sendme>()
+                        .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
+                        .into_msg();
                     // We need to handle sendmes here, not in the stream's
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
@@ -1321,19 +1319,19 @@ impl Reactor {
                     return Ok(CellStatus::Continue);
                 }
 
-                if matches!(msg, AnyRelayMsg::Connected(_)) {
+                if msg.cmd() == RelayCmd::CONNECTED {
                     // Remember that we've received a Connected cell, and can't get another,
                     // even if we become a HalfStream.  (This rule is enforced separately at
                     // DataStreamReader.)
+
+                    // TODO: This is problematic; see #774.
                     *received_connected = true;
                 }
 
                 // Remember whether this was an end cell: if so we should
                 // close the stream.
-                let is_end_cell = matches!(msg, AnyRelayMsg::End(_));
+                let is_end_cell = msg.cmd() == RelayCmd::END;
 
-                // TODO: Add a wrapper type here to reject cells that should
-                // never go to a client, like BEGIN.
                 if let Err(e) = sink.try_send(msg) {
                     if e.is_full() {
                         // If we get here, we either have a logic bug (!), or an attacker

@@ -12,8 +12,8 @@
 
 use std::collections::VecDeque;
 
-use tor_cell::relaycell::{msg::AnyRelayMsg, UnparsedRelayCell};
-use tor_cell::relaycell::{RelayCmd, RelayMsg};
+use tor_cell::relaycell::RelayCmd;
+use tor_cell::relaycell::UnparsedRelayCell;
 use tor_error::internal;
 
 use crate::{Error, Result};
@@ -273,7 +273,9 @@ pub(crate) fn cmd_counts_towards_windows(cmd: RelayCmd) -> bool {
 }
 
 /// Return true if this message is counted by flow-control windows.
-pub(crate) fn msg_counts_towards_windows(msg: &AnyRelayMsg) -> bool {
+#[cfg(test)]
+pub(crate) fn msg_counts_towards_windows(msg: &tor_cell::relaycell::msg::AnyRelayMsg) -> bool {
+    use tor_cell::relaycell::RelayMsg;
     cmd_counts_towards_windows(msg.cmd())
 }
 
