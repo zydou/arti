@@ -47,6 +47,11 @@ mod err;
 pub mod types;
 mod util;
 
+// Use `#[doc(hidden)]` rather than pub(crate), because otherwise the doctest
+// doesn't work.
+#[doc(hidden)]
+pub use util::batching_split_before;
+
 pub use err::{BuildError, Error, ParseErrorKind, Pos};
 
 #[cfg(feature = "onion-service")]

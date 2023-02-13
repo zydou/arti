@@ -5,6 +5,8 @@ pub(crate) mod str;
 
 use std::iter::Peekable;
 
+pub mod batching_split_before;
+
 /// An iterator adaptor that pauses when a given predicate is true.
 ///
 /// Unlike std::iter::TakeWhile, it doesn't consume the first non-returned
@@ -101,10 +103,20 @@ pub(crate) mod private {
 
 #[cfg(test)]
 mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
 
     #[test]
     fn test_pause_at() {
-        use super::PauseAt;
         let mut iter = (1..10).into_iter().peekable();
         let mut iter = PauseAt::from_peekable(&mut iter, |x| *x == 3);
 
@@ -131,7 +143,6 @@ mod tests {
 
     #[test]
     fn test_parse_at_mutable() {
-        use super::PauseAt;
         let mut count = 0;
         let mut iter = (1..10).into_iter().peekable();
         // pause at the third item, using mutable state in the closure.
