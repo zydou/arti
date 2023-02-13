@@ -241,6 +241,11 @@ impl ClientCirc {
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
     //   reactor code, but "meta messages" just sounds odd.
+    //
+    // TODO hs: possibly this should take a more encoded message type.
+    //
+    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
+    //   tor-proto interface.
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     #[cfg(feature = "experimental-api")]
     pub async fn send_control_message(&self, msg: AnyRelayMsg) -> Result<()> {
@@ -279,6 +284,11 @@ impl ClientCirc {
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
     //   reactor code, but "meta messages" just sounds odd.
+    //
+    // TODO hs: This should return a stream of UnparsedRelayCell.
+    //
+    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
+    //   tor-proto interface.
     #[cfg(feature = "experimental-api")]
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     pub fn receive_control_messages(
