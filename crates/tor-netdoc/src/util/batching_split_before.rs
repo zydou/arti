@@ -200,7 +200,7 @@ pub trait IteratorExt: Iterator + Sized {
     /// which yields the elements in the header - before the first batch-starting item.
     ///
     /// After processing the header, call
-    /// [`.subsequent()`](BatchesWithHeader)
+    /// [`.subsequent()`](BatchesWithHeader::subsequent)
     /// which will return a meta-iterator for the subsequent batches.
     ///
     /// Each subsequent batch is then returned by calling
