@@ -134,24 +134,22 @@ macro_rules! restricted_msg {
              where
                 W: $crate::restrict::tor_bytes::Writer + ?Sized
              {
-                use $body_type;
                 match self {
                     $(
                         $( #[cfg(feature=$feat)] )?
-                        Self::$case(m) => m.encode_onto(w),
+                        Self::$case(m) => $body_type::encode_onto(m, w),
                     )*
                     $(
-                        Self::$unrecognized(u) => u.encode_onto(w),
+                        Self::$unrecognized(u) => $body_type::encode_onto(u, w),
                     )?
                 }
             }
 
             fn decode_from_reader(cmd: $cmd_type, r: &mut $crate::restrict::tor_bytes::Reader<'_>) -> $crate::restrict::tor_bytes::Result<Self> {
-                use $body_type;
                 Ok(match cmd {
                     $(
                         $( #[cfg(feature=$feat)] )?
-                        $cmd_type:: [<$case:snake:upper>] => Self::$case( $msg_mod :: $case :: decode_from_reader(r)? ),
+                        $cmd_type:: [<$case:snake:upper>] => Self::$case( <$msg_mod :: $case as $body_type> :: decode_from_reader(r)? ),
                     )*
                     $(
                         _ => Self::$unrecognized($unrec_type::decode_with_cmd(cmd, r)?),

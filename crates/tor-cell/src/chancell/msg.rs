@@ -1170,6 +1170,54 @@ msg_into_cell!(AuthChallenge);
 msg_into_cell!(Authenticate);
 msg_into_cell!(Authorize);
 
+/// Helper: declare a ChanMsg implementation for a message type that has a
+/// fixed command.
+//
+// TODO: It might be better to merge Body with ChanMsg, but that is complex,
+// since their needs are _slightly_ different.
+macro_rules! msg_impl_chanmsg {
+    ($($body:ident,)*) =>
+    {paste::paste!{
+       $(impl crate::chancell::ChanMsg for $body {
+            fn cmd(&self) -> crate::chancell::ChanCmd { crate::chancell::ChanCmd::[< $body:snake:upper >] }
+            fn encode_onto<W: tor_bytes::Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()> {
+                crate::chancell::msg::Body::encode_onto(self, w)
+            }
+            fn decode_from_reader(cmd: ChanCmd, r: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self> {
+                if cmd != crate::chancell::ChanCmd::[< $body:snake:upper >] {
+                    return Err(tor_bytes::Error::InvalidMessage(
+                        format!("Expected {} command; got {cmd}", stringify!([< $body:snake:upper >])).into()
+                    ));
+                }
+                crate::chancell::msg::Body::decode_from_reader(r)
+            }
+        })*
+    }}
+}
+
+// We implement ChanMsg for every body type, so that you can write code that does
+// e.g. ChanCell<Relay>.
+msg_impl_chanmsg!(
+    Padding,
+    Vpadding,
+    Create,
+    CreateFast,
+    Create2,
+    Created,
+    CreatedFast,
+    Created2,
+    Relay,
+    RelayEarly,
+    Destroy,
+    Netinfo,
+    Versions,
+    PaddingNegotiate,
+    Certs,
+    AuthChallenge,
+    Authenticate,
+    Authorize,
+);
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
