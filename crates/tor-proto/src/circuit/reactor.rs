@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
-use tor_cell::relaycell::{AnyRelayCell, RelayCmd, RelayMsg, StreamId};
+use tor_cell::relaycell::{AnyRelayCell, RelayCmd, RelayMsg, StreamId, UnparsedRelayCell};
 
 use futures::channel::{mpsc, oneshot};
 use futures::Sink;
@@ -822,7 +822,13 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: AnyRelayMsg) -> Result<CellStatus> {
+    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
+        // XXXX: Defer this even further.
+        let (_, msg) = msg
+            .decode::<AnyRelayMsg>()
+            .map_err(|e| Error::from_bytes_err(e, "relay meta cell"))?
+            .into_streamid_and_msg();
+
         // SENDME cells and TRUNCATED get handled internally by the circuit.
         if let AnyRelayMsg::Sendme(s) = msg {
             return self.handle_sendme(hopnum, s);
@@ -976,7 +982,7 @@ impl Reactor {
         early: bool,
         cell: AnyRelayCell,
     ) -> Result<()> {
-        let c_t_w = sendme::cell_counts_towards_windows(&cell);
+        let c_t_w = sendme::cmd_counts_towards_windows(cell.cmd());
         let stream_id = cell.stream_id();
         // Check whether the hop send window is empty, if this cell counts towards windows.
         // NOTE(eta): It is imperative this happens *before* calling encrypt() below, otherwise
@@ -1241,9 +1247,8 @@ impl Reactor {
             tag_copy.copy_from_slice(tag);
             tag_copy
         };
-        // Decode the cell.
-        let msg = AnyRelayCell::decode(body.into())
-            .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+        // Put the cell into a format where we can make sense of it.
+        let msg = UnparsedRelayCell::from_body(body.into());
 
         let c_t_w = sendme::cell_counts_towards_windows(&msg);
 
@@ -1277,12 +1282,11 @@ impl Reactor {
                 .put();
         }
 
-        // Break the message apart into its streamID and message.
-        let (streamid, msg) = msg.into_streamid_and_msg();
-
         // If this cell wants/refuses to have a Stream ID, does it
         // have/not have one?
-        if !msg.cmd().accepts_streamid_val(streamid) {
+        let cmd = msg.cmd();
+        let streamid = msg.stream_id();
+        if !cmd.accepts_streamid_val(streamid) {
             return Err(Error::CircProto(format!(
                 "Invalid stream ID {} for relay command {}",
                 sv(streamid),
@@ -1308,6 +1312,12 @@ impl Reactor {
                 ..
             }) => {
                 // The stream for this message exists, and is open.
+
+                // XXXX: Defer this decoding even further.
+                let (_, msg) = msg
+                    .decode::<AnyRelayMsg>()
+                    .map_err(|e| Error::from_bytes_err(e, "relay stream cell"))?
+                    .into_streamid_and_msg();
 
                 if let AnyRelayMsg::Sendme(_) = msg {
                     // We need to handle sendmes here, not in the stream's
@@ -1354,6 +1364,12 @@ impl Reactor {
             Some(StreamEnt::EndSent(halfstream)) => {
                 // We sent an end but maybe the other side hasn't heard.
 
+                // XXXX: Defer this decoding even further.
+                let (_, msg) = msg
+                    .decode::<AnyRelayMsg>()
+                    .map_err(|e| Error::from_bytes_err(e, "relay half-stream cell"))?
+                    .into_streamid_and_msg();
+
                 if matches!(msg, AnyRelayMsg::End(_)) {
                     hop.map.end_received(streamid)?;
                 } else {
@@ -1361,7 +1377,7 @@ impl Reactor {
                 }
             }
             _ => {
-                // No stream wants this message.
+                // No stream wants this message, or ever did.
                 return Err(Error::CircProto(
                     "Cell received on nonexistent stream!?".into(),
                 ));
