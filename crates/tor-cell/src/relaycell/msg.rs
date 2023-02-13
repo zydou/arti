@@ -268,6 +268,11 @@ impl Body for Begin {
 #[derive(Debug, Clone)]
 pub struct Data {
     /// Contents of the cell, to be sent on a specific stream
+    //
+    // TODO: There's a good case to be made that this should be a BoxedCellBody
+    // instead, to avoid allocations and copies.  But first probably we should
+    // figure out how proposal 340 will work with this.  Possibly, we will wind
+    // up using `bytes` or something.
     body: Vec<u8>,
 }
 impl Data {
