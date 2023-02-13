@@ -67,10 +67,6 @@ pub struct Batches<II, I, F> {
 
 /// Iterator to yield the members of a batch. 
 ///
-/// (A batch is a group of elements beginning with the start element.  
-/// This is distinct from the prefix,
-/// which precedes any the batches and is not a batch itself.)
-///
 /// This is the iterator returned by
 /// [`.next_batch()`](Batches::next_batch).
 pub struct Batch<'p, II, I, F> {
