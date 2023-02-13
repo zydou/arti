@@ -34,7 +34,7 @@ use crate::circuit::sendme::StreamSendWindow;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
-use tor_cell::chancell::{self, ChanMsg};
+use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_linkspec::{LinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
@@ -1005,7 +1005,7 @@ impl Reactor {
         let tag = self.crypto_out.encrypt(&mut body, hop)?;
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let msg = chancell::msg::Relay::from_raw(body.into());
+        let msg = chancell::msg::Relay::from(BoxedCellBody::from(body));
         let msg = if early {
             AnyChanMsg::RelayEarly(msg.into())
         } else {

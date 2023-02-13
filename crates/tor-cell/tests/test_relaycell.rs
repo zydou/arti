@@ -34,7 +34,7 @@ impl rand::RngCore for BadRng {
 // I won't tell if you don't.
 impl rand::CryptoRng for BadRng {}
 
-fn decode(body: &str) -> [u8; CELL_BODY_LEN] {
+fn decode(body: &str) -> Box<[u8; CELL_BODY_LEN]> {
     let mut body = body.to_string();
     body.retain(|c| !c.is_whitespace());
     let mut body = hex::decode(body).unwrap();
@@ -42,7 +42,7 @@ fn decode(body: &str) -> [u8; CELL_BODY_LEN] {
 
     let mut result = [0; CELL_BODY_LEN];
     result.copy_from_slice(&body[..]);
-    result
+    Box::new(result)
 }
 
 fn cell(body: &str, id: StreamId, msg: AnyRelayMsg) {

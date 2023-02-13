@@ -1,7 +1,7 @@
 //! Implementation for parsing and encoding relay cells
 
-use crate::chancell::{RawCellBody, CELL_DATA_LEN};
-use tor_bytes::{EncodeResult, Error, Result};
+use crate::chancell::{BoxedCellBody, CELL_DATA_LEN};
+use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Reader, Writer};
 use tor_error::internal;
 
@@ -231,54 +231,76 @@ impl<M: RelayMsg> RelayCell<M> {
     }
     /// Consume this relay message and encode it as a 509-byte padded cell
     /// body.
-    pub fn encode<R: Rng + CryptoRng>(self, rng: &mut R) -> crate::Result<RawCellBody> {
+    pub fn encode<R: Rng + CryptoRng>(self, rng: &mut R) -> crate::Result<BoxedCellBody> {
         /// We skip this much space before adding any random padding to the
         /// end of the cell
         const MIN_SPACE_BEFORE_PADDING: usize = 4;
 
-        // TODO: This implementation is inefficient; it copies too much.
-        let encoded = self.encode_to_vec()?;
-        let enc_len = encoded.len();
-        if enc_len > CELL_DATA_LEN {
-            return Err(crate::Error::Internal(internal!(
-                "too many bytes in relay cell"
-            )));
-        }
-        let mut raw = [0_u8; CELL_DATA_LEN];
-        raw[0..enc_len].copy_from_slice(&encoded);
-
+        let (mut body, enc_len) = self.encode_to_cell()?;
+        debug_assert!(enc_len <= CELL_DATA_LEN);
         if enc_len < CELL_DATA_LEN - MIN_SPACE_BEFORE_PADDING {
-            rng.fill_bytes(&mut raw[enc_len + MIN_SPACE_BEFORE_PADDING..]);
+            rng.fill_bytes(&mut body[enc_len + MIN_SPACE_BEFORE_PADDING..]);
         }
 
-        Ok(raw)
+        Ok(body)
     }
 
     /// Consume a relay cell and return its contents, encoded for use
-    /// in a RELAY or RELAY_EARLY cell
-    ///
-    /// TODO: not the best interface, as this requires copying into a cell.
-    fn encode_to_vec(self) -> EncodeResult<Vec<u8>> {
-        let mut w = Vec::new();
+    /// in a RELAY or RELAY_EARLY cell.
+    fn encode_to_cell(self) -> EncodeResult<(BoxedCellBody, usize)> {
+        // NOTE: This implementation is a bit optimized, since it happens to
+        // literally every relay cell that we produce.
+
+        // TODO -NM: Add a specialized implementation for making a DATA cell from
+        // a body?
+
+        /// Wrap a BoxedCellBody and implement AsMut<[u8]>
+        struct BodyWrapper(BoxedCellBody);
+        impl AsMut<[u8]> for BodyWrapper {
+            fn as_mut(&mut self) -> &mut [u8] {
+                self.0.as_mut()
+            }
+        }
+        /// The position of the length field within a relay cell.
+        const LEN_POS: usize = 9;
+        /// The position of the body a relay cell.
+        const BODY_POS: usize = 11;
+
+        let body = BodyWrapper(Box::new([0_u8; 509]));
+
+        let mut w = tor_bytes::SliceWriter::new(body);
         w.write_u8(self.msg.cmd().into());
         w.write_u16(0); // "Recognized"
         w.write_u16(self.streamid.0);
         w.write_u32(0); // Digest
-        let len_pos = w.len();
+                        // (It would be simpler to use NestedWriter at this point, but it uses an internal Vec that we are trying to avoid.)
+        debug_assert_eq!(
+            w.offset().expect("Overflowed a cell with just the header!"),
+            LEN_POS
+        );
         w.write_u16(0); // Length.
-        let body_pos = w.len();
-        self.msg.encode_onto(&mut w)?;
-        assert!(w.len() >= body_pos); // nothing was removed
-        let payload_len = w.len() - body_pos;
-        assert!(payload_len <= std::u16::MAX as usize);
-        *(array_mut_ref![w, len_pos, 2]) = (payload_len as u16).to_be_bytes();
-        Ok(w)
+        debug_assert_eq!(
+            w.offset().expect("Overflowed a cell with just the header!"),
+            BODY_POS
+        );
+        self.msg.encode_onto(&mut w)?; // body
+        let (mut body, written) = w.try_unwrap().map_err(|_| {
+            EncodeError::Bug(internal!(
+                "Encoding of relay message was too long to fit into a cell!"
+            ))
+        })?;
+        let payload_len = written - BODY_POS;
+        debug_assert!(payload_len < std::u16::MAX as usize);
+        *(array_mut_ref![body.0, LEN_POS, 2]) = (payload_len as u16).to_be_bytes();
+        Ok((body.0, written))
     }
+
     /// Parse a RELAY or RELAY_EARLY cell body into a RelayCell.
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
-    pub fn decode(body: RawCellBody) -> Result<Self> {
+    #[allow(clippy::needless_pass_by_value)] // TODO this will go away soon.
+    pub fn decode(body: BoxedCellBody) -> Result<Self> {
         let mut reader = Reader::from_slice(body.as_ref());
         Self::decode_from_reader(&mut reader)
     }

@@ -1,6 +1,6 @@
 //! Different kinds of messages that can be encoded in channel cells.
 
-use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
+use super::{BoxedCellBody, ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
@@ -353,7 +353,7 @@ impl Readable for Created2 {
 ///
 /// A different protocol is defined over the relay cells; it is implemented
 /// in the [crate::relaycell] module.
-#[derive(Clone, Educe)]
+#[derive(Clone, Educe, derive_more::From)]
 #[educe(Debug)]
 pub struct Relay {
     /// The contents of the relay cell as encoded for transfer.
@@ -364,7 +364,7 @@ pub struct Relay {
     /// necessary happen. We should refactor our data handling until we're mostly
     /// moving around pointers rather than copying data;  see ticket #7.
     #[educe(Debug(method = "skip_fmt"))]
-    body: Box<RawCellBody>,
+    body: BoxedCellBody,
 }
 impl Relay {
     /// Construct a Relay message from a slice containing its contents.
@@ -385,11 +385,10 @@ impl Relay {
             body: Box::new(body),
         }
     }
-
-    /// Consume this Relay message and return a RelayCellBody for
+    /// Consume this Relay message and return a BoxedCellBody for
     /// encryption/decryption.
-    pub fn into_relay_body(self) -> RawCellBody {
-        *self.body
+    pub fn into_relay_body(self) -> BoxedCellBody {
+        self.body
     }
     /// Wrap this Relay message into a RelayMsg as a RELAY_EARLY cell.
     pub fn into_early(self) -> AnyChanMsg {
@@ -426,13 +425,13 @@ impl Body for RelayEarly {
     }
 }
 impl RelayEarly {
-    /// Consume this RelayEarly message and return a RelayCellBody for
+    /// Consume this RelayEarly message and return a BoxedCellBody for
     /// encryption/decryption.
     //
     // (Since this method takes `self` by value, we can't take advantage of
     // Deref.)
-    pub fn into_relay_body(self) -> RawCellBody {
-        *self.0.body
+    pub fn into_relay_body(self) -> BoxedCellBody {
+        self.0.body
     }
 }
 

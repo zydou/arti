@@ -65,8 +65,15 @@ impl<T> SliceWriter<T> {
     ///
     /// On failure (if we tried to write too much), return an error.
     pub fn try_unwrap(self) -> Result<(T, usize), SliceWriterError> {
+        let offset = self.offset()?;
+        Ok((self.data, offset))
+    }
+
+    /// Return the number of bytes written into this `SliceWriter` so far,
+    /// or an error if it has overflowed.
+    pub fn offset(&self) -> Result<usize, SliceWriterError> {
         if self.offset != usize::MAX {
-            Ok((self.data, self.offset))
+            Ok(self.offset)
         } else {
             Err(SliceWriterError::Truncated)
         }

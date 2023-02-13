@@ -815,7 +815,7 @@ mod test {
     use hex_literal::hex;
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::chancell::{msg as chanmsg, AnyChanCell};
+    use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
     use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -825,11 +825,10 @@ mod test {
     where
         ID: Into<StreamId>,
     {
-        let body: RelayCellBody = AnyRelayCell::new(id.into(), msg)
+        let body: BoxedCellBody = AnyRelayCell::new(id.into(), msg)
             .encode(&mut testing_rng())
-            .unwrap()
-            .into();
-        let chanmsg = chanmsg::Relay::from_raw(body.into());
+            .unwrap();
+        let chanmsg = chanmsg::Relay::from(body);
         ClientCircChanMsg::Relay(chanmsg)
     }
 

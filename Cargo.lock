@@ -4136,6 +4136,7 @@ dependencies = [
  "cipher",
  "coarsetime",
  "derive_builder_fork_arti",
+ "derive_more",
  "digest 0.10.6",
  "educe",
  "futures",
