@@ -32,6 +32,9 @@ impl<I: PeekableIterator> PeekableIterator for &mut I {
 }
 
 /// Iterator for the header, transformable into a [`Batches`] yielding subsequent batches
+///
+/// `II` is the iterator item type.  `I` is the input iterator.
+/// `F` is the predicate for testing if an item is batch-starting.
 pub struct BatchesWithHeader<II, I, F> {
     /// Input
     input: Input<II, I, F>,
@@ -56,6 +59,9 @@ struct Input<II, I, F> {
 /// `Batches` is not an [`Iterator`] because
 /// its returned item type (the sub-iterator)
 /// borrows it mutably.
+///
+/// `II` is the iterator item type.  `I` is the input iterator.
+/// `F` is the predicate for testing if an item is batch-starting.
 pub struct Batches<II, I, F> {
     /// Input
     input: Input<II, I, F>,
@@ -69,6 +75,9 @@ pub struct Batches<II, I, F> {
 ///
 /// This is the iterator returned by
 /// [`.next_batch()`](Batches::next_batch).
+///
+/// `II` is the iterator item type.  `I` is the input iterator.
+/// `F` is the predicate for testing if an item is batch-starting.
 pub struct Batch<'p, II, I, F> {
     /// The parent, with all the actual state etc.
     ///
