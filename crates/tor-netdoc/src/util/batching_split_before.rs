@@ -31,7 +31,7 @@ impl<I: PeekableIterator> PeekableIterator for &mut I {
     }
 }
 
-/// Iterator for the prefix, transformable into meta-(pseudo-)iterator subsequent batches
+/// Iterator for the prefix, transformable into a [`Batches`] yielding subsequent batches
 pub struct BatchesWithPrefix<II, I, F> {
     /// Input
     input: Input<II, I, F>,
