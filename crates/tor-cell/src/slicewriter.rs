@@ -41,11 +41,11 @@ where
     T: AsMut<[u8]>,
 {
     fn write_all(&mut self, b: &[u8]) {
-        let new_len = self.offset.saturating_add(b.len());
-        if new_len <= self.data.as_mut().len() {
+        let new_offset = self.offset.saturating_add(b.len());
+        if new_offset <= self.data.as_mut().len() {
             // Note that if we reach this case, the addition was not saturating.
-            self.data.as_mut()[self.offset..new_len].copy_from_slice(b);
-            self.offset = new_len;
+            self.data.as_mut()[self.offset..new_offset].copy_from_slice(b);
+            self.offset = new_offset;
         } else {
             self.offset = usize::MAX;
         }
