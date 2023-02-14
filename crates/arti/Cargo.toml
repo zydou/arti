@@ -104,7 +104,7 @@ visibility = { version = "0.0.1", optional = true }
 itertools = "0.10.1"
 regex = { version = "1", default-features = false, features = ["std"] }
 serde_json = "1.0.50"
-toml = "0.6.0"
+toml = "0.7.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.8", features = ["winerror"] }

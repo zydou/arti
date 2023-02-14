@@ -63,7 +63,7 @@ tracing = "0.1.18"
 [dev-dependencies]
 float_eq = "1.0.0"
 serde_json = "1.0.50"
-toml = "0.6.0"
+toml = "0.7.2"
 tor-netdir = { path = "../tor-netdir", version = "0.7.1", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.6.1" }
 tor-persist = { path = "../tor-persist", version = "0.6.1", features = ["testing"] }
