@@ -1181,6 +1181,10 @@ empty_body! {
 //
 // TODO: It might be better to merge Body with RelayMsg, but that is complex,
 // since their needs are _slightly_ different.
+//
+// TODO: If we *do* make the change above, then perhaps we should also implement
+// our restricted enums in terms of this, so that there is only one instance of
+// [<$body:snake:upper>]
 macro_rules! msg_impl_relaymsg {
     ($($body:ident),* $(,)?) =>
     {paste::paste!{
