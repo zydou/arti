@@ -1,14 +1,20 @@
 //! A Writer that can put its results into an buffer of known byte size without
 //! changing that size.
+//!
+//! TODO: This API is crate-private in tor-cell because tor-cell is the only one
+//! to use it -- and only uses it in one place.  Its existence may be an argument
+//! for refactoring the Writer API entirely.
+//!
+//! NOTE: This will likely change or go away in the future.
 
 use thiserror::Error;
 
-use crate::Writer;
+use tor_bytes::Writer;
 
 /// An error that occurred while trying to unwrap a SliceWriter.
 #[non_exhaustive]
 #[derive(Clone, Debug, Error)]
-pub enum SliceWriterError {
+pub(crate) enum SliceWriterError {
     /// We've
     #[error("Tried to write more than would fit into a fixed-size slice.")]
     Truncated,
@@ -23,7 +29,7 @@ pub enum SliceWriterError {
 //
 // TODO: in theory we could have a version of this that used MaybeUninit, but I
 // don't think that would be worth it.
-pub struct SliceWriter<T> {
+pub(crate) struct SliceWriter<T> {
     /// The object we're writing into.  Must have fewer than usize::LEN bytes.
     data: T,
     /// Our current write position within that object.
@@ -53,7 +59,7 @@ impl<T> SliceWriter<T> {
     ///
     /// Preexisting bytes in the `data` object will be unchanged, unless you use
     /// the [`Writer`] API to write to them.
-    pub fn new(data: T) -> Self {
+    pub(crate) fn new(data: T) -> Self {
         Self { data, offset: 0 }
     }
 
@@ -64,14 +70,14 @@ impl<T> SliceWriter<T> {
     /// after that position are unchanged.)
     ///
     /// On failure (if we tried to write too much), return an error.
-    pub fn try_unwrap(self) -> Result<(T, usize), SliceWriterError> {
+    pub(crate) fn try_unwrap(self) -> Result<(T, usize), SliceWriterError> {
         let offset = self.offset()?;
         Ok((self.data, offset))
     }
 
     /// Return the number of bytes written into this `SliceWriter` so far,
     /// or an error if it has overflowed.
-    pub fn offset(&self) -> Result<usize, SliceWriterError> {
+    pub(crate) fn offset(&self) -> Result<usize, SliceWriterError> {
         if self.offset != usize::MAX {
             Ok(self.offset)
         } else {

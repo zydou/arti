@@ -318,7 +318,7 @@ impl<M: RelayMsg> RelayCell<M> {
 
         let body = BodyWrapper(Box::new([0_u8; 509]));
 
-        let mut w = tor_bytes::SliceWriter::new(body);
+        let mut w = crate::slicewriter::SliceWriter::new(body);
         w.write_u8(self.msg.cmd().into());
         w.write_u16(0); // "Recognized"
         w.write_u16(self.streamid.0);
