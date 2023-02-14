@@ -19,6 +19,7 @@ use super::desc_enc;
 /// A more-or-less verbatim representation of the outermost plaintext document
 /// of an onion service descriptor.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
 pub(super) struct HsDescOuter {
     /// The lifetime of this descriptor, in minutes.
     ///
@@ -117,6 +118,7 @@ static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
 
 impl HsDescOuter {
     /// Try to parse an outer document of an onion service descriptor from a string.
+    #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
     pub(super) fn parse(s: &str) -> Result<UncheckedHsDescOuter> {
         // XXXX needs to be unchecked.
         let mut reader = NetDocReader::new(s);

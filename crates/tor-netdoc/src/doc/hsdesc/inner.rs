@@ -15,6 +15,7 @@ use tor_llcrypto::pk::{curve25519, ed25519};
 
 /// The contents of the inner document of an onion service descriptor.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
 pub(super) struct HsDescInner {
     /// The authentication types that this onion service accepts when
     /// connecting.
@@ -87,6 +88,7 @@ static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
 impl HsDescInner {
     /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided string.
+    #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
     pub(super) fn parse(s: &str) -> Result<HsDescInner> {
         let mut reader = NetDocReader::new(s);
         let result = Self::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
