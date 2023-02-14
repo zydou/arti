@@ -198,6 +198,8 @@ pub struct UnparsedRelayCell {
     // It *is* a bit ugly to have to encode so much knowledge about the format in
     // different functions here, but that information shouldn't leak out of this module.
 }
+/// Position of the stream ID within the cell body.
+const STREAM_ID_OFFSET: usize = 3;
 
 impl UnparsedRelayCell {
     /// Wrap a BoxedCellBody as an UnparsedRelayCell.
@@ -212,9 +214,6 @@ impl UnparsedRelayCell {
     }
     /// Return the stream ID for the stream that this cell corresponds to.
     pub fn stream_id(&self) -> StreamId {
-        /// Position of the stream ID within the cell body.
-        const STREAM_ID_OFFSET: usize = 3;
-
         u16::from_be_bytes(*arrayref::array_ref![self.body, STREAM_ID_OFFSET, 2]).into()
     }
     /// Decode this unparsed cell into a given cell type.
@@ -321,6 +320,10 @@ impl<M: RelayMsg> RelayCell<M> {
         let mut w = crate::slicewriter::SliceWriter::new(body);
         w.write_u8(self.msg.cmd().into());
         w.write_u16(0); // "Recognized"
+        debug_assert_eq!(
+            w.offset().expect("Overflowed a cell with just the header!"),
+            STREAM_ID_OFFSET
+        );
         w.write_u16(self.streamid.0);
         w.write_u32(0); // Digest
                         // (It would be simpler to use NestedWriter at this point, but it uses an internal Vec that we are trying to avoid.)
