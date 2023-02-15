@@ -10,6 +10,7 @@ use crate::util::PauseAt;
 use crate::{Error, ParseErrorKind as EK, Pos, Result};
 use base64ct::{Base64, Encoding};
 use std::cell::{Ref, RefCell};
+use std::iter::Peekable;
 use std::str::FromStr;
 use tor_error::internal;
 
@@ -605,7 +606,7 @@ pub(crate) struct NetDocReader<'a, K: Keyword> {
     /// The underlying string being parsed.
     s: &'a str,
     /// A stream of tokens being parsed by this NetDocReader.
-    tokens: std::iter::Peekable<NetDocReaderBase<'a, K>>,
+    tokens: Peekable<NetDocReaderBase<'a, K>>,
 }
 
 impl<'a, K: Keyword> NetDocReader<'a, K> {
@@ -623,13 +624,13 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     /// Return the peekable iterator over the string's tokens.
     pub(crate) fn iter(
         &mut self,
-    ) -> &mut std::iter::Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
+    ) -> &mut Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
         &mut self.tokens
     }
     /// Convert into a peekable iterator over the string's tokens.
     pub(crate) fn into_iter(
         self,
-    ) -> std::iter::Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
+    ) -> Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
         self.tokens
     }
     /// Return a PauseAt wrapper around the peekable iterator in this
