@@ -624,19 +624,6 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     pub(crate) fn str(&self) -> &'a str {
         self.s
     }
-    /// Return the peekable iterator over the string's tokens.
-    #[allow(dead_code)] // TODO this is going to go away momentarily
-    pub(crate) fn iter(
-        &mut self,
-    ) -> &mut Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
-        &mut self.tokens
-    }
-    /// Convert into a peekable iterator over the string's tokens.
-    pub(crate) fn into_iter(
-        self,
-    ) -> Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
-        self.tokens
-    }
     /// Return a wrapper around the peekable iterator in this
     /// NetDocReader that reads tokens until it reaches an element where
     /// 'f' is true.
