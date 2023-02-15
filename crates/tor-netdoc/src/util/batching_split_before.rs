@@ -11,32 +11,10 @@
 // This is achieved with `#[doc(hidden)]` on the top-level module reexport
 // in `lib.rs`, which is the only place all of this isactually exposed.
 
-use std::iter::{self, Peekable};
+use std::iter;
 use std::marker::PhantomData;
 
-/// An iterator with a `.peek()` method
-///
-/// We make this a trait to avoid entangling all the types with `Peekable`.
-/// Ideally we would do this with `Itertools::PeekingNext`
-/// but that's not implemented for `&mut PeekingNext`,
-/// and we need that because we use a lot of `&mut NetdocReader`.
-/// <https://github.com/rust-itertools/itertools/issues/678>
-pub trait PeekableIterator: Iterator {
-    /// Inspect the next item, if there is one
-    fn peek(&mut self) -> Option<&Self::Item>;
-}
-
-impl<I: Iterator> PeekableIterator for Peekable<I> {
-    fn peek(&mut self) -> Option<&Self::Item> {
-        self.peek()
-    }
-}
-
-impl<I: PeekableIterator> PeekableIterator for &mut I {
-    fn peek(&mut self) -> Option<&Self::Item> {
-        <I as PeekableIterator>::peek(*self)
-    }
-}
+use crate::util::PeekableIterator;
 
 /// Iterator for the header, transformable into a [`Batches`] yielding subsequent batches
 ///
@@ -349,6 +327,7 @@ mod tests {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::util::*;
     use itertools::chain;
     use std::fmt::Debug;
     use std::iter;
