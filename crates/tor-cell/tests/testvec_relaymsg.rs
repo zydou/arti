@@ -659,7 +659,7 @@ fn test_establish_rendezvous() {
 #[test]
 fn test_establish_intro() {
     use tor_cell::relaycell::{
-        hs::{AuthKeyType, EstIntroExtDoS, EstablishIntro},
+        hs::{est_intro::*, AuthKeyType},
         msg::AnyRelayMsg,
     };
 
