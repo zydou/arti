@@ -15,7 +15,13 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 full = ["routerdesc", "ns_consensus"]
-experimental = ["build_docs", "experimental-api", "onion-client", "onion-service"]
+experimental = [
+    "build_docs",
+    "experimental-api",
+    "onion-client",
+    "onion-service",
+    "hsdesc-inner-docs",
+]
 
 # Enable code to build the objects that represent different network documents.
 build_docs = ["rand"]
@@ -33,6 +39,8 @@ ns_consensus = []
 onion-client = ["onion-common"]
 onion-service = ["onion-common", "rand"]
 onion-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
+# Testing only : expose code to parse inner layers of onion service descriptors.
+hsdesc-inner-docs = ["visibility"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
