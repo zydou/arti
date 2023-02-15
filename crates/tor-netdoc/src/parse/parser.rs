@@ -223,7 +223,7 @@ impl<T: Keyword> SectionRules<T> {
     ///
     /// Some errors are detected early, but others only show up later
     /// when we validate more carefully.
-    fn parse_unverified<'a, I>(&self, tokens: &mut I, section: &mut Section<'a, T>) -> Result<()>
+    fn parse_unverified<'a, I>(&self, tokens: I, section: &mut Section<'a, T>) -> Result<()>
     where
         I: Iterator<Item = Result<Item<'a, T>>>,
     {
@@ -291,7 +291,7 @@ impl<T: Keyword> SectionRules<T> {
     }
 
     /// Parse a stream of tokens into a validated section.
-    pub(crate) fn parse<'a, I>(&self, tokens: &mut I) -> Result<Section<'a, T>>
+    pub(crate) fn parse<'a, I>(&self, tokens: I) -> Result<Section<'a, T>>
     where
         I: Iterator<Item = Result<Item<'a, T>>>,
     {
