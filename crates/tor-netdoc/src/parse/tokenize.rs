@@ -643,14 +643,14 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
         &mut self,
         mut f: F,
     ) -> itertools::PeekingTakeWhile<'_,
-                                     Peekable<impl Iterator<Item = Result<Item<'a, K>>>>,
+                                     Self,
                                      impl FnMut(&Result<Item<'a, K>>) -> bool + 'f>
     where
         'f: 'r,
         F: FnMut(&Result<Item<'a, K>>) -> bool + 'f,
         K: 'f,
     {
-        self.tokens.peeking_take_while(move |i| !f(i))
+        self.peeking_take_while(move |i| !f(i))
     }
 
     /// Return true if there are no more items in this NetDocReader.
