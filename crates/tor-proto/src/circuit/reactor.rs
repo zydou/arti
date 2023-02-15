@@ -811,6 +811,14 @@ impl Reactor {
     /// Handle a RELAY cell on this circuit with stream ID 0.
     fn handle_meta_cell(&mut self, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
+
+        // TODO: This pattern (Check command, try to decode, map error) occurs
+        // several times, and would be good to extract simplify. Such
+        // simplification is obstructed by a couple of factors: First, that
+        // there is not currently a good way to get the RelayCmd from _type_ of
+        // a RelayMsg.  Second, that decode() [correctly] consumes the
+        // UnparsedRelayMsg.  I tried a macro-based approach, and didn't care
+        // for it. -nickm
         if msg.cmd() == RelayCmd::SENDME {
             let sendme = msg
                 .decode::<Sendme>()
