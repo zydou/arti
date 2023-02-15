@@ -412,20 +412,20 @@ impl RouterDesc {
         use RouterKwd::*;
 
         // Parse everything up through the header.
-        let mut reader =
-            reader.pause_at(|item| item.is_ok_with_kwd_not_in(&[ROUTER, IDENTITY_ED25519]));
-        let header = ROUTER_HEADER_RULES.parse(&mut reader)?;
+        let header = ROUTER_HEADER_RULES.parse(
+            reader.pause_at(|item| item.is_ok_with_kwd_not_in(&[ROUTER, IDENTITY_ED25519])),
+        )?;
 
         // Parse everything up to but not including the signature.
-        let mut reader =
-            reader.new_pred(|item| item.is_ok_with_kwd_in(&[ROUTER_SIGNATURE, ROUTER_SIG_ED25519]));
-        let body = ROUTER_BODY_RULES.parse(&mut reader)?;
+        let body =
+            ROUTER_BODY_RULES.parse(reader.pause_at(|item| {
+                item.is_ok_with_kwd_in(&[ROUTER_SIGNATURE, ROUTER_SIG_ED25519])
+            }))?;
 
         // Parse the signature.
-        let mut reader = reader.new_pred(|item| {
+        let sig = ROUTER_SIG_RULES.parse(reader.pause_at(|item| {
             item.is_ok_with_annotation() || item.is_ok_with_kwd(ROUTER) || item.is_empty_line()
-        });
-        let sig = ROUTER_SIG_RULES.parse(&mut reader)?;
+        }))?;
 
         Ok((header, body, sig))
     }
