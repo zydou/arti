@@ -658,16 +658,13 @@ fn test_establish_rendezvous() {
 #[cfg(feature = "onion-service")]
 #[test]
 fn test_establish_intro() {
-    use tor_cell::relaycell::{
-        hs::{est_intro::*, AuthKeyType},
-        msg::AnyRelayMsg,
-    };
+    use tor_cell::relaycell::hs::{est_intro::*, AuthKeyType, UnrecognizedExt};
 
     let cmd = RelayCmd::ESTABLISH_INTRO;
     let auth_key_type = AuthKeyType::ED25519_SHA3_256;
     let auth_key = vec![0, 1, 2, 3];
-    let extension_dos = EstIntroExtDoS::new(Some(1_i32), Some(2_i32))
-        .expect("invalid EST_INTRO_DOS_EXT parameter(s)");
+    let extension_dos =
+        DosParams::new(Some(1_i32), Some(2_i32)).expect("invalid EST_INTRO_DOS_EXT parameter(s)");
     let handshake_auth = [1; 32];
     let sig = vec![0, 1, 2, 3];
     assert_eq!(Into::<u8>::into(cmd), 32);
@@ -700,26 +697,21 @@ fn test_establish_intro() {
     // and one unknown extension
     let auth_key = vec![0, 1, 2, 3];
     let sig = vec![0, 1, 2, 3];
-    let extension_dos = EstIntroExtDoS::new(Some(1_i32), Some(2_i32))
-        .expect("invalid EST_INTRO_DOS_EXT parameter(s)");
-
-    let body = "02 0004 00010203
-         02 01 13 02 01 0000000000000001 02 0000000000000002 02 01 00
-         0101010101010101010101010101010101010101010101010101010101010101
-         0004 00010203";
-    let actual_msg = decode(cmd, &unhex(body)[..]).unwrap();
-    let mut actual_bytes = vec![];
-    let mut expect_bytes = vec![];
-    actual_msg
-        .encode_onto(&mut actual_bytes)
-        .expect("Encode msg onto byte vector");
+    let extension_dos =
+        DosParams::new(Some(1_i32), Some(2_i32)).expect("invalid EST_INTRO_DOS_EXT parameter(s)");
+    let extension_unrecognized = UnrecognizedExt::new(2.into(), vec![0]);
     let mut es_intro = EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig);
     es_intro.set_extension_dos(extension_dos);
-    let expected_msg: AnyRelayMsg = es_intro.into();
-    expected_msg
-        .encode_onto(&mut expect_bytes)
-        .expect("Encode msg onto byte vector");
-    assert_eq!(actual_bytes, expect_bytes);
+    es_intro.set_extension_other(extension_unrecognized);
+
+    msg(
+        cmd,
+        "02 0004 00010203
+         02 01 13 02 01 0000000000000001 02 0000000000000002 02 01 00
+         0101010101010101010101010101010101010101010101010101010101010101
+         0004 00010203",
+        &es_intro.into(),
+    );
 }
 
 #[cfg(feature = "onion-service")]

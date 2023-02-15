@@ -2,15 +2,6 @@
 
 #![allow(dead_code, unused_variables)] // TODO hs: remove.
 
-// TODO hs design: We need to discuss how we want to handle extensions in these
-// cells: extensions are used all over the protocol, and it would be nice to be
-// more clever about them.
-//
-// It would be neat if recognized extension types were decoded into recognized
-// structures. On the other hand, it would be good to retain unrecognized
-// extension types, so that other code  can use them in the future without having to
-// add support here.
-
 // TODO hs: we'll need accessors for the useful fields in all these types.
 
 use super::msg::{self, Body};
@@ -21,6 +12,9 @@ use tor_hscrypto::RendCookie;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 pub mod est_intro;
+mod ext;
+
+pub use ext::UnrecognizedExt;
 
 caret_int! {
     /// The type of the introduction point auth key
