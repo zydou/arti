@@ -268,6 +268,11 @@ impl Body for Begin {
 #[derive(Debug, Clone)]
 pub struct Data {
     /// Contents of the cell, to be sent on a specific stream
+    //
+    // TODO: There's a good case to be made that this should be a BoxedCellBody
+    // instead, to avoid allocations and copies.  But first probably we should
+    // figure out how proposal 340 will work with this.  Possibly, we will wind
+    // up using `bytes` or something.
     body: Vec<u8>,
 }
 impl Data {
@@ -1170,3 +1175,53 @@ empty_body! {
     /// Opens a new stream on a directory cache.
     pub struct BeginDir {}
 }
+
+/// Helper: declare a RelayMsg implementation for a message type that has a
+/// fixed command.
+//
+// TODO: It might be better to merge Body with RelayMsg, but that is complex,
+// since their needs are _slightly_ different.
+//
+// TODO: If we *do* make the change above, then perhaps we should also implement
+// our restricted enums in terms of this, so that there is only one instance of
+// [<$body:snake:upper>]
+macro_rules! msg_impl_relaymsg {
+    ($($body:ident),* $(,)?) =>
+    {paste::paste!{
+       $(impl crate::relaycell::RelayMsg for $body {
+            fn cmd(&self) -> crate::relaycell::RelayCmd { crate::relaycell::RelayCmd::[< $body:snake:upper >] }
+            fn encode_onto<W: tor_bytes::Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()> {
+                crate::relaycell::msg::Body::encode_onto(self, w)
+            }
+            fn decode_from_reader(cmd: RelayCmd, r: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self> {
+                if cmd != crate::relaycell::RelayCmd::[< $body:snake:upper >] {
+                    return Err(tor_bytes::Error::InvalidMessage(
+                        format!("Expected {} command; got {cmd}", stringify!([< $body:snake:upper >])).into()
+                    ));
+                }
+                crate::relaycell::msg::Body::decode_from_reader(r)
+            }
+        })*
+    }}
+}
+
+msg_impl_relaymsg!(
+    Begin, Data, End, Connected, Sendme, Extend, Extended, Extend2, Extended2, Truncate, Truncated,
+    Drop, Resolve, Resolved, BeginDir,
+);
+
+#[cfg(feature = "experimental-udp")]
+msg_impl_relaymsg!(ConnectUdp, ConnectedUdp, Datagram);
+
+#[cfg(feature = "onion-service")]
+msg_impl_relaymsg!(
+    EstablishIntro,
+    EstablishRendezvous,
+    Introduce1,
+    Introduce2,
+    Rendezvous1,
+    Rendezvous2,
+    IntroEstablished,
+    RendezvousEstablished,
+    IntroduceAck,
+);

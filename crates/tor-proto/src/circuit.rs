@@ -241,6 +241,11 @@ impl ClientCirc {
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
     //   reactor code, but "meta messages" just sounds odd.
+    //
+    // TODO hs: possibly this should take a more encoded message type.
+    //
+    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
+    //   tor-proto interface.
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     #[cfg(feature = "experimental-api")]
     pub async fn send_control_message(&self, msg: AnyRelayMsg) -> Result<()> {
@@ -279,6 +284,11 @@ impl ClientCirc {
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
     //   reactor code, but "meta messages" just sounds odd.
+    //
+    // TODO hs: This should return a stream of UnparsedRelayCell.
+    //
+    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
+    //   tor-proto interface.
     #[cfg(feature = "experimental-api")]
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     pub fn receive_control_messages(
@@ -815,7 +825,7 @@ mod test {
     use hex_literal::hex;
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::chancell::{msg as chanmsg, AnyChanCell};
+    use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
     use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -825,11 +835,10 @@ mod test {
     where
         ID: Into<StreamId>,
     {
-        let body: RelayCellBody = AnyRelayCell::new(id.into(), msg)
+        let body: BoxedCellBody = AnyRelayCell::new(id.into(), msg)
             .encode(&mut testing_rng())
-            .unwrap()
-            .into();
-        let chanmsg = chanmsg::Relay::from_raw(body.into());
+            .unwrap();
+        let chanmsg = chanmsg::Relay::from(body);
         ClientCircChanMsg::Relay(chanmsg)
     }
 
@@ -1244,9 +1253,10 @@ mod test {
 
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             match error {
-                Error::CircProto(s) => {
-                    assert_eq!(s, "wanted EXTENDED2; got EXTENDED");
-                }
+                Error::BytesErr {
+                    err: tor_bytes::Error::InvalidMessage(_),
+                    object: "extended2 message",
+                } => {}
                 _ => panic!(),
             }
         });

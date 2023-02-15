@@ -27,6 +27,8 @@ pub struct IncomingStream {
 }
 
 /// A message that can be sent to begin a stream.
+//
+// TODO hs perhaps this should be made with restricted_msg!()
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum IncomingStreamRequest {

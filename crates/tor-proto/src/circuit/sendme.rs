@@ -12,8 +12,8 @@
 
 use std::collections::VecDeque;
 
-use tor_cell::relaycell::msg::AnyRelayMsg;
-use tor_cell::relaycell::AnyRelayCell;
+use tor_cell::relaycell::RelayCmd;
+use tor_cell::relaycell::UnparsedRelayCell;
 use tor_error::internal;
 
 use crate::{Error, Result};
@@ -267,14 +267,21 @@ impl<P: WindowParams> RecvWindow<P> {
     }
 }
 
-/// Return true if this message is counted by flow-control windows.
-pub(crate) fn msg_counts_towards_windows(msg: &AnyRelayMsg) -> bool {
-    matches!(msg, AnyRelayMsg::Data(_))
+/// Return true if this message type is counted by flow-control windows.
+pub(crate) fn cmd_counts_towards_windows(cmd: RelayCmd) -> bool {
+    cmd == RelayCmd::DATA
 }
 
 /// Return true if this message is counted by flow-control windows.
-pub(crate) fn cell_counts_towards_windows(cell: &AnyRelayCell) -> bool {
-    msg_counts_towards_windows(cell.msg())
+#[cfg(test)]
+pub(crate) fn msg_counts_towards_windows(msg: &tor_cell::relaycell::msg::AnyRelayMsg) -> bool {
+    use tor_cell::relaycell::RelayMsg;
+    cmd_counts_towards_windows(msg.cmd())
+}
+
+/// Return true if this message is counted by flow-control windows.
+pub(crate) fn cell_counts_towards_windows(cell: &UnparsedRelayCell) -> bool {
+    cmd_counts_towards_windows(cell.cmd())
 }
 
 #[cfg(test)]
@@ -290,24 +297,24 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::relaycell::{msg, AnyRelayCell};
 
     #[test]
     fn what_counts() {
+        let mut rng = testing_rng();
         let m = msg::Begin::new("www.torproject.org", 443, 0)
             .unwrap()
             .into();
         assert!(!msg_counts_towards_windows(&m));
-        assert!(!cell_counts_towards_windows(&AnyRelayCell::new(
-            77.into(),
-            m
+        assert!(!cell_counts_towards_windows(&UnparsedRelayCell::from_body(
+            AnyRelayCell::new(77.into(), m).encode(&mut rng).unwrap()
         )));
 
         let m = msg::Data::new(&b"Education is not a prerequisite to political control-political control is the cause of popular education."[..]).unwrap().into(); // Du Bois
         assert!(msg_counts_towards_windows(&m));
-        assert!(cell_counts_towards_windows(&AnyRelayCell::new(
-            128.into(),
-            m
+        assert!(cell_counts_towards_windows(&UnparsedRelayCell::from_body(
+            AnyRelayCell::new(128.into(), m).encode(&mut rng).unwrap()
         )));
     }
 

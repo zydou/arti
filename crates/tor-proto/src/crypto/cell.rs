@@ -8,25 +8,15 @@
 //!
 
 use crate::{Error, Result};
-use tor_cell::chancell::RawCellBody;
+use tor_cell::chancell::BoxedCellBody;
 use tor_error::internal;
 
 use generic_array::GenericArray;
 
 /// Type for the body of a relay cell.
-#[derive(Clone)]
-pub(crate) struct RelayCellBody(RawCellBody);
+#[derive(Clone, derive_more::From, derive_more::Into)]
+pub(crate) struct RelayCellBody(BoxedCellBody);
 
-impl From<RawCellBody> for RelayCellBody {
-    fn from(body: RawCellBody) -> Self {
-        RelayCellBody(body)
-    }
-}
-impl From<RelayCellBody> for RawCellBody {
-    fn from(cell: RelayCellBody) -> Self {
-        cell.0
-    }
-}
 impl AsRef<[u8]> for RelayCellBody {
     fn as_ref(&self) -> &[u8] {
         &self.0[..]
@@ -447,7 +437,7 @@ mod test {
         let mut rng = testing_rng();
         for _ in 1..300 {
             // outbound cell
-            let mut cell = [0_u8; 509];
+            let mut cell = Box::new([0_u8; 509]);
             let mut cell_orig = [0_u8; 509];
             rng.fill_bytes(&mut cell_orig);
             cell.copy_from_slice(&cell_orig);
@@ -461,7 +451,7 @@ mod test {
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
             // inbound cell
-            let mut cell = [0_u8; 509];
+            let mut cell = Box::new([0_u8; 509]);
             let mut cell_orig = [0_u8; 509];
             rng.fill_bytes(&mut cell_orig);
             cell.copy_from_slice(&cell_orig);
@@ -480,14 +470,14 @@ mod test {
 
         // Try a failure: sending a cell to a nonexistent hop.
         {
-            let mut cell = [0_u8; 509].into();
+            let mut cell = Box::new([0_u8; 509]).into();
             let err = cc_out.encrypt(&mut cell, 10.into());
             assert!(matches!(err, Err(Error::NoSuchHop)));
         }
 
         // Try a failure: A junk cell with no correct auth from any layer.
         {
-            let mut cell = [0_u8; 509].into();
+            let mut cell = Box::new([0_u8; 509]).into();
             let err = cc_in.decrypt(&mut cell);
             assert!(matches!(err, Err(Error::BadCellAuth)));
         }
@@ -527,7 +517,7 @@ mod test {
 
         let mut j = 0;
         for cellno in 0..51 {
-            let mut body = [0_u8; 509];
+            let mut body = Box::new([0_u8; 509]);
             body[0] = 2; // command: data.
             body[4] = 1; // streamid: 1.
             body[9] = 1; // length: 498

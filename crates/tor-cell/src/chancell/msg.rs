@@ -1,6 +1,6 @@
 //! Different kinds of messages that can be encoded in channel cells.
 
-use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
+use super::{BoxedCellBody, ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
@@ -353,7 +353,7 @@ impl Readable for Created2 {
 ///
 /// A different protocol is defined over the relay cells; it is implemented
 /// in the [crate::relaycell] module.
-#[derive(Clone, Educe)]
+#[derive(Clone, Educe, derive_more::From)]
 #[educe(Debug)]
 pub struct Relay {
     /// The contents of the relay cell as encoded for transfer.
@@ -364,7 +364,7 @@ pub struct Relay {
     /// necessary happen. We should refactor our data handling until we're mostly
     /// moving around pointers rather than copying data;  see ticket #7.
     #[educe(Debug(method = "skip_fmt"))]
-    body: Box<RawCellBody>,
+    body: BoxedCellBody,
 }
 impl Relay {
     /// Construct a Relay message from a slice containing its contents.
@@ -385,11 +385,10 @@ impl Relay {
             body: Box::new(body),
         }
     }
-
-    /// Consume this Relay message and return a RelayCellBody for
+    /// Consume this Relay message and return a BoxedCellBody for
     /// encryption/decryption.
-    pub fn into_relay_body(self) -> RawCellBody {
-        *self.body
+    pub fn into_relay_body(self) -> BoxedCellBody {
+        self.body
     }
     /// Wrap this Relay message into a RelayMsg as a RELAY_EARLY cell.
     pub fn into_early(self) -> AnyChanMsg {
@@ -426,13 +425,13 @@ impl Body for RelayEarly {
     }
 }
 impl RelayEarly {
-    /// Consume this RelayEarly message and return a RelayCellBody for
+    /// Consume this RelayEarly message and return a BoxedCellBody for
     /// encryption/decryption.
     //
     // (Since this method takes `self` by value, we can't take advantage of
     // Deref.)
-    pub fn into_relay_body(self) -> RawCellBody {
-        *self.0.body
+    pub fn into_relay_body(self) -> BoxedCellBody {
+        self.0.body
     }
 }
 
@@ -1170,6 +1169,58 @@ msg_into_cell!(Certs);
 msg_into_cell!(AuthChallenge);
 msg_into_cell!(Authenticate);
 msg_into_cell!(Authorize);
+
+/// Helper: declare a ChanMsg implementation for a message type that has a
+/// fixed command.
+//
+// TODO: It might be better to merge Body with ChanMsg, but that is complex,
+// since their needs are _slightly_ different.
+//
+// TODO: If we *do* make the change above, then perhaps we should also implement
+// our restricted enums in terms of this, so that there is only one instance of
+// [<$body:snake:upper>]
+macro_rules! msg_impl_chanmsg {
+    ($($body:ident,)*) =>
+    {paste::paste!{
+       $(impl crate::chancell::ChanMsg for $body {
+            fn cmd(&self) -> crate::chancell::ChanCmd { crate::chancell::ChanCmd::[< $body:snake:upper >] }
+            fn encode_onto<W: tor_bytes::Writer + ?Sized>(self, w: &mut W) -> tor_bytes::EncodeResult<()> {
+                crate::chancell::msg::Body::encode_onto(self, w)
+            }
+            fn decode_from_reader(cmd: ChanCmd, r: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self> {
+                if cmd != crate::chancell::ChanCmd::[< $body:snake:upper >] {
+                    return Err(tor_bytes::Error::InvalidMessage(
+                        format!("Expected {} command; got {cmd}", stringify!([< $body:snake:upper >])).into()
+                    ));
+                }
+                crate::chancell::msg::Body::decode_from_reader(r)
+            }
+        })*
+    }}
+}
+
+// We implement ChanMsg for every body type, so that you can write code that does
+// e.g. ChanCell<Relay>.
+msg_impl_chanmsg!(
+    Padding,
+    Vpadding,
+    Create,
+    CreateFast,
+    Create2,
+    Created,
+    CreatedFast,
+    Created2,
+    Relay,
+    RelayEarly,
+    Destroy,
+    Netinfo,
+    Versions,
+    PaddingNegotiate,
+    Certs,
+    AuthChallenge,
+    Authenticate,
+    Authorize,
+);
 
 #[cfg(test)]
 mod test {

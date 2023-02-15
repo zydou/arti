@@ -22,6 +22,11 @@ pub const CELL_DATA_LEN: usize = 509;
 /// A cell body considered as a raw array of bytes
 pub type RawCellBody = [u8; CELL_DATA_LEN];
 
+/// A [`RawCellBody`] stored on the heap.
+///
+/// We use this often to avoid copying cell bodies around.
+pub type BoxedCellBody = Box<RawCellBody>;
+
 /// Channel-local identifier for a circuit.
 ///
 /// A circuit ID can be 2 or 4 bytes long; since version 4 of the Tor

@@ -1,4 +1,5 @@
 //! Code to handle incoming cells on a circuit.
+use super::halfstream::HalfStreamStatus;
 use super::streammap::{ShouldSendEnd, StreamEnt};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::unique_id::UniqId;
@@ -16,7 +17,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
-use tor_cell::relaycell::{AnyRelayCell, RelayCmd, RelayMsg, StreamId};
+use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
 
 use futures::channel::{mpsc, oneshot};
 use futures::Sink;
@@ -34,7 +35,7 @@ use crate::circuit::sendme::StreamSendWindow;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
-use tor_cell::chancell::{self, ChanMsg};
+use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_linkspec::{LinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
@@ -118,7 +119,7 @@ pub(super) enum CtrlMsg {
         /// SENDME cells once we've read enough out of the other end. If it *does* block, we
         /// can assume someone is trying to send us more cells than they should, and abort
         /// the stream.
-        sender: mpsc::Sender<AnyRelayMsg>,
+        sender: mpsc::Sender<UnparsedRelayCell>,
         /// A channel to receive messages to send on this stream from.
         rx: mpsc::Receiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
@@ -260,7 +261,9 @@ pub(super) trait MetaCellHandler: Send {
     /// Called when the message we were waiting for arrives.
     ///
     /// Gets a copy of the `Reactor` in order to do anything it likes there.
-    fn finish(&mut self, msg: AnyRelayMsg, reactor: &mut Reactor) -> Result<()>;
+    ///
+    /// If this function returns an error, the reactor will shut down.
+    fn finish(&mut self, msg: UnparsedRelayCell, reactor: &mut Reactor) -> Result<()>;
 }
 
 /// An object that can extend a circuit by one hop, using the `MetaCellHandler` trait.
@@ -373,28 +376,12 @@ where
     fn expected_hop(&self) -> HopNum {
         self.expected_hop
     }
-    fn finish(&mut self, msg: AnyRelayMsg, reactor: &mut Reactor) -> Result<()> {
-        // Did we get the right response?
-        if msg.cmd() != RelayCmd::EXTENDED2 {
-            return Err(Error::CircProto(format!(
-                "wanted EXTENDED2; got {}",
-                msg.cmd(),
-            )));
-        }
+    fn finish(&mut self, msg: UnparsedRelayCell, reactor: &mut Reactor) -> Result<()> {
+        let msg = msg
+            .decode::<tor_cell::relaycell::msg::Extended2>()
+            .map_err(|e| Error::from_bytes_err(e, "extended2 message"))?
+            .into_msg();
 
-        // ???? Do we need to shutdown the circuit for the remaining error
-        // ???? cases in this function?
-
-        let msg = match msg {
-            AnyRelayMsg::Extended2(e) => e,
-            _ => {
-                return Err(Error::from(internal!(
-                    "Message body {:?} didn't match cmd {:?}",
-                    msg,
-                    msg.cmd()
-                )))
-            }
-        };
         let relay_handshake = msg.into_body();
 
         trace!(
@@ -822,13 +809,30 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: AnyRelayMsg) -> Result<CellStatus> {
+    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
-        if let AnyRelayMsg::Sendme(s) = msg {
-            return self.handle_sendme(hopnum, s);
+
+        // TODO: This pattern (Check command, try to decode, map error) occurs
+        // several times, and would be good to extract simplify. Such
+        // simplification is obstructed by a couple of factors: First, that
+        // there is not currently a good way to get the RelayCmd from _type_ of
+        // a RelayMsg.  Second, that decode() [correctly] consumes the
+        // UnparsedRelayMsg.  I tried a macro-based approach, and didn't care
+        // for it. -nickm
+        if msg.cmd() == RelayCmd::SENDME {
+            let sendme = msg
+                .decode::<Sendme>()
+                .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
+                .into_msg();
+
+            return self.handle_sendme(hopnum, sendme);
         }
-        if let AnyRelayMsg::Truncated(t) = msg {
-            let reason = t.reason();
+        if msg.cmd() == RelayCmd::TRUNCATED {
+            let truncated = msg
+                .decode::<tor_cell::relaycell::msg::Truncated>()
+                .map_err(|e| Error::from_bytes_err(e, "truncated message"))?
+                .into_msg();
+            let reason = truncated.reason();
             debug!(
                 "{}: Truncated from hop {}. Reason: {} [{}]",
                 self.unique_id,
@@ -857,8 +861,12 @@ impl Reactor {
                     self.unique_id,
                     ret
                 );
+                let status = match &ret {
+                    Ok(()) => Ok(CellStatus::Continue),
+                    Err(e) => Err(e.clone()),
+                };
                 let _ = done.send(ret); // don't care if sender goes away
-                Ok(CellStatus::Continue)
+                status
             } else {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
@@ -976,7 +984,7 @@ impl Reactor {
         early: bool,
         cell: AnyRelayCell,
     ) -> Result<()> {
-        let c_t_w = sendme::cell_counts_towards_windows(&cell);
+        let c_t_w = sendme::cmd_counts_towards_windows(cell.cmd());
         let stream_id = cell.stream_id();
         // Check whether the hop send window is empty, if this cell counts towards windows.
         // NOTE(eta): It is imperative this happens *before* calling encrypt() below, otherwise
@@ -1005,7 +1013,7 @@ impl Reactor {
         let tag = self.crypto_out.encrypt(&mut body, hop)?;
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let msg = chancell::msg::Relay::from_raw(body.into());
+        let msg = chancell::msg::Relay::from(BoxedCellBody::from(body));
         let msg = if early {
             AnyChanMsg::RelayEarly(msg.into())
         } else {
@@ -1159,7 +1167,7 @@ impl Reactor {
         cx: &mut Context<'_>,
         hopnum: HopNum,
         message: AnyRelayMsg,
-        sender: mpsc::Sender<AnyRelayMsg>,
+        sender: mpsc::Sender<UnparsedRelayCell>,
         rx: mpsc::Receiver<AnyRelayMsg>,
     ) -> Result<StreamId> {
         let hop = self
@@ -1241,9 +1249,8 @@ impl Reactor {
             tag_copy.copy_from_slice(tag);
             tag_copy
         };
-        // Decode the cell.
-        let msg = AnyRelayCell::decode(body.into())
-            .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+        // Put the cell into a format where we can make sense of it.
+        let msg = UnparsedRelayCell::from_body(body.into());
 
         let c_t_w = sendme::cell_counts_towards_windows(&msg);
 
@@ -1277,12 +1284,11 @@ impl Reactor {
                 .put();
         }
 
-        // Break the message apart into its streamID and message.
-        let (streamid, msg) = msg.into_streamid_and_msg();
-
         // If this cell wants/refuses to have a Stream ID, does it
         // have/not have one?
-        if !msg.cmd().accepts_streamid_val(streamid) {
+        let cmd = msg.cmd();
+        let streamid = msg.stream_id();
+        if !cmd.accepts_streamid_val(streamid) {
             return Err(Error::CircProto(format!(
                 "Invalid stream ID {} for relay command {}",
                 sv(streamid),
@@ -1309,7 +1315,11 @@ impl Reactor {
             }) => {
                 // The stream for this message exists, and is open.
 
-                if let AnyRelayMsg::Sendme(_) = msg {
+                if msg.cmd() == RelayCmd::SENDME {
+                    let _sendme = msg
+                        .decode::<Sendme>()
+                        .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
+                        .into_msg();
                     // We need to handle sendmes here, not in the stream's
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
@@ -1317,19 +1327,19 @@ impl Reactor {
                     return Ok(CellStatus::Continue);
                 }
 
-                if matches!(msg, AnyRelayMsg::Connected(_)) {
+                if msg.cmd() == RelayCmd::CONNECTED {
                     // Remember that we've received a Connected cell, and can't get another,
                     // even if we become a HalfStream.  (This rule is enforced separately at
                     // DataStreamReader.)
+
+                    // TODO: This is problematic; see #774.
                     *received_connected = true;
                 }
 
                 // Remember whether this was an end cell: if so we should
                 // close the stream.
-                let is_end_cell = matches!(msg, AnyRelayMsg::End(_));
+                let is_end_cell = msg.cmd() == RelayCmd::END;
 
-                // TODO: Add a wrapper type here to reject cells that should
-                // never go to a client, like BEGIN.
                 if let Err(e) = sink.try_send(msg) {
                     if e.is_full() {
                         // If we get here, we either have a logic bug (!), or an attacker
@@ -1354,14 +1364,13 @@ impl Reactor {
             Some(StreamEnt::EndSent(halfstream)) => {
                 // We sent an end but maybe the other side hasn't heard.
 
-                if matches!(msg, AnyRelayMsg::End(_)) {
-                    hop.map.end_received(streamid)?;
-                } else {
-                    halfstream.handle_msg(&msg)?;
+                match halfstream.handle_msg(msg)? {
+                    HalfStreamStatus::Open => {}
+                    HalfStreamStatus::Closed => hop.map.end_received(streamid)?,
                 }
             }
             _ => {
-                // No stream wants this message.
+                // No stream wants this message, or ever did.
                 return Err(Error::CircProto(
                     "Cell received on nonexistent stream!?".into(),
                 ));

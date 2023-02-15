@@ -5,8 +5,8 @@
 
 use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
 use crate::{Error, Result};
-use tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg};
-use tor_error::internal;
+use tor_cell::relaycell::UnparsedRelayCell;
+use tor_cell::restricted_msg;
 
 /// Type to track state of half-closed streams.
 ///
@@ -25,6 +25,21 @@ pub(super) struct HalfStream {
     recvw: StreamRecvWindow,
     /// If true, accept a connected cell on this stream.
     connected_ok: bool,
+}
+
+restricted_msg! {
+    enum HalfStreamMsg : RelayMsg {
+        Sendme, Data, Connected, End, Resolved
+    }
+}
+
+/// A status value returned by [`HalfStream::handle_msg`].
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) enum HalfStreamStatus {
+    /// The stream has been closed successfully and can now be dropped.
+    Closed,
+    /// The stream is still half,open, and must still be tracked.
+    Open,
 }
 
 impl HalfStream {
@@ -47,33 +62,36 @@ impl HalfStream {
     /// The caller must handle END cells; it is an internal error to pass
     /// END cells to this method.
     /// no ends here.
-    pub(super) fn handle_msg(&mut self, msg: &AnyRelayMsg) -> Result<()> {
+    pub(super) fn handle_msg(&mut self, msg: UnparsedRelayCell) -> Result<HalfStreamStatus> {
+        use HalfStreamMsg::*;
+        use HalfStreamStatus::*;
+        let msg = msg
+            .decode::<HalfStreamMsg>()
+            .map_err(|e| Error::from_bytes_err(e, "message on half-closed stream"))?
+            .into_msg();
         match msg {
-            AnyRelayMsg::Sendme(_) => {
+            Sendme(_) => {
                 self.sendw.put(Some(()))?;
-                Ok(())
+                Ok(Open)
             }
-            AnyRelayMsg::Data(_) => {
+            Data(_) => {
                 self.recvw.take()?;
-                Ok(())
+                Ok(Open)
             }
-            AnyRelayMsg::Connected(_) => {
+            Connected(_) => {
                 if self.connected_ok {
                     self.connected_ok = false;
-                    Ok(())
+                    Ok(Open)
                 } else {
                     Err(Error::CircProto(
                         "Bad CONNECTED cell on a closed stream!".into(),
                     ))
                 }
             }
-            AnyRelayMsg::End(_) => Err(Error::from(internal!(
-                "END cell in HalfStream::handle_msg()"
-            ))),
-            _ => Err(Error::CircProto(format!(
-                "Bad {} cell on a closed stream!",
-                msg.cmd()
-            ))),
+            End(_) => Ok(Closed),
+            // TODO XXXX: We should only allow a Resolved() on streams where we sent
+            // Resolve. My intended solution for #774 will fix this too.
+            Resolved(_) => Ok(Closed),
         }
     }
 }
@@ -92,20 +110,40 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
-    use tor_cell::relaycell::msg;
+    use rand::{CryptoRng, Rng};
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_cell::relaycell::{
+        msg::{self, AnyRelayMsg},
+        AnyRelayCell,
+    };
+
+    fn to_unparsed<R: Rng + CryptoRng>(rng: &mut R, val: AnyRelayMsg) -> UnparsedRelayCell {
+        UnparsedRelayCell::from_body(
+            AnyRelayCell::new(77.into(), val)
+                .encode(rng)
+                .expect("encoding failed"),
+        )
+    }
 
     #[test]
     fn halfstream_sendme() -> Result<()> {
+        let mut rng = testing_rng();
+
         let mut sendw = StreamSendWindow::new(101);
         sendw.take(&())?; // Make sure that it will accept one sendme.
 
         let mut hs = HalfStream::new(sendw, StreamRecvWindow::new(20), true);
 
         // one sendme is fine
-        let m = msg::Sendme::new_empty().into();
-        assert!(hs.handle_msg(&m).is_ok());
+        let m = msg::Sendme::new_empty();
+        assert!(hs
+            .handle_msg(to_unparsed(&mut rng, m.clone().into()))
+            .is_ok());
         // but no more were expected!
-        let e = hs.handle_msg(&m).err().unwrap();
+        let e = hs
+            .handle_msg(to_unparsed(&mut rng, m.into()))
+            .err()
+            .unwrap();
         assert_eq!(
             format!("{}", e),
             "Circuit protocol violation: Received a SENDME when none was expected"
@@ -120,17 +158,21 @@ mod test {
     #[test]
     fn halfstream_data() {
         let mut hs = hs_new();
+        let mut rng = testing_rng();
 
         // 20 data cells are okay.
-        let m = msg::Data::new(&b"this offer is unrepeatable"[..])
-            .unwrap()
-            .into();
+        let m = msg::Data::new(&b"this offer is unrepeatable"[..]).unwrap();
         for _ in 0_u8..20 {
-            assert!(hs.handle_msg(&m).is_ok());
+            assert!(hs
+                .handle_msg(to_unparsed(&mut rng, m.clone().into()))
+                .is_ok());
         }
 
         // But one more is a protocol violation.
-        let e = hs.handle_msg(&m).err().unwrap();
+        let e = hs
+            .handle_msg(to_unparsed(&mut rng, m.into()))
+            .err()
+            .unwrap();
         assert_eq!(
             format!("{}", e),
             "Circuit protocol violation: Received a data cell in violation of a window"
@@ -140,16 +182,24 @@ mod test {
     #[test]
     fn halfstream_connected() {
         let mut hs = hs_new();
+        let mut rng = testing_rng();
         // We were told to accept a connected, so we'll accept one
         // and no more.
-        let m = msg::Connected::new_empty().into();
-        assert!(hs.handle_msg(&m).is_ok());
-        assert!(hs.handle_msg(&m).is_err());
+        let m = msg::Connected::new_empty();
+        assert!(hs
+            .handle_msg(to_unparsed(&mut rng, m.clone().into()))
+            .is_ok());
+        assert!(hs
+            .handle_msg(to_unparsed(&mut rng, m.clone().into()))
+            .is_err());
 
         // If we try that again with connected_ok == false, we won't
         // accept any.
         let mut hs = HalfStream::new(StreamSendWindow::new(20), StreamRecvWindow::new(20), false);
-        let e = hs.handle_msg(&m).err().unwrap();
+        let e = hs
+            .handle_msg(to_unparsed(&mut rng, m.into()))
+            .err()
+            .unwrap();
         assert_eq!(
             format!("{}", e),
             "Circuit protocol violation: Bad CONNECTED cell on a closed stream!"
@@ -159,11 +209,15 @@ mod test {
     #[test]
     fn halfstream_other() {
         let mut hs = hs_new();
-        let m = msg::Extended2::new(Vec::new()).into();
-        let e = hs.handle_msg(&m).err().unwrap();
+        let mut rng = testing_rng();
+        let m = msg::Extended2::new(Vec::new());
+        let e = hs
+            .handle_msg(to_unparsed(&mut rng, m.into()))
+            .err()
+            .unwrap();
         assert_eq!(
             format!("{}", e),
-            "Circuit protocol violation: Bad EXTENDED2 cell on a closed stream!"
+            "Unable to parse message on half-closed stream"
         );
     }
 }
