@@ -6,6 +6,7 @@
 
 use crate::parse::keyword::Keyword;
 use crate::types::misc::FromBytes;
+use crate::util::PeekableIterator;
 use crate::{Error, ParseErrorKind as EK, Pos, Result};
 use base64ct::{Base64, Encoding};
 use itertools::Itertools;
@@ -599,6 +600,8 @@ impl<'a, K: Keyword> ItemResult<K> for Result<Item<'a, K>> {
 }
 
 /// A peekable cursor into a string that returns Items one by one.
+///
+/// This is an [`Iterator`], yielding [`Item`]s.
 #[derive(Debug)]
 pub(crate) struct NetDocReader<'a, K: Keyword> {
     // TODO: I wish there were some way around having this string
@@ -694,6 +697,32 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
             Some(Ok(tok)) => tok.pos(),
             Some(Err(e)) => e.pos(),
             None => Pos::at_end_of(self.s),
+        }
+    }
+}
+
+impl<'a, K: Keyword> Iterator for NetDocReader<'a, K> {
+    type Item = Result<Item<'a, K>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.tokens.next()
+    }
+}
+
+impl<'a, K: Keyword> PeekableIterator for NetDocReader<'a, K> {
+    fn peek(&mut self) -> Option<&Self::Item> {
+        self.tokens.peek()
+    }
+}
+
+impl<'a, K: Keyword> itertools::PeekingNext for NetDocReader<'a, K> {
+    fn peeking_next<F>(&mut self, f: F) -> Option<Self::Item>
+    where
+        F: FnOnce(&Self::Item) -> bool,
+    {
+        if f(self.peek()?) {
+            self.next()
+        } else {
+            None
         }
     }
 }
