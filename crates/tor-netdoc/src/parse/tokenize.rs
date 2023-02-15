@@ -630,9 +630,7 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     pub(crate) fn pause_at<'f, 'r, F>(
         &mut self,
         mut f: F,
-    ) -> itertools::PeekingTakeWhile<'_,
-                                     Self,
-                                     impl FnMut(&Result<Item<'a, K>>) -> bool + 'f>
+    ) -> itertools::PeekingTakeWhile<'_, Self, impl FnMut(&Result<Item<'a, K>>) -> bool + 'f>
     where
         'f: 'r,
         F: FnMut(&Result<Item<'a, K>>) -> bool + 'f,
