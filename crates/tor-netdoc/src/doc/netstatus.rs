@@ -54,6 +54,7 @@ use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::private::Sealed;
+use crate::util::PeekableIterator;
 use crate::{Error, ParseErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
 use std::{net, result, time};
@@ -1354,7 +1355,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
     ) -> Result<Option<ConsensusVoterInfo>> {
         use NetstatusKwd::*;
 
-        match r.iter().peek() {
+        match r.peek() {
             None => return Ok(None),
             Some(e) if e.is_ok_with_kwd_in(&[RS_R, DIRECTORY_FOOTER]) => return Ok(None),
             _ => (),
@@ -1396,7 +1397,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
     /// out of routerstatus entries.
     fn take_routerstatus(r: &mut NetDocReader<'_, NetstatusKwd>) -> Result<Option<(Pos, RS)>> {
         use NetstatusKwd::*;
-        match r.iter().peek() {
+        match r.peek() {
             None => return Ok(None),
             Some(e) if e.is_ok_with_kwd_in(&[DIRECTORY_FOOTER]) => return Ok(None),
             _ => (),
@@ -1483,7 +1484,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
         // Find the signatures.
         let mut first_sig: Option<Item<'_, NetstatusKwd>> = None;
         let mut signatures = Vec::new();
-        for item in r.iter() {
+        for item in &mut *r {
             let item = item?;
             if item.kwd() != DIRECTORY_SIGNATURE {
                 return Err(EK::UnexpectedToken
@@ -1924,9 +1925,8 @@ mod test {
 
     fn gettok(s: &str) -> Result<Item<'_, NetstatusKwd>> {
         let mut reader = NetDocReader::new(s);
-        let it = reader.iter();
-        let tok = it.next().unwrap();
-        assert!(it.next().is_none());
+        let tok = reader.next().unwrap();
+        assert!(reader.next().is_none());
         tok
     }
 

@@ -625,6 +625,7 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
         self.s
     }
     /// Return the peekable iterator over the string's tokens.
+    #[allow(dead_code)] // TODO this is going to go away momentarily
     pub(crate) fn iter(
         &mut self,
     ) -> &mut Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
@@ -659,12 +660,12 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     #[allow(clippy::wrong_self_convention)]
     #[allow(dead_code)] // TODO perhaps we should remove this ?
     pub(crate) fn is_exhausted(&mut self) -> bool {
-        self.iter().peek().is_none()
+        self.peek().is_none()
     }
 
     /// Give an error if there are remaining tokens in this NetDocReader.
     pub(crate) fn should_be_exhausted(&mut self) -> Result<()> {
-        match self.iter().peek() {
+        match self.peek() {
             None => Ok(()),
             Some(Ok(t)) => Err(EK::UnexpectedToken
                 .with_msg(t.kwd().to_str())
@@ -680,9 +681,9 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     #[cfg(feature = "routerdesc")]
     pub(crate) fn should_be_exhausted_but_for_empty_lines(&mut self) -> Result<()> {
         use crate::err::ParseErrorKind as K;
-        while let Some(Err(e)) = self.iter().peek() {
+        while let Some(Err(e)) = self.peek() {
             if e.parse_error_kind() == K::EmptyLine {
-                let _ignore = self.iter().next();
+                let _ignore = self.next();
             } else {
                 break;
             }
@@ -763,7 +764,7 @@ plum hello there
         assert_eq!(r.str(), s);
         assert!(r.should_be_exhausted().is_err()); // it's not exhausted.
 
-        let toks: Result<Vec<_>> = r.iter().collect();
+        let toks: Result<Vec<_>> = r.by_ref().collect();
         assert!(r.should_be_exhausted().is_ok());
 
         let toks = toks.unwrap();
@@ -839,8 +840,8 @@ cherry
 
 truncated line";
 
-        let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
-        let toks: Vec<_> = r.iter().collect();
+        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+        let toks: Vec<_> = r.collect();
 
         assert!(toks[0].is_err());
         assert_eq!(

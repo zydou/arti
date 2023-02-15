@@ -356,8 +356,8 @@ lemon
 8J+Niw==
 -----END LEMON-----
 ";
-        let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
-        let sec = FRUIT_SALAD.parse(&mut r.iter()).unwrap();
+        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+        let sec = FRUIT_SALAD.parse(r).unwrap();
 
         assert_eq!(sec.required(ANN_TASTY)?.arg(0), Some("yes"));
 
@@ -408,8 +408,8 @@ lemon
     fn rejected() {
         use crate::Pos;
         fn check(s: &str, e: &Error) {
-            let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
-            let res = FRUIT_SALAD.parse(&mut r.iter());
+            let r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+            let res = FRUIT_SALAD.parse(r);
             assert!(res.is_err());
             assert_eq!(&res.err().unwrap().within(s), e);
         }

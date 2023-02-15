@@ -20,6 +20,7 @@ use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
 use crate::util::str::Extent;
+use crate::util::PeekableIterator;
 use crate::{AllowAnnotations, Error, ParseErrorKind as EK, Result};
 use tor_error::internal;
 use tor_llcrypto::d;
@@ -357,9 +358,8 @@ impl Microdesc {
 /// token exists, advance to the end of the reader.
 fn advance_to_next_microdesc(reader: &mut NetDocReader<'_, MicrodescKwd>, annotated: bool) {
     use MicrodescKwd::*;
-    let iter = reader.iter();
     loop {
-        let item = iter.peek();
+        let item = reader.peek();
         match item {
             Some(Ok(t)) => {
                 let kwd = t.kwd();
@@ -378,7 +378,7 @@ fn advance_to_next_microdesc(reader: &mut NetDocReader<'_, MicrodescKwd>, annota
                 return;
             }
         };
-        let _ = iter.next();
+        let _ = reader.next();
     }
 }
 
@@ -434,7 +434,7 @@ impl<'a> MicrodescReader<'a> {
                 // (This might not be able to happen, but it's easier to
                 // explicitly catch this case than it is to prove that
                 // it's impossible.)
-                let _ = self.reader.iter().next();
+                let _ = self.reader.next();
             }
             advance_to_next_microdesc(&mut self.reader, self.annotated);
         }
@@ -446,7 +446,7 @@ impl<'a> Iterator for MicrodescReader<'a> {
     type Item = Result<AnnotatedMicrodesc>;
     fn next(&mut self) -> Option<Self::Item> {
         // If there is no next token, we're at the end.
-        self.reader.iter().peek()?;
+        self.reader.peek()?;
 
         Some(
             self.take_annotated_microdesc()
