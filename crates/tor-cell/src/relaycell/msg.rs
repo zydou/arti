@@ -19,7 +19,7 @@ use bitflags::bitflags;
 
 #[cfg_attr(docsrs, doc(cfg(feature = "onion-service")))]
 #[cfg(feature = "onion-service")]
-pub use super::onion_service::{
+pub use super::hs::{
     EstablishIntro, EstablishRendezvous, IntroEstablished, Introduce1, Introduce2, IntroduceAck,
     Rendezvous1, Rendezvous2, RendezvousEstablished,
 };

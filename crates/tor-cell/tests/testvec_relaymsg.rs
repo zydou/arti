@@ -15,7 +15,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use hex_literal::hex;
 
 #[cfg(feature = "onion-service")]
-use tor_cell::relaycell::onion_service;
+use tor_cell::relaycell::hs;
 #[cfg(feature = "experimental-udp")]
 use tor_cell::relaycell::udp;
 
@@ -631,7 +631,7 @@ fn test_establish_rendezvous() {
         cmd,
         // 20 ones
         "0101010101010101010101010101010101010101",
-        &onion_service::EstablishRendezvous::new(cookie).into(),
+        &hs::EstablishRendezvous::new(cookie).into(),
     );
 
     // Extra bytes are ignored
@@ -659,8 +659,8 @@ fn test_establish_rendezvous() {
 #[test]
 fn test_establish_intro() {
     use tor_cell::relaycell::{
+        hs::{AuthKeyType, EstIntroExtDoS, EstablishIntro},
         msg::AnyRelayMsg,
-        onion_service::{AuthKeyType, EstIntroExtDoS, EstablishIntro},
     };
 
     let cmd = RelayCmd::ESTABLISH_INTRO;
@@ -726,8 +726,8 @@ fn test_establish_intro() {
 #[test]
 fn test_introduce() {
     use tor_cell::relaycell::{
+        hs::{AuthKeyType, Introduce1},
         msg::AnyRelayMsg,
-        onion_service::{AuthKeyType, Introduce1},
     };
 
     // Testing with Introduce1 only should be sufficient as long as

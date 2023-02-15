@@ -10,9 +10,9 @@ use caret::caret_int;
 use rand::{CryptoRng, Rng};
 
 pub mod extend;
-pub mod msg;
 #[cfg(feature = "onion-service")]
-pub mod onion_service;
+pub mod hs;
+pub mod msg;
 pub mod restrict;
 #[cfg(feature = "experimental-udp")]
 pub mod udp;
