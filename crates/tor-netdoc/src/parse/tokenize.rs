@@ -6,9 +6,9 @@
 
 use crate::parse::keyword::Keyword;
 use crate::types::misc::FromBytes;
-use crate::util::PauseAt;
 use crate::{Error, ParseErrorKind as EK, Pos, Result};
 use base64ct::{Base64, Encoding};
+use itertools::Itertools;
 use std::cell::{Ref, RefCell};
 use std::iter::Peekable;
 use std::str::FromStr;
@@ -633,17 +633,21 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     ) -> Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
         self.tokens
     }
-    /// Return a PauseAt wrapper around the peekable iterator in this
+    /// Return a wrapper around the peekable iterator in this
     /// NetDocReader that reads tokens until it reaches an element where
     /// 'f' is true.
-    pub(crate) fn pause_at<F>(
+    pub(crate) fn pause_at<'f, 'r, F>(
         &mut self,
-        f: F,
-    ) -> PauseAt<'_, impl Iterator<Item = Result<Item<'a, K>>>, F>
+        mut f: F,
+    ) -> itertools::PeekingTakeWhile<'_,
+                                     Peekable<impl Iterator<Item = Result<Item<'a, K>>>>,
+                                     impl FnMut(&Result<Item<'a, K>>) -> bool + 'f>
     where
-        F: FnMut(&Result<Item<'a, K>>) -> bool,
+        'f: 'r,
+        F: FnMut(&Result<Item<'a, K>>) -> bool + 'f,
+        K: 'f,
     {
-        PauseAt::from_peekable(&mut self.tokens, f)
+        self.tokens.peeking_take_while(move |i| !f(i))
     }
 
     /// Return true if there are no more items in this NetDocReader.
