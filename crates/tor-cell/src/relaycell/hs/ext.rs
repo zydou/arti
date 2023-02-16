@@ -127,6 +127,10 @@ impl<ID> UnrecognizedExt<ID> {
 }
 
 /// Declare an Extension group that takes a given identifier.
+//
+// TODO: This is rather similar to restrict_msg(), isn't it?  Also, We use this
+// pattern of (number, (cmd, length, body)*) a few of times in Tor outside the
+// hs module.  Perhaps we can extend and unify our code here...
 macro_rules! decl_extension_group {
     {
         $( #[$meta:meta] )*
