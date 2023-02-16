@@ -33,6 +33,7 @@ use tor_llcrypto::pk::curve25519;
 use tor_units::IntegerMinutes;
 
 #[cfg(feature = "hsdesc-inner-docs")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hsdesc-inner-docs")))]
 pub use {inner::HsDescInner, middle::HsDescMiddle, outer::HsDescOuter};
 
 /// Metadata about an onion service descriptor, as stored at an HsDir.
