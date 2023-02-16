@@ -53,12 +53,6 @@ additional_provided['tor-netdoc']= [
     ('NsConsensusRouterStatus', 'feature = "ns_consensus"'),
 ]
 
-
-additional_provided['tor-cell'] = [
-    ('{', 'feature = "onion-service"'),
-    ('{ConnectUdp, ConnectedUdp, Datagram}', 'feature = "experimental-udp"'),
-]
-
 def extract_feature_pub_use(path):
     START_CFG = '#[cfg('
     END_CFG = ')]'
@@ -74,11 +68,13 @@ def extract_feature_pub_use(path):
                 if '//' in line[:pubuse_pos]:
                     continue
                 # extract ident
+                #
+                # (BUG: this still doesn't handle `pub use {A,B,C} very well.)
                 start = line.rfind(":")
                 if start == -1:
                     start = line.rfind(" ")
                 ident = line[start + 1:]
-                if pos:= ident.find(';'):
+                if (pos:= ident.find(';')) != -1:
                     ident = ident[:pos]
                 res.append((ident, cfg))
                 cfg = None
