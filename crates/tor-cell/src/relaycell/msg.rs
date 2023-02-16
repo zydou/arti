@@ -17,14 +17,14 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use bitflags::bitflags;
 
-#[cfg_attr(docsrs, doc(cfg(feature = "onion-service")))]
 #[cfg(feature = "onion-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onion-service")))]
 pub use super::hs::{
     est_intro::EstablishIntro, EstablishRendezvous, IntroEstablished, Introduce1, Introduce2,
     IntroduceAck, Rendezvous1, Rendezvous2, RendezvousEstablished,
 };
-#[cfg_attr(docsrs, doc(cfg(feature = "experimental-udp")))]
 #[cfg(feature = "experimental-udp")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-udp")))]
 pub use super::udp::{ConnectUdp, ConnectedUdp, Datagram};
 
 crate::restrict::restricted_msg! {
