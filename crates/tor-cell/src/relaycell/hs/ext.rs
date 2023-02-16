@@ -37,7 +37,9 @@ impl<T> Default for ExtList<T> {
 }
 /// An kind of extension that can be used with some kind of HS-related message.
 ///
-/// Each extendible message will likely declare its own variant of this trait.
+/// Each extendible message will likely define its own enum,
+/// implementing this trait,
+/// representing the possible extensions.
 pub(super) trait ExtGroup: Readable + Writeable {
     /// An identifier kind used with this sort of extension
     type Id: From<u8> + Into<u8> + Eq + PartialEq + Ord + Copy;
