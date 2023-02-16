@@ -9,7 +9,7 @@ use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, 
 /// message.
 ///
 /// The common format is:
-/// ```
+/// ```text
 ///      N_EXTENSIONS     [1 byte]
 ///      N_EXTENSIONS times:
 ///           EXT_FIELD_TYPE [1 byte]
