@@ -749,7 +749,7 @@ impl RouterDesc {
         ];
         // Unwrap is safe here because `expirations` array is not empty
         #[allow(clippy::unwrap_used)]
-        let expiry = *expirations.iter().max().unwrap();
+        let expiry = *expirations.iter().min().unwrap();
 
         let start_time = published - time::Duration::new(ROUTER_PRE_VALIDITY_SECONDS, 0);
 
