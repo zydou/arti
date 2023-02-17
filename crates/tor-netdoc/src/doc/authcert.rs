@@ -142,7 +142,7 @@ impl AuthCert {
     /// check its expiration dates.
     pub fn parse(s: &str) -> Result<UncheckedAuthCert> {
         let mut reader = NetDocReader::new(s);
-        let body = AUTHCERT_RULES.parse(&mut reader.iter())?;
+        let body = AUTHCERT_RULES.parse(&mut reader)?;
         reader.should_be_exhausted()?;
         AuthCert::from_body(&body, s).map_err(|e| e.within(s))
     }
@@ -151,7 +151,6 @@ impl AuthCert {
     pub fn parse_multiple(s: &str) -> impl Iterator<Item = Result<UncheckedAuthCert>> + '_ {
         use AuthCertKwd::*;
         let sections = NetDocReader::new(s)
-            .into_iter()
             .batching_split_before_loose(|item| item.is_ok_with_kwd(DIR_KEY_CERTIFICATE_VERSION));
         sections
             .map(|mut section| {

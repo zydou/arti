@@ -28,9 +28,12 @@
 //! to tokenize the document, passing the stream of tokens to the
 //! SectionRules object to validate and parse it into a Section.
 //!
-//! For multiple-section documents, this crate uses a
-//! [crate::util::PauseAt] iterator to divide the token iterator into
-//! sections.
+//! For multiple-section documents, this crate uses
+//! [`Itertools::peeking_take_while`](itertools::Itertools::peeking_take_while)
+//! (via a `[.pause_at`](NetDocReader::pause_at) convenience method)
+//! and a [batching_split_before](crate::util::batching_split_before)
+//!  module which can split
+//! a document item iterator into sections..
 
 pub(crate) mod keyword;
 pub(crate) mod parser;

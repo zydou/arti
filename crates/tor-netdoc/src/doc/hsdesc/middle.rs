@@ -210,8 +210,7 @@ impl HsDescMiddle {
         use crate::ParseErrorKind as EK;
         use HsMiddleKwd::*;
 
-        let mut iter = reader.iter();
-        let body = HS_MIDDLE_RULES.parse(&mut iter)?;
+        let body = HS_MIDDLE_RULES.parse(reader)?;
 
         // Check for the only currently recognized `desc-auth-type`
         {

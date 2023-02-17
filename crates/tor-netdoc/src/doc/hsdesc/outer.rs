@@ -133,8 +133,8 @@ impl HsDescOuter {
         use crate::err::ParseErrorKind as EK;
         use HsOuterKwd::*;
 
-        let mut iter = reader.iter();
-        let body = HS_OUTER_RULES.parse(&mut iter)?;
+        let s = reader.str();
+        let body = HS_OUTER_RULES.parse(reader)?;
 
         // Enforce that the object starts and ends with the right keywords, and
         // find the start and end of the signed material.
@@ -155,7 +155,6 @@ impl HsDescOuter {
                     .with_msg(last_item.kwd_str().to_string())
                     .at_pos(last_item.pos()));
             }
-            let s = reader.str();
             let start_idx = first_item
                 .pos()
                 .offset_within(s)

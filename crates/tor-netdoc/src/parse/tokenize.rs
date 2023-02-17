@@ -6,10 +6,12 @@
 
 use crate::parse::keyword::Keyword;
 use crate::types::misc::FromBytes;
-use crate::util::PauseAt;
+use crate::util::PeekableIterator;
 use crate::{Error, ParseErrorKind as EK, Pos, Result};
 use base64ct::{Base64, Encoding};
+use itertools::Itertools;
 use std::cell::{Ref, RefCell};
+use std::iter::Peekable;
 use std::str::FromStr;
 use tor_error::internal;
 
@@ -598,6 +600,8 @@ impl<'a, K: Keyword> ItemResult<K> for Result<Item<'a, K>> {
 }
 
 /// A peekable cursor into a string that returns Items one by one.
+///
+/// This is an [`Iterator`], yielding [`Item`]s.
 #[derive(Debug)]
 pub(crate) struct NetDocReader<'a, K: Keyword> {
     // TODO: I wish there were some way around having this string
@@ -605,7 +609,7 @@ pub(crate) struct NetDocReader<'a, K: Keyword> {
     /// The underlying string being parsed.
     s: &'a str,
     /// A stream of tokens being parsed by this NetDocReader.
-    tokens: std::iter::Peekable<NetDocReaderBase<'a, K>>,
+    tokens: Peekable<NetDocReaderBase<'a, K>>,
 }
 
 impl<'a, K: Keyword> NetDocReader<'a, K> {
@@ -620,29 +624,19 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     pub(crate) fn str(&self) -> &'a str {
         self.s
     }
-    /// Return the peekable iterator over the string's tokens.
-    pub(crate) fn iter(
-        &mut self,
-    ) -> &mut std::iter::Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
-        &mut self.tokens
-    }
-    /// Convert into a peekable iterator over the string's tokens.
-    pub(crate) fn into_iter(
-        self,
-    ) -> std::iter::Peekable<impl Iterator<Item = Result<Item<'a, K>>>> {
-        self.tokens
-    }
-    /// Return a PauseAt wrapper around the peekable iterator in this
+    /// Return a wrapper around the peekable iterator in this
     /// NetDocReader that reads tokens until it reaches an element where
     /// 'f' is true.
-    pub(crate) fn pause_at<F>(
+    pub(crate) fn pause_at<'f, 'r, F>(
         &mut self,
-        f: F,
-    ) -> PauseAt<'_, impl Iterator<Item = Result<Item<'a, K>>>, F>
+        mut f: F,
+    ) -> itertools::PeekingTakeWhile<'_, Self, impl FnMut(&Result<Item<'a, K>>) -> bool + 'f>
     where
-        F: FnMut(&Result<Item<'a, K>>) -> bool,
+        'f: 'r,
+        F: FnMut(&Result<Item<'a, K>>) -> bool + 'f,
+        K: 'f,
     {
-        PauseAt::from_peekable(&mut self.tokens, f)
+        self.peeking_take_while(move |i| !f(i))
     }
 
     /// Return true if there are no more items in this NetDocReader.
@@ -651,12 +645,12 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     #[allow(clippy::wrong_self_convention)]
     #[allow(dead_code)] // TODO perhaps we should remove this ?
     pub(crate) fn is_exhausted(&mut self) -> bool {
-        self.iter().peek().is_none()
+        self.peek().is_none()
     }
 
     /// Give an error if there are remaining tokens in this NetDocReader.
     pub(crate) fn should_be_exhausted(&mut self) -> Result<()> {
-        match self.iter().peek() {
+        match self.peek() {
             None => Ok(()),
             Some(Ok(t)) => Err(EK::UnexpectedToken
                 .with_msg(t.kwd().to_str())
@@ -672,9 +666,9 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     #[cfg(feature = "routerdesc")]
     pub(crate) fn should_be_exhausted_but_for_empty_lines(&mut self) -> Result<()> {
         use crate::err::ParseErrorKind as K;
-        while let Some(Err(e)) = self.iter().peek() {
+        while let Some(Err(e)) = self.peek() {
             if e.parse_error_kind() == K::EmptyLine {
-                let _ignore = self.iter().next();
+                let _ignore = self.next();
             } else {
                 break;
             }
@@ -689,6 +683,32 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
             Some(Ok(tok)) => tok.pos(),
             Some(Err(e)) => e.pos(),
             None => Pos::at_end_of(self.s),
+        }
+    }
+}
+
+impl<'a, K: Keyword> Iterator for NetDocReader<'a, K> {
+    type Item = Result<Item<'a, K>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.tokens.next()
+    }
+}
+
+impl<'a, K: Keyword> PeekableIterator for NetDocReader<'a, K> {
+    fn peek(&mut self) -> Option<&Self::Item> {
+        self.tokens.peek()
+    }
+}
+
+impl<'a, K: Keyword> itertools::PeekingNext for NetDocReader<'a, K> {
+    fn peeking_next<F>(&mut self, f: F) -> Option<Self::Item>
+    where
+        F: FnOnce(&Self::Item) -> bool,
+    {
+        if f(self.peek()?) {
+            self.next()
+        } else {
+            None
         }
     }
 }
@@ -729,7 +749,7 @@ plum hello there
         assert_eq!(r.str(), s);
         assert!(r.should_be_exhausted().is_err()); // it's not exhausted.
 
-        let toks: Result<Vec<_>> = r.iter().collect();
+        let toks: Result<Vec<_>> = r.by_ref().collect();
         assert!(r.should_be_exhausted().is_ok());
 
         let toks = toks.unwrap();
@@ -805,8 +825,8 @@ cherry
 
 truncated line";
 
-        let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
-        let toks: Vec<_> = r.iter().collect();
+        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+        let toks: Vec<_> = r.collect();
 
         assert!(toks[0].is_err());
         assert_eq!(

@@ -39,6 +39,7 @@ use crate::types::family::RelayFamily;
 use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
+use crate::util::PeekableIterator;
 use crate::{doc, AllowAnnotations, Error, ParseErrorKind as EK, Result};
 
 use ll::pk::ed25519::Ed25519Identity;
@@ -412,20 +413,20 @@ impl RouterDesc {
         use RouterKwd::*;
 
         // Parse everything up through the header.
-        let mut reader =
-            reader.pause_at(|item| item.is_ok_with_kwd_not_in(&[ROUTER, IDENTITY_ED25519]));
-        let header = ROUTER_HEADER_RULES.parse(&mut reader)?;
+        let header = ROUTER_HEADER_RULES.parse(
+            reader.pause_at(|item| item.is_ok_with_kwd_not_in(&[ROUTER, IDENTITY_ED25519])),
+        )?;
 
         // Parse everything up to but not including the signature.
-        let mut reader =
-            reader.new_pred(|item| item.is_ok_with_kwd_in(&[ROUTER_SIGNATURE, ROUTER_SIG_ED25519]));
-        let body = ROUTER_BODY_RULES.parse(&mut reader)?;
+        let body =
+            ROUTER_BODY_RULES.parse(reader.pause_at(|item| {
+                item.is_ok_with_kwd_in(&[ROUTER_SIGNATURE, ROUTER_SIG_ED25519])
+            }))?;
 
         // Parse the signature.
-        let mut reader = reader.new_pred(|item| {
+        let sig = ROUTER_SIG_RULES.parse(reader.pause_at(|item| {
             item.is_ok_with_annotation() || item.is_ok_with_kwd(ROUTER) || item.is_empty_line()
-        });
-        let sig = ROUTER_SIG_RULES.parse(&mut reader)?;
+        }))?;
 
         Ok((header, body, sig))
     }
@@ -800,9 +801,8 @@ pub struct RouterReader<'a> {
 /// Used to recover from errors.
 fn advance_to_next_routerdesc(reader: &mut NetDocReader<'_, RouterKwd>, annotated: bool) {
     use RouterKwd::*;
-    let iter = reader.iter();
     loop {
-        let item = iter.peek();
+        let item = reader.peek();
         match item {
             Some(Ok(t)) => {
                 let kwd = t.kwd();
@@ -817,7 +817,7 @@ fn advance_to_next_routerdesc(reader: &mut NetDocReader<'_, RouterKwd>, annotate
                 return;
             }
         }
-        let _ = iter.next();
+        let _ = reader.next();
     }
 }
 
@@ -862,7 +862,7 @@ impl<'a> RouterReader<'a> {
                 // (This might not be able to happen, but it's easier to
                 // explicitly catch this case than it is to prove that
                 // it's impossible.)
-                let _ = self.reader.iter().next();
+                let _ = self.reader.next();
             }
             advance_to_next_routerdesc(&mut self.reader, self.annotated);
         }
@@ -874,7 +874,7 @@ impl<'a> Iterator for RouterReader<'a> {
     type Item = Result<AnnotatedRouterDesc>;
     fn next(&mut self) -> Option<Self::Item> {
         // Is there a next token? If not, we're done.
-        self.reader.iter().peek()?;
+        self.reader.peek()?;
 
         Some(
             self.take_annotated_routerdesc()
