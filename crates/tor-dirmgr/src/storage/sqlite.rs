@@ -1121,7 +1121,7 @@ pub(crate) mod test {
             netstatus::Lifetime::new(
                 now.into(),
                 (now + one_hour).into(),
-                (now + one_hour * 2).into(),
+                SystemTime::from(now + one_hour * 2),
             )
             .unwrap(),
             [0xAB; 32],
@@ -1178,7 +1178,7 @@ pub(crate) mod test {
                 netstatus::Lifetime::new(
                     now.into(),
                     (now + one_hour).into(),
-                    (now + one_hour * 2).into(),
+                    SystemTime::from(now + one_hour * 2),
                 )
                 .unwrap(),
                 [0x99; 32],
@@ -1219,7 +1219,7 @@ pub(crate) mod test {
             sk_fingerprint: [3; 20].into(),
         };
 
-        let m1 = AuthCertMeta::new(keyids, now.into(), (now + one_hour * 24).into());
+        let m1 = AuthCertMeta::new(keyids, now.into(), SystemTime::from(now + one_hour * 24));
 
         store.store_authcerts(&[(m1, "Pretend this is a cert")])?;
 
