@@ -56,7 +56,10 @@ use crate::circuit::reactor::{
 };
 pub use crate::circuit::unique_id::UniqId;
 use crate::crypto::cell::{HopNum, InboundClientCrypt, OutboundClientCrypt};
-use crate::stream::{DataStream, ResolveStream, StreamParameters, StreamReader};
+use crate::stream::{
+    AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
+    StreamReader,
+};
 use crate::{Error, ResolveError, Result};
 use tor_cell::{
     chancell::{self, msg::AnyChanMsg, CircId},
@@ -404,6 +407,7 @@ impl ClientCirc {
     async fn begin_stream_impl(
         &self,
         begin_msg: AnyRelayMsg,
+        cmd_checker: AnyCmdChecker,
     ) -> Result<(StreamReader, StreamTarget)> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
@@ -428,6 +432,7 @@ impl ClientCirc {
                 sender,
                 rx: msg_rx,
                 done: tx,
+                cmd_checker,
             })
             .map_err(|_| Error::CircuitClosed)?;
 
@@ -453,7 +458,9 @@ impl ClientCirc {
     /// Start a DataStream (anonymized connection) to the given
     /// address and port, using a BEGIN cell.
     async fn begin_data_stream(&self, msg: AnyRelayMsg, optimistic: bool) -> Result<DataStream> {
-        let (reader, target) = self.begin_stream_impl(msg).await?;
+        let (reader, target) = self
+            .begin_stream_impl(msg, DataCmdChecker::new_any())
+            .await?;
         let mut stream = DataStream::new(reader, target);
         if !optimistic {
             stream.wait_for_connection().await?;
@@ -539,7 +546,9 @@ impl ClientCirc {
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
     async fn try_resolve(&self, msg: Resolve) -> Result<Resolved> {
-        let (reader, _) = self.begin_stream_impl(msg.into()).await?;
+        let (reader, _) = self
+            .begin_stream_impl(msg.into(), ResolveCmdChecker::new_any())
+            .await?;
         let mut resolve_stream = ResolveStream::new(reader);
         resolve_stream.read_msg().await
     }

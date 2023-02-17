@@ -1,5 +1,4 @@
 //! Code to handle incoming cells on a circuit.
-use super::halfstream::HalfStreamStatus;
 use super::streammap::{ShouldSendEnd, StreamEnt};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::unique_id::UniqId;
@@ -10,6 +9,7 @@ use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
     OutboundClientLayer, RelayCellBody, Tor1RelayCrypto,
 };
+use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use std::collections::VecDeque;
@@ -124,6 +124,8 @@ pub(super) enum CtrlMsg {
         rx: mpsc::Receiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<StreamId>,
+        /// A `CmdChecker` to keep track of which message types are acceptable.
+        cmd_checker: AnyCmdChecker,
     },
     /// Send a SENDME cell (used to ask for more data to be sent) on the given stream.
     SendSendme {
@@ -1104,8 +1106,9 @@ impl Reactor {
                 sender,
                 rx,
                 done,
+                cmd_checker,
             } => {
-                let ret = self.begin_stream(cx, hop_num, message, sender, rx);
+                let ret = self.begin_stream(cx, hop_num, message, sender, rx, cmd_checker);
                 let _ = done.send(ret); // don't care if sender goes away
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
@@ -1169,12 +1172,13 @@ impl Reactor {
         message: AnyRelayMsg,
         sender: mpsc::Sender<UnparsedRelayCell>,
         rx: mpsc::Receiver<AnyRelayMsg>,
+        cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::from(internal!("No such hop {:?}", hopnum)))?;
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
-        let r = hop.map.add_ent(sender, rx, send_window)?;
+        let r = hop.map.add_ent(sender, rx, send_window, cmd_checker)?;
         let cell = AnyRelayCell::new(r, message);
         self.send_relay_cell(cx, hopnum, false, cell)?;
         Ok(r)
@@ -1310,7 +1314,7 @@ impl Reactor {
                 sink,
                 send_window,
                 dropped,
-                ref mut received_connected,
+                cmd_checker,
                 ..
             }) => {
                 // The stream for this message exists, and is open.
@@ -1327,18 +1331,7 @@ impl Reactor {
                     return Ok(CellStatus::Continue);
                 }
 
-                if msg.cmd() == RelayCmd::CONNECTED {
-                    // Remember that we've received a Connected cell, and can't get another,
-                    // even if we become a HalfStream.  (This rule is enforced separately at
-                    // DataStreamReader.)
-
-                    // TODO: This is problematic; see #774.
-                    *received_connected = true;
-                }
-
-                // Remember whether this was an end cell: if so we should
-                // close the stream.
-                let is_end_cell = msg.cmd() == RelayCmd::END;
+                let message_closes_stream = cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
                 if let Err(e) = sink.try_send(msg) {
                     if e.is_full() {
@@ -1357,16 +1350,16 @@ impl Reactor {
                         *dropped += 1;
                     }
                 }
-                if is_end_cell {
-                    hop.map.end_received(streamid)?;
+                if message_closes_stream {
+                    hop.map.end_received(streamid)?; // XXXX RENAME
                 }
             }
             Some(StreamEnt::EndSent(halfstream)) => {
                 // We sent an end but maybe the other side hasn't heard.
 
                 match halfstream.handle_msg(msg)? {
-                    HalfStreamStatus::Open => {}
-                    HalfStreamStatus::Closed => hop.map.end_received(streamid)?,
+                    StreamStatus::Open => {}
+                    StreamStatus::Closed => hop.map.end_received(streamid)?, // XXXX RENAME
                 }
             }
             _ => {
