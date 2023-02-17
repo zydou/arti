@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.1.1 — 1 February 2022
+# Arti 1.1.1 — 1 February 2023
 
 After months of work, we have a new release of Arti!
 Arti 1.1.1  is an incremental release, and cleans up a few issues from
