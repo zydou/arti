@@ -65,7 +65,7 @@ if [ "$UNIT" = no ] && [ "$INTEGRATION" = no ]; then
 fi
 
 # Clear the old coverage report and profiling data.
-rm -r coverage coverage_meta_{unit,integration} || true
+rm -rf coverage coverage_meta_{unit,integration}
 mkdir coverage
 echo '<a href="all">all</a><br/>' > coverage/index.html
 
