@@ -1351,7 +1351,7 @@ impl Reactor {
                     }
                 }
                 if message_closes_stream {
-                    hop.map.end_received(streamid)?; // XXXX RENAME
+                    hop.map.ending_msg_received(streamid)?;
                 }
             }
             Some(StreamEnt::EndSent(halfstream)) => {
@@ -1359,7 +1359,7 @@ impl Reactor {
 
                 match halfstream.handle_msg(msg)? {
                     StreamStatus::Open => {}
-                    StreamStatus::Closed => hop.map.end_received(streamid)?, // XXXX RENAME
+                    StreamStatus::Closed => hop.map.ending_msg_received(streamid)?,
                 }
             }
             _ => {

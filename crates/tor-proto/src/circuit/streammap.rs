@@ -143,10 +143,11 @@ impl StreamMap {
         self.m.get_mut(&id)
     }
 
-    /// Note that we received an END cell on the stream with `id`.
+    /// Note that we received an END message (or other message indicating the end of
+    /// the stream) on the stream with `id`.
     ///
     /// Returns true if there was really a stream there.
-    pub(super) fn end_received(&mut self, id: StreamId) -> Result<()> {
+    pub(super) fn ending_msg_received(&mut self, id: StreamId) -> Result<()> {
         // Check the hashmap for the right stream. Bail if not found.
         // Also keep the hashmap handle so that we can do more efficient inserts/removals
         let mut stream_entry = match self.m.entry(id) {
@@ -262,10 +263,10 @@ mod test {
         assert!(map.get_mut(nonesuch_id).is_none());
 
         // Test end_received
-        assert!(map.end_received(nonesuch_id).is_err());
-        assert!(map.end_received(ids[1]).is_ok());
+        assert!(map.ending_msg_received(nonesuch_id).is_err());
+        assert!(map.ending_msg_received(ids[1]).is_ok());
         assert!(matches!(map.get_mut(ids[1]), Some(StreamEnt::EndReceived)));
-        assert!(map.end_received(ids[1]).is_err());
+        assert!(map.ending_msg_received(ids[1]).is_err());
 
         // Test terminate
         assert!(map.terminate(nonesuch_id).is_err());
@@ -275,7 +276,7 @@ mod test {
         assert!(matches!(map.get_mut(ids[1]), None));
 
         // Try receiving an end after a terminate.
-        assert!(map.end_received(ids[2]).is_ok());
+        assert!(map.ending_msg_received(ids[2]).is_ok());
         assert!(matches!(map.get_mut(ids[2]), None));
 
         Ok(())
