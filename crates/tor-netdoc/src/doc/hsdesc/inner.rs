@@ -166,7 +166,6 @@ impl HsDescInner {
                 let mut r = tor_bytes::Reader::from_slice(ls.as_bytes());
                 let n = r.take_u8()?;
                 let res = r.extract_n(n.into())?;
-                // TODO hs: Check whether c tor enforces that this field is exhausted.
                 r.should_be_exhausted()?;
                 res
             };
