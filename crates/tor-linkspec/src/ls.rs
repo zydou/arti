@@ -149,6 +149,35 @@ impl LinkSpec {
     }
 }
 
+/// An unparsed piece of information about a relay and how to connect to it.
+///
+/// Unlike [`LinkSpec`], this can't be used directly; we only pass it on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnparsedLinkSpec {
+    /// The link specifier type.
+    lstype: u8,
+    /// The body of the link speciier.
+    body: Vec<u8>,
+}
+
+impl Readable for UnparsedLinkSpec {
+    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+        let lstype = r.take_u8()?;
+        r.read_nested_u8len(|r| {
+            let body = r.take_rest().to_vec();
+            Ok(Self { lstype, body })
+        })
+    }
+}
+impl Writeable for UnparsedLinkSpec {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
+        w.write_u8(self.lstype);
+        let mut nested = w.write_nested_u8len();
+        nested.write_all(&self.body[..]);
+        nested.finish()
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -222,5 +251,56 @@ mod test {
         assert!(matches!(t(&hex!("00 03")), Error::Truncated));
         assert!(matches!(t(&hex!("00 06 01020304")), Error::Truncated));
         assert!(matches!(t(&hex!("99 07 010203")), Error::Truncated));
+    }
+
+    #[test]
+    fn test_unparsed() {
+        fn t(b: &[u8], val: &UnparsedLinkSpec) {
+            let mut r = Reader::from_slice(b);
+            let got: UnparsedLinkSpec = r.extract().unwrap();
+            assert_eq!(r.remaining(), 0);
+            assert_eq!(&got, val);
+            let mut v = Vec::new();
+            v.write(val).expect("Encoding failure");
+            assert_eq!(&v[..], b);
+        }
+
+        // Note that these are not valid linkspecs, but we accept them here.
+        t(
+            &hex!("00 00"),
+            &UnparsedLinkSpec {
+                lstype: 0,
+                body: vec![],
+            },
+        );
+        t(
+            &hex!("00 03 010203"),
+            &UnparsedLinkSpec {
+                lstype: 0,
+                body: vec![1, 2, 3],
+            },
+        );
+
+        t(
+            &hex!("99 10 000102030405060708090a0b0c0d0e0f"),
+            &UnparsedLinkSpec {
+                lstype: 0x99,
+                body: (0..=15).collect(),
+            },
+        );
+    }
+
+    #[test]
+    fn test_unparsed_bad() {
+        use tor_bytes::Error;
+        fn t(b: &[u8]) -> Error {
+            let mut r = Reader::from_slice(b);
+            let got: Result<UnparsedLinkSpec> = r.extract();
+            got.err().unwrap()
+        }
+
+        assert!(matches!(t(&hex!("00")), Error::Truncated));
+        assert!(matches!(t(&hex!("00 04 010203")), Error::Truncated));
+        assert!(matches!(t(&hex!("00 05 01020304")), Error::Truncated));
     }
 }

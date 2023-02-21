@@ -28,7 +28,7 @@ use tor_hscrypto::{
     },
     RevisionCounter, Subcredential,
 };
-use tor_linkspec::LinkSpec;
+use tor_linkspec::UnparsedLinkSpec;
 use tor_llcrypto::pk::curve25519;
 use tor_units::IntegerMinutes;
 
@@ -125,14 +125,7 @@ pub struct IntroPointDesc {
     //
     // TODO hs: perhaps we should make certain link specifiers mandatory? That
     // would make it possible for IntroPointDesc to implement CircTarget.
-    //
-    // TODO hs: We should not be parsing this eagerly.  Instead, we should
-    // have an `UnparsedLinkSpec` type containing the type and data, and
-    // maybe `LinkSpec` should become `UseableLinkSpec` (and lose its `Unrecognized` arm).
-    // See rend-spec 2.5.2.2 for example.  The current approach will allow a peer to
-    // discover whether this Arti supports a particular LSTYPE, by sending a link spec
-    // of that type but with wrong data (eg, the wrong length).
-    link_specifiers: Vec<LinkSpec>,
+    link_specifiers: Vec<UnparsedLinkSpec>,
 
     /// The key used to extend a circuit _to the introduction point_, using the
     /// ntor or ntor3 handshakes.  (`KP_ntor`)
