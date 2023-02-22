@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+#
+# The following scripts checks whether this shell environment contains all the
+# binaries and packages required for an Arti development environment.
+
+###############################################################################
+# LIST OF DEPENDENCIES
+###############################################################################
+
+# List of binaries required in $PATH
+BIN=(
+    "bash" # Redundant check, but included for completeness sake
+    "cargo"
+    "docker"
+    "git"
+    "grcov"
+    "perl"
+    "pkg-config"
+    "python3"
+    "rustc"
+    "rustup"
+    "shellcheck"
+)
+
+# List of Cargo commands
+CARGO=(
+    "audit"
+    "fuzz"
+    "license"
+    "sort"
+)
+
+# List of C libraries, that pkg-config must be able to locate
+C_LIBS=(
+    "openssl"
+    "sqlite3"
+)
+
+# List of Python packages, that must be available to the Python interpreter
+PYTHON=(
+    "bs4"
+    "lxml"
+    "toml"
+)
+
+# List of Rust toolchain components, that must be available in the component list
+RUST=(
+    "llvm-tools"
+)
+
+###############################################################################
+# EXEUCTION OF THE ACTUAL TESTS
+###############################################################################
+
+MISSING_BIN=()
+MISSING_CARGO=()
+MISSING_C_LIBS=()
+MISSING_PYTHON=()
+MISSING_RUST=()
+
+for bin in "${BIN[@]}"; do
+    echo -n "Checking $bin ... "
+    if ! type "$bin" > /dev/null; then
+        MISSING_BIN+=("$bin")
+    else
+        echo "ok"
+    fi
+done
+
+for cmd in "${CARGO[@]}"; do
+    echo -n "Checking Cargo command $cmd ... "
+    if ! cargo "$cmd" --help; then
+        MISSING_CARGO+=("$cmd")
+    else
+        echo "ok"
+    fi
+done
+
+for lib in "${C_LIBS[@]}"; do
+    echo -n "Checking C library $lib ... "
+    if ! pkg-config "$lib" > /dev/null; then
+        MISSING_C_LIBS+=("$lib")
+    else
+        echo "ok"
+    fi
+done
+
+for pkg in "${PYTHON[@]}"; do
+    echo -n "Checking Python3 package $pkg ... "
+    if ! python3 -c "import $pkg" > /dev/null; then
+        MISSING_PYTHON+=("$pkg")
+    else
+        echo "ok"
+    fi
+done
+
+for comp in "${RUST[@]}"; do
+    echo -n "Checking Rust component $comp ... "
+    if ! rustup component list --installed | grep "$comp" > /dev/null; then
+        MISSING_RUST+=("$comp")
+    else
+        echo "ok"
+    fi
+done
+
+echo ""
+echo "==============================="
+echo "Summary"
+echo "==============================="
+
+if [ ${#MISSING_BIN[@]} -ne 0 ] || [ ${#MISSING_CARGO[@]} -ne 0 ] || [ ${#MISSING_C_LIBS[@]} -ne 0 ] || [ ${#MISSING_PYTHON[@]} -ne 0 ] || [ ${#MISSING_RUST[@]} -ne 0 ];
+then
+    echo "Missing binaries: " "${MISSING_BIN[@]}"
+    echo "Missing Cargo commands: " "${MISSING_CARGO[@]}"
+    echo "Missing C libraries: " "${MISSING_C_LIBS[@]}"
+    echo "Missing Python3 packages: " "${MISSING_PYTHON[@]}"
+    echo "Missing Rust components: " "${MISSING_RUST[@]}"
+    exit 1
+else
+    echo "No missing packages, enjoy your development environment! :-)"
+    exit 0
+fi
