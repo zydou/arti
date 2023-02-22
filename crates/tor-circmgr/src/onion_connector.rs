@@ -22,7 +22,6 @@ pub trait OnionServiceConnector {
     async fn create_connection(
         &self,
         service_id: tor_hscrypto::pk::HsId,
-        using_keys: Option<tor_hscrypto::pk::ClientSecretKeys>,
         // TODO hs: If we want to support cache isolation, we may need to pass
         // an additional argument here.
     ) -> Result<ClientCirc, OnionConnectError>;

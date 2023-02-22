@@ -452,7 +452,6 @@ impl<R: Runtime> CircMgr<R> {
     pub async fn get_or_launch_onion_client(
         &self,
         service_id: tor_hscrypto::pk::HsId,
-        using_keys: Option<tor_hscrypto::pk::ClientSecretKeys>,
         isolation: StreamIsolation,
     ) -> Result<ClientCirc> {
         // Should just call the HS connector, which is completely responsible for managing the
