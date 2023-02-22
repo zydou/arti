@@ -22,6 +22,7 @@ pub struct HsClientConnector<R: Runtime> {
     //
     // TODO hs: currently this is a circular set of Arc, since the CircMgr will
     // have to hold an Arc<OnionServiceConnector>.  We should make one Weak.
+    // A. We should probably abolish this instead, see comments for OnionServiceConnector -Diziet
     //
     // TODO hs: Maybe we can make a trait that only gives a minimal "build a
     // circuit" API from CircMgr, so that we can have this be a dyn reference
@@ -29,7 +30,7 @@ pub struct HsClientConnector<R: Runtime> {
     circmgr: Arc<CircMgr<R>>,
     /// A [`NetDirProvider`] that we use to pick rendezvous points.
     //
-    // TODO hs: Should this be weak too?
+    // TODO hs: Should this be weak too?   A. No, it's a downward reference. -Diziet
     netdir_provider: Arc<dyn NetDirProvider>,
     /// Information we are remembering about different onion services.
     //

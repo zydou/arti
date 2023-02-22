@@ -407,6 +407,14 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// If the list of ports is empty, then the chosen circuit will
     /// still end at _some_ exit.
+    //
+    // TODO HS API: Either soup up get_or_launch_exit or abolish all HS code in circmgr
+    //   1. This function should be told the destination domain name so
+    //      that it can divert HS connections
+    //   2. We aren't trying to have circmgr divert .onion requests to the HS,
+    //      in which case there is no need for circmgr to know *anything* about HS.
+    //      In this case, see also re `OnionServiceConnector`
+    //      and `HsClientSecretKeys`
     pub async fn get_or_launch_exit(
         &self,
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
@@ -432,16 +440,14 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Try to connect to an onion service via this circuit manager.
     ///
-    /// If `using_keys` is provided, then we will use those keys, in addition to
-    /// any configured in our `OnionServiceConnector`, to connect to the
-    /// service.
-    ///
     /// If we already have an existing circuit with the appropriate isolation,
     /// we will return that circuit regardless of the content of `using_keys`.
     ///
     /// Requires that an `OnionServiceConnector` has been installed.  If it
     /// hasn't, then we return an error.
     #[cfg(feature = "hs-client")]
+    //
+    // TODO HS: I think this method should be abolished  -Diziet
     #[allow(clippy::missing_panics_doc, unused_variables)]
     pub async fn get_or_launch_onion_client(
         &self,

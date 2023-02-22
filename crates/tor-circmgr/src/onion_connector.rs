@@ -8,6 +8,14 @@ use tor_proto::circuit::ClientCirc;
 ///
 /// This is defined in `tor-circmgr`, since `tor-circmgr` uses an instance of
 /// this object to connect to onion services.
+//
+// TODO HS API: The only reason this needs to exist is so that the circmgr can divert
+// requests for an exit circuit to a .onion domain name, to the HS code.
+// This seems to be an acceptable layering violation, to serve the purpose.
+// But maybe that diversion function should be done higher up (in arti-client maybe).
+// See the comment on `get_or_launch_exit`.
+//
+// TODO HS: If we retain this, this module and its types should be renamed "hs".
 #[async_trait]
 pub trait OnionServiceConnector {
     /// Try to launch a connection to a given onion service.
