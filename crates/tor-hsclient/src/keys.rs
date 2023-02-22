@@ -1,11 +1,7 @@
-//! Manage a set of private keys for a client to authenticate to one or more
-//! onion services.
+//! Hidden service (onion service) client key management functionality
 
-use std::{collections::HashMap, sync::Mutex};
+// TODO HS what layer should be responsible for finding and dispatching keys?
+// I think it should be as high as possible, so keys should be passed into
+// the hs connector for each connection.  Otherwise there would have to be an
+// HsKeyProvider trait here, and error handling gets complicated.
 
-use tor_hscrypto::pk::{ClientSecretKeys, HsId};
-
-pub(crate) struct Keys {
-    /// The
-    keys: Mutex<HashMap<HsId, ClientSecretKeys>>,
-}

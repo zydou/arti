@@ -37,11 +37,6 @@ pub struct HsClientConnector<R: Runtime> {
     // TODO hs: if we implement cache isolation or state isolation, we might
     // need multiple instances of this.
     state: state::StateMap,
-    /// A collection of private keys to be used with various onion services.
-    //
-    // TODO hs: we might even want multiple instances of this, depending on how
-    // we decide to do isolation.
-    keys: keys::Keys,
 }
 
 impl<R: Runtime> HsClientConnector<R> {
