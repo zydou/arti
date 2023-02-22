@@ -30,29 +30,6 @@ cd "$TOPDIR"
 UNIT=no
 INTEGRATION=no
 
-# Check if all dependencies are satisfied
-DEPS_BINARY=("rustup" "python3" "grcov")
-DEPS_PYTHON=("bs4" "lxml")
-
-for bin in "${DEPS_BINARY[@]}"; do
-    if ! type "$bin" > /dev/null;  then
-        echo "Missing $bin in PATH"
-        exit 1
-    fi
-done
-
-for pkg in "${DEPS_PYTHON[@]}"; do
-    if ! python3 -c "import $pkg" > /dev/null; then
-        echo "Missing python package $pkg"
-        exit 1
-    fi
-done
-
-if ! rustup component list --installed | grep llvm-tools &> /dev/null; then
-    echo "Missing llvm-tools in the Rust toolchain"
-    exit 1
-fi
-
 while getopts "ch" opt ; do
     case "$opt" in
 	h) usage
