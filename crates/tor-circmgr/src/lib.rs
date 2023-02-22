@@ -449,12 +449,9 @@ impl<R: Runtime> CircMgr<R> {
         using_keys: Option<tor_hscrypto::pk::ClientSecretKeys>,
         isolation: StreamIsolation,
     ) -> Result<ClientCirc> {
-        todo!() // TODO hs
-
-        // The implementation should look up whether we have an appropriate
-        // connected rendezvous circuit built or in progress in our CircMgr.  If
-        // we do, we should return it or wait for it.  Otherwise we should
-        // delegate to our OnionServiceConnector to build it.
+        // Should just call the HS connector, which is completely responsible for managing the
+        // construction and retention of of HS circuits.
+        todo!()
     }
 
     /// Return a circuit to a specific relay, suitable for using for direct
