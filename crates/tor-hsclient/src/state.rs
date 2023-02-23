@@ -338,3 +338,103 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
     /// Is circuit OK?  Ie, not `.is_closing()`.
     fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool;
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use crate::*;
+    use tor_rtcompat::test_with_one_runtime;
+
+    #[derive(Debug, Default)]
+    struct MockData {
+        // things will appear here when we have more sophisticated tests
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockGlobalState {
+        // things will appear here when we have more sophisticated tests
+    }
+
+    #[derive(Clone, Debug)]
+    struct MockCirc {
+        ok: Arc<Mutex<bool>>,
+    }
+
+    #[async_trait]
+    impl MockableConnectorData for MockData {
+        type ClientCirc = MockCirc;
+        type MockGlobalState = MockGlobalState;
+
+        async fn connect<R: Runtime>(
+            _connector: &HsClientConnector<R, MockData>,
+            _data: &mut MockData,
+            _secret_keys: HsClientSecretKeys,
+        ) -> Result<Self::ClientCirc, HsClientConnError> {
+            let ok = Arc::new(Mutex::new(true));
+            Ok(MockCirc { ok })
+        }
+
+        fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
+            *circuit.ok.lock().unwrap()
+        }
+    }
+
+    fn new_hsconn_mocked<R: Runtime>(runtime: R) -> HsClientConnector<R, MockData> {
+        let chanmgr = tor_chanmgr::ChanMgr::new(
+            runtime.clone(),
+            &Default::default(),
+            tor_chanmgr::Dormancy::Dormant,
+            &Default::default(),
+        );
+        let guardmgr = tor_guardmgr::GuardMgr::new(
+            runtime.clone(),
+            tor_persist::TestingStateMgr::new(),
+            &tor_guardmgr::TestConfig::default(),
+        ).unwrap();
+        let circmgr = tor_circmgr::CircMgr::new(
+            &tor_circmgr::TestConfig::default(),
+            tor_persist::TestingStateMgr::new(),
+            &runtime,
+            Arc::new(chanmgr),
+            guardmgr,
+        ).unwrap();
+        let netdir_provider = tor_netdir::testprovider::TestNetDirProvider::new();
+        let netdir_provider = Arc::new(netdir_provider);
+        #[allow(clippy::let_and_return)] // we'll probably add more in this function
+        let hscc = HsClientConnector {
+            runtime,
+            circmgr,
+            netdir_provider,
+            services: Default::default(),
+            mock_for_state: MockGlobalState {},
+        };
+        hscc
+    }
+
+    #[test]
+    fn simple() {
+        test_with_one_runtime!(|runtime| async {
+            let hsconn = new_hsconn_mocked(runtime);
+            let hs_id = [0_u8; 32].into();
+            let isolation = tor_circmgr::IsolationToken::no_isolation();
+            let secret_keys = HsClientSecretKeysBuilder::default().build().unwrap();
+            let circuit = Services::get_or_launch_connection(
+                &hsconn,
+                hs_id,
+                isolation.into(),
+                secret_keys,
+            ).await.unwrap();
+            eprintln!("{:?}", circuit);
+        });
+    }
+}

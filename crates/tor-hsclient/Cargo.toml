@@ -35,3 +35,9 @@ tor-rtcompat = { version = "0.8.1", path = "../tor-rtcompat" }
 tracing = "0.1.18"
 
 [dev-dependencies]
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.8.1" }
+tor-circmgr = { version = "0.7.2", path = "../tor-circmgr", features = ["hs-client", "testing"] }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.1", features = ["testing"] }
+tor-netdir = { path = "../tor-netdir", version = "0.8.0", features = ["testing"] }
+tor-persist = { path = "../tor-persist", version = "0.6.1", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
