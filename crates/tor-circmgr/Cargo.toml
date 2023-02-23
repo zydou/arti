@@ -17,6 +17,10 @@ default = []
 full = ["specific-relay"]
 specific-relay = []
 
+# Enable testing-only APIs.  APIs under this feature are not
+# covered by semver.
+testing = []
+
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
@@ -31,6 +35,7 @@ hs-common = ["tor-hscrypto"]
 async-trait = "0.1.2"
 bounded-vec-deque = "0.1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
+derive_more = "0.99.3"
 downcast-rs = "1.2.0"
 dyn-clone = "1.0.4"
 educe = "0.4.6"

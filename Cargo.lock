@@ -3731,6 +3731,7 @@ dependencies = [
  "async-trait",
  "bounded-vec-deque",
  "derive_builder_fork_arti",
+ "derive_more",
  "downcast-rs",
  "dyn-clone",
  "educe",

@@ -55,6 +55,9 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, trace, warn};
 
+#[cfg(feature = "testing")]
+pub use config::test_config::TestConfig;
+
 pub mod build;
 mod config;
 mod err;
