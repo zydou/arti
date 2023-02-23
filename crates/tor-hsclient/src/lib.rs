@@ -19,7 +19,7 @@ use tor_netdir::NetDirProvider;
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
-pub use err::HsClientConnError;
+pub use err::{HsClientConnError, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 
 use state::Services;
@@ -51,15 +51,21 @@ pub struct HsClientConnector<R: Runtime> {
 }
 
 impl<R: Runtime> HsClientConnector<R> {
-    // TODO hs: Need a way to manage the set of keys.
-
-    // TODO hs: need a constructor here.
-
-    // TODO hs: need a function to clear our StateMap, or to create a new
-    // isolated StateMap.
-    //
-    // TODO hs: Also, we need to expose that function from `TorClient`, possibly
-    // in the existing isolation API, possibly in something new.
+    /// Create a new `HsClientConnector`
+    pub fn new(
+        runtime: R,
+        circmgr: Arc<CircMgr<R>>,
+        netdir_provider: Arc<dyn NetDirProvider>,
+        // TODO HS: there should be a config here, we will probably need it at some point
+        // TODO HS: needs a parameter which lets us periodically expire old HS data/circuits
+    ) -> Result<Self, StartupError> {
+        Ok(HsClientConnector {
+            runtime,
+            circmgr,
+            netdir_provider,
+            services: Arc::new(Mutex::new(Services::default())),
+        })
+    }
 
     /// Connect to a hidden service
     pub async fn get_or_launch_connection(

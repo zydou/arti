@@ -24,3 +24,12 @@ pub enum HsClientConnError {
         cause: Arc<SpawnError>,
     },
 }
+
+/// Error that occurred attempting to start up a hidden service client connector
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+pub enum StartupError {
+    /// Internal error
+    #[error("{0}")]
+    Bug(#[from] Bug),
+}
