@@ -227,7 +227,7 @@ impl Services {
             let runtime = &connector.runtime;
             let connector = connector.clone();
             let secret_keys = secret_keys.clone();
-            runtime.spawn_obj(Box::new(async move {
+            let connect_future = async move {
                 let mut data = data;
 
                 let got = AssertUnwindSafe(
@@ -294,10 +294,12 @@ impl Services {
                     ),
                 };
                 drop(barrier_send);
-            }).into()).map_err(|cause| HsClientConnError::Spawn {
-                spawning: "connection task",
-                cause: cause.into(),
-            })?;
+            };
+            runtime.spawn_obj(Box::new(connect_future).into())
+                .map_err(|cause| HsClientConnError::Spawn {
+                    spawning: "connection task",
+                    cause: cause.into(),
+                })?;
         }
 
         Err(internal!("HS connector state management malfunction (exceeded MAX_ATTEMPTS").into())
