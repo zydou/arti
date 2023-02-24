@@ -8,6 +8,7 @@ use tor_rtcompat::Runtime;
 use crate::{HsClientConnError, HsClientConnector, HsClientSecretKeys};
 
 /// Information about a hidden service, including our connection history
+#[allow(dead_code, unused_variables)] // TODO hs remove.
 #[derive(Default, Debug)]
 pub(crate) struct Data {
     //    /// A time when we should check whether this descriptor is still the latest.
@@ -26,6 +27,7 @@ pub(crate) struct Data {
 ///
 /// `connector` is provided only for obtaining the runtime and netdir (and `mock_for_state`).
 /// Obviously, `connect` is not supposed to go looking in `services`.
+#[allow(dead_code, unused_variables)] // TODO hs remove.
 pub(crate) async fn connect(
     connector: &HsClientConnector<impl Runtime>,
     data: &mut Data,

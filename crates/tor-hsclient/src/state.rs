@@ -96,6 +96,7 @@ enum ServiceState {
         /// The state
         data: Data,
         /// Last time we touched this, including reuse
+        #[allow(dead_code)] // TODO hs remove, when we do expiry
         last_used: Instant,
     },
     /// We have an open circuit, which we can (hopefully) just use

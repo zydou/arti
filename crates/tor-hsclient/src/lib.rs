@@ -1,7 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
 // TODO hs: Add complete suite of warnings here.
-#![allow(dead_code, unused_variables)] // TODO hs remove.
 
 mod connect;
 mod err;
@@ -81,6 +80,7 @@ impl<R: Runtime> HsClientConnector<R> {
 
 #[async_trait]
 impl<R: Runtime> OnionServiceConnector for HsClientConnector<R> {
+    #[allow(dead_code, unused_variables)] // TODO hs implement this function or remove this trait
     async fn create_connection(
         &self,
         service_id: HsId,
