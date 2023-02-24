@@ -9,6 +9,8 @@
 // only in a single module somewhere else, it would make sense to just use the
 // underlying type.
 
+use std::fmt::{self, Debug};
+
 use digest::Digest;
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
@@ -26,8 +28,21 @@ define_bytes! {
 ///
 /// Note: This is a separate type from [`HsIdKey`] because it is about 6x
 /// smaller.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct HsId([u8; 32]);
+}
+
+impl Debug for HsId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO HS debug using .onion encoding ?
+        // TODO HS display using .onion encoding
+        write!(f, "HsId(0x")?;
+        for v in self.0.as_ref() {
+            write!(f, "{:02x}", v)?;
+        }
+        write!(f, ")")?;
+        Ok(())
+    }
 }
 
 define_pk_keypair! {
