@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-: ${CARGO:=cargo}
+: "${CARGO:=cargo}"
 
 # A list of the licenses that we currently allow in our code.
 #
