@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+: ${CARGO:=cargo}
+
 # A list of the licenses that we currently allow in our code.
 #
 # If a package supports multiple licenses (using OR), then we are okay
@@ -44,7 +46,7 @@ containsElement () {
   return 1
 }
 
-if ! cargo license --help >/dev/null; then
+if ! $CARGO license --help >/dev/null; then
     echo "cargo-license is not installed!"
     echo
     echo "For reasonable results, run:"
@@ -54,9 +56,13 @@ fi
 
 cd "$(dirname "$0")/.."
 
+# The caller might reasonably have set CARGO to something containing spaces.
+# So collect the output before we set IFS.
+output=$($CARGO license --all-features -t)
+
 problems=0
 IFS=$'\n'
-for line in $(cargo license --all-features -t); do
+for line in $output; do
     package=$(echo "$line" | cut -f1)
     licenses=$(echo "$line" | cut -f5)
 
