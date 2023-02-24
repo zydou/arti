@@ -2,6 +2,7 @@
 //! about onion service history.
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::mem;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex};
@@ -9,6 +10,7 @@ use std::time::Instant;
 
 use futures::FutureExt as _;
 
+use async_trait::async_trait;
 use postage::stream::Stream as _;
 use slotmap::dense::DenseSlotMap;
 use tracing::{debug, error};
@@ -16,10 +18,8 @@ use tracing::{debug, error};
 use tor_circmgr::isolation::Isolation;
 use tor_error::{internal, Bug, ErrorReport as _};
 use tor_hscrypto::pk::HsId;
-use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
-use crate::connect::{self, Data};
 use crate::{HsClientConnError, HsClientConnector, HsClientSecretKeys};
 
 slotmap::new_key_type! {
@@ -54,7 +54,7 @@ const MAX_ATTEMPTS: u32 = 10;
 ///             linear search   |________________|          | ...            ....    |
 /// ```                                                     |________________________|
 #[derive(Default)]
-pub(crate) struct Services {
+pub(crate) struct Services<D: MockableConnectorData> {
     /// Index, mapping key to entry in the data tble
     ///
     /// There's a HashMap from HsId.
@@ -69,7 +69,7 @@ pub(crate) struct Services {
     /// place to put its results, without having to re-traverse the data structure.
     /// It also doesn't need a complete copy of the data structure key,
     /// nor to get involved with `Isolation` edge cases.
-    table: DenseSlotMap<TableIndex, ServiceState>,
+    table: DenseSlotMap<TableIndex, ServiceState<D>>,
 }
 
 /// Entry in the 2nd-level lookup array
@@ -90,11 +90,11 @@ struct IndexRecord {
 // TODO HS actually expire old data
 //
 // TODO unify this with channels and circuits.  See arti#778.
-enum ServiceState {
+enum ServiceState<D: MockableConnectorData> {
     /// We don't have a circuit
     Closed {
         /// The state
-        data: Data,
+        data: D,
         /// Last time we touched this, including reuse
         #[allow(dead_code)] // TODO hs remove, when we do expiry
         last_used: Instant,
@@ -102,9 +102,9 @@ enum ServiceState {
     /// We have an open circuit, which we can (hopefully) just use
     Open {
         /// The state
-        data: Data,
+        data: D,
         /// The circuit
-        circuit: ClientCirc,
+        circuit: D::ClientCirc,
         /// Last time we touched this, including reuse
         last_used: Instant,
     },
@@ -123,23 +123,23 @@ enum ServiceState {
     Dummy,
 }
 
-impl Services {
+impl<D: MockableConnectorData> Services<D> {
     /// Connect to a hidden service
     // We *do* drop guard.  There is *one* await point, just after drop(guard).
     #[allow(clippy::await_holding_lock)]
     pub(crate) async fn get_or_launch_connection(
-        connector: &HsClientConnector<impl Runtime>,
+        connector: &HsClientConnector<impl Runtime, D>,
         hs_id: HsId,
         isolation: Box<dyn Isolation>,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<ClientCirc, HsClientConnError> {
+    ) -> Result<D::ClientCirc, HsClientConnError> {
         let mut guard = connector.services.lock()
             .map_err(|_| internal!("HS connector poisoned"))?;
         let services = &mut *guard;
         let records = services.index.entry(hs_id).or_default();
 
         let blank_state = || ServiceState::Closed {
-            data: Data::default(),
+            data: D::default(),
             last_used: connector.runtime.now(),
         };
 
@@ -176,7 +176,7 @@ impl Services {
             let (data, barrier_send) = match state {
                 ServiceState::Open { data:_, circuit, last_used } => {
                     let now = connector.runtime.now();
-                    if circuit.is_closing() {
+                    if !D::circuit_is_ok(circuit) {
                         // Well that's no good, we need a fresh one, but keep the data
                         let data = match mem::replace(state, ServiceState::Dummy) {
                             ServiceState::Open { data, last_used: _, circuit: _ } => data,
@@ -231,18 +231,18 @@ impl Services {
 
             // Make a connection attempt
             let runtime = &connector.runtime;
-            let connector = connector.clone();
+            let connector = (*connector).clone();
             let secret_keys = secret_keys.clone();
             let connect_future = async move {
                 let mut data = data;
 
                 let got = AssertUnwindSafe(
-                    connect::connect(&connector, &mut data, secret_keys)
+                    D::connect(&connector, &mut data, secret_keys)
                 )
                     .catch_unwind()
                     .await
                     .unwrap_or_else(|_| {
-                        data = Data::default();
+                        data = D::default();
                         Err(internal!("hidden service connector task panicked!").into())
                     });
                 let last_used = connector.runtime.now();
@@ -310,4 +310,31 @@ impl Services {
 
         Err(internal!("HS connector state management malfunction (exceeded MAX_ATTEMPTS").into())
     }
+}
+
+/// Mocking for actual HS connection work, to let us test the `Services` state machine
+//
+// Does *not* mock circmgr, chanmgr, etc. - those won't be used by the tests, since our
+// `connect` won't call them.  But mocking them pollutes many types with `R` and is
+// generally tiresome.  So let's not.  Instead the tests can make dummy ones.
+//
+// This trait is actually crate-private, since it isn't re-exported, but it must
+// be `pub` because it appears as a default for a type parameter in HsClientConnector.
+#[async_trait]
+pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
+    /// Client circuit
+    type ClientCirc: Clone + Sync + Send + 'static;
+
+    /// Mock state
+    type MockGlobalState: Clone + Sync + Send + 'static;
+
+    /// Connect
+    async fn connect<R: Runtime>(
+        connector: &HsClientConnector<R, Self>,
+        data: &mut Self,
+        secret_keys: HsClientSecretKeys,
+    ) -> Result<Self::ClientCirc, HsClientConnError>;
+
+    /// Is circuit OK?  Ie, not `.is_closing()`.
+    fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool;
 }

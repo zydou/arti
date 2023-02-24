@@ -46,6 +46,7 @@ mod state;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use educe::Educe;
 
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{CircMgr, OnionConnectError, OnionServiceConnector};
@@ -60,8 +61,9 @@ pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 use state::Services;
 
 /// An object that negotiates connections with onion services
-#[derive(Clone)]
-pub struct HsClientConnector<R: Runtime> {
+#[derive(Educe)]
+#[educe(Clone)]
+pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = connect::Data> {
     /// The runtime
     runtime: R,
     /// A [`CircMgr`] that we use to build circuits to HsDirs, introduction
@@ -83,10 +85,12 @@ pub struct HsClientConnector<R: Runtime> {
     //
     // TODO hs: if we implement cache isolation or state isolation, we might
     // need multiple instances of this.
-    services: Arc<Mutex<state::Services>>,
+    services: Arc<Mutex<state::Services<D>>>,
+    /// For mocking in tests of `state.rs`
+    mock_for_state: D::MockGlobalState,
 }
 
-impl<R: Runtime> HsClientConnector<R> {
+impl<R: Runtime> HsClientConnector<R, connect::Data> {
     /// Create a new `HsClientConnector`
     pub fn new(
         runtime: R,
@@ -100,6 +104,7 @@ impl<R: Runtime> HsClientConnector<R> {
             circmgr,
             netdir_provider,
             services: Arc::new(Mutex::new(Services::default())),
+            mock_for_state: (),
         })
     }
 

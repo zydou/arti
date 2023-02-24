@@ -2,15 +2,20 @@
 
 //use std::time::SystemTime;
 
+use async_trait::async_trait;
+
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
+use crate::state::MockableConnectorData;
 use crate::{HsClientConnError, HsClientConnector, HsClientSecretKeys};
 
 /// Information about a hidden service, including our connection history
 #[allow(dead_code, unused_variables)] // TODO hs remove.
 #[derive(Default, Debug)]
-pub(crate) struct Data {
+// This type is actually crate-private, since it isn't re-exported, but it must
+// be `pub` because it appears as a default for a type parameter in HsClientConnector.
+pub struct Data {
     //    /// A time when we should check whether this descriptor is still the latest.
     //    desc_fresh_until: SystemTime,
     //    /// A time when we should expire this entry completely.
@@ -46,4 +51,22 @@ pub(crate) async fn connect(
     //  - Add a virtual hop to the rendezvous circuit.
     //  - Return the rendezvous circuit.
     todo!()
+}
+
+#[async_trait]
+impl MockableConnectorData for Data {
+    type ClientCirc = ClientCirc;
+    type MockGlobalState = ();
+
+    async fn connect<R: Runtime>(
+        connector: &HsClientConnector<R>,
+        data: &mut Self,
+        secret_keys: HsClientSecretKeys,
+    ) -> Result<Self::ClientCirc, HsClientConnError> {
+        connect(connector, data, secret_keys).await
+    }
+
+    fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
+        !circuit.is_closing()
+    }
 }
