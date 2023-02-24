@@ -3,20 +3,31 @@
 // TODO hs: Add complete suite of warnings here.
 #![allow(dead_code, unused_variables)] // TODO hs remove.
 
+mod connect;
+mod err;
 mod keys;
 mod state;
 
-use async_trait::async_trait;
-use std::sync::Arc;
-use tor_hscrypto::pk::HsId;
-use tor_proto::circuit::ClientCirc;
+use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
+
+use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{CircMgr, OnionConnectError, OnionServiceConnector};
+use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
+use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
+pub use err::HsClientConnError;
+pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
+
+use state::Services;
+
 /// An object that negotiates connections with onion services
+#[derive(Clone)]
 pub struct HsClientConnector<R: Runtime> {
+    runtime: R,
     /// A [`CircMgr`] that we use to build circuits to HsDirs, introduction
     /// points, and rendezvous points.
     //
@@ -36,7 +47,7 @@ pub struct HsClientConnector<R: Runtime> {
     //
     // TODO hs: if we implement cache isolation or state isolation, we might
     // need multiple instances of this.
-    state: state::StateMap,
+    services: Arc<Mutex<state::Services>>,
 }
 
 impl<R: Runtime> HsClientConnector<R> {
@@ -49,6 +60,16 @@ impl<R: Runtime> HsClientConnector<R> {
     //
     // TODO hs: Also, we need to expose that function from `TorClient`, possibly
     // in the existing isolation API, possibly in something new.
+
+    /// Connect to a hidden service
+    pub async fn get_or_launch_connection(
+        &self,
+        hs_id: HsId,
+        secret_keys: HsClientSecretKeys,
+        isolation: Box<dyn Isolation>,
+    ) -> Result<ClientCirc, HsClientConnError> {
+        Services::get_or_launch_connection(self, hs_id, isolation, secret_keys).await
+    }
 }
 
 #[async_trait]
@@ -58,18 +79,5 @@ impl<R: Runtime> OnionServiceConnector for HsClientConnector<R> {
         service_id: HsId,
     ) -> Result<ClientCirc, OnionConnectError> {
         todo!() // TODO hs
-
-        // This function must do the following, retrying as appropriate.
-        //  - Look up the onion descriptor in the state.
-        //  - Download the onion descriptor if one isn't there.
-        //  - In parallel:
-        //    - Pick a rendezvous point from the netdirprovider and launch a
-        //      rendezvous circuit to it. Then send ESTABLISH_INTRO.
-        //    - Pick a number of introduction points (1 or more) and try to
-        //      launch circuits to them.
-        //  - On a circuit to an introduction point, send an INTRODUCE1 cell.
-        //  - Wait for a RENDEZVOUS2 cell on the rendezvous circuit
-        //  - Add a virtual hop to the rendezvous circuit.
-        //  - Return the rendezvous circuit.
     }
 }

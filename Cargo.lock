@@ -3199,6 +3199,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "slotmap"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e08e261d0e8f5c43123b7adf3e4ca1690d655377ac93a03b2c9d3e98de1342"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3958,15 +3967,20 @@ name = "tor-hsclient"
 version = "0.1.1"
 dependencies = [
  "async-trait",
+ "futures",
+ "postage",
  "rand_core 0.6.4",
+ "slotmap",
  "thiserror",
  "tor-circmgr",
  "tor-config",
+ "tor-error",
  "tor-hscrypto",
  "tor-llcrypto",
  "tor-netdir",
  "tor-proto",
  "tor-rtcompat",
+ "tracing",
 ]
 
 [[package]]
