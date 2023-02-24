@@ -38,7 +38,7 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#[cfg(feature = "onion-service")]
+#[cfg(feature = "hs-service")]
 pub(crate) mod build;
 #[macro_use]
 pub(crate) mod parse;
@@ -54,8 +54,8 @@ pub use util::batching_split_before;
 
 pub use err::{BuildError, Error, ParseErrorKind, Pos};
 
-#[cfg(feature = "onion-service")]
-#[cfg_attr(docsrs, doc(cfg(feature = "onion-service")))]
+#[cfg(feature = "hs-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
 pub use build::NetdocText;
 
 /// Alias for the Result type returned by most objects in this module.

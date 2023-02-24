@@ -14,10 +14,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-experimental = ["experimental-udp", "onion-service"]
+experimental = ["experimental-udp", "hs"]
 # Enable experimental UDP support.
 experimental-udp = []
-onion-service = ["tor-hscrypto"] #TODO hs: rename this feature, it is not service-specific.
+# "hs" = (all) hidden service support, either client or server
+hs = ["tor-hscrypto"]
 
 # Enable testing only API
 testing = ["experimental-udp"]

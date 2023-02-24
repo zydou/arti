@@ -98,7 +98,7 @@ impl HsDirParams {
 
         // When computing secondary rings, we don't try so many fallback operations:
         // if they aren't available, they aren't available.
-        #[cfg(feature = "onion-service")]
+        #[cfg(feature = "hs-service")]
         let secondary = [cur_period.prev(), cur_period.next()]
             .iter()
             .flatten()
@@ -107,7 +107,7 @@ impl HsDirParams {
 
         Ok(HsDirs {
             current,
-            #[cfg(feature = "onion-service")]
+            #[cfg(feature = "hs-service")]
             secondary,
         })
     }
@@ -430,7 +430,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "onion-service")]
+    #[cfg(feature = "hs-service")]
     fn ring_params_simple() {
         // Compute ring parameters in a legacy environment, where the time
         // period and the SRV lifetime are one day long, and they are offset by
@@ -457,7 +457,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "onion-service")]
+    #[cfg(feature = "hs-service")]
     fn ring_params_tricky() {
         // In this case we give the SRVs timestamps and we choose an odd hsdir_interval.
         let consensus = example_consensus_builder()

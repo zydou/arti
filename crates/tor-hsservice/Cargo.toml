@@ -20,7 +20,7 @@ default = []
 async-trait = "0.1.2"
 rand_core = "0.6.2"
 thiserror = "1"
-tor-circmgr = { version = "0.7.1", path = "../tor-circmgr", features = ["onion-client"] }
+tor-circmgr = { version = "0.7.1", path = "../tor-circmgr", features = ["hs-client"] }
 tor-hscrypto = { version = "0.1.0", path = "../tor-hscrypto" }
 tor-llcrypto = { version = "0.4.1", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.7.1", path = "../tor-netdir" }

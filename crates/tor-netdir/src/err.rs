@@ -39,8 +39,8 @@ impl HasKind for Error {
 
 /// An error returned when looking up onion service directories.
 #[derive(Error, Clone, Debug)]
-#[cfg(feature = "onion-common")]
-#[cfg_attr(docsrs, doc(cfg(feature = "onion-common")))]
+#[cfg(feature = "hs-common")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
 #[non_exhaustive]
 pub enum OnionDirLookupError {
     /// We tried to look up an onion service directory for a time period that
@@ -49,7 +49,7 @@ pub enum OnionDirLookupError {
     WrongTimePeriod,
 }
 
-#[cfg(feature = "onion-common")]
+#[cfg(feature = "hs-common")]
 impl HasKind for OnionDirLookupError {
     fn kind(&self) -> tor_error::ErrorKind {
         use tor_error::ErrorKind as EK;

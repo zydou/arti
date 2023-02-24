@@ -21,11 +21,11 @@ specific-relay = []
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "onion-client", "onion-service"]
+experimental = ["experimental-api", "hs-client", "hs-service"]
 experimental-api = []
-onion-client = ["onion-common"]
-onion-service = ["onion-common"]
-onion-common = ["tor-hscrypto"]
+hs-client = ["hs-common"]
+hs-service = ["hs-common"]
+hs-common = ["tor-hscrypto"]
 
 [dependencies]
 async-trait = "0.1.2"

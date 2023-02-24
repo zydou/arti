@@ -227,7 +227,7 @@ enum Host {
     // TODO hs possibly the contents of this enum should be a String rather than
     // an OnionId.
     //
-    // #[cfg(feature = "onion-client")]
+    // #[cfg(feature = "hs-client")]
     // OnionService(OnionId),
 }
 

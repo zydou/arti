@@ -10,7 +10,7 @@ use caret::caret_int;
 use rand::{CryptoRng, Rng};
 
 pub mod extend;
-#[cfg(feature = "onion-service")]
+#[cfg(feature = "hs-service")]
 pub mod hs;
 pub mod msg;
 pub mod restrict;

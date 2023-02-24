@@ -15,7 +15,7 @@ libfuzzer-sys = "0.4"
 
 [dependencies.tor-cell]
 path = ".."
-features = ["onion-service", "experimental"]
+features = ["hs-service", "experimental"]
 
 [dependencies.tor-bytes]
 path = "../../tor-bytes"
