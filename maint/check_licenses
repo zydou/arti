@@ -44,7 +44,7 @@ containsElement () {
   return 1
 }
 
-if ! cargo license --help >/dev/null 2>/dev/null; then
+if ! cargo license --help >/dev/null; then
     echo "cargo-license is not installed!"
     echo
     echo "For reasonable results, run:"
