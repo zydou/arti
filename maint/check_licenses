@@ -21,6 +21,7 @@ RECOGNIZED_LICENSES=(
     MIT
     Unicode-DFS-2016
     Unlicense
+    Zlib
     "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
 )
 
