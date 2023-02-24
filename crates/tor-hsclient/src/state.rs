@@ -11,9 +11,10 @@ use std::time::Instant;
 use futures::FutureExt as _;
 
 use async_trait::async_trait;
+use educe::Educe;
 use postage::stream::Stream as _;
 use slotmap::dense::DenseSlotMap;
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use tor_circmgr::isolation::Isolation;
 use tor_error::{internal, Bug, ErrorReport as _};
@@ -53,7 +54,7 @@ const MAX_ATTEMPTS: u32 = 10;
 ///   KS, isol ---------------> | .........|.... |          | ServiceState / <empty> |
 ///             linear search   |________________|          | ...            ....    |
 /// ```                                                     |________________________|
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct Services<D: MockableConnectorData> {
     /// Index, mapping key to entry in the data tble
     ///
@@ -73,6 +74,7 @@ pub(crate) struct Services<D: MockableConnectorData> {
 }
 
 /// Entry in the 2nd-level lookup array
+#[derive(Debug)]
 struct IndexRecord {
     /// Client secret keys (part of the data structure key)
     secret_keys: HsClientSecretKeys,
@@ -90,6 +92,8 @@ struct IndexRecord {
 // TODO HS actually expire old data
 //
 // TODO unify this with channels and circuits.  See arti#778.
+#[derive(Educe)]
+#[educe(Debug)]
 enum ServiceState<D: MockableConnectorData> {
     /// We don't have a circuit
     Closed {
@@ -104,6 +108,7 @@ enum ServiceState<D: MockableConnectorData> {
         /// The state
         data: D,
         /// The circuit
+        #[educe(Debug(ignore))]
         circuit: D::ClientCirc,
         /// Last time we touched this, including reuse
         last_used: Instant,
@@ -138,6 +143,10 @@ impl<D: MockableConnectorData> Services<D> {
             .lock()
             .map_err(|_| internal!("HS connector poisoned"))?;
         let services = &mut *guard;
+
+        trace!("HS conn get_or_launch: {hs_id:?} {isolation:?} {secret_keys:?}");
+        //trace!("HS conn services: {services:?}");
+
         let records = services.index.entry(hs_id).or_default();
 
         let blank_state = || ServiceState::Closed {
@@ -179,6 +188,8 @@ impl<D: MockableConnectorData> Services<D> {
                 .table
                 .get_mut(table_index)
                 .ok_or_else(|| internal!("guard table entry vanished!"))?;
+
+            trace!("HS conn state: {state:?}");
 
             let (data, barrier_send) = match state {
                 ServiceState::Open {

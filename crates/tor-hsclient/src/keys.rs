@@ -5,6 +5,7 @@
 // the hs connector for each connection.  Otherwise there would have to be an
 // HsKeyProvider trait here, and error handling gets complicated.
 
+use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -31,6 +32,17 @@ pub struct HsClientSecretKeys {
     /// This is compared and hashed by the Arc pointer value.
     /// We don't want to implement key comparison by comparing secret key values.
     keys: Arc<ClientSecretKeyValues>,
+}
+
+impl Debug for HsClientSecretKeys {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO derive this?
+        let mut d = f.debug_tuple("HsClientSecretKeys");
+        d.field(&Arc::as_ptr(&self.keys));
+        self.keys.ks_hsc_desc_enc.as_ref().map(|_| d.field(&"<desc_enc>"));
+        self.keys.ks_hsc_intro_auth.as_ref().map(|_| d.field(&"<intro_uath>"));
+        d.finish()
+    }
 }
 
 impl PartialEq for HsClientSecretKeys {
