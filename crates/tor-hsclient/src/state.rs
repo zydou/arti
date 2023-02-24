@@ -395,21 +395,45 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::*;
+    use futures::{poll, SinkExt};
+    use std::task::Poll::{self, *};
+    use tokio::pin;
+    use tokio_crate as tokio;
     use tor_rtcompat::test_with_one_runtime;
+    use tracing_test::traced_test;
+
+    use HsClientConnError as E;
 
     #[derive(Debug, Default)]
     struct MockData {
         // things will appear here when we have more sophisticated tests
     }
 
-    #[derive(Debug, Clone, Default)]
+    /// Type indicating what our `connect()` should return; it always makes a fresh MockCirc
+    type MockGive = Poll<Result<(), E>>;
+
+    #[derive(Debug, Clone)]
     struct MockGlobalState {
         // things will appear here when we have more sophisticated tests
+        give: postage::watch::Receiver<MockGive>,
     }
 
     #[derive(Clone, Debug)]
     struct MockCirc {
         ok: Arc<Mutex<bool>>,
+    }
+
+    impl PartialEq for MockCirc {
+        fn eq(&self, other: &MockCirc) -> bool {
+            Arc::ptr_eq(&self.ok, &other.ok)
+        }
+    }
+
+    impl MockCirc {
+        fn new() -> Self {
+            let ok = Arc::new(Mutex::new(true));
+            MockCirc { ok }
+        }
     }
 
     #[async_trait]
@@ -418,12 +442,21 @@ mod test {
         type MockGlobalState = MockGlobalState;
 
         async fn connect<R: Runtime>(
-            _connector: &HsClientConnector<R, MockData>,
+            connector: &HsClientConnector<R, MockData>,
             _data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
-        ) -> Result<Self::ClientCirc, HsClientConnError> {
-            let ok = Arc::new(Mutex::new(true));
-            Ok(MockCirc { ok })
+        ) -> Result<Self::ClientCirc, E> {
+            let make = |()| MockCirc::new();
+            let mut give = connector.mock_for_state.give.clone();
+            if let Ready(ret) = &*give.borrow() {
+                return ret.clone().map(make);
+            }
+            loop {
+                match give.recv().await.expect("EOF on mock_global_state stream") {
+                    Pending => {}
+                    Ready(ret) => return ret.map(make),
+                }
+            }
         }
 
         fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
@@ -431,7 +464,17 @@ mod test {
         }
     }
 
-    fn new_hsconn_mocked<R: Runtime>(runtime: R) -> HsClientConnector<R, MockData> {
+    fn mk_keys() -> HsClientSecretKeys {
+        HsClientSecretKeysBuilder::default().build().unwrap()
+    }
+
+    fn mk_hsconn<R: Runtime>(
+        runtime: R,
+    ) -> (
+        HsClientConnector<R, MockData>,
+        HsClientSecretKeys,
+        postage::watch::Sender<MockGive>,
+    ) {
         let chanmgr = tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &Default::default(),
@@ -454,29 +497,109 @@ mod test {
         .unwrap();
         let netdir_provider = tor_netdir::testprovider::TestNetDirProvider::new();
         let netdir_provider = Arc::new(netdir_provider);
+        let (give_send, give) = postage::watch::channel_with(Ready(Ok(())));
+        let mock_for_state = MockGlobalState { give };
         #[allow(clippy::let_and_return)] // we'll probably add more in this function
         let hscc = HsClientConnector {
             runtime,
             circmgr,
             netdir_provider,
             services: Default::default(),
-            mock_for_state: MockGlobalState {},
+            mock_for_state,
         };
-        hscc
+        let keys = mk_keys();
+        (hscc, keys, give_send)
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn mk_isol(s: &str) -> Option<NarrowableIsolation> {
+        Some(NarrowableIsolation(s.into()))
+    }
+
+    async fn launch_one(
+        hsconn: &HsClientConnector<impl Runtime, MockData>,
+        id: u8,
+        secret_keys: &HsClientSecretKeys,
+        isolation: Option<NarrowableIsolation>,
+    ) -> Result<MockCirc, HsClientConnError> {
+        let hs_id = {
+            let mut hs_id = [0_u8; 32];
+            hs_id[0] = id;
+            hs_id.into()
+        };
+        #[allow(clippy::redundant_closure)] // srsly, that would be worse
+        let isolation = isolation.unwrap_or_default().into();
+        Services::get_or_launch_connection(hsconn, hs_id, isolation, secret_keys.clone()).await
+    }
+
+    #[derive(Default, Debug, Clone)]
+    struct NarrowableIsolation(String);
+    impl tor_circmgr::isolation::IsolationHelper for NarrowableIsolation {
+        fn compatible_same_type(&self, other: &Self) -> bool {
+            self.join_same_type(other).is_some()
+        }
+        fn join_same_type(&self, other: &Self) -> Option<Self> {
+            Some(if self.0.starts_with(&other.0) {
+                self.clone()
+            } else if other.0.starts_with(&self.0) {
+                other.clone()
+            } else {
+                return None;
+            })
+        }
     }
 
     #[test]
+    #[traced_test]
     fn simple() {
         test_with_one_runtime!(|runtime| async {
-            let hsconn = new_hsconn_mocked(runtime);
-            let hs_id = [0_u8; 32].into();
-            let isolation = tor_circmgr::IsolationToken::no_isolation();
-            let secret_keys = HsClientSecretKeysBuilder::default().build().unwrap();
-            let circuit =
-                Services::get_or_launch_connection(&hsconn, hs_id, isolation.into(), secret_keys)
-                    .await
-                    .unwrap();
+            let (hsconn, keys, _give_send) = mk_hsconn(runtime);
+
+            let circuit = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             eprintln!("{:?}", circuit);
+        });
+    }
+
+    #[test]
+    #[traced_test]
+    fn coalesce() {
+        test_with_one_runtime!(|runtime| async {
+            let (hsconn, keys, mut give_send) = mk_hsconn(runtime);
+
+            give_send.send(Pending).await.unwrap();
+
+            let c1f = launch_one(&hsconn, 0, &keys, None);
+            pin!(c1f);
+            for _ in 0..10 {
+                assert!(poll!(&mut c1f).is_pending());
+            }
+
+            // c2f will find Working
+            let c2f = launch_one(&hsconn, 0, &keys, None);
+            pin!(c2f);
+            for _ in 0..10 {
+                assert!(poll!(&mut c1f).is_pending());
+                assert!(poll!(&mut c2f).is_pending());
+            }
+
+            give_send.send(Ready(Ok(()))).await.unwrap();
+
+            let c1 = c1f.await.unwrap();
+            let c2 = c2f.await.unwrap();
+            assert_eq!(c1, c2);
+
+            // c2 will find Open
+            let c3 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+            assert_eq!(c1, c3);
+
+            assert_ne!(c1, launch_one(&hsconn, 1, &keys, None).await.unwrap());
+            assert_ne!(c1, launch_one(&hsconn, 0, &mk_keys(), None).await.unwrap());
+
+            let c_isol_1 = launch_one(&hsconn, 0, &keys, mk_isol("a")).await.unwrap();
+            assert_eq!(c1, c_isol_1); // We can reuse, but now we've narrowed the isol
+
+            let c_isol_2 = launch_one(&hsconn, 0, &keys, mk_isol("b")).await.unwrap();
+            assert_ne!(c1, c_isol_2);
         });
     }
 }

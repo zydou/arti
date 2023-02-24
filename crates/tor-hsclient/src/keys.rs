@@ -39,8 +39,14 @@ impl Debug for HsClientSecretKeys {
         // TODO derive this?
         let mut d = f.debug_tuple("HsClientSecretKeys");
         d.field(&Arc::as_ptr(&self.keys));
-        self.keys.ks_hsc_desc_enc.as_ref().map(|_| d.field(&"<desc_enc>"));
-        self.keys.ks_hsc_intro_auth.as_ref().map(|_| d.field(&"<intro_uath>"));
+        self.keys
+            .ks_hsc_desc_enc
+            .as_ref()
+            .map(|_| d.field(&"<desc_enc>"));
+        self.keys
+            .ks_hsc_intro_auth
+            .as_ref()
+            .map(|_| d.field(&"<intro_uath>"));
         d.finish()
     }
 }

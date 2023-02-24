@@ -3974,6 +3974,7 @@ dependencies = [
  "rand_core 0.6.4",
  "slotmap",
  "thiserror",
+ "tokio",
  "tor-chanmgr",
  "tor-circmgr",
  "tor-config",
@@ -3986,6 +3987,7 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tracing",
+ "tracing-test",
 ]
 
 [[package]]
