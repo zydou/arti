@@ -133,7 +133,9 @@ impl<D: MockableConnectorData> Services<D> {
         isolation: Box<dyn Isolation>,
         secret_keys: HsClientSecretKeys,
     ) -> Result<D::ClientCirc, HsClientConnError> {
-        let mut guard = connector.services.lock()
+        let mut guard = connector
+            .services
+            .lock()
             .map_err(|_| internal!("HS connector poisoned"))?;
         let services = &mut *guard;
         let records = services.index.entry(hs_id).or_default();
@@ -143,17 +145,20 @@ impl<D: MockableConnectorData> Services<D> {
             last_used: connector.runtime.now(),
         };
 
-        let table_index = match records.iter_mut().enumerate().find_map(|(v_index, record)| {
-            // Deconstruct so that we can't accidentally fail to check some of the key fields
-            let IndexRecord {
-                secret_keys: t_keys,
-                isolation: t_isolation,
-                table_index:_,
-            } = record;
-            (t_keys == &secret_keys).then(||())?;
-            let new_isolation = t_isolation.join(&*isolation)?;
-            Some((v_index, new_isolation))
-        }) {
+        let table_index = match records
+            .iter_mut()
+            .enumerate()
+            .find_map(|(v_index, record)| {
+                // Deconstruct so that we can't accidentally fail to check some of the key fields
+                let IndexRecord {
+                    secret_keys: t_keys,
+                    isolation: t_isolation,
+                    table_index: _,
+                } = record;
+                (t_keys == &secret_keys).then(|| ())?;
+                let new_isolation = t_isolation.join(&*isolation)?;
+                Some((v_index, new_isolation))
+            }) {
             Some((v_index, new_isolation)) => {
                 records[v_index].isolation = new_isolation;
                 records[v_index].table_index
@@ -170,25 +175,41 @@ impl<D: MockableConnectorData> Services<D> {
         };
 
         for _attempt in 0..MAX_ATTEMPTS {
-            let state = guard.table.get_mut(table_index)
+            let state = guard
+                .table
+                .get_mut(table_index)
                 .ok_or_else(|| internal!("guard table entry vanished!"))?;
 
             let (data, barrier_send) = match state {
-                ServiceState::Open { data:_, circuit, last_used } => {
+                ServiceState::Open {
+                    data: _,
+                    circuit,
+                    last_used,
+                } => {
                     let now = connector.runtime.now();
                     if !D::circuit_is_ok(circuit) {
                         // Well that's no good, we need a fresh one, but keep the data
                         let data = match mem::replace(state, ServiceState::Dummy) {
-                            ServiceState::Open { data, last_used: _, circuit: _ } => data,
+                            ServiceState::Open {
+                                data,
+                                last_used: _,
+                                circuit: _,
+                            } => data,
                             _ => panic!("state changed between maches"),
                         };
-                        *state = ServiceState::Closed { data, last_used: now };
+                        *state = ServiceState::Closed {
+                            data,
+                            last_used: now,
+                        };
                         continue;
                     }
                     *last_used = now;
                     return Ok(circuit.clone());
-                },
-                ServiceState::Working { barrier_recv, error } => {
+                }
+                ServiceState::Working {
+                    barrier_recv,
+                    error,
+                } => {
                     if !matches!(
                         barrier_recv.try_recv(),
                         Err(postage::stream::TryRecvError::Pending)
@@ -203,9 +224,12 @@ impl<D: MockableConnectorData> Services<D> {
                     drop(guard);
                     // Wait for the task to complete (at which point it drops the barrier)
                     barrier_recv.recv().await;
-                    guard = connector.services.lock()
+                    guard = connector
+                        .services
+                        .lock()
                         .map_err(|_| internal!("HS connector poisoned (relock)"))?;
-                    let error = error.lock()
+                    let error = error
+                        .lock()
                         .map_err(|_| internal!("Working error poisoned"))?;
                     if let Some(error) = &*error {
                         return Err(error.clone());
@@ -214,10 +238,13 @@ impl<D: MockableConnectorData> Services<D> {
                 }
                 ServiceState::Closed { .. } => {
                     let (barrier_send, barrier_recv) = postage::barrier::channel();
-                    let data = match mem::replace(state, ServiceState::Working {
-                        barrier_recv,
-                        error: Arc::new(Mutex::new(None)),
-                    }) {
+                    let data = match mem::replace(
+                        state,
+                        ServiceState::Working {
+                            barrier_recv,
+                            error: Arc::new(Mutex::new(None)),
+                        },
+                    ) {
                         ServiceState::Closed { data, .. } => data,
                         _ => panic!("state changed between maches"),
                     };
@@ -236,9 +263,7 @@ impl<D: MockableConnectorData> Services<D> {
             let connect_future = async move {
                 let mut data = data;
 
-                let got = AssertUnwindSafe(
-                    D::connect(&connector, &mut data, secret_keys)
-                )
+                let got = AssertUnwindSafe(D::connect(&connector, &mut data, secret_keys))
                     .catch_unwind()
                     .await
                     .unwrap_or_else(|_| {
@@ -251,9 +276,13 @@ impl<D: MockableConnectorData> Services<D> {
                 // block for handling inability to store
                 let stored = async {
                     // If we can't record the new state, just panic this task.
-                    let mut guard = connector.services.lock()
+                    let mut guard = connector
+                        .services
+                        .lock()
                         .map_err(|_| internal!("HS connector poisoned"))?;
-                    let state = guard.table.get_mut(table_index)
+                    let state = guard
+                        .table
+                        .get_mut(table_index)
                         .ok_or_else(|| internal!("HS table entry removed while task running"))?;
                     // Always match this, so we check what we're overwriting
                     let error_store = match state {
@@ -278,7 +307,8 @@ impl<D: MockableConnectorData> Services<D> {
                     };
 
                     Ok(())
-                }.await;
+                }
+                .await;
 
                 match (got_error, stored) {
                     (Ok::<(), HsClientConnError>(()), Ok::<(), Bug>(())) => {}
@@ -301,7 +331,8 @@ impl<D: MockableConnectorData> Services<D> {
                 };
                 drop(barrier_send);
             };
-            runtime.spawn_obj(Box::new(connect_future).into())
+            runtime
+                .spawn_obj(Box::new(connect_future).into())
                 .map_err(|cause| HsClientConnError::Spawn {
                     spawning: "connection task",
                     cause: cause.into(),
@@ -400,14 +431,16 @@ mod test {
             runtime.clone(),
             tor_persist::TestingStateMgr::new(),
             &tor_guardmgr::TestConfig::default(),
-        ).unwrap();
+        )
+        .unwrap();
         let circmgr = tor_circmgr::CircMgr::new(
             &tor_circmgr::TestConfig::default(),
             tor_persist::TestingStateMgr::new(),
             &runtime,
             Arc::new(chanmgr),
             guardmgr,
-        ).unwrap();
+        )
+        .unwrap();
         let netdir_provider = tor_netdir::testprovider::TestNetDirProvider::new();
         let netdir_provider = Arc::new(netdir_provider);
         #[allow(clippy::let_and_return)] // we'll probably add more in this function
@@ -428,12 +461,10 @@ mod test {
             let hs_id = [0_u8; 32].into();
             let isolation = tor_circmgr::IsolationToken::no_isolation();
             let secret_keys = HsClientSecretKeysBuilder::default().build().unwrap();
-            let circuit = Services::get_or_launch_connection(
-                &hsconn,
-                hs_id,
-                isolation.into(),
-                secret_keys,
-            ).await.unwrap();
+            let circuit =
+                Services::get_or_launch_connection(&hsconn, hs_id, isolation.into(), secret_keys)
+                    .await
+                    .unwrap();
             eprintln!("{:?}", circuit);
         });
     }

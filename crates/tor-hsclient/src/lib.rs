@@ -122,10 +122,7 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
 #[async_trait]
 impl<R: Runtime> OnionServiceConnector for HsClientConnector<R> {
     #[allow(dead_code, unused_variables)] // TODO hs implement this function or remove this trait
-    async fn create_connection(
-        &self,
-        service_id: HsId,
-    ) -> Result<ClientCirc, OnionConnectError> {
+    async fn create_connection(&self, service_id: HsId) -> Result<ClientCirc, OnionConnectError> {
         todo!() // TODO hs
     }
 }

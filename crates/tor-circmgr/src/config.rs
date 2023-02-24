@@ -300,8 +300,7 @@ pub(crate) mod test_config {
     use tor_guardmgr::bridge::BridgeConfig;
 
     /// Testing configuration, with public fields
-    #[derive(Default)]
-    #[derive(derive_more::AsRef)]
+    #[derive(Default, derive_more::AsRef)]
     #[allow(clippy::exhaustive_structs)]
     pub struct TestConfig {
         ///
@@ -329,9 +328,15 @@ pub(crate) mod test_config {
         }
     }
     impl CircMgrConfig for TestConfig {
-        fn path_rules(&self) -> &PathConfig { &self.path_rules }
-        fn circuit_timing(&self) -> &CircuitTiming { &self.circuit_timing }
-        fn preemptive_circuits(&self) -> &PreemptiveCircuitConfig { &self.preemptive_circuits }
+        fn path_rules(&self) -> &PathConfig {
+            &self.path_rules
+        }
+        fn circuit_timing(&self) -> &CircuitTiming {
+            &self.circuit_timing
+        }
+        fn preemptive_circuits(&self) -> &PreemptiveCircuitConfig {
+            &self.preemptive_circuits
+        }
     }
 }
 
