@@ -293,17 +293,6 @@ define_pk_keypair! {
 pub struct HsSvcDescEncKey(curve25519::PublicKey) / HsSvcDescEncSecretKey(curve25519::StaticSecret);
 }
 
-/// A set of keys to tell the client to use when connecting to an onion service.
-//
-// TODO hs
-pub struct ClientSecretKeys {
-    /// Possibly, a key that is used to decrypt a descriptor.
-    desc_auth: Option<HsClientDescEncSecretKey>,
-    /// Possibly, a key that is used to authenticate while
-    /// introducing.
-    intro_auth: Option<HsClientIntroAuthSecretKey>,
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

@@ -3961,6 +3961,7 @@ dependencies = [
  "rand_core 0.6.4",
  "thiserror",
  "tor-circmgr",
+ "tor-config",
  "tor-hscrypto",
  "tor-llcrypto",
  "tor-netdir",
