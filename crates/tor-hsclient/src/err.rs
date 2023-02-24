@@ -15,6 +15,7 @@ pub enum HsClientConnError {
     #[error("{0}")]
     Bug(#[from] Bug),
 
+    /// Unable to spawn
     #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn

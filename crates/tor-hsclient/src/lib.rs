@@ -27,6 +27,7 @@ use state::Services;
 /// An object that negotiates connections with onion services
 #[derive(Clone)]
 pub struct HsClientConnector<R: Runtime> {
+    /// The runtime
     runtime: R,
     /// A [`CircMgr`] that we use to build circuits to HsDirs, introduction
     /// points, and rendezvous points.

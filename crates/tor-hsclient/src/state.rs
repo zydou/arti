@@ -93,13 +93,18 @@ struct IndexRecord {
 enum ServiceState {
     /// We don't have a circuit
     Closed {
+        /// The state
         data: Data,
+        /// Last time we touched this, including reuse
         last_used: Instant,
     },
     /// We have an open circuit, which we can (hopefully) just use
     Open {
+        /// The state
         data: Data,
+        /// The circuit
         circuit: ClientCirc,
+        /// Last time we touched this, including reuse
         last_used: Instant,
     },
     /// We have a task trying to find the service and establish the circuit
