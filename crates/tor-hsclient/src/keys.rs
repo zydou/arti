@@ -24,6 +24,10 @@ use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthSecretKey};
 ///
 /// Conversely, `Clone`s of a `ClientSecretKeys` *can* share circuits.
 //
+/// All [empty](HsClientSecretKeys::is_empty) `HsClientSecretKeys`
+/// (for example, from [`:none()`](HsClientSecretKeys::none))
+/// *can* share circuits.
+//
 // TODO HS some way to read these from files or something!
 #[derive(Clone, Default)]
 pub struct HsClientSecretKeys {
@@ -53,7 +57,7 @@ impl Debug for HsClientSecretKeys {
 
 impl PartialEq for HsClientSecretKeys {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.keys, &other.keys)
+        self.is_empty() && other.is_empty() || Arc::ptr_eq(&self.keys, &other.keys)
     }
 }
 impl Eq for HsClientSecretKeys {}
