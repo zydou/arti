@@ -21,6 +21,9 @@ use crate::util::ct::CtByteArray;
 /// The length of an ED25519 identity, in bytes.
 pub const ED25519_ID_LEN: usize = 32;
 
+/// The length of an ED25519 signature, in bytes.
+pub const ED25519_SIGNATURE_LEN: usize = 64;
+
 /// An unchecked, unvalidated Ed25519 key.
 ///
 /// This key is an "identity" in the sense that it identifies (up to) one
@@ -208,6 +211,7 @@ impl<'de> serde::Deserialize<'de> for Ed25519Identity {
 
 /// An ed25519 signature, plus the document that it signs and its
 /// public key.
+#[derive(Clone, Debug)]
 pub struct ValidatableEd25519Signature {
     /// The key that allegedly produced the signature
     key: PublicKey,
@@ -236,6 +240,11 @@ impl ValidatableEd25519Signature {
     /// View the interior of this signature object.
     pub(crate) fn as_parts(&self) -> (&PublicKey, &Signature, &[u8]) {
         (&self.key, &self.sig, &self.entire_text_of_signed_thing[..])
+    }
+
+    /// Return a reference to the underlying Signature.
+    pub fn signature(&self) -> &Signature {
+        &self.sig
     }
 }
 
