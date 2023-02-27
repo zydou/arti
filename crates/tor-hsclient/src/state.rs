@@ -599,7 +599,10 @@ mod test {
             assert_eq!(c1, c3);
 
             assert_ne!(c1, launch_one(&hsconn, 1, &keys, None).await.unwrap());
-            assert_ne!(c1, launch_one(&hsconn, 0, &mk_keys(42), None).await.unwrap());
+            assert_ne!(
+                c1,
+                launch_one(&hsconn, 0, &mk_keys(42), None).await.unwrap()
+            );
 
             let c_isol_1 = launch_one(&hsconn, 0, &keys, mk_isol("a")).await.unwrap();
             assert_eq!(c1, c_isol_1); // We can reuse, but now we've narrowed the isol
