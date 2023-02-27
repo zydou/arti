@@ -18,6 +18,8 @@ XXXXX ADD BLURB.
 - Our [`IntegerMinutes`] type no longer has an erroneous `days()` accessor.
   (This accessor did not work correctly, and actually returned a
   number of minutes!) ([bb2ab7c2a3e0994bb43])
+- The [`PartialNetDir::fill_from_previous_netdir()`] function has
+  changed its argument types and semantics. ([f69d7f96ac40dda5])
 
 (Breaking changes in experimental APIs are not noted here.)
 
