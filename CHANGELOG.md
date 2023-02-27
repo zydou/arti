@@ -3,6 +3,94 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.2 — 1 March 2023
+
+XXXXX ADD BLURB.
+
+(This is up-to-date with bd920fc844b5355607e83fec372b0146a534e774)
+
+
+### Breaking changes in lower level crates
+
+- The APIs for `tor-cell` have changed significantly, to help
+  implement [#525] and prepare for [#690]. This has no downstream
+  implications outside of `tor-proto`.
+- Our [`IntegerMinutes`] type no longer has an erroneous `days()` accessor.
+  (This accessor did not work correctly, and actually returned a
+  number of minutes!) ([bb2ab7c2a3e0994bb43])
+
+(Breaking changes in experimental APIs are not noted here.)
+
+### New features
+
+- We now have the facility to give a helpful "error hint" in response to
+  a given failure. Right now, we use this to improve the error message
+  given for file-system permission errors, so that it suggests either
+  changing the permissions on a directory, or suppressing the error.
+  ([#578], [#579], [!976], [!994], [!1018])
+- When we log an error message from inside our code (at "info" or higher), we
+  now make sure to log a full _error report_, including the cause of the
+  error, its cause, and so on. ([#680], [!997])
+- When receiving messages on channels, circuits, and streams, we now
+  defer parsing those messages until we know whether their types
+  are acceptable. This shrinks our attack surface, simplifies our code,
+  and makes our protocol handling less error-prone. ([#525], [!1008],
+  [!1013], [!1017])
+- We now copy relay cell bodies much less than previously. ([#7],
+  [ca3b33a1afc58b84])
+- We have support for handling link specifier types verbatim, for cases
+  when we need to use them to contact a rendezvous point or introduction
+  point without checking them. ([!1029])
+
+### Onion service development
+
+- We can now parse onion service descriptors, including all encrypted layers,
+  with support for descriptor-based client authentication. ([#744], [!999],
+  [!1015])
+- Our network directory code now supports deriving the `HsDir` directory
+  ring, to find out where onion service descriptors should be uploaded and
+  downloaded. ([#687], [!1012])
+
+
+### Testing
+
+### Documentation
+
+### Infrastructure
+
+- All our shell scripts now work when `bash` is somewhere other than `/bin`.
+  ([!990])
+- Our `check_doc_features` script is now a little more reliable.
+  ([!1023])
+- Our coverage tools now perform better checks to make sure they
+  have all of their dependencies. ([#776], [!1025])
+
+### Cleanups, minor features, and bugfixes
+
+- The internal data structures in [`tor-netdir`] now use the
+  [`typed_index_collections`] crate to ensure that the indices for one
+  list are not mis-used as indices into another. ([!1004])
+- We no longer reject authority certificates that contain an unrecognized
+  keyword. ([#752], [266c61f7213dbec7])
+- Our [`tor-netdoc`] parsing code now requires the caller to specify
+  handling for unrecognized keywords explicitly, to avoid future instances
+  of bug [#752]. ([!1006])
+- Several internal APIs and patterns in [`tor-netdoc`] have been streamlined.
+  ([#760], [!1016], [!1021])
+- Make extension-handling code in for onion service message decoding more
+  generic, since we'll reuse it a lot. ([!1020])
+- We now kill off circuits under more circumstances when the other side of
+  the circuit violates the protocol. ([#773], [#769])
+- We now expire router descriptors as soon as _any_ of their internal
+  expiration times has elapsed. Previously, we expired them when _all_
+  of their expiration times had elapsed, which is incorrect. ([#772],
+  [!1022])
+
+
+
+
+
+
 # Arti 1.1.1 — 1 February 2023
 
 After months of work, we have a new release of Arti!
