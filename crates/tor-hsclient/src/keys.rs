@@ -25,7 +25,7 @@ use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthSecretKey};
 /// Conversely, `Clone`s of a `ClientSecretKeys` *can* share circuits.
 //
 // TODO HS some way to read these from files or something!
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct HsClientSecretKeys {
     /// The actual keys
     ///
@@ -60,6 +60,27 @@ impl Eq for HsClientSecretKeys {}
 impl Hash for HsClientSecretKeys {
     fn hash<H: Hasher>(&self, state: &mut H) {
         Arc::as_ptr(&self.keys).hash(state);
+    }
+}
+
+impl HsClientSecretKeys {
+    /// Create a new `HsClientSecretKeys`, for making unauthenticated connections
+    ///
+    /// Creates a `HsClientSecretKeys` which has no actual keys,
+    /// so will make connections to hidden services
+    /// without any Tor-protocol-level client authentication.
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// Tests whether this `HsClientSecretKeys` actually contains any keys
+    pub fn is_empty(&self) -> bool {
+        // TODO derive this.  For now, we deconstruct it to prove we check all the fields.
+        let ClientSecretKeyValues {
+            ks_hsc_desc_enc,
+            ks_hsc_intro_auth,
+        } = &*self.keys;
+        ks_hsc_desc_enc.is_none() && ks_hsc_intro_auth.is_none()
     }
 }
 
