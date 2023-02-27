@@ -793,3 +793,22 @@ fn test_rendezvous() {
     let rend2: Rendezvous2 = rend1.into();
     msg(cmd2, "123456", &rend2.into());
 }
+
+#[test]
+fn test_introduce_ack() {
+    use tor_cell::relaycell::hs::{IntroduceAck, IntroduceAckStatus};
+
+    let cmd = RelayCmd::INTRODUCE_ACK;
+    let status = IntroduceAckStatus::SUCCESS;
+    let introduce_ack = IntroduceAck::new(status);
+    msg(cmd, "0000 00", &introduce_ack.into())
+}
+
+#[test]
+fn test_intro_established() {
+    use tor_cell::relaycell::hs::IntroEstablished;
+
+    let cmd = RelayCmd::INTRO_ESTABLISHED;
+    let intro_est = IntroEstablished::new();
+    msg(cmd, "00", &intro_est.into())
+}
