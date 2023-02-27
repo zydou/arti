@@ -764,6 +764,7 @@ fn test_introduce() {
 //    - unrecognized
 //    - data
 
+#[cfg(feature = "hs")]
 #[test]
 fn test_rendezvous() {
     use tor_cell::relaycell::hs::{Rendezvous1, Rendezvous2};
@@ -786,6 +787,7 @@ fn test_rendezvous() {
     msg(cmd2, "123456", &rend2.into());
 }
 
+#[cfg(feature = "hs")]
 #[test]
 fn test_introduce_ack() {
     use tor_cell::relaycell::hs::{IntroduceAck, IntroduceAckStatus};
@@ -796,6 +798,7 @@ fn test_introduce_ack() {
     msg(cmd, "0000 00", &introduce_ack.into())
 }
 
+#[cfg(feature = "hs")]
 #[test]
 fn test_intro_established() {
     use tor_cell::relaycell::hs::IntroEstablished;
