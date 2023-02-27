@@ -29,6 +29,9 @@ use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthSecretKey};
 /// *can* share circuits.
 //
 // TODO HS some way to read these from files or something!
+//
+// TODO HS: some of our APIs take Option<HsClientSecretKeys>.
+// But HsClientSecretKeys is can be empty, so we should remove the `Option`.
 #[derive(Clone, Default)]
 pub struct HsClientSecretKeys {
     /// The actual keys
