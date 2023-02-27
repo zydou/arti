@@ -464,8 +464,14 @@ mod test {
         }
     }
 
-    fn mk_keys() -> HsClientSecretKeys {
-        HsClientSecretKeysBuilder::default().build().unwrap()
+    /// Makes a non-empty `HsClientSecretKeys`, containing (somehow) `kk`
+    fn mk_keys(kk: u8) -> HsClientSecretKeys {
+        let mut ss = [0_u8; 32];
+        ss[0] = kk;
+        let ss = tor_llcrypto::pk::ed25519::SecretKey::from_bytes(&ss).unwrap();
+        let mut b = HsClientSecretKeysBuilder::default();
+        b.ks_hsc_intro_auth(ss.into());
+        b.build().unwrap()
     }
 
     fn mk_hsconn<R: Runtime>(
@@ -507,7 +513,7 @@ mod test {
             services: Default::default(),
             mock_for_state,
         };
-        let keys = mk_keys();
+        let keys = HsClientSecretKeysBuilder::default().build().unwrap();
         (hscc, keys, give_send)
     }
 
@@ -593,7 +599,7 @@ mod test {
             assert_eq!(c1, c3);
 
             assert_ne!(c1, launch_one(&hsconn, 1, &keys, None).await.unwrap());
-            assert_ne!(c1, launch_one(&hsconn, 0, &mk_keys(), None).await.unwrap());
+            assert_ne!(c1, launch_one(&hsconn, 0, &mk_keys(42), None).await.unwrap());
 
             let c_isol_1 = launch_one(&hsconn, 0, &keys, mk_isol("a")).await.unwrap();
             assert_eq!(c1, c_isol_1); // We can reuse, but now we've narrowed the isol
