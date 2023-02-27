@@ -3,6 +3,7 @@
 
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::EndReason;
+use tor_cell::relaycell::RelayCmd;
 
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::{Context, Poll};
@@ -27,6 +28,8 @@ use crate::stream::StreamReader;
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
+
+use super::AnyCmdChecker;
 
 /// An anonymized stream over the Tor network.
 ///
@@ -655,5 +658,62 @@ impl DataReaderImpl {
             // future, we'll have to be careful here.
             self.pending.append(&mut d);
         }
+    }
+}
+
+/// A `CmdChecker` that enforces invariants for outbound data streams.
+#[derive(Debug, Default)]
+pub(crate) struct DataCmdChecker {
+    /// True if we have received a CONNECTED message on this stream.
+    connected_received: bool,
+}
+
+impl super::CmdChecker for DataCmdChecker {
+    fn check_msg(
+        &mut self,
+        msg: &tor_cell::relaycell::UnparsedRelayCell,
+    ) -> Result<super::StreamStatus> {
+        use super::StreamStatus::*;
+        match msg.cmd() {
+            RelayCmd::CONNECTED => {
+                if self.connected_received {
+                    Err(Error::StreamProto(
+                        "Received CONNECTED twice on a stream.".into(),
+                    ))
+                } else {
+                    self.connected_received = true;
+                    Ok(Open)
+                }
+            }
+            RelayCmd::DATA => {
+                if self.connected_received {
+                    Ok(Open)
+                } else {
+                    Err(Error::StreamProto(
+                        "Received DATA before CONNECTED on a stream".into(),
+                    ))
+                }
+            }
+            RelayCmd::END => Ok(Closed),
+            _ => Err(Error::StreamProto(format!(
+                "Unexpected {} on a data stream!",
+                msg.cmd()
+            ))),
+        }
+    }
+
+    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayCell) -> Result<()> {
+        let _ = msg
+            .decode::<DataStreamMsg>()
+            .map_err(|err| Error::from_bytes_err(err, "cell on half-closed stream"))?;
+        Ok(())
+    }
+}
+
+impl DataCmdChecker {
+    /// Return a new boxed `DataCmdChecker` in a state suitable for a newly
+    /// constructed connection.
+    pub(crate) fn new_any() -> AnyCmdChecker {
+        Box::<Self>::default()
     }
 }

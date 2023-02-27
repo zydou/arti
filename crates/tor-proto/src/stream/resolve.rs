@@ -3,7 +3,10 @@
 use crate::stream::StreamReader;
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::Resolved;
+use tor_cell::relaycell::RelayCmd;
 use tor_cell::restricted_msg;
+
+use super::AnyCmdChecker;
 
 /// A ResolveStream represents a pending DNS request made with a RESOLVE
 /// cell.
@@ -44,5 +47,42 @@ impl ResolveStream {
             End(e) => Err(Error::EndReceived(e.reason())),
             Resolved(r) => Ok(r),
         }
+    }
+}
+
+/// A `CmdChecker` that enforces correctness for incoming commands on an
+/// outbound resolve stream.
+#[derive(Debug, Default)]
+pub(crate) struct ResolveCmdChecker {}
+
+impl super::CmdChecker for ResolveCmdChecker {
+    fn check_msg(
+        &mut self,
+        msg: &tor_cell::relaycell::UnparsedRelayCell,
+    ) -> Result<super::StreamStatus> {
+        use super::StreamStatus::Closed;
+        match msg.cmd() {
+            RelayCmd::RESOLVED => Ok(Closed),
+            RelayCmd::END => Ok(Closed),
+            _ => Err(Error::StreamProto(format!(
+                "Unexpected {} on resolve stream",
+                msg.cmd()
+            ))),
+        }
+    }
+
+    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayCell) -> Result<()> {
+        let _ = msg
+            .decode::<ResolveResponseMsg>()
+            .map_err(|err| Error::from_bytes_err(err, "message on resolve stream."))?;
+        Ok(())
+    }
+}
+
+impl ResolveCmdChecker {
+    /// Return a new boxed `DataCmdChecker` in a state suitable for a newly
+    /// constructed connection.
+    pub(crate) fn new_any() -> AnyCmdChecker {
+        Box::<Self>::default()
     }
 }

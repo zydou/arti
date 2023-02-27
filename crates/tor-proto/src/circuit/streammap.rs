@@ -2,6 +2,7 @@
 
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
+use crate::stream::AnyCmdChecker;
 use crate::{Error, Result};
 use tor_cell::relaycell::UnparsedRelayCell;
 /// Mapping from stream ID to streams.
@@ -33,9 +34,8 @@ pub(super) enum StreamEnt {
         /// Number of cells dropped due to the stream disappearing before we can
         /// transform this into an `EndSent`.
         dropped: u16,
-        /// True iff we've received a CONNECTED cell on this stream.
-        /// (This is redundant with `DataStreamReader::connected`.)
-        received_connected: bool,
+        /// A `CmdChecker` used to tell whether cells on this stream are valid.
+        cmd_checker: AnyCmdChecker,
     },
     /// A stream for which we have received an END cell, but not yet
     /// had the stream object get dropped.
@@ -109,17 +109,14 @@ impl StreamMap {
         sink: mpsc::Sender<UnparsedRelayCell>,
         rx: mpsc::Receiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
+        cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
         let stream_ent = StreamEnt::Open {
             sink,
             rx,
             send_window,
             dropped: 0,
-            // TODO: This is true for all streams at this point, but it is
-            // problematic to accept even one CONNECTED for RESOLVE/RESOLVED
-            // streams, and will become more so once UDP streams are
-            // implemented. This is #774.
-            received_connected: false,
+            cmd_checker,
         };
         // This "65536" seems too aggressive, but it's what tor does.
         //
@@ -146,10 +143,11 @@ impl StreamMap {
         self.m.get_mut(&id)
     }
 
-    /// Note that we received an END cell on the stream with `id`.
+    /// Note that we received an END message (or other message indicating the end of
+    /// the stream) on the stream with `id`.
     ///
     /// Returns true if there was really a stream there.
-    pub(super) fn end_received(&mut self, id: StreamId) -> Result<()> {
+    pub(super) fn ending_msg_received(&mut self, id: StreamId) -> Result<()> {
         // Check the hashmap for the right stream. Bail if not found.
         // Also keep the hashmap handle so that we can do more efficient inserts/removals
         let mut stream_entry = match self.m.entry(id) {
@@ -194,7 +192,7 @@ impl StreamMap {
             StreamEnt::Open {
                 send_window,
                 dropped,
-                received_connected,
+                cmd_checker,
                 // notably absent: the channels for sink and stream, which will get dropped and
                 // closed (meaning reads/writes from/to this stream will now fail)
                 ..
@@ -205,9 +203,7 @@ impl StreamMap {
                 let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
                 recv_window.decrement_n(dropped)?;
                 // TODO: would be nice to avoid new_ref.
-                // If we haven't gotten a CONNECTED already, we accept one on the half-stream.
-                let connected_ok = !received_connected;
-                let halfstream = HalfStream::new(send_window, recv_window, connected_ok);
+                let halfstream = HalfStream::new(send_window, recv_window, cmd_checker);
                 self.m.insert(id, StreamEnt::EndSent(halfstream));
                 Ok(ShouldSendEnd::Send)
             }
@@ -234,7 +230,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::circuit::sendme::StreamSendWindow;
+    use crate::{circuit::sendme::StreamSendWindow, stream::DataCmdChecker};
 
     #[test]
     fn streammap_basics() -> Result<()> {
@@ -246,7 +242,12 @@ mod test {
         for _ in 0..128 {
             let (sink, _) = mpsc::channel(128);
             let (_, rx) = mpsc::channel(2);
-            let id = map.add_ent(sink, rx, StreamSendWindow::new(500))?;
+            let id = map.add_ent(
+                sink,
+                rx,
+                StreamSendWindow::new(500),
+                DataCmdChecker::new_any(),
+            )?;
             let expect_id: StreamId = next_id.into();
             assert_eq!(expect_id, id);
             next_id = next_id.wrapping_add(1);
@@ -262,10 +263,10 @@ mod test {
         assert!(map.get_mut(nonesuch_id).is_none());
 
         // Test end_received
-        assert!(map.end_received(nonesuch_id).is_err());
-        assert!(map.end_received(ids[1]).is_ok());
+        assert!(map.ending_msg_received(nonesuch_id).is_err());
+        assert!(map.ending_msg_received(ids[1]).is_ok());
         assert!(matches!(map.get_mut(ids[1]), Some(StreamEnt::EndReceived)));
-        assert!(map.end_received(ids[1]).is_err());
+        assert!(map.ending_msg_received(ids[1]).is_err());
 
         // Test terminate
         assert!(map.terminate(nonesuch_id).is_err());
@@ -275,7 +276,7 @@ mod test {
         assert!(matches!(map.get_mut(ids[1]), None));
 
         // Try receiving an end after a terminate.
-        assert!(map.end_received(ids[2]).is_ok());
+        assert!(map.ending_msg_received(ids[2]).is_ok());
         assert!(matches!(map.get_mut(ids[2]), None));
 
         Ok(())
