@@ -1,4 +1,20 @@
 //! Code to handle incoming cells on a circuit.
+//!
+//! ## On message validation
+//!
+//! There are three steps for validating an incoming message on a stream:
+//!
+//! 1. Is the message contextually appropriate? (e.g., no more than one
+//!    `CONNECTED` message per stream.) This is handled by calling
+//!    [`CmdChecker::check_msg`](crate::stream::CmdChecker::check_msg).
+//! 2. Does the message comply with flow-control rules? (e.g., no more data than
+//!    we've gotten SENDMEs for.) For open streams, the stream itself handles
+//!    this; for half-closed streams, the reactor handles it using the
+//!    `halfstream` module.
+//! 3. Does the message have an acceptable command type, and is the message
+//!    well-formed? For open streams, the streams themselves handle this check.
+//!    For half-closed streams, the reactor handles it by calling
+//!    `consume_checked_msg()`.
 use super::streammap::{ShouldSendEnd, StreamEnt};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::unique_id::UniqId;

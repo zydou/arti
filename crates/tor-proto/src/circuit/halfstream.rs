@@ -64,7 +64,7 @@ impl HalfStream {
         }
 
         let status = self.cmd_checker.check_msg(&msg)?;
-        self.cmd_checker.consume_msg(msg)?;
+        self.cmd_checker.consume_checked_msg(msg)?;
         Ok(status)
     }
 }

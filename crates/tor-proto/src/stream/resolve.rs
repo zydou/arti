@@ -71,7 +71,7 @@ impl super::CmdChecker for ResolveCmdChecker {
         }
     }
 
-    fn consume_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayCell) -> Result<()> {
+    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayCell) -> Result<()> {
         let _ = msg
             .decode::<ResolveResponseMsg>()
             .map_err(|err| Error::from_bytes_err(err, "message on resolve stream."))?;
