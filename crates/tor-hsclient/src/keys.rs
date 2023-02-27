@@ -20,7 +20,7 @@ use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthSecretKey};
 /// For client connections to share circuits and streams,
 /// call `build` only once.
 /// Different calls to `build` yield `ClientSecretKeys` values
-/// which won't share circuits, streams, or authentication
+/// which won't share circuits, streams, or authentication.
 ///
 /// Conversely, `Clone`s of a `ClientSecretKeys` *can* share circuits.
 //
