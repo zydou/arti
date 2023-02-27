@@ -717,10 +717,7 @@ fn test_establish_intro() {
 #[cfg(feature = "hs-service")]
 #[test]
 fn test_introduce() {
-    use tor_cell::relaycell::{
-        hs::{AuthKeyType, Introduce1},
-        msg::AnyRelayMsg,
-    };
+    use tor_cell::relaycell::hs::{AuthKeyType, Introduce1};
 
     // Testing with Introduce1 only should be sufficient as long as
     // Introduce1 and Introduce2 share the same inner body
@@ -738,7 +735,7 @@ fn test_introduce() {
          02 0004 00010203
          00
          01090804",
-        &intro1.clone().into(),
+        &intro1.into(),
     );
 
     // Introduce1 with unknown extensions
@@ -747,16 +744,11 @@ fn test_introduce() {
          02 01 01 00 02 01 00
          01090804";
     let actual_msg = decode(cmd, &unhex(body)[..]).unwrap();
-    let mut actual_bytes = vec![];
-    let mut expect_bytes = vec![];
+    let mut actual_bytes = Vec::new();
     actual_msg
         .encode_onto(&mut actual_bytes)
         .expect("Encode msg onto byte vector");
-    let expected_msg: AnyRelayMsg = intro1.into();
-    expected_msg
-        .encode_onto(&mut expect_bytes)
-        .expect("Encode msg onto byte vector");
-    assert_eq!(actual_bytes, expect_bytes);
+    assert_eq!(actual_bytes, unhex(body));
 
     // Introduce1 with legacy key id
     msg_error(

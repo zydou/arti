@@ -93,6 +93,22 @@ impl Introduce2 {
     }
 }
 
+caret_int! {
+    /// The recognized extension types for an `Introduce1` or `Introduce2 message.
+    #[derive(Ord,PartialOrd)]
+    pub struct IntroduceExtType(u8) {
+    }
+}
+
+decl_extension_group! {
+    /// An extension to an IntroEstablished message.
+    ///
+    /// (Currently, no extensions of this type are recognized)
+    #[derive(Debug,Clone)]
+    enum IntroduceExt [ IntroduceExtType ] {
+    }
+}
+
 #[derive(Debug, Clone)]
 /// A message body shared by Introduce1 and Introduce2
 struct Introduce {
@@ -101,6 +117,8 @@ struct Introduce {
     auth_key_type: AuthKeyType,
     /// The public introduction point auth key.
     auth_key: Vec<u8>,
+    /// A list of extensions
+    extensions: ExtList<IntroduceExt>,
     /// Up to end of relay payload.
     encrypted: Vec<u8>,
 }
@@ -111,6 +129,7 @@ impl Introduce {
         Self {
             auth_key_type,
             auth_key,
+            extensions: Default::default(),
             encrypted,
         }
     }
@@ -125,18 +144,12 @@ impl Introduce {
         let auth_key_type = r.take_u8()?.into();
         let auth_key_len = r.take_u16()?;
         let auth_key = r.take(auth_key_len as usize)?.into();
-        let n_ext = r.take_u8()?;
-        for _ in 0..n_ext {
-            let _ext_type = r.take_u8()?;
-            r.read_nested_u8len(|r| {
-                r.take_rest();
-                Ok(())
-            })?;
-        }
+        let extensions = r.extract()?;
         let encrypted = r.take_rest().into();
         Ok(Self {
             auth_key_type,
             auth_key,
+            extensions,
             encrypted,
         })
     }
@@ -146,8 +159,7 @@ impl Introduce {
         w.write_u8(self.auth_key_type.get());
         w.write_u16(u16::try_from(self.auth_key.len()).map_err(|_| EncodeError::BadLengthValue)?);
         w.write_all(&self.auth_key[..]);
-        // No Introduce1 extension for now.
-        w.write_u8(0_u8);
+        w.write(&self.extensions)?;
         w.write_all(&self.encrypted[..]);
         Ok(())
     }
