@@ -77,8 +77,8 @@ mod test {
     #[test]
     fn test_randomize_time() {
         let now = SystemTime::now();
-        let one_hour = Duration::from_secs(3600);
-        let ten_sec = Duration::from_secs(10);
+        let one_hour = humantime::parse_duration("1hr").unwrap();
+        let ten_sec = humantime::parse_duration("10s").unwrap();
         let mut rng = testing_rng();
 
         for _ in 0..1000 {
@@ -87,7 +87,7 @@ mod test {
             assert!(t <= now);
         }
 
-        let close_to_epoch = SystemTime::UNIX_EPOCH + one_hour / 2;
+        let close_to_epoch = humantime::parse_rfc3339("1970-01-01T00:30:00Z").unwrap();
         for _ in 0..1000 {
             let t = randomize_time(&mut rng, close_to_epoch, one_hour);
             assert!(t >= SystemTime::UNIX_EPOCH);
