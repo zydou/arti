@@ -771,3 +771,25 @@ fn test_introduce() {
 // TODO: need to add tests for:
 //    - unrecognized
 //    - data
+
+#[test]
+fn test_rendezvous() {
+    use tor_cell::relaycell::hs::{Rendezvous1, Rendezvous2};
+    use tor_hscrypto::RendCookie;
+
+    let cmd1 = RelayCmd::RENDEZVOUS1;
+    let cmd2 = RelayCmd::RENDEZVOUS2;
+
+    let cookie = RendCookie::from([0; 20]);
+    // Introduce1 with no extension
+    let rend1 = Rendezvous1::new(cookie, hex!("123456"));
+    msg(
+        cmd1,
+        "0000000000000000000000000000000000000000
+         123456",
+        &rend1.clone().into(),
+    );
+
+    let rend2: Rendezvous2 = rend1.into();
+    msg(cmd2, "123456", &rend2.into());
+}

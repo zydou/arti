@@ -163,11 +163,26 @@ pub struct Rendezvous1 {
 
 impl Body for Rendezvous1 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        todo!()
+        let cookie = r.extract()?;
+        let message = r.take_rest().into();
+        Ok(Self { cookie, message })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        todo!()
+        w.write(&self.cookie)?;
+        w.write_all(&self.message[..]);
+        Ok(())
+    }
+}
+
+impl Rendezvous1 {
+    /// Create a new Rendezvous1 message, to handshake with a client identified
+    /// by a given RendCookie, and send it a given message.
+    pub fn new(cookie: RendCookie, message: impl Into<Vec<u8>>) -> Self {
+        Self {
+            cookie,
+            message: message.into(),
+        }
     }
 }
 
@@ -179,13 +194,32 @@ pub struct Rendezvous2 {
     message: Vec<u8>,
 }
 
+impl Rendezvous2 {
+    /// Construct a new Rendezvous2 cell containing a given message.
+    pub fn new(message: impl Into<Vec<u8>>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl From<Rendezvous1> for Rendezvous2 {
+    fn from(value: Rendezvous1) -> Self {
+        Self {
+            message: value.message,
+        }
+    }
+}
+
 impl Body for Rendezvous2 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        todo!()
+        let message = r.take_rest().into();
+        Ok(Self { message })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        todo!()
+        w.write_all(&self.message[..]);
+        Ok(())
     }
 }
 
