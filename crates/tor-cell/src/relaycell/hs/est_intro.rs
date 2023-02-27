@@ -2,6 +2,12 @@
 
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
+use tor_error::bad_api_usage;
+use tor_hscrypto::ops::hs_mac;
+use tor_llcrypto::{
+    pk::ed25519::{self, Ed25519Identity, ED25519_ID_LEN, ED25519_SIGNATURE_LEN},
+    util::ct::CtByteArray,
+};
 use tor_units::BoundedInt32;
 
 use crate::relaycell::{hs::ext::*, hs::AuthKeyType, msg};
@@ -122,66 +128,142 @@ decl_extension_group! {
     }
 }
 
-/// A hidden services establishes a new introduction point,
-/// by sending an EstablishIntro message.
+/// The body of an EstablishIntro message, after the signature and MAC are
+/// verified.
+///
+/// This tells the introduction point which key it should act as an introduction
+/// for, and how.
 #[derive(Debug, Clone)]
-pub struct EstablishIntro {
-    /// Introduction point auth key type and the type of
-    /// the MAC used in `handshake_auth`.
-    auth_key_type: AuthKeyType,
+pub struct EstablishIntroBody {
     /// The public introduction point auth key.
-    auth_key: Vec<u8>,
+    auth_key: Ed25519Identity,
     /// A list of extensions on this cell.
     extensions: ExtList<EstablishIntroExt>,
-    /// the MAC of all earlier fields in the cell.
-    handshake_auth: [u8; 32],
-    /// A signature using `auth_key` of all contents
-    /// of the cell.
-    sig: Vec<u8>,
 }
 
-impl msg::Body for EstablishIntro {
-    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        let auth_key_type = r.take_u8()?.into();
-        let auth_key_len = r.take_u16()?;
-        let auth_key = r.take(auth_key_len as usize)?.into();
-        let extensions = r.extract()?;
-        let handshake_auth = r.extract()?;
-        let sig_len = r.take_u16()?;
-        let sig = r.take(sig_len as usize)?.into();
-        Ok(EstablishIntro {
-            auth_key_type,
-            auth_key,
-            extensions,
-            handshake_auth,
-            sig,
-        })
-    }
-    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        w.write_u8(self.auth_key_type.get());
-        w.write_u16(u16::try_from(self.auth_key.len()).map_err(|_| EncodeError::BadLengthValue)?);
-        w.write_all(&self.auth_key[..]);
+/// A hidden services establishes a new introduction point, by sending an
+/// EstablishIntro message.
+///
+/// This may represent either an outbound body that we're sending, or a decoded
+/// body that we're receiving.
+///
+/// # Usage
+///
+/// This type is a good choice for handling an incoming EstablishIntro message
+/// on a Relay, but not for generating an outgoing EstablishIntro message.
+///
+/// Onion services should not construct this message object; instead, they
+/// should construct an [`EstablishIntroBody`], and then call its
+/// `sign_and_encode` method.
+#[derive(educe::Educe, Clone)]
+#[educe(Debug)]
+pub struct EstablishIntro {
+    /// The underlying body of this, wrapped in authentication.
+    body: EstablishIntroBody,
+    /// The MAC of all earlier fields in the cell, using a key derived from the
+    /// handshake between the onion service and the introduction point.
+    ///
+    /// This MAC binds the EstablishIntro message to a single circuit, and keeps
+    /// it from being replayed.
+    handshake_auth: CtByteArray<32>,
+    /// A textual record of all the fields in the
+    #[educe(Debug(ignore))]
+    mac_plaintext: Vec<u8>,
+    /// A signature using `auth_key` of all contents of the cell.
+    ///
+    /// This signature proves possession of `auth_key` and thereby ensures that
+    /// the request really comes from that key's holder.
+    ///
+    /// (This field is boxed to manage variant size.)
+    #[educe(Debug(ignore))]
+    sig: Box<ed25519::ValidatableEd25519Signature>,
+}
+
+impl Writeable for EstablishIntroBody {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
+        let auth_key_type = AuthKeyType::ED25519_SHA3_256;
+        let auth_key_len = ED25519_ID_LEN;
+        w.write_u8(auth_key_type.get());
+        w.write_u16(u16::try_from(auth_key_len).map_err(|_| EncodeError::BadLengthValue)?);
+        w.write(&self.auth_key)?;
         w.write(&self.extensions)?;
-        w.write_all(&self.handshake_auth[..]);
-        w.write_u16(u16::try_from(self.sig.len()).map_err(|_| EncodeError::BadLengthValue)?);
-        w.write_all(&self.sig[..]);
         Ok(())
     }
 }
 
-impl EstablishIntro {
-    /// All arguments constructor
-    pub fn new(
-        auth_key_type: AuthKeyType,
-        auth_key: Vec<u8>,
-        handshake_auth: [u8; 32],
-        sig: Vec<u8>,
-    ) -> Self {
-        Self {
-            auth_key_type,
-            auth_key,
-            handshake_auth,
+/// A string that we prefix onto any establish_intro body before signing it.
+const SIG_PREFIX: &[u8] = b"Tor establish-intro cell v1";
+
+impl msg::Body for EstablishIntro {
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        let cursor_start = r.cursor();
+        let auth_key_type: AuthKeyType = r.take_u8()?.into();
+        let auth_key_len = r.take_u16()?;
+        // Only Ed25519 is recognized... and it *needs* to be recognized or else we
+        // can't verify the signature.
+        if auth_key_type != AuthKeyType::ED25519_SHA3_256 {
+            return Err(tor_bytes::Error::InvalidMessage(
+                format!("unrecognized authkey type {:?}", auth_key_type).into(),
+            ));
+        }
+        if auth_key_len as usize != ED25519_ID_LEN {
+            return Err(tor_bytes::Error::InvalidMessage(
+                format!("Wrong authkey len {:?}", auth_key_len).into(),
+            ));
+        }
+        let auth_key = r.extract()?;
+
+        let extensions = r.extract()?;
+        let cursor_mac = r.cursor();
+        let handshake_auth = r.extract()?;
+        let cursor_sig = r.cursor();
+        let sig_len = r.take_u16()?;
+        if sig_len as usize != ED25519_SIGNATURE_LEN {
+            return Err(tor_bytes::Error::InvalidMessage(
+                format!("Wrong signature len {:?}", sig_len).into(),
+            ));
+        }
+        let sig: ed25519::Signature = r.extract()?;
+
+        let mac_plaintext = r.range(cursor_start, cursor_mac).into();
+
+        let public_key = ed25519::PublicKey::try_from(&auth_key)
+            .map_err(|_| tor_bytes::Error::InvalidMessage("Invalid ed25519 key".into()))?;
+        let mut signed_material = Vec::from(SIG_PREFIX);
+        signed_material.extend(r.range(cursor_start, cursor_sig));
+        let sig = Box::new(ed25519::ValidatableEd25519Signature::new(
+            public_key,
             sig,
+            &signed_material[..],
+        ));
+
+        Ok(EstablishIntro {
+            body: EstablishIntroBody {
+                auth_key,
+                extensions,
+            },
+            handshake_auth,
+            mac_plaintext,
+            sig,
+        })
+    }
+
+    // Note: this is not the typical way to encode an EstablishIntro message. Actual onion services
+    // will use `sign_and_encode`.
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        w.write(&self.body)?;
+        w.write_all(self.handshake_auth.as_ref());
+        w.write_u16(u16::try_from(ED25519_SIGNATURE_LEN).map_err(|_| EncodeError::BadLengthValue)?);
+        w.write(self.sig.signature())?;
+        Ok(())
+    }
+}
+
+impl EstablishIntroBody {
+    /// All arguments constructor
+    pub fn new(auth_key: Ed25519Identity) -> Self {
+        Self {
+            auth_key,
             extensions: Default::default(),
         }
     }
@@ -196,8 +278,117 @@ impl EstablishIntro {
         self.extensions.replace_by_type(other.into());
     }
 
-    // TODO hs: we'll need accessors.
+    /// Sign and authenticate this body using a provided Ed25519 keypair and MAC
+    /// key.
+    ///
+    /// The MAC key is derived from the circuit handshake between the onion
+    /// service and the introduction point.  The Ed25519 keypair must match the
+    /// one given as the auth_key for this body.
     //
-    // TODO hs: we will need some way to ensure that the mac is valid and well-signed.  Possibly
-    // we should look into using a SignatureGated (if we can reasonably do so?)
+    // TODO hs: Is this the right return type?
+    pub fn sign_and_encode(
+        self,
+        keypair: &ed25519::Keypair,
+        mac_key: &[u8],
+    ) -> crate::Result<Vec<u8>> {
+        use tor_llcrypto::pk::ed25519::Signer;
+        if Ed25519Identity::from(&keypair.public) != self.auth_key {
+            return Err(crate::Error::Internal(bad_api_usage!("Key mismatch")));
+        }
+
+        let mut output = Vec::new();
+
+        output.write(&self)?;
+        let mac = hs_mac(mac_key, &output[..]);
+        output.write(&mac)?;
+        let signature = {
+            let mut signed_material = Vec::from(SIG_PREFIX);
+            signed_material.extend(&output[..]);
+            keypair.sign(&signed_material[..])
+        };
+        output.write_u16(
+            ED25519_SIGNATURE_LEN
+                .try_into()
+                .expect("ed25519 signature len is somehow > u16::MAX"),
+        );
+        output.write(&signature)?;
+
+        Ok(output)
+    }
+    // TODO hs: we'll need accessors.
+}
+
+impl EstablishIntro {
+    /// Construct a new EstablishIntro message from its constituent parts.
+    ///
+    /// # Limitations
+    ///
+    /// This is really only useful for testing; it will construct a version of the
+    /// object whose signatures will probably never check as valid.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the body's public key is not a valid ed25519 public key
+    #[cfg(feature = "testing")]
+    pub fn from_parts_for_test(
+        body: EstablishIntroBody,
+        mac: CtByteArray<32>,
+        signature: ed25519::Signature,
+    ) -> Self {
+        use tor_llcrypto::pk::ed25519::ValidatableEd25519Signature;
+        let sig = Box::new(ValidatableEd25519Signature::new(
+            body.auth_key.try_into().expect("Invalid public key"),
+            signature,
+            &[],
+        ));
+        Self {
+            body,
+            handshake_auth: mac,
+            mac_plaintext: vec![],
+            sig,
+        }
+    }
+
+    /// Check whether this EstablishIntro message is well-signed (with its
+    /// included key), and well authenticated with the provided MAC key.
+    ///
+    /// On success, return the [`EstablishIntroBody`] describing how to function
+    /// as an introduction point for this service.  On failure, return an error.
+    pub fn check_and_unwrap(
+        self,
+        mac_key: &[u8],
+    ) -> std::result::Result<EstablishIntroBody, EstablishIntroSigError> {
+        use tor_llcrypto::pk::ValidatableSignature;
+        // There is a timing side-channel here where, if an attacker wants, they
+        // could tell which of the two fields was incorrect.  But that shouldn't
+        // be exploitable for anything.
+        //
+        // TODO use subtle here anyway, perhaps?
+        if hs_mac(mac_key, &self.mac_plaintext) != self.handshake_auth {
+            return Err(EstablishIntroSigError::Invalid);
+        }
+        if !self.sig.is_valid() {
+            return Err(EstablishIntroSigError::Invalid);
+        }
+
+        Ok(self.dangerously_unwrap())
+    }
+
+    /// Consume this EstablishIntro message and return its  body.
+    ///
+    /// This is a "dangerous" function because it does not check correctness for the signature or the MAC.
+    pub fn dangerously_unwrap(self) -> EstablishIntroBody {
+        self.body
+    }
+}
+
+/// An error that has occurred while trying to validate an EstablishIntro message.
+///
+/// This error is deliberately uninformative.
+#[derive(thiserror::Error, Clone, Debug)]
+#[non_exhaustive]
+pub enum EstablishIntroSigError {
+    /// The authentication information on an EstablishIntro message was incorrect.
+    #[error("Invalid signature or MAC on ESTABLISH_INTRO message.")]
+    Invalid,
 }
