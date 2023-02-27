@@ -59,6 +59,17 @@ macro_rules! define_bytes {
             inp.0.into()
         }
     }
+    impl tor_bytes::Readable for $name {
+        fn take_from(r: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self> {
+            Ok(Self::new(r.extract()?))
+        }
+    }
+    impl tor_bytes::Writeable for $name {
+        fn write_onto<B:tor_bytes::Writer+?Sized>(&self, w: &mut B) -> tor_bytes::EncodeResult<()> {
+            w.write_all(&self.0.as_ref()[..]);
+            Ok(())
+        }
+    }
 }
 }
 

@@ -3982,6 +3982,7 @@ dependencies = [
  "signature 1.6.4",
  "thiserror",
  "tor-basic-utils",
+ "tor-bytes",
  "tor-llcrypto",
  "tor-units",
 ]
