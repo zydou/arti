@@ -11,8 +11,8 @@ use std::time::Instant;
 use futures::FutureExt as _;
 
 use async_trait::async_trait;
-use either::Either::{self, *};
 use educe::Educe;
+use either::Either::{self, *};
 use postage::stream::Stream as _;
 use slotmap::dense::DenseSlotMap;
 use tracing::{debug, error, trace};
@@ -140,7 +140,10 @@ impl<D: MockableConnectorData> ServiceState<D> {
 }
 
 /// "Continuation" return type from `obtain_circuit_or_continuation_info`
-type Continuation = (Arc<Mutex<Option<HsClientConnError>>>, postage::barrier::Receiver);
+type Continuation = (
+    Arc<Mutex<Option<HsClientConnError>>>,
+    postage::barrier::Receiver,
+);
 
 /// Obtain a circuit from the `Services` table, or return a continuation
 ///
@@ -207,175 +210,173 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     secret_keys: &HsClientSecretKeys,
     table_index: TableIndex,
     attempts: &mut impl Iterator,
-    mut guard: MutexGuard<'_, Services<D>>
+    mut guard: MutexGuard<'_, Services<D>>,
 ) -> Result<Either<Continuation, D::ClientCirc>, HsClientConnError> {
-        let blank_state = || ServiceState::blank(&connector.runtime);
+    let blank_state = || ServiceState::blank(&connector.runtime);
 
-        for _attempt in attempts {
+    for _attempt in attempts {
+        let state = guard
+            .table
+            .get_mut(table_index)
+            .ok_or_else(|| internal!("guard table entry vanished!"))?;
 
-            let state = guard
-                .table
-                .get_mut(table_index)
-                .ok_or_else(|| internal!("guard table entry vanished!"))?;
+        trace!("HS conn state: {state:?}");
 
-            trace!("HS conn state: {state:?}");
-
-            let (data, barrier_send) = match state {
-                ServiceState::Open {
-                    data: _,
-                    circuit,
-                    last_used,
-                } => {
-                    let now = connector.runtime.now();
-                    if !D::circuit_is_ok(circuit) {
-                        // Well that's no good, we need a fresh one, but keep the data
-                        let data = match mem::replace(state, ServiceState::Dummy) {
-                            ServiceState::Open {
-                                data,
-                                last_used: _,
-                                circuit: _,
-                            } => data,
-                            _ => panic!("state changed between maches"),
-                        };
-                        *state = ServiceState::Closed {
+        let (data, barrier_send) = match state {
+            ServiceState::Open {
+                data: _,
+                circuit,
+                last_used,
+            } => {
+                let now = connector.runtime.now();
+                if !D::circuit_is_ok(circuit) {
+                    // Well that's no good, we need a fresh one, but keep the data
+                    let data = match mem::replace(state, ServiceState::Dummy) {
+                        ServiceState::Open {
                             data,
-                            last_used: now,
-                        };
-                        continue;
-                    }
-                    *last_used = now;
-                    return Ok::<_, HsClientConnError>(Right(circuit.clone()));
-                }
-                ServiceState::Working {
-                    barrier_recv,
-                    error,
-                } => {
-                    if !matches!(
-                        barrier_recv.try_recv(),
-                        Err(postage::stream::TryRecvError::Pending)
-                    ) {
-                        // This information is stale; the task no longer exists.
-                        // We want information from a fresh attempt.
-                        *state = blank_state();
-                        continue;
-                    }
-                    let barrier_recv = barrier_recv.clone();
-
-                    // This clone of the error field Arc<Mutex<..>> allows us to collect errors
-                    // which happened due to the currently-running task, which we have just
-                    // found exists.  Ie, it will see errors that occurred after we entered
-                    // `get_or_launch`.  Stale errors, from previous tasks, were cleared above.
-                    let error = error.clone();
-
-                    // Wait for the task to complete (at which point it drops the barrier)
-                    return Ok(Left((error, barrier_recv)));
-                }
-                ServiceState::Closed { .. } => {
-                    let (barrier_send, barrier_recv) = postage::barrier::channel();
-                    let data = match mem::replace(
-                        state,
-                        ServiceState::Working {
-                            barrier_recv,
-                            error: Arc::new(Mutex::new(None)),
-                        },
-                    ) {
-                        ServiceState::Closed { data, .. } => data,
+                            last_used: _,
+                            circuit: _,
+                        } => data,
                         _ => panic!("state changed between maches"),
                     };
-                    (data, barrier_send)
+                    *state = ServiceState::Closed {
+                        data,
+                        last_used: now,
+                    };
+                    continue;
                 }
-                ServiceState::Dummy => {
+                *last_used = now;
+                return Ok::<_, HsClientConnError>(Right(circuit.clone()));
+            }
+            ServiceState::Working {
+                barrier_recv,
+                error,
+            } => {
+                if !matches!(
+                    barrier_recv.try_recv(),
+                    Err(postage::stream::TryRecvError::Pending)
+                ) {
+                    // This information is stale; the task no longer exists.
+                    // We want information from a fresh attempt.
                     *state = blank_state();
-                    return Err(internal!("HS connector found dummy state").into());
+                    continue;
                 }
-            };
+                let barrier_recv = barrier_recv.clone();
 
-            // Make a connection attempt
-            let runtime = &connector.runtime;
-            let connector = (*connector).clone();
-            let secret_keys = secret_keys.clone();
-            let connect_future = async move {
-                let mut data = data;
+                // This clone of the error field Arc<Mutex<..>> allows us to collect errors
+                // which happened due to the currently-running task, which we have just
+                // found exists.  Ie, it will see errors that occurred after we entered
+                // `get_or_launch`.  Stale errors, from previous tasks, were cleared above.
+                let error = error.clone();
 
-                let got = AssertUnwindSafe(D::connect(&connector, &mut data, secret_keys))
-                    .catch_unwind()
-                    .await
-                    .unwrap_or_else(|_| {
-                        data = D::default();
-                        Err(internal!("hidden service connector task panicked!").into())
-                    });
-                let last_used = connector.runtime.now();
-                let got_error = got.as_ref().map(|_| ()).map_err(Clone::clone);
-
-                // block for handling inability to store
-                let stored = async {
-                    // If we can't record the new state, just panic this task.
-                    let mut guard = connector
-                        .services
-                        .lock()
-                        .map_err(|_| internal!("HS connector poisoned"))?;
-                    let state = guard
-                        .table
-                        .get_mut(table_index)
-                        .ok_or_else(|| internal!("HS table entry removed while task running"))?;
-                    // Always match this, so we check what we're overwriting
-                    let error_store = match state {
-                        ServiceState::Working { error, .. } => error,
-                        _ => return Err(internal!("HS task found state other than Working")),
-                    };
-
-                    match got {
-                        Ok(circuit) => {
-                            *state = ServiceState::Open {
-                                data,
-                                circuit,
-                                last_used,
-                            }
-                        }
-                        Err(error) => {
-                            let mut error_store = error_store.lock().map_err(|_| {
-                                internal!("Working error poisoned, cannot store error")
-                            })?;
-                            *error_store = Some(error);
-                        }
-                    };
-
-                    Ok(())
-                }
-                .await;
-
-                match (got_error, stored) {
-                    (Ok::<(), HsClientConnError>(()), Ok::<(), Bug>(())) => {}
-                    (Err(got_error), Ok(())) => debug!(
-                        "HS connection failure: {}",
-                        // TODO HS show hs_id,
-                        got_error.report(),
-                    ),
-                    (Ok(()), Err(bug)) => error!(
-                        "internal error storing built HS circuit: {}",
-                        // TODO HS show sv(hs_id),
-                        bug.report(),
-                    ),
-                    (Err(got_error), Err(bug)) => error!(
-                        "internal error storing HS connection error: {}; {}",
-                        // TODO HS show sv(hs_id),
-                        got_error.report(),
-                        bug.report(),
-                    ),
+                // Wait for the task to complete (at which point it drops the barrier)
+                return Ok(Left((error, barrier_recv)));
+            }
+            ServiceState::Closed { .. } => {
+                let (barrier_send, barrier_recv) = postage::barrier::channel();
+                let data = match mem::replace(
+                    state,
+                    ServiceState::Working {
+                        barrier_recv,
+                        error: Arc::new(Mutex::new(None)),
+                    },
+                ) {
+                    ServiceState::Closed { data, .. } => data,
+                    _ => panic!("state changed between maches"),
                 };
-                drop(barrier_send);
+                (data, barrier_send)
+            }
+            ServiceState::Dummy => {
+                *state = blank_state();
+                return Err(internal!("HS connector found dummy state").into());
+            }
+        };
+
+        // Make a connection attempt
+        let runtime = &connector.runtime;
+        let connector = (*connector).clone();
+        let secret_keys = secret_keys.clone();
+        let connect_future = async move {
+            let mut data = data;
+
+            let got = AssertUnwindSafe(D::connect(&connector, &mut data, secret_keys))
+                .catch_unwind()
+                .await
+                .unwrap_or_else(|_| {
+                    data = D::default();
+                    Err(internal!("hidden service connector task panicked!").into())
+                });
+            let last_used = connector.runtime.now();
+            let got_error = got.as_ref().map(|_| ()).map_err(Clone::clone);
+
+            // block for handling inability to store
+            let stored = async {
+                // If we can't record the new state, just panic this task.
+                let mut guard = connector
+                    .services
+                    .lock()
+                    .map_err(|_| internal!("HS connector poisoned"))?;
+                let state = guard
+                    .table
+                    .get_mut(table_index)
+                    .ok_or_else(|| internal!("HS table entry removed while task running"))?;
+                // Always match this, so we check what we're overwriting
+                let error_store = match state {
+                    ServiceState::Working { error, .. } => error,
+                    _ => return Err(internal!("HS task found state other than Working")),
+                };
+
+                match got {
+                    Ok(circuit) => {
+                        *state = ServiceState::Open {
+                            data,
+                            circuit,
+                            last_used,
+                        }
+                    }
+                    Err(error) => {
+                        let mut error_store = error_store
+                            .lock()
+                            .map_err(|_| internal!("Working error poisoned, cannot store error"))?;
+                        *error_store = Some(error);
+                    }
+                };
+
+                Ok(())
+            }
+            .await;
+
+            match (got_error, stored) {
+                (Ok::<(), HsClientConnError>(()), Ok::<(), Bug>(())) => {}
+                (Err(got_error), Ok(())) => debug!(
+                    "HS connection failure: {}",
+                    // TODO HS show hs_id,
+                    got_error.report(),
+                ),
+                (Ok(()), Err(bug)) => error!(
+                    "internal error storing built HS circuit: {}",
+                    // TODO HS show sv(hs_id),
+                    bug.report(),
+                ),
+                (Err(got_error), Err(bug)) => error!(
+                    "internal error storing HS connection error: {}; {}",
+                    // TODO HS show sv(hs_id),
+                    got_error.report(),
+                    bug.report(),
+                ),
             };
-            runtime
-                .spawn_obj(Box::new(connect_future).into())
-                .map_err(|cause| HsClientConnError::Spawn {
-                    spawning: "connection task",
-                    cause: cause.into(),
-                })?;
-        }
+            drop(barrier_send);
+        };
+        runtime
+            .spawn_obj(Box::new(connect_future).into())
+            .map_err(|cause| HsClientConnError::Spawn {
+                spawning: "connection task",
+                cause: cause.into(),
+            })?;
+    }
 
-        Err(internal!("HS connector state management malfunction (exceeded MAX_ATTEMPTS").into())
+    Err(internal!("HS connector state management malfunction (exceeded MAX_ATTEMPTS").into())
 }
-
 
 impl<D: MockableConnectorData> Services<D> {
     /// Connect to a hidden service
@@ -388,94 +389,96 @@ impl<D: MockableConnectorData> Services<D> {
     ) -> Result<D::ClientCirc, HsClientConnError> {
         let blank_state = || ServiceState::blank(&connector.runtime);
 
-  let mut attempts = 0..MAX_ATTEMPTS;
+        let mut attempts = 0..MAX_ATTEMPTS;
 
-        let mut obtain = |table_index, guard| obtain_circuit_or_continuation_info(
-            connector,
-            &secret_keys,
-            table_index,
-            &mut attempts,
-            guard,
-        );
-
-  let mut got;
-  let table_index;
-  {
-        let mut guard = connector
-            .services
-            .lock()
-            .map_err(|_| internal!("HS connector poisoned"))?;
-        let services = &mut *guard;
-
-        trace!("HS conn get_or_launch: {hs_id:?} {isolation:?} {secret_keys:?}");
-        //trace!("HS conn services: {services:?}");
-
-        let records = services.index.entry(hs_id).or_default();
-
-        table_index = match records
-            .iter_mut()
-            .enumerate()
-            .find_map(|(v_index, record)| {
-                // Deconstruct so that we can't accidentally fail to check some of the key fields
-                let IndexRecord {
-                    secret_keys: t_keys,
-                    isolation: t_isolation,
-                    table_index: _,
-                } = record;
-                (t_keys == &secret_keys).then(|| ())?;
-                let new_isolation = t_isolation.join(&*isolation)?;
-                Some((v_index, new_isolation))
-            }) {
-            Some((v_index, new_isolation)) => {
-                records[v_index].isolation = new_isolation;
-                records[v_index].table_index
-            }
-            None => {
-                let table_index = services.table.insert(blank_state());
-                records.push(IndexRecord {
-                    secret_keys: secret_keys.clone(),
-                    isolation,
-                    table_index,
-                });
-                table_index
-            }
+        let mut obtain = |table_index, guard| {
+            obtain_circuit_or_continuation_info(
+                connector,
+                &secret_keys,
+                table_index,
+                &mut attempts,
+                guard,
+            )
         };
 
-    let guard = guard;
-    got = obtain(table_index, guard);
-  }
-  loop {
-      // The parts of this loop which run after a `Left` is returned
-      // logically belong in the case in `obtain_circuit_or_continuation_info`
-      // for `ServiceState::Working`, where that function decides we need to wait.
-      // This code has to be out here to help the compiler's drop tracking.
-      {
-          // Block to scope the acquisition of `error`, a guard
-          // for the mutex-protected error field in the state,
-          // and, for neatness, barrier_recv.
+        let mut got;
+        let table_index;
+        {
+            let mut guard = connector
+                .services
+                .lock()
+                .map_err(|_| internal!("HS connector poisoned"))?;
+            let services = &mut *guard;
 
-          let (error, mut barrier_recv) = match got? {
-              Right(ret) => return Ok(ret),
-              Left(continuation) => continuation,
-          };
+            trace!("HS conn get_or_launch: {hs_id:?} {isolation:?} {secret_keys:?}");
+            //trace!("HS conn services: {services:?}");
 
-          barrier_recv.recv().await;
+            let records = services.index.entry(hs_id).or_default();
 
-          let error = error
-              .lock()
-              .map_err(|_| internal!("Working error poisoned"))?;
-          if let Some(error) = &*error {
-              return Err(error.clone());
-          }
-      }
+            table_index = match records
+                .iter_mut()
+                .enumerate()
+                .find_map(|(v_index, record)| {
+                    // Deconstruct so that we can't accidentally fail to check some of the key fields
+                    let IndexRecord {
+                        secret_keys: t_keys,
+                        isolation: t_isolation,
+                        table_index: _,
+                    } = record;
+                    (t_keys == &secret_keys).then(|| ())?;
+                    let new_isolation = t_isolation.join(&*isolation)?;
+                    Some((v_index, new_isolation))
+                }) {
+                Some((v_index, new_isolation)) => {
+                    records[v_index].isolation = new_isolation;
+                    records[v_index].table_index
+                }
+                None => {
+                    let table_index = services.table.insert(blank_state());
+                    records.push(IndexRecord {
+                        secret_keys: secret_keys.clone(),
+                        isolation,
+                        table_index,
+                    });
+                    table_index
+                }
+            };
 
-      let guard = connector
-          .services
-          .lock()
-          .map_err(|_| internal!("HS connector poisoned (relock)"))?;
+            let guard = guard;
+            got = obtain(table_index, guard);
+        }
+        loop {
+            // The parts of this loop which run after a `Left` is returned
+            // logically belong in the case in `obtain_circuit_or_continuation_info`
+            // for `ServiceState::Working`, where that function decides we need to wait.
+            // This code has to be out here to help the compiler's drop tracking.
+            {
+                // Block to scope the acquisition of `error`, a guard
+                // for the mutex-protected error field in the state,
+                // and, for neatness, barrier_recv.
 
-      got = obtain(table_index, guard);
-  }
+                let (error, mut barrier_recv) = match got? {
+                    Right(ret) => return Ok(ret),
+                    Left(continuation) => continuation,
+                };
+
+                barrier_recv.recv().await;
+
+                let error = error
+                    .lock()
+                    .map_err(|_| internal!("Working error poisoned"))?;
+                if let Some(error) = &*error {
+                    return Err(error.clone());
+                }
+            }
+
+            let guard = connector
+                .services
+                .lock()
+                .map_err(|_| internal!("HS connector poisoned (relock)"))?;
+
+            got = obtain(table_index, guard);
+        }
     }
 }
 
