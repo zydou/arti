@@ -15,9 +15,6 @@ defer message parsing until we're certain that the message type would be
 acceptable in a given context.  Doing this turned up several bugs, which
 are now fixed too.
 
-(This is up-to-date with fcbeceeb615818b58214c79d9cfd33b5135f8e2d)
-
-
 ### Breaking changes in lower level crates
 
 - The APIs for `tor-cell` have changed significantly, to help
@@ -63,6 +60,9 @@ are now fixed too.
 - We've refactored our implementation of onion service message
   extensions into a single place, to save on code and avoid type
   confusion.  ([5521df0909ff7afa])
+- Our _internal_ onion-service Cargo features have been renamed to
+  start with `hs-*`. We're still using `onion-*` as the prefix for our
+  high-level onion-service features. ([#756], [!1033])
 
 ### Infrastructure
 
