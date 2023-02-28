@@ -235,16 +235,17 @@ impl<D: MockableConnectorData> Services<D> {
                     drop(guard);
                     // Wait for the task to complete (at which point it drops the barrier)
                     barrier_recv.recv().await;
-                    guard = connector
-                        .services
-                        .lock()
-                        .map_err(|_| internal!("HS connector poisoned (relock)"))?;
                     let error = error
                         .lock()
                         .map_err(|_| internal!("Working error poisoned"))?;
                     if let Some(error) = &*error {
                         return Err(error.clone());
                     }
+                    drop(error);
+                    guard = connector
+                        .services
+                        .lock()
+                        .map_err(|_| internal!("HS connector poisoned (relock)"))?;
                     continue;
                 }
                 ServiceState::Closed { .. } => {
