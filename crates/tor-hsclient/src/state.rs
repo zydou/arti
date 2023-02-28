@@ -58,14 +58,14 @@ const MAX_ATTEMPTS: u32 = 10;
 ///
 /// ```text
 ///           index                                         table
-///           HashMap           Vec_______________          SlotMap___________________
-///           |     | contains  | KS, isol | t_i |  t_i     | ServiceState / <empty> |
-///   Hsid -> |  ---+---------> | KS, isol | t_i | -------> | ServiceState / <empty> |
-///           |_____|           | KS, isol | t_i |          | ServiceState / <empty> |
-///                             | KS, isol | t_i |          | ServiceState / <empty> |
-///   KS, isol ---------------> | .........|.... |          | ServiceState / <empty> |
-///             linear search   |________________|          | ...            ....    |
-/// ```                                                     |________________________|
+///           HashMap           Vec_______________          SlotMap____________________
+///           |     | contains  | table_index    |  t._i.   | ServiceRecord / <empty> |
+///   Hsid -> |  ---+---------> | table_index    | -------> | ServiceRecord / <empty> |
+///           |_____|           | table_index    |          | ServiceRecord / <empty> |
+///                             | table_index    |          | ServiceRecord / <empty> |
+///   KS, isol ---------------> | .............. |          | ServiceRecord / <empty> |
+///             linear search   |________________|          | ...            ....     |
+/// ```                                                     |_________________________|
 #[derive(Default, Debug)]
 pub(crate) struct Services<D: MockableConnectorData> {
     /// Index, mapping key to entry in the data tble
@@ -74,7 +74,7 @@ pub(crate) struct Services<D: MockableConnectorData> {
     ///
     /// Then there is a linear search over the other key info,
     /// which can only be compared for equality/compatibility, not indexed.
-    index: HashMap<HsId, Vec<IndexRecord>>,
+    index: HashMap<HsId, Vec<TableIndex>>,
 
     /// Actual table containing the state of our ideas about this service
     ///
@@ -82,18 +82,18 @@ pub(crate) struct Services<D: MockableConnectorData> {
     /// place to put its results, without having to re-traverse the data structure.
     /// It also doesn't need a complete copy of the data structure key,
     /// nor to get involved with `Isolation` edge cases.
-    table: DenseSlotMap<TableIndex, ServiceState<D>>,
+    table: DenseSlotMap<TableIndex, ServiceRecord<D>>,
 }
 
 /// Entry in the 2nd-level lookup array
 #[derive(Debug)]
-struct IndexRecord {
+struct ServiceRecord<D: MockableConnectorData> {
     /// Client secret keys (part of the data structure key)
     secret_keys: HsClientSecretKeys,
     /// Circuit isolation (part of the data structure key)
     isolation: Box<dyn Isolation>,
     /// Index into `Services.table`, intermediate value, data structure key for next step
-    table_index: TableIndex,
+    state: ServiceState<D>,
 }
 
 /// Value in the `Services` data structure
@@ -226,10 +226,11 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     let blank_state = || ServiceState::blank(&connector.runtime);
 
     for _attempt in attempts {
-        let state = guard
+        let record = guard
             .table
             .get_mut(table_index)
             .ok_or_else(|| internal!("guard table entry vanished!"))?;
+        let state = &mut record.state;
 
         trace!("HS conn state: {state:?}");
 
@@ -327,11 +328,12 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                     .services
                     .lock()
                     .map_err(|_| internal!("HS connector poisoned"))?;
-                let state = guard
+                let record = guard
                     .table
                     .get_mut(table_index)
                     .ok_or_else(|| internal!("HS table entry removed while task running"))?;
                 // Always match this, so we check what we're overwriting
+                let state = &mut record.state;
                 let error_store = match state {
                     ServiceState::Working { error, .. } => error,
                     _ => return Err(internal!("HS task found state other than Working")),
@@ -427,30 +429,37 @@ impl<D: MockableConnectorData> Services<D> {
             let records = services.index.entry(hs_id).or_default();
 
             table_index = match records
-                .iter_mut()
-                .enumerate()
-                .find_map(|(v_index, record)| {
+                .iter()
+                .find_map(|&t_index| {
                     // Deconstruct so that we can't accidentally fail to check some of the key fields
-                    let IndexRecord {
+                    let ServiceRecord {
                         secret_keys: t_keys,
                         isolation: t_isolation,
-                        table_index: _,
-                    } = record;
+                        state: _,
+                    } = services.table.get(t_index)
+                    // should be Some, unless data structure corrupted, but don't panic here
+                        ?;
                     (t_keys == &secret_keys).then(|| ())?;
                     let new_isolation = t_isolation.join(&*isolation)?;
-                    Some((v_index, new_isolation))
+                    Some((t_index, new_isolation))
                 }) {
-                Some((v_index, new_isolation)) => {
-                    records[v_index].isolation = new_isolation;
-                    records[v_index].table_index
+                Some((t_index, new_isolation)) => {
+                    services
+                        .table
+                        .get_mut(t_index)
+                        .ok_or_else(|| internal!("table entry disappeared"))?
+                        .isolation = new_isolation;
+                    t_index
                 }
                 None => {
-                    let table_index = services.table.insert(blank_state());
-                    records.push(IndexRecord {
+                    let state = blank_state();
+                    let record = ServiceRecord {
                         secret_keys: secret_keys.clone(),
                         isolation,
-                        table_index,
-                    });
+                        state,
+                    };
+                    let table_index = services.table.insert(record);
+                    records.push(table_index);
                     table_index
                 }
             };
