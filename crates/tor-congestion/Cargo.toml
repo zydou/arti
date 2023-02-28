@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.4.1" }
-tor-netdir = { path = "../tor-netdir", version = "0.7.1" }
+tor-netdir = { path = "../tor-netdir", version = "0.8.0" }
 tor-units = { path = "../tor-units", version = "0.4.1" }
 [package.metadata.docs.rs]
 all-features = true
