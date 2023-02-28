@@ -216,11 +216,14 @@ mod test {
 
     #[test]
     fn test_checking() {
-        let one_day = Duration::new(86400, 0);
-        let de = SystemTime::UNIX_EPOCH + one_day * 7580;
-        let cz_sk = SystemTime::UNIX_EPOCH + one_day * 8401;
-        let eu = SystemTime::UNIX_EPOCH + one_day * 8705;
-        let za = SystemTime::UNIX_EPOCH + one_day * 8882;
+        // West and East Germany reunified
+        let de = humantime::parse_rfc3339("1990-10-03T00:00:00Z").unwrap();
+        // Czechoslovakia separates into Czech Republic (Bohemia) & Slovakia
+        let cz_sk = humantime::parse_rfc3339("1993-01-01T00:00:00Z").unwrap();
+        // European Union created
+        let eu = humantime::parse_rfc3339("1993-11-01T00:00:00Z").unwrap();
+        // South Africa holds first free and fair elections
+        let za = humantime::parse_rfc3339("1994-04-27T00:00:00Z").unwrap();
 
         // check_valid_at
         let tr = TimerangeBound::new("Hello world", cz_sk..eu);
