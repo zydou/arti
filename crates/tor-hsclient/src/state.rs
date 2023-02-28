@@ -11,7 +11,7 @@ use std::time::Instant;
 use futures::FutureExt as _;
 
 use async_trait::async_trait;
-use either::Either::*;
+use either::Either::{self, *};
 use educe::Educe;
 use postage::stream::Stream as _;
 use slotmap::dense::DenseSlotMap;
@@ -139,64 +139,20 @@ impl<D: MockableConnectorData> ServiceState<D> {
     }
 }
 
-impl<D: MockableConnectorData> Services<D> {
-    /// Connect to a hidden service
-    // We *do* drop guard.  There is *one* await point, just after drop(guard).
-    pub(crate) async fn get_or_launch_connection(
-        connector: &HsClientConnector<impl Runtime, D>,
-        hs_id: HsId,
-        isolation: Box<dyn Isolation>,
-        secret_keys: HsClientSecretKeys,
-    ) -> Result<D::ClientCirc, HsClientConnError> {
+/// XXX
+type Continuation = (Arc<Mutex<Option<HsClientConnError>>>, postage::barrier::Receiver);
+
+/// XXX
+fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
+    connector: &HsClientConnector<impl Runtime, D>,
+    secret_keys: &HsClientSecretKeys,
+    table_index: TableIndex,
+    attempts: &mut impl Iterator,
+    mut guard: MutexGuard<'_, Services<D>>
+) -> Result<Either<Continuation, D::ClientCirc>, HsClientConnError> {
         let blank_state = || ServiceState::blank(&connector.runtime);
 
-  let mut attempts = 0..MAX_ATTEMPTS;
-  let table_index;
-  let mut obtain;
-  let mut got;
-  {
-        let mut guard = connector
-            .services
-            .lock()
-            .map_err(|_| internal!("HS connector poisoned"))?;
-        let services = &mut *guard;
-
-        trace!("HS conn get_or_launch: {hs_id:?} {isolation:?} {secret_keys:?}");
-        //trace!("HS conn services: {services:?}");
-
-        let records = services.index.entry(hs_id).or_default();
-
-        table_index = match records
-            .iter_mut()
-            .enumerate()
-            .find_map(|(v_index, record)| {
-                // Deconstruct so that we can't accidentally fail to check some of the key fields
-                let IndexRecord {
-                    secret_keys: t_keys,
-                    isolation: t_isolation,
-                    table_index: _,
-                } = record;
-                (t_keys == &secret_keys).then(|| ())?;
-                let new_isolation = t_isolation.join(&*isolation)?;
-                Some((v_index, new_isolation))
-            }) {
-            Some((v_index, new_isolation)) => {
-                records[v_index].isolation = new_isolation;
-                records[v_index].table_index
-            }
-            None => {
-                let table_index = services.table.insert(blank_state());
-                records.push(IndexRecord {
-                    secret_keys: secret_keys.clone(),
-                    isolation,
-                    table_index,
-                });
-                table_index
-            }
-        };
-
-      obtain = |mut guard: MutexGuard<'_, Services<D>>| {
-        for _attempt in &mut attempts {
+        for _attempt in attempts {
 
             let state = guard
                 .table
@@ -354,10 +310,75 @@ impl<D: MockableConnectorData> Services<D> {
         }
 
         Err(internal!("HS connector state management malfunction (exceeded MAX_ATTEMPTS").into())
-      };
+}
 
-      let guard = guard;
-      got = obtain(guard);
+
+impl<D: MockableConnectorData> Services<D> {
+    /// Connect to a hidden service
+    // We *do* drop guard.  There is *one* await point, just after drop(guard).
+    pub(crate) async fn get_or_launch_connection(
+        connector: &HsClientConnector<impl Runtime, D>,
+        hs_id: HsId,
+        isolation: Box<dyn Isolation>,
+        secret_keys: HsClientSecretKeys,
+    ) -> Result<D::ClientCirc, HsClientConnError> {
+        let blank_state = || ServiceState::blank(&connector.runtime);
+
+  let mut attempts = 0..MAX_ATTEMPTS;
+
+        let mut obtain = |table_index, guard| obtain_circuit_or_continuation_info(
+            connector,
+            &secret_keys,
+            table_index,
+            &mut attempts,
+            guard,
+        );
+
+  let mut got;
+  let table_index;
+  {
+        let mut guard = connector
+            .services
+            .lock()
+            .map_err(|_| internal!("HS connector poisoned"))?;
+        let services = &mut *guard;
+
+        trace!("HS conn get_or_launch: {hs_id:?} {isolation:?} {secret_keys:?}");
+        //trace!("HS conn services: {services:?}");
+
+        let records = services.index.entry(hs_id).or_default();
+
+        table_index = match records
+            .iter_mut()
+            .enumerate()
+            .find_map(|(v_index, record)| {
+                // Deconstruct so that we can't accidentally fail to check some of the key fields
+                let IndexRecord {
+                    secret_keys: t_keys,
+                    isolation: t_isolation,
+                    table_index: _,
+                } = record;
+                (t_keys == &secret_keys).then(|| ())?;
+                let new_isolation = t_isolation.join(&*isolation)?;
+                Some((v_index, new_isolation))
+            }) {
+            Some((v_index, new_isolation)) => {
+                records[v_index].isolation = new_isolation;
+                records[v_index].table_index
+            }
+            None => {
+                let table_index = services.table.insert(blank_state());
+                records.push(IndexRecord {
+                    secret_keys: secret_keys.clone(),
+                    isolation,
+                    table_index,
+                });
+                table_index
+            }
+        };
+
+    let guard = guard;
+    got = obtain(table_index, guard);
   }
   loop {
       {
@@ -381,7 +402,7 @@ impl<D: MockableConnectorData> Services<D> {
           .lock()
           .map_err(|_| internal!("HS connector poisoned (relock)"))?;
 
-      got = obtain(guard);
+      got = obtain(table_index, guard);
   }
     }
 }
