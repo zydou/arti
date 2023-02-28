@@ -3969,6 +3969,7 @@ version = "0.1.1"
 dependencies = [
  "async-trait",
  "educe",
+ "either",
  "futures",
  "postage",
  "rand_core 0.6.4",
