@@ -19,7 +19,7 @@ slow-diff-apply = []
 digest = "0.10.0"
 hex = "0.4"
 thiserror = "1"
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

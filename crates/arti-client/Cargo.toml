@@ -1,6 +1,6 @@
 [package]
 name = "arti-client"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -75,7 +75,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 directories = "4"
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.6.0", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.6.2", features = ["serde"] }
 futures = "0.3.14"
 hostname-validator = "1.1.1"
 humantime-serde = "1.1.1"
@@ -87,22 +87,22 @@ serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
 tor-cell = { path = "../tor-cell", version = "0.9.0" }
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.8.1" }
-tor-checkable = { path = "../tor-checkable", version = "0.4.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.7.1" }
-tor-config = { path = "../tor-config", version = "0.7.1" }
-tor-dirmgr = { path = "../tor-dirmgr", version = "0.9.1", default-features = false, features = [
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.8.2" }
+tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.7.2" }
+tor-config = { path = "../tor-config", version = "0.7.2" }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.9.2", default-features = false, features = [
     "mmap",
 ] }
 tor-error = { path = "../tor-error", version = "0.4.1" }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.1" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.2" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.1", optional = true }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
 tor-netdir = { path = "../tor-netdir", version = "0.8.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.6.1" }
-tor-persist = { path = "../tor-persist", version = "0.6.1" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.2" }
+tor-persist = { path = "../tor-persist", version = "0.6.2" }
 tor-proto = { path = "../tor-proto", version = "0.9.0" }
-tor-ptmgr = { path = "../tor-ptmgr", version = "0.2.1", optional = true }
+tor-ptmgr = { path = "../tor-ptmgr", version = "0.2.2", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tracing = "0.1.18"
 

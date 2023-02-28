@@ -1,6 +1,6 @@
 [package]
 name = "tor-persist"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -18,7 +18,7 @@ testing = []
 
 [dependencies]
 derive_more = "0.99.3"
-fs-mistrust = { path = "../fs-mistrust", version = "0.6.0", features = ["walkdir"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.6.2", features = ["walkdir"] }
 sanitize-filename = "0.4.0"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
