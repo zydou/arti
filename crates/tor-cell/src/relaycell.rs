@@ -10,7 +10,7 @@ use caret::caret_int;
 use rand::{CryptoRng, Rng};
 
 pub mod extend;
-#[cfg(feature = "hs-service")]
+#[cfg(feature = "hs")]
 pub mod hs;
 pub mod msg;
 pub mod restrict;
