@@ -43,6 +43,7 @@ mod err;
 mod keys;
 mod state;
 
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -109,13 +110,18 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     }
 
     /// Connect to a hidden service
-    pub async fn get_or_launch_connection(
+    //
+    // This returns an explicit `impl Future` so that we can write the `Send` bound.
+    // Without this, it is possible for `Services::get_or_launch_connection`
+    // to not return a `Send` future.
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1034#note_2881718
+    pub fn get_or_launch_connection(
         &self,
         hs_id: HsId,
         secret_keys: HsClientSecretKeys,
         isolation: Box<dyn Isolation>,
-    ) -> Result<ClientCirc, HsClientConnError> {
-        Services::get_or_launch_connection(self, hs_id, isolation, secret_keys).await
+    ) -> impl Future<Output = Result<ClientCirc, HsClientConnError>> + Send + Sync + '_ {
+        Services::get_or_launch_connection(self, hs_id, isolation, secret_keys)
     }
 }
 
