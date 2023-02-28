@@ -41,7 +41,7 @@
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 mod halfstream;
-#[cfg(feature = "onion-common")]
+#[cfg(feature = "hs-common")]
 pub mod handshake;
 mod path;
 pub(crate) mod reactor;
@@ -317,7 +317,7 @@ impl ClientCirc {
     ///
     /// Only onion services (and eventually) exit relays should call this
     /// method.
-    #[cfg(feature = "onion-service")]
+    #[cfg(feature = "hs-service")]
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     pub fn allow_stream_requests(
         &self,
@@ -386,7 +386,7 @@ impl ClientCirc {
     // TODO hs: let's try to enforce the "you can't extend a circuit again once
     // it has been extended this way" property.  We could do that with internal
     // state, or some kind of a type state pattern.
-    #[cfg(feature = "onion-common")]
+    #[cfg(feature = "hs-common")]
     #[allow(clippy::missing_panics_doc, unused_variables)]
     pub async fn extend_virtual(
         &self,

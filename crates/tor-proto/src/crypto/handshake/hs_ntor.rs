@@ -15,7 +15,7 @@
 //! This module is a work in progress, and is not actually used anywhere yet
 //! or tested: please expect the API to change.
 //!
-//! This module is available only when the `onion-common` feature is enabled.
+//! This module is available only when the `hs-common` feature is enabled.
 //
 // TODO hs: go  through this code carefully and make sure that its APIs and
 // behavior are still what we want.

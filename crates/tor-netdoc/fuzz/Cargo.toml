@@ -14,7 +14,7 @@ libfuzzer-sys = "0.4"
 
 [dependencies.tor-netdoc]
 path = ".."
-features = ["routerdesc", "ns_consensus", "hsdesc-inner-docs", "onion-service"]
+features = ["routerdesc", "ns_consensus", "hsdesc-inner-docs", "hs-service"]
 
 # Prevent this from interfering with workspaces
 [workspace]

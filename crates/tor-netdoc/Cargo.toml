@@ -18,8 +18,8 @@ full = ["routerdesc", "ns_consensus"]
 experimental = [
     "build_docs",
     "experimental-api",
-    "onion-client",
-    "onion-service",
+    "hs-client",
+    "hs-service",
     "hsdesc-inner-docs",
 ]
 
@@ -36,9 +36,9 @@ ns_consensus = []
 # Client-side and service-side support for onion services. 
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
-onion-client = ["onion-common"]
-onion-service = ["onion-common", "rand"]
-onion-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
+hs-client = ["hs-common"]
+hs-service = ["hs-common", "rand"]
+hs-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
 hsdesc-inner-docs = ["visibility"]
 

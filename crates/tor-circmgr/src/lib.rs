@@ -61,7 +61,7 @@ mod err;
 mod impls;
 pub mod isolation;
 mod mgr;
-#[cfg(feature = "onion-client")]
+#[cfg(feature = "hs-client")]
 mod onion_connector;
 pub mod path;
 mod preemptive;
@@ -70,8 +70,8 @@ mod usage;
 
 pub use err::Error;
 pub use isolation::IsolationToken;
-#[cfg(feature = "onion-client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "onion-client")))]
+#[cfg(feature = "hs-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-client")))]
 pub use onion_connector::{OnionConnectError, OnionServiceConnector};
 use tor_guardmgr::fallback::FallbackList;
 pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
@@ -217,7 +217,7 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// (This cannot be done at construction time, since the
     /// OnionServiceConnector will have to keep a reference to this `CircMgr`.)
-    #[cfg(feature = "onion-client")]
+    #[cfg(feature = "hs-client")]
     #[allow(unused_variables, clippy::missing_panics_doc)]
     pub fn install_onion_service_connector(
         &self,
@@ -441,7 +441,7 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// Requires that an `OnionServiceConnector` has been installed.  If it
     /// hasn't, then we return an error.
-    #[cfg(feature = "onion-client")]
+    #[cfg(feature = "hs-client")]
     #[allow(clippy::missing_panics_doc, unused_variables)]
     pub async fn get_or_launch_onion_client(
         &self,
@@ -483,7 +483,7 @@ impl<R: Runtime> CircMgr<R> {
     /// future unless explicitly re-registered with a circuit manager.
     ///
     /// Used to implement onion service clients and services.
-    #[cfg(feature = "onion-common")]
+    #[cfg(feature = "hs-common")]
     #[allow(unused_variables, clippy::missing_panics_doc)]
     pub async fn launch_specific_isolated(
         &self,

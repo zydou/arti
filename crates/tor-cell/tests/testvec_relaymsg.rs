@@ -14,7 +14,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use hex_literal::hex;
 
-#[cfg(feature = "onion-service")]
+#[cfg(feature = "hs-service")]
 use tor_cell::relaycell::hs;
 #[cfg(feature = "experimental-udp")]
 use tor_cell::relaycell::udp;
@@ -619,7 +619,7 @@ fn test_connected_udp() {
     );
 }
 
-#[cfg(feature = "onion-service")]
+#[cfg(feature = "hs-service")]
 #[test]
 fn test_establish_rendezvous() {
     let cmd = RelayCmd::ESTABLISH_RENDEZVOUS;
@@ -655,7 +655,7 @@ fn test_establish_rendezvous() {
     );
 }
 
-#[cfg(feature = "onion-service")]
+#[cfg(feature = "hs-service")]
 #[test]
 fn test_establish_intro() {
     use tor_cell::relaycell::hs::{est_intro::*, AuthKeyType, UnrecognizedExt};
@@ -714,7 +714,7 @@ fn test_establish_intro() {
     );
 }
 
-#[cfg(feature = "onion-service")]
+#[cfg(feature = "hs-service")]
 #[test]
 fn test_introduce() {
     use tor_cell::relaycell::{

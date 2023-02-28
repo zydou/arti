@@ -14,16 +14,16 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-experimental = ["experimental-api", "onion-service", "onion-client"]
+experimental = ["experimental-api", "hs-service", "hs-client"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental-api = []
-onion-client = ["onion-common"]
-onion-service = ["onion-common"]
-onion-common = ["digest", "time", "tor-hscrypto"]
+hs-client = ["hs-common"]
+hs-service = ["hs-common"]
+hs-common = ["digest", "time", "tor-hscrypto"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
