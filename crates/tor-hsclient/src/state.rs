@@ -43,6 +43,17 @@ const MAX_ATTEMPTS: u32 = 10;
 /// We treat different values for any of the above as completely independent,
 /// except that we try isolation joining (narrowing) if everything else matches.
 ///
+/// In other words,
+///  * Two HS connection requests cannot share state and effort
+///    (descriptor downloads, descriptors, intro pt history)
+///    unless the client authg keys to be used are the same.
+///  * This criterion is checked before looking at isolations,
+///    which may further restrict sharing:
+///    Two HS connection requests will only share state subject to isolations.
+///
+/// Here "state and effort" includes underlying circuits such as hsdir circuits,
+/// since each HS connection state will use `launch_specific_isolated` for those.
+///
 /// When deleting an entry, it should be remooved from both layers of the structure.
 ///
 /// ```text

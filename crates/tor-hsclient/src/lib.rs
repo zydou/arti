@@ -110,6 +110,10 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     }
 
     /// Connect to a hidden service
+    ///
+    /// Each HS connection request must provide the appropriate
+    /// client authentication keys to use -
+    /// or [`default`](HsClientSecretKeys::default) if client auth is not required.
     //
     // This returns an explicit `impl Future` so that we can write the `Send` bound.
     // Without this, it is possible for `Services::get_or_launch_connection`
