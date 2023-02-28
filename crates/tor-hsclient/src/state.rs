@@ -128,6 +128,16 @@ enum ServiceState<D: MockableConnectorData> {
     Dummy,
 }
 
+impl<D: MockableConnectorData> ServiceState<D> {
+    /// Make a new (blank) `ServiceState::Closed`
+    fn blank(runtime: &impl Runtime) -> Self {
+        ServiceState::Closed {
+            data: D::default(),
+            last_used: runtime.now(),
+        }
+    }
+}
+
 impl<D: MockableConnectorData> Services<D> {
     /// Connect to a hidden service
     // We *do* drop guard.  There is *one* await point, just after drop(guard).
@@ -138,6 +148,8 @@ impl<D: MockableConnectorData> Services<D> {
         isolation: Box<dyn Isolation>,
         secret_keys: HsClientSecretKeys,
     ) -> Result<D::ClientCirc, HsClientConnError> {
+        let blank_state = || ServiceState::blank(&connector.runtime);
+
         let mut guard = connector
             .services
             .lock()
@@ -148,11 +160,6 @@ impl<D: MockableConnectorData> Services<D> {
         //trace!("HS conn services: {services:?}");
 
         let records = services.index.entry(hs_id).or_default();
-
-        let blank_state = || ServiceState::Closed {
-            data: D::default(),
-            last_used: connector.runtime.now(),
-        };
 
         let table_index = match records
             .iter_mut()
