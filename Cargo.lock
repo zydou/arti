@@ -132,7 +132,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "anyhow",
  "arti",
@@ -203,7 +203,7 @@ version = "0.5.1"
 
 [[package]]
 name = "arti-hyper"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -222,7 +222,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "anyhow",
  "arti",
@@ -3797,7 +3797,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "digest 0.10.6",
  "hex",
