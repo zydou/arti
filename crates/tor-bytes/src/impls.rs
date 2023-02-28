@@ -298,6 +298,24 @@ mod u8_array_impls {
     }
 }
 
+/// Implement Readable and Writeable for `CtByteArray`
+mod ctbytearray_impls {
+    use super::*;
+    use tor_llcrypto::util::ct::CtByteArray;
+    impl<const N: usize> Writeable for CtByteArray<N> {
+        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+            b.write_all(&self.as_ref()[..]);
+            Ok(())
+        }
+    }
+
+    impl<const N: usize> Readable for CtByteArray<N> {
+        fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+            Ok(CtByteArray::from(r.extract::<[u8; N]>()?))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
