@@ -1,7 +1,6 @@
 //! Implement a cache for onion descriptors and the facility to remember a bit
 //! about onion service history.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::mem;
 use std::panic::AssertUnwindSafe;
@@ -14,7 +13,6 @@ use async_trait::async_trait;
 use educe::Educe;
 use either::Either::{self, *};
 use postage::stream::Stream as _;
-use slotmap::dense::DenseSlotMap;
 use tracing::{debug, error, trace};
 
 use tor_circmgr::isolation::Isolation;
@@ -22,6 +20,7 @@ use tor_error::{internal, Bug, ErrorReport as _};
 use tor_hscrypto::pk::HsId;
 use tor_rtcompat::Runtime;
 
+use crate::isol_map;
 use crate::{HsClientConnError, HsClientConnector, HsClientSecretKeys};
 
 slotmap::new_key_type! {
@@ -35,6 +34,7 @@ const MAX_ATTEMPTS: u32 = 10;
 
 /// Hidden services;, our connections to them, and history of connections, etc.
 ///
+/// Table containing state of our ideas about services.
 /// Data structure is keyed (indexed) by:
 ///  * `HsId`, hidden service identity
 ///  * any secret keys we are to use
@@ -53,48 +53,15 @@ const MAX_ATTEMPTS: u32 = 10;
 ///
 /// Here "state and effort" includes underlying circuits such as hsdir circuits,
 /// since each HS connection state will use `launch_specific_isolated` for those.
-///
-/// When deleting an entry, it should be remooved from both layers of the structure.
-///
-/// ```text
-///           index                                         table
-///           HashMap           Vec_______________          SlotMap____________________
-///           |     | contains  | table_index    |  t._i.   | ServiceRecord / <empty> |
-///   Hsid -> |  ---+---------> | table_index    | -------> | ServiceRecord / <empty> |
-///           |_____|           | table_index    |          | ServiceRecord / <empty> |
-///                             | table_index    |          | ServiceRecord / <empty> |
-///   KS, isol ---------------> | .............. |          | ServiceRecord / <empty> |
-///             linear search   |________________|          | ...            ....     |
-/// ```                                                     |_________________________|
 #[derive(Default, Debug)]
 pub(crate) struct Services<D: MockableConnectorData> {
-    /// Index, mapping key to entry in the data tble
-    ///
-    /// There's a HashMap from HsId.
-    ///
-    /// Then there is a linear search over the other key info,
-    /// which can only be compared for equality/compatibility, not indexed.
-    index: HashMap<HsId, Vec<TableIndex>>,
-
-    /// Actual table containing the state of our ideas about this service
-    ///
-    /// Using a slotmap allows the task, when it completes, to find the relevant
-    /// place to put its results, without having to re-traverse the data structure.
-    /// It also doesn't need a complete copy of the data structure key,
-    /// nor to get involved with `Isolation` edge cases.
-    table: DenseSlotMap<TableIndex, ServiceRecord<D>>,
+    /// The actual records of our connections/attempts for each service, as separated
+    records: isol_map::MultikeyIsolatedMap<TableIndex, HsId, HsClientSecretKeys, ServiceState<D>>,
 }
 
 /// Entry in the 2nd-level lookup array
-#[derive(Debug)]
-struct ServiceRecord<D: MockableConnectorData> {
-    /// Client secret keys (part of the data structure key)
-    secret_keys: HsClientSecretKeys,
-    /// Circuit isolation (part of the data structure key)
-    isolation: Box<dyn Isolation>,
-    /// Index into `Services.table`, intermediate value, data structure key for next step
-    state: ServiceState<D>,
-}
+#[allow(dead_code)] // This alias is here for documentation if nothing else
+type ServiceRecord<D> = isol_map::Record<HsClientSecretKeys, ServiceState<D>>;
 
 /// Value in the `Services` data structure
 ///
@@ -227,10 +194,10 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
 
     for _attempt in attempts {
         let record = guard
-            .table
-            .get_mut(table_index)
+            .records
+            .by_index_mut(table_index)
             .ok_or_else(|| internal!("guard table entry vanished!"))?;
-        let state = &mut record.state;
+        let state = &mut **record;
 
         trace!("HS conn state: {state:?}");
 
@@ -329,11 +296,11 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                     .lock()
                     .map_err(|_| internal!("HS connector poisoned"))?;
                 let record = guard
-                    .table
-                    .get_mut(table_index)
+                    .records
+                    .by_index_mut(table_index)
                     .ok_or_else(|| internal!("HS table entry removed while task running"))?;
                 // Always match this, so we check what we're overwriting
-                let state = &mut record.state;
+                let state = &mut **record;
                 let error_store = match state {
                     ServiceState::Working { error, .. } => error,
                     _ => return Err(internal!("HS task found state other than Working")),
@@ -426,43 +393,10 @@ impl<D: MockableConnectorData> Services<D> {
             trace!("HS conn get_or_launch: {hs_id:?} {isolation:?} {secret_keys:?}");
             //trace!("HS conn services: {services:?}");
 
-            let records = services.index.entry(hs_id).or_default();
-
-            table_index = match records
-                .iter()
-                .find_map(|&t_index| {
-                    // Deconstruct so that we can't accidentally fail to check some of the key fields
-                    let ServiceRecord {
-                        secret_keys: t_keys,
-                        isolation: t_isolation,
-                        state: _,
-                    } = services.table.get(t_index)
-                    // should be Some, unless data structure corrupted, but don't panic here
-                        ?;
-                    (t_keys == &secret_keys).then(|| ())?;
-                    let new_isolation = t_isolation.join(&*isolation)?;
-                    Some((t_index, new_isolation))
-                }) {
-                Some((t_index, new_isolation)) => {
-                    services
-                        .table
-                        .get_mut(t_index)
-                        .ok_or_else(|| internal!("table entry disappeared"))?
-                        .isolation = new_isolation;
-                    t_index
-                }
-                None => {
-                    let state = blank_state();
-                    let record = ServiceRecord {
-                        secret_keys: secret_keys.clone(),
-                        isolation,
-                        state,
-                    };
-                    let table_index = services.table.insert(record);
-                    records.push(table_index);
-                    table_index
-                }
-            };
+            table_index =
+                services
+                    .records
+                    .index_or_insert_with(&hs_id, &secret_keys, isolation, blank_state);
 
             let guard = guard;
             got = obtain(table_index, guard);

@@ -40,6 +40,7 @@
 
 mod connect;
 mod err;
+mod isol_map;
 mod keys;
 mod state;
 
