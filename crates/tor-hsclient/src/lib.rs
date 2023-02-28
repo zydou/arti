@@ -98,7 +98,7 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         circmgr: Arc<CircMgr<R>>,
         netdir_provider: Arc<dyn NetDirProvider>,
         // TODO HS: there should be a config here, we will probably need it at some point
-        // TODO HS: needs a parameter which lets us periodically expire old HS data/circuits
+        // TODO HS: will needs a periodic task handle for us to expire old HS data/circuits
     ) -> Result<Self, StartupError> {
         Ok(HsClientConnector {
             runtime,
