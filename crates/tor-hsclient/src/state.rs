@@ -139,10 +139,69 @@ impl<D: MockableConnectorData> ServiceState<D> {
     }
 }
 
-/// XXX
+/// "Continuation" return type from `obtain_circuit_or_continuation_info`
 type Continuation = (Arc<Mutex<Option<HsClientConnError>>>, postage::barrier::Receiver);
 
-/// XXX
+/// Obtain a circuit from the `Services` table, or return a continuation
+///
+/// This is the workhorse function for `get_or_launch_connection`.
+///
+/// `get_or_launch_connection`, together with `obtain_circuit_or_continuation_info`,
+/// form a condition variable loop:
+///
+/// We check to see if we have a circuit.  If so, we return it.
+/// Otherwise, we make sure that a circuit is being constructed,
+/// and then go into a condvar wait;
+/// we'll be signaled when the construction completes.
+///
+/// So the connection task we spawn does not return the circuit, or error,
+/// via an inter-task stream.
+/// It stores it in the data structure and wakes up all the client tasks.
+/// (This means there is only one success path for the client task code.)
+///
+/// There are some wrinkles:
+///
+/// ### Existence of this as a separate function
+///
+/// The usual structure for a condition variable loop would be something like this:
+///
+/// ```rust,ignore
+/// loop {
+///    test state and maybe break;
+///    cv.wait(guard).await; // consumes guard, unlocking after enqueueing us as a waiter
+///    guard = lock();
+/// }
+/// ```
+///
+/// However, Rust does not currently understand that the mutex is not
+/// actually a captured variable held across an await point,
+/// when the variable is consumed before the await, and re-stored afterwards.
+/// As a result, the async future becomes erroneously `!Send`:
+/// <https://github.com/rust-lang/rust/issues/104883>.
+/// We want the unstable feature `-Zdrop-tracking`:
+/// <https://github.com/rust-lang/rust/issues/97331>.
+///
+/// Instead, to convince the compiler, we must use a scope-based drop of the mutex guard.
+/// That means converting the "test state and maybe break" part into a sub-function.
+/// That's what this function is.
+///
+/// It returns `Right` if the loop should be exited, returning the circuit to the caller.
+/// It returns `Left` if the loop needs to do a condition variable wait.
+///
+/// ### We're using a barrier as a condition variable
+///
+/// We want to be signaled when the task exits.  Indeed, *only* when it exits.
+/// This functionality is most conveniently in a `postage::barrier`.
+///
+/// ### Nested loops
+///
+/// Sometimes we want to go round again *without* unlocking.
+/// Sometimes we must unlock and wait anbd relock.
+///
+/// The drop tracking workaround (see above) means we have to do these two
+/// in separate scopes.
+/// So there are two nested loops: one here, and one in `get_or_launch_connection`.
+/// They both use the same backstop attempts counter.
 fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     connector: &HsClientConnector<impl Runtime, D>,
     secret_keys: &HsClientSecretKeys,
@@ -201,6 +260,11 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                         continue;
                     }
                     let barrier_recv = barrier_recv.clone();
+
+                    // This clone of the error field Arc<Mutex<..>> allows us to collect errors
+                    // which happened due to the currently-running task, which we have just
+                    // found exists.  Ie, it will see errors that occurred after we entered
+                    // `get_or_launch`.  Stale errors, from previous tasks, were cleared above.
                     let error = error.clone();
 
                     // Wait for the task to complete (at which point it drops the barrier)
@@ -381,7 +445,15 @@ impl<D: MockableConnectorData> Services<D> {
     got = obtain(table_index, guard);
   }
   loop {
+      // The parts of this loop which run after a `Left` is returned
+      // logically belong in the case in `obtain_circuit_or_continuation_info`
+      // for `ServiceState::Working`, where that function decides we need to wait.
+      // This code has to be out here to help the compiler's drop tracking.
       {
+          // Block to scope the acquisition of `error`, a guard
+          // for the mutex-protected error field in the state,
+          // and, for neatness, barrier_recv.
+
           let (error, mut barrier_recv) = match got? {
               Right(ret) => return Ok(ret),
               Left(continuation) => continuation,
