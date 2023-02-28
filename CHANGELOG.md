@@ -7,7 +7,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 Arti 1.1.2 continues our work on onion services, and builds out more of
 the necessary infrastructure, focusing on backend support for the onion
-serviced irectories.
+service directories.
 
 We've also done a significant revision on our handling of incoming
 messages on circuits, to avoid a fair amount of unnecessary copying, and
