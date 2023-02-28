@@ -1,6 +1,6 @@
 [package]
 name = "tor-checkable"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -19,7 +19,7 @@ experimental-api = []
 humantime = "2"
 signature = "1"
 thiserror = "1"
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
