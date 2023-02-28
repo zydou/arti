@@ -464,7 +464,7 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -621,7 +621,8 @@ mod test {
     }
 
     #[derive(Default, Debug, Clone)]
-    struct NarrowableIsolation(String);
+    // TODO move this to tor-circmgr under a test feature?
+    pub(crate) struct NarrowableIsolation(pub(crate) String);
     impl tor_circmgr::isolation::IsolationHelper for NarrowableIsolation {
         fn compatible_same_type(&self, other: &Self) -> bool {
             self.join_same_type(other).is_some()
