@@ -3,11 +3,19 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.1.2 — 1 March 2023
+# Arti 1.1.2 — 28 February 2023
 
-XXXXX ADD BLURB.
+Arti 1.1.2 continues our work on onion services, and builds out more of
+the necessary infrastructure, focusing on backend support for the onion
+serviced irectories.
 
-(This is up-to-date with bd920fc844b5355607e83fec372b0146a534e774)
+We've also done a significant revision on our handling of incoming
+messages on circuits, to avoid a fair amount of unnecessary copying, and
+defer message parsing until we're certain that the message type would be
+acceptable in a given context.  Doing this turned up several bugs, which
+are now fixed too.
+
+(This is up-to-date with fcbeceeb615818b58214c79d9cfd33b5135f8e2d)
 
 
 ### Breaking changes in lower level crates
@@ -52,11 +60,9 @@ XXXXX ADD BLURB.
 - Our network directory code now supports deriving the `HsDir` directory
   ring, to find out where onion service descriptors should be uploaded and
   downloaded. ([#687], [!1012])
-
-
-### Testing
-
-### Documentation
+- We've refactored our implementation of onion service message
+  extensions into a single place, to save on code and avoid type
+  confusion.  ([5521df0909ff7afa])
 
 ### Infrastructure
 
@@ -82,13 +88,70 @@ XXXXX ADD BLURB.
 - Make extension-handling code in for onion service message decoding more
   generic, since we'll reuse it a lot. ([!1020])
 - We now kill off circuits under more circumstances when the other side of
-  the circuit violates the protocol. ([#773], [#769])
+  the circuit violates the protocol. ([#769], [#773], [!1026])
 - We now expire router descriptors as soon as _any_ of their internal
   expiration times has elapsed. Previously, we expired them when _all_
   of their expiration times had elapsed, which is incorrect. ([#772],
   [!1022])
+- We are much more careful than previous about validating the correctness
+  of various message types on half-closed streams. Previously, we
+  had separate implementations for message validation; now, we use
+  a single object to check messages in both cases. ([#744], [!1026])
+- We now treat a `RESOLVED` message as closing a half-closed resolve stream.
+  Previously, we left the stream open. ([!1026])
 
+Thanks to everyone who has contributed to this release, including
+Dimitris Apostolou, Emil Engler, and Shady Katy.
 
+Also, our deep thanks to [Zcash Community Grants] for funding the
+development of Arti!
+
+[!976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/976
+[!990]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/990
+[!994]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/994
+[!997]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/997
+[!999]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/999
+[!1004]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1004
+[!1006]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1006
+[!1008]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1008
+[!1012]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1012
+[!1013]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1013
+[!1015]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1015
+[!1016]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1016
+[!1017]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1017
+[!1018]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1018
+[!1020]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1020
+[!1021]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1021
+[!1022]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1022
+[!1023]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1023
+[!1025]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1025
+[!1026]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1026
+[!1029]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1029
+[#7]: https://gitlab.torproject.org/tpo/core/arti/-/issues/7
+[#525]: https://gitlab.torproject.org/tpo/core/arti/-/issues/525
+[#578]: https://gitlab.torproject.org/tpo/core/arti/-/issues/578
+[#579]: https://gitlab.torproject.org/tpo/core/arti/-/issues/579
+[#680]: https://gitlab.torproject.org/tpo/core/arti/-/issues/680
+[#687]: https://gitlab.torproject.org/tpo/core/arti/-/issues/687
+[#690]: https://gitlab.torproject.org/tpo/core/arti/-/issues/690
+[#744]: https://gitlab.torproject.org/tpo/core/arti/-/issues/744
+[#752]: https://gitlab.torproject.org/tpo/core/arti/-/issues/752
+[#760]: https://gitlab.torproject.org/tpo/core/arti/-/issues/760
+[#769]: https://gitlab.torproject.org/tpo/core/arti/-/issues/769
+[#772]: https://gitlab.torproject.org/tpo/core/arti/-/issues/772
+[#773]: https://gitlab.torproject.org/tpo/core/arti/-/issues/773
+[#776]: https://gitlab.torproject.org/tpo/core/arti/-/issues/776
+[266c61f7213dbec7]: https://gitlab.torproject.org/tpo/core/arti/-/commit/266c61f7213dbec7feacac256bd87329837535e2
+[5521df0909ff7afa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5521df0909ff7afa2d78304c9376861dfcf7041a
+[bb2ab7c2a3e0994bb43]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bb2ab7c2a3e0994bb438188511688b5b039cae29
+[ca3b33a1afc58b84]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ca3b33a1afc58b84cc7a39ea3845a82f17cee0da
+[f69d7f96ac40dda5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f69d7f96ac40dda53a8f4f6c01557195faaeff7c
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`IntegerMinutes`]: https://tpo.pages.torproject.net/core/doc/rust/tor_units/struct.IntegerMinutes.html
+[`PartialNetDir::fill_from_previous_netdir()`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/struct.PartialNetDir.html#method.fill_from_previous_netdir
+[`tor-netdir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/index.html
+[`tor-netdoc`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdoc/index.html
+[`typed_index_collections`]: https://docs.rs/typed-index-collections/latest/typed_index_collections/
 
 
 
