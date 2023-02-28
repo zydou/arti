@@ -43,7 +43,7 @@ tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tor-socksproto = { path = "../tor-socksproto", version = "0.6.1", default-features = false, features = [
     "client-handshake",
 ] }
-tor-units = { path = "../tor-units", version = "0.4.1" }
+tor-units = { path = "../tor-units", version = "0.5.0" }
 tracing = "0.1.18"
 void = "1"
 

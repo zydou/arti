@@ -26,7 +26,7 @@ tor-llcrypto = { version = "0.4.1", path = "../tor-llcrypto", features = [
     "hsv3-client",
     "hsv3-service",
 ] }
-tor-units = { path = "../tor-units", version = "0.4.1" }
+tor-units = { path = "../tor-units", version = "0.5.0" }
 
 [dev-dependencies]
 hex-literal = "0.3"

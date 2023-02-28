@@ -4290,7 +4290,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "derive_more",
  "float-cmp",

@@ -15,7 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.4.1" }
 tor-netdir = { path = "../tor-netdir", version = "0.8.0" }
-tor-units = { path = "../tor-units", version = "0.4.1" }
+tor-units = { path = "../tor-units", version = "0.5.0" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

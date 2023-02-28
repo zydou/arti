@@ -60,7 +60,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.1" }
 tor-protover = { path = "../tor-protover", version = "0.4.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
-tor-units = { path = "../tor-units", version = "0.4.1" }
+tor-units = { path = "../tor-units", version = "0.5.0" }
 tracing = "0.1.18"
 typenum = "1.12"
 zeroize = "1"
