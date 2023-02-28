@@ -36,6 +36,7 @@ impl Debug for HsId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // TODO HS debug using .onion encoding ?
         // TODO HS display using .onion encoding
+        // TODO HS impl Redactable maybe?  But which end to show?  Risk from vanity .onions?
         write!(f, "HsId(0x")?;
         for v in self.0.as_ref() {
             write!(f, "{:02x}", v)?;
