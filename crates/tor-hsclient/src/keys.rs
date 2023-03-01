@@ -11,18 +11,22 @@ use std::sync::Arc;
 
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthSecretKey};
 
-/// Keys to use when connecting to a specific onion service.
+/// Keys (if any) to use when connecting to a specific onion service.
 ///
-/// This is constructed with a `Builder`:
+/// Represents a possibly empty subset of the following keys:
+///  * `KS_hsc_desc_enc`, [`HsClientDescEncSecretKey`]
+///  * `KS_hsc_intro_auth`, [`HsClientIntroAuthSecretKey`]
+///
+/// `HsClientSecretKeys` is constructed with a `Builder`:
 /// use `ClientSecretKeysBuilder::default()`,
 /// optionally call setters, and then call `build()`.
 ///
 /// For client connections to share circuits and streams,
 /// call `build` only once.
-/// Different calls to `build` yield `ClientSecretKeys` values
-/// which won't share circuits, streams, or authentication.
+/// Different calls to `build` yield `HsClientSecretKeys` values
+/// which won't share HS circuits, streams, or authentication.
 ///
-/// Conversely, `Clone`s of a `ClientSecretKeys` *can* share circuits.
+/// Conversely, `Clone`s of an `HsClientSecretKeys` *can* share circuits.
 //
 /// All [empty](HsClientSecretKeys::is_empty) `HsClientSecretKeys`
 /// (for example, from [`:none()`](HsClientSecretKeys::none))
