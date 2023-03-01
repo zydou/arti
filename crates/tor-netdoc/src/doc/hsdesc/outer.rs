@@ -7,7 +7,7 @@ use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::{RevisionCounter, Subcredential};
-use tor_llcrypto::pk::ed25519::{self, ValidatableEd25519Signature};
+use tor_llcrypto::pk::ed25519::{self, Ed25519Identity, ValidatableEd25519Signature};
 use tor_units::IntegerMinutes;
 
 use crate::parse::{keyword::Keyword, parser::SectionRules, tokenize::NetDocReader};
@@ -51,6 +51,16 @@ impl HsDescOuter {
             .signing_key()
             .expect("signing key was absent!?");
         (*ident).into()
+    }
+
+    /// Return the Id of the descriptor-signing key (`KP_desc_sign`) from this onion service descriptor.
+    pub(super) fn desc_sign_key_id(&self) -> &Ed25519Identity {
+        self.desc_signing_key_cert
+            .subject_key()
+            .as_ed25519()
+            .expect(
+                "Somehow constructed an HsDescOuter with a non-Ed25519 signing key in its cert.",
+            )
     }
 
     /// Return the revision counter for this descriptor.
