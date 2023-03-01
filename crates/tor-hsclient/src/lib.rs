@@ -62,6 +62,13 @@ pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 use state::Services;
 
 /// An object that negotiates connections with onion services
+///
+/// This can be used by multiple requests on behalf of different clients,
+/// with potentially different HS client authentication (`KS_hsc_*`)
+/// and potentially different circuit isolation.
+///
+/// The principal entrypoint is
+/// [`get_or_launch_connection()`](HsClientConnector::get_or_launch_connection).
 #[derive(Educe)]
 #[educe(Clone)]
 pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = connect::Data> {
@@ -73,9 +80,6 @@ pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = conne
     /// A [`NetDirProvider`] that we use to pick rendezvous points.
     netdir_provider: Arc<dyn NetDirProvider>,
     /// Information we are remembering about different onion services.
-    //
-    // TODO hs: if we implement cache isolation or state isolation, we might
-    // need multiple instances of this.
     services: Arc<Mutex<state::Services<D>>>,
     /// For mocking in tests of `state.rs`
     mock_for_state: D::MockGlobalState,
