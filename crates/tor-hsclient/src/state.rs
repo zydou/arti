@@ -29,8 +29,21 @@ slotmap::new_key_type! {
 
 /// Number of times we're willing to iterate round the state machine loop
 ///
+/// **Not** the number of retries of failed descriptor downloads, circuits, etc.
+///
+/// The state machine loop is a condition variable loop.
+/// It repeatedly transforms the [`ServiceState`] to try to get to `Open`,
+/// converting stale data to `Closed` and `Closed` to `Working`, and so on.
+/// This ought only to go forwards so in principle we could use an infinite loop.
+/// But if we have a logic error, we want to crash eventually.
+/// The `rechecks` counter is for detecting such a situation.
+///
 /// This is fairly arbitrary, but we shouldn't get anywhere near it.
-const MAX_ATTEMPTS: u32 = 10;
+///
+/// Note that this is **not** a number of operational retries
+/// of fallible retriable operations.
+/// Such retries are handled in [`connect.rs`](crate::connect).
+const MAX_RECHECKS: u32 = 10;
 
 /// Hidden services;, our connections to them, and history of connections, etc.
 ///
@@ -182,17 +195,17 @@ type Continuation = (
 /// The drop tracking workaround (see above) means we have to do these two
 /// in separate scopes.
 /// So there are two nested loops: one here, and one in `get_or_launch_connection`.
-/// They both use the same backstop attempts counter.
+/// They both use the same backstop rechecks counter.
 fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     connector: &HsClientConnector<impl Runtime, D>,
     secret_keys: &HsClientSecretKeys,
     table_index: TableIndex,
-    attempts: &mut impl Iterator,
+    rechecks: &mut impl Iterator,
     mut guard: MutexGuard<'_, Services<D>>,
 ) -> Result<Either<Continuation, D::ClientCirc>, HsClientConnError> {
     let blank_state = || ServiceState::blank(&connector.runtime);
 
-    for _attempt in attempts {
+    for _recheck in rechecks {
         let record = guard
             .records
             .by_index_mut(table_index)
@@ -236,7 +249,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                     Err(postage::stream::TryRecvError::Pending)
                 ) {
                     // This information is stale; the task no longer exists.
-                    // We want information from a fresh attempt.
+                    // We want information from a fresh task.
                     *state = blank_state();
                     continue;
                 }
@@ -271,7 +284,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
             }
         };
 
-        // Make a connection attempt
+        // Make a connection
         let runtime = &connector.runtime;
         let connector = (*connector).clone();
         let secret_keys = secret_keys.clone();
@@ -355,7 +368,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
             })?;
     }
 
-    Err(internal!("HS connector state management malfunction (exceeded MAX_ATTEMPTS").into())
+    Err(internal!("HS connector state management malfunction (exceeded MAX_RECHECKS").into())
 }
 
 impl<D: MockableConnectorData> Services<D> {
@@ -369,14 +382,14 @@ impl<D: MockableConnectorData> Services<D> {
     ) -> Result<D::ClientCirc, HsClientConnError> {
         let blank_state = || ServiceState::blank(&connector.runtime);
 
-        let mut attempts = 0..MAX_ATTEMPTS;
+        let mut rechecks = 0..MAX_RECHECKS;
 
         let mut obtain = |table_index, guard| {
             obtain_circuit_or_continuation_info(
                 connector,
                 &secret_keys,
                 table_index,
-                &mut attempts,
+                &mut rechecks,
                 guard,
             )
         };

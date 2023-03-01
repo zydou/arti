@@ -32,6 +32,9 @@ pub struct Data {
 ///
 /// `connector` is provided only for obtaining the runtime and netdir (and `mock_for_state`).
 /// Obviously, `connect` is not supposed to go looking in `services`.
+///
+/// This function handles all necessary retrying of fallible operations,
+/// (and, therefore, must also limit the total work done for a particular call).
 #[allow(dead_code, unused_variables)] // TODO hs remove.
 pub(crate) async fn connect(
     connector: &HsClientConnector<impl Runtime>,
