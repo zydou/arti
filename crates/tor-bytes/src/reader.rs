@@ -335,8 +335,8 @@ impl<'a> Reader<'a> {
     /// If the cursors are not in order, return an empty slice.
     ///
     /// This function is guaranteed not to panic if the inputs were generated
-    /// from a different Reader, but the byte slice that it returns will
-    /// not be well-defined.
+    /// from a different Reader, but if so the byte slice that it returns will
+    /// not be meaningful.
     pub fn range(&self, start: Cursor<'a>, end: Cursor<'a>) -> &'a [u8] {
         if start.pos <= end.pos && end.pos <= self.b.len() {
             &self.b[start.pos..end.pos]
