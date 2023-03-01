@@ -172,19 +172,22 @@ pub struct Rendezvous1 {
     /// The cookie originally sent by the client in its ESTABLISH_REND message.
     cookie: RendCookie,
     /// The message to send the client.
-    message: Vec<u8>,
+    handshake_info: Vec<u8>,
 }
 
 impl Body for Rendezvous1 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let cookie = r.extract()?;
-        let message = r.take_rest().into();
-        Ok(Self { cookie, message })
+        let handshake_info = r.take_rest().into();
+        Ok(Self {
+            cookie,
+            handshake_info,
+        })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write(&self.cookie)?;
-        w.write_all(&self.message[..]);
+        w.write_all(&self.handshake_info[..]);
         Ok(())
     }
 }
@@ -192,10 +195,10 @@ impl Body for Rendezvous1 {
 impl Rendezvous1 {
     /// Create a new Rendezvous1 message, to handshake with a client identified
     /// by a given RendCookie, and send it a given message.
-    pub fn new(cookie: RendCookie, message: impl Into<Vec<u8>>) -> Self {
+    pub fn new(cookie: RendCookie, handshake_info: impl Into<Vec<u8>>) -> Self {
         Self {
             cookie,
-            message: message.into(),
+            handshake_info: handshake_info.into(),
         }
     }
 }
@@ -204,15 +207,15 @@ impl Rendezvous1 {
 /// onion service's message.
 #[derive(Debug, Clone)]
 pub struct Rendezvous2 {
-    /// The message from the onion service.
-    message: Vec<u8>,
+    /// The handshake message from the onion service.
+    handshake_info: Vec<u8>,
 }
 
 impl Rendezvous2 {
-    /// Construct a new Rendezvous2 cell containing a given message.
-    pub fn new(message: impl Into<Vec<u8>>) -> Self {
+    /// Construct a new Rendezvous2 cell containing a given handshake message.
+    pub fn new(handshake_info: impl Into<Vec<u8>>) -> Self {
         Self {
-            message: message.into(),
+            handshake_info: handshake_info.into(),
         }
     }
 }
@@ -220,19 +223,19 @@ impl Rendezvous2 {
 impl From<Rendezvous1> for Rendezvous2 {
     fn from(value: Rendezvous1) -> Self {
         Self {
-            message: value.message,
+            handshake_info: value.handshake_info,
         }
     }
 }
 
 impl Body for Rendezvous2 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        let message = r.take_rest().into();
-        Ok(Self { message })
+        let handshake_info = r.take_rest().into();
+        Ok(Self { handshake_info })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        w.write_all(&self.message[..]);
+        w.write_all(&self.handshake_info[..]);
         Ok(())
     }
 }
