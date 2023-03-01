@@ -32,14 +32,14 @@ use tor_circmgr::isolation::Isolation;
 ///
 /// ```text
 ///           index                                         table
-///           HashMap           Vec_______________          SlotMap____________________
-///           |     | contains  | table_index    |  t._i.   | K2, isol, V  /  <empty> |
-///     K1 -> |  ---+---------> | table_index    | -------> | K2, isol, V  /  <empty> |
-///           |_____|           | table_index    |          | K2, isol, V  /  <empty> |
-///                             | table_index    |          | K2, isol, V  /  <empty> |
-///   K2, isol ---------------> | .............. |          | K2, isol, V  /  <empty> |
-///             linear search   |________________|          | ...             ....    |
-/// ```                                                     |_________________________|
+///           HashMap           Vec_______________          SlotMap_____________________
+///           |     | contains  | table_index    |  t._i.   | K2, isol, V  /  <vacant> |
+///     K1 -> |  ---+---------> | table_index    | -------> | K2, isol, V  /  <vacant> |
+///           |_____|           | table_index    |          | K2, isol, V  /  <vacant> |
+///                             | table_index    |          | K2, isol, V  /  <vacant> |
+///   K2, isol ---------------> | .............. |          | K2, isol, V  /  <vacant> |
+///             linear search   |________________|          | ...             ....     |
+/// ```                                                     |__________________________|
 #[derive(Debug, Educe)]
 #[educe(Default)]
 pub(crate) struct MultikeyIsolatedMap<I, K1, K2, V>
@@ -51,7 +51,13 @@ where
     /// The first stage index, mapping `K1` to `I`
     index: HashMap<K1, Vec<I>>,
 
-    /// Actual table containing the
+    /// Actual table containing the entries, including `K2` and the isolation, and `V`
+    ///
+    /// ### Invariant
+    ///
+    /// Entries in `table` and `index` correspond precisely, one-to-one:
+    /// each `Vec` element in `index` refers to an (occupied) entry in `table`, and
+    /// each (occupied) entry in `table` is referenced precisely once from `index`.
     table: DenseSlotMap<I, Record<K2, V>>,
 }
 
