@@ -292,6 +292,54 @@ define_accessor_trait! {
     }
 }
 
+/// Testing configuration, with public fields
+#[cfg(feature = "testing")]
+pub(crate) mod test_config {
+    use super::*;
+    use crate::*;
+    use tor_guardmgr::bridge::BridgeConfig;
+
+    /// Testing configuration, with public fields
+    #[derive(Default, derive_more::AsRef)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct TestConfig {
+        ///
+        pub path_rules: PathConfig,
+        ///
+        pub circuit_timing: CircuitTiming,
+        ///
+        pub preemptive_circuits: PreemptiveCircuitConfig,
+        ///
+        pub guardmgr: tor_guardmgr::TestConfig,
+    }
+    impl AsRef<[BridgeConfig]> for TestConfig {
+        fn as_ref(&self) -> &[BridgeConfig] {
+            &self.guardmgr.bridges
+        }
+    }
+    impl AsRef<FallbackList> for TestConfig {
+        fn as_ref(&self) -> &FallbackList {
+            &self.guardmgr.fallbacks
+        }
+    }
+    impl GuardMgrConfig for TestConfig {
+        fn bridges_enabled(&self) -> bool {
+            self.guardmgr.bridges_enabled()
+        }
+    }
+    impl CircMgrConfig for TestConfig {
+        fn path_rules(&self) -> &PathConfig {
+            &self.path_rules
+        }
+        fn circuit_timing(&self) -> &CircuitTiming {
+            &self.circuit_timing
+        }
+        fn preemptive_circuits(&self) -> &PreemptiveCircuitConfig {
+            &self.preemptive_circuits
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

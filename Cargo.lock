@@ -3199,6 +3199,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "slotmap"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e08e261d0e8f5c43123b7adf3e4ca1690d655377ac93a03b2c9d3e98de1342"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3722,6 +3731,7 @@ dependencies = [
  "async-trait",
  "bounded-vec-deque",
  "derive_builder_fork_arti",
+ "derive_more",
  "downcast-rs",
  "dyn-clone",
  "educe",
@@ -3958,14 +3968,28 @@ name = "tor-hsclient"
 version = "0.1.1"
 dependencies = [
  "async-trait",
+ "derive_more",
+ "educe",
+ "either",
+ "futures",
+ "postage",
  "rand_core 0.6.4",
+ "slotmap",
  "thiserror",
+ "tokio",
+ "tor-chanmgr",
  "tor-circmgr",
+ "tor-config",
+ "tor-error",
+ "tor-guardmgr",
  "tor-hscrypto",
  "tor-llcrypto",
  "tor-netdir",
+ "tor-persist",
  "tor-proto",
  "tor-rtcompat",
+ "tracing",
+ "tracing-test",
 ]
 
 [[package]]
