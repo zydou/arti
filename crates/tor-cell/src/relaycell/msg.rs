@@ -17,8 +17,8 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use bitflags::bitflags;
 
-#[cfg(feature = "hs-service")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
+#[cfg(feature = "hs")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs")))]
 pub use super::hs::{
     est_intro::EstablishIntro, EstablishRendezvous, IntroEstablished, Introduce1, Introduce2,
     IntroduceAck, Rendezvous1, Rendezvous2, RendezvousEstablished,
@@ -73,31 +73,31 @@ pub enum AnyRelayMsg : RelayMsg {
     [feature = "experimental-udp"]
     Datagram,
     /// Establish Introduction
-    [feature = "hs-service"]
+    [feature = "hs"]
     EstablishIntro,
     /// Establish Rendezvous
-    [feature = "hs-service"]
+    [feature = "hs"]
     EstablishRendezvous,
     /// Introduce1 (client to introduction point)
-    [feature = "hs-service"]
+    [feature = "hs"]
     Introduce1,
     /// Introduce2 (introduction point to service)
-    [feature = "hs-service"]
+    [feature = "hs"]
     Introduce2,
     /// Rendezvous1 (service to rendezvous point)
-    [feature = "hs-service"]
+    [feature = "hs"]
     Rendezvous1,
     /// Rendezvous2 (rendezvous point to client)
-    [feature = "hs-service"]
+    [feature = "hs"]
     Rendezvous2,
     /// Acknowledgement for EstablishIntro.
-    [feature = "hs-service"]
+    [feature = "hs"]
     IntroEstablished,
     /// Acknowledgment for EstablishRendezvous.
-    [feature = "hs-service"]
+    [feature = "hs"]
     RendezvousEstablished,
     /// Acknowledgement for Introduce1.
-    [feature = "hs-service"]
+    [feature = "hs"]
     IntroduceAck,
 
     _ =>
@@ -1213,7 +1213,7 @@ msg_impl_relaymsg!(
 #[cfg(feature = "experimental-udp")]
 msg_impl_relaymsg!(ConnectUdp, ConnectedUdp, Datagram);
 
-#[cfg(feature = "hs-service")]
+#[cfg(feature = "hs")]
 msg_impl_relaymsg!(
     EstablishIntro,
     EstablishRendezvous,

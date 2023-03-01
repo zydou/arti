@@ -4,10 +4,12 @@
 
 // TODO hs: we'll need accessors for the useful fields in all these types.
 
+use self::ext::{decl_extension_group, ExtGroup, ExtList};
+
 use super::msg::{self, Body};
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Result};
-use tor_bytes::{Reader, Writer};
+use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_hscrypto::RendCookie;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -91,6 +93,22 @@ impl Introduce2 {
     }
 }
 
+caret_int! {
+    /// The recognized extension types for an `Introduce1` or `Introduce2 message.
+    #[derive(Ord,PartialOrd)]
+    pub struct IntroduceExtType(u8) {
+    }
+}
+
+decl_extension_group! {
+    /// An extension to an IntroEstablished message.
+    ///
+    /// (Currently, no extensions of this type are recognized)
+    #[derive(Debug,Clone)]
+    enum IntroduceExt [ IntroduceExtType ] {
+    }
+}
+
 #[derive(Debug, Clone)]
 /// A message body shared by Introduce1 and Introduce2
 struct Introduce {
@@ -99,6 +117,8 @@ struct Introduce {
     auth_key_type: AuthKeyType,
     /// The public introduction point auth key.
     auth_key: Vec<u8>,
+    /// A list of extensions
+    extensions: ExtList<IntroduceExt>,
     /// Up to end of relay payload.
     encrypted: Vec<u8>,
 }
@@ -109,6 +129,7 @@ impl Introduce {
         Self {
             auth_key_type,
             auth_key,
+            extensions: Default::default(),
             encrypted,
         }
     }
@@ -123,18 +144,12 @@ impl Introduce {
         let auth_key_type = r.take_u8()?.into();
         let auth_key_len = r.take_u16()?;
         let auth_key = r.take(auth_key_len as usize)?.into();
-        let n_ext = r.take_u8()?;
-        for _ in 0..n_ext {
-            let _ext_type = r.take_u8()?;
-            r.read_nested_u8len(|r| {
-                r.take_rest();
-                Ok(())
-            })?;
-        }
+        let extensions = r.extract()?;
         let encrypted = r.take_rest().into();
         Ok(Self {
             auth_key_type,
             auth_key,
+            extensions,
             encrypted,
         })
     }
@@ -144,8 +159,7 @@ impl Introduce {
         w.write_u8(self.auth_key_type.get());
         w.write_u16(u16::try_from(self.auth_key.len()).map_err(|_| EncodeError::BadLengthValue)?);
         w.write_all(&self.auth_key[..]);
-        // No Introduce1 extension for now.
-        w.write_u8(0_u8);
+        w.write(&self.extensions)?;
         w.write_all(&self.encrypted[..]);
         Ok(())
     }
@@ -163,11 +177,26 @@ pub struct Rendezvous1 {
 
 impl Body for Rendezvous1 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        todo!()
+        let cookie = r.extract()?;
+        let message = r.take_rest().into();
+        Ok(Self { cookie, message })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        todo!()
+        w.write(&self.cookie)?;
+        w.write_all(&self.message[..]);
+        Ok(())
+    }
+}
+
+impl Rendezvous1 {
+    /// Create a new Rendezvous1 message, to handshake with a client identified
+    /// by a given RendCookie, and send it a given message.
+    pub fn new(cookie: RendCookie, message: impl Into<Vec<u8>>) -> Self {
+        Self {
+            cookie,
+            message: message.into(),
+        }
     }
 }
 
@@ -179,62 +208,145 @@ pub struct Rendezvous2 {
     message: Vec<u8>,
 }
 
+impl Rendezvous2 {
+    /// Construct a new Rendezvous2 cell containing a given message.
+    pub fn new(message: impl Into<Vec<u8>>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl From<Rendezvous1> for Rendezvous2 {
+    fn from(value: Rendezvous1) -> Self {
+        Self {
+            message: value.message,
+        }
+    }
+}
+
 impl Body for Rendezvous2 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        todo!()
+        let message = r.take_rest().into();
+        Ok(Self { message })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        todo!()
+        w.write_all(&self.message[..]);
+        Ok(())
+    }
+}
+
+caret_int! {
+    /// The recognized extension types for an `IntroEstablished` message.
+    #[derive(Ord, PartialOrd)]
+    pub struct IntroEstablishedExtType(u8) {
+    }
+}
+
+decl_extension_group! {
+    /// An extension to an IntroEstablished message.
+    ///
+    /// (Currently, no extensions of this type are recognized)
+    #[derive(Debug,Clone)]
+    enum IntroEstablishedExt [ IntroEstablishedExtType ] {
     }
 }
 
 /// Reply sent from the introduction point to the onion service, telling it that
 /// an introduction point is now established.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IntroEstablished {
     /// The extensions included in this cell.
-    //
-    // TODO hs: we should extract this with any DOS related extensions, depending on what we
-    // decide to do with extension in general.
-    extensions: Vec<IntroEstExtension>,
+    extensions: ExtList<IntroEstablishedExt>,
+}
+
+impl IntroEstablished {
+    /// Create a new IntroEstablished message.
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 impl Body for IntroEstablished {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        todo!()
+        let extensions = r.extract()?;
+        Ok(Self { extensions })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        todo!()
+        w.write(&self.extensions)?;
+        Ok(())
     }
 }
 
-/// An extension included in an [`IntroEstablished`] message.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum IntroEstExtension {
-    /// An unrecognized extension.
-    Unrecognized(Vec<u8>),
+caret_int! {
+    /// A status code returned in response to an INTRODUCE1 message.
+    pub struct IntroduceAckStatus(u16) {
+        /// The message was relayed successfully.
+        SUCCESS = 0x0000,
+        /// The introduction point does not have a live circuit from the
+        /// identified service.
+        NOT_RECOGNIZED = 0x0001,
+        /// There was a failure while parsing the INTRODUCE1 message.
+        BAD_MESSAGE_FORMAT = 0x0002,
+        /// The introduction point was unable to deliver the message to the service.
+        CANT_RELAY = 0x0003,
+    }
+}
+caret_int! {
+    /// The recognized extension types for an `IntroEstablished` message.
+    #[derive(Ord, PartialOrd)]
+    pub struct IntroduceAckExtType(u8) {
+    }
+}
+decl_extension_group! {
+    /// An extension to an IntroduceAct message.
+    ///
+    /// (Currently, no extensions of this type are recognized.)
+    #[derive(Debug,Clone)]
+    enum IntroduceAckExt [ IntroduceAckExtType ] {
+    }
 }
 
 /// A reply from the introduction point to the client, telling it that its
 /// introduce1 was received.
 #[derive(Clone, Debug)]
 pub struct IntroduceAck {
-    // TODO hs: use a caret enum for this.
     /// The status reported for the Introduce1 message.
-    status_code: u16,
-    // TODO hs: add extensions.
+    status_code: IntroduceAckStatus,
+    /// The extensions on this message.
+    extensions: ExtList<IntroduceAckExt>,
+}
+impl IntroduceAck {
+    /// Create a new IntroduceAck message with a provided status code.
+    pub fn new(status_code: IntroduceAckStatus) -> Self {
+        Self {
+            status_code,
+            extensions: Default::default(),
+        }
+    }
+
+    /// Return the status code from this message.
+    pub fn status(&self) -> IntroduceAckStatus {
+        self.status_code
+    }
 }
 
 impl Body for IntroduceAck {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        todo!()
+        let status_code = r.take_u16()?.into();
+        let extensions = r.extract()?;
+        Ok(IntroduceAck {
+            status_code,
+            extensions,
+        })
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        todo!()
+        w.write_u16(self.status_code.into());
+        w.write(&self.extensions)?;
+        Ok(())
     }
 }
 

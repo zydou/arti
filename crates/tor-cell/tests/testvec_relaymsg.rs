@@ -14,7 +14,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use hex_literal::hex;
 
-#[cfg(feature = "hs-service")]
+#[cfg(feature = "hs")]
 use tor_cell::relaycell::hs;
 #[cfg(feature = "experimental-udp")]
 use tor_cell::relaycell::udp;
@@ -619,7 +619,7 @@ fn test_connected_udp() {
     );
 }
 
-#[cfg(feature = "hs-service")]
+#[cfg(feature = "hs")]
 #[test]
 fn test_establish_rendezvous() {
     let cmd = RelayCmd::ESTABLISH_RENDEZVOUS;
@@ -655,7 +655,7 @@ fn test_establish_rendezvous() {
     );
 }
 
-#[cfg(feature = "hs-service")]
+#[cfg(feature = "hs")]
 #[test]
 fn test_establish_intro() {
     use tor_cell::relaycell::hs::{est_intro::*, AuthKeyType, UnrecognizedExt};
@@ -714,13 +714,10 @@ fn test_establish_intro() {
     );
 }
 
-#[cfg(feature = "hs-service")]
+#[cfg(feature = "hs")]
 #[test]
 fn test_introduce() {
-    use tor_cell::relaycell::{
-        hs::{AuthKeyType, Introduce1},
-        msg::AnyRelayMsg,
-    };
+    use tor_cell::relaycell::hs::{AuthKeyType, Introduce1};
 
     // Testing with Introduce1 only should be sufficient as long as
     // Introduce1 and Introduce2 share the same inner body
@@ -738,7 +735,7 @@ fn test_introduce() {
          02 0004 00010203
          00
          01090804",
-        &intro1.clone().into(),
+        &intro1.into(),
     );
 
     // Introduce1 with unknown extensions
@@ -747,16 +744,11 @@ fn test_introduce() {
          02 01 01 00 02 01 00
          01090804";
     let actual_msg = decode(cmd, &unhex(body)[..]).unwrap();
-    let mut actual_bytes = vec![];
-    let mut expect_bytes = vec![];
+    let mut actual_bytes = Vec::new();
     actual_msg
         .encode_onto(&mut actual_bytes)
         .expect("Encode msg onto byte vector");
-    let expected_msg: AnyRelayMsg = intro1.into();
-    expected_msg
-        .encode_onto(&mut expect_bytes)
-        .expect("Encode msg onto byte vector");
-    assert_eq!(actual_bytes, expect_bytes);
+    assert_eq!(actual_bytes, unhex(body));
 
     // Introduce1 with legacy key id
     msg_error(
@@ -771,3 +763,47 @@ fn test_introduce() {
 // TODO: need to add tests for:
 //    - unrecognized
 //    - data
+
+#[cfg(feature = "hs")]
+#[test]
+fn test_rendezvous() {
+    use tor_cell::relaycell::hs::{Rendezvous1, Rendezvous2};
+    use tor_hscrypto::RendCookie;
+
+    let cmd1 = RelayCmd::RENDEZVOUS1;
+    let cmd2 = RelayCmd::RENDEZVOUS2;
+
+    let cookie = RendCookie::from([0; 20]);
+    // Introduce1 with no extension
+    let rend1 = Rendezvous1::new(cookie, hex!("123456"));
+    msg(
+        cmd1,
+        "0000000000000000000000000000000000000000
+         123456",
+        &rend1.clone().into(),
+    );
+
+    let rend2: Rendezvous2 = rend1.into();
+    msg(cmd2, "123456", &rend2.into());
+}
+
+#[cfg(feature = "hs")]
+#[test]
+fn test_introduce_ack() {
+    use tor_cell::relaycell::hs::{IntroduceAck, IntroduceAckStatus};
+
+    let cmd = RelayCmd::INTRODUCE_ACK;
+    let status = IntroduceAckStatus::SUCCESS;
+    let introduce_ack = IntroduceAck::new(status);
+    msg(cmd, "0000 00", &introduce_ack.into())
+}
+
+#[cfg(feature = "hs")]
+#[test]
+fn test_intro_established() {
+    use tor_cell::relaycell::hs::IntroEstablished;
+
+    let cmd = RelayCmd::INTRO_ESTABLISHED;
+    let intro_est = IntroEstablished::new();
+    msg(cmd, "00", &intro_est.into())
+}

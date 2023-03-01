@@ -107,8 +107,10 @@ macro_rules! caret_int {
             }
             /// Return true if this value is one that we recognize.
             $v fn is_recognized(self) -> bool {
-                matches!(self,
-                         $( $name::$id )|*)
+                match self {
+                    $( $name::$id  => true, )*
+                    _ => false
+                }
             }
             /// Try to convert this value from one of the recognized names.
             $v fn from_name(name: &str) -> Option<Self> {
