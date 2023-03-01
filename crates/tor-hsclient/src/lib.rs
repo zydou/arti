@@ -47,11 +47,10 @@ mod state;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
 use educe::Educe;
 
 use tor_circmgr::isolation::Isolation;
-use tor_circmgr::{CircMgr, OnionConnectError, OnionServiceConnector};
+use tor_circmgr::CircMgr;
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::ClientCirc;
@@ -127,13 +126,5 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         isolation: Box<dyn Isolation>,
     ) -> impl Future<Output = Result<ClientCirc, HsClientConnError>> + Send + Sync + '_ {
         Services::get_or_launch_connection(self, hs_id, isolation, secret_keys)
-    }
-}
-
-#[async_trait]
-impl<R: Runtime> OnionServiceConnector for HsClientConnector<R> {
-    #[allow(dead_code, unused_variables)] // TODO hs implement this function or remove this trait
-    async fn create_connection(&self, service_id: HsId) -> Result<ClientCirc, OnionConnectError> {
-        todo!() // TODO hs
     }
 }

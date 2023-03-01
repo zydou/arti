@@ -64,8 +64,6 @@ mod err;
 mod impls;
 pub mod isolation;
 mod mgr;
-#[cfg(feature = "hs-client")]
-mod onion_connector;
 pub mod path;
 mod preemptive;
 mod timeouts;
@@ -73,9 +71,6 @@ mod usage;
 
 pub use err::Error;
 pub use isolation::IsolationToken;
-#[cfg(feature = "hs-client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-client")))]
-pub use onion_connector::{OnionConnectError, OnionServiceConnector};
 use tor_guardmgr::fallback::FallbackList;
 pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
 pub use usage::{TargetPort, TargetPorts};
@@ -213,20 +208,6 @@ impl<R: Runtime> CircMgr<R> {
         });
 
         Ok(circmgr)
-    }
-
-    /// Install a given [`OnionServiceConnector`] object to be used when making
-    /// connections to an onion service.
-    ///
-    /// (This cannot be done at construction time, since the
-    /// OnionServiceConnector will have to keep a reference to this `CircMgr`.)
-    #[cfg(feature = "hs-client")]
-    #[allow(unused_variables, clippy::missing_panics_doc)]
-    pub fn install_onion_service_connector(
-        &self,
-        connector: &Arc<dyn OnionServiceConnector>,
-    ) -> Result<()> {
-        todo!() // TODO hs
     }
 
     /// Launch the periodic daemon tasks required by the manager to function properly.
@@ -410,14 +391,6 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// If the list of ports is empty, then the chosen circuit will
     /// still end at _some_ exit.
-    //
-    // TODO HS API: Either soup up get_or_launch_exit or abolish all HS code in circmgr
-    //   1. This function should be told the destination domain name so
-    //      that it can divert HS connections
-    //   2. We aren't trying to have circmgr divert .onion requests to the HS,
-    //      in which case there is no need for circmgr to know *anything* about HS.
-    //      In this case, see also re `OnionServiceConnector`
-    //      and `HsClientSecretKeys`
     pub async fn get_or_launch_exit(
         &self,
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
@@ -439,27 +412,6 @@ impl<R: Runtime> CircMgr<R> {
         let ports = ports.iter().map(Clone::clone).collect();
         let usage = TargetCircUsage::Exit { ports, isolation };
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
-    }
-
-    /// Try to connect to an onion service via this circuit manager.
-    ///
-    /// If we already have an existing circuit with the appropriate isolation,
-    /// we will return that circuit regardless of the content of `using_keys`.
-    ///
-    /// Requires that an `OnionServiceConnector` has been installed.  If it
-    /// hasn't, then we return an error.
-    #[cfg(feature = "hs-client")]
-    //
-    // TODO HS: I think this method should be abolished  -Diziet
-    #[allow(clippy::missing_panics_doc, unused_variables)]
-    pub async fn get_or_launch_onion_client(
-        &self,
-        service_id: tor_hscrypto::pk::HsId,
-        isolation: StreamIsolation,
-    ) -> Result<ClientCirc> {
-        // Should just call the HS connector, which is completely responsible for managing the
-        // construction and retention of of HS circuits.
-        todo!()
     }
 
     /// Return a circuit to a specific relay, suitable for using for direct
