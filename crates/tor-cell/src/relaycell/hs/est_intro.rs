@@ -203,12 +203,14 @@ impl msg::Body for EstablishIntro {
         let auth_key_type: AuthKeyType = r.take_u8()?.into();
         // Only Ed25519 is recognized... and it *needs* to be recognized or else we
         // can't verify the signature.
-        if auth_key_type != AuthKeyType::ED25519_SHA3_256 {
-            return Err(tor_bytes::Error::InvalidMessage(
-                format!("unrecognized authkey type {:?}", auth_key_type).into(),
-            ));
-        }
-        let auth_key = r.read_nested_u16len(|r| r.extract())?;
+        let auth_key = match auth_key_type {
+            AuthKeyType::ED25519_SHA3_256 => r.read_nested_u16len(|r| r.extract())?,
+            _ => {
+                return Err(tor_bytes::Error::InvalidMessage(
+                    format!("unrecognized authkey type {:?}", auth_key_type).into(),
+                ))
+            }
+        };
 
         let extensions = r.extract()?;
         let cursor_mac = r.cursor();
