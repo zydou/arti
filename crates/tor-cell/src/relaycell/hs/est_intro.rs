@@ -3,7 +3,7 @@
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_error::bad_api_usage;
-use tor_hscrypto::ops::hs_mac;
+use tor_hscrypto::ops::{hs_mac, HS_MAC_LEN};
 use tor_llcrypto::{
     pk::ed25519::{self, Ed25519Identity, ED25519_ID_LEN, ED25519_SIGNATURE_LEN},
     util::ct::CtByteArray,
@@ -165,7 +165,7 @@ pub struct EstablishIntro {
     ///
     /// This MAC binds the EstablishIntro message to a single circuit, and keeps
     /// it from being replayed.
-    handshake_auth: CtByteArray<32>,
+    handshake_auth: CtByteArray<HS_MAC_LEN>,
     /// A textual record of all the fields in the
     #[educe(Debug(ignore))]
     mac_plaintext: Vec<u8>,
@@ -332,7 +332,7 @@ impl EstablishIntro {
     #[cfg(feature = "testing")]
     pub fn from_parts_for_test(
         body: EstablishIntroDetails,
-        mac: CtByteArray<32>,
+        mac: CtByteArray<HS_MAC_LEN>,
         signature: ed25519::Signature,
     ) -> Self {
         use tor_llcrypto::pk::ed25519::ValidatableEd25519Signature;
