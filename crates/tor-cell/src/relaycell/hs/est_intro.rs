@@ -166,10 +166,10 @@ pub struct EstablishIntro {
     /// This MAC binds the EstablishIntro message to a single circuit, and keeps
     /// it from being replayed.
     handshake_auth: CtByteArray<HS_MAC_LEN>,
-    /// A textual record of all the fields in the
+    /// A textual record of all the fields in the message that are covered by the MAC.
     #[educe(Debug(ignore))]
     mac_plaintext: Vec<u8>,
-    /// A signature using `auth_key` of all contents of the cell.
+    /// A signature using `auth_key` of all contents of the message.
     ///
     /// This signature proves possession of `auth_key` and thereby ensures that
     /// the request really comes from that key's holder.
