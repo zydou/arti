@@ -671,7 +671,7 @@ fn test_establish_intro() {
     assert_eq!(Into::<u8>::into(cmd), 32);
 
     // Establish intro with one recognised extension
-    let mut body = EstablishIntroBody::new(auth_key);
+    let mut body = EstablishIntroDetails::new(auth_key);
     body.set_extension_dos(extension_dos);
     let es_intro = EstablishIntro::from_parts_for_test(body, handshake_auth.into(), sig);
     msg(
@@ -685,7 +685,7 @@ fn test_establish_intro() {
     );
 
     // Establish intro with no extension
-    let body = EstablishIntroBody::new(auth_key);
+    let body = EstablishIntroDetails::new(auth_key);
     let es_intro = EstablishIntro::from_parts_for_test(body, handshake_auth.into(), sig);
     msg(
         cmd,
@@ -701,7 +701,7 @@ fn test_establish_intro() {
     let extension_dos =
         DosParams::new(Some(1_i32), Some(2_i32)).expect("invalid EST_INTRO_DOS_EXT parameter(s)");
     let extension_unrecognized = UnrecognizedExt::new(2.into(), vec![0]);
-    let mut body = EstablishIntroBody::new(auth_key);
+    let mut body = EstablishIntroDetails::new(auth_key);
     body.set_extension_dos(extension_dos);
     body.set_extension_other(extension_unrecognized);
     let es_intro = EstablishIntro::from_parts_for_test(body, handshake_auth.into(), sig);
@@ -726,7 +726,7 @@ fn establish_intro_roundtrip() {
     // Now, generate an ESTABLISH_INTRO message and make sure it validates.
     use tor_llcrypto::{pk::ed25519, util::rand_compat::RngCompatExt};
     let keypair = ed25519::Keypair::generate(&mut rng);
-    let body = EstablishIntroBody::new(keypair.public.into());
+    let body = EstablishIntroDetails::new(keypair.public.into());
     let mac_key = b"Amaryllidaceae Allium cepa var. proliferum";
     let signed = body
         .clone()

@@ -134,7 +134,7 @@ decl_extension_group! {
 /// This tells the introduction point which key it should act as an introduction
 /// for, and how.
 #[derive(Debug, Clone)]
-pub struct EstablishIntroBody {
+pub struct EstablishIntroDetails {
     /// The public introduction point auth key.
     auth_key: Ed25519Identity,
     /// A list of extensions on this cell.
@@ -159,7 +159,7 @@ pub struct EstablishIntroBody {
 #[educe(Debug)]
 pub struct EstablishIntro {
     /// The underlying body of this, wrapped in authentication.
-    body: EstablishIntroBody,
+    body: EstablishIntroDetails,
     /// The MAC of all earlier fields in the cell, using a key derived from the
     /// handshake between the onion service and the introduction point.
     ///
@@ -179,7 +179,7 @@ pub struct EstablishIntro {
     sig: Box<ed25519::ValidatableEd25519Signature>,
 }
 
-impl Writeable for EstablishIntroBody {
+impl Writeable for EstablishIntroDetails {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         let auth_key_type = AuthKeyType::ED25519_SHA3_256;
         let auth_key_len = ED25519_ID_LEN;
@@ -238,7 +238,7 @@ impl msg::Body for EstablishIntro {
         ));
 
         Ok(EstablishIntro {
-            body: EstablishIntroBody {
+            body: EstablishIntroDetails {
                 auth_key,
                 extensions,
             },
@@ -259,7 +259,7 @@ impl msg::Body for EstablishIntro {
     }
 }
 
-impl EstablishIntroBody {
+impl EstablishIntroDetails {
     /// All arguments constructor
     pub fn new(auth_key: Ed25519Identity) -> Self {
         Self {
@@ -331,7 +331,7 @@ impl EstablishIntro {
     /// Panics if the body's public key is not a valid ed25519 public key
     #[cfg(feature = "testing")]
     pub fn from_parts_for_test(
-        body: EstablishIntroBody,
+        body: EstablishIntroDetails,
         mac: CtByteArray<32>,
         signature: ed25519::Signature,
     ) -> Self {
@@ -357,7 +357,7 @@ impl EstablishIntro {
     pub fn check_and_unwrap(
         self,
         mac_key: &[u8],
-    ) -> std::result::Result<EstablishIntroBody, EstablishIntroSigError> {
+    ) -> std::result::Result<EstablishIntroDetails, EstablishIntroSigError> {
         use tor_llcrypto::pk::ValidatableSignature;
         // There is a timing side-channel here where, if an attacker wants, they
         // could tell which of the two fields was incorrect.  But that shouldn't
@@ -377,7 +377,7 @@ impl EstablishIntro {
     /// Consume this EstablishIntro message and return its  body.
     ///
     /// This is a "dangerous" function because it does not check correctness for the signature or the MAC.
-    pub fn dangerously_unwrap(self) -> EstablishIntroBody {
+    pub fn dangerously_unwrap(self) -> EstablishIntroDetails {
         self.body
     }
 }
