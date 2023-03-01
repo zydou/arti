@@ -35,7 +35,7 @@ use tor_circmgr::isolation::Isolation;
 ///           HashMap           Vec_______________          SlotMap_____________________
 ///           |     | contains  | table_index    |  t._i.   | K2, isol, V  /  <vacant> |
 ///     K1 -> |  ---+---------> | table_index    | -------> | K2, isol, V  /  <vacant> |
-///           |_____|           | table_index    |          | K2, isol, V  /  <vacant> |
+///           |_____|           | table_index    | 1      1 | K2, isol, V  /  <vacant> |
 ///                             | table_index    |          | K2, isol, V  /  <vacant> |
 ///   K2, isol ---------------> | .............. |          | K2, isol, V  /  <vacant> |
 ///             linear search   |________________|          | ...             ....     |
