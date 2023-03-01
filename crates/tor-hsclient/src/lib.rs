@@ -47,11 +47,10 @@ mod state;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
 use educe::Educe;
 
 use tor_circmgr::isolation::Isolation;
-use tor_circmgr::{CircMgr, OnionConnectError, OnionServiceConnector};
+use tor_circmgr::CircMgr;
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::ClientCirc;
@@ -63,6 +62,13 @@ pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 use state::Services;
 
 /// An object that negotiates connections with onion services
+///
+/// This can be used by multiple requests on behalf of different clients,
+/// with potentially different HS client authentication (`KS_hsc_*`)
+/// and potentially different circuit isolation.
+///
+/// The principal entrypoint is
+/// [`get_or_launch_connection()`](HsClientConnector::get_or_launch_connection).
 #[derive(Educe)]
 #[educe(Clone)]
 pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = connect::Data> {
@@ -70,23 +76,10 @@ pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = conne
     runtime: R,
     /// A [`CircMgr`] that we use to build circuits to HsDirs, introduction
     /// points, and rendezvous points.
-    //
-    // TODO hs: currently this is a circular set of Arc, since the CircMgr will
-    // have to hold an Arc<OnionServiceConnector>.  We should make one Weak.
-    // A. We should probably abolish this instead, see comments for OnionServiceConnector -Diziet
-    //
-    // TODO hs: Maybe we can make a trait that only gives a minimal "build a
-    // circuit" API from CircMgr, so that we can have this be a dyn reference
-    // too?
     circmgr: Arc<CircMgr<R>>,
     /// A [`NetDirProvider`] that we use to pick rendezvous points.
-    //
-    // TODO hs: Should this be weak too?   A. No, it's a downward reference. -Diziet
     netdir_provider: Arc<dyn NetDirProvider>,
     /// Information we are remembering about different onion services.
-    //
-    // TODO hs: if we implement cache isolation or state isolation, we might
-    // need multiple instances of this.
     services: Arc<Mutex<state::Services<D>>>,
     /// For mocking in tests of `state.rs`
     mock_for_state: D::MockGlobalState,
@@ -127,13 +120,5 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         isolation: Box<dyn Isolation>,
     ) -> impl Future<Output = Result<ClientCirc, HsClientConnError>> + Send + Sync + '_ {
         Services::get_or_launch_connection(self, hs_id, isolation, secret_keys)
-    }
-}
-
-#[async_trait]
-impl<R: Runtime> OnionServiceConnector for HsClientConnector<R> {
-    #[allow(dead_code, unused_variables)] // TODO hs implement this function or remove this trait
-    async fn create_connection(&self, service_id: HsId) -> Result<ClientCirc, OnionConnectError> {
-        todo!() // TODO hs
     }
 }
