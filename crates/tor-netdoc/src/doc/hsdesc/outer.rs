@@ -253,9 +253,7 @@ impl HsDescOuter {
             // we already checked that there is a public key, so an error should be impossible.
             .map_err(|e| EK::Internal.err().with_source(e))?;
         let desc_signing_key_cert = desc_signing_key_cert.dangerously_assume_timely();
-        // TODO HS: It is unclear whether using the certificate expiration time
-        // as the expiration time for whole document is correct. We must
-        // investigate.
+        // NOTE: the C tor implementation checks this expiration time, so we must too.
         let expiration = desc_signing_key_cert.expiry();
 
         // Build our return value.
