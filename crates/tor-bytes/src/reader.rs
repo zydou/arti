@@ -318,10 +318,19 @@ impl<'a> Reader<'a> {
         read_nested_generic::<u32, _, _>(self, f)
     }
 
-    /// Return a cursor object describing the current position of this Reader within
-    /// its underlying byte stream.
+    /// Return a cursor object describing the current position of this Reader
+    /// within its underlying byte stream.
     ///
     /// The resulting [`Cursor`] can be used with `range`, but nothing else.
+    ///
+    /// Note that having to use a `Cursor` is typically an anti-pattern: it
+    /// tends to indicate that whatever you're parsing could probably have a
+    /// better design that would better separate data from metadata.
+    /// Unfortunately, there are a few places like that in the Tor  protocols.
+    //
+    // TODO: This could instead be a function that takes a closure, passes a
+    // reader to that closure, and returns the closure's output along with
+    // whatever the reader consumed.
     pub fn cursor(&self) -> Cursor<'a> {
         Cursor {
             pos: self.off,
