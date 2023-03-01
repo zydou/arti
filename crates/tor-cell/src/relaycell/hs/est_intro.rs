@@ -184,8 +184,11 @@ impl Writeable for EstablishIntroDetails {
         let auth_key_type = AuthKeyType::ED25519_SHA3_256;
         let auth_key_len = ED25519_ID_LEN;
         w.write_u8(auth_key_type.get());
-        w.write_u16(u16::try_from(auth_key_len).map_err(|_| EncodeError::BadLengthValue)?);
-        w.write(&self.auth_key)?;
+        {
+            let mut w_nested = w.write_nested_u16len();
+            w_nested.write(&self.auth_key)?;
+            w_nested.finish()?;
+        }
         w.write(&self.extensions)?;
         Ok(())
     }
@@ -198,7 +201,6 @@ impl msg::Body for EstablishIntro {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let cursor_start = r.cursor();
         let auth_key_type: AuthKeyType = r.take_u8()?.into();
-        let auth_key_len = r.take_u16()?;
         // Only Ed25519 is recognized... and it *needs* to be recognized or else we
         // can't verify the signature.
         if auth_key_type != AuthKeyType::ED25519_SHA3_256 {
@@ -206,24 +208,13 @@ impl msg::Body for EstablishIntro {
                 format!("unrecognized authkey type {:?}", auth_key_type).into(),
             ));
         }
-        if auth_key_len as usize != ED25519_ID_LEN {
-            return Err(tor_bytes::Error::InvalidMessage(
-                format!("Wrong authkey len {:?}", auth_key_len).into(),
-            ));
-        }
-        let auth_key = r.extract()?;
+        let auth_key = r.read_nested_u16len(|r| r.extract())?;
 
         let extensions = r.extract()?;
         let cursor_mac = r.cursor();
         let handshake_auth = r.extract()?;
         let cursor_sig = r.cursor();
-        let sig_len = r.take_u16()?;
-        if sig_len as usize != ED25519_SIGNATURE_LEN {
-            return Err(tor_bytes::Error::InvalidMessage(
-                format!("Wrong signature len {:?}", sig_len).into(),
-            ));
-        }
-        let sig: ed25519::Signature = r.extract()?;
+        let sig = r.read_nested_u16len(|r| r.extract())?;
 
         let mac_plaintext = r.range(cursor_start, cursor_mac).into();
 
@@ -253,8 +244,11 @@ impl msg::Body for EstablishIntro {
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write(&self.body)?;
         w.write_all(self.handshake_auth.as_ref());
-        w.write_u16(u16::try_from(ED25519_SIGNATURE_LEN).map_err(|_| EncodeError::BadLengthValue)?);
-        w.write(self.sig.signature())?;
+        {
+            let mut w_inner = w.write_nested_u16len();
+            w_inner.write(self.sig.signature())?;
+            w_inner.finish()?;
+        }
         Ok(())
     }
 }
