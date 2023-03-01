@@ -317,6 +317,52 @@ impl<'a> Reader<'a> {
     {
         read_nested_generic::<u32, _, _>(self, f)
     }
+
+    /// Return a cursor object describing the current position of this Reader
+    /// within its underlying byte stream.
+    ///
+    /// The resulting [`Cursor`] can be used with `range`, but nothing else.
+    ///
+    /// Note that having to use a `Cursor` is typically an anti-pattern: it
+    /// tends to indicate that whatever you're parsing could probably have a
+    /// better design that would better separate data from metadata.
+    /// Unfortunately, there are a few places like that in the Tor  protocols.
+    //
+    // TODO: This could instead be a function that takes a closure, passes a
+    // reader to that closure, and returns the closure's output along with
+    // whatever the reader consumed.
+    pub fn cursor(&self) -> Cursor<'a> {
+        Cursor {
+            pos: self.off,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Return the slice of bytes between the start cursor (inclusive) and end
+    /// cursor (exclusive).
+    ///
+    /// If the cursors are not in order, return an empty slice.
+    ///
+    /// This function is guaranteed not to panic if the inputs were generated
+    /// from a different Reader, but if so the byte slice that it returns will
+    /// not be meaningful.
+    pub fn range(&self, start: Cursor<'a>, end: Cursor<'a>) -> &'a [u8] {
+        if start.pos <= end.pos && end.pos <= self.b.len() {
+            &self.b[start.pos..end.pos]
+        } else {
+            &self.b[..0]
+        }
+    }
+}
+
+/// A reference to a position within a [`Reader`].
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Cursor<'a> {
+    /// The underlying position within the reader.
+    pos: usize,
+    /// Used so that we can restrict the cursor to the lifetime of the
+    /// underlying byte slice.
+    _phantom: std::marker::PhantomData<&'a [u8]>,
 }
 
 /// Implementation of `read_nested_*` -- generic
@@ -572,5 +618,29 @@ mod tests {
         let les: Result<Vec<LenEnc>> = r.extract_n(10);
         assert_eq!(les.unwrap_err(), Error::Truncated);
         assert_eq!(r.remaining(), 28);
+    }
+
+    #[test]
+    fn cursor() -> Result<()> {
+        let alphabet = b"abcdefghijklmnopqrstuvwxyz";
+        let mut r = Reader::from_slice(&alphabet[..]);
+
+        let c1 = r.cursor();
+        let _ = r.take_u16()?;
+        let c2 = r.cursor();
+        let c2b = r.cursor();
+        r.advance(7)?;
+        let c3 = r.cursor();
+
+        assert_eq!(r.range(c1, c2), &b"ab"[..]);
+        assert_eq!(r.range(c2, c3), &b"cdefghi"[..]);
+        assert_eq!(r.range(c1, c3), &b"abcdefghi"[..]);
+        assert_eq!(r.range(c1, c1), &b""[..]);
+        assert_eq!(r.range(c3, c1), &b""[..]);
+        assert_eq!(c2, c2b);
+        assert!(c1 < c2);
+        assert!(c2 < c3);
+
+        Ok(())
     }
 }

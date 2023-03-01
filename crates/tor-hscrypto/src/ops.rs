@@ -5,10 +5,13 @@ use tor_llcrypto::util::ct::CtByteArray;
 
 use digest::Digest;
 
+/// The length of the MAC returned by [`hs_mac`].
+pub const HS_MAC_LEN: usize = 32;
+
 /// Compute the lightweight MAC function used in the onion service protocol.
 ///
 /// (rend-spec-v3 section 0.3 `MAC`)
-pub fn hs_mac(key: &[u8], msg: &[u8]) -> CtByteArray<32> {
+pub fn hs_mac(key: &[u8], msg: &[u8]) -> CtByteArray<HS_MAC_LEN> {
     // rend-spec-v3 says: "Instantiate H with SHA3-256... Instantiate MAC(key=k,
     // message=m) with H(k_len | k | m), where k_len is htonll(len(k))."
 
@@ -17,7 +20,7 @@ pub fn hs_mac(key: &[u8], msg: &[u8]) -> CtByteArray<32> {
     hasher.update(klen.to_be_bytes());
     hasher.update(key);
     hasher.update(msg);
-    let a: [u8; 32] = hasher.finalize().into();
+    let a: [u8; HS_MAC_LEN] = hasher.finalize().into();
     a.into()
 }
 

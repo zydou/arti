@@ -658,60 +658,110 @@ fn test_establish_rendezvous() {
 #[cfg(feature = "hs")]
 #[test]
 fn test_establish_intro() {
-    use tor_cell::relaycell::hs::{est_intro::*, AuthKeyType, UnrecognizedExt};
+    use tor_cell::relaycell::hs::{est_intro::*, UnrecognizedExt};
 
     let cmd = RelayCmd::ESTABLISH_INTRO;
-    let auth_key_type = AuthKeyType::ED25519_SHA3_256;
-    let auth_key = vec![0, 1, 2, 3];
+    let auth_key = [0x33; 32].into();
     let extension_dos =
         DosParams::new(Some(1_i32), Some(2_i32)).expect("invalid EST_INTRO_DOS_EXT parameter(s)");
     let handshake_auth = [1; 32];
-    let sig = vec![0, 1, 2, 3];
+    let sig = [0x15; 64]
+        .try_into()
+        .expect("those bytes aren't a signature");
     assert_eq!(Into::<u8>::into(cmd), 32);
 
     // Establish intro with one recognised extension
-    let mut es_intro = EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig);
-    es_intro.set_extension_dos(extension_dos);
+    let mut body = EstablishIntroDetails::new(auth_key);
+    body.set_extension_dos(extension_dos);
+    let es_intro = EstablishIntro::from_parts_for_test(body, handshake_auth.into(), sig);
     msg(
         cmd,
-        "02 0004 00010203
+        "02 0020 3333333333333333333333333333333333333333333333333333333333333333
          01 01 13 02 01 0000000000000001 02 0000000000000002
          0101010101010101010101010101010101010101010101010101010101010101
-         0004 00010203",
+         0040 1515151515151515151515151515151515151515151515151515151515151515
+              1515151515151515151515151515151515151515151515151515151515151515",
         &es_intro.into(),
     );
 
     // Establish intro with no extension
-    let auth_key = vec![0, 1, 2, 3];
-    let sig = vec![0, 1, 2, 3];
+    let body = EstablishIntroDetails::new(auth_key);
+    let es_intro = EstablishIntro::from_parts_for_test(body, handshake_auth.into(), sig);
     msg(
         cmd,
-        "02 0004 00010203
+        "02 0020 3333333333333333333333333333333333333333333333333333333333333333
          00
          0101010101010101010101010101010101010101010101010101010101010101
-         0004 00010203",
-        &EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig).into(),
+         0040 1515151515151515151515151515151515151515151515151515151515151515
+              1515151515151515151515151515151515151515151515151515151515151515",
+        &es_intro.into(),
     );
-
     // Establish intro with one recognised extension
     // and one unknown extension
-    let auth_key = vec![0, 1, 2, 3];
-    let sig = vec![0, 1, 2, 3];
     let extension_dos =
         DosParams::new(Some(1_i32), Some(2_i32)).expect("invalid EST_INTRO_DOS_EXT parameter(s)");
     let extension_unrecognized = UnrecognizedExt::new(2.into(), vec![0]);
-    let mut es_intro = EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig);
-    es_intro.set_extension_dos(extension_dos);
-    es_intro.set_extension_other(extension_unrecognized);
-
+    let mut body = EstablishIntroDetails::new(auth_key);
+    body.set_extension_dos(extension_dos);
+    body.set_extension_other(extension_unrecognized);
+    let es_intro = EstablishIntro::from_parts_for_test(body, handshake_auth.into(), sig);
     msg(
         cmd,
-        "02 0004 00010203
+        "02 0020 3333333333333333333333333333333333333333333333333333333333333333
          02 01 13 02 01 0000000000000001 02 0000000000000002 02 01 00
          0101010101010101010101010101010101010101010101010101010101010101
-         0004 00010203",
+         0040 1515151515151515151515151515151515151515151515151515151515151515
+              1515151515151515151515151515151515151515151515151515151515151515",
         &es_intro.into(),
     );
+}
+
+#[cfg(feature = "hs")]
+#[test]
+fn establish_intro_roundtrip() {
+    use tor_bytes::Reader;
+    use tor_cell::relaycell::hs::est_intro::*;
+    let mut rng = testing_rng().rng_compat();
+
+    // Now, generate an ESTABLISH_INTRO message and make sure it validates.
+    use tor_llcrypto::{pk::ed25519, util::rand_compat::RngCompatExt};
+    let keypair = ed25519::Keypair::generate(&mut rng);
+    let body = EstablishIntroDetails::new(keypair.public.into());
+    let mac_key = b"Amaryllidaceae Allium cepa var. proliferum";
+    let signed = body
+        .clone()
+        .sign_and_encode(&keypair, &mac_key[..])
+        .unwrap();
+
+    let mut r = Reader::from_slice(&signed[..]);
+    let parsed = EstablishIntro::decode_from_reader(RelayCmd::ESTABLISH_INTRO, &mut r).unwrap();
+    let parsed_body = parsed.clone().check_and_unwrap(&mac_key[..]).unwrap();
+    assert_eq!(format!("{:?}", parsed_body), format!("{:?}", body));
+
+    // But it won't validate if we have the wrong MAC key.
+    let check_error = parsed.check_and_unwrap(&mac_key[..3]);
+    assert!(check_error.is_err());
+}
+
+#[cfg(feature = "hs")]
+#[test]
+fn establish_intro_canned() {
+    use tor_bytes::Reader;
+    use tor_cell::relaycell::hs::est_intro::*;
+
+    // This message was generated by the C tor implementation, in a Chutney network.
+    let message = unhex(
+        "02 0020 75BC879BF697A9B12E1E10596FEF041127FECD11FDD80706AEAE35812EA74328
+         00
+         A3DF998D6749A9323035AD23DAA7F8607E4F87473A975E50A42DEC9C0E565C48
+         0040
+         5A7F5E53D55B307B5F7866AE14508DDA3412E2B3E4805176C25413CEDF204F7F
+         53EAECADC0844472AA7BEC3BDCBA0A65F1FCDEF397B399F534F46E535B0E6301",
+    );
+    let mac_key = unhex("250CCAF964B17B621A58CD82DF5DAFD060BA5F28");
+    let mut r = Reader::from_slice(&message[..]);
+    let parsed = EstablishIntro::decode_from_reader(RelayCmd::ESTABLISH_INTRO, &mut r).unwrap();
+    let _parsed_body = parsed.check_and_unwrap(&mac_key[..]).unwrap();
 }
 
 #[cfg(feature = "hs")]
