@@ -20,7 +20,10 @@ use std::time::SystemTime;
 use crate::{ParseErrorKind as EK, Result};
 pub use desc_enc::DecryptionError;
 use smallvec::SmallVec;
-use tor_checkable::{signed, timed};
+use tor_checkable::{
+    signed::{self, SignatureGated},
+    timed::{self, TimerangeBound},
+};
 use tor_hscrypto::{
     pk::{
         HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey,
@@ -220,9 +223,10 @@ impl EncryptedHsDesc {
         self,
         subcredential: &Subcredential,
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
-    ) -> Result<HsDesc> {
+    ) -> Result<TimerangeBound<SignatureGated<HsDesc>>> {
         let blinded_id = self.outer_doc.blinded_id();
         let revision_counter = self.outer_doc.revision_counter;
+        let kp_desc_sign = self.outer_doc.desc_sign_key_id();
 
         // Decrypt the superencryption layer; parse the middle document.
         let middle = self.outer_doc.decrypt_body(subcredential).map_err(|e| {
@@ -245,20 +249,24 @@ impl EncryptedHsDesc {
             })?;
         let inner = std::str::from_utf8(&inner[..])
             .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))?;
-        let inner = inner::HsDescInner::parse(inner)?;
+        let (cert_signing_key, time_bound) = inner::HsDescInner::parse(inner)?;
 
-        // TODO hs: if we decide that we need to verify and time-check the
-        // certificates in the inner document, we need to return a
-        // SignatureGated<TimerangeBound<HsDesc>> instead.
+        if cert_signing_key.as_ref() != Some(kp_desc_sign) {
+            return Err(EK::BadObjectVal
+                .with_msg("Signing keys in inner document did not match those in outer document"));
+        }
 
         // Construct the HsDesc!
-        Ok(HsDesc {
-            idx_info: IndexInfo::from_outer_doc(&self.outer_doc),
-            decrypted_with_id: hsc_desc_enc.map(|keys| keys.0.clone()),
-            auth_required: inner.intro_auth_types,
-            is_single_onion_service: inner.single_onion_service,
-            intro_points: inner.intro_points,
-        })
+        let time_bound = time_bound.dangerously_map(|sig_bound| {
+            sig_bound.dangerously_map(|inner| HsDesc {
+                idx_info: IndexInfo::from_outer_doc(&self.outer_doc),
+                decrypted_with_id: hsc_desc_enc.map(|keys| keys.0.clone()),
+                auth_required: inner.intro_auth_types,
+                is_single_onion_service: inner.single_onion_service,
+                intro_points: inner.intro_points,
+            })
+        });
+        Ok(time_bound)
     }
 
     /// Create a new `IndexInfo` from the outer part of an onion service descriptor.
@@ -372,6 +380,10 @@ mod test {
             .check_valid_at(&humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap())
             .unwrap()
             .decrypt(&TEST_SUBCREDENTIAL.into(), None)?;
+        let desc = desc
+            .check_valid_at(&humantime::parse_rfc3339("2023-01-24T03:00:00Z").unwrap())
+            .unwrap();
+        let desc = desc.check_signature().unwrap();
 
         assert_eq!(
             Duration::try_from(desc.idx_info.lifetime).unwrap(),
@@ -426,7 +438,7 @@ mod test {
         let encrypted = get_test2_encrypted();
         let subcredential = TEST_SUBCREDENTIAL_2.into();
         let with_no_auth = encrypted.decrypt(&subcredential, None);
-        assert!(dbg!(with_no_auth).is_err());
+        assert!(with_no_auth.is_err());
     }
 
     #[test]
@@ -438,7 +450,11 @@ mod test {
         let subcredential = TEST_SUBCREDENTIAL_2.into();
         let pk = curve25519::PublicKey::from(TEST_PUBKEY_2).into();
         let sk = curve25519::StaticSecret::from(TEST_SECKEY_2).into();
-        let with_correct_auth = encrypted.decrypt(&subcredential, Some((&pk, &sk))).unwrap();
-        assert_eq!(with_correct_auth.intro_points.len(), 3);
+        let desc = encrypted.decrypt(&subcredential, Some((&pk, &sk))).unwrap();
+        let desc = desc
+            .check_valid_at(&humantime::parse_rfc3339("2023-01-24T03:00:00Z").unwrap())
+            .unwrap();
+        let desc = desc.check_signature().unwrap();
+        assert_eq!(desc.intro_points.len(), 3);
     }
 }

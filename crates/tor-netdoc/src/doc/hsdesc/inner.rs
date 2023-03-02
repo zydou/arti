@@ -1,5 +1,7 @@
 //! Code to handle the inner document of an onion service descriptor.
 
+use std::time::SystemTime;
+
 use super::{IntroAuthType, IntroPointDesc};
 use crate::batching_split_before::IteratorExt as _;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
@@ -10,8 +12,12 @@ use crate::{ParseErrorKind as EK, Result};
 use itertools::Itertools as _;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
+use tor_checkable::signed::SignatureGated;
+use tor_checkable::timed::TimerangeBound;
+use tor_checkable::Timebound;
 use tor_hscrypto::pk::{HsIntroPtSessionIdKey, HsSvcNtorKey};
-use tor_llcrypto::pk::{curve25519, ed25519};
+use tor_llcrypto::pk::ed25519::Ed25519Identity;
+use tor_llcrypto::pk::{curve25519, ed25519, ValidatableSignature};
 
 /// The contents of the inner document of an onion service descriptor.
 #[derive(Debug, Clone)]
@@ -85,11 +91,97 @@ static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     rules.build()
 });
 
+/// Helper type returned when we parse an HsDescInner.
+pub(crate) type UncheckedHsDescInner = TimerangeBound<SignatureGated<HsDescInner>>;
+
+/// Information about one of the certificates inside an HsDescInner.
+///
+/// This is a teporary structure that we use when parsing.
+struct InnerCertData {
+    /// The identity of the key that purportedly signs this certificate.
+    signing_key: Ed25519Identity,
+    /// The key that is being signed.
+    subject_key: ed25519::PublicKey,
+    /// A detached signature object that we must validate before we can conclude
+    /// that the certificate is valid.
+    signature: Box<dyn ValidatableSignature>,
+    /// The time when the certificate expires.
+    expiry: SystemTime,
+}
+
+/// Decode a certificate from `tok`, and check that its tag and type are
+/// expected, that it contains a signing key,  and that both signing and subject
+/// keys are Ed25519.
+///
+/// On success, return an InnerCertData.
+fn handle_inner_certificate(
+    tok: &crate::parse::tokenize::Item<HsInnerKwd>,
+    want_tag: &str,
+    want_type: tor_cert::CertType,
+) -> Result<InnerCertData> {
+    let make_err = |e, msg| {
+        EK::BadObjectVal
+            .with_msg(msg)
+            .with_source(e)
+            .at_pos(tok.pos())
+    };
+
+    let cert = tok
+        .parse_obj::<UnvalidatedEdCert>(want_tag)?
+        .check_cert_type(want_type)?
+        .into_unchecked();
+
+    // These certs have to include a signing key.
+    let cert = cert
+        .check_key(None) // TODO arti#759
+        .map_err(|e| make_err(e, "Certificate was not self-signed"))?;
+
+    // Peel off the signature.
+    let (cert, signature) = cert
+        .dangerously_split()
+        .map_err(|e| make_err(e, "Certificate was not Ed25519-signed"))?;
+    let signature = Box::new(signature);
+
+    // Peel off the expiration
+    let cert = cert.dangerously_assume_timely();
+    let expiry = cert.expiry();
+    let subject_key = cert
+        .subject_key()
+        .as_ed25519()
+        .ok_or_else(|| {
+            EK::BadObjectVal
+                .with_msg("Certified key was not Ed25519")
+                .at_pos(tok.pos())
+        })?
+        .try_into()
+        .map_err(|_| {
+            EK::BadObjectVal
+                .with_msg("Certified key was not valid Ed25519")
+                .at_pos(tok.pos())
+        })?;
+
+    let signing_key = *cert.signing_key().ok_or_else(|| {
+        EK::BadObjectVal
+            .with_msg("Signing key was not Ed25519")
+            .at_pos(tok.pos())
+    })?;
+
+    Ok(InnerCertData {
+        signing_key,
+        subject_key,
+        signature,
+        expiry,
+    })
+}
+
 impl HsDescInner {
     /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided string.
+    ///
+    /// On success, return the signing key that was used for every certificate in the
+    /// inner document, and the inner document itself.
     #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-    pub(super) fn parse(s: &str) -> Result<HsDescInner> {
+    pub(super) fn parse(s: &str) -> Result<(Option<Ed25519Identity>, UncheckedHsDescInner)> {
         let mut reader = NetDocReader::new(s);
         let result = Self::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
         Ok(result)
@@ -97,7 +189,12 @@ impl HsDescInner {
 
     /// Attempt to parse the inner document of an onion service descriptor from a
     /// provided reader.
-    fn take_from_reader(input: &mut NetDocReader<'_, HsInnerKwd>) -> Result<HsDescInner> {
+    ///
+    /// On success, return the signing key that was used for every certificate in the
+    /// inner document, and the inner document itself.
+    fn take_from_reader(
+        input: &mut NetDocReader<'_, HsInnerKwd>,
+    ) -> Result<(Option<Ed25519Identity>, UncheckedHsDescInner)> {
         use HsInnerKwd::*;
 
         // Split up the input at INTRODUCTION_POINT items
@@ -151,6 +248,10 @@ impl HsDescInner {
         // Recognize `single-onion-service` if it's there.
         let is_single_onion_service = header.get(SINGLE_ONION_SERVICE).is_some();
 
+        let mut signatures = Vec::new();
+        let mut expirations = Vec::new();
+        let mut cert_signing_key: Option<Ed25519Identity> = None;
+
         // Now we parse the introduction points.  Each of these will be a
         // section starting with `introduction-point`, ending right before the
         // next `introduction-point` (or before the end of the document.)
@@ -193,44 +294,31 @@ impl HsDescInner {
                 // We have to parse this certificate to extract
                 // `KP_hs_ipt_sid`, but we don't actually need to validate it:
                 // it appears inside the inner document, which is already signed
-                // with `KP_hs_desc_sign`.
+                // with `KP_hs_desc_sign`.  Nonetheless, we validate it anyway,
+                // since that's what C tor does.
                 //
                 // See documentation for `CertType::HS_IP_V_SIGNING for more
                 // info`.
-                //
-                // TODO HS: Either we should specify that it is okay to skip
-                // validation here, or we should validate the silly certificate
-                // anyway.
-                //
-                // TODO HS: Additionally, though the spec says "the signing key
-                //    extension is mandatory" we don't check that either.  The
-                // spec, or the code, should be fixed. There may be
-                // distinguishability implications to both these questions.
-                //
-                // TODO HS: We need investigate what c tor does, and either just
-                // do that, or decide that it is wrong. Either way we should
-                // amend the spec for further clarity.
                 let tok = ipt_section.required(AUTH_KEY)?;
-                let cert = tok
-                    .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
-                    .check_cert_type(tor_cert::CertType::HS_IP_V_SIGNING)?
-                    .into_unchecked();
-                let ed_key: ed25519::PublicKey = cert
-                    .peek_subject_key()
-                    .as_ed25519()
-                    .ok_or_else(|| {
-                        EK::BadObjectVal
-                            .with_msg("Certified key was not Ed25519")
-                            .at_pos(tok.pos())
-                    })?
-                    .try_into()
-                    .map_err(|e| {
-                        EK::BadObjectVal
-                            .with_msg("Invalid Ed25519 key")
-                            .with_source(e)
-                            .at_pos(tok.pos())
-                    })?;
-                ed_key.into()
+                let InnerCertData {
+                    signing_key,
+                    subject_key,
+                    signature,
+                    expiry,
+                } = handle_inner_certificate(
+                    tok,
+                    "ED25519 CERT",
+                    tor_cert::CertType::HS_IP_V_SIGNING,
+                )?;
+                expirations.push(expiry);
+                signatures.push(signature);
+                if cert_signing_key.get_or_insert(signing_key) != &signing_key {
+                    return Err(EK::BadObjectVal
+                        .at_pos(tok.pos())
+                        .with_msg("Mismatched signing key"));
+                }
+
+                subject_key.into()
             };
 
             // Extract the key `KP_hss_ntor` that we'll use for our
@@ -251,41 +339,37 @@ impl HsDescInner {
             // `KP_hss_ntor` we just extracted.
             {
                 // NOTE: As above, this certificate is backwards, and hence
-                // useless. Therefore, we do not validate it: we only check that
-                // the subject key is as expected. Probably that is not even
-                // necessary, and we could remove this whole section.
-                //
-                // TODO HS: See all "TODO HS" notes above for the "AUTH_KEY" certificate.
-                // Additionally, there is a bunch of code duplication here that we should fix.
+                // useless.  Still, we validate it because that is what C tor does.
                 let tok = ipt_section.required(ENC_KEY_CERT)?;
-                let cert = tok
-                    .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
-                    .check_cert_type(tor_cert::CertType::HS_IP_CC_SIGNING)?
-                    .into_unchecked();
-                let ed_key: ed25519::PublicKey = cert
-                    .peek_subject_key()
-                    .as_ed25519()
-                    .ok_or_else(|| {
-                        EK::BadObjectVal
-                            .with_msg("Certified key was not Ed25519")
-                            .at_pos(tok.pos())
-                    })?
-                    .try_into()
-                    .map_err(|e| {
-                        EK::BadObjectVal
-                            .with_msg("Invalid Ed25519 key")
-                            .with_source(e)
-                            .at_pos(tok.pos())
-                    })?;
+                let InnerCertData {
+                    signing_key,
+                    subject_key,
+                    signature,
+                    expiry,
+                } = handle_inner_certificate(
+                    tok,
+                    "ED25519 CERT",
+                    tor_cert::CertType::HS_IP_CC_SIGNING,
+                )?;
+                expirations.push(expiry);
+                signatures.push(signature);
+
                 let expected_ed_key =
                     tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public(
                         &svc_ntor_key,
                         0,
                     );
-                if expected_ed_key != Some(ed_key) {
+                if expected_ed_key != Some(subject_key) {
                     return Err(EK::BadObjectVal
                         .at_pos(tok.pos())
                         .with_msg("Mismatched subject key"));
+                }
+
+                // Make sure signing key is as expected.
+                if cert_signing_key.get_or_insert(signing_key) != &signing_key {
+                    return Err(EK::BadObjectVal
+                        .at_pos(tok.pos())
+                        .with_msg("Mismatched signing key"));
                 }
             };
 
@@ -297,11 +381,18 @@ impl HsDescInner {
             });
         }
 
-        Ok(HsDescInner {
+        let inner = HsDescInner {
             intro_auth_types: auth_types,
             single_onion_service: is_single_onion_service,
             intro_points,
-        })
+        };
+        let sig_gated = SignatureGated::new(inner, signatures);
+        let time_bound = match expirations.iter().min() {
+            Some(t) => TimerangeBound::new(sig_gated, ..t),
+            None => TimerangeBound::new(sig_gated, ..),
+        };
+
+        Ok((cert_signing_key, time_bound))
     }
 }
 

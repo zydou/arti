@@ -7,7 +7,7 @@ use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::{RevisionCounter, Subcredential};
-use tor_llcrypto::pk::ed25519::{self, ValidatableEd25519Signature};
+use tor_llcrypto::pk::ed25519::{self, Ed25519Identity, ValidatableEd25519Signature};
 use tor_units::IntegerMinutes;
 
 use crate::parse::{keyword::Keyword, parser::SectionRules, tokenize::NetDocReader};
@@ -51,6 +51,16 @@ impl HsDescOuter {
             .signing_key()
             .expect("signing key was absent!?");
         (*ident).into()
+    }
+
+    /// Return the Id of the descriptor-signing key (`KP_desc_sign`) from this onion service descriptor.
+    pub(super) fn desc_sign_key_id(&self) -> &Ed25519Identity {
+        self.desc_signing_key_cert
+            .subject_key()
+            .as_ed25519()
+            .expect(
+                "Somehow constructed an HsDescOuter with a non-Ed25519 signing key in its cert.",
+            )
     }
 
     /// Return the revision counter for this descriptor.
@@ -243,9 +253,7 @@ impl HsDescOuter {
             // we already checked that there is a public key, so an error should be impossible.
             .map_err(|e| EK::Internal.err().with_source(e))?;
         let desc_signing_key_cert = desc_signing_key_cert.dangerously_assume_timely();
-        // TODO HS: It is unclear whether using the certificate expiration time
-        // as the expiration time for whole document is correct. We must
-        // investigate.
+        // NOTE: the C tor implementation checks this expiration time, so we must too.
         let expiration = desc_signing_key_cert.expiry();
 
         // Build our return value.
