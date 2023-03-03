@@ -190,7 +190,7 @@ type Continuation = (
 /// ### Nested loops
 ///
 /// Sometimes we want to go round again *without* unlocking.
-/// Sometimes we must unlock and wait anbd relock.
+/// Sometimes we must unlock and wait and relock.
 ///
 /// The drop tracking workaround (see above) means we have to do these two
 /// in separate scopes.
@@ -229,7 +229,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                             last_used: _,
                             circuit: _,
                         } => data,
-                        _ => panic!("state changed between maches"),
+                        _ => panic!("state changed between matches"),
                     };
                     *state = ServiceState::Closed {
                         data,
@@ -274,7 +274,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                     },
                 ) {
                     ServiceState::Closed { data, .. } => data,
-                    _ => panic!("state changed between maches"),
+                    _ => panic!("state changed between matches"),
                 };
                 (data, barrier_send)
             }
