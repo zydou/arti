@@ -438,7 +438,7 @@ where
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub struct Reactor {
     /// Receiver for control messages for this reactor, sent by `ClientCirc` objects.
-    pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
+    control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// Buffer for cells we can't send out the channel yet due to it being full.
     ///
     /// We try and dequeue off this first before doing anything else, ensuring that
@@ -447,32 +447,66 @@ pub struct Reactor {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    pub(super) outbound: VecDeque<AnyChanCell>,
+    outbound: VecDeque<AnyChanCell>,
     /// The channel this circuit is using to send cells through.
-    pub(super) channel: Channel,
+    channel: Channel,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
     // TODO: could use a SPSC channel here instead.
-    pub(super) input: mpsc::Receiver<ClientCircChanMsg>,
+    input: mpsc::Receiver<ClientCircChanMsg>,
     /// The cryptographic state for this circuit for inbound cells.
     /// This object is divided into multiple layers, each of which is
     /// shared with one hop of the circuit.
-    pub(super) crypto_in: InboundClientCrypt,
+    crypto_in: InboundClientCrypt,
     /// The cryptographic state for this circuit for outbound cells.
-    pub(super) crypto_out: OutboundClientCrypt,
+    crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
-    pub(super) hops: Vec<CircHop>,
-    /// Shared atomic for the number of hops this circuit has.
-    pub(super) path: Arc<path::Path>,
+    hops: Vec<CircHop>,
+    /// Shared atomic for information about the circuit's current path.
+    path: Arc<path::Path>,
     /// An identifier for logging about this reactor's circuit.
-    pub(super) unique_id: UniqId,
+    unique_id: UniqId,
     /// This circuit's identifier on the upstream channel.
-    pub(super) channel_id: CircId,
+    channel_id: CircId,
     /// A handler for a meta cell, together with a result channel to notify on completion.
-    pub(super) meta_handler: Option<(Box<dyn MetaCellHandler>, ReactorResultChannel<()>)>,
+    meta_handler: Option<(Box<dyn MetaCellHandler>, ReactorResultChannel<()>)>,
 }
 
 impl Reactor {
+    /// Create a new circuit reactor.
+    ///
+    /// The reactor will send outbound messages on `channel`, receive incoming
+    /// messages on `input`, and identify this circuit by the channel-local
+    /// [`CircId`] provided.
+    ///
+    /// The internal unique identifier for this circuit will be `unique_id`.
+    pub(super) fn new(
+        channel: Channel,
+        channel_id: CircId,
+        unique_id: UniqId,
+        input: mpsc::Receiver<ClientCircChanMsg>,
+    ) -> (Self, mpsc::UnboundedSender<CtrlMsg>, Arc<path::Path>) {
+        let crypto_out = OutboundClientCrypt::new();
+        let (control_tx, control_rx) = mpsc::unbounded();
+        let path = Arc::new(path::Path::default());
+
+        let reactor = Reactor {
+            control: control_rx,
+            outbound: Default::default(),
+            channel,
+            input,
+            crypto_in: InboundClientCrypt::new(),
+            hops: vec![],
+            unique_id,
+            channel_id,
+            crypto_out,
+            meta_handler: None,
+            path: path.clone(),
+        };
+
+        (reactor, control_tx, path)
+    }
+
     /// Launch the reactor, and run until the circuit closes or we
     /// encounter an error.
     ///

@@ -55,7 +55,7 @@ use crate::circuit::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
 pub use crate::circuit::unique_id::UniqId;
-use crate::crypto::cell::{HopNum, InboundClientCrypt, OutboundClientCrypt};
+use crate::crypto::cell::HopNum;
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
@@ -607,23 +607,7 @@ impl PendingClientCirc {
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
     ) -> (PendingClientCirc, reactor::Reactor) {
-        let crypto_out = OutboundClientCrypt::new();
-        let (control_tx, control_rx) = mpsc::unbounded();
-        let path = Arc::new(path::Path::default());
-
-        let reactor = Reactor {
-            control: control_rx,
-            outbound: Default::default(),
-            channel: channel.clone(),
-            input,
-            crypto_in: InboundClientCrypt::new(),
-            hops: vec![],
-            unique_id,
-            channel_id: id,
-            crypto_out,
-            meta_handler: None,
-            path: Arc::clone(&path),
-        };
+        let (reactor, control_tx, path) = Reactor::new(channel.clone(), id, unique_id, input);
 
         let circuit = ClientCirc {
             path,
