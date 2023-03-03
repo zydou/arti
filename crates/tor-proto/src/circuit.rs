@@ -43,6 +43,7 @@ pub(crate) mod halfcirc;
 mod halfstream;
 #[cfg(feature = "hs-common")]
 pub mod handshake;
+mod msgfilter;
 mod path;
 pub(crate) mod reactor;
 pub(crate) mod sendme;
@@ -84,6 +85,9 @@ use self::reactor::RequireSendmeAuth;
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
+
+#[cfg(feature = "experimental-api")]
+pub use {msgfilter::MsgFilter, reactor::MetaCellDisposition};
 
 #[derive(Clone, Debug)]
 /// A circuit that we have constructed over the Tor network.
@@ -233,74 +237,67 @@ impl ClientCirc {
         &self.channel
     }
 
-    /// Send a control message to the final hop on this circuit.
+    /// Send a control message to the final hop on this circuit, and wait for
+    /// one or more messages in reply.
+    ///
+    /// (These steps are performed atomically, so that incoming messages can be
+    /// accepted immediately after the outbound message is sent.)
     ///
     /// Note that it is quite possible to use this function to violate the tor
     /// protocol; most users of this API will not need to call it.  It is used
     /// to implement most of the onion service handshake.
     ///
-    /// (This function is not yet implemented. Right now it will always panic.)
     //
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
     //   reactor code, but "meta messages" just sounds odd.
     //
-    // TODO hs: possibly this should take a more encoded message type.
-    //
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
-    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
-    #[cfg(feature = "experimental-api")]
-    pub async fn send_control_message(&self, msg: AnyRelayMsg) -> Result<()> {
-        todo!() // TODO hs
-    }
-
-    /// Begin accepting 'control' messages from the final hop on this circuit,
-    /// and return an asynchronous stream of any such messages that arrive.
-    ///
-    /// A "control" message is a message without a stream ID that `tor-proto`
-    /// does not handle on its own.  (The messages that `tor-proto` can handle
-    /// are DESTROY, DATA, SENDME, ...)  Ordinarily, any unexpected control
-    /// message will cause the circuit to exit with an error.
-    ///
-    /// There can only be one stream of this type created on a given circuit at
-    /// a time. If a such a stream already exists, this method will return an
-    /// error.
-    ///
-    /// The caller should be sure to close the circuit if a command that _it_
-    /// doesn't recognize shows up.
-    ///
-    /// (This function is not yet implemented; right now, it will always panic.)
     //
-    // TODO hs: Possibly this function (and send_control_message) should use
+    // TODO hs: I'm not sure this API is the right shape...
+    //
+    // It's a little overkill for ESTABLISH_RENDEZVOUS where we expect a single
+    // RENDEZVOUS_ESTABLISHED, then eventually a single RENDEZVOUS2. It's also a
+    // little overkill for INTRODUCE1 where we expect an INTRODUCE_ACK.
+    //
+    // It will work for it's good for ESTABLISH_INTRO where we expect an
+    // INTRO_ESTABLISHED followed by a large number of INTRODUCE2-- though we
+    // might regret an unbounded circuit?
+    //
+    // It isn't quite right for RENDEZVOUS1, where we expect no reply, and want
+    // to send the message to the second-to-last hop (having added a virtual hop
+    // to the circuit.)
+    //
+    // TODO hs: Possibly this function should use
     // HopNum or similar to indicate which hop we're talking to, rather than
     // just doing "the last hop".
-    //
-    // TODO hs: There is possibly some kind of type trickery we could do here so
-    // that the stream would return a chosen type that implements
-    // `TryFrom<RelayMsg>` or something like that. Not sure whether that's a
-    // good idea.
-    //
+
     // TODO hs: Perhaps the stream here should yield a different type. Ian
     // thinks maybe we should store a callback instead.
     //
-    // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
-    //   "control" for a lot of other things. We say "meta" elsewhere in the
-    //   reactor code, but "meta messages" just sounds odd.
-    //
-    // TODO hs: This should return a stream of UnparsedRelayCell.
-    //
-    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
-    //   tor-proto interface.
     #[cfg(feature = "experimental-api")]
-    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
-    pub fn receive_control_messages(
+    pub async fn send_control_message(
         &self,
-    ) -> Result<impl futures::Stream<Item = Box<chancell::RawCellBody>>> {
-        if false {
-            return Ok(futures::stream::empty()); // TODO hs remove; this is just here for type inference.
+        msg: tor_cell::relaycell::AnyRelayCell,
+        reply_filter: impl MsgFilter + Send + 'static,
+    ) -> Result<impl futures::Stream<Item = Result<tor_cell::relaycell::UnparsedRelayCell>>> {
+        if msg.stream_id() != 0.into() {
+            return Err(bad_api_usage!("Not a control message.").into());
         }
-        todo!() // TODO hs implement.
+        let last_hop = self
+            .path
+            .last_hop_num()
+            .ok_or_else(|| internal!("no last hop index"))?;
+        let (send, recv) = futures::channel::mpsc::unbounded();
+        let handler = Box::new(msgfilter::UserMsgHandler::new(last_hop, send, reply_filter));
+
+        let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler { msg, handler };
+        self.control
+            .unbounded_send(ctrl_msg)
+            .map_err(|_| Error::CircuitClosed)?;
+
+        Ok(recv)
     }
 
     /// Tell this circuit to begin allowing the final hop of the circuit to try

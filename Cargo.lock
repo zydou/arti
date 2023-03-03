@@ -4233,6 +4233,7 @@ dependencies = [
  "tor-units",
  "tracing",
  "typenum",
+ "visibility",
  "zeroize",
 ]
 

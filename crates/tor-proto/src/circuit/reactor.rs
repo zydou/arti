@@ -87,7 +87,8 @@ pub(super) enum CircuitHandshake {
 }
 
 /// A message telling the reactor to do something.
-#[derive(Debug)]
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub(super) enum CtrlMsg {
     /// Create the first hop of this circuit.
     Create {
@@ -142,6 +143,16 @@ pub(super) enum CtrlMsg {
         done: ReactorResultChannel<StreamId>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
+    },
+    /// Send a given control message on this circuit, and install a control-message handler to
+    /// receive responses.
+    // TODO hs naming.
+    SendMsgAndInstallHandler {
+        /// The message to send
+        msg: AnyRelayCell,
+        /// A message handler to install.
+        #[educe(Debug(ignore))]
+        handler: Box<dyn MetaCellHandler + Send + 'static>,
     },
     /// Send a SENDME cell (used to ask for more data to be sent) on the given stream.
     SendSendme {
@@ -288,9 +299,13 @@ pub(super) trait MetaCellHandler: Send {
     ) -> Result<MetaCellDisposition>;
 }
 
-/// A possible successful outcome of giving a message to a [`MetaCellHandler`].
-#[derive(Debug, Copy, Clone)]
-#[allow(dead_code)] // TODO HS remove
+/// A possible successful outcome of giving a message to a [`MsgHandler`](super::msghandler::MsgHandler).
+///
+/// (This deliberately does _not_ implement `Clone`, in case we want it to include
+/// a the cell itself later on.)
+#[derive(Debug)]
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[non_exhaustive]
 pub(super) enum MetaCellDisposition {
     /// The message was consumed; the handler should remain installed.
     Consumed,
@@ -481,7 +496,7 @@ where
 
         if let Some(done) = self.operation_finished.take() {
             // ignore it if the receiving channel went away.
-            let _ = done.send(status.clone().map(|_| ()));
+            let _ = done.send(status.as_ref().map(|_| ()).map_err(Clone::clone));
             status
         } else {
             Err(Error::from(internal!(
@@ -1219,6 +1234,10 @@ impl Reactor {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayCell::new(stream_id, sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
+            }
+            CtrlMsg::SendMsgAndInstallHandler { msg, handler } => {
+                self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
+                self.set_meta_handler(handler)?;
             }
             #[cfg(test)]
             CtrlMsg::AddFakeHop {
