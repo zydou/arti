@@ -66,7 +66,7 @@ use tor_cell::{
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::{bad_api_usage, internal, into_internal};
+use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget, RelayIdType};
 
 use futures::channel::{mpsc, oneshot};
@@ -412,15 +412,11 @@ impl ClientCirc {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
-        let num_hops = self.path.n_hops();
-        if num_hops == 0 {
-            return Err(Error::from(internal!(
-                "Can't begin a stream at the 0th hop"
-            )));
-        }
-        let hop_num: HopNum = u8::try_from(num_hops - 1)
-            .map_err(into_internal!("Couldn't convert path length to u8"))?
-            .into();
+        let hop_num = self
+            .path
+            .last_hop_num()
+            .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
+
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (tx, rx) = oneshot::channel();
         let (msg_tx, msg_rx) = mpsc::channel(CIRCUIT_BUFFER_SIZE);
