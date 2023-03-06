@@ -262,7 +262,20 @@ impl<'a> Reader<'a> {
     ///
     /// On failure, consumes nothing.
     pub fn extract_n<E: Readable>(&mut self, n: usize) -> Result<Vec<E>> {
-        let mut result = Vec::with_capacity(n);
+        // This `min` will help us defend against a pathological case where an
+        // attacker tells us that there are BIGNUM elements forthcoming, and our
+        // attempt to allocate `Vec::with_capacity(BIGNUM)` makes us panic.
+        //
+        // The `min` can be incorrect if E is somehow encodable in zero bytes
+        // (!?), but that will only cause our initial allocation to be too
+        // small.
+        //
+        // In practice, callers should always check that `n` is reasonable
+        // before calling this function, and protocol designers should not
+        // provide e.g. 32-bit counters for object types of which we should
+        // never allocate u32::MAX.
+        let n_alloc = std::cmp::min(n, self.remaining());
+        let mut result = Vec::with_capacity(n_alloc);
         let off_orig = self.off;
         for _ in 0..n {
             match E::take_from(self) {
