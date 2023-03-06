@@ -15,6 +15,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 pub mod est_intro;
 mod ext;
+pub mod intro_payload;
 
 pub use ext::UnrecognizedExt;
 
