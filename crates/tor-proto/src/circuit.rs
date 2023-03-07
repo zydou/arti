@@ -43,7 +43,8 @@ pub(crate) mod halfcirc;
 mod halfstream;
 #[cfg(feature = "hs-common")]
 pub mod handshake;
-mod msgfilter;
+#[cfg(feature = "experimental-api")]
+mod msghandler;
 mod path;
 pub(crate) mod reactor;
 pub(crate) mod sendme;
@@ -87,7 +88,8 @@ use self::reactor::RequireSendmeAuth;
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
 #[cfg(feature = "experimental-api")]
-pub use {msgfilter::MsgFilter, reactor::MetaCellDisposition};
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
+pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 
 #[derive(Clone, Debug)]
 /// A circuit that we have constructed over the Tor network.
@@ -280,8 +282,8 @@ impl ClientCirc {
     pub async fn send_control_message(
         &self,
         msg: tor_cell::relaycell::AnyRelayCell,
-        reply_filter: impl MsgFilter + Send + 'static,
-    ) -> Result<impl futures::Stream<Item = Result<tor_cell::relaycell::UnparsedRelayCell>>> {
+        reply_handler: impl MsgHandler + Send + 'static,
+    ) -> Result<()> {
         if msg.stream_id() != 0.into() {
             return Err(bad_api_usage!("Not a control message.").into());
         }
@@ -289,15 +291,14 @@ impl ClientCirc {
             .path
             .last_hop_num()
             .ok_or_else(|| internal!("no last hop index"))?;
-        let (send, recv) = futures::channel::mpsc::unbounded();
-        let handler = Box::new(msgfilter::UserMsgHandler::new(last_hop, send, reply_filter));
+        let handler = Box::new(msghandler::UserMsgHandler::new(last_hop, reply_handler));
 
         let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler { msg, handler };
         self.control
             .unbounded_send(ctrl_msg)
             .map_err(|_| Error::CircuitClosed)?;
 
-        Ok(recv)
+        Ok(())
     }
 
     /// Tell this circuit to begin allowing the final hop of the circuit to try
