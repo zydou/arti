@@ -15,8 +15,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 [dependencies]
+data-encoding = "2.3.1" # want MSVC i686 build fix, data-encoding/issues/33
 derive_more = "0.99.3"
 digest = "0.10.0"
+itertools = "0.10.1"
 paste = "1"
 rand_core = "0.6.2"
 serde = { version = "1.0.103", features = ["derive"] }
@@ -30,6 +32,7 @@ tor-llcrypto = { version = "0.4.2", path = "../tor-llcrypto", features = [
 tor-units = { path = "../tor-units", version = "0.5.0" }
 
 [dev-dependencies]
+hex = "0.4"
 hex-literal = "0.3"
 humantime = "2"
 tor-basic-utils = { version = "0.5.0", path = "../tor-basic-utils" }
