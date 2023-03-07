@@ -236,7 +236,7 @@ impl EncryptedHsDesc {
             .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in middle document"))?;
         let middle = middle::HsDescMiddle::parse(middle)?;
 
-        // Decrypt tne encryption layer and parse the inner document.
+        // Decrypt the encryption layer and parse the inner document.
         let inner = middle
             .decrypt_inner(
                 &blinded_id,
