@@ -3996,12 +3996,16 @@ dependencies = [
 name = "tor-hscrypto"
 version = "0.1.1"
 dependencies = [
+ "data-encoding",
  "derive_more",
  "digest 0.10.6",
+ "hex",
  "hex-literal",
  "humantime 2.1.0",
+ "itertools",
  "paste",
  "rand_core 0.6.4",
+ "safelog",
  "serde",
  "signature 1.6.4",
  "thiserror",

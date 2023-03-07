@@ -9,9 +9,12 @@
 // only in a single module somewhere else, it would make sense to just use the
 // underlying type.
 
-use std::fmt::{self, Debug};
+use std::fmt::{self, Debug, Display};
+use std::str::FromStr;
 
 use digest::Digest;
+use itertools::{chain, Itertools};
+use thiserror::Error;
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
@@ -26,23 +29,29 @@ define_bytes! {
 /// `${base32}.onion` address.  When expanded, it is a public key whose
 /// corresponding secret key is controlled by the onion service.
 ///
+/// `HsId`'s `Display` and `FromStr` representation is the domain name
+/// `"${base32}.onion"`.
+///
 /// Note: This is a separate type from [`HsIdKey`] because it is about 6x
 /// smaller.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct HsId([u8; 32]);
 }
 
-impl Debug for HsId {
+impl fmt::LowerHex for HsId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO HS debug using .onion encoding ?
-        // TODO HS display using .onion encoding
-        // TODO HS impl Redactable maybe?  But which end to show?  Risk from vanity .onions?
         write!(f, "HsId(0x")?;
         for v in self.0.as_ref() {
             write!(f, "{:02x}", v)?;
         }
         write!(f, ")")?;
         Ok(())
+    }
+}
+
+impl Debug for HsId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "HsId({})", self)
     }
 }
 
@@ -95,6 +104,126 @@ impl TryFrom<HsId> for HsIdKey {
 impl From<HsIdKey> for HsId {
     fn from(value: HsIdKey) -> Self {
         value.id()
+    }
+}
+
+/// VERSION from rend-spec-v3 s.6 \[ONIONADDRESS]
+const HSID_ONION_VERSION: u8 = 0x03;
+
+/// The fixed string `.onion`
+pub const HSID_ONION_SUFFIX: &str = ".onion";
+
+impl Display for HsId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // rend-spec-v3 s.6 [ONIONADDRESS]
+        let checksum = self.onion_checksum();
+        let binary = chain!(self.0.as_ref(), &checksum, &[HSID_ONION_VERSION],)
+            .cloned()
+            .collect_vec();
+        let mut b32 = data_encoding::BASE32_NOPAD.encode(&binary);
+        b32.make_ascii_lowercase();
+        write!(f, "{}{}", b32, HSID_ONION_SUFFIX)
+    }
+}
+
+impl safelog::Redactable for HsId {
+    // We here display some of the end.  We don't want to display the
+    // *start* because vanity domains, which would perhaps suffer from
+    // reduced deniability.
+    fn display_redacted(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let unredacted = self.to_string();
+        /// Length of the base32 data part of the address
+        const DATA: usize = 56;
+        assert_eq!(unredacted.len(), DATA + HSID_ONION_SUFFIX.len());
+
+        // We show this part of the domain:
+        //     e     n     l     5     s     i     d     .onion
+        //   KKKKK KKKKK KCCCC CCCCC CCCCC CCVVV VVVVV
+        //                           ^^^^^^^^^^^^^^^^^ ^^^^^^^^^
+        // This contains 3 characters of base32, which is 15 bits.
+        // 8 of those bits are the version, which is currently always 0x03.
+        // So we are showing 7 bits derived from the site key.
+
+        write!(f, "???{}", &unredacted[DATA - 3..])
+    }
+}
+
+impl FromStr for HsId {
+    type Err = HsIdParseError;
+    fn from_str(s: &str) -> Result<Self, HsIdParseError> {
+        use HsIdParseError as PE;
+
+        // We must convert to uppercase because RFC4648 says so and that's what Rust
+        // ecosystem libraries for base32 expect.  All this allocation and copying is
+        // still probably less work than the SHA3 for the checksum.
+        // However, we are going to use this function to *detect* and filter .onion
+        // addresses, so it should have a fast path to reject thm.
+        // TODO HS Implement fast path (no allocation) rejection
+        let mut s = s.to_owned();
+        s.make_ascii_uppercase();
+        // Ought to be HSID_ONION_SUFFIX but that's lowercase
+        let s = s.strip_suffix(".ONION").ok_or(PE::NotOnionDomain)?;
+
+        // Ideally we'd have code here that would provide a clear error message if
+        // we encounter an address with the wrong version.  But that is very complicated
+        // because the encoding format does not make that at all convenient.
+        // So instead our errors tell you what aspect of the parsing went wrong.
+        let binary = data_encoding::BASE32_NOPAD.decode(s.as_bytes())?;
+        let mut binary = tor_bytes::Reader::from_slice(&binary);
+
+        let pubkey: [u8; 32] = binary.extract()?;
+        let checksum: [u8; 2] = binary.extract()?;
+        let version: u8 = binary.extract()?;
+        let tentative = HsId(pubkey.into());
+
+        // Check version before checksum; maybe a future version does checksum differently
+        if version != HSID_ONION_VERSION {
+            return Err(PE::UnsupportedVersion(version));
+        }
+        if checksum != tentative.onion_checksum() {
+            return Err(PE::WrongChecksum);
+        }
+        Ok(tentative)
+    }
+}
+
+/// Error that can occur parsing an `HsId` from a v3 `.onion` domain name
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+pub enum HsIdParseError {
+    /// Supplied domain name string does not end in `.onion`
+    #[error("Domain name does not end in .onion")]
+    NotOnionDomain,
+
+    /// Base32 decoding failed
+    ///
+    /// `position` is indeed the (byte) position in the input string
+    #[error("Invalid base32 in .onion address")]
+    InvalidBase32(#[from] data_encoding::DecodeError),
+
+    /// Encoded binary data is invalid
+    #[error("Invalid encoded binary data in .onion address")]
+    InvalidData(#[from] tor_bytes::Error),
+
+    /// Unsupported `.onion` address version
+    #[error("Unsupported .onion address version, v{0}")]
+    UnsupportedVersion(u8),
+
+    /// Checksum failed
+    #[error("Checksum failed, .onion address corrupted")]
+    WrongChecksum,
+}
+
+impl HsId {
+    /// Calculates CHECKSUM rend-spec-v3 s.6 \[ONIONADDRESS]
+    fn onion_checksum(&self) -> [u8; 2] {
+        let mut h = Sha3_256::new();
+        h.update(b".onion checksum");
+        h.update(self.0.as_ref());
+        h.update([HSID_ONION_VERSION]);
+        h.finalize()[..2]
+            .try_into()
+            .expect("slice of fixed size wasn't that size")
     }
 }
 
@@ -323,12 +452,57 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use hex_literal::hex;
+    use itertools::izip;
+    use safelog::Redactable;
     use signature::Verifier;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
     use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 
     use super::*;
+
+    #[test]
+    fn hsid_strings() {
+        use HsIdParseError as PE;
+
+        // From C Tor src/test/test_hs_common.c test_build_address
+        let hex = "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
+        let b32 = "25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkenl5sid";
+
+        let hsid: [u8; 32] = hex::decode(hex).unwrap().try_into().unwrap();
+        let hsid = HsId::from(hsid);
+        let onion = format!("{}.onion", b32);
+
+        assert_eq!(onion.parse::<HsId>().unwrap(), hsid);
+        assert_eq!(hsid.to_string(), onion);
+
+        let weird_case: String = izip!(onion.chars(), [false, true].iter().cloned().cycle(),)
+            .map(|(c, swap)| if swap { c.to_ascii_uppercase() } else { c })
+            .collect();
+        dbg!(&weird_case);
+        assert_eq!(weird_case.parse::<HsId>().unwrap(), hsid);
+
+        macro_rules! chk_err { { $s:expr, $($pat:tt)* } => {
+            let e = $s.parse::<HsId>();
+            assert!(matches!(e, Err($($pat)*)), "{:?}", &e);
+        } }
+        let edited = |i, c| {
+            let mut s = b32.to_owned().into_bytes();
+            s[i] = c;
+            format!("{}.onion", String::from_utf8(s).unwrap())
+        };
+
+        chk_err!("wrong", PE::NotOnionDomain);
+        chk_err!("@.onion", PE::InvalidBase32(..));
+        chk_err!("aaaaaaaa.onion", PE::InvalidData(..));
+        chk_err!(edited(55, b'E'), PE::UnsupportedVersion(4));
+        chk_err!(edited(53, b'X'), PE::WrongChecksum);
+
+        assert_eq!(format!("{:x}", &hsid), format!("HsId(0x{})", hex));
+        assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));
+
+        assert_eq!(format!("{}", hsid.redacted()), "???sid.onion");
+    }
 
     #[test]
     fn key_blinding_blackbox() {
