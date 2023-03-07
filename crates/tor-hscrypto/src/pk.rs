@@ -38,10 +38,8 @@ define_bytes! {
 pub struct HsId([u8; 32]);
 }
 
-impl Debug for HsId {
+impl fmt::LowerHex for HsId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO HS debug using .onion encoding ?
-        // TODO HS display using .onion encoding
         // TODO HS impl Redactable maybe?  But which end to show?  Risk from vanity .onions?
         write!(f, "HsId(0x")?;
         for v in self.0.as_ref() {
@@ -49,6 +47,12 @@ impl Debug for HsId {
         }
         write!(f, ")")?;
         Ok(())
+    }
+}
+
+impl Debug for HsId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "HsId({})", self)
     }
 }
 
@@ -471,6 +475,9 @@ mod test {
         chk_err!("aaaaaaaa.onion", PE::InvalidData(..));
         chk_err!(edited(55, b'E'), PE::UnsupportedVersion(4));
         chk_err!(edited(53, b'X'), PE::WrongChecksum);
+
+        assert_eq!(format!("{:x}", &hsid), format!("HsId(0x{})", hex));
+        assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));
     }
 
     #[test]
