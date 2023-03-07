@@ -4005,6 +4005,7 @@ dependencies = [
  "itertools",
  "paste",
  "rand_core 0.6.4",
+ "safelog",
  "serde",
  "signature 1.6.4",
  "thiserror",

@@ -40,7 +40,6 @@ pub struct HsId([u8; 32]);
 
 impl fmt::LowerHex for HsId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO HS impl Redactable maybe?  But which end to show?  Risk from vanity .onions?
         write!(f, "HsId(0x")?;
         for v in self.0.as_ref() {
             write!(f, "{:02x}", v)?;
@@ -124,6 +123,28 @@ impl Display for HsId {
         let mut b32 = data_encoding::BASE32_NOPAD.encode(&binary);
         b32.make_ascii_lowercase();
         write!(f, "{}{}", b32, HSID_ONION_SUFFIX)
+    }
+}
+
+impl safelog::Redactable for HsId {
+    // We here display some of the end.  We don't want to display the
+    // *start* because vanity domains, which would perhaps suffer from
+    // reduced deniability.
+    fn display_redacted(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let unredacted = self.to_string();
+        /// Length of the base32 data part of the address
+        const DATA: usize = 56;
+        assert_eq!(unredacted.len(), DATA + HSID_ONION_SUFFIX.len());
+
+        // We show this part of the domain:
+        //     e     n     l     5     s     i     d     .onion
+        //   KKKKK KKKKK KCCCC CCCCC CCCCC CCVVV VVVVV
+        //                           ^^^^^^^^^^^^^^^^^ ^^^^^^^^^
+        // This contains 3 characters of base32, which is 15 bits.
+        // 8 of those bits are the version, which is currently always 0x03.
+        // So we are showing 7 bits derived from the site key.
+
+        write!(f, "???{}", &unredacted[DATA - 3..])
     }
 }
 
@@ -432,6 +453,7 @@ mod test {
 
     use hex_literal::hex;
     use itertools::izip;
+    use safelog::Redactable;
     use signature::Verifier;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
@@ -478,6 +500,8 @@ mod test {
 
         assert_eq!(format!("{:x}", &hsid), format!("HsId(0x{})", hex));
         assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));
+
+        assert_eq!(format!("{}", hsid.redacted()), "???sid.onion");
     }
 
     #[test]
