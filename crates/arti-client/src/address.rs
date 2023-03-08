@@ -182,7 +182,10 @@ impl TorAddr {
         let port = self.port;
         match self.host {
             Host::Hostname(hostname) => StreamInstructions::Exit { hostname, port },
-            Host::Ip(ip) => StreamInstructions::Exit { hostname: ip.to_string(), port },
+            Host::Ip(ip) => StreamInstructions::Exit {
+                hostname: ip.to_string(),
+                port,
+            },
         }
     }
 
@@ -516,11 +519,17 @@ mod test {
 
         assert_eq!(
             sap("[2001:db8::42]:9001"),
-            SI::Exit { hostname: "2001:db8::42".to_owned(), port: 9001 },
+            SI::Exit {
+                hostname: "2001:db8::42".to_owned(),
+                port: 9001
+            },
         );
         assert_eq!(
             sap("example.com:80"),
-            SI::Exit { hostname: "example.com".to_owned(), port: 80 },
+            SI::Exit {
+                hostname: "example.com".to_owned(),
+                port: 80
+            },
         );
     }
 

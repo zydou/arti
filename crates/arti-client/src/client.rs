@@ -861,7 +861,10 @@ impl<R: Runtime> TorClient<R> {
         addr.enforce_config(&self.addrcfg.get())?;
 
         match addr.into_stream_instructions() {
-            StreamInstructions::Exit { hostname: addr, port } => {
+            StreamInstructions::Exit {
+                hostname: addr,
+                port,
+            } => {
                 let exit_ports = [prefs.wrap_target_port(port)];
                 let circ = self
                     .get_or_launch_exit_circ(&exit_ports, prefs)
