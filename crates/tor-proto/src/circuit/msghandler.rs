@@ -44,7 +44,8 @@ pub(super) struct UserMsgHandler<T> {
 }
 
 impl<T> UserMsgHandler<T> {
-    /// Create a new UserMsgHandler to be the MetaCellHandler for a user request.
+    /// Create a new UserMsgHandler to be the MetaCellHandler for incoming
+    /// control messages a given circuit.
     pub(super) fn new(hop: HopNum, handler: T) -> Self {
         Self { hop, handler }
     }
