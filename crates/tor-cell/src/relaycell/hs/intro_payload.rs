@@ -32,7 +32,13 @@ decl_extension_group! {
 caret_int! {
     /// An enumeration value to identify a type of onion key.
     ///
-    /// Corresponds to `ONION_KEY_TYPE` in the spec.
+    /// Corresponds to `ONION_KEY_TYPE` in section 3.3 of
+    /// rend-spec-v3.txt \[PROCESS_INTRO].
+    //
+    // TODO this shouldn't live here.  It ought to be in some more general crate.
+    // But it should then also be useable in the netdoc parser.  In particular, it ought
+    // to be able to handle the *textual* values in `hsdesc/inner.rs`, and maybe
+    // the ad-hocery in the routerdesc parsing too.
     struct OnionKeyType(u8) {
         NTOR = 0x01,
     }
@@ -40,9 +46,12 @@ caret_int! {
 
 /// An onion key provided in an IntroduceHandshakePayload.
 ///
-/// TODO HS: Is there a logical type somewhere else to coalesce this with?
-///
 /// Corresponds to `ONION_KEY` in the spec.
+//
+// TODO HS: Is there a logical type somewhere else to coalesce this with?
+// Currently there is no wrapper around curve25519::PublicKey when it's used as
+// an Ntor key, nor is there (yet) a generic onion key enum.  tor-linkspec might be
+// the logical place for those.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum OnionKey {
@@ -88,7 +97,10 @@ impl Writeable for OnionKey {
 /// the client's chosen rendezvous point.
 ///
 /// This corresponds to the "decrypted payload" in section 3.3 of
-/// rend-spec-v3.txt.
+/// rend-spec-v3.txt, **excluding the PAD field**.
+///
+/// The user of this type is expected to discard, or generate, appropriate
+/// padding, as required.
 #[derive(Clone, Debug)]
 pub struct IntroduceHandshakePayload {
     /// The rendezvous cookie to use at the rendezvous point.
