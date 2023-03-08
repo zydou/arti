@@ -255,8 +255,18 @@ pub enum TorAddrError {
 /// A host that Tor can connect to: either a hostname or an IP address.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Host {
-    /// A hostname.  This variant should never be used if the `Ip`
+    /// A hostname.
+    ///
+    /// This variant should never be used if the `Ip`
     /// variant could be used instead.
+    /// Ie, it must not be a stringified IP address.
+    ///
+    /// But, this variant might *not* be on the public internet.
+    /// For example, it might be `localhost`.
+    ///
+    /// Currently it is allowed for this variant to be used for a `.onion`
+    /// address, which we do not currently support.
+    // TOOD HS: Probably, prevent ^ that
     Hostname(String),
     /// An IP address.
     Ip(IpAddr),
