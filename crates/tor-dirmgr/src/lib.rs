@@ -1052,10 +1052,12 @@ impl<R: Runtime> DirMgr<R> {
                     self.events.publish(DirEvent::NewDescriptors);
 
                     info!("Marked consensus usable.");
-                    store.mark_consensus_usable(consensus_meta)?;
-                    // Now that a consensus is usable, older consensuses may
-                    // need to expire.
-                    store.expire_all(&crate::storage::EXPIRATION_DEFAULTS)?;
+                    if !store.is_readonly() {
+                        store.mark_consensus_usable(consensus_meta)?;
+                        // Now that a consensus is usable, older consensuses may
+                        // need to expire.
+                        store.expire_all(&crate::storage::EXPIRATION_DEFAULTS)?;
+                    }
                     Ok(())
                 }
                 NetDirChange::AddMicrodescs(mds) => {
