@@ -15,6 +15,7 @@ use std::str::FromStr;
 use digest::Digest;
 use itertools::{chain, Itertools};
 use thiserror::Error;
+use tor_basic_utils::StrExt as _;
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
@@ -153,16 +154,15 @@ impl FromStr for HsId {
     fn from_str(s: &str) -> Result<Self, HsIdParseError> {
         use HsIdParseError as PE;
 
+        let s = s.strip_suffix_ignore_ascii_case(HSID_ONION_SUFFIX).ok_or(PE::NotOnionDomain)?;
+
         // We must convert to uppercase because RFC4648 says so and that's what Rust
         // ecosystem libraries for base32 expect.  All this allocation and copying is
         // still probably less work than the SHA3 for the checksum.
         // However, we are going to use this function to *detect* and filter .onion
         // addresses, so it should have a fast path to reject thm.
-        // TODO HS Implement fast path (no allocation) rejection
         let mut s = s.to_owned();
         s.make_ascii_uppercase();
-        // Ought to be HSID_ONION_SUFFIX but that's lowercase
-        let s = s.strip_suffix(".ONION").ok_or(PE::NotOnionDomain)?;
 
         // Ideally we'd have code here that would provide a clear error message if
         // we encounter an address with the wrong version.  But that is very complicated
