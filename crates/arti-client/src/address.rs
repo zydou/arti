@@ -5,6 +5,7 @@ use crate::err::ErrorDetail;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str::FromStr;
 use thiserror::Error;
+use tor_basic_utils::StrExt;
 
 // ----------------------------------------------------------------------
 
@@ -178,7 +179,7 @@ impl TorAddr {
             if !is_valid_hostname(addr) {
                 return Err(ErrorDetail::InvalidHostname);
             }
-            if addr.to_lowercase().ends_with(".onion") {
+            if addr.strip_suffix_ignore_ascii_case(".onion").is_some() {
                 // TODO hs: Allow this in some cases instead.
                 return Err(ErrorDetail::OnionAddressNotSupported);
             }
