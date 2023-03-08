@@ -173,10 +173,13 @@ enum ErrorDetail {
     #[error("Timed out while waiting for answer from exit")]
     ExitTimeout,
 
-    /// Onion services are not supported yet, but we were asked to connect to
-    /// one.
+    /// Onion services are supported, but we were asked to connect to one.
     #[error("Rejecting .onion address as unsupported")]
     OnionAddressNotSupported,
+
+    /// Error when trying to find the IP address of a hidden service
+    #[error("A .onion address cannot be resolved to an IP address")]
+    OnionAddressResolveRequest,
 
     /// Unusable target address.
     #[error("Could not parse target address")]
@@ -317,6 +320,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::Reconfigure(e) => e.kind(),
             E::Spawn { cause, .. } => cause.kind(),
             E::OnionAddressNotSupported => EK::NotImplemented,
+            // TODO HS is this right?
+            E::OnionAddressResolveRequest => EK::InvalidStreamTarget,
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
@@ -330,6 +335,14 @@ impl tor_error::HasKind for ErrorDetail {
 impl From<TorAddrError> for Error {
     fn from(e: TorAddrError) -> Error {
         e.into()
+    }
+}
+
+#[cfg(feature = "onion-client")]
+impl From<tor_hscrypto::pk::HsIdParseError> for ErrorDetail {
+    // TODO HS throwing away the original error is not nice, see comment near BadOnion
+    fn from(_e: tor_hscrypto::pk::HsIdParseError) -> ErrorDetail {
+        TorAddrError::BadOnion.into()
     }
 }
 

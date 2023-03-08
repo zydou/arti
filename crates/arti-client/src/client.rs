@@ -852,6 +852,7 @@ impl<R: Runtime> TorClient<R> {
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     /// (See [`TorClient::connect()`] for more information.)
+    #[allow(clippy::missing_panics_doc)] // TODO HS remove
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
@@ -885,6 +886,26 @@ impl<R: Runtime> TorClient<R> {
                     })?;
 
                 Ok(stream)
+            }
+
+            #[cfg(not(feature = "onion-client"))]
+            #[allow(unused_variables)] // for hostname and port
+            StreamInstructions::Hs {
+                hsid,
+                hostname,
+                port,
+            } => void::unreachable(hsid.0),
+
+            #[cfg(feature = "onion-client")]
+            #[allow(unused_variables)] // TODO HS remove
+            StreamInstructions::Hs {
+                hsid,
+                hostname,
+                port,
+            } => {
+                // This might want to reuse the stream code, above, so maybe that
+                // needs to come out of this match statement
+                todo!() // TODO HS
             }
         }
     }
