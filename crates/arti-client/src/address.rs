@@ -176,16 +176,6 @@ impl TorAddr {
         matches!(&self.host, Host::Ip(_))
     }
 
-    /// Extract a `String`-based hostname and a `u16` port from this
-    /// address.
-    //
-    // TODO Remove this function - it is dangerously vague in semantics.
-    pub(crate) fn into_string_and_port(self) -> (String, u16) {
-        let host = self.host.to_string();
-        let port = self.port;
-        (host, port)
-    }
-
     /// Get instructions for how to make a stream to this address
     pub(crate) fn into_stream_instructions(self) -> StreamInstructions {
         // TODO enforcement of the config should go here, not separately
@@ -532,19 +522,6 @@ mod test {
             sap("example.com:80"),
             SI::Exit { hostname: "example.com".to_owned(), port: 80 },
         );
-    }
-
-    #[test]
-    fn string_and_port() {
-        fn sap(s: &str) -> (String, u16) {
-            TorAddr::from(s).unwrap().into_string_and_port()
-        }
-
-        assert_eq!(
-            sap("[2001:db8::42]:9001"),
-            ("2001:db8::42".to_owned(), 9001)
-        );
-        assert_eq!(sap("example.com:80"), ("example.com".to_owned(), 80));
     }
 
     #[test]
