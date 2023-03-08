@@ -80,7 +80,7 @@ pub fn skip_fmt<T>(_: &T, f: &mut fmt::Formatter) -> fmt::Result {
 
 // ----------------------------------------------------------------------
 
-/// Extension trait to provide `.strip_suffix_ignore_ascii_case()`
+/// Extension trait to provide `.strip_suffix_ignore_ascii_case()` etc.
 // Using `.as_ref()` as a supertrait lets us make the method a provided one.
 pub trait StrExt: AsRef<str> {
     /// Like `str.strip_suffix()` but ASCII-case-insensitive
@@ -90,6 +90,11 @@ pub trait StrExt: AsRef<str> {
         whole[suffix_start..]
             .eq_ignore_ascii_case(suffix)
             .then(|| &whole[..suffix_start])
+    }
+
+    /// Like `str.ends_with()` but ASCII-case-insensitive
+    fn ends_with_ignore_ascii_case(&self, suffix: &str) -> bool {
+        self.strip_suffix_ignore_ascii_case(suffix).is_some()
     }
 }
 impl StrExt for str {}
