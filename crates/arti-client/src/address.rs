@@ -136,6 +136,15 @@ pub(crate) enum StreamInstructions {
     },
 }
 
+/// How to resolve this Tor host address into IP address(es)
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) enum ResolveInstructions {
+    /// Create an exit circuit without port restrictions, and ask the exit
+    Exit(String),
+    /// Simply return this
+    Return(Vec<IpAddr>),
+}
+
 impl TorAddr {
     /// Construct a TorAddr from its constituent parts, rejecting it if the
     /// port is zero.
@@ -185,6 +194,16 @@ impl TorAddr {
             Host::Hostname(hostname) => StreamInstructions::Exit { hostname, port },
             Host::Ip(ip) => StreamInstructions::Exit { hostname: ip.to_string(), port },
         }
+    }
+
+    /// Get instructions for how to make a stream to this address
+    #[allow(clippy::unnecessary_wraps)] // will become fallible when we have hidden services
+    pub(crate) fn into_resolve_instructions(self) -> crate::Result<ResolveInstructions> {
+        // TODO enforcement of the config should go here, not separately
+        Ok(match self.host {
+            Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
+            Host::Ip(ip) => ResolveInstructions::Return(vec![ip]),
+        })
     }
 
     /// Return true if the `host` in this address is local.
@@ -526,6 +545,24 @@ mod test {
             ("2001:db8::42".to_owned(), 9001)
         );
         assert_eq!(sap("example.com:80"), ("example.com".to_owned(), 80));
+    }
+
+    #[test]
+    fn resolve_instructions() {
+        use ResolveInstructions as RI;
+
+        fn sap(s: &str) -> crate::Result<ResolveInstructions> {
+            TorAddr::from(s).unwrap().into_resolve_instructions()
+        }
+
+        assert_eq!(
+            sap("[2001:db8::42]:9001").unwrap(),
+            RI::Return(vec!["2001:db8::42".parse().unwrap()]),
+        );
+        assert_eq!(
+            sap("example.com:80").unwrap(),
+            RI::Exit("example.com".to_owned()),
+        );
     }
 
     #[test]

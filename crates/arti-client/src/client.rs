@@ -4,7 +4,7 @@
 //! Once the client is bootstrapped, you can make anonymous
 //! connections ("streams") over the Tor network using
 //! [`TorClient::connect`].
-use crate::address::{IntoTorAddr, StreamInstructions};
+use crate::address::{IntoTorAddr, ResolveInstructions, StreamInstructions};
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use safelog::{sensitive, Sensitive};
@@ -920,23 +920,31 @@ impl<R: Runtime> TorClient<R> {
         hostname: &str,
         prefs: &StreamPrefs,
     ) -> crate::Result<Vec<IpAddr>> {
+        // TODO This dummy port is only because `address::Host` is not pub(crate),
+        // but I see no reason why it shouldn't be?  Then `into_resolve_instructions`
+        // should be a method on `Host`, not `TorAddr`.  -Diziet.
         let addr = (hostname, 1).into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get()).map_err(wrap_err)?;
 
-        let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
+        match addr.into_resolve_instructions()? {
+            ResolveInstructions::Exit(hostname) => {
+                let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
-        let resolve_future = circ.resolve(hostname);
-        let addrs = self
-            .runtime
-            .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
-            .await
-            .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(|cause| ErrorDetail::StreamFailed {
-                cause,
-                kind: "DNS lookup",
-            })?;
+                let resolve_future = circ.resolve(&hostname);
+                let addrs = self
+                    .runtime
+                    .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
+                    .await
+                    .map_err(|_| ErrorDetail::ExitTimeout)?
+                    .map_err(|cause| ErrorDetail::StreamFailed {
+                        cause,
+                        kind: "DNS lookup",
+                    })?;
 
-        Ok(addrs)
+                Ok(addrs)
+            }
+            ResolveInstructions::Return(addrs) => Ok(addrs),
+        }
     }
 
     /// Perform a remote DNS reverse lookup with the provided IP address.
