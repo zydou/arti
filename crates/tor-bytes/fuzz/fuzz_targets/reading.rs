@@ -12,7 +12,11 @@ enum Op {
     CheckExhausted,
     Truncate(usize),
     Peek(usize),
+    ReadNestedU8(Vec<Op>),
+    ReadNestedU16(Vec<Op>),
+    ReadNestedU32(Vec<Op>),
     Take(usize),
+    TakeRest,
     TakeU8,
     TakeU16,
     TakeU32,
@@ -67,8 +71,29 @@ impl Op {
             Peek(n) => {
                 let _ignore = r.peek(n);
             }
+            ReadNestedU8(ops) => {
+                let _ignore = r.read_nested_u8len(|r_inner| {
+                    ops.into_iter().for_each(|op| op.run(r_inner));
+                    Ok(())
+                });
+            }
+            ReadNestedU16(ops) => {
+                let _ignore = r.read_nested_u16len(|r_inner| {
+                    ops.into_iter().for_each(|op| op.run(r_inner));
+                    Ok(())
+                });
+            }
+            ReadNestedU32(ops) => {
+                let _ignore = r.read_nested_u32len(|r_inner| {
+                    ops.into_iter().for_each(|op| op.run(r_inner));
+                    Ok(())
+                });
+            }
             Take(n) => {
                 let _ignore = r.take(n);
+            }
+            TakeRest => {
+                let _ignore = r.take_rest();
             }
             TakeInto(n) => {
                 let n = n as usize;
