@@ -120,6 +120,22 @@ pub struct TorAddr {
     port: u16,
 }
 
+/// How to make a stream to this `TorAddr`?
+///
+/// This is a separate type, returned from `address.rs` to `client.rs`,
+/// so that we can test our "how to make a connection" logic and policy,
+/// in isolation, without a whole Tor client.
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) enum StreamInstructions {
+    /// Create an exit circuit suitable for port, and then make a stream to `hostname`
+    Exit {
+        /// Hostname
+        hostname: String,
+        /// Port
+        port: u16,
+    },
+}
+
 impl TorAddr {
     /// Construct a TorAddr from its constituent parts, rejecting it if the
     /// port is zero.
@@ -153,10 +169,22 @@ impl TorAddr {
 
     /// Extract a `String`-based hostname and a `u16` port from this
     /// address.
+    //
+    // TODO Remove this function - it is dangerously vague in semantics.
     pub(crate) fn into_string_and_port(self) -> (String, u16) {
         let host = self.host.to_string();
         let port = self.port;
         (host, port)
+    }
+
+    /// Get instructions for how to make a stream to this address
+    pub(crate) fn into_stream_instructions(self) -> StreamInstructions {
+        // TODO enforcement of the config should go here, not separately
+        let port = self.port;
+        match self.host {
+            Host::Hostname(hostname) => StreamInstructions::Exit { hostname, port },
+            Host::Ip(ip) => StreamInstructions::Exit { hostname: ip.to_string(), port },
+        }
     }
 
     /// Return true if the `host` in this address is local.
@@ -467,6 +495,24 @@ mod test {
         assert!(ip("[2001:db8::42]:65535"));
         assert!(!ip("example.com:80"));
         assert!(!ip("example.onion:80"));
+    }
+
+    #[test]
+    fn stream_instructions() {
+        use StreamInstructions as SI;
+
+        fn sap(s: &str) -> StreamInstructions {
+            TorAddr::from(s).unwrap().into_stream_instructions()
+        }
+
+        assert_eq!(
+            sap("[2001:db8::42]:9001"),
+            SI::Exit { hostname: "2001:db8::42".to_owned(), port: 9001 },
+        );
+        assert_eq!(
+            sap("example.com:80"),
+            SI::Exit { hostname: "example.com".to_owned(), port: 80 },
+        );
     }
 
     #[test]
