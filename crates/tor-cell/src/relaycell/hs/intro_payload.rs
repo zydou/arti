@@ -1,4 +1,7 @@
-//! Implementation for the encrypted portion of an INTRODUCE message.
+//! The encrypted portion of an INTRODUCE message.
+//!
+//! (This is as described as the "decrypted plaintext" in section 3.3 of
+//! rend-spec-v3.txt)
 //!
 //! TODO HS: maybe rename this module.
 //!
@@ -20,7 +23,7 @@ caret_int! {
 decl_extension_group! {
     /// An extension to an [`IntroduceHandshakePayload`].
     ///
-    /// (Currently, no extensions of this type are recognized)
+    /// (Currently, no extensions of this type are recognized.)
     #[derive(Debug,Clone)]
     enum IntroPayloadExt [ IntroPayloadExtType ] {
     }
@@ -28,6 +31,8 @@ decl_extension_group! {
 
 caret_int! {
     /// An enumeration value to identify a type of onion key.
+    ///
+    /// Corresponds to `ONION_KEY_TYPE` in the spec.
     struct OnionKeyType(u8) {
         NTOR = 0x01,
     }
@@ -36,6 +41,8 @@ caret_int! {
 /// An onion key provided in an IntroduceHandshakePayload.
 ///
 /// TODO HS: Is there a logical type somewhere else to coalesce this with?
+///
+/// Corresponds to `ONION_KEY` in the spec.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum OnionKey {
@@ -79,15 +86,28 @@ impl Writeable for OnionKey {
 ///
 /// This payload is sent from a client to the onion service to tell it how to reach
 /// the client's chosen rendezvous point.
+///
+/// This corresponds to the "decrypted payload" in section 3.3 of
+/// rend-spec-v3.txt.
 #[derive(Clone, Debug)]
 pub struct IntroduceHandshakePayload {
     /// The rendezvous cookie to use at the rendezvous point.
+    ///
+    /// (`RENDEZVOUS_COOKIE` in the spec.)
     cookie: RendCookie,
-    /// A list of extensions to this payload
+    /// A list of extensions to this payload.
+    ///
+    /// (`N_EXTENSIONS`, `EXT_FIELD_TYPE`, `EXT_FIELD_LEN`, and `EXT_FIELD` in
+    /// the spec.)
     extensions: ExtList<IntroPayloadExt>,
     /// The onion key to use when extending a circuit to the rendezvous point.
+    ///
+    /// (`ONION_KEY_TYPE`, `ONION_KEY_LEN`, and `ONION_KEY` in the spec. This
+    /// represents `KP_ntor` for the rendezvous point.)
     onion_key: OnionKey,
     /// A list of link specifiers to identify the rendezvous point.
+    ///
+    /// (`NSPEC`, `LSTYPE`, `LSLEN`, and `LSPEC` in the spec.)
     link_specifiers: Vec<UnparsedLinkSpec>,
 }
 
