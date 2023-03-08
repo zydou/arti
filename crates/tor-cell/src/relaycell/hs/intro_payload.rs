@@ -1,7 +1,7 @@
-//! The encrypted portion of an INTRODUCE message.
+//! The encrypted portion of an INTRODUCE{1,2} message.
 //!
 //! (This is as described as the "decrypted plaintext" in section 3.3 of
-//! rend-spec-v3.txt)
+//! rend-spec-v3.txt; it is )
 //!
 //! TODO HS: maybe rename this module.
 //!
@@ -78,7 +78,7 @@ impl Writeable for OnionKey {
     }
 }
 
-/// The plaintext of the encrypted portion of an INTRODUCE message.
+/// The plaintext of the encrypted portion of an INTRODUCE{1,2} message.
 ///
 /// This is not a RelayMsg itself; it is instead used as the payload for an
 /// `hs-ntor` handshake, which is passed to the onion service in `Introduce[12]`
