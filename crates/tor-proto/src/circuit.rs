@@ -292,13 +292,18 @@ impl ClientCirc {
             .last_hop_num()
             .ok_or_else(|| internal!("no last hop index"))?;
         let handler = Box::new(msghandler::UserMsgHandler::new(last_hop, reply_handler));
+        let (sender, receiver) = oneshot::channel();
 
-        let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler { msg, handler };
+        let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
+            msg,
+            handler,
+            sender,
+        };
         self.control
             .unbounded_send(ctrl_msg)
             .map_err(|_| Error::CircuitClosed)?;
 
-        Ok(())
+        receiver.await.map_err(|_| Error::CircuitClosed)?
     }
 
     /// Tell this circuit to begin allowing the final hop of the circuit to try

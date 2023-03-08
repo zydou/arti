@@ -153,6 +153,9 @@ pub(super) enum CtrlMsg {
         /// A message handler to install.
         #[educe(Debug(ignore))]
         handler: Box<dyn MetaCellHandler + Send + 'static>,
+        /// A sender that we use to tell the caller that the message was sent
+        /// and the handler installed.
+        sender: oneshot::Sender<Result<()>>,
     },
     /// Send a SENDME cell (used to ask for more data to be sent) on the given stream.
     SendSendme {
@@ -1235,9 +1238,18 @@ impl Reactor {
                 let cell = AnyRelayCell::new(stream_id, sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
             }
-            CtrlMsg::SendMsgAndInstallHandler { msg, handler } => {
-                self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
-                self.set_meta_handler(handler)?;
+            CtrlMsg::SendMsgAndInstallHandler {
+                msg,
+                handler,
+                sender,
+            } => {
+                let outcome: Result<()> = (|| {
+                    self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
+                    self.set_meta_handler(handler)?;
+                    Ok(())
+                })();
+                let _ = sender.send(outcome.clone()); // don't care if receiver goes away.
+                outcome?;
             }
             #[cfg(test)]
             CtrlMsg::AddFakeHop {
