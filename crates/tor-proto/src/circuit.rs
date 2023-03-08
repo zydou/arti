@@ -249,6 +249,13 @@ impl ClientCirc {
     /// protocol; most users of this API will not need to call it.  It is used
     /// to implement most of the onion service handshake.
     ///
+    /// # Limitations
+    ///
+    /// For now, only one `MsgHandler` may be installed on a circuit at a time.
+    /// If you try to install another `MsgHandler`, or if try to extend this
+    /// circuit, before the `MsgHandler` you provide here returns
+    /// [`MetaCellDisposition::UninstallHandler`], the circuit will close with
+    /// an error.
     //
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
