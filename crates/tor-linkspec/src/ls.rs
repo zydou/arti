@@ -160,6 +160,16 @@ pub struct UnparsedLinkSpec {
     body: Vec<u8>,
 }
 
+impl UnparsedLinkSpec {
+    /// Create a new `UnparsedLinkSpec`.
+    pub fn new(lstype: u8, body: impl Into<Vec<u8>>) -> Self {
+        UnparsedLinkSpec {
+            lstype,
+            body: body.into(),
+        }
+    }
+}
+
 impl Readable for UnparsedLinkSpec {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let lstype = r.take_u8()?;
