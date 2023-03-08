@@ -302,6 +302,7 @@ pub(crate) mod test_config {
     /// Testing configuration, with public fields
     #[derive(Default, derive_more::AsRef)]
     #[allow(clippy::exhaustive_structs)]
+    #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
     pub struct TestConfig {
         ///
         pub path_rules: PathConfig,

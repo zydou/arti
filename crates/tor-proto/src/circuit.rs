@@ -43,6 +43,8 @@ pub(crate) mod halfcirc;
 mod halfstream;
 #[cfg(feature = "hs-common")]
 pub mod handshake;
+#[cfg(feature = "experimental-api")]
+mod msghandler;
 mod path;
 pub(crate) mod reactor;
 pub(crate) mod sendme;
@@ -55,7 +57,7 @@ use crate::circuit::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
 pub use crate::circuit::unique_id::UniqId;
-use crate::crypto::cell::{HopNum, InboundClientCrypt, OutboundClientCrypt};
+use crate::crypto::cell::HopNum;
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
@@ -66,7 +68,7 @@ use tor_cell::{
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::{bad_api_usage, internal, into_internal};
+use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget, RelayIdType};
 
 use futures::channel::{mpsc, oneshot};
@@ -84,6 +86,10 @@ use self::reactor::RequireSendmeAuth;
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
+
+#[cfg(feature = "experimental-api")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
+pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 
 #[derive(Clone, Debug)]
 /// A circuit that we have constructed over the Tor network.
@@ -233,74 +239,78 @@ impl ClientCirc {
         &self.channel
     }
 
-    /// Send a control message to the final hop on this circuit.
+    /// Send a control message to the final hop on this circuit, and wait for
+    /// one or more messages in reply.
+    ///
+    /// (These steps are performed atomically, so that incoming messages can be
+    /// accepted immediately after the outbound message is sent.)
     ///
     /// Note that it is quite possible to use this function to violate the tor
     /// protocol; most users of this API will not need to call it.  It is used
     /// to implement most of the onion service handshake.
     ///
-    /// (This function is not yet implemented. Right now it will always panic.)
+    /// # Limitations
+    ///
+    /// For now, only one `MsgHandler` may be installed on a circuit at a time.
+    /// If you try to install another `MsgHandler`, or if try to extend this
+    /// circuit, before the `MsgHandler` you provide here returns
+    /// [`MetaCellDisposition::UninstallHandler`], the circuit will close with
+    /// an error.
     //
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
     //   reactor code, but "meta messages" just sounds odd.
     //
-    // TODO hs: possibly this should take a more encoded message type.
-    //
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
-    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
-    #[cfg(feature = "experimental-api")]
-    pub async fn send_control_message(&self, msg: AnyRelayMsg) -> Result<()> {
-        todo!() // TODO hs
-    }
-
-    /// Begin accepting 'control' messages from the final hop on this circuit,
-    /// and return an asynchronous stream of any such messages that arrive.
-    ///
-    /// A "control" message is a message without a stream ID that `tor-proto`
-    /// does not handle on its own.  (The messages that `tor-proto` can handle
-    /// are DESTROY, DATA, SENDME, ...)  Ordinarily, any unexpected control
-    /// message will cause the circuit to exit with an error.
-    ///
-    /// There can only be one stream of this type created on a given circuit at
-    /// a time. If a such a stream already exists, this method will return an
-    /// error.
-    ///
-    /// The caller should be sure to close the circuit if a command that _it_
-    /// doesn't recognize shows up.
-    ///
-    /// (This function is not yet implemented; right now, it will always panic.)
     //
-    // TODO hs: Possibly this function (and send_control_message) should use
+    // TODO hs: I'm not sure this API is the right shape...
+    //
+    // It's a little overkill for ESTABLISH_RENDEZVOUS where we expect a single
+    // RENDEZVOUS_ESTABLISHED, then eventually a single RENDEZVOUS2. It's also a
+    // little overkill for INTRODUCE1 where we expect an INTRODUCE_ACK.
+    //
+    // It will work for it's good for ESTABLISH_INTRO where we expect an
+    // INTRO_ESTABLISHED followed by a large number of INTRODUCE2-- though we
+    // might regret an unbounded circuit?
+    //
+    // It isn't quite right for RENDEZVOUS1, where we expect no reply, and want
+    // to send the message to the second-to-last hop (having added a virtual hop
+    // to the circuit.)
+    //
+    // TODO hs: Possibly this function should use
     // HopNum or similar to indicate which hop we're talking to, rather than
     // just doing "the last hop".
-    //
-    // TODO hs: There is possibly some kind of type trickery we could do here so
-    // that the stream would return a chosen type that implements
-    // `TryFrom<RelayMsg>` or something like that. Not sure whether that's a
-    // good idea.
-    //
+
     // TODO hs: Perhaps the stream here should yield a different type. Ian
     // thinks maybe we should store a callback instead.
     //
-    // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
-    //   "control" for a lot of other things. We say "meta" elsewhere in the
-    //   reactor code, but "meta messages" just sounds odd.
-    //
-    // TODO hs: This should return a stream of UnparsedRelayCell.
-    //
-    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
-    //   tor-proto interface.
     #[cfg(feature = "experimental-api")]
-    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
-    pub fn receive_control_messages(
+    pub async fn send_control_message(
         &self,
-    ) -> Result<impl futures::Stream<Item = Box<chancell::RawCellBody>>> {
-        if false {
-            return Ok(futures::stream::empty()); // TODO hs remove; this is just here for type inference.
+        msg: tor_cell::relaycell::AnyRelayCell,
+        reply_handler: impl MsgHandler + Send + 'static,
+    ) -> Result<()> {
+        if msg.stream_id() != 0.into() {
+            return Err(bad_api_usage!("Not a control message.").into());
         }
-        todo!() // TODO hs implement.
+        let last_hop = self
+            .path
+            .last_hop_num()
+            .ok_or_else(|| internal!("no last hop index"))?;
+        let handler = Box::new(msghandler::UserMsgHandler::new(last_hop, reply_handler));
+        let (sender, receiver) = oneshot::channel();
+
+        let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
+            msg,
+            handler,
+            sender,
+        };
+        self.control
+            .unbounded_send(ctrl_msg)
+            .map_err(|_| Error::CircuitClosed)?;
+
+        receiver.await.map_err(|_| Error::CircuitClosed)?
     }
 
     /// Tell this circuit to begin allowing the final hop of the circuit to try
@@ -412,15 +422,11 @@ impl ClientCirc {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
-        let num_hops = self.path.n_hops();
-        if num_hops == 0 {
-            return Err(Error::from(internal!(
-                "Can't begin a stream at the 0th hop"
-            )));
-        }
-        let hop_num: HopNum = u8::try_from(num_hops - 1)
-            .map_err(into_internal!("Couldn't convert path length to u8"))?
-            .into();
+        let hop_num = self
+            .path
+            .last_hop_num()
+            .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
+
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (tx, rx) = oneshot::channel();
         let (msg_tx, msg_rx) = mpsc::channel(CIRCUIT_BUFFER_SIZE);
@@ -607,23 +613,7 @@ impl PendingClientCirc {
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
     ) -> (PendingClientCirc, reactor::Reactor) {
-        let crypto_out = OutboundClientCrypt::new();
-        let (control_tx, control_rx) = mpsc::unbounded();
-        let path = Arc::new(path::Path::default());
-
-        let reactor = Reactor {
-            control: control_rx,
-            outbound: Default::default(),
-            channel: channel.clone(),
-            input,
-            crypto_in: InboundClientCrypt::new(),
-            hops: vec![],
-            unique_id,
-            channel_id: id,
-            crypto_out,
-            meta_handler: None,
-            path: Arc::clone(&path),
-        };
+        let (reactor, control_tx, path) = Reactor::new(channel.clone(), id, unique_id, input);
 
         let circuit = ClientCirc {
             path,

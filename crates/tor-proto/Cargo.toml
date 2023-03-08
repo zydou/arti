@@ -20,7 +20,7 @@ ntor_v3 = []
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
 hs-common = []
-experimental-api = []
+experimental-api = ["visibility"]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = []
@@ -63,6 +63,7 @@ tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
 tor-units = { path = "../tor-units", version = "0.5.0" }
 tracing = "0.1.18"
 typenum = "1.12"
+visibility = { version = "0.0.1", optional = true }
 zeroize = "1"
 
 [dev-dependencies]
@@ -73,7 +74,10 @@ itertools = "0.10.1"
 regex = { version = "1", default-features = false, features = ["std"] }
 statrs = "0.16.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = [
+    "tokio",
+    "native-tls",
+] }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

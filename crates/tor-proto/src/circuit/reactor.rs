@@ -87,7 +87,8 @@ pub(super) enum CircuitHandshake {
 }
 
 /// A message telling the reactor to do something.
-#[derive(Debug)]
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub(super) enum CtrlMsg {
     /// Create the first hop of this circuit.
     Create {
@@ -142,6 +143,19 @@ pub(super) enum CtrlMsg {
         done: ReactorResultChannel<StreamId>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
+    },
+    /// Send a given control message on this circuit, and install a control-message handler to
+    /// receive responses.
+    // TODO hs naming.
+    SendMsgAndInstallHandler {
+        /// The message to send
+        msg: AnyRelayCell,
+        /// A message handler to install.
+        #[educe(Debug(ignore))]
+        handler: Box<dyn MetaCellHandler + Send + 'static>,
+        /// A sender that we use to tell the caller that the message was sent
+        /// and the handler installed.
+        sender: oneshot::Sender<Result<()>>,
     },
     /// Send a SENDME cell (used to ask for more data to be sent) on the given stream.
     SendSendme {
@@ -281,7 +295,30 @@ pub(super) trait MetaCellHandler: Send {
     /// Gets a copy of the `Reactor` in order to do anything it likes there.
     ///
     /// If this function returns an error, the reactor will shut down.
-    fn finish(&mut self, msg: UnparsedRelayCell, reactor: &mut Reactor) -> Result<()>;
+    fn handle_msg(
+        &mut self,
+        msg: UnparsedRelayCell,
+        reactor: &mut Reactor,
+    ) -> Result<MetaCellDisposition>;
+}
+
+/// A possible successful outcome of giving a message to a [`MsgHandler`](super::msghandler::MsgHandler).
+///
+/// (This deliberately does _not_ implement `Clone`, in case we want it to include
+/// a the cell itself later on.)
+#[derive(Debug)]
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[non_exhaustive]
+pub(super) enum MetaCellDisposition {
+    /// The message was consumed; the handler should remain installed.
+    Consumed,
+    /// The message was consumed; the handler should be uninstalled.
+    UninstallHandler,
+    /// The message was consumed; the circuit should be closed.
+    CloseCirc,
+    // TODO: Eventually we might want the ability to have multiple handlers
+    // installed, and to let them say "not for me, maybe for somebody else?".
+    // But right now we don't need that.
 }
 
 /// An object that can extend a circuit by one hop, using the `MetaCellHandler` trait.
@@ -307,6 +344,8 @@ where
     unique_id: UniqId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
     expected_hop: HopNum,
+    /// A oneshot channel that we should inform when we are done with this extend operation.
+    operation_finished: Option<oneshot::Sender<Result<()>>>,
     /// `PhantomData` used to make the other type parameters required for a circuit extension
     /// part of the `struct`, instead of having them be provided during a function call.
     ///
@@ -341,60 +380,68 @@ where
         require_sendme_auth: RequireSendmeAuth,
         params: CircParameters,
         reactor: &mut Reactor,
+        done: ReactorResultChannel<()>,
     ) -> Result<Self> {
-        let mut rng = rand::thread_rng();
-        let unique_id = reactor.unique_id;
+        match (|| {
+            let mut rng = rand::thread_rng();
+            let unique_id = reactor.unique_id;
 
-        use tor_cell::relaycell::msg::Extend2;
-        // Perform the first part of the cryptographic handshake
-        let (state, msg) = H::client1(&mut rng, key)?;
+            use tor_cell::relaycell::msg::Extend2;
+            // Perform the first part of the cryptographic handshake
+            let (state, msg) = H::client1(&mut rng, key)?;
 
-        let n_hops = reactor.crypto_out.n_layers();
-        let hop = ((n_hops - 1) as u8).into();
+            let n_hops = reactor.crypto_out.n_layers();
+            let hop = ((n_hops - 1) as u8).into();
 
-        debug!(
-            "{}: Extending circuit to hop {} with {:?}",
-            unique_id,
-            n_hops + 1,
-            linkspecs
-        );
+            debug!(
+                "{}: Extending circuit to hop {} with {:?}",
+                unique_id,
+                n_hops + 1,
+                linkspecs
+            );
 
-        let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
-        let cell = AnyRelayCell::new(0.into(), extend_msg.into());
+            let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
+            let cell = AnyRelayCell::new(0.into(), extend_msg.into());
 
-        // Send the message to the last hop...
-        reactor.send_relay_cell(
-            cx, hop, true, // use a RELAY_EARLY cell
-            cell,
-        )?;
-        trace!("{}: waiting for EXTENDED2 cell", unique_id);
-        // ... and now we wait for a response.
+            // Send the message to the last hop...
+            reactor.send_relay_cell(
+                cx, hop, true, // use a RELAY_EARLY cell
+                cell,
+            )?;
+            trace!("{}: waiting for EXTENDED2 cell", unique_id);
+            // ... and now we wait for a response.
 
-        Ok(Self {
-            peer_id,
-            state: Some(state),
-            require_sendme_auth,
-            params,
-            unique_id,
-            expected_hop: hop,
-            phantom: Default::default(),
-        })
+            Ok::<CircuitExtender<_, _, _, _>, Error>(Self {
+                peer_id,
+                state: Some(state),
+                require_sendme_auth,
+                params,
+                unique_id,
+                expected_hop: hop,
+                operation_finished: None,
+                phantom: Default::default(),
+            })
+        })() {
+            Ok(mut result) => {
+                result.operation_finished = Some(done);
+                Ok(result)
+            }
+            Err(e) => {
+                // It's okay if the receiver went away.
+                let _ = done.send(Err(e.clone()));
+                Err(e)
+            }
+        }
     }
-}
 
-impl<H, L, FWD, REV> MetaCellHandler for CircuitExtender<H, L, FWD, REV>
-where
-    H: ClientHandshake,
-    H::StateType: Send,
-    H::KeyGen: KeyGenerator,
-    L: CryptInit + ClientLayer<FWD, REV> + Send,
-    FWD: OutboundClientLayer + 'static + Send,
-    REV: InboundClientLayer + 'static + Send,
-{
-    fn expected_hop(&self) -> HopNum {
-        self.expected_hop
-    }
-    fn finish(&mut self, msg: UnparsedRelayCell, reactor: &mut Reactor) -> Result<()> {
+    /// Perform the work of extending the circuit another hop.
+    ///
+    /// This is a separate function to simplify the error-handling work of handle_msg().
+    fn extend_circuit(
+        &mut self,
+        msg: UnparsedRelayCell,
+        reactor: &mut Reactor,
+    ) -> Result<MetaCellDisposition> {
         let msg = msg
             .decode::<tor_cell::relaycell::msg::Extended2>()
             .map_err(|e| Error::from_bytes_err(e, "extended2 message"))?
@@ -427,7 +474,38 @@ where
             Box::new(layer_back),
             &self.params,
         );
-        Ok(())
+        Ok(MetaCellDisposition::UninstallHandler)
+    }
+}
+
+impl<H, L, FWD, REV> MetaCellHandler for CircuitExtender<H, L, FWD, REV>
+where
+    H: ClientHandshake,
+    H::StateType: Send,
+    H::KeyGen: KeyGenerator,
+    L: CryptInit + ClientLayer<FWD, REV> + Send,
+    FWD: OutboundClientLayer + 'static + Send,
+    REV: InboundClientLayer + 'static + Send,
+{
+    fn expected_hop(&self) -> HopNum {
+        self.expected_hop
+    }
+    fn handle_msg(
+        &mut self,
+        msg: UnparsedRelayCell,
+        reactor: &mut Reactor,
+    ) -> Result<MetaCellDisposition> {
+        let status = self.extend_circuit(msg, reactor);
+
+        if let Some(done) = self.operation_finished.take() {
+            // ignore it if the receiving channel went away.
+            let _ = done.send(status.as_ref().map(|_| ()).map_err(Clone::clone));
+            status
+        } else {
+            Err(Error::from(internal!(
+                "Passed two messages to an CircuitExtender!"
+            )))
+        }
     }
 }
 
@@ -438,7 +516,7 @@ where
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub struct Reactor {
     /// Receiver for control messages for this reactor, sent by `ClientCirc` objects.
-    pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
+    control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// Buffer for cells we can't send out the channel yet due to it being full.
     ///
     /// We try and dequeue off this first before doing anything else, ensuring that
@@ -447,32 +525,66 @@ pub struct Reactor {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    pub(super) outbound: VecDeque<AnyChanCell>,
+    outbound: VecDeque<AnyChanCell>,
     /// The channel this circuit is using to send cells through.
-    pub(super) channel: Channel,
+    channel: Channel,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
     // TODO: could use a SPSC channel here instead.
-    pub(super) input: mpsc::Receiver<ClientCircChanMsg>,
+    input: mpsc::Receiver<ClientCircChanMsg>,
     /// The cryptographic state for this circuit for inbound cells.
     /// This object is divided into multiple layers, each of which is
     /// shared with one hop of the circuit.
-    pub(super) crypto_in: InboundClientCrypt,
+    crypto_in: InboundClientCrypt,
     /// The cryptographic state for this circuit for outbound cells.
-    pub(super) crypto_out: OutboundClientCrypt,
+    crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
-    pub(super) hops: Vec<CircHop>,
-    /// Shared atomic for the number of hops this circuit has.
-    pub(super) path: Arc<path::Path>,
+    hops: Vec<CircHop>,
+    /// Shared atomic for information about the circuit's current path.
+    path: Arc<path::Path>,
     /// An identifier for logging about this reactor's circuit.
-    pub(super) unique_id: UniqId,
+    unique_id: UniqId,
     /// This circuit's identifier on the upstream channel.
-    pub(super) channel_id: CircId,
+    channel_id: CircId,
     /// A handler for a meta cell, together with a result channel to notify on completion.
-    pub(super) meta_handler: Option<(Box<dyn MetaCellHandler>, ReactorResultChannel<()>)>,
+    meta_handler: Option<Box<dyn MetaCellHandler>>,
 }
 
 impl Reactor {
+    /// Create a new circuit reactor.
+    ///
+    /// The reactor will send outbound messages on `channel`, receive incoming
+    /// messages on `input`, and identify this circuit by the channel-local
+    /// [`CircId`] provided.
+    ///
+    /// The internal unique identifier for this circuit will be `unique_id`.
+    pub(super) fn new(
+        channel: Channel,
+        channel_id: CircId,
+        unique_id: UniqId,
+        input: mpsc::Receiver<ClientCircChanMsg>,
+    ) -> (Self, mpsc::UnboundedSender<CtrlMsg>, Arc<path::Path>) {
+        let crypto_out = OutboundClientCrypt::new();
+        let (control_tx, control_rx) = mpsc::unbounded();
+        let path = Arc::new(path::Path::default());
+
+        let reactor = Reactor {
+            control: control_rx,
+            outbound: Default::default(),
+            channel,
+            input,
+            crypto_in: InboundClientCrypt::new(),
+            hops: vec![],
+            unique_id,
+            channel_id,
+            crypto_out,
+            meta_handler: None,
+            path: path.clone(),
+        };
+
+        (reactor, control_tx, path)
+    }
+
     /// Launch the reactor, and run until the circuit closes or we
     /// encounter an error.
     ///
@@ -870,25 +982,28 @@ impl Reactor {
         // TODO: that means that service-introduction circuits will need
         // a different implementation, but that should be okay. We'll work
         // something out.
-        if let Some((mut handler, done)) = self.meta_handler.take() {
+        if let Some(mut handler) = self.meta_handler.take() {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message
-                let ret = handler.finish(msg, self);
+                let ret = handler.handle_msg(msg, self);
                 trace!(
                     "{}: meta handler completed with result: {:?}",
                     self.unique_id,
                     ret
                 );
-                let status = match &ret {
-                    Ok(()) => Ok(CellStatus::Continue),
-                    Err(e) => Err(e.clone()),
-                };
-                let _ = done.send(ret); // don't care if sender goes away
-                status
+                match ret {
+                    Ok(MetaCellDisposition::Consumed) => {
+                        self.meta_handler = Some(handler);
+                        Ok(CellStatus::Continue)
+                    }
+                    Ok(MetaCellDisposition::UninstallHandler) => Ok(CellStatus::Continue),
+                    Ok(MetaCellDisposition::CloseCirc) => Ok(CellStatus::CleanShutdown),
+                    Err(e) => Err(e),
+                }
             } else {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
-                self.meta_handler = Some((handler, done));
+                self.meta_handler = Some(handler);
                 Err(Error::CircProto(format!(
                     "Unexpected {} cell from hop {} on client circuit",
                     msg.cmd(),
@@ -1067,13 +1182,9 @@ impl Reactor {
 
     /// Try to install a given meta-cell handler to receive any unusual cells on
     /// this circuit, along with a result channel to notify on completion.
-    fn set_meta_handler(
-        &mut self,
-        handler: Box<dyn MetaCellHandler>,
-        done: ReactorResultChannel<()>,
-    ) -> Result<()> {
+    fn set_meta_handler(&mut self, handler: Box<dyn MetaCellHandler>) -> Result<()> {
         if self.meta_handler.is_none() {
-            self.meta_handler = Some((handler, done));
+            self.meta_handler = Some(handler);
             Ok(())
         } else {
             Err(Error::from(internal!(
@@ -1098,7 +1209,7 @@ impl Reactor {
                 params,
                 done,
             } => {
-                match CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
+                let extender = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
                     cx,
                     peer_id,
                     0x02,
@@ -1107,14 +1218,9 @@ impl Reactor {
                     require_sendme_auth,
                     params,
                     self,
-                ) {
-                    Ok(e) => {
-                        self.set_meta_handler(Box::new(e), done)?;
-                    }
-                    Err(e) => {
-                        let _ = done.send(Err(e));
-                    }
-                };
+                    done,
+                )?;
+                self.set_meta_handler(Box::new(extender))?;
             }
             CtrlMsg::BeginStream {
                 hop_num,
@@ -1131,6 +1237,19 @@ impl Reactor {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayCell::new(stream_id, sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
+            }
+            CtrlMsg::SendMsgAndInstallHandler {
+                msg,
+                handler,
+                sender,
+            } => {
+                let outcome: Result<()> = (|| {
+                    self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
+                    self.set_meta_handler(handler)?;
+                    Ok(())
+                })();
+                let _ = sender.send(outcome.clone()); // don't care if receiver goes away.
+                outcome?;
             }
             #[cfg(test)]
             CtrlMsg::AddFakeHop {

@@ -153,7 +153,7 @@ pub struct EstablishIntroDetails {
 /// on a Relay, but not for generating an outgoing EstablishIntro message.
 ///
 /// Onion services should not construct this message object; instead, they
-/// should construct an [`EstablishIntroBody`], and then call its
+/// should construct an [`EstablishIntroDetails`], and then call its
 /// `sign_and_encode` method.
 #[derive(educe::Educe, Clone)]
 #[educe(Debug)]
@@ -348,7 +348,7 @@ impl EstablishIntro {
     /// Check whether this EstablishIntro message is well-signed (with its
     /// included key), and well authenticated with the provided MAC key.
     ///
-    /// On success, return the [`EstablishIntroBody`] describing how to function
+    /// On success, return the [`EstablishIntroDetails`] describing how to function
     /// as an introduction point for this service.  On failure, return an error.
     pub fn check_and_unwrap(
         self,
