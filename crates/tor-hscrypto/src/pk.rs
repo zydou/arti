@@ -154,7 +154,9 @@ impl FromStr for HsId {
     fn from_str(s: &str) -> Result<Self, HsIdParseError> {
         use HsIdParseError as PE;
 
-        let s = s.strip_suffix_ignore_ascii_case(HSID_ONION_SUFFIX).ok_or(PE::NotOnionDomain)?;
+        let s = s
+            .strip_suffix_ignore_ascii_case(HSID_ONION_SUFFIX)
+            .ok_or(PE::NotOnionDomain)?;
 
         // We must convert to uppercase because RFC4648 says so and that's what Rust
         // ecosystem libraries for base32 expect.  All this allocation and copying is
