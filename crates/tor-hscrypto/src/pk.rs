@@ -499,6 +499,7 @@ mod test {
         chk_err!("aaaaaaaa.onion", PE::InvalidData(..));
         chk_err!(edited(55, b'E'), PE::UnsupportedVersion(4));
         chk_err!(edited(53, b'X'), PE::WrongChecksum);
+        chk_err!(&format!("www.{}", &onion), PE::InvalidBase32(..));
 
         assert_eq!(format!("{:x}", &hsid), format!("HsId(0x{})", hex));
         assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));
