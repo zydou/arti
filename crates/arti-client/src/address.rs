@@ -179,21 +179,22 @@ impl TorAddr {
     }
 
     /// Get instructions for how to make a stream to this address
-    pub(crate) fn into_stream_instructions(self) -> StreamInstructions {
+    #[allow(clippy::unnecessary_wraps)] // will become fallible when we have hidden services
+    pub(crate) fn into_stream_instructions(self) -> Result<StreamInstructions, ErrorDetail> {
         // TODO enforcement of the config should go here, not separately
         let port = self.port;
-        match self.host {
+        Ok(match self.host {
             Host::Hostname(hostname) => StreamInstructions::Exit { hostname, port },
             Host::Ip(ip) => StreamInstructions::Exit {
                 hostname: ip.to_string(),
                 port,
             },
-        }
+        })
     }
 
     /// Get instructions for how to make a stream to this address
     #[allow(clippy::unnecessary_wraps)] // will become fallible when we have hidden services
-    pub(crate) fn into_resolve_instructions(self) -> crate::Result<ResolveInstructions> {
+    pub(crate) fn into_resolve_instructions(self) -> Result<ResolveInstructions, ErrorDetail> {
         // TODO enforcement of the config should go here, not separately
         Ok(match self.host {
             Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
@@ -525,19 +526,19 @@ mod test {
     fn stream_instructions() {
         use StreamInstructions as SI;
 
-        fn sap(s: &str) -> StreamInstructions {
+        fn sap(s: &str) -> Result<StreamInstructions, ErrorDetail> {
             TorAddr::from(s).unwrap().into_stream_instructions()
         }
 
         assert_eq!(
-            sap("[2001:db8::42]:9001"),
+            sap("[2001:db8::42]:9001").unwrap(),
             SI::Exit {
                 hostname: "2001:db8::42".to_owned(),
                 port: 9001
             },
         );
         assert_eq!(
-            sap("example.com:80"),
+            sap("example.com:80").unwrap(),
             SI::Exit {
                 hostname: "example.com".to_owned(),
                 port: 80
@@ -549,7 +550,7 @@ mod test {
     fn resolve_instructions() {
         use ResolveInstructions as RI;
 
-        fn sap(s: &str) -> crate::Result<ResolveInstructions> {
+        fn sap(s: &str) -> Result<ResolveInstructions, ErrorDetail> {
             TorAddr::from(s).unwrap().into_resolve_instructions()
         }
 

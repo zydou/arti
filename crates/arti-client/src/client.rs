@@ -860,7 +860,7 @@ impl<R: Runtime> TorClient<R> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get())?;
 
-        match addr.into_stream_instructions() {
+        match addr.into_stream_instructions()? {
             StreamInstructions::Exit {
                 hostname: addr,
                 port,
