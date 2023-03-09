@@ -2,6 +2,7 @@
 //! Tor can connect to.
 
 use crate::err::ErrorDetail;
+use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str::FromStr;
 use thiserror::Error;
@@ -314,8 +315,8 @@ impl Host {
 impl std::fmt::Display for Host {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Host::Hostname(s) => write!(f, "{}", s),
-            Host::Ip(ip) => write!(f, "{}", ip),
+            Host::Hostname(s) => Display::fmt(s, f),
+            Host::Ip(ip) => Display::fmt(ip, f),
         }
     }
 }
