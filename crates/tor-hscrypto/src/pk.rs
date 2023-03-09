@@ -31,7 +31,7 @@ define_bytes! {
 /// corresponding secret key is controlled by the onion service.
 ///
 /// `HsId`'s `Display` and `FromStr` representation is the domain name
-/// `"${base32}.onion"`.
+/// `"${base32}.onion"`.  (Without any subdomains.)
 ///
 /// Note: This is a separate type from [`HsIdKey`] because it is about 6x
 /// smaller.
@@ -158,6 +158,10 @@ impl FromStr for HsId {
             .strip_suffix_ignore_ascii_case(HSID_ONION_SUFFIX)
             .ok_or(PE::NotOnionDomain)?;
 
+        if s.contains('.') {
+            return Err(PE::HsIdContainsSubdomain);
+        }
+
         // We must convert to uppercase because RFC4648 says so and that's what Rust
         // ecosystem libraries for base32 expect.  All this allocation and copying is
         // still probably less work than the SHA3 for the checksum.
@@ -190,6 +194,7 @@ impl FromStr for HsId {
 }
 
 /// Error that can occur parsing an `HsId` from a v3 `.onion` domain name
+// TODO HS this should probably implement ErrorKind
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 pub enum HsIdParseError {
@@ -214,6 +219,10 @@ pub enum HsIdParseError {
     /// Checksum failed
     #[error("Checksum failed, .onion address corrupted")]
     WrongChecksum,
+
+    /// If you try to parse a domain with subdomains as an `HsId`
+    #[error("`.onion` address with subdomain passed where not expected")]
+    HsIdContainsSubdomain,
 }
 
 impl HsId {
@@ -499,6 +508,7 @@ mod test {
         chk_err!("aaaaaaaa.onion", PE::InvalidData(..));
         chk_err!(edited(55, b'E'), PE::UnsupportedVersion(4));
         chk_err!(edited(53, b'X'), PE::WrongChecksum);
+        chk_err!(&format!("www.{}", &onion), PE::HsIdContainsSubdomain);
 
         assert_eq!(format!("{:x}", &hsid), format!("HsId(0x{})", hex));
         assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));

@@ -173,14 +173,22 @@ enum ErrorDetail {
     #[error("Timed out while waiting for answer from exit")]
     ExitTimeout,
 
-    /// Onion services are not supported yet, but we were asked to connect to
-    /// one.
+    /// Onion services are supported, but we were asked to connect to one.
     #[error("Rejecting .onion address as unsupported")]
     OnionAddressNotSupported,
 
+    /// Error when trying to find the IP address of a hidden service
+    #[error("A .onion address cannot be resolved to an IP address")]
+    OnionAddressResolveRequest,
+
     /// Unusable target address.
+    ///
+    /// `TorAddrError::InvalidHostname` should not appear here;
+    /// use `ErrorDetail::InvalidHostname` instead.
+    // TODO this is a violation of the "make invalid states unrepresentable" princkple,
+    // but maybe that doesn't matter too much here?
     #[error("Could not parse target address")]
-    Address(#[from] crate::address::TorAddrError),
+    Address(crate::address::TorAddrError),
 
     /// Hostname not valid.
     #[error("Rejecting hostname as invalid")]
@@ -317,6 +325,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::Reconfigure(e) => e.kind(),
             E::Spawn { cause, .. } => cause.kind(),
             E::OnionAddressNotSupported => EK::NotImplemented,
+            E::OnionAddressResolveRequest => EK::NotImplemented,
+            // TODO Should delegate to TorAddrError EK
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
@@ -330,6 +340,27 @@ impl tor_error::HasKind for ErrorDetail {
 impl From<TorAddrError> for Error {
     fn from(e: TorAddrError) -> Error {
         e.into()
+    }
+}
+
+impl From<TorAddrError> for ErrorDetail {
+    fn from(e: TorAddrError) -> ErrorDetail {
+        use ErrorDetail as E;
+        use TorAddrError as TAE;
+        match e {
+            TAE::InvalidHostname => E::InvalidHostname,
+            TAE::NoPort | TAE::BadPort => E::Address(e),
+            #[cfg(feature = "onion-client")]
+            TAE::BadOnion => E::Address(e),
+        }
+    }
+}
+
+#[cfg(feature = "onion-client")]
+impl From<tor_hscrypto::pk::HsIdParseError> for ErrorDetail {
+    // TODO HS throwing away the original error is not nice, see comment near BadOnion
+    fn from(_e: tor_hscrypto::pk::HsIdParseError) -> ErrorDetail {
+        TorAddrError::BadOnion.into()
     }
 }
 
