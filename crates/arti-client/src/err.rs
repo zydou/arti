@@ -182,8 +182,13 @@ enum ErrorDetail {
     OnionAddressResolveRequest,
 
     /// Unusable target address.
+    ///
+    /// `TorAddrError::InvalidHostname` should not appear here;
+    /// use `ErrorDetail::InvalidHostname` instead.
+    // TODO this is a violation of the "make invalid states unrepresentable" princkple,
+    // but maybe that doesn't matter too much here?
     #[error("Could not parse target address")]
-    Address(#[from] crate::address::TorAddrError),
+    Address(crate::address::TorAddrError),
 
     /// Hostname not valid.
     #[error("Rejecting hostname as invalid")]
@@ -335,6 +340,19 @@ impl tor_error::HasKind for ErrorDetail {
 impl From<TorAddrError> for Error {
     fn from(e: TorAddrError) -> Error {
         e.into()
+    }
+}
+
+impl From<TorAddrError> for ErrorDetail {
+    fn from(e: TorAddrError) -> ErrorDetail {
+        use ErrorDetail as E;
+        use TorAddrError as TAE;
+        match e {
+            TAE::InvalidHostname => E::InvalidHostname,
+            TAE::NoPort | TAE::BadPort => E::Address(e),
+            #[cfg(feature = "onion-client")]
+            TAE::BadOnion => E::Address(e),
+        }
     }
 }
 
