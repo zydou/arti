@@ -332,6 +332,14 @@ pub enum TorAddrError {
 }
 
 /// A host that Tor can connect to: either a hostname or an IP address.
+//
+// We use `String` in here, and pass that directly to (for example)
+// `HsId::from_str`, or `begin_stream`.
+// In theory we could use a couple of newtypes or something, but
+//  * The stringly-typed `HsId::from_str` call (on a string known to end `.onion`)
+//    appears precisely in `into_stream_instructions` which knows what it's doing;
+//  * The stringly-typed .onion domain name must be passed in the
+//    StreamInstructions so that we can send it to the HS for its vhosting.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Host {
     /// A hostname.
