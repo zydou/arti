@@ -309,6 +309,7 @@ impl std::fmt::Display for TorAddr {
 /// An error created while making or using a [`TorAddr`].
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[non_exhaustive]
+// TODO Should implement ErrorKind
 pub enum TorAddrError {
     /// Tried to parse a string that can never be interpreted as a valid host.
     #[error("String can never be a valid hostname")]
@@ -326,6 +327,7 @@ pub enum TorAddrError {
     // However, this struct wants to be Eq and HsIdParseError contains a tor_bytes::Error
     // which contains various other stuff that's not Eq.  We need a policy about whether
     // errors are always Eq (or maybe PartialEq).
+    // TODO HS the ErrorKind should delegate to HsIdParseError's
     BadOnion,
 }
 

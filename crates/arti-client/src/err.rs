@@ -327,6 +327,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::OnionAddressNotSupported => EK::NotImplemented,
             // TODO HS is this right?
             E::OnionAddressResolveRequest => EK::InvalidStreamTarget,
+            // TODO Should delegate to TorAddrError EK
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
