@@ -340,7 +340,7 @@ enum Host {
     /// Ie, it must not be a stringified IP address.
     ///
     /// Likewise, this variant must *not* be used for a `.onion` address.
-    /// Even if we have `.onion` support compiled out, we use the `HSv3` variant for that.
+    /// Even if we have `.onion` support compiled out, we use the `Onion` variant for that.
     ///
     /// But, this variant might *not* be on the public internet.
     /// For example, it might be `localhost`.
