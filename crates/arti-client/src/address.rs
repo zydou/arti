@@ -284,6 +284,7 @@ impl TorAddr {
 
         if let Host::Hostname(addr) = &self.host {
             if !is_valid_hostname(addr) {
+                // This ought not to occur, because it violates Host's invariant
                 return Err(ErrorDetail::InvalidHostname);
             }
             if addr.ends_with_ignore_ascii_case(HSID_ONION_SUFFIX) {
@@ -357,17 +358,19 @@ enum Host {
 impl FromStr for Host {
     type Err = TorAddrError;
     fn from_str(s: &str) -> Result<Host, TorAddrError> {
-        if s.ends_with_ignore_ascii_case(".onion") {
+        if s.ends_with_ignore_ascii_case(".onion") && is_valid_hostname(s) {
             Ok(Host::Onion(s.to_owned()))
         } else if let Ok(ip_addr) = s.parse() {
             Ok(Host::Ip(ip_addr))
-        } else {
+        } else if is_valid_hostname(s) {
             // TODO(nickm): we might someday want to reject some kinds of bad
             // hostnames here, rather than when we're about to connect to them.
             // But that would be an API break, and maybe not what people want.
             // Maybe instead we should have a method to check whether a hostname
             // is "bad"? Not sure; we'll need to decide the right behavior here.
             Ok(Host::Hostname(s.to_owned()))
+        } else {
+            Err(TorAddrError::InvalidHostname)
         }
     }
 }
