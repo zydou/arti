@@ -15,6 +15,7 @@ use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
 #[cfg(not(feature = "onion-client"))]
 pub(crate) mod hs_dummy {
     use super::*;
+    use tor_error::internal;
     use void::Void;
 
     /// Parsed hidden service identity - uninhabited, since not supported
@@ -32,15 +33,13 @@ pub(crate) mod hs_dummy {
     pub(crate) const HSID_ONION_SUFFIX: &str = ".onion";
 
     /// Must not be used other than for actual `.onion` addresses
-    ///
-    /// # Panics
-    ///
-    /// If passed a non`.onion` hostname
     impl FromStr for HsId {
         type Err = ErrorDetail;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
-            assert!(s.ends_with(HSID_ONION_SUFFIX));
+            if !s.ends_with(HSID_ONION_SUFFIX) {
+                return Err(internal!("non-.onion passed to dummy HsId::from_str").into());
+            }
 
             Err(ErrorDetail::OnionAddressNotSupported)
         }
