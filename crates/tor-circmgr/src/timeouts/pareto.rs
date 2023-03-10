@@ -248,7 +248,6 @@ impl History {
             .map(|(center, count)| (Reverse(count), center))
             // (k_smallest runs in O(n_bins * lg(n))
             .k_smallest(n)
-            .into_iter()
             .map(|(Reverse(count), center)| (center, count))
             .collect()
     }

@@ -13,7 +13,8 @@ use zeroize::Zeroize;
 /// some caution.
 ///
 /// (The decision to avoid implementing `Deref`/`DerefMut` is deliberate.)
-#[allow(clippy::derive_hash_xor_eq)]
+#[allow(renamed_and_removed_lints)] // TODO Remove @ MSRV 1.68
+#[allow(clippy::derive_hash_xor_eq)] // TODO Rename @ MSRV 1.68
 #[derive(Clone, Copy, Debug, Hash, Zeroize)]
 pub struct CtByteArray<const N: usize>([u8; N]);
 
