@@ -227,7 +227,6 @@ fn serve_payload(
 
     listener
         .incoming()
-        .into_iter()
         .map(|stream| {
             let send = Arc::clone(send);
             let receive = Arc::clone(receive);

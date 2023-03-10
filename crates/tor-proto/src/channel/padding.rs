@@ -587,7 +587,6 @@ mod test {
             assert_eq!(0, (max - min) % (n as u32)); // buckets must match up to integer boundaries
 
             let cdf = (0..=n)
-                .into_iter()
                 .map(|bi| {
                     let b = (bi as f64) / (n as f64);
                     // expected distribution:
