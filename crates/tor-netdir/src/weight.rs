@@ -165,6 +165,7 @@ bitflags! {
     ///
     /// Relays can have or lack the Guard flag, the Exit flag, and the
     /// V2Dir flag. All together, this makes 8 kinds of relays.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     struct WeightKind: u8 {
         /// Flag in weightkind for Guard relays.
         const GUARD = 1 << 0;
@@ -192,7 +193,7 @@ impl WeightKind {
     }
     /// Return the index to use for this kind of a relay within a WeightSet.
     fn idx(self) -> usize {
-        self.bits as usize
+        self.bits() as usize
     }
 }
 

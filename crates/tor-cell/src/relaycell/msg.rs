@@ -119,6 +119,7 @@ bitflags! {
     ///
     /// For historical reasons, these flags are constructed so that 0
     /// is a reasonable default for all of them.
+    #[derive(Clone, Copy, Debug)]
     pub struct BeginFlags : u32 {
         /// The client would accept a connection to an IPv6 address.
         const IPV6_OKAY = (1<<0);
