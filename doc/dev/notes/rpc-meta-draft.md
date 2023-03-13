@@ -1,12 +1,32 @@
-# Status
+## Status
 
 This is a draft document.
-It does not reflect anything we've built,
+It does not reflect anything we've buil,t
 or anything we necessarily will build.
 
 It attempts to describe semantics for an RPC mechanism
 for use in Arti.
 
+By starting with our RPC mechanism
+and its semantics,
+we aim to define a set of operations
+that we can implement reasonably
+for both local and out-of-process use.
+
+This document will begin by focusing
+on the _semantics_ of our RPC system
+using an abstract stream of objects.
+
+Once those are defined, we'll discuss
+a particular instantiation of the system
+using the `jsonlines` encoding:
+we intend that other encodings should also be possible,
+in case we need to change in the future.
+
+Finally, we will describe an initial series of methods
+that the system could support,
+to start exploring the design space, and
+to show what our specifications might look like going forward,
 
 # Intended semantics
 
@@ -23,7 +43,8 @@ and aren't coming from a confused web browser or something.
 (This authentication can use unix domain sockets,
 proof of an ability to read some part of the filesystem,
 or a pre-established shared secret.
-The control stream itself should be done with TLS.)
+Sessions should not normally cross the network.
+If they do, they must use TLS.)
 
 Different sessions cannot access one another's status:
 they cannot ordinarily list each other's circuits,
@@ -43,12 +64,13 @@ use CPU or network exhaustion
 to try to detect other applications' load and behavior.
 We don't try to resist attacks on that level.)
 
-By default, sessions are not persistent:
+In this specification, sessions are not persistent:
 once a session is closed, there is no way to re-establish it.
 Instead, the application must start a new session,
 without access to the previous session's state.
 We may eventually provide a way to make sessions persistent
-and allow apps to re-connect to a session.
+and allow apps to re-connect to a session,
+but that will not be the default.
 
 
 ## Messages
@@ -77,7 +99,8 @@ A final response may be an "error",
 indicating that the request was not well-formed,
 or could not be performed successfully.
 
-> Note that although every request must accept a final response,
+> Note that although the client must be prepared
+> to receive a final response for any request,
 > some request types will never get one in practice.
 > For example, a request to observe all circuit-build events
 > will receive only a series of intermediate responses.
@@ -97,6 +120,8 @@ in response to the application's requests.
 If an object is not visible in a session,
 that session cannot access it.
 
+> For more on how this is implemented,
+> see "Representing objects" below.
 
 ## Request and response types
 
@@ -106,14 +131,16 @@ and each with an associated set of named parameters.
 Some requests can be sent to many kinds of object;
 some are only suitable for one kind of object.
 
-Every request is associated with one or more types of response.
+When we define a request,
+we must also define the types of responses
+that will be sent in reply to it.
 Every response has a given set of named parameters.
 
-> TODO: Describe what should be done with unrecognized parameters.
-> This will represent a compromise between
-> the desire to be extensible,
-> and the desire to avoid surprising behavior
-> if an unrecognized parameter has important semantics.
+Unrecognized parameters must be ignored.
+
+Invalid JSON
+and parameter values that do not match their specified types
+must be treated as an error.
 
 ## Data Streams
 
@@ -152,15 +179,20 @@ for our requests:
 
 id
 : An identifier for the request.
-  This may be a positive integer or a string. It is required.
-  Implementations MUST accept integers up to U64_MAX.
+  This may be an integer or a string. It is required.
+  Arti will accept integers between `INT64_MIN` and `INT64_MAX`.
 
 obj
 : An identifier for the object that will receive this request.
-  This is a string. It is required.
+  This is a string.  It is required.
 
 method
 : A string naming the method to invoke. It is required.
+  Method names are namespaced;
+  For now, we commit to not using any method name
+  beginning with "x-" or "X-".
+  (If you want to reserve any other prefix,
+  we can eventually start a registry or something.)
 
 params
 : An object describing the parameters for the. It is optional.
@@ -171,12 +203,21 @@ meta
   It is optional.
   Unrecognized fields are ignored.
   The only recognized field is currently:
-  "accept_intermediate"­a boolean that indicates whether
+  "updates"­a boolean that indicates whether
   intermediate responses are acceptable.
   It defaults to false.
 
-> TODO: "accept-intermediate" sure is long!
-> Maybe we should minimize some of these identifviers.
+> Note: It is not an error for the client to send
+> multiple concurrent requests with the same `id`.
+> If it does so, however, then Arti will reply
+> with response(s) for each request,
+> all of them with the same ID:
+> this will likely make it hard for the client
+> to tell the responses apart.
+>
+> Therefore, it is recommended that a client
+> should not reuse an ID
+> before it has received a final response for that ID.
 
 Responses follow the following metaformat:
 
@@ -204,6 +245,9 @@ error
 : An error object, format TBD.
   It is required on a failed final response.
 
+Any given response will have exactly one of
+"info", "result", and "error".
+
 > Note:
 >
 > The JSON-RPC metaformat does most of what we want,
@@ -218,6 +262,33 @@ error
 > If we want, we could change this section
 > to talk more abstractly about "objects" rather than JSON,
 > so that later on we could re-instantiate it with some other encoding.
+
+> TODO: Specify our error format to be the same as,
+> or similar to, that used by JSON-RPC.
+
+### A variant: JSON-RPC.
+
+> (This is not something we plan to build
+> unless it's actually needed.)
+>
+> If, eventually, we need backward compatibility
+> with the JSON-RPC protocol,
+> we will wrap the above request and response objects
+> in JSON-RPC requests and responses.
+>
+> Under this scheme,
+> it will not be possible to support updates (intermediate responses)
+> unless we add a regular "poll" command or something:
+> this is also left for future work.
+
+## Framing messages
+
+Arti's responses are formatted according to [jsonlines](jsonlines.org):
+every message appears as precisely one line, terminated with a single linefeed.
+(Clients are recommended to format their requests as jsonlines
+for ease of debugging and clarity,
+but JSON documents are self-delimiting and
+Arti will parse them disregarding any newlines.)
 
 ## Representing objects
 
@@ -274,7 +345,7 @@ auth:authenticate
 
 Three recognized authentication methods are:
 
-inherent:unix_user
+inherent:peer_uid
 : Attempt to authenticate based on the the application's
   user-id.
 
@@ -314,18 +385,28 @@ When we are specifying a command, we list the following.
 * Which types of object can receive that command.
 
 * The allowable format for that command's parameters.
-  This is always given as a Rust struct or enum
+  This is always given as a Rust struct
   annotated for use with serde.
 
 * The allowable formats for any intermediate and final responses
   for the command.
-  This is always given as a set of Rust structs or enums
+  This is always given as a Rust struct or enum
   annotated for use with serde.
 
 
 # A list of commands
 
+
 ...
+
+## Cancellation
+
+> TODO: take a request ID (as usual),
+> and the ID of the request-to-cancel as a parameter.
+>
+> (Using the 'id' as the subject of the request is too cute IMO,
+> even if we change the request's meaning to
+> "cancel every request with the same id as this request".)
 
 ## Authentication
 
@@ -346,3 +427,4 @@ When we are specifying a command, we list the following.
 ## Working with onion services
 
 ...
+
