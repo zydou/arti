@@ -85,25 +85,27 @@ The application's messages are called "requests".
 Arti's replies are called "responses".
 Every response must be in response to a single request.
 
-A response may be "final" or "intermediate".
-A final response is the last one that a request will receive.
-An intermediate response may be followed
-by zero or more intermediate responses,
-and up to one final response.
-By default, requests will only receive final responses,
-unless the application specifically tags them
-as accepting intermediate responses.
-All intermediate responses are tagged as such.
+A response may be an "update", an "error", or a "result".
+An "error" or a "result" is a "final response":
+that is, it is the last response
+that will be sent in answer to a request.
+An update, however, may be followed
+by zero or more updates responses,
+and up to one error or result.
+By default, requests will _only_ receive final responses,
+unless the application specifically tags the request
+as accepting updates.
+All updates are tagged as such.
 
-A final response may be an "error",
-indicating that the request was not well-formed,
-or could not be performed successfully.
+A "result" indicates a successful completion
+of an operation;
+an "error" indicates a failure.
 
 > Note that although the client must be prepared
 > to receive a final response for any request,
 > some request types will never get one in practice.
 > For example, a request to observe all circuit-build events
-> will receive only a series of intermediate responses.
+> will receive only a series of updates.
 
 ## Requests, Objects, and Visibility
 
@@ -204,7 +206,7 @@ meta
   Unrecognized fields are ignored.
   The only recognized field is currently:
   "updates"­a boolean that indicates whether
-  intermediate responses are acceptable.
+  updates are acceptable.
   It defaults to false.
 
 > Note: It is not an error for the client to send
@@ -229,13 +231,9 @@ id
   It must match the id of a request
   that has not received a final response.
 
-intermediate
-: An optional boolean, defaulting to false.
-  It indicates whether the response is intermediate or final.
-
-info
+update
 : An object whose type depends on the request.
-  It is required on an intermediate response.
+  It is required on an update.
 
 result
 : An object whose type depends on the request.
@@ -246,18 +244,18 @@ error
   It is required on a failed final response.
 
 Any given response will have exactly one of
-"info", "result", and "error".
+"update", "result", and "error".
 
 > Note:
 >
 > The JSON-RPC metaformat does most of what we want,
 > with two exceptions:
-> It doesn't support intermediate responses.
+> It doesn't support updates.
 > It doesn't assume object-based dispatch.
 >
 > We could try to make this format align even closer with JSON-RPC,
 > if we believe that there will be significant applications
-> that do not want to support intermediate responses.
+> that do not want to support updates.
 >
 > If we want, we could change this section
 > to talk more abstractly about "objects" rather than JSON,
@@ -388,7 +386,7 @@ When we are specifying a request, we list the following.
   This is always given as a Rust struct
   annotated for use with serde.
 
-* The allowable formats for any intermediate and final responses
+* The allowable formats for any responses
   for the request.
   This is always given as a Rust struct or enum,
   annotated for use with serde.
