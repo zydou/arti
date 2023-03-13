@@ -444,6 +444,7 @@ bitflags! {
     /// they are not listed in this type.
     ///
     /// The bit values used to represent the flags have no meaning.
+    #[derive(Clone, Copy, Debug)]
     pub struct RelayFlags: u16 {
         /// Is this a directory authority?
         const AUTHORITY = (1<<0);

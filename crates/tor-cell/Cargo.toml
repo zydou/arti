@@ -26,7 +26,7 @@ testing = ["experimental-udp"]
 
 [dependencies]
 arrayref = "0.3"
-bitflags = "1"
+bitflags = "2"
 bytes = "1"
 caret = { path = "../caret", version = "0.3.0" }
 derive_more = "0.99.3"

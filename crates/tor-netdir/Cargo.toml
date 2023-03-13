@@ -30,7 +30,7 @@ hs-common = ["digest", "time", "tor-hscrypto"]
 testing = ["hex", "tor-netdoc/build_docs"]
 
 [dependencies]
-bitflags = "1"
+bitflags = "2"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 digest = { version = "0.10.0", optional = true }
