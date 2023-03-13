@@ -126,7 +126,7 @@ that session cannot access it.
 ## Request and response types
 
 There are different kinds of requests,
-each identified by a unique command,
+each identified by a unique method name,
 and each with an associated set of named parameters.
 Some requests can be sent to many kinds of object;
 some are only suitable for one kind of object.
@@ -199,7 +199,7 @@ params
   Its format depends on the method.
 
 meta
-: An object describing protocol features to enable for this command.
+: An object describing protocol features to enable for this request.
   It is optional.
   Unrecognized fields are ignored.
   The only recognized field is currently:
@@ -278,7 +278,7 @@ Any given response will have exactly one of
 >
 > Under this scheme,
 > it will not be possible to support updates (intermediate responses)
-> unless we add a regular "poll" command or something:
+> unless we add a regular "poll" request or something:
 > this is also left for future work.
 
 ## Framing messages
@@ -318,7 +318,7 @@ for the current session.
 ## Authentication
 
 When a connection is first opened,
-only authentication commands may be use
+only authentication requests may be use
 until authentication is successful.
 
 > TODO: Perhaps it would be a good idea to say
@@ -329,7 +329,7 @@ until authentication is successful.
 > a session object?
 > In that case
 
-The authentication commands are:
+The authentication methods are:
 
 auth:get_proto
 : Ask Arti which version of the protocol is in use.
@@ -369,32 +369,32 @@ Arti closes the connection after any error.
 
 > Taking a lesson from Tor's control port:
 > we always want a correct authentication handshake to complete
-> before we allow any commands to be handled,
+> before we allow any requests to be handled,
 > even if the stream itself is such
 > that no authentication should be requires.
 > This helps prevent cross-protocol attacks in cases
 > where things are misconfigured.
 
 
-## Specifying commands and replies.
+## Specifying requests and replies.
 
-When we are specifying a command, we list the following.
+When we are specifying a request, we list the following.
 
-* The name of the command
+* The method string for the request.
 
-* Which types of object can receive that command.
+* Which types of object can receive that request.
 
-* The allowable format for that command's parameters.
+* The allowable format for that request's associated parameters.
   This is always given as a Rust struct
   annotated for use with serde.
 
 * The allowable formats for any intermediate and final responses
-  for the command.
-  This is always given as a Rust struct or enum
+  for the request.
+  This is always given as a Rust struct or enum,
   annotated for use with serde.
 
 
-# A list of commands
+# A list of requests
 
 
 ...
@@ -412,7 +412,7 @@ When we are specifying a command, we list the following.
 
 ...
 
-## Commands that apply to most objects
+## Requests that apply to most objects
 
 ...
 
