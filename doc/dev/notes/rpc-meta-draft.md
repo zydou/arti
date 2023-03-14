@@ -122,8 +122,19 @@ in response to the application's requests.
 If an object is not visible in a session,
 that session cannot access it.
 
+Clients identify each object within a session
+by an opaque "object identifier".
+Each identifier may be a "handle" or a "reference".
+If a session has a _handle_ to an object,
+Arti won't deliberately discard that object
+until it the handle is "released",
+or the session is closed.
+If a session only has a _reference_ to an object, however,
+that object might be closed or discarded in the background,
+and there is no need to release it.
+
 > For more on how this is implemented,
-> see "Representing objects" below.
+> see "Representing object identifiers" below.
 
 ## Request and response types
 
@@ -185,7 +196,7 @@ id
   Arti will accept integers between `INT64_MIN` and `INT64_MAX`.
 
 obj
-: An identifier for the object that will receive this request.
+: An object identifier for the object that will receive this request.
   This is a string.  It is required.
 
 method
@@ -197,7 +208,7 @@ method
   we can eventually start a registry or something.)
 
 params
-: An object describing the parameters for the. It is optional.
+: An object describing the parameters for the method. It is optional.
   Its format depends on the method.
 
 meta
@@ -288,7 +299,10 @@ for ease of debugging and clarity,
 but JSON documents are self-delimiting and
 Arti will parse them disregarding any newlines.)
 
-## Representing objects
+## Representing object identifiers.
+
+> This section describes implementation techniques.
+> Applications should not need to care about it.
 
 Here are two ways to provide our object visibility semantics.
 Applications should not care which one Arti uses.
@@ -297,8 +311,11 @@ in the same session.
 
 In one method,
 we use a generational index for each live session
-to hold weak references to the objects visible in the session.
+to hold reference-counted pointers
+to the objects visible in the session.
 The generational index is the identifier for the object.
+(This method is suitable for representing _handles_
+as described above.)
 
 In another method,
 when it is more convenient for Arti to access an object
@@ -308,6 +325,8 @@ where `N_s` is a per-session secret nonce
 that Arti generates and does not share with the application.
 Arti verifies that the MAC is correct
 before looking up the object by its GID.
+(This method is suitable for representing _references_ as
+described above.)
 
 Finally, in either method, we use a single fixed identifier
 (e.g. `session`)
