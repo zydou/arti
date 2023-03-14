@@ -208,11 +208,11 @@ method
   we can eventually start a registry or something.)
 
 params
-: An object describing the parameters for the method. It is optional.
+: A JSON object describing the parameters for the method. It is optional.
   Its format depends on the method.
 
 meta
-: An object describing protocol features to enable for this request.
+: A JSON object describing protocol features to enable for this request.
   It is optional.
   Unrecognized fields are ignored.
   The only recognized field is currently:
@@ -243,15 +243,15 @@ id
   that has not received a final response.
 
 update
-: An object whose type depends on the request.
+: A JSON object whose type depends on the request.
   It is required on an update.
 
 result
-: An object whose type depends on the request.
+: A JSON object whose type depends on the request.
   It is required on a successful final response.
 
 error
-: An error object, format TBD.
+: A JSON error object, format TBD.
   It is required on a failed final response.
 
 Any given response will have exactly one of
@@ -269,7 +269,7 @@ Any given response will have exactly one of
 > that do not want to support updates.
 >
 > If we want, we could change this section
-> to talk more abstractly about "objects" rather than JSON,
+> to talk more abstractly about "document objects" rather than JSON,
 > so that later on we could re-instantiate it with some other encoding.
 
 > TODO: Specify our error format to be the same as,
@@ -282,7 +282,7 @@ Any given response will have exactly one of
 >
 > If, eventually, we need backward compatibility
 > with the JSON-RPC protocol,
-> we will wrap the above request and response objects
+> we will wrap the above request and response JSON objects
 > in JSON-RPC requests and responses.
 >
 > Under this scheme,
@@ -344,7 +344,6 @@ until authentication is successful.
 > and only _that object_ can be used
 > until one of its responses eventually gives the application
 > a session object?
-> In that case
 
 The authentication methods are:
 
