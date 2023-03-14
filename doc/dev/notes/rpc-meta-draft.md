@@ -83,7 +83,7 @@ in an ordered stream.
 
 The application's messages are called "requests".
 Arti's replies are called "responses".
-Every response must be in response to a single request.
+Every response will be in response to a single request.
 
 A response may be an "update", an "error", or a "result".
 An "error" or a "result" is a "final response":
@@ -142,7 +142,7 @@ Unrecognized parameters must be ignored.
 
 Invalid JSON
 and parameter values that do not match their specified types
-must be treated as an error.
+will be treated as an error.
 
 ## Data Streams
 
@@ -226,9 +226,9 @@ Responses follow the following metaformat:
 id
 : An identifier for the request.
   It is required.
-  As in JSON-RPC, it must match the id of a request
+  As in JSON-RPC, it will match the id of a request
   previously sent in this session.
-  It must match the id of a request
+  It will match the id of a request
   that has not received a final response.
 
 update
