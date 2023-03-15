@@ -432,30 +432,32 @@ impl<R: Runtime> CircMgr<R> {
             .map(|(c, _)| c)
     }
 
-    /// Create and return a new (typically anonymous) circuit whose last hop is
-    /// `target`.
+    /// Create and return a new (typically anonymous) circuit for use as an
+    /// onion service circuit of type `kind`.
     ///
     /// This circuit is guaranteed not to have been used for any traffic
     /// previously, and it will not be given out for any other requests in the
     /// future unless explicitly re-registered with a circuit manager.
     ///
+    /// If `planned_target` is provided, then the circuit will be built so that
+    /// it does not share any family members with the the provided target.  (The
+    /// circuit _will not be_ extended to that target itself!)
+    ///
     /// Used to implement onion service clients and services.
     #[cfg(feature = "hs-common")]
-    #[allow(unused_variables, clippy::missing_panics_doc, dead_code)] // TODO XXX
-    pub(crate) async fn launch_hs_unmanaged(
+    #[allow(dead_code)] // TODO HS
+    pub(crate) async fn launch_hs_unmanaged<T>(
         &self,
-        target: tor_linkspec::OwnedCircTarget,
+        planned_target: Option<T>,
         dir: &NetDir,
-        // TODO hs: this should at least be an enum to define what kind of
-        // circuit we want, in case we have different rules for different types.
-        // It might also need to include a "anonymous?" flag for supporting
-        // single onion services.
-        preferences: (),
-    ) -> Result<ClientCirc> {
-        let usage = TargetCircUsage::TimeoutTesting; // TODO HS: Wrong usage!
-        let (_supported_usage, client_circ) = self.mgr.launch_unmanaged(&usage, dir.into()).await?;
-
-        // XXX: Need to retain the supported_usage, maybe?
+    ) -> Result<ClientCirc>
+    where
+        T: IntoOwnedChanTarget,
+    {
+        let usage = TargetCircUsage::HsCircBase {
+            compatible_with_target: planned_target.map(IntoOwnedChanTarget::to_owned),
+        };
+        let (_, client_circ) = self.mgr.launch_unmanaged(&usage, dir.into()).await?;
         Ok(client_circ)
     }
 
