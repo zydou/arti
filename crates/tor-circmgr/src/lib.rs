@@ -61,6 +61,8 @@ pub use config::test_config::TestConfig;
 pub mod build;
 mod config;
 mod err;
+#[cfg(feature = "hs-common")]
+pub mod hspool;
 mod impls;
 pub mod isolation;
 mod mgr;
