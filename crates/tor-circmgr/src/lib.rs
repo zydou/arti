@@ -441,17 +441,22 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// Used to implement onion service clients and services.
     #[cfg(feature = "hs-common")]
-    #[allow(unused_variables, clippy::missing_panics_doc)]
-    pub async fn launch_specific_isolated(
+    #[allow(unused_variables, clippy::missing_panics_doc, dead_code)] // TODO XXX
+    pub(crate) async fn launch_hs_unmanaged(
         &self,
         target: tor_linkspec::OwnedCircTarget,
+        dir: &NetDir,
         // TODO hs: this should at least be an enum to define what kind of
         // circuit we want, in case we have different rules for different types.
         // It might also need to include a "anonymous?" flag for supporting
         // single onion services.
         preferences: (),
     ) -> Result<ClientCirc> {
-        todo!() // TODO hs implement.
+        let usage = TargetCircUsage::TimeoutTesting; // TODO HS: Wrong usage!
+        let (_supported_usage, client_circ) = self.mgr.launch_unmanaged(&usage, dir.into()).await?;
+
+        // XXX: Need to retain the supported_usage, maybe?
+        Ok(client_circ)
     }
 
     /// Launch circuits preemptively, using the preemptive circuit predictor's

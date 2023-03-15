@@ -1367,6 +1367,24 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         }
     }
 
+    /// Plan and launch a new circuit to a given target, bypassing our managed
+    /// pool of circuits.
+    ///
+    /// This method will always return a new circuit, and never return a circuit
+    /// that this CircMgr gives out for anything else.
+    ///
+    /// The new circuit will participate in the guard and timeout apparatus as
+    /// appropriate, no retry attempt will be made if the circuit fails.
+    #[cfg(feature = "hs-common")]
+    pub(crate) async fn launch_unmanaged(
+        &self,
+        usage: &<B::Spec as AbstractSpec>::Usage,
+        dir: DirInfo<'_>,
+    ) -> Result<(<B as AbstractCircBuilder>::Spec, B::Circ)> {
+        let (_, plan) = self.plan_by_usage(dir, usage)?;
+        self.builder.build_circuit(plan.plan).await
+    }
+
     /// Remove the circuit with a given `id` from this manager.
     ///
     /// After this function is called, that circuit will no longer be handed
