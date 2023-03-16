@@ -526,8 +526,9 @@ impl<R: Runtime> CircMgr<R> {
     /// Return a reference to the associated CircuitBuilder that this CircMgr
     /// will use to create its circuits.
     #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
-    #[cfg(feature = "experimental-api")]
-    pub fn builder(&self) -> &build::CircuitBuilder<R> {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    #[allow(dead_code)]
+    pub(crate) fn builder(&self) -> &build::CircuitBuilder<R> {
         self.mgr.peek_builder()
     }
 
