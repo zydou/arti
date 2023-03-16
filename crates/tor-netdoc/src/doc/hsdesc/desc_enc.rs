@@ -42,13 +42,13 @@ pub(super) struct HsDescEncryption<'a> {
 }
 
 /// The length of a client ID.
-pub(crate) const HS_DESC_MIDDLE_CLIENT_ID_LEN: usize = 8;
+pub(crate) const HS_DESC_CLIENT_ID_LEN: usize = 8;
 
 /// The length of the the `AuthClient` IV.
-pub(crate) const HS_DESC_MIDDLE_IV_LEN: usize = 16;
+pub(crate) const HS_DESC_IV_LEN: usize = 16;
 
 /// The length of an `N_hs_desc_enc` nonce (also known as a "descriptor cookie").
-pub(crate) const HS_DESC_MIDDLE_ENC_NONCE_LEN: usize = 16;
+pub(crate) const HS_DESC_ENC_NONCE_LEN: usize = 16;
 
 /// A value used in deriving the encryption key for the inner (encryption) layer
 /// of onion service encryption.
@@ -56,7 +56,7 @@ pub(crate) const HS_DESC_MIDDLE_ENC_NONCE_LEN: usize = 16;
 /// This is  `N_hs_desc_enc` in the spec, where sometimes we also call it a
 /// "descriptor cookie".
 #[derive(derive_more::AsRef, derive_more::From)]
-pub(super) struct HsDescEncNonce([u8; HS_DESC_MIDDLE_ENC_NONCE_LEN]);
+pub(super) struct HsDescEncNonce([u8; HS_DESC_ENC_NONCE_LEN]);
 
 /// Length of our cryptographic salt.
 const SALT_LEN: usize = 16;

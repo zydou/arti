@@ -39,7 +39,7 @@ pub(super) struct HsDescInner {
 }
 
 decl_keyword! {
-    HsInnerKwd {
+    pub(crate) HsInnerKwd {
         "create2-formats" => CREATE2_FORMATS,
         "intro-auth-required" => INTRO_AUTH_REQUIRED,
         "single-onion-service" => SINGLE_ONION_SERVICE,

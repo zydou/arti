@@ -27,7 +27,9 @@ use std::time::SystemTime;
 use base64ct::{Base64, Encoding};
 use humantime::format_rfc3339;
 use tor_bytes::EncodeError;
+use tor_cert::Ed25519Cert;
 use tor_error::{internal, into_internal, Bug};
+use tor_llcrypto::pk::ed25519;
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::tag_keywords_ok;
@@ -38,6 +40,7 @@ use crate::parse::tokenize::tag_keywords_ok;
 /// for clarity in function signatures etc.
 //
 // TODO hs: Is this type carrying its weight, or should we just replace it with String ?
+#[derive(Debug)]
 pub struct NetdocText<Builder> {
     /// The actual document
     text: String,
@@ -49,6 +52,19 @@ impl<B> Deref for NetdocText<B> {
     type Target = str;
     fn deref(&self) -> &str {
         &self.text
+    }
+}
+
+impl<B> NetdocText<B> {
+    /// Convert self into an identical `NetdocText` of a different kind.
+    ///
+    /// Useful for marking the `NetdocText` as having been produced using a different builder (for
+    /// example, in cases where builders leverage other builders to create the final text).
+    pub(crate) fn into_kind<K>(self) -> NetdocText<K> {
+        NetdocText {
+            text: self.text,
+            kind: PhantomData,
+        }
     }
 }
 
@@ -210,7 +226,7 @@ impl NetdocEncoder {
     }
 
     /// Build the document into textual form
-    pub(crate) fn finish(self) -> Result<NetdocText<Self>, Bug> {
+    pub(crate) fn finish<B>(self) -> Result<NetdocText<B>, Bug> {
         let text = self.built?;
         Ok(NetdocText {
             text,
@@ -369,6 +385,14 @@ impl Drop for ItemEncoder<'_> {
     }
 }
 
+/// A trait for building and signing netdocs.
+pub trait NetdocBuilder {
+    /// Build the document into textual form.
+    fn build_sign(self) -> Result<NetdocText<Self>, EncodeError>
+    where
+        Self: Sized;
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -428,7 +452,7 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
             .item(ACK::DIR_KEY_CERTIFICATION)
             .object("SIGNATURE", []);
 
-        let doc = encode.finish().unwrap();
+        let doc = encode.finish::<NetdocEncoder>().unwrap();
         eprintln!("{}", &*doc);
         assert_eq!(
             &*doc,

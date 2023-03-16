@@ -11,33 +11,36 @@
 #![allow(dead_code, unused_variables, clippy::missing_panics_doc)] // TODO hs: remove.
 mod desc_enc;
 
+mod build;
 mod inner;
 mod middle;
 mod outer;
 
-use std::time::SystemTime;
+pub use desc_enc::DecryptionError;
 
 use crate::{ParseErrorKind as EK, Result};
-pub use desc_enc::DecryptionError;
-use smallvec::SmallVec;
-use tor_checkable::{
-    signed::{self, SignatureGated},
-    timed::{self, TimerangeBound},
+
+use tor_checkable::signed::{self, SignatureGated};
+use tor_checkable::timed::{self, TimerangeBound};
+use tor_hscrypto::pk::{
+    HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey, HsSvcNtorKey,
 };
-use tor_hscrypto::{
-    pk::{
-        HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey,
-        HsSvcNtorKey,
-    },
-    RevisionCounter, Subcredential,
-};
+use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_linkspec::UnparsedLinkSpec;
 use tor_llcrypto::pk::curve25519;
 use tor_units::IntegerMinutes;
 
+use smallvec::SmallVec;
+
+use std::time::SystemTime;
+
 #[cfg(feature = "hsdesc-inner-docs")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hsdesc-inner-docs")))]
 pub use {inner::HsDescInner, middle::HsDescMiddle, outer::HsDescOuter};
+
+#[cfg(feature = "hs-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
+pub use build::HsDescBuilder;
 
 /// Metadata about an onion service descriptor, as stored at an HsDir.
 ///
@@ -113,9 +116,11 @@ pub struct HsDesc {
 
 /// A type of authentication that is required when introducing to an onion
 /// service.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum IntroAuthType {
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, derive_more::Display)]
+pub enum IntroAuthType {
     /// Ed25519 authentication is required.
+    #[display(fmt = "ed25519")]
     Ed25519,
 }
 
@@ -300,11 +305,6 @@ impl StoredHsDescMeta {
     }
 }
 
-// TODO hs:  Define a HsDescBuilder structure, but it should not create an HsDesc directly.
-//     Instead, it should make something that is _like_ an HsDesc but with extra client keys,
-//     full certificates and so on.  Then, define a function taking the correct set of private
-//     keys and using them to encode, encrypt, and sign the built HsDesc.
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -316,7 +316,7 @@ mod test {
     #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
-    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->    
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use std::time::Duration;
 
     use super::*;
