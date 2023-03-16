@@ -1,5 +1,6 @@
 //! Manage a pool of circuits for usage with onion services.
-
+//
+// TODO HS: We need tests here. First, though, we need a testing strategy.
 mod pool;
 
 use std::{
@@ -50,6 +51,10 @@ pub struct HsCircPool<R: Runtime> {
     /// A collection of pre-constructed circuits.
     pool: pool::Pool,
     /// A task handle for making the background circuit launcher fire early.
+    //
+    // TODO: I think we may want to move this into the same Mutex as Pool
+    // eventually.  But for now, this is fine, since it's just an implementation
+    // detail.
     launcher_handle: OnceCell<TaskHandle>,
 }
 
@@ -121,6 +126,8 @@ impl<R: Runtime> HsCircPool<R> {
             },
             None => Err(internal!("Circuit with an empty path!?").into()),
         }
+        // TODO HS: We should retry attempts to build these circuits, either here or in
+        // a higher-level crate.
     }
 
     /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
@@ -190,6 +197,9 @@ impl<R: Runtime> HsCircPool<R> {
 
         // With any luck, return the circuit.
         Ok(circ)
+
+        // TODO HS: We should retry attempts to build these circuits, either here or in
+        // a higher-level crate.
     }
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
@@ -200,6 +210,7 @@ impl<R: Runtime> HsCircPool<R> {
         netdir: &NetDir,
         avoid_target: Option<&OwnedCircTarget>,
     ) -> Result<ClientCirc> {
+        // First, look for a circuit that is already built, if any is suitable.
         let mut rng = rand::thread_rng();
         let subnet_config = self.circmgr.builder().path_config().subnet_config();
         let target = avoid_target.map(|target| TargetInfo {
@@ -211,7 +222,7 @@ impl<R: Runtime> HsCircPool<R> {
         });
 
         /// Tell the background task to fire immediately if we have fewer than
-        /// this many circuits left, or if we found nothing. Chosen arbitrarily
+        /// this many circuits left, or if we found nothing. Chosen arbitrarily.
         ///
         /// TODO HS: This should change dynamically, and probably be a fixed
         /// fraction of TARGET_N.
@@ -223,16 +234,17 @@ impl<R: Runtime> HsCircPool<R> {
             handle.fire();
         }
 
+        // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
             return Ok(circuit);
         }
 
         // TODO: There is a possible optimization here. Instead of only waiting
-        // for the circuit we launch to finish, we could also wait for any of
-        // our preemptive circuits to finish.
+        // for the circuit we launch below to finish, we could also wait for any
+        // of our in-progress preemptive circuits to finish.  That would,
+        // however, complexify our logic quite a bit.
 
-        // TODO: We could in launch multiple circuits in parallel?
-
+        // TODO: We could in launch multiple circuits in parallel here?
         self.circmgr.launch_hs_unmanaged(avoid_target, netdir).await
     }
 
@@ -346,19 +358,24 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
             }
         };
         pool.remove_closed();
-        let n_to_launch = pool.pool.len().saturating_sub(TARGET_N);
+        let mut n_to_launch = pool.pool.len().saturating_sub(TARGET_N);
         if n_to_launch == 0 {
+            // We have nothing to launch now, so we'll try after a while.
             schedule.fire_in(DELAY);
             continue;
         }
 
         if let Ok(netdir) = provider.netdir(tor_netdir::Timeliness::Timely) {
+            // We want to launch a circuit, and we have a netdir that we can use
+            // to launch it.
+            //
             // TODO: Possibly we should be doing this in a background task, and
             // launching several of these in parallel.
             let no_target: Option<&OwnedCircTarget> = None;
             match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
                 Ok(circ) => {
                     pool.pool.insert(circ);
+                    n_to_launch -= 1;
                 }
                 Err(err) => {
                     debug!(
@@ -368,12 +385,18 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 }
             }
         } else {
-            // TODO possibly instead we want to wait for more netdir info?
+            // We'd like to launch a circuit, but we don't have a netdir that we
+            // can use.
+            //
+            // TODO possibly instead of a fixed delay we want to wait for more
+            // netdir info?
             schedule.fire_in(DELAY);
             continue;
         }
 
-        if n_to_launch > 1 {
+        // Loop again immediately if we still have circuits to launch; otherwise,
+        // wait a while.
+        if n_to_launch >= 1 {
             schedule.fire();
         } else {
             schedule.fire_in(DELAY);
@@ -395,7 +418,7 @@ async fn remove_unusable_circuits<R: Runtime>(
     // That's fine, since this task only wants to fire when the directory changes,
     // and the directory will not change while we're dormant.
     //
-    // Removing closed circuits is handled above in launch_hs_circuits_as_needed.
+    // Removing closed circuits is also handled above in launch_hs_circuits_as_needed.
     while event_stream.next().await.is_some() {
         let (pool, provider) = match (pool.upgrade(), netdir_provider.upgrade()) {
             (Some(x), Some(y)) => (x, y),
