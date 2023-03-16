@@ -1,17 +1,24 @@
 //! Manage a pool of circuits for usage with onion services.
-#![allow(dead_code)]
 
 mod pool;
 
-use std::sync::Arc;
+use std::{
+    sync::{Arc, Weak},
+    time::Duration,
+};
 
 use crate::{CircMgr, Error, Result};
-use futures::TryFutureExt;
-use tor_error::{bad_api_usage, internal};
+use futures::{task::SpawnExt, StreamExt, TryFutureExt};
+use once_cell::sync::OnceCell;
+use tor_error::{bad_api_usage, internal, ErrorReport};
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget};
-use tor_netdir::{NetDir, Relay, SubnetConfig};
+use tor_netdir::{NetDir, NetDirProvider, Relay, SubnetConfig};
 use tor_proto::circuit::ClientCirc;
-use tor_rtcompat::{Runtime, SleepProviderExt};
+use tor_rtcompat::{
+    scheduler::{TaskHandle, TaskSchedule},
+    Runtime, SleepProviderExt,
+};
+use tracing::debug;
 
 /// The (onion-service-related) purpose for which a given circuit is going to be
 /// used.
@@ -42,14 +49,53 @@ pub struct HsCircPool<R: Runtime> {
     circmgr: Arc<CircMgr<R>>,
     /// A collection of pre-constructed circuits.
     pool: pool::Pool,
+    /// A task handle for making the background circuit launcher fire early.
+    launcher_handle: OnceCell<TaskHandle>,
 }
 
 impl<R: Runtime> HsCircPool<R> {
     /// Create a new `HsCircPool`.
-    pub fn new(circmgr: &Arc<CircMgr<R>>) -> Self {
+    ///
+    /// This will not work properly before "launch_background_tasks" is called.
+    pub fn new(circmgr: &Arc<CircMgr<R>>) -> Arc<Self> {
         let circmgr = Arc::clone(circmgr);
         let pool = pool::Pool::default();
-        Self { circmgr, pool }
+        Arc::new(Self {
+            circmgr,
+            pool,
+            launcher_handle: OnceCell::new(),
+        })
+    }
+
+    /// Launch the periodic daemon tasks required by the manager to function properly.
+    ///
+    /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
+    pub fn launch_background_tasks(
+        self: &Arc<Self>,
+        runtime: &R,
+        netdir_provider: &Arc<dyn NetDirProvider + 'static>,
+    ) -> Result<Vec<TaskHandle>> {
+        let handle = self.launcher_handle.get_or_try_init(|| {
+            runtime
+                .spawn(remove_unusable_circuits(
+                    Arc::downgrade(self),
+                    Arc::downgrade(netdir_provider),
+                ))
+                .map_err(|e| Error::from_spawn("preemptive onion circuit expiration task", e))?;
+
+            let (schedule, handle) = TaskSchedule::new(runtime.clone());
+            runtime
+                .spawn(launch_hs_circuits_as_needed(
+                    Arc::downgrade(self),
+                    Arc::downgrade(netdir_provider),
+                    schedule,
+                ))
+                .map_err(|e| Error::from_spawn("preemptive onion circuit builder task", e))?;
+
+            Result::<TaskHandle>::Ok(handle)
+        })?;
+
+        Ok(vec![handle.clone()])
     }
 
     /// Create a circuit suitable for use as a rendezvous circuit by a client.
@@ -160,9 +206,24 @@ impl<R: Runtime> HsCircPool<R> {
             target,
             relay: netdir.by_ids(target),
         });
-        if let Some(circuit) = self.pool.take_one_where(&mut rng, |circ| {
+        let found_usable_circ = self.pool.take_one_where(&mut rng, |circ| {
             circuit_compatible_with_target(netdir, subnet_config, circ, target.as_ref())
-        }) {
+        });
+
+        /// Tell the background task to fire immediately if we have fewer than
+        /// this many circuits left, or if we found nothing. Chosen arbitrarily
+        ///
+        /// TODO HS: This should change dynamically, and probably be a fixed
+        /// fraction of TARGET_N.
+        const LAUNCH_THRESHOLD: usize = 2;
+        if self.pool.len() < LAUNCH_THRESHOLD || found_usable_circ.is_none() {
+            let handle = self.launcher_handle.get().ok_or_else(|| {
+                Error::from(bad_api_usage!("The circuit launcher wasn't initialized"))
+            })?;
+            handle.fire();
+        }
+
+        if let Some(circuit) = found_usable_circ {
             return Ok(circuit);
         }
 
@@ -257,9 +318,94 @@ fn all_circ_relays_are_listed_in(circ: &ClientCirc, netdir: &NetDir) -> bool {
     // TODO HS: Are there any other checks we should do before declaring that
     // this is still usable?
 
-    // TODO HS: THere is some duplicate logic here and in
+    // TODO HS: There is some duplicate logic here and in
     // circuit_compatible_with_target.  I think that's acceptable for now, but
     // we should consider refactoring if these functions grow.
     path.iter()
         .all(|c: &OwnedChanTarget| netdir.by_ids(c).is_some())
+}
+
+/// Background task to launch onion circuits as needed.
+async fn launch_hs_circuits_as_needed<R: Runtime>(
+    pool: Weak<HsCircPool<R>>,
+    netdir_provider: Weak<dyn NetDirProvider + 'static>,
+    mut schedule: TaskSchedule<R>,
+) {
+    /// Number of circuits to keep in the pool.  Chosen arbitrarily.
+    //
+    // TODO HS: This should instead change dynamically based on observed needs.
+    const TARGET_N: usize = 8;
+    /// Default delay when not told to fire explicitly. Chosen arbitrarily.
+    const DELAY: Duration = Duration::from_secs(30);
+
+    while schedule.next().await.is_some() {
+        let (pool, provider) = match (pool.upgrade(), netdir_provider.upgrade()) {
+            (Some(x), Some(y)) => (x, y),
+            _ => {
+                break;
+            }
+        };
+        pool.remove_closed();
+        let n_to_launch = pool.pool.len().saturating_sub(TARGET_N);
+        if n_to_launch == 0 {
+            schedule.fire_in(DELAY);
+            continue;
+        }
+
+        if let Ok(netdir) = provider.netdir(tor_netdir::Timeliness::Timely) {
+            // TODO: Possibly we should be doing this in a background task, and
+            // launching several of these in parallel.
+            let no_target: Option<&OwnedCircTarget> = None;
+            match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
+                Ok(circ) => {
+                    pool.pool.insert(circ);
+                }
+                Err(err) => {
+                    debug!(
+                        "Unable to build preemptive circuit for onion services: {}",
+                        err.report()
+                    );
+                }
+            }
+        } else {
+            // TODO possibly instead we want to wait for more netdir info?
+            schedule.fire_in(DELAY);
+            continue;
+        }
+
+        if n_to_launch > 1 {
+            schedule.fire();
+        } else {
+            schedule.fire_in(DELAY);
+        }
+    }
+}
+
+/// Background task to remove unusable circuits whenever the directory changes.
+async fn remove_unusable_circuits<R: Runtime>(
+    pool: Weak<HsCircPool<R>>,
+    netdir_provider: Weak<dyn NetDirProvider + 'static>,
+) {
+    let mut event_stream = match netdir_provider.upgrade() {
+        Some(nd) => nd.events(),
+        None => return,
+    };
+
+    // Note: We only look at the event stream here, not any kind of TaskSchedule.
+    // That's fine, since this task only wants to fire when the directory changes,
+    // and the directory will not change while we're dormant.
+    //
+    // Removing closed circuits is handled above in launch_hs_circuits_as_needed.
+    while event_stream.next().await.is_some() {
+        let (pool, provider) = match (pool.upgrade(), netdir_provider.upgrade()) {
+            (Some(x), Some(y)) => (x, y),
+            _ => {
+                break;
+            }
+        };
+        pool.remove_closed();
+        if let Ok(netdir) = provider.netdir(tor_netdir::Timeliness::Timely) {
+            pool.remove_unlisted(&netdir);
+        }
+    }
 }
