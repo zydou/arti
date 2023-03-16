@@ -1,12 +1,15 @@
 //! Manage a pool of circuits for usage with onion services.
+#![allow(dead_code)]
+
+mod pool;
 
 use std::sync::Arc;
 
 use crate::{CircMgr, Error, Result};
 use futures::TryFutureExt;
 use tor_error::{bad_api_usage, internal};
-use tor_linkspec::OwnedCircTarget;
-use tor_netdir::{NetDir, Relay};
+use tor_linkspec::{OwnedChanTarget, OwnedCircTarget};
+use tor_netdir::{NetDir, Relay, SubnetConfig};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
@@ -37,13 +40,16 @@ pub enum HsCircKind {
 pub struct HsCircPool<R: Runtime> {
     /// An underlying circuit manager, used for constructing circuits.
     circmgr: Arc<CircMgr<R>>,
+    /// A collection of pre-constructed circuits.
+    pool: pool::Pool,
 }
 
 impl<R: Runtime> HsCircPool<R> {
     /// Create a new `HsCircPool`.
     pub fn new(circmgr: &Arc<CircMgr<R>>) -> Self {
         let circmgr = Arc::clone(circmgr);
-        Self { circmgr }
+        let pool = pool::Pool::default();
+        Self { circmgr, pool }
     }
 
     /// Create a circuit suitable for use as a rendezvous circuit by a client.
@@ -59,8 +65,13 @@ impl<R: Runtime> HsCircPool<R> {
         match path.last() {
             Some(ct) => match netdir.by_ids(ct) {
                 Some(relay) => Ok((circ, relay)),
-                // TODO HS: This will become possible once we have a circuit pool.
-                None => Err(internal!("Generated a circuit with unknown last hop!?").into()),
+                // This can't happen, since launch_hs_unmanaged() only takes relays from the netdir
+                // it is given, and circuit_compatible_with_target() ensures that
+                // every relay in the circuit is listed.
+                //
+                // TODO: Still, it's an ugly place in our API; maybe we should return the last hop
+                // from take_or_launch_stub_circuit()?  But in many cases it won't be needed...
+                None => Err(internal!("Got circuit with unknown last hop!?").into()),
             },
             None => Err(internal!("Circuit with an empty path!?").into()),
         }
@@ -143,8 +154,112 @@ impl<R: Runtime> HsCircPool<R> {
         netdir: &NetDir,
         avoid_target: Option<&OwnedCircTarget>,
     ) -> Result<ClientCirc> {
-        // TODO: Add a pool of unused circuits.  Right now we build everything on demand.
+        let mut rng = rand::thread_rng();
+        let subnet_config = self.circmgr.builder().path_config().subnet_config();
+        let target = avoid_target.map(|target| TargetInfo {
+            target,
+            relay: netdir.by_ids(target),
+        });
+        if let Some(circuit) = self.pool.take_one_where(&mut rng, |circ| {
+            circuit_compatible_with_target(netdir, subnet_config, circ, target.as_ref())
+        }) {
+            return Ok(circuit);
+        }
+
+        // TODO: There is a possible optimization here. Instead of only waiting
+        // for the circuit we launch to finish, we could also wait for any of
+        // our preemptive circuits to finish.
+
+        // TODO: We could in launch multiple circuits in parallel?
 
         self.circmgr.launch_hs_unmanaged(avoid_target, netdir).await
     }
+
+    /// Internal: Remove every closed circuit from this pool.
+    fn remove_closed(&self) {
+        self.pool.retain(|circ| !circ.is_closing());
+    }
+
+    /// Internal: Remove every circuit form this pool for which any relay is not
+    /// listed in `netdir`.
+    fn remove_unlisted(&self, netdir: &NetDir) {
+        self.pool
+            .retain(|circ| all_circ_relays_are_listed_in(circ, netdir));
+    }
+}
+
+/// Wrapper around a target final hop, and any information about that target we
+/// were able to find from the directory.
+///
+/// TODO: This is possibly a bit redundant with path::MaybeOwnedRelay.  We
+/// should consider merging them someday, once we have a better sense of what we
+/// truly want here.
+struct TargetInfo<'a> {
+    /// The target to be used as a final hop.
+    target: &'a OwnedCircTarget,
+    /// A Relay reference for the targe, if we found one.
+    relay: Option<Relay<'a>>,
+}
+
+impl<'a> TargetInfo<'a> {
+    /// Return true if, according to the rules of `subnet_config`, this target can share a circuit with `r`.
+    fn may_share_circuit_with(&self, r: &Relay<'_>, subnet_config: SubnetConfig) -> bool {
+        if let Some(this_r) = &self.relay {
+            if this_r.in_same_family(r) {
+                return false;
+            }
+            // TODO: When bridge families are finally implemented (likely via
+            // proposal `321-happy-families.md`), we should move family
+            // functionality into CircTarget.
+        }
+
+        !subnet_config.any_addrs_in_same_subnet(self.target, r)
+    }
+}
+
+/// Return true if we can extend a pre-built circuit `circ` to `target`.
+///
+/// We require that the circuit is open, that every hop  in the circuit is
+/// listed in `netdir`, and that no hop in the circuit shares a family with
+/// `target`.
+fn circuit_compatible_with_target(
+    netdir: &NetDir,
+    subnet_config: SubnetConfig,
+    circ: &ClientCirc,
+    target: Option<&TargetInfo<'_>>,
+) -> bool {
+    if circ.is_closing() {
+        return false;
+    }
+
+    // TODO HS: I don't like having to copy the whole path out at this point; it
+    // seems like that could get expensive. -nickm
+
+    let path = circ.path();
+    path.iter().all(|c: &OwnedChanTarget| {
+        match (target, netdir.by_ids(c)) {
+            // We require that every relay in this circuit is still listed; an
+            // unlisted relay means "reject".
+            (_, None) => false,
+            // If we have a target, the relay must be compatible with it.
+            (Some(t), Some(r)) => t.may_share_circuit_with(&r, subnet_config),
+            // If we have no target, any listed relay is okay.
+            (None, Some(_)) => true,
+        }
+    })
+}
+
+/// Return true if  every relay in `circ` is listed in `netdir`.
+fn all_circ_relays_are_listed_in(circ: &ClientCirc, netdir: &NetDir) -> bool {
+    // TODO HS: Again, I don't like having to copy the whole path out at this point.
+    let path = circ.path();
+
+    // TODO HS: Are there any other checks we should do before declaring that
+    // this is still usable?
+
+    // TODO HS: THere is some duplicate logic here and in
+    // circuit_compatible_with_target.  I think that's acceptable for now, but
+    // we should consider refactoring if these functions grow.
+    path.iter()
+        .all(|c: &OwnedChanTarget| netdir.by_ids(c).is_some())
 }
