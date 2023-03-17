@@ -12,7 +12,10 @@ use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::B64;
 use crate::{Pos, Result};
 
-use super::desc_enc::{HsDescEncNonce, HsDescEncryption};
+use super::desc_enc::{
+    HsDescEncNonce, HsDescEncryption, HS_DESC_MIDDLE_CLIENT_ID_LEN, HS_DESC_MIDDLE_ENC_NONCE_LEN,
+    HS_DESC_MIDDLE_IV_LEN,
+};
 use super::DecryptionError;
 
 /// A more-or-less verbatim representation of the middle document of an onion
@@ -67,7 +70,7 @@ impl HsDescMiddle {
     }
 
     /// Use a `ClientDescAuthSecretKey` (`KS_hsc_desc_enc`) to see if there is any `auth-client`
-    /// entry for us (a client who holds that secret key) in this descriptor.  
+    /// entry for us (a client who holds that secret key) in this descriptor.
     /// If so, decrypt it and return its
     /// corresponding "Descriptor Cookie" (`N_hs_desc_enc`)
     ///
@@ -135,11 +138,11 @@ struct AuthClient {
     /// A check field that clients can use to see if this [`AuthClient`] entry corresponds to a key they hold.
     ///
     /// This is the first part of the `auth-client` line.
-    client_id: CtByteArray<8>,
+    client_id: CtByteArray<HS_DESC_MIDDLE_CLIENT_ID_LEN>,
     /// An IV used to decrypt `encrypted_cookie`.
     ///
     /// This is the second item on the `auth-client` line.
-    iv: [u8; 16],
+    iv: [u8; HS_DESC_MIDDLE_IV_LEN],
     /// An encrypted value used to find the descriptor cookie `N_hs_desc_enc`,
     /// which in turn is
     /// needed to decrypt the [HsDescMiddle]'s `encrypted_body`.
@@ -147,7 +150,7 @@ struct AuthClient {
     /// This is the third item on the `auth-client` line.  When decrypted, it
     /// reveals a `DescEncEncryptionCookie` (`N_hs_desc_enc`, not yet so named
     /// in the spec).
-    encrypted_cookie: [u8; 16],
+    encrypted_cookie: [u8; HS_DESC_MIDDLE_ENC_NONCE_LEN],
 }
 
 impl AuthClient {
@@ -203,7 +206,7 @@ impl HsDescMiddle {
         Ok(result)
     }
 
-    /// Extract an HsDescMiddle from a reader.  
+    /// Extract an HsDescMiddle from a reader.
     ///
     /// The reader must contain a single HsDescOuter; we return an error if not.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsMiddleKwd>) -> Result<HsDescMiddle> {
