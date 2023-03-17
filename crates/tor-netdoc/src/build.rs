@@ -231,6 +231,12 @@ impl ItemArgument for str {
     }
 }
 
+impl ItemArgument for String {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        ItemArgument::write_onto(&self.as_str(), out)
+    }
+}
+
 impl<T: ItemArgument + ?Sized> ItemArgument for &'_ T {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         <T as ItemArgument>::write_onto(self, out)
