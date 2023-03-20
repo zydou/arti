@@ -124,7 +124,7 @@ impl<'a> TorPath<'a> {
     }
 
     /// Create a new multi-hop path with a given number of ordered relays.
-    pub fn new_multihop<H>(relays: impl IntoIterator<Item = Relay<'a>>) -> Self {
+    pub fn new_multihop(relays: impl IntoIterator<Item = Relay<'a>>) -> Self {
         Self {
             inner: TorPathInner::Path(relays.into_iter().map(MaybeOwnedRelay::from).collect()),
         }
