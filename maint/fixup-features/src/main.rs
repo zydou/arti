@@ -186,7 +186,7 @@ impl Crate {
         // Enforce rule 1.  (There is a "Full" feature.)
         if !reachable.contains_key("full") {
             w("full feature does not exist. Adding.".to_string());
-            // Actually, we added it above.
+            // Actually, we fixed it already, by adding it to `features` above.
         }
 
         let empty = HashSet::new();
