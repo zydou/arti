@@ -269,7 +269,9 @@ impl Crate {
         let new_text = self.toml_doc.to_string();
         if new_text != old_text {
             println!("{} changed. Replacing.", self.name);
-            std::fs::write(&self.toml_file, new_text.as_str())?;
+            let tmpname = self.toml_file.with_extension("toml.tmp");
+            std::fs::write(&tmpname, new_text.as_str())?;
+            std::fs::rename(&tmpname, &self.toml_file)?;
         }
         Ok(())
     }
