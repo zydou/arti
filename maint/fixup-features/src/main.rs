@@ -94,24 +94,20 @@ fn arti_dependencies(dependencies: &Table) -> Vec<Dependency> {
     let mut deps = Vec::new();
 
     for (depname, info) in dependencies {
-        let optional = match info {
-            Item::Value(Value::InlineTable(info)) if info.contains_key("path") => info
-                .get("optional")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            Item::Table(info) if info.contains_key("path") => info
-                .get("optional")
-                .and_then(Item::as_value)
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            Item::Value(Value::String(_) | Value::InlineTable(_)) | Item::Table(_) => {
-                // Doesn't have a path, so not a part of arti.
-                continue;
-            }
-            _ => {
-                panic!("unrecognized type for {depname}");
-            }
+        let table = match info {
+            // Cloning is "inefficient", but we don't care.
+            Item::Value(Value::InlineTable(info)) => info.clone().into_table(),
+            Item::Table(info) => info.clone(),
+            _ => continue, // Not part of arti.
         };
+        if !table.contains_key("path") {
+            continue; // Not part of arti.
+        }
+        let optional = table
+            .get("optional")
+            .and_then(Item::as_value)
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
 
         deps.push(Dependency {
             name: depname.to_string(),
