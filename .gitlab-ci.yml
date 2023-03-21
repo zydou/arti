@@ -48,6 +48,15 @@ doc-features:
     - ./maint/check_doc_features
     - ./maint/shebang
 
+# This should always be in the last testing stage, so that if it fails all the other steps still run
+# But it should run before any deployument.
+blocking-todos:
+  stage: test
+  image: debian:stable-slim
+  script:
+    - apt update && apt install -y git
+    - ./maint/check_todos
+
 rust-checks:
   # This is too slow (and the cacheing of the "cargo build" too flaky) to be a "check"
   stage: build
