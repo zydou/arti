@@ -165,8 +165,7 @@ fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
 /// Helper: convert a string to a path without expansion.
 #[cfg(not(feature = "expand-paths"))]
 fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
-    s.try_into()
-        .map_err(|_| CfgPathError::InvalidString(s.to_owned()))
+    s.into()
 }
 
 /// Shellexpand helper: return the user's home directory if we can.
