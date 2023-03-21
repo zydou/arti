@@ -11,9 +11,6 @@
 #![allow(clippy::unchecked_duration_subtraction)]
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-#![allow(unused_variables)] // XXX
-#![allow(dead_code)] // XXX
-
 use std::future::Future;
 use std::iter;
 use std::ops::Bound;
@@ -469,7 +466,8 @@ async fn cache() -> Result<(), anyhow::Error> {
 #[tokio::test]
 #[traced_test]
 async fn dormant() -> Result<(), anyhow::Error> {
-    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+    #[allow(unused_variables)] // avoids churn and makes all of these identical
+    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
     let mut events = bdm.events().fuse();
 
     use Dormancy::*;
@@ -510,7 +508,8 @@ async fn dormant() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn process_doc() -> Result<(), anyhow::Error> {
-    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+    #[allow(unused_variables)] // avoids churn and makes all of these identical
+    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
 
     let text = EXAMPLE_DESCRIPTOR;
     let config = BridgeDescDownloadConfig::default();

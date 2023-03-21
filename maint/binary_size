@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ORIGDIR=$(pwd)
-TMPDIR=$(mktemp -d -t arti_binsize.XXXXXX)
+TMPDIR=$(mktemp -d -t arti_binsize."XX""XX""XX")
 trap 'cd "$ORIGDIR" && rm -rf "$TMPDIR"' 0
 
 RUST_TARGET=$(rustc -vV | sed -n 's|host: ||p')

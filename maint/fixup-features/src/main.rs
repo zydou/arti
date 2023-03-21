@@ -120,7 +120,7 @@ fn arti_dependencies(dependencies: &Table) -> Vec<Dependency> {
 
 /// A complaint that we add to features which are not reachable according to
 /// rule 3.
-const COMPLAINT: &str = "# XXXX Add this to a top-level feature!\n";
+const COMPLAINT: &str = "# XX\x58X Add this to a top-level feature!\n";
 
 impl Crate {
     /// Try to read a crate's Cargo.toml from a given filename.

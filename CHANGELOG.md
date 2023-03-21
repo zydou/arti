@@ -2045,7 +2045,7 @@ release 0.1.0 (scheduled March 2022).
 
 - We store fewer needless fields from Tor directory documents. ([!151],
   [!165])
-- We've gone through and converted _every_ `XXXX` comment in our code (which
+- We've gone through and converted _every_ <code>XX&#88;X</code> comment in our code (which
   indicated a must-fix issue) into a ticket, or a `TODO`. ([#231])
 - Our SOCKS code is much more careful about sending error messages if
   an error occurs before the SOCKS connection succeeds. ([!189])

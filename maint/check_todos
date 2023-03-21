@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#
+# check_todos
+#
+# Checks for occurrences of /\b X X X+ \b/e
+# These will cause CI to fail if pushed anywhere.
+
+set -euo pipefail
+
+printf -- '---------- checking for to-be-rejected TODOs (XX''X) ----------\n'
+
+set +e
+git --no-pager grep -P '\bXX''X+\b'
+rc=$?
+set -e
+case $rc in
+0)
+	printf -- '"^^^^^^^^^^ found to-be-rejected TODOs (XX''X) ^^^^^^^^^^\n'
+	echo >&2 "
+To-be-rejected-by-CI TODOs found."
+
+	cat <<'END'
+
+If these are real blocking todos, they must be fixed or downgraded before merge.
+
+If these are not real todos, but literals, consider the following workarounds:
+
+ - In Rust source, use a numerical escape
+   example: maint/fixup-features/src/main.rs, const COMPLAINT
+
+ - In a shell script, interject or add redundant quoting
+   examples: maint/check_todos; maint/binary_size, call to mktemp
+
+ - In a regexp, use the "extended" format and insert spaces
+   example: maint/check_todos, head comment
+
+ - In a markdown doc, use a numerical escape, possibly converting `...` to <code>...<code>
+   example: CHANGELOG.md, entry for 0.0.3, under "Cleanups", 2nd bullet point
+
+ - In a comment, use a circumlocution
+END
+
+	exit 1
+	;;
+1)
+	# not found, great
+	exit 0
+	;;
+*)
+	echo >&2 "git grep failed, status $?"
+	exit 16
+	;;
+esac

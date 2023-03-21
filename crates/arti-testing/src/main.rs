@@ -269,7 +269,7 @@ impl Job {
                     match (outcome, retry_delay) {
                         (Ok(_stream), _) => break,
                         (Err(e), None) => return Err(e.into()),
-                        (Err(_e), Some(delay)) => client.runtime().sleep(*delay).await, // XXXX log error
+                        (Err(_e), Some(delay)) => client.runtime().sleep(*delay).await, // TODO log error
                     }
                 }
             }
@@ -280,7 +280,7 @@ impl Job {
 
     /// Run a provided job.
     ///
-    /// XXXX Eventually this should come up with some kind of result that's meaningful.
+    /// TUDO Eventually this should come up with some kind of result that's meaningful.
     async fn run_job(&self) -> Result<()> {
         let runtime = PreferredRuntime::current()?;
         let broken_tcp = rt::badtcp::BrokenTcpProvider::new(
