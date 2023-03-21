@@ -17,6 +17,8 @@ use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug, ErrorReport};
 use tor_guardmgr::GuardMgr;
+#[cfg(feature = "onion-client")]
+use tor_hsclient::HsClientConnector;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -92,6 +94,10 @@ pub struct TorClient<R: Runtime> {
     /// Pluggable transport manager.
     #[cfg(feature = "pt-client")]
     pt_mgr: Arc<tor_ptmgr::PtMgr<R>>,
+    /// HS client connector
+    #[allow(dead_code)] // TODO HS remove
+    #[cfg(feature = "onion-client")]
+    hsclient: HsClientConnector<R>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
@@ -521,6 +527,13 @@ impl<R: Runtime> TorClient<R> {
         #[cfg(feature = "bridge-client")]
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
+        #[cfg(feature = "onion-client")]
+        let hsclient = HsClientConnector::new(
+            runtime.clone(),
+            circmgr.clone(),
+            dirmgr.clone().upcast_arc(),
+        )?;
+
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
@@ -558,6 +571,8 @@ impl<R: Runtime> TorClient<R> {
             bridge_desc_mgr,
             #[cfg(feature = "pt-client")]
             pt_mgr,
+            #[cfg(feature = "onion-client")]
+            hsclient,
             guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),

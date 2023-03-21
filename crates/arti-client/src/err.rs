@@ -139,6 +139,11 @@ enum ErrorDetail {
     #[error("Error setting up the persistent state manager")]
     StateMgrSetup(#[source] tor_persist::Error),
 
+    /// Error setting up the hidden service client connector.
+    #[error("Error setting up the hidden service client connector")]
+    #[cfg(feature = "onion-client")]
+    HsClientConnectorSetup(#[from] tor_hsclient::StartupError),
+
     /// Failed to obtain exit circuit
     #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
@@ -316,6 +321,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::CircMgrSetup(e) => e.kind(),
             E::DirMgrSetup(e) => e.kind(),
             E::StateMgrSetup(e) => e.kind(),
+            #[cfg(feature = "onion-client")]
+            E::HsClientConnectorSetup(e) => e.kind(),
             E::DirMgrBootstrap(e) => e.kind(),
             #[cfg(feature = "pt-client")]
             E::PluggableTransport(e) => e.kind(),
