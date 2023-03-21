@@ -65,6 +65,7 @@ struct LiteralPath {
 /// An error that has occurred while expanding a path.
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum CfgPathError {
     /// The path contained a variable we didn't recognize.
     #[error("Unrecognized variable {0} in path")]
