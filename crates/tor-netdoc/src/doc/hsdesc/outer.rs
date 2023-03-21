@@ -130,7 +130,7 @@ impl HsDescOuter {
     /// Try to parse an outer document of an onion service descriptor from a string.
     #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
     pub(super) fn parse(s: &str) -> Result<UncheckedHsDescOuter> {
-        // XXXX needs to be unchecked.
+        // TOSO HS needs to be unchecked.
         let mut reader = NetDocReader::new(s);
         let result = HsDescOuter::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
         Ok(result)
