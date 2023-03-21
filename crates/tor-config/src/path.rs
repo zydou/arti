@@ -5,8 +5,11 @@
 
 use std::path::{Path, PathBuf};
 
-use directories::{BaseDirs, ProjectDirs};
-use once_cell::sync::Lazy;
+#[cfg(feature= "expand-paths")]
+use {
+    directories::{BaseDirs, ProjectDirs},
+    once_cell::sync::Lazy,
+};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "expand-paths")]
 use std::borrow::Cow;
