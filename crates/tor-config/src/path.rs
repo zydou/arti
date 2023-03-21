@@ -88,6 +88,12 @@ pub enum CfgPathError {
     /// We couldn't convert a string to a valid path on the OS.
     #[error("Invalid path string: {0:?}")]
     InvalidString(String),
+    /// Variable interpolation (`$`) attempted, but not compiled in
+    #[error("Variable interpolation $ is not supported (tor-config/expand-paths feature disabled)); $ must still be doubled")]
+    VariableInterpolationNotSupported(String),
+    /// Home dir interpolation (`~`) attempted, but not compiled in
+    #[error("Home dir ~/ is not supported (tor-config/expand-paths feature disabled)")]
+    HomeDirInterpolationNotSupported(String),
 }
 
 impl HasKind for CfgPathError {
@@ -98,6 +104,9 @@ impl HasKind for CfgPathError {
             E::UnknownVar(_) | E::InvalidString(_) => EK::InvalidConfig,
             E::NoProjectDirs | E::NoBaseDirs => EK::NoHomeDirectory,
             E::NoProgramPath => EK::InvalidConfig,
+            E::VariableInterpolationNotSupported(_) | E::HomeDirInterpolationNotSupported(_) => {
+                EK::FeatureDisabled
+            }
             E::BadUtf8(_) => {
                 // Arguably, this should be a new "unsupported config"  type,
                 // since it isn't truly "invalid" to have a string with bad UTF8
@@ -168,8 +177,28 @@ fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
 
 /// Helper: convert a string to a path without expansion.
 #[cfg(not(feature = "expand-paths"))]
-fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
-    s.into()
+fn expand(input: &str) -> Result<PathBuf, CfgPathError> {
+    // We must still de-duplicate `$` and reject `~/`,, so that the behaviour is a superset
+    if input.starts_with('~') {
+        return Err(CfgPathError::HomeDirInterpolationNotSupported(input.into()));
+    }
+
+    let mut out = String::with_capacity(input.len());
+    let mut s = input;
+    while let Some((lhs, rhs)) = s.split_once('$') {
+        if let Some(rhs) = rhs.strip_prefix('$') {
+            // deduplicate the $
+            out += lhs;
+            out += "$";
+            s = rhs;
+        } else {
+            return Err(CfgPathError::VariableInterpolationNotSupported(
+                input.into(),
+            ));
+        }
+    }
+    out += s;
+    Ok(out.into())
 }
 
 /// Shellexpand helper: return the user's home directory if we can.
@@ -487,5 +516,28 @@ mod test_serde {
         }
         .unwrap();
         assert_eq!(expanded, this_binary);
+    }
+
+    #[test]
+    #[cfg(not(feature = "expand-paths"))]
+    fn rejections() {
+        let chk_err = |s: &str, mke: &dyn Fn(String) -> CfgPathError| {
+            let p = CfgPath::new(s.to_string());
+            assert_eq!(p.path().unwrap_err(), mke(s.to_string()));
+        };
+
+        let chk_ok = |s: &str, exp| {
+            let p = CfgPath::new(s.to_string());
+            assert_eq!(p.path(), Ok(PathBuf::from(exp)));
+        };
+
+        chk_err(
+            "some/${PROGRAM_DIR}/foo",
+            &CfgPathError::VariableInterpolationNotSupported,
+        );
+        chk_err("~some", &CfgPathError::HomeDirInterpolationNotSupported);
+
+        chk_ok("some$$foo$$bar", "some$foo$bar");
+        chk_ok("no dollars", "no dollars");
     }
 }
