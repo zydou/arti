@@ -868,7 +868,7 @@ impl<R: Runtime> TorClient<R> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get())?;
 
-        match addr.into_stream_instructions()? {
+        let (circ, addr, port) = match addr.into_stream_instructions()? {
             StreamInstructions::Exit {
                 hostname: addr,
                 port,
@@ -879,20 +879,7 @@ impl<R: Runtime> TorClient<R> {
                     .await
                     .map_err(wrap_err)?;
                 debug!("Got a circuit for {}:{}", sensitive(&addr), port);
-
-                let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
-                // This timeout is needless but harmless for optimistic streams.
-                let stream = self
-                    .runtime
-                    .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
-                    .await
-                    .map_err(|_| ErrorDetail::ExitTimeout)?
-                    .map_err(|cause| ErrorDetail::StreamFailed {
-                        cause,
-                        kind: "data",
-                    })?;
-
-                Ok(stream)
+                (circ, addr, port)
             }
 
             #[cfg(not(feature = "onion-client"))]
@@ -914,7 +901,21 @@ impl<R: Runtime> TorClient<R> {
                 // needs to come out of this match statement
                 todo!() // TODO HS
             }
-        }
+        };
+
+        let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
+        // This timeout is needless but harmless for optimistic streams.
+        let stream = self
+            .runtime
+            .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
+            .await
+            .map_err(|_| ErrorDetail::ExitTimeout)?
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "data",
+            })?;
+
+        Ok(stream)
     }
 
     /// Sets the default preferences for future connections made with this client.
