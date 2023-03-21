@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#
+# check_todos
+#
+# Checks for occurrences of /\b X X X+ \b/e
+# These will cause CI to fail if pushed anywhere.
+
+set -euo pipefail
+
+printf -- '---------- checking for to-be-rejected TODOs (XX''X) ----------\n'
+
+set +e
+git --no-pager grep -P '\bXX''X+\b'
+rc=$?
+set -e
+case $rc in
+0)
+	printf -- '"^^^^^^^^^^ found to-be-rejected TODOs (XX''X) ^^^^^^^^^^\n'
+	echo >&2 "
+To-be-rejected-by-CI TODOs found."
+	exit 1
+	;;
+1)
+	# not found, great
+	exit 0
+	;;
+*)
+	echo >&2 "git grep failed, status $?"
+	exit 16
+	;;
+esac
