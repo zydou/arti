@@ -5,14 +5,14 @@
 
 use std::path::{Path, PathBuf};
 
-#[cfg(feature= "expand-paths")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "expand-paths")]
+use std::borrow::Cow;
+#[cfg(feature = "expand-paths")]
 use {
     directories::{BaseDirs, ProjectDirs},
     once_cell::sync::Lazy,
 };
-use serde::{Deserialize, Serialize};
-#[cfg(feature = "expand-paths")]
-use std::borrow::Cow;
 
 use tor_error::{ErrorKind, HasKind};
 
