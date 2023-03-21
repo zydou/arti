@@ -1,7 +1,7 @@
 ## Status
 
 This is a draft document.
-It does not reflect anything we've buil,t
+It does not reflect anything we've built,
 or anything we necessarily will build.
 
 It attempts to describe semantics for an RPC mechanism
@@ -424,23 +424,134 @@ When we are specifying a request, we list the following.
 > even if we change the request's meaning to
 > "cancel every request with the same id as this request".)
 
+To try to cancel a request,
+there is a "cancel" command, taking arguments of the form:
+
+```
+{ "request_id": id }
+```
+
+A successful response is the empty object.
+If a successful response is sent,
+then the request was canceled,
+and an error was sent for the canceled request.
+
+If the request has already completed
+before the "cancel" request is canceled,
+or if there is no such request,
+Arti will return an error.
+(It might not be possible to distinguish these two cases).
+
+
 ## Authentication
 
 ...
+
+> Also authorization, "get instance"
+
+
 
 ## Requests that apply to most objects
 
 ...
 
+> get type
+
+> get status / info.
+
+> set status / info
+
 ## Checking bootstrap status
 
 ...
+
+> session.bootstrap object, supports get status
+
+## Instance operations
+
+> Shut down
+
+> Get configuration
+
+> Set configuration
+
+
 
 ## Opening data streams
 
 ...
 
+> session.connect()
+>     takes target
+>     takes circuit, optionally?
+>     isolation
+>     hs-credential
+>     returns ... hm. Does it return a connection object with token that you can connect to
+>           immediately, or a request that you can observe that eventually
+>           gives you a connection?
+
+
+
 ## Working with onion services
 
 ...
+
+> session.hsclient?
+>     configure [service]
+
+
+> session.hsservices. [...]
+>     create
+>     provision
+>     reconfigure
+>     getstatus
+
+
+# Appendix: Some example APIs to wrap this
+
+Every library that wraps this API
+should probably follow a similar design
+(except when it makes sense to do so).
+
+There should probably be a low-level API
+that handles arbitrary raw JSON objects as requests and responses,
+along with a higher level library
+generated from our JSON schema[^schema].
+There should also be some even-higher-level functionality
+to navigate the authentication problem,
+and for functionality like opening streams.
+
+[^schema]: and by the way, we should have some schemas[^plural]
+[^plural]: Or schemata if you prefer that for the plural.
+
+## Generic, low-level
+
+I'm imagining that the low level
+of any arti-RPC client libary
+will probably look a little like this:
+
+```
+type UrlLikeString = String;
+`/// Open the session, authenticate.
+fn open_session(UrlLikeString, prefs: ?) -> Result<Session>;
+
+type Request = JsonObj/String;
+type Response = JsonObj/String;
+enum ResponseType {Update, Error, Result};
+/// Run a request, block till it succeeds or fails
+fn do(Session, Request) -> Result<Response>;
+type Callback = fn(Response, VoidPtr);
+/// Launch a command, return immediately.  Invoke the callback whenever there
+/// is more info.
+fn launch(Session, Request, Callback, VoidPtr) -> Result<()>;
+```
+
+
+## In rust
+
+## In C
+
+## In Java
+
+
 
