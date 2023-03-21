@@ -226,6 +226,10 @@ impl ClientCirc {
     }
 
     /// Return a description of all the hops in this circuit.
+    ///
+    /// Note that this method performs a deep copy over the `OwnedCircTarget`
+    /// values in the path.  This is undesirable for some applications; see
+    /// [ticket #787](https://gitlab.torproject.org/tpo/core/arti/-/issues/787).
     pub fn path(&self) -> Vec<OwnedChanTarget> {
         self.path.all_hops()
     }
