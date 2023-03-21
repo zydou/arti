@@ -106,6 +106,8 @@ impl<R: Runtime> HsCircPool<R> {
     /// Create a circuit suitable for use as a rendezvous circuit by a client.
     ///
     /// Return the circuit, along with a [`Relay`] from `netdir` representing its final hop.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
     pub async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
@@ -131,6 +133,8 @@ impl<R: Runtime> HsCircPool<R> {
     }
 
     /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
     pub async fn get_or_launch_specific(
         &self,
         netdir: &NetDir,
@@ -370,8 +374,10 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
             // to launch it.
             //
             // TODO: Possibly we should be doing this in a background task, and
-            // launching several of these in parallel.
+            // launching several of these in parallel.  If we do, we should think about
+            // whether taking the fastest will expose us to any attacks.
             let no_target: Option<&OwnedCircTarget> = None;
+            // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
             match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
                 Ok(circ) => {
                     pool.pool.insert(circ);
@@ -388,7 +394,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
             // We'd like to launch a circuit, but we don't have a netdir that we
             // can use.
             //
-            // TODO possibly instead of a fixed delay we want to wait for more
+            // TODO HS possibly instead of a fixed delay we want to wait for more
             // netdir info?
             schedule.fire_in(DELAY);
             continue;
