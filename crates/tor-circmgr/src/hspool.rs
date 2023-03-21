@@ -19,7 +19,7 @@ use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
 };
-use tracing::debug;
+use tracing::{debug, warn};
 
 /// The (onion-service-related) purpose for which a given circuit is going to be
 /// used.
@@ -363,50 +363,48 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
         };
         pool.remove_closed();
         let mut n_to_launch = pool.pool.len().saturating_sub(TARGET_N);
-        if n_to_launch == 0 {
-            // We have nothing to launch now, so we'll try after a while.
-            schedule.fire_in(DELAY);
-            continue;
-        }
-
-        if let Ok(netdir) = provider.netdir(tor_netdir::Timeliness::Timely) {
-            // We want to launch a circuit, and we have a netdir that we can use
-            // to launch it.
-            //
-            // TODO: Possibly we should be doing this in a background task, and
-            // launching several of these in parallel.  If we do, we should think about
-            // whether taking the fastest will expose us to any attacks.
-            let no_target: Option<&OwnedCircTarget> = None;
-            // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
-            match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
-                Ok(circ) => {
-                    pool.pool.insert(circ);
-                    n_to_launch -= 1;
-                }
-                Err(err) => {
-                    debug!(
-                        "Unable to build preemptive circuit for onion services: {}",
-                        err.report()
-                    );
-                }
+        let mut max_attempts = TARGET_N * 2;
+        'inner: while n_to_launch > 1 {
+            max_attempts -= 1;
+            if max_attempts == 0 {
+                // We want to avoid retrying over and over in a tight loop if all our attempts
+                // are failing.
+                warn!("Too many preemptive onion service circuits failed; waiting a while.");
+                break 'inner;
             }
-        } else {
-            // We'd like to launch a circuit, but we don't have a netdir that we
-            // can use.
-            //
-            // TODO HS possibly instead of a fixed delay we want to wait for more
-            // netdir info?
-            schedule.fire_in(DELAY);
-            continue;
+            if let Ok(netdir) = provider.netdir(tor_netdir::Timeliness::Timely) {
+                // We want to launch a circuit, and we have a netdir that we can use
+                // to launch it.
+                //
+                // TODO: Possibly we should be doing this in a background task, and
+                // launching several of these in parallel.  If we do, we should think about
+                // whether taking the fastest will expose us to any attacks.
+                let no_target: Option<&OwnedCircTarget> = None;
+                // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
+                match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
+                    Ok(circ) => {
+                        pool.pool.insert(circ);
+                        n_to_launch -= 1;
+                    }
+                    Err(err) => {
+                        debug!(
+                            "Unable to build preemptive circuit for onion services: {}",
+                            err.report()
+                        );
+                    }
+                }
+            } else {
+                // We'd like to launch a circuit, but we don't have a netdir that we
+                // can use.
+                //
+                // TODO HS possibly instead of a fixed delay we want to wait for more
+                // netdir info?
+                break 'inner;
+            }
         }
 
-        // Loop again immediately if we still have circuits to launch; otherwise,
-        // wait a while.
-        if n_to_launch >= 1 {
-            schedule.fire();
-        } else {
-            schedule.fire_in(DELAY);
-        }
+        // We have nothing to launch now, so we'll try after a while.
+        schedule.fire_in(DELAY);
     }
 }
 
