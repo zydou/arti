@@ -69,6 +69,9 @@ use state::Services;
 ///
 /// The principal entrypoint is
 /// [`get_or_launch_connection()`](HsClientConnector::get_or_launch_connection).
+///
+/// This object is handle-like: it is fairly cheap to clone,
+///  and contains `Arc`s internally.
 #[derive(Educe)]
 #[educe(Clone)]
 pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = connect::Data> {
