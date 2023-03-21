@@ -197,6 +197,10 @@ pub(crate) enum SupportedCircUsage {
     },
     /// This circuit is not suitable for any usage.
     NoUsage,
+    /// This circuit is for some hs-related usage.
+    /// (It should never be given to the circuit manager; the
+    /// `HsPool` code will handle it instead.)
+    HsOnly,
     /// Use only for BEGINDIR-based non-anonymous directory connections
     /// to a particular target (which may not be in the netdir).
     #[cfg(feature = "specific-relay")]
@@ -287,9 +291,7 @@ impl TargetCircUsage {
                 let (path, mon, usable) =
                     ExitPathBuilder::for_any_compatible_with(compatible_with_target.clone())
                         .pick_path(rng, netdir, guards, config, now)?;
-                // I believe "NoUsage" is fine here, since we will never want to
-                // give these out from the main CircMgr pool.
-                let usage = SupportedCircUsage::NoUsage;
+                let usage = SupportedCircUsage::HsOnly;
                 Ok((path, usage, mon, usable))
             }
         }
@@ -427,6 +429,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
             SCU::DirSpecificTarget(_) => CU::Dir,
             SCU::Exit { .. } => CU::UserTraffic,
             SCU::NoUsage => CU::UselessCircuit,
+            SCU::HsOnly => CU::UserTraffic,
         }
     }
 }
