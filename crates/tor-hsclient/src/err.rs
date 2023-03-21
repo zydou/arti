@@ -5,7 +5,7 @@ use futures::task::SpawnError;
 
 use thiserror::Error;
 
-use tor_error::Bug;
+use tor_error::{Bug, ErrorKind, HasKind};
 
 /// Error that occurred attempting to reach a hidden service
 #[derive(Error, Clone, Debug)]
@@ -26,6 +26,16 @@ pub enum HsClientConnError {
     Bug(#[from] Bug),
 }
 
+impl HasKind for HsClientConnError {
+    fn kind(&self) -> ErrorKind {
+        use HsClientConnError as CE;
+        match self {
+            CE::Spawn { cause, .. } => cause.kind(),
+            CE::Bug(e) => e.kind(),
+        }
+    }
+}
+
 /// Error that occurred attempting to start up a hidden service client connector
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
@@ -33,4 +43,13 @@ pub enum StartupError {
     /// Internal error
     #[error("{0}")]
     Bug(#[from] Bug),
+}
+
+impl HasKind for StartupError {
+    fn kind(&self) -> ErrorKind {
+        use StartupError as SE;
+        match self {
+            SE::Bug(e) => e.kind(),
+        }
+    }
 }
