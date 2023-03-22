@@ -11,10 +11,6 @@ use tor_error::Bug;
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 pub enum HsClientConnError {
-    /// Internal error
-    #[error("{0}")]
-    Bug(#[from] Bug),
-
     /// Unable to spawn
     #[error("Unable to spawn {spawning}")]
     Spawn {
@@ -24,6 +20,10 @@ pub enum HsClientConnError {
         #[source]
         cause: Arc<SpawnError>,
     },
+
+    /// Internal error
+    #[error("{0}")]
+    Bug(#[from] Bug),
 }
 
 /// Error that occurred attempting to start up a hidden service client connector
