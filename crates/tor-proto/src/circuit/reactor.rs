@@ -307,7 +307,7 @@ pub(super) trait MetaCellHandler: Send {
 /// (This deliberately does _not_ implement `Clone`, in case we want it to include
 /// a the cell itself later on.)
 #[derive(Debug)]
-#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "send-control-msg", visibility::make(pub))]
 #[non_exhaustive]
 pub(super) enum MetaCellDisposition {
     /// The message was consumed; the handler should remain installed.

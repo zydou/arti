@@ -20,7 +20,8 @@ ntor_v3 = []
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
 hs-common = []
-experimental-api = ["visibility"]
+experimental-api = ["send-control-msg"]
+send-control-msg = ["visibility"] # send_control_message etc.; TODO HS should this be in hs-client?
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = []
