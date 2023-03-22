@@ -11,6 +11,8 @@ use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
 
 use crate::TorAddrError;
+#[cfg(feature = "onion-client")]
+use {tor_hsclient::HsClientConnError, tor_hscrypto::pk::HsId};
 
 /// Main high-level error type for the Arti Tor client
 ///
@@ -153,6 +155,18 @@ enum ErrorDetail {
         /// What went wrong
         #[source]
         cause: tor_circmgr::Error,
+    },
+
+    /// Failed to obtain hidden service circuit
+    #[cfg(feature = "onion-client")]
+    #[error("Failed to obtain circuit to hidden service")]
+    ObtainHsCircuit {
+        /// The service we were trying to connect to
+        hsid: HsId,
+
+        /// What went wrong
+        #[source]
+        cause: HsClientConnError,
     },
 
     /// Directory manager was unable to bootstrap a working directory.
@@ -313,6 +327,8 @@ impl tor_error::HasKind for ErrorDetail {
         use ErrorKind as EK;
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
+            #[cfg(feature = "onion-client")]
+            E::ObtainHsCircuit { cause, .. } => cause.kind(),
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::GuardMgrSetup(e) => e.kind(),

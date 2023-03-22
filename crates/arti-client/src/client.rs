@@ -18,7 +18,7 @@ use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug, ErrorReport};
 use tor_guardmgr::GuardMgr;
 #[cfg(feature = "onion-client")]
-use tor_hsclient::HsClientConnector;
+use tor_hsclient::{HsClientConnector, HsClientSecretKeys};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -912,9 +912,16 @@ impl<R: Runtime> TorClient<R> {
                 hostname,
                 port,
             } => {
-                // This might want to reuse the stream code, above, so maybe that
-                // needs to come out of this match statement
-                todo!() // TODO HS
+                let circ = self
+                    .hsclient
+                    .get_or_launch_connection(
+                        hsid,
+                        HsClientSecretKeys::default(), // TODO support client auth somehow
+                        self.isolation(prefs),
+                    )
+                    .await
+                    .map_err(|cause| ErrorDetail::ObtainHsCircuit { cause, hsid })?;
+                (circ, hostname, port)
             }
         };
 
