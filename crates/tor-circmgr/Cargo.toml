@@ -26,7 +26,7 @@ testing = []
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental = ["experimental-api", "hs-client", "hs-service"]
-experimental-api = []
+experimental-api = ["visibility"]
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
 hs-common = ["tor-hscrypto"]
@@ -63,15 +63,25 @@ tor-persist = { path = "../tor-persist", version = "0.6.2" }
 tor-proto = { path = "../tor-proto", version = "0.9.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tracing = "0.1.18"
+visibility = { version = "0.0.1", optional = true }
 weak-table = "0.3.0"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.2", features = ["testing"] }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.2", features = [
+    "testing",
+] }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
-tor-netdir = { path = "../tor-netdir", version = "0.8.0", features = ["testing"] }
-tor-persist = { path = "../tor-persist", version = "0.6.2", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
+tor-netdir = { path = "../tor-netdir", version = "0.8.0", features = [
+    "testing",
+] }
+tor-persist = { path = "../tor-persist", version = "0.6.2", features = [
+    "testing",
+] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = [
+    "tokio",
+    "native-tls",
+] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
 [package.metadata.docs.rs]
 all-features = true

@@ -3769,6 +3769,7 @@ dependencies = [
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
+ "visibility",
  "weak-table",
 ]
 

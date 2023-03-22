@@ -164,6 +164,19 @@ pub(crate) enum TargetCircUsage {
     /// and therefore to a specific relay (which need not be in any netdir).
     #[cfg(feature = "specific-relay")]
     DirSpecificTarget(OwnedChanTarget),
+
+    /// Used to build a circuit (currently always 3 hops) to serve as the basis of some
+    /// onion-serivice-related operation.
+    #[cfg(feature = "hs-common")]
+    HsCircBase {
+        /// A target to avoid when constructing this circuit.
+        ///
+        /// This target is not appended to the end of the circuit; rather, the
+        /// circuit is built so that its relays are all allowed to share a
+        /// circuit with this target (without, for example, violating any
+        /// family restrictions).
+        compatible_with_target: Option<OwnedChanTarget>,
+    },
 }
 
 /// The purposes for which a circuit is usable.
@@ -184,6 +197,10 @@ pub(crate) enum SupportedCircUsage {
     },
     /// This circuit is not suitable for any usage.
     NoUsage,
+    /// This circuit is for some hs-related usage.
+    /// (It should never be given to the circuit manager; the
+    /// `HsPool` code will handle it instead.)
+    HsOnly,
     /// Use only for BEGINDIR-based non-anonymous directory connections
     /// to a particular target (which may not be in the netdir).
     #[cfg(feature = "specific-relay")]
@@ -266,6 +283,16 @@ impl TargetCircUsage {
                 let path = TorPath::new_one_hop_owned(target);
                 let usage = SupportedCircUsage::DirSpecificTarget(target.clone());
                 Ok((path, usage, None, None))
+            }
+            #[cfg(feature = "hs-common")]
+            TargetCircUsage::HsCircBase {
+                compatible_with_target,
+            } => {
+                let (path, mon, usable) =
+                    ExitPathBuilder::for_any_compatible_with(compatible_with_target.clone())
+                        .pick_path(rng, netdir, guards, config, now)?;
+                let usage = SupportedCircUsage::HsOnly;
+                Ok((path, usage, mon, usable))
             }
         }
     }
@@ -402,6 +429,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
             SCU::DirSpecificTarget(_) => CU::Dir,
             SCU::Exit { .. } => CU::UserTraffic,
             SCU::NoUsage => CU::UselessCircuit,
+            SCU::HsOnly => CU::UserTraffic,
         }
     }
 }

@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{bad_api_usage, internal};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
-use tor_linkspec::RelayIdSet;
+use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIdSet};
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
 
@@ -23,15 +23,23 @@ enum ExitPathBuilderInner<'a> {
         strict: bool,
     },
 
+    /// Request a path to any relay, even those that cannot exit.
+    AnyRelay,
+
     /// Request a path that uses a given relay as exit node.
     ChosenExit(Relay<'a>),
 }
 
 /// A PathBuilder that builds a path to an exit relay supporting a given
 /// set of ports.
+///
+/// NOTE: The name of this type is no longer completely apt: given some circuits,
+/// it is happy to build a circuit ending at a non-exit.
 pub struct ExitPathBuilder<'a> {
     /// The inner ExitPathBuilder state.
     inner: ExitPathBuilderInner<'a>,
+    /// If present, a "target" that every chosen relay must be able to share a circuit with with.
+    compatible_with: Option<OwnedChanTarget>,
 }
 
 impl<'a> ExitPathBuilder<'a> {
@@ -46,6 +54,7 @@ impl<'a> ExitPathBuilder<'a> {
         }
         Self {
             inner: ExitPathBuilderInner::WantsPorts(ports),
+            compatible_with: None,
         }
     }
 
@@ -54,6 +63,7 @@ impl<'a> ExitPathBuilder<'a> {
     pub fn from_chosen_exit(exit_relay: Relay<'a>) -> Self {
         Self {
             inner: ExitPathBuilderInner::ChosenExit(exit_relay),
+            compatible_with: None,
         }
     }
 
@@ -61,6 +71,20 @@ impl<'a> ExitPathBuilder<'a> {
     pub fn for_any_exit() -> Self {
         Self {
             inner: ExitPathBuilderInner::AnyExit { strict: true },
+            compatible_with: None,
+        }
+    }
+
+    /// Create a new builder that will try to build a three-hop non-exit
+    /// path to a given
+    ///
+    /// TODO: This doesn't seem to belong in a type called ExitPathBuilder.
+    /// Perhaps we should rename ExitPathBuilder, split it into multiple types,
+    /// or move this method.
+    pub(crate) fn for_any_compatible_with(compatible_with: Option<OwnedChanTarget>) -> Self {
+        Self {
+            inner: ExitPathBuilderInner::AnyRelay,
+            compatible_with,
         }
     }
 
@@ -69,6 +93,7 @@ impl<'a> ExitPathBuilder<'a> {
     pub(crate) fn for_timeout_testing() -> Self {
         Self {
             inner: ExitPathBuilderInner::AnyExit { strict: false },
+            compatible_with: None,
         }
     }
 
@@ -110,6 +135,15 @@ impl<'a> ExitPathBuilder<'a> {
                         correct_ports,
                     })
             }
+
+            ExitPathBuilderInner::AnyRelay => netdir
+                .pick_relay(rng, WeightRole::Middle, |r| {
+                    can_share.count(relays_can_share_circuit_opt(r, guard, config))
+                })
+                .ok_or(Error::NoExit {
+                    can_share,
+                    correct_ports,
+                }),
 
             ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
                 .pick_relay(rng, WeightRole::Exit, |r| {
@@ -176,6 +210,15 @@ impl<'a> ExitPathBuilder<'a> {
                     family.insert(*exit_relay.id());
                     // TODO(nickm): See "limitations" note on `known_family_members`.
                     family.extend(netdir.known_family_members(exit_relay).map(|r| *r.id()));
+                    b.restrictions()
+                        .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
+                }
+                if let Some(avoid_target) = &self.compatible_with {
+                    let mut family = RelayIdSet::new();
+                    family.extend(avoid_target.identities().map(|id| id.to_owned()));
+                    if let Some(avoid_relay) = netdir.by_ids(avoid_target) {
+                        family.extend(netdir.known_family_members(&avoid_relay).map(|r| *r.id()));
+                    }
                     b.restrictions()
                         .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
                 }

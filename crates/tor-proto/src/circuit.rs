@@ -226,6 +226,10 @@ impl ClientCirc {
     }
 
     /// Return a description of all the hops in this circuit.
+    ///
+    /// Note that this method performs a deep copy over the `OwnedCircTarget`
+    /// values in the path.  This is undesirable for some applications; see
+    /// [ticket #787](https://gitlab.torproject.org/tpo/core/arti/-/issues/787).
     pub fn path(&self) -> Vec<OwnedChanTarget> {
         self.path.all_hops()
     }
@@ -594,7 +598,12 @@ impl ClientCirc {
         self.unique_id
     }
 
-    #[cfg(test)]
+    /// Return the number of hops in this circuit.
+    ///
+    /// NOTE: This function will currently return only the number of hops
+    /// _currently_ in the circuit. If there is an extend operation in progress,
+    /// the currently pending hop may or may not be counted, depending on whether
+    /// the extend operation finishes before this call is done.
     pub fn n_hops(&self) -> usize {
         self.path.n_hops()
     }

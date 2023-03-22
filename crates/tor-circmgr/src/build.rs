@@ -314,6 +314,11 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     pub(crate) fn runtime(&self) -> &R {
         &self.runtime
     }
+
+    /// Return a reference to this Builder's timeout estimator.
+    pub(crate) fn estimator(&self) -> &timeouts::Estimator {
+        &self.timeouts
+    }
 }
 
 /// A factory object to build circuits.
@@ -450,6 +455,11 @@ impl<R: Runtime> CircuitBuilder<R> {
     /// Return a reference to this builder's runtime
     pub(crate) fn runtime(&self) -> &R {
         self.builder.runtime()
+    }
+
+    /// Return a reference to this builder's timeout estimator.
+    pub(crate) fn estimator(&self) -> &timeouts::Estimator {
+        self.builder.estimator()
     }
 }
 
