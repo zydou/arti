@@ -9,7 +9,7 @@ use crate::address::{IntoTorAddr, ResolveInstructions, StreamInstructions};
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use safelog::{sensitive, Sensitive};
 use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
-use tor_circmgr::isolation::Isolation;
+use tor_circmgr::isolation::{Isolation, StreamIsolation};
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
 #[cfg(feature = "bridge-client")]
@@ -337,9 +337,16 @@ impl StreamPrefs {
         self
     }
 
-    /// Return an [`Isolation`] to describe which connections might use
-    /// the same circuit as this one.
-    fn isolation(&self) -> Option<Box<dyn Isolation>> {
+    /// Return an [`Isolation`] which separates according to these `StreamPrefs` (only)
+    ///
+    /// This describes which connections or operations might use
+    /// the same circuit(s) as this one.
+    ///
+    /// Since this doesn't have access to the `TorClient`,
+    /// it doesn't separate streams which ought to be separated because of
+    /// the way their `TorClient`s are isolated.
+    /// For that, use [`TorClient::isolation`].
+    fn prefs_isolation(&self) -> Option<Box<dyn Isolation>> {
         use StreamIsolationPreference as SIP;
         match self.isolation {
             SIP::None => None,
@@ -1062,21 +1069,9 @@ impl<R: Runtime> TorClient<R> {
         self.wait_for_bootstrap().await?;
         let dir = self.netdir(Timeliness::Timely, "build a circuit")?;
 
-        let isolation = {
-            let mut b = StreamIsolationBuilder::new();
-            // Always consider our client_isolation.
-            b.owner_token(self.client_isolation);
-            // Consider stream isolation too, if it's set.
-            if let Some(tok) = prefs.isolation() {
-                b.stream_isolation(tok);
-            }
-            // Failure should be impossible with this builder.
-            b.build().expect("Failed to construct StreamIsolation")
-        };
-
         let circ = self
             .circmgr
-            .get_or_launch_exit(dir.as_ref().into(), exit_ports, isolation)
+            .get_or_launch_exit(dir.as_ref().into(), exit_ports, self.isolation(prefs))
             .await
             .map_err(|cause| ErrorDetail::ObtainExitCircuit {
                 cause,
@@ -1085,6 +1080,26 @@ impl<R: Runtime> TorClient<R> {
         drop(dir); // This decreases the refcount on the netdir.
 
         Ok(circ)
+    }
+
+    /// Return an overall [`Isolation`] this a `TorClient` and a `StreamPrefs`.
+    ///
+    /// This describes which operations might use
+    /// circuit(s) with this one.
+    ///
+    /// This combines isolation information from
+    /// [`StreamPrefs::prefs_isolation`]
+    /// and the `TorClient`'s isolation (eg from [`TorClient::isolated_client`]).
+    fn isolation(&self, prefs: &StreamPrefs) -> StreamIsolation {
+        let mut b = StreamIsolationBuilder::new();
+        // Always consider our client_isolation.
+        b.owner_token(self.client_isolation);
+        // Consider stream isolation too, if it's set.
+        if let Some(tok) = prefs.prefs_isolation() {
+            b.stream_isolation(tok);
+        }
+        // Failure should be impossible with this builder.
+        b.build().expect("Failed to construct StreamIsolation")
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
