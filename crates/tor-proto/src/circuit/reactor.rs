@@ -147,6 +147,7 @@ pub(super) enum CtrlMsg {
     /// Send a given control message on this circuit, and install a control-message handler to
     /// receive responses.
     // TODO hs naming.
+    #[cfg(feature = "send-control-msg")]
     SendMsgAndInstallHandler {
         /// The message to send
         msg: AnyRelayCell,
@@ -311,10 +312,12 @@ pub(super) trait MetaCellHandler: Send {
 #[non_exhaustive]
 pub(super) enum MetaCellDisposition {
     /// The message was consumed; the handler should remain installed.
+    #[cfg(feature = "send-control-msg")]
     Consumed,
     /// The message was consumed; the handler should be uninstalled.
     UninstallHandler,
     /// The message was consumed; the circuit should be closed.
+    #[cfg(feature = "send-control-msg")]
     CloseCirc,
     // TODO: Eventually we might want the ability to have multiple handlers
     // installed, and to let them say "not for me, maybe for somebody else?".
@@ -992,11 +995,13 @@ impl Reactor {
                     ret
                 );
                 match ret {
+                    #[cfg(feature = "send-control-msg")]
                     Ok(MetaCellDisposition::Consumed) => {
                         self.meta_handler = Some(handler);
                         Ok(CellStatus::Continue)
                     }
                     Ok(MetaCellDisposition::UninstallHandler) => Ok(CellStatus::Continue),
+                    #[cfg(feature = "send-control-msg")]
                     Ok(MetaCellDisposition::CloseCirc) => Ok(CellStatus::CleanShutdown),
                     Err(e) => Err(e),
                 }
@@ -1238,6 +1243,7 @@ impl Reactor {
                 let cell = AnyRelayCell::new(stream_id, sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
             }
+            #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsgAndInstallHandler {
                 msg,
                 handler,
