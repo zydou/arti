@@ -49,7 +49,7 @@ use std::sync::{Arc, Mutex};
 
 use educe::Educe;
 
-use tor_circmgr::isolation::Isolation;
+use tor_circmgr::isolation::StreamIsolation;
 use tor_circmgr::CircMgr;
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
@@ -120,8 +120,13 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         &self,
         hs_id: HsId,
         secret_keys: HsClientSecretKeys,
-        isolation: Box<dyn Isolation>,
+        isolation: StreamIsolation,
     ) -> impl Future<Output = Result<ClientCirc, HsClientConnError>> + Send + Sync + '_ {
+        // As in tor-circmgr,  we take `StreamIsolation`, to ensure that callers in
+        // arti-client pass us the final overall isolation,
+        // including the per-TorClient isolation.
+        // But internally we need a Box<dyn Isolation> since we need .join().
+        let isolation = Box::new(isolation);
         Services::get_or_launch_connection(self, hs_id, isolation, secret_keys)
     }
 }
