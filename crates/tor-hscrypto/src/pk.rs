@@ -14,9 +14,11 @@ use std::str::FromStr;
 
 use digest::Digest;
 use itertools::{chain, Itertools};
+use signature::Signer;
 use thiserror::Error;
 use tor_basic_utils::StrExt as _;
 use tor_llcrypto::d::Sha3_256;
+use tor_llcrypto::pk::ed25519::Ed25519PublicKey;
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
 
@@ -382,6 +384,28 @@ impl HsBlindIdSecretKey {
     /// Compute a signature of `message` with this key, using the corresponding `public_key`.
     pub fn sign(&self, message: &[u8], public_key: &HsBlindIdKey) -> ed25519::Signature {
         self.0.sign(message, &public_key.0)
+    }
+}
+
+/// A blinded Ed25519 keypair.
+#[allow(clippy::exhaustive_structs)]
+#[derive(Debug)]
+pub struct HsBlindKeypair {
+    /// The public part of the key.
+    pub public: HsBlindIdKey,
+    /// The secret part of the key.
+    pub secret: HsBlindIdSecretKey,
+}
+
+impl Signer<ed25519::Signature> for HsBlindKeypair {
+    fn try_sign(&self, msg: &[u8]) -> Result<ed25519::Signature, signature::Error> {
+        Ok(self.secret.sign(msg, &self.public))
+    }
+}
+
+impl Ed25519PublicKey for HsBlindKeypair {
+    fn public_key(&self) -> &ed25519::PublicKey {
+        &self.public
     }
 }
 

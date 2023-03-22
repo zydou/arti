@@ -8,7 +8,7 @@ use crate::{
 };
 use std::time::{Duration, SystemTime};
 use tor_bytes::{EncodeResult, Writeable, Writer};
-use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 
 impl Ed25519Cert {
     /// Return a new `Ed25519CertConstructor` to create and return a new signed
@@ -109,8 +109,10 @@ impl Ed25519CertConstructor {
     /// This function exists in lieu of a `build()` function, since we have a rule that
     /// we don't produce an `Ed25519Cert` except if the certificate is known to be
     /// valid.
-    pub fn encode_and_sign(&self, skey: &ed25519::Keypair) -> Result<Vec<u8>, CertEncodeError> {
-        use ed25519::Signer;
+    pub fn encode_and_sign<S>(&self, skey: &S) -> Result<Vec<u8>, CertEncodeError>
+    where
+        S: Ed25519PublicKey + ed25519::Signer<ed25519::Signature>,
+    {
         let Ed25519CertConstructor {
             exp_hours,
             cert_type,
@@ -120,7 +122,7 @@ impl Ed25519CertConstructor {
         } = self;
 
         if let Some(Some(signer)) = &signed_with {
-            if *signer != skey.public.into() {
+            if *signer != skey.public_key().into() {
                 return Err(CertEncodeError::KeyMismatch);
             }
         }
