@@ -18,7 +18,7 @@ expand-paths = ["shellexpand", "directories"]
 [dependencies]
 config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-directories = { version = "4", optional = true }
+directories = { version = "5", optional = true }
 educe = "0.4.6"
 either = "1"
 fs-mistrust = { path = "../fs-mistrust", version = "0.6.2" }
@@ -38,7 +38,7 @@ tracing = "0.1.18"
 
 [dev-dependencies]
 config = { version = "0.13", default-features = false, features = ["toml"] }
-dirs = "4.0.0"
+dirs = "5.0.0"
 rmp-serde = "1"
 serde_json = "1.0.50"
 tempfile = "3"
