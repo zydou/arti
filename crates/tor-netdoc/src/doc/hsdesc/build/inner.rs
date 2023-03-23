@@ -11,8 +11,11 @@ use crate::{NetdocBuilder, NetdocText};
 use tor_bytes::{EncodeError, Writer};
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::{bad_api_usage, into_bad_api_usage};
-use tor_llcrypto::pk::ed25519;
+use tor_hscrypto::pk::HsIntroPtSessionIdKey;
+use tor_hscrypto::pk::HsSvcNtorKey;
+use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public;
+use tor_llcrypto::pk::{curve25519, ed25519};
 
 use base64ct::{Base64, Encoding};
 
@@ -33,7 +36,9 @@ mod private {
     use smallvec::SmallVec;
     use tor_llcrypto::pk::ed25519;
 
-    use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
+    use crate::doc::hsdesc::IntroAuthType;
+
+    use super::IntroPointDesc;
 
     /// The representation of the inner document of an onion service descriptor.
     ///
@@ -62,6 +67,32 @@ mod private {
 pub(super) use private::HsDescInnerBuilder;
 
 use private::HsDescInner;
+
+/// Information in an onion service descriptor about a single introduction point.
+///
+/// TODO hs: Move out of tor-netdoc: this is a general-purpose representation of an introduction
+/// point, not merely an intermediate representation for decoding/encoding. There may be other
+/// types that need to be factored out tor-netdoc for the same reason.
+#[derive(Debug, Clone)]
+pub struct IntroPointDesc {
+    /// A list of link specifiers needed to extend a circuit to the introduction point.
+    ///
+    /// These can include public keys and network addresses.
+    pub(crate) link_specifiers: Vec<LinkSpec>,
+    /// The key used to extend a circuit _to the introduction point_, using the
+    /// ntor or ntor3 handshakes.  (`KP_ntor`)
+    pub(crate) ipt_ntor_key: curve25519::PublicKey,
+    /// A key used to identify the onion service at this introduction point.
+    /// (`KP_hs_ipt_sid`)
+    pub(crate) ipt_sid_key: HsIntroPtSessionIdKey,
+    /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
+    /// service_ when using this introduction point.
+    ///
+    /// The onion service uses a separate key of this type with each
+    /// introduction point as part of its strategy for preventing replay
+    /// attacks.
+    pub(crate) svc_ntor_key: HsSvcNtorKey,
+}
 
 impl<'a> NetdocBuilder for HsDescInnerBuilder<'a> {
     fn build_sign(self) -> Result<NetdocText<Self>, EncodeError> {
@@ -112,6 +143,7 @@ impl<'a> NetdocBuilder for HsDescInnerBuilder<'a> {
 
             let mut link_specifiers = vec![];
             link_specifiers.write_u8(nspec);
+
             for link_spec in &intro_point.link_specifiers {
                 link_specifiers.write(link_spec)?;
             }
@@ -204,8 +236,9 @@ mod test {
     use crate::doc::hsdesc::IntroAuthType;
 
     use smallvec::SmallVec;
+    use std::net::Ipv4Addr;
     use std::time::UNIX_EPOCH;
-    use tor_linkspec::UnparsedLinkSpec;
+    use tor_linkspec::LinkSpec;
 
     #[test]
     fn inner_hsdesc_no_intro_auth() {
@@ -239,9 +272,9 @@ mod test {
 
         assert_eq!(&*hs_desc, "create2-formats 1234\n");
 
-        let link_specs1 = vec![UnparsedLinkSpec::new(0, vec![1, 2, 3, 4])];
-        let link_specs2 = vec![UnparsedLinkSpec::new(5, vec![6, 7, 8, 9])];
-        let link_specs3 = vec![UnparsedLinkSpec::new(10, vec![11, 12, 13, 14])];
+        let link_specs1 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 1234)];
+        let link_specs2 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
+        let link_specs3 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8901)];
 
         let intros = vec![
             test_intro_point_descriptor(link_specs1),
@@ -264,7 +297,7 @@ mod test {
         assert_eq!(
             &*hs_desc,
             r#"create2-formats 1234 32 23
-introduction-point AQAEAQIDBA==
+introduction-point AQAGfwAAAQTS
 onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
 auth-key
 -----BEGIN ED25519 CERT-----
@@ -279,7 +312,7 @@ AQsAAAAAAR8cWg2fNApajIBOuKccs3OYfVopANyb9NDTpy7J86VTAQAgBADsGai/
 VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PNm8uaG3bLDi06dUrHSEDBCIVsx5
 CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
 -----END ED25519 CERT-----
-introduction-point AQUEBgcICQ==
+introduction-point AQAGfwAAARYv
 onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
 auth-key
 -----BEGIN ED25519 CERT-----
@@ -294,7 +327,7 @@ AQsAAAAAAR8cWg2fNApajIBOuKccs3OYfVopANyb9NDTpy7J86VTAQAgBADsGai/
 VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PNm8uaG3bLDi06dUrHSEDBCIVsx5
 CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
 -----END ED25519 CERT-----
-introduction-point AQoECwwNDg==
+introduction-point AQAGfwAAASLF
 onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
 auth-key
 -----BEGIN ED25519 CERT-----
@@ -317,7 +350,7 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
     fn inner_hsdesc_too_many_link_specifiers() {
         let hs_desc_sign = test_ed25519_keypair();
 
-        let link_spec = UnparsedLinkSpec::new(0, vec![]);
+        let link_spec = LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999);
         let link_specifiers = std::iter::repeat(link_spec)
             .take(u8::MAX as usize + 1)
             .collect::<Vec<_>>();
@@ -336,13 +369,13 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
             .build_sign()
             .unwrap_err();
 
-        assert!(expect_bug(err).contains("Too many link specifiers (max = 255)."));
+        assert!(expect_bug(err).contains("Too many link specifiers."));
     }
 
     #[test]
     fn inner_hsdesc_intro_auth() {
         let hs_desc_sign = test_ed25519_keypair();
-        let link_specs = vec![UnparsedLinkSpec::new(0, vec![1, 2, 3, 4])];
+        let link_specs = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
         let intros = vec![test_intro_point_descriptor(link_specs)];
         let auth = SmallVec::from([IntroAuthType::Ed25519, IntroAuthType::Ed25519]);
 
@@ -363,7 +396,7 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
             &*hs_desc,
             r#"create2-formats 1234
 intro-auth-required ed25519 ed25519
-introduction-point AQAEAQIDBA==
+introduction-point AQAGfwAAAR+Q
 onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
 auth-key
 -----BEGIN ED25519 CERT-----

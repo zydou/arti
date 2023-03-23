@@ -4,11 +4,12 @@ mod inner;
 mod middle;
 mod outer;
 
-use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
+use crate::doc::hsdesc::IntroAuthType;
 use crate::{NetdocBuilder, NetdocText};
 use tor_bytes::EncodeError;
 use tor_error::into_bad_api_usage;
-use tor_hscrypto::{pk::HsSvcDescEncKey, RevisionCounter, Subcredential};
+use tor_hscrypto::pk::HsSvcDescEncKey;
+use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::ed25519;
 use tor_units::IntegerMinutes;
 
@@ -18,7 +19,7 @@ use smallvec::SmallVec;
 use std::borrow::{Borrow, Cow};
 use std::time::SystemTime;
 
-use self::inner::HsDescInnerBuilder;
+use self::inner::{HsDescInnerBuilder, IntroPointDesc};
 use self::middle::HsDescMiddleBuilder;
 use self::outer::HsDescOuterBuilder;
 
@@ -221,15 +222,17 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use std::net::Ipv4Addr;
     use std::time::Duration;
 
     use super::*;
+    use crate::doc::hsdesc::desc_enc::HS_DESC_ENC_NONCE_LEN;
     use crate::doc::hsdesc::test::TEST_SUBCREDENTIAL;
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as HsDescDecoder};
     use tor_basic_utils::test_rng::testing_rng;
     use tor_checkable::{SelfSigned, Timebound};
     use tor_hscrypto::time::TimePeriod;
-    use tor_linkspec::UnparsedLinkSpec;
+    use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::curve25519;
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
@@ -288,9 +291,7 @@ mod test {
         (&ephemeral_key).into()
     }
 
-    pub(super) fn test_intro_point_descriptor(
-        link_specifiers: Vec<UnparsedLinkSpec>,
-    ) -> IntroPointDesc {
+    pub(super) fn test_intro_point_descriptor(link_specifiers: Vec<LinkSpec>) -> IntroPointDesc {
         IntroPointDesc {
             link_specifiers,
             ipt_ntor_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC1),
@@ -315,7 +316,7 @@ mod test {
 
         let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
         let intro_points = vec![IntroPointDesc {
-            link_specifiers: vec![UnparsedLinkSpec::new(0, vec![1, 2, 3, 4])],
+            link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)],
             ipt_ntor_key: create_curve25519_pk(),
             ipt_sid_key: create_ed25519_keypair().public.into(),
             svc_ntor_key: create_curve25519_pk().into(),
