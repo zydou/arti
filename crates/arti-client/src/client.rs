@@ -1105,7 +1105,7 @@ impl<R: Runtime> TorClient<R> {
         Ok(circ)
     }
 
-    /// Return an overall [`Isolation`] this a `TorClient` and a `StreamPrefs`.
+    /// Return an overall [`Isolation`] for this `TorClient` and a `StreamPrefs`.
     ///
     /// This describes which operations might use
     /// circuit(s) with this one.
