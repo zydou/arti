@@ -6,6 +6,7 @@
 
 use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::inner::HsInnerKwd;
+use crate::doc::hsdesc::IntroAuthType;
 use crate::{NetdocBuilder, NetdocText};
 
 use tor_bytes::{EncodeError, Writer};
@@ -19,54 +20,33 @@ use tor_llcrypto::pk::{curve25519, ed25519};
 
 use base64ct::{Base64, Encoding};
 
-mod private {
-    //! A private module that defines the `HsDescInner` structure.
-    //!
-    //! TODO: while you can use derive_builder to create a private "built" struct with a public
-    //! builder (by making the struct private and setting  `build_fn(vis = "pub(super)")`), it does
-    //! not support finer grained visibility for the builder struct. This means we cannot make the
-    //! builder struct `pub(super)` while keeping the "built" struct private (which is what we want
-    //! here, as this builder only exists to serve as a helper for the top-level `HsDescBuilder`).
-    //!
-    //! This module was created as a workaround to this limitation.
+use std::time::SystemTime;
 
-    use std::time::SystemTime;
+use derive_builder::Builder;
+use smallvec::SmallVec;
 
-    use derive_builder::Builder;
-    use smallvec::SmallVec;
-    use tor_llcrypto::pk::ed25519;
-
-    use crate::doc::hsdesc::IntroAuthType;
-
-    use super::IntroPointDesc;
-
-    /// The representation of the inner document of an onion service descriptor.
-    ///
-    /// The plaintext format of this document is described in section 2.5.2.2. of rend-spec-v3.
-    #[derive(Builder)]
-    #[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
-    pub(super) struct HsDescInner<'a> {
-        /// The descriptor signing key.
-        pub(super) hs_desc_sign: &'a ed25519::Keypair,
-        /// A list of recognized CREATE handshakes that this onion service supports.
-        // TODO hs: this should probably be a caret enum, not an integer
-        pub(super) create2_formats: &'a [u32],
-        /// A list of authentication types that this onion service supports.
-        pub(super) auth_required: Option<&'a SmallVec<[IntroAuthType; 2]>>,
-        /// If true, this a "single onion service" and is not trying to keep its own location private.
-        pub(super) is_single_onion_service: bool,
-        /// One or more introduction points used to contact the onion service.
-        pub(super) intro_points: &'a [IntroPointDesc],
-        /// The expiration time of an introduction point authentication key certificate.
-        pub(super) intro_auth_key_cert_expiry: SystemTime,
-        /// The expiration time of an introduction point encryption key certificate.
-        pub(super) intro_enc_key_cert_expiry: SystemTime,
-    }
+/// The representation of the inner document of an onion service descriptor.
+///
+/// The plaintext format of this document is described in section 2.5.2.2. of rend-spec-v3.
+#[derive(Builder)]
+#[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
+pub(super) struct HsDescInner<'a> {
+    /// The descriptor signing key.
+    hs_desc_sign: &'a ed25519::Keypair,
+    /// A list of recognized CREATE handshakes that this onion service supports.
+    // TODO hs: this should probably be a caret enum, not an integer
+    create2_formats: &'a [u32],
+    /// A list of authentication types that this onion service supports.
+    auth_required: Option<&'a SmallVec<[IntroAuthType; 2]>>,
+    /// If true, this a "single onion service" and is not trying to keep its own location private.
+    is_single_onion_service: bool,
+    /// One or more introduction points used to contact the onion service.
+    intro_points: &'a [IntroPointDesc],
+    /// The expiration time of an introduction point authentication key certificate.
+    intro_auth_key_cert_expiry: SystemTime,
+    /// The expiration time of an introduction point encryption key certificate.
+    intro_enc_key_cert_expiry: SystemTime,
 }
-
-pub(super) use private::HsDescInnerBuilder;
-
-use private::HsDescInner;
 
 /// Information in an onion service descriptor about a single introduction point.
 ///

@@ -5,6 +5,7 @@
 //! hidden service descriptors.
 
 use crate::build::NetdocEncoder;
+use crate::doc::hsdesc::build::ClientAuth;
 use crate::doc::hsdesc::desc_enc::{HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN};
 use crate::doc::hsdesc::middle::{AuthClient, HsMiddleKwd, HS_DESC_AUTH_TYPE};
 use crate::{NetdocBuilder, NetdocText};
@@ -15,47 +16,28 @@ use tor_llcrypto::pk::curve25519::{EphemeralSecret, PublicKey};
 use tor_llcrypto::util::ct::CtByteArray;
 
 use base64ct::{Base64, Encoding};
+use derive_builder::Builder;
 use rand::rngs::OsRng;
 use rand::{thread_rng, Rng};
 
 use std::borrow::Cow;
 
-mod private {
-    //! A private module that defines the `HsDescMiddle` structure.
-    //!
-    //! TODO: while you can use derive_builder to create a private "built" struct with a public
-    //! builder (by making the struct private and setting  `build_fn(vis = "pub(super)")`), it does
-    //! not support finer grained visibility for the builder struct. This means we cannot make the
-    //! builder struct `pub(super)` while keeping the "built" struct private (which is what we want
-    //! here, as this builder only exists to serve as a helper for the top-level `HsDescBuilder`).
-    //!
-    //! This module was created as a workaround to this limitation.
-
-    use crate::doc::hsdesc::build::ClientAuth;
-
-    use derive_builder::Builder;
-
-    /// The representation of the middle document of an onion service descriptor.
+/// The representation of the middle document of an onion service descriptor.
+///
+/// The plaintext format of this document is described in section 2.5.1.2. of rend-spec-v3.
+#[derive(Builder)]
+#[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
+pub(super) struct HsDescMiddle<'a> {
+    /// Client authorization parameters, if client authentication is enabled. If set to `None`,
+    /// client authentication is disabled.
+    client_auth: Option<&'a ClientAuth>,
+    /// The (encrypted) inner document of the onion service descriptor.
     ///
-    /// The plaintext format of this document is described in section 2.5.1.2. of rend-spec-v3.
-    #[derive(Builder)]
-    #[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
-    pub(super) struct HsDescMiddle<'a> {
-        /// Client authorization parameters, if client authentication is enabled. If set to `None`,
-        /// client authentication is disabled.
-        pub(super) client_auth: Option<&'a ClientAuth>,
-        /// The (encrypted) inner document of the onion service descriptor.
-        ///
-        /// The `encrypted` field is created by encrypting an inner document built using
-        /// [`crate::doc::hsdesc::build::inner::HsDescInnerBuilder`] as described in sections
-        /// 2.5.2.1. and 2.5.2.2. of rend-spec-v3.
-        pub(super) encrypted: Vec<u8>,
-    }
+    /// The `encrypted` field is created by encrypting an inner document built using
+    /// [`crate::doc::hsdesc::build::inner::HsDescInnerBuilder`] as described in sections
+    /// 2.5.2.1. and 2.5.2.2. of rend-spec-v3.
+    encrypted: Vec<u8>,
 }
-
-pub(super) use private::HsDescMiddleBuilder;
-
-use private::HsDescMiddle;
 
 impl<'a> NetdocBuilder for HsDescMiddleBuilder<'a> {
     fn build_sign(self) -> Result<NetdocText<Self>, EncodeError> {

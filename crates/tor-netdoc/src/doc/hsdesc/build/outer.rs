@@ -11,62 +11,44 @@ use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VE
 use tor_bytes::EncodeError;
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::into_bad_api_usage;
+use tor_hscrypto::RevisionCounter;
 use tor_llcrypto::pk::ed25519;
+use tor_units::IntegerMinutes;
 
 use base64ct::{Base64, Encoding};
+use derive_builder::Builder;
 
-mod private {
-    //! A private module that defines the `HsDescOuter` structure.
-    //!
-    //! TODO: while you can use derive_builder to create a private "built" struct with a public
-    //! builder (by making the struct private and setting  `build_fn(vis = "pub(super)")`), it does
-    //! not support finer grained visibility for the builder struct. This means we cannot make the
-    //! builder struct `pub(super)` while keeping the "built" struct private (which is what we want
-    //! here, as this builder only exists to serve as a helper for the top-level `HsDescBuilder`).
-    //!
-    //! This module was created as a workaround to this limitation.
+use std::time::SystemTime;
 
-    use std::time::SystemTime;
-
-    use derive_builder::Builder;
-    use tor_hscrypto::RevisionCounter;
-    use tor_llcrypto::pk::ed25519;
-    use tor_units::IntegerMinutes;
-
-    /// The representation of the outer wrapper of an onion service descriptor.
+/// The representation of the outer wrapper of an onion service descriptor.
+///
+/// The format of this document is described in section 2.4. of rend-spec-v3.
+#[derive(Builder)]
+#[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
+pub(super) struct HsDescOuter<'a> {
+    /// The blinded hidden service signing keys used to sign descriptor signing keys
+    /// (KP_hs_blind_id, KS_hs_blind_id).
+    blinded_id: &'a ed25519::Keypair,
+    /// The short-term descriptor signing key.
+    hs_desc_sign: &'a ed25519::Keypair,
+    /// The expiration time of the descriptor signing key certificate.
+    hs_desc_sign_cert_expiry: SystemTime,
+    /// The lifetime of this descriptor, in minutes.
     ///
-    /// The format of this document is described in section 2.4. of rend-spec-v3.
-    #[derive(Builder)]
-    #[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
-    pub(super) struct HsDescOuter<'a> {
-        /// The blinded hidden service signing keys used to sign descriptor signing keys
-        /// (KP_hs_blind_id, KS_hs_blind_id).
-        pub(super) blinded_id: &'a ed25519::Keypair,
-        /// The short-term descriptor signing key.
-        pub(super) hs_desc_sign: &'a ed25519::Keypair,
-        /// The expiration time of the descriptor signing key certificate.
-        pub(super) hs_desc_sign_cert_expiry: SystemTime,
-        /// The lifetime of this descriptor, in minutes.
-        ///
-        /// This doesn't actually list the starting time or the end time for the
-        /// descriptor: presumably, because we didn't want to leak the onion
-        /// service's view of the wallclock.
-        pub(super) lifetime: IntegerMinutes<u16>,
-        /// A revision counter to tell whether this descriptor is more or less recent
-        /// than another one for the same blinded ID.
-        pub(super) revision_counter: RevisionCounter,
-        /// The (superencrypted) middle document of the onion service descriptor.
-        ///
-        /// The `superencrypted` field is created by encrypting a middle document built using
-        /// [`crate::doc::hsdesc::build::middle::HsDescMiddleBuilder`] as described in sections
-        /// 2.5.1.1. and 2.5.1.2. of rend-spec-v3.
-        pub(super) superencrypted: Vec<u8>,
-    }
+    /// This doesn't actually list the starting time or the end time for the
+    /// descriptor: presumably, because we didn't want to leak the onion
+    /// service's view of the wallclock.
+    lifetime: IntegerMinutes<u16>,
+    /// A revision counter to tell whether this descriptor is more or less recent
+    /// than another one for the same blinded ID.
+    revision_counter: RevisionCounter,
+    /// The (superencrypted) middle document of the onion service descriptor.
+    ///
+    /// The `superencrypted` field is created by encrypting a middle document built using
+    /// [`crate::doc::hsdesc::build::middle::HsDescMiddleBuilder`] as described in sections
+    /// 2.5.1.1. and 2.5.1.2. of rend-spec-v3.
+    superencrypted: Vec<u8>,
 }
-
-pub(super) use private::HsDescOuterBuilder;
-
-use private::HsDescOuter;
 
 impl<'a> NetdocBuilder for HsDescOuterBuilder<'a> {
     fn build_sign(self) -> Result<NetdocText<Self>, EncodeError> {
