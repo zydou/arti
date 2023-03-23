@@ -253,6 +253,7 @@ impl<'a, T: Redactable + ?Sized> Redactable for &'a T {
     PartialEq(bound),
     PartialOrd(bound)
 )]
+#[derive(derive_more::From)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Redacted<T: Redactable>(T);
