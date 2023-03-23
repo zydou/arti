@@ -794,6 +794,12 @@ impl StreamTarget {
             .map_err(|_| Error::CircuitClosed)?;
         Ok(())
     }
+
+    /// Return a reference to the circuit that this `StreamTarget` is using.
+    #[cfg(feature = "experimental-api")]
+    pub(crate) fn circuit(&self) -> &ClientCirc {
+        &self.circ
+    }
 }
 
 /// Convert a [`ResolvedVal`] into a Result, based on whether or not
