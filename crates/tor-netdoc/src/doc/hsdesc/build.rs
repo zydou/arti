@@ -110,9 +110,9 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             .build()
             .map_err(into_bad_api_usage!("the HsDesc could not be built"))?;
 
-        // Construct the second layer plaintext. This is the unencrypted value of the "encrypted"
-        // field.
-        let encrypted_plaintext = HsDescInnerBuilder::default()
+        // Construct the inner (second layer) plaintext. This is the unencrypted value of the
+        // "encrypted" field.
+        let inner_plaintext = HsDescInnerBuilder::default()
             .hs_desc_sign(hs_desc.hs_desc_sign)
             .create2_formats(hs_desc.create2_formats)
             .auth_required(hs_desc.auth_required.as_ref())
@@ -127,28 +127,30 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             .as_ref()
             .map(|client_auth| client_auth.descriptor_cookie.into());
 
-        // Encrypt the second layer to obtain the "encrypted" field
-        let encrypted = hs_desc.encrypt_field(
-            encrypted_plaintext.as_bytes(),
+        // Encrypt the inner document. The encrypted blob is the ciphertext contained in the
+        // "encrypted" field described in section 2.5.1.2. of rend-spec-v3.
+        let inner_encrypted = hs_desc.encrypt_field(
+            inner_plaintext.as_bytes(),
             desc_enc_nonce.as_ref(),
             b"hsdir-encrypted-data",
         );
 
-        // Construct the first layer plaintext. This is the unencrypted value of the
+        // Construct the middle (first player) plaintext. This is the unencrypted value of the
         // "superencrypted" field.
-        let superencrypted_plaintext = HsDescMiddleBuilder::default()
+        let middle_plaintext = HsDescMiddleBuilder::default()
             .client_auth(hs_desc.client_auth)
-            .encrypted(encrypted)
+            .encrypted(inner_encrypted)
             .build_sign()?;
 
         // Section 2.5.1.1. of rend-spec-v3: before encryption, pad the plaintext to the nearest
         // multiple of 10k bytes
-        let superencrypted_plaintext =
-            pad_with_zero_to_align(superencrypted_plaintext.as_bytes(), SUPERENCRYPTED_ALIGN);
+        let middle_plaintext =
+            pad_with_zero_to_align(middle_plaintext.as_bytes(), SUPERENCRYPTED_ALIGN);
 
-        // Encrypt the first layer to obtain the "superencrypted" field.
-        let superencrypted = hs_desc.encrypt_field(
-            superencrypted_plaintext.borrow(),
+        // Encrypt the middle document. The encrypted blob is the ciphertext contained in the
+        // "superencrypted" field described in section 2.5.1.1. of rend-spec-v3.
+        let middle_encrypted = hs_desc.encrypt_field(
+            middle_plaintext.borrow(),
             // desc_enc_nonce is absent when handling the superencryption layer (2.5.1.1).
             None,
             b"hsdir-superencrypted-data",
@@ -161,7 +163,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             .hs_desc_sign_cert_expiry(hs_desc.hs_desc_sign_cert_expiry)
             .lifetime(hs_desc.lifetime)
             .revision_counter(hs_desc.revision_counter)
-            .superencrypted(superencrypted)
+            .superencrypted(middle_encrypted)
             .build_sign()
             .map(NetdocText::into_kind)
     }
