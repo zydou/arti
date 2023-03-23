@@ -209,6 +209,55 @@ impl StorageConfig {
 }
 
 /// Configuration for bridges and pluggable transports
+///
+/// # Example
+///
+/// Here's an example of building a bridge configuration, and using it in a
+/// TorClientConfig.
+///
+/// The bridges here are fictitious; you'll need to use real bridges
+/// if you want a working configuration.
+///
+/// ```
+/// # fn demo() -> anyhow::Result<()> {
+/// use arti_client::config::{TorClientConfig, BridgeConfigBuilder, CfgPath};
+/// // Requires that the pt-config feature is enabled.
+/// use arti_client::config::pt::ManagedTransportConfigBuilder;
+///
+/// let mut builder = TorClientConfig::builder();
+///
+/// // Add a single bridge to the list of bridges, from a bridge line.
+/// const BRIDGE1_LINE : &str = "Bridge obfs4 192.0.2.55:38114 316E643333645F6D79216558614D3931657A5F5F cert=YXJlIGZyZXF1ZW50bHkgZnVsbCBvZiBsaXR0bGUgbWVzc2FnZXMgeW91IGNhbiBmaW5kLg iat-mode=0";
+/// let bridge_1: BridgeConfigBuilder = BRIDGE1_LINE.parse()?;
+/// // This is where we pass `BRIDGE1_LINE` into the BridgeConfigBuilder.
+/// builder.bridges().bridges().push(bridge_1);
+///
+/// // Add a second bridge, built by hand.  This way is harder.
+/// let mut bridge2_builder = BridgeConfigBuilder::default();
+/// bridge2_builder
+///     .transport("obfs4")
+///     .push_setting("iat-mode", "1")
+///     .push_setting(
+///         "cert",
+///         "YnV0IHNvbWV0aW1lcyB0aGV5IGFyZSByYW5kb20u8x9aQG/0cIIcx0ItBcTqiSXotQne+Q"
+///     );
+/// bridge2_builder.set_addrs(vec!["198.51.100.25:443".parse()?]);
+/// bridge2_builder.set_ids(vec!["7DD62766BF2052432051D7B7E08A22F7E34A4543".parse()?]);
+/// // Now nsert the second bridge into our config builder.
+/// builder.bridges().bridges().push(bridge2_builder);
+///
+/// // Now configure an obfs4 transport. (Requires the "pt-client" feature)
+/// let mut transport = ManagedTransportConfigBuilder::default();
+/// transport
+///     .protocols(vec!["obfs4".parse()?])
+///    .path(CfgPath::new("/usr/bin/obfs4proxy".into()))
+///     .run_on_startup(true);
+/// builder.bridges().transports().push(transport);
+///
+/// let config = builder.build()?;
+/// // Now you can pass `config` to TorClient::create!
+/// # Ok(())}
+/// ```
 //
 // We leave this as an empty struct even when bridge support is disabled,
 // as otherwise the default config file would generate an unknown section warning.
