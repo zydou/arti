@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use futures::task::SpawnError;
 
-use safelog::Sensitive;
+use safelog::{Redacted, Sensitive};
 use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
@@ -159,10 +159,10 @@ enum ErrorDetail {
 
     /// Failed to obtain hidden service circuit
     #[cfg(feature = "onion-client")]
-    #[error("Failed to obtain circuit to hidden service")]
+    #[error("Failed to obtain hidden service circuit to {hsid}")]
     ObtainHsCircuit {
         /// The service we were trying to connect to
-        hsid: HsId,
+        hsid: Redacted<HsId>,
 
         /// What went wrong
         #[source]

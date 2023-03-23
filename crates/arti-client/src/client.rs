@@ -920,7 +920,7 @@ impl<R: Runtime> TorClient<R> {
                         self.isolation(prefs),
                     )
                     .await
-                    .map_err(|cause| ErrorDetail::ObtainHsCircuit { cause, hsid })?;
+                    .map_err(|cause| ErrorDetail::ObtainHsCircuit { cause, hsid: hsid.into() })?;
                 (circ, hostname, port)
             }
         };
