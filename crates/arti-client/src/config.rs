@@ -245,11 +245,18 @@ type TransportConfigList = Vec<pt::ManagedTransportConfig>;
 
 #[cfg(feature = "pt-client")]
 define_list_builder_helper! {
-    pub(crate) struct TransportConfigListBuilder {
+    pub struct TransportConfigListBuilder {
         transports: [pt::ManagedTransportConfigBuilder],
     }
     built: TransportConfigList = transports;
     default = vec![];
+}
+
+#[cfg(feature = "pt-client")]
+define_list_builder_accessors! {
+    struct BridgesConfigBuilder {
+        pub transports: [pt::ManagedTransportConfigBuilder],
+    }
 }
 
 impl_standard_builder! { BridgesConfig }
