@@ -916,7 +916,7 @@ impl<R: Runtime> TorClient<R> {
                     .hsclient
                     .get_or_launch_connection(
                         hsid,
-                        HsClientSecretKeys::default(), // TODO support client auth somehow
+                        HsClientSecretKeys::default(), // TODO HS support client auth somehow
                         self.isolation(prefs),
                     )
                     .await
