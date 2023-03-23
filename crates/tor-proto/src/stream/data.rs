@@ -23,7 +23,7 @@ use std::pin::Pin;
 
 use educe::Educe;
 
-use crate::circuit::StreamTarget;
+use crate::circuit::{ClientCirc, StreamTarget};
 use crate::stream::StreamReader;
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
@@ -100,6 +100,13 @@ pub struct DataStream {
     w: DataWriter,
     /// Underlying reader for this stream
     r: DataReader,
+    /// A handle for the underlying circuit.
+    ///
+    /// TODO: This is redundant with the reference in `StreamTarget` inside
+    /// DataWriterState, but for now we can't actually access that state all the time,
+    /// since it might be inside a boxed future.
+    #[cfg(feature = "experimental-api")]
+    circuit: ClientCirc,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
@@ -167,6 +174,8 @@ impl DataStream {
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
     pub(crate) fn new(reader: StreamReader, target: StreamTarget) -> Self {
+        #[cfg(feature = "experimental-api")]
+        let circuit = target.circuit().clone();
         let r = DataReader {
             state: Some(DataReaderState::Ready(DataReaderImpl {
                 s: reader,
@@ -182,7 +191,12 @@ impl DataStream {
                 n_pending: 0,
             })),
         };
-        DataStream { w, r }
+        DataStream {
+            w,
+            r,
+            #[cfg(feature = "experimental-api")]
+            circuit,
+        }
     }
 
     /// Divide this DataStream into its constituent parts.
@@ -216,6 +230,18 @@ impl DataStream {
                 state
             )))
         }
+    }
+
+    /// Return a reference to this stream's circuit?
+    ///
+    /// This is an experimental API; it is not covered by semver guarantee. It
+    /// is likely to change or disappear in a future release.
+    ///
+    /// TODO: Should there be an AttachedToCircuit trait that we use for all
+    /// client stream types?  Should this return an Option<&ClientCirc>?
+    #[cfg(feature = "experimental-api")]
+    pub fn circuit(&self) -> &ClientCirc {
+        &self.circuit
     }
 }
 
