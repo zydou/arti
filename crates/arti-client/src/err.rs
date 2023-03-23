@@ -5,12 +5,14 @@ use std::sync::Arc;
 
 use futures::task::SpawnError;
 
-use safelog::Sensitive;
+use safelog::{Redacted, Sensitive};
 use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
 
 use crate::TorAddrError;
+#[cfg(feature = "onion-client")]
+use {tor_hsclient::HsClientConnError, tor_hscrypto::pk::HsId};
 
 /// Main high-level error type for the Arti Tor client
 ///
@@ -139,6 +141,11 @@ enum ErrorDetail {
     #[error("Error setting up the persistent state manager")]
     StateMgrSetup(#[source] tor_persist::Error),
 
+    /// Error setting up the hidden service client connector.
+    #[error("Error setting up the hidden service client connector")]
+    #[cfg(feature = "onion-client")]
+    HsClientConnectorSetup(#[from] tor_hsclient::StartupError),
+
     /// Failed to obtain exit circuit
     #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
@@ -148,6 +155,18 @@ enum ErrorDetail {
         /// What went wrong
         #[source]
         cause: tor_circmgr::Error,
+    },
+
+    /// Failed to obtain hidden service circuit
+    #[cfg(feature = "onion-client")]
+    #[error("Failed to obtain hidden service circuit to {hsid}")]
+    ObtainHsCircuit {
+        /// The service we were trying to connect to
+        hsid: Redacted<HsId>,
+
+        /// What went wrong
+        #[source]
+        cause: HsClientConnError,
     },
 
     /// Directory manager was unable to bootstrap a working directory.
@@ -308,6 +327,8 @@ impl tor_error::HasKind for ErrorDetail {
         use ErrorKind as EK;
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
+            #[cfg(feature = "onion-client")]
+            E::ObtainHsCircuit { cause, .. } => cause.kind(),
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::GuardMgrSetup(e) => e.kind(),
@@ -316,6 +337,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::CircMgrSetup(e) => e.kind(),
             E::DirMgrSetup(e) => e.kind(),
             E::StateMgrSetup(e) => e.kind(),
+            #[cfg(feature = "onion-client")]
+            E::HsClientConnectorSetup(e) => e.kind(),
             E::DirMgrBootstrap(e) => e.kind(),
             #[cfg(feature = "pt-client")]
             E::PluggableTransport(e) => e.kind(),

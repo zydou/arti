@@ -43,7 +43,7 @@ pub(crate) mod halfcirc;
 mod halfstream;
 #[cfg(feature = "hs-common")]
 pub mod handshake;
-#[cfg(feature = "experimental-api")]
+#[cfg(feature = "send-control-msg")]
 mod msghandler;
 mod path;
 pub(crate) mod reactor;
@@ -87,8 +87,8 @@ use self::reactor::RequireSendmeAuth;
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
-#[cfg(feature = "experimental-api")]
-#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
+#[cfg(feature = "send-control-msg")]
+#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 
 #[derive(Clone, Debug)]
@@ -289,7 +289,7 @@ impl ClientCirc {
     // TODO hs: Perhaps the stream here should yield a different type. Ian
     // thinks maybe we should store a callback instead.
     //
-    #[cfg(feature = "experimental-api")]
+    #[cfg(feature = "send-control-msg")]
     pub async fn send_control_message(
         &self,
         msg: tor_cell::relaycell::AnyRelayCell,

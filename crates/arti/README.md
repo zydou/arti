@@ -169,6 +169,8 @@ implementation with another.
    crate was originally written to run as a binary only.)
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.
+* `onion-service-client` --- enable support for making connections to
+  Tor Hidden Services, aka `.onion` services.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make

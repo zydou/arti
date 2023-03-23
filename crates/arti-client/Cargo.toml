@@ -67,7 +67,7 @@ experimental = [
 experimental-api = []
 dirfilter = ["tor-dirmgr/dirfilter"]
 error_detail = []
-onion-client = ["tor-hscrypto"]
+onion-client = ["tor-hsclient", "tor-hscrypto"]
 
 [dependencies]
 cfg-if = "1.0.0"
@@ -96,6 +96,7 @@ tor-dirmgr = { path = "../tor-dirmgr", version = "0.9.2", default-features = fal
 ] }
 tor-error = { path = "../tor-error", version = "0.4.1" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.2" }
+tor-hsclient = { path = "../tor-hsclient", version = "0.1.1", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.1", optional = true }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
 tor-netdir = { path = "../tor-netdir", version = "0.8.0" }

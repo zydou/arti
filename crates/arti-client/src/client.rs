@@ -9,7 +9,7 @@ use crate::address::{IntoTorAddr, ResolveInstructions, StreamInstructions};
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use safelog::{sensitive, Sensitive};
 use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
-use tor_circmgr::isolation::Isolation;
+use tor_circmgr::isolation::{Isolation, StreamIsolation};
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
 #[cfg(feature = "bridge-client")]
@@ -17,6 +17,8 @@ use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug, ErrorReport};
 use tor_guardmgr::GuardMgr;
+#[cfg(feature = "onion-client")]
+use tor_hsclient::{HsClientConnector, HsClientSecretKeys};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -92,6 +94,10 @@ pub struct TorClient<R: Runtime> {
     /// Pluggable transport manager.
     #[cfg(feature = "pt-client")]
     pt_mgr: Arc<tor_ptmgr::PtMgr<R>>,
+    /// HS client connector
+    #[allow(dead_code)] // TODO HS remove
+    #[cfg(feature = "onion-client")]
+    hsclient: HsClientConnector<R>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
@@ -337,9 +343,16 @@ impl StreamPrefs {
         self
     }
 
-    /// Return an [`Isolation`] to describe which connections might use
-    /// the same circuit as this one.
-    fn isolation(&self) -> Option<Box<dyn Isolation>> {
+    /// Return an [`Isolation`] which separates according to these `StreamPrefs` (only)
+    ///
+    /// This describes which connections or operations might use
+    /// the same circuit(s) as this one.
+    ///
+    /// Since this doesn't have access to the `TorClient`,
+    /// it doesn't separate streams which ought to be separated because of
+    /// the way their `TorClient`s are isolated.
+    /// For that, use [`TorClient::isolation`].
+    fn prefs_isolation(&self) -> Option<Box<dyn Isolation>> {
         use StreamIsolationPreference as SIP;
         match self.isolation {
             SIP::None => None,
@@ -514,6 +527,13 @@ impl<R: Runtime> TorClient<R> {
         #[cfg(feature = "bridge-client")]
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
+        #[cfg(feature = "onion-client")]
+        let hsclient = HsClientConnector::new(
+            runtime.clone(),
+            circmgr.clone(),
+            dirmgr.clone().upcast_arc(),
+        )?;
+
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
@@ -551,6 +571,8 @@ impl<R: Runtime> TorClient<R> {
             bridge_desc_mgr,
             #[cfg(feature = "pt-client")]
             pt_mgr,
+            #[cfg(feature = "onion-client")]
+            hsclient,
             guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),
@@ -861,7 +883,7 @@ impl<R: Runtime> TorClient<R> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get())?;
 
-        match addr.into_stream_instructions()? {
+        let (circ, addr, port) = match addr.into_stream_instructions()? {
             StreamInstructions::Exit {
                 hostname: addr,
                 port,
@@ -872,20 +894,7 @@ impl<R: Runtime> TorClient<R> {
                     .await
                     .map_err(wrap_err)?;
                 debug!("Got a circuit for {}:{}", sensitive(&addr), port);
-
-                let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
-                // This timeout is needless but harmless for optimistic streams.
-                let stream = self
-                    .runtime
-                    .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
-                    .await
-                    .map_err(|_| ErrorDetail::ExitTimeout)?
-                    .map_err(|cause| ErrorDetail::StreamFailed {
-                        cause,
-                        kind: "data",
-                    })?;
-
-                Ok(stream)
+                (circ, addr, port)
             }
 
             #[cfg(not(feature = "onion-client"))]
@@ -903,11 +912,35 @@ impl<R: Runtime> TorClient<R> {
                 hostname,
                 port,
             } => {
-                // This might want to reuse the stream code, above, so maybe that
-                // needs to come out of this match statement
-                todo!() // TODO HS
+                let circ = self
+                    .hsclient
+                    .get_or_launch_connection(
+                        hsid,
+                        HsClientSecretKeys::default(), // TODO HS support client auth somehow
+                        self.isolation(prefs),
+                    )
+                    .await
+                    .map_err(|cause| ErrorDetail::ObtainHsCircuit {
+                        cause,
+                        hsid: hsid.into(),
+                    })?;
+                (circ, hostname, port)
             }
-        }
+        };
+
+        let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
+        // This timeout is needless but harmless for optimistic streams.
+        let stream = self
+            .runtime
+            .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
+            .await
+            .map_err(|_| ErrorDetail::ExitTimeout)?
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "data",
+            })?;
+
+        Ok(stream)
     }
 
     /// Sets the default preferences for future connections made with this client.
@@ -1062,21 +1095,9 @@ impl<R: Runtime> TorClient<R> {
         self.wait_for_bootstrap().await?;
         let dir = self.netdir(Timeliness::Timely, "build a circuit")?;
 
-        let isolation = {
-            let mut b = StreamIsolationBuilder::new();
-            // Always consider our client_isolation.
-            b.owner_token(self.client_isolation);
-            // Consider stream isolation too, if it's set.
-            if let Some(tok) = prefs.isolation() {
-                b.stream_isolation(tok);
-            }
-            // Failure should be impossible with this builder.
-            b.build().expect("Failed to construct StreamIsolation")
-        };
-
         let circ = self
             .circmgr
-            .get_or_launch_exit(dir.as_ref().into(), exit_ports, isolation)
+            .get_or_launch_exit(dir.as_ref().into(), exit_ports, self.isolation(prefs))
             .await
             .map_err(|cause| ErrorDetail::ObtainExitCircuit {
                 cause,
@@ -1085,6 +1106,26 @@ impl<R: Runtime> TorClient<R> {
         drop(dir); // This decreases the refcount on the netdir.
 
         Ok(circ)
+    }
+
+    /// Return an overall [`Isolation`] for this `TorClient` and a `StreamPrefs`.
+    ///
+    /// This describes which operations might use
+    /// circuit(s) with this one.
+    ///
+    /// This combines isolation information from
+    /// [`StreamPrefs::prefs_isolation`]
+    /// and the `TorClient`'s isolation (eg from [`TorClient::isolated_client`]).
+    fn isolation(&self, prefs: &StreamPrefs) -> StreamIsolation {
+        let mut b = StreamIsolationBuilder::new();
+        // Always consider our client_isolation.
+        b.owner_token(self.client_isolation);
+        // Consider stream isolation too, if it's set.
+        if let Some(tok) = prefs.prefs_isolation() {
+            b.stream_isolation(tok);
+        }
+        // Failure should be impossible with this builder.
+        b.build().expect("Failed to construct StreamIsolation")
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
