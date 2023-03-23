@@ -220,35 +220,47 @@ mod test {
     use std::time::UNIX_EPOCH;
     use tor_linkspec::LinkSpec;
 
-    #[test]
-    fn inner_hsdesc_no_intro_auth() {
+    /// Build an inner document using the specified parameters.
+    fn create_inner_desc(
+        create2_formats: &[u32],
+        auth_required: Option<&SmallVec<[IntroAuthType; 2]>>,
+        is_single_onion_service: bool,
+        intro_points: &[IntroPointDesc],
+    ) -> Result<String, EncodeError> {
         let hs_desc_sign = test_ed25519_keypair();
 
-        // A descriptor for a "single onion service"
-        let hs_desc = HsDescInnerBuilder::default()
+        HsDescInnerBuilder::default()
             .hs_desc_sign(&hs_desc_sign)
-            .create2_formats(&[1234])
-            .auth_required(None)
-            .is_single_onion_service(true)
-            .intro_points(&[]) // no introduction points
+            .create2_formats(create2_formats)
+            .auth_required(auth_required)
+            .is_single_onion_service(is_single_onion_service)
+            .intro_points(intro_points)
             .intro_auth_key_cert_expiry(UNIX_EPOCH)
             .intro_enc_key_cert_expiry(UNIX_EPOCH)
             .build_sign()
-            .unwrap();
+    }
+
+    #[test]
+    fn inner_hsdesc_no_intro_auth() {
+        // A descriptor for a "single onion service"
+        let hs_desc = create_inner_desc(
+            &[1234], /* create2_formats */
+            None,    /* auth_required */
+            true,    /* is_single_onion_service */
+            &[],     /* intro_points */
+        )
+        .unwrap();
 
         assert_eq!(hs_desc, "create2-formats 1234\nsingle-onion-service\n");
 
         // A descriptor for a location-hidden service
-        let hs_desc = HsDescInnerBuilder::default()
-            .hs_desc_sign(&hs_desc_sign)
-            .create2_formats(&[1234])
-            .auth_required(None)
-            .is_single_onion_service(false)
-            .intro_points(&[]) // no introduction points
-            .intro_auth_key_cert_expiry(UNIX_EPOCH)
-            .intro_enc_key_cert_expiry(UNIX_EPOCH)
-            .build_sign()
-            .unwrap();
+        let hs_desc = create_inner_desc(
+            &[1234], /* create2_formats */
+            None,    /* auth_required */
+            false,   /* is_single_onion_service */
+            &[],     /* intro_points */
+        )
+        .unwrap();
 
         assert_eq!(hs_desc, "create2-formats 1234\n");
 
@@ -256,23 +268,19 @@ mod test {
         let link_specs2 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
         let link_specs3 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8901)];
 
-        let intros = vec![
+        let intros = &[
             test_intro_point_descriptor(link_specs1),
             test_intro_point_descriptor(link_specs2),
             test_intro_point_descriptor(link_specs3),
         ];
 
-        // A descriptor for a location-hidden service with 3 introduction points
-        let hs_desc = HsDescInnerBuilder::default()
-            .hs_desc_sign(&hs_desc_sign)
-            .create2_formats(&[1234, 32, 23])
-            .auth_required(None)
-            .is_single_onion_service(false)
-            .intro_points(&intros)
-            .intro_auth_key_cert_expiry(UNIX_EPOCH)
-            .intro_enc_key_cert_expiry(UNIX_EPOCH)
-            .build_sign()
-            .unwrap();
+        let hs_desc = create_inner_desc(
+            &[1234, 32, 23], /* create2_formats */
+            None,            /* auth_required */
+            false,           /* is_single_onion_service */
+            intros,          /* intro_points */
+        )
+        .unwrap();
 
         assert_eq!(
             hs_desc,
@@ -334,20 +342,17 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
         let link_specifiers = std::iter::repeat(link_spec)
             .take(u8::MAX as usize + 1)
             .collect::<Vec<_>>();
-        let intros = vec![test_intro_point_descriptor(link_specifiers)];
+        let intros = &[test_intro_point_descriptor(link_specifiers)];
 
         // A descriptor for a location-hidden service with an introduction point with too many link
         // specifiers
-        let err = HsDescInnerBuilder::default()
-            .hs_desc_sign(&hs_desc_sign)
-            .create2_formats(&[1234])
-            .auth_required(None)
-            .is_single_onion_service(false)
-            .intro_points(&intros)
-            .intro_auth_key_cert_expiry(UNIX_EPOCH)
-            .intro_enc_key_cert_expiry(UNIX_EPOCH)
-            .build_sign()
-            .unwrap_err();
+        let err = create_inner_desc(
+            &[1234], /* create2_formats */
+            None,    /* auth_required */
+            false,   /* is_single_onion_service */
+            intros,  /* intro_points */
+        )
+        .unwrap_err();
 
         assert!(expect_bug(err).contains("Too many link specifiers."));
     }
@@ -356,21 +361,18 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
     fn inner_hsdesc_intro_auth() {
         let hs_desc_sign = test_ed25519_keypair();
         let link_specs = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
-        let intros = vec![test_intro_point_descriptor(link_specs)];
+        let intros = &[test_intro_point_descriptor(link_specs)];
         let auth = SmallVec::from([IntroAuthType::Ed25519, IntroAuthType::Ed25519]);
 
         // A descriptor for a location-hidden service with 1 introduction points which requires
         // auth.
-        let hs_desc = HsDescInnerBuilder::default()
-            .hs_desc_sign(&hs_desc_sign)
-            .create2_formats(&[1234])
-            .auth_required(Some(&auth))
-            .is_single_onion_service(false)
-            .intro_points(&intros)
-            .intro_auth_key_cert_expiry(UNIX_EPOCH)
-            .intro_enc_key_cert_expiry(UNIX_EPOCH)
-            .build_sign()
-            .unwrap();
+        let hs_desc = create_inner_desc(
+            &[1234],     /* create2_formats */
+            Some(&auth), /* auth_required */
+            false,       /* is_single_onion_service */
+            intros,      /* intro_points */
+        )
+        .unwrap();
 
         assert_eq!(
             hs_desc,
