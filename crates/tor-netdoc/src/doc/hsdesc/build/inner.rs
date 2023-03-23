@@ -7,7 +7,7 @@
 use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::doc::hsdesc::IntroAuthType;
-use crate::{NetdocBuilder, NetdocText};
+use crate::NetdocBuilder;
 
 use tor_bytes::{EncodeError, Writer};
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
@@ -75,7 +75,7 @@ pub struct IntroPointDesc {
 }
 
 impl<'a> NetdocBuilder for HsDescInnerBuilder<'a> {
-    fn build_sign(self) -> Result<NetdocText<Self>, EncodeError> {
+    fn build_sign(self) -> Result<String, EncodeError> {
         use HsInnerKwd::*;
 
         let HsDescInner {
@@ -236,7 +236,7 @@ mod test {
             .build_sign()
             .unwrap();
 
-        assert_eq!(&*hs_desc, "create2-formats 1234\nsingle-onion-service\n");
+        assert_eq!(hs_desc, "create2-formats 1234\nsingle-onion-service\n");
 
         // A descriptor for a location-hidden service
         let hs_desc = HsDescInnerBuilder::default()
@@ -250,7 +250,7 @@ mod test {
             .build_sign()
             .unwrap();
 
-        assert_eq!(&*hs_desc, "create2-formats 1234\n");
+        assert_eq!(hs_desc, "create2-formats 1234\n");
 
         let link_specs1 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 1234)];
         let link_specs2 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
@@ -275,7 +275,7 @@ mod test {
             .unwrap();
 
         assert_eq!(
-            &*hs_desc,
+            hs_desc,
             r#"create2-formats 1234 32 23
 introduction-point AQAGfwAAAQTS
 onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
@@ -373,7 +373,7 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
             .unwrap();
 
         assert_eq!(
-            &*hs_desc,
+            hs_desc,
             r#"create2-formats 1234
 intro-auth-required ed25519 ed25519
 introduction-point AQAGfwAAAR+Q

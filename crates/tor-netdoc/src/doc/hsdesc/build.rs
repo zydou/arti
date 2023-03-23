@@ -5,7 +5,7 @@ mod middle;
 mod outer;
 
 use crate::doc::hsdesc::IntroAuthType;
-use crate::{NetdocBuilder, NetdocText};
+use crate::NetdocBuilder;
 use tor_bytes::EncodeError;
 use tor_error::into_bad_api_usage;
 use tor_hscrypto::pk::HsSvcDescEncKey;
@@ -101,7 +101,7 @@ pub struct ClientAuth {
 }
 
 impl<'a> NetdocBuilder for HsDescBuilder<'a> {
-    fn build_sign(self) -> Result<NetdocText<Self>, EncodeError> {
+    fn build_sign(self) -> Result<String, EncodeError> {
         /// The superencrypted field must be padded to the nearest multiple of 10k bytes
         ///
         /// rend-spec-v3 2.5.1.1
@@ -166,7 +166,6 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             .revision_counter(hs_desc.revision_counter)
             .superencrypted(middle_encrypted)
             .build_sign()
-            .map(NetdocText::into_kind)
     }
 }
 

@@ -8,7 +8,7 @@ use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::build::ClientAuth;
 use crate::doc::hsdesc::desc_enc::{HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN};
 use crate::doc::hsdesc::middle::{AuthClient, HsMiddleKwd, HS_DESC_AUTH_TYPE};
-use crate::{NetdocBuilder, NetdocText};
+use crate::NetdocBuilder;
 
 use tor_bytes::EncodeError;
 use tor_error::into_bad_api_usage;
@@ -40,7 +40,7 @@ pub(super) struct HsDescMiddle<'a> {
 }
 
 impl<'a> NetdocBuilder for HsDescMiddleBuilder<'a> {
-    fn build_sign(self) -> Result<NetdocText<Self>, EncodeError> {
+    fn build_sign(self) -> Result<String, EncodeError> {
         use HsMiddleKwd::*;
 
         let HsDescMiddle {
@@ -206,7 +206,7 @@ AQIDBA==
             .unwrap();
 
         assert_eq!(
-            &*hs_desc,
+            hs_desc,
             r#"desc-auth-type x25519
 desc-auth-ephemeral-key tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
 auth-client AgICAgICAgI= AgICAgICAgICAgICAgICAg== AwMDAwMDAwMDAwMDAwMDAw==

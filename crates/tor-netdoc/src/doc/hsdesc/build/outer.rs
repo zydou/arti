@@ -4,8 +4,7 @@
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
-use crate::build::NetdocEncoder;
-use crate::build::{NetdocBuilder, NetdocText};
+use crate::build::{NetdocBuilder, NetdocEncoder};
 use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VERSION_CURRENT};
 
 use tor_bytes::EncodeError;
@@ -51,7 +50,7 @@ pub(super) struct HsDescOuter<'a> {
 }
 
 impl<'a> NetdocBuilder for HsDescOuterBuilder<'a> {
-    fn build_sign(self) -> Result<NetdocText<Self>, EncodeError> {
+    fn build_sign(self) -> Result<String, EncodeError> {
         use HsOuterKwd::*;
 
         let HsDescOuter {
@@ -144,7 +143,7 @@ mod test {
             .unwrap();
 
         assert_eq!(
-            &*hs_desc,
+            hs_desc,
             r#"hs-descriptor 3
 descriptor-lifetime 20
 descriptor-signing-key-cert
