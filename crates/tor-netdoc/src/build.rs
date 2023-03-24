@@ -27,30 +27,12 @@ use std::time::SystemTime;
 use base64ct::{Base64, Encoding};
 use humantime::format_rfc3339;
 use tor_bytes::EncodeError;
+use tor_cert::Ed25519Cert;
 use tor_error::{internal, into_internal, Bug};
+use tor_llcrypto::pk::ed25519;
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::tag_keywords_ok;
-
-/// Network document text according to dir-spec.txt s1.2 and maybe s1.3
-///
-/// Contains just the text, but marked with the type of the builder
-/// for clarity in function signatures etc.
-//
-// TODO hs: Is this type carrying its weight, or should we just replace it with String ?
-pub struct NetdocText<Builder> {
-    /// The actual document
-    text: String,
-    /// Marker.  Variance: this somehow came from a T (not that we expect this to matter)
-    kind: PhantomData<Builder>,
-}
-
-impl<B> Deref for NetdocText<B> {
-    type Target = str;
-    fn deref(&self) -> &str {
-        &self.text
-    }
-}
 
 /// Encoder, representing a partially-built document
 ///
@@ -198,9 +180,6 @@ impl NetdocEncoder {
     /// Obtain the text of a section of the document
     ///
     /// Useful for making a signature.
-    //
-    // Q. Should this return `&str` or `NetdocText<'self>` ?
-    // (`NetdocText would have to then contain `Cow`, which is fine.)
     pub(crate) fn slice(&self, begin: Cursor, end: Cursor) -> Result<&str, Bug> {
         self.built
             .as_ref()
@@ -210,12 +189,8 @@ impl NetdocEncoder {
     }
 
     /// Build the document into textual form
-    pub(crate) fn finish(self) -> Result<NetdocText<Self>, Bug> {
-        let text = self.built?;
-        Ok(NetdocText {
-            text,
-            kind: PhantomData,
-        })
+    pub(crate) fn finish(self) -> Result<String, Bug> {
+        self.built
     }
 }
 
@@ -228,6 +203,12 @@ impl ItemArgument for str {
         }
         out.args_raw_nonempty(&self);
         Ok(())
+    }
+}
+
+impl ItemArgument for String {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        ItemArgument::write_onto(&self.as_str(), out)
     }
 }
 
@@ -363,6 +344,12 @@ impl Drop for ItemEncoder<'_> {
     }
 }
 
+/// A trait for building and signing netdocs.
+pub trait NetdocBuilder {
+    /// Build the document into textual form.
+    fn build_sign(self) -> Result<String, EncodeError>;
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -423,9 +410,9 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
             .object("SIGNATURE", []);
 
         let doc = encode.finish().unwrap();
-        eprintln!("{}", &*doc);
+        eprintln!("{}", doc);
         assert_eq!(
-            &*doc,
+            doc,
             r"dir-key-certificate-version 3
 fingerprint 9367f9781da8eabbf96b691175f0e701b43c602e
 dir-key-published 2020-04-18 08:36:57

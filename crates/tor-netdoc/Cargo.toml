@@ -33,11 +33,11 @@ routerdesc = []
 # Enable the "ns consensus" document type, which some relays cache and serve.
 ns_consensus = []
 
-# Client-side and service-side support for onion services. 
+# Client-side and service-side support for onion services.
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "rand"]
+hs-service = ["hs-common", "rand", "tor-cert/encode"]
 hs-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
 hsdesc-inner-docs = ["visibility"]
@@ -64,6 +64,7 @@ arrayref = "0.3"
 base64ct = { version = "1.5.1", features = ["alloc"] }
 bitflags = "2"
 cipher = { version = "0.4.1", features = ["zeroize"] }
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 digest = "0.10.0"
 educe = "0.4.6"

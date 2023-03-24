@@ -56,7 +56,7 @@ pub use err::{BuildError, Error, ParseErrorKind, Pos};
 
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub use build::NetdocText;
+pub use build::NetdocBuilder;
 
 /// Alias for the Result type returned by most objects in this module.
 pub type Result<T> = std::result::Result<T, Error>;

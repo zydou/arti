@@ -16,6 +16,12 @@ use crate::{Pos, Result};
 
 use super::desc_enc;
 
+/// The current version-number.
+pub(super) const HS_DESC_VERSION_CURRENT: &str = "3";
+
+/// The text the outer document signature is prefixed with.
+pub(super) const HS_DESC_SIGNATURE_PREFIX: &[u8] = b"Tor onion service descriptor sig v3";
+
 /// A more-or-less verbatim representation of the outermost plaintext document
 /// of an onion service descriptor.
 #[derive(Clone, Debug)]
@@ -99,7 +105,7 @@ impl HsDescOuter {
 pub(super) type UncheckedHsDescOuter = SignatureGated<TimerangeBound<HsDescOuter>>;
 
 decl_keyword! {
-    HsOuterKwd {
+    pub(crate) HsOuterKwd {
         "hs-descriptor" => HS_DESCRIPTOR,
         "descriptor-lifetime" => DESCRIPTOR_LIFETIME,
         "descriptor-signing-key-cert" => DESCRIPTOR_SIGNING_KEY_CERT,
@@ -136,7 +142,7 @@ impl HsDescOuter {
         Ok(result)
     }
 
-    /// Extract an HsDescOuter from a reader.  
+    /// Extract an HsDescOuter from a reader.
     ///
     /// The reader must contain a single HsDescOuter; we return an error if not.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsOuterKwd>) -> Result<UncheckedHsDescOuter> {
@@ -176,7 +182,7 @@ impl HsDescOuter {
             // TODO: This way of handling prefixes does a needless
             // allocation. Someday we could make our signature-checking
             // logic even smarter.
-            let mut signed_text = b"Tor onion service descriptor sig v3".to_vec();
+            let mut signed_text = HS_DESC_SIGNATURE_PREFIX.to_vec();
             signed_text.extend_from_slice(
                 s.get(start_idx..end_idx)
                     .expect("Somehow the first item came after the last‽")
@@ -188,7 +194,7 @@ impl HsDescOuter {
         // Check that the hs-descriptor version is 3.
         {
             let version = body.required(HS_DESCRIPTOR)?.required_arg(0)?;
-            if version != "3" {
+            if version != HS_DESC_VERSION_CURRENT {
                 return Err(EK::BadDocumentVersion
                     .with_msg(format!("Unexpected hsdesc version {}", version))
                     .at_pos(Pos::at(version)));
