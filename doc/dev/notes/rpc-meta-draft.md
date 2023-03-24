@@ -287,6 +287,14 @@ Any given response will have exactly one of
 > TODO: Specify our error format to be the same as,
 > or similar to, that used by JSON-RPC.
 
+### We use I-JSON
+
+In this spec JSON means I-JSON (RFC7493).
+The client must not send JSON documents that are not valid I-JSON.
+(but arti may not necessarily reject such documents).
+arti will only send valid I-JSON
+(assuming the client does so too).
+
 ### A variant: JSON-RPC.
 
 > (This is not something we plan to build
