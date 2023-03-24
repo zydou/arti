@@ -323,6 +323,19 @@ for ease of debugging and clarity,
 but JSON documents are self-delimiting and
 Arti will parse them disregarding any newlines.)
 
+Clients may send as many requests at the same time as they like.
+arti may send the responses in any order.
+I.e., *arti may send responses out of order*.
+
+If a client sends too many requests at once,
+arti may stop reading the transport connection,
+until arti has dealt with and replied to some of them.
+There is no minimum must-be-supported number or size of concurrent requests.
+Therefore a client which sends more than one request at a time
+must be prepared to buffer requests at its end,
+while concurrently reading arti's replies.
+
+
 ## Representing Object Identifiers.
 
 > This section describes implementation techniques.
