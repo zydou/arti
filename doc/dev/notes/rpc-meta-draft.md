@@ -472,6 +472,15 @@ Arti will return an error.
 > Also authorization, "get instance"
 
 
+TODO: Currently this violates our rule that every request has an `obj`.
+Options: 
+ 1. Relax the rule
+ 2. Specify a well-known `obj` value to be used;
+    we will need such a thing to bootstrap auth anyway.
+ 3. Specify that the cancellation should be sent to the original object.
+    IMO this is improper:
+    cancellation is a framing operation.
+
 
 ## Requests that apply to most Objects
 
