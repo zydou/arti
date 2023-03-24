@@ -544,6 +544,17 @@ type Callback = fn(Response, VoidPtr);
 /// Launch a command, return immediately.  Invoke the callback whenever there
 /// is more info.
 fn launch(Session, Request, Callback, VoidPtr) -> Result<()>;
+
+// ---- These are even more low-level... not sure if they're
+//       a good idea.
+
+/// Send a request, and don't wait for a response.
+fn send(Session, RequestId, Request, Option<RequestMeta>) -> Result<()>;
+/// Read a response, if there is one to read.
+fn recv(Session, blocking: bool) -> Result<Response>;
+/// Return an fd that you can poll on to see if the session is ready
+/// to read bytes.
+fn poll_id(Session) -> Option<Fd>;
 ```
 
 
