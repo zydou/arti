@@ -297,6 +297,8 @@ The client must not send JSON documents that are not valid I-JSON.
 arti will only send valid I-JSON
 (assuming the client does so too).
 
+We speak of `fields`. meaning the properties of a JSON object.
+
 ### A variant: JSON-RPC.
 
 > (This is not something we plan to build
