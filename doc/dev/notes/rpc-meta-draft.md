@@ -141,15 +141,16 @@ and there is no need to release it.
 ## Request and response types
 
 There are different kinds of requests,
-each identified by a unique method name,
-and each with an associated set of named parameters.
-Some requests can be sent to many kinds of object;
-some are only suitable for one kind of object.
+each identified by a unique method name.
 
-When we define a request,
-we must also define the types of responses
-that will be sent in reply to it.
-Every response has a given set of named parameters.
+Each method is associated with a set of named parameters.
+Some requests can be sent to many kinds of Object;
+some are only suitable for one kind of Object.
+
+When we define a method,
+we state its name,
+and the names and types of the parameters `params`.
+and the expected contents of the successful `result`.
 
 Unrecognized parameters must be ignored.
 
