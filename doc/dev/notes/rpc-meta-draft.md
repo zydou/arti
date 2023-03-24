@@ -198,8 +198,10 @@ for our requests:
 
 id
 : An identifier for the request.
-  This may be an integer or a string. It is required.
-  Arti will accept integers between `INT64_MIN` and `INT64_MAX`.
+  This may be a number or a string. It is required.
+  (Floating point numbers and
+  integers that can't be precisely represented as an IEEE-754 double
+  are not guaranteed to round trip accurately.)
 
 obj
 : An Object Identifier for the Object that will receive this request.
