@@ -35,7 +35,7 @@ digest = "0.10.0"
 ed25519-dalek = { version = "1", features = ["batch"] }
 hex = "0.4"
 old_rand_core = { package = "rand_core", version = "0.5.1" }
-openssl = { version = "0.10.30", optional = true }
+openssl = { version = "0.10.48", optional = true }
 rand_core = "0.6.2"
 rsa = "0.8.0"
 safelog = { version = "0.2.1", path = "../safelog" }
