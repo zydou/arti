@@ -141,9 +141,13 @@ Improvements or bugfixes to the existing code would be great.
 
 Improving the look and feel of the documentation would also rock.
 
-I've made a bunch of notes throughout the document in comments with strings
+We've made a bunch of notes throughout the document in comments with strings
 like "FIXME" or "TODO".
 
+When we have TODOs that we want to fix prior to the release of a particular
+feature or milestone, we define a special TODO format.
+Right now we have "TODO HS" (or "TODO hs") for things we intend to fix
+before we release support for Tor Hidden Services (.onion services).
 There is a list of features that I wish other crates had in a file called
 `WANT_FROM_OTHER_CRATES`.
 
