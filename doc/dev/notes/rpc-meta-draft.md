@@ -153,10 +153,13 @@ and the names and types of the parameters `params`.
 and the expected contents of the successful `result`.
 
 Unrecognized parameters must be ignored.
+Indeed, any unrecognized fields in a JSON object must be ignored,
+both by the server and by the client.
 
 Invalid JSON
 and parameter values that do not match their specified types
-will be treated as an error.
+must be treated as an error,
+both by the server and by the client.
 
 ## Data Streams
 
