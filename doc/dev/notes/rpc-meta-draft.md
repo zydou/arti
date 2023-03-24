@@ -15,7 +15,7 @@ for both local and out-of-process use.
 
 This document will begin by focusing
 on the _semantics_ of our RPC system
-using an abstract stream of objects.
+using an abstract stream of JSON objects.
 
 Once those are defined, we'll discuss
 a particular instantiation of the system
@@ -109,32 +109,34 @@ an "error" indicates a failure.
 
 ## Requests, Objects, and Visibility
 
-Every request is directed to some object.
+Every request is directed to some Object.
 (For example, an object may be a session,
 a circuit, a stream, an onion service,
 or the arti process itself.)
+In this document, Object means the target of a request;
+not a JSON document object.
 
-Only certain objects are visible within a given session.
+Only certain Objects are visible within a given session.
 When a session is first created,
-the session itself is the only object visible.
-Other objects may become visible
+the session itself is the only Object visible.
+Other Objects may become visible
 in response to the application's requests.
-If an object is not visible in a session,
+If an Object is not visible in a session,
 that session cannot access it.
 
-Clients identify each object within a session
-by an opaque "object identifier".
+Clients identify each Object within a session
+by an opaque "Object Identifier".
 Each identifier may be a "handle" or a "reference".
-If a session has a _handle_ to an object,
-Arti won't deliberately discard that object
+If a session has a _handle_ to an Object,
+Arti won't deliberately discard that Object
 until it the handle is "released",
 or the session is closed.
-If a session only has a _reference_ to an object, however,
-that object might be closed or discarded in the background,
+If a session only has a _reference_ to an Object, however,
+that Object might be closed or discarded in the background,
 and there is no need to release it.
 
 > For more on how this is implemented,
-> see "Representing object identifiers" below.
+> see "Representing Object Identifiers" below.
 
 ## Request and response types
 
@@ -196,7 +198,7 @@ id
   Arti will accept integers between `INT64_MIN` and `INT64_MAX`.
 
 obj
-: An object identifier for the object that will receive this request.
+: An Object Identifier for the Object that will receive this request.
   This is a string.  It is required.
 
 method
@@ -303,32 +305,32 @@ for ease of debugging and clarity,
 but JSON documents are self-delimiting and
 Arti will parse them disregarding any newlines.)
 
-## Representing object identifiers.
+## Representing Object Identifiers.
 
 > This section describes implementation techniques.
 > Applications should not need to care about it.
 
-Here are two ways to provide our object visibility semantics.
+Here are two ways to provide our Object visibility semantics.
 Applications should not care which one Arti uses.
-Arti may use both methods for different objects
+Arti may use both methods for different Objects
 in the same session.
 
 In one method,
 we use a generational index for each live session
 to hold reference-counted pointers
-to the objects visible in the session.
-The generational index is the identifier for the object.
+to the Objects visible in the session.
+The generational index is the identifier for the Object.
 (This method is suitable for representing _handles_
 as described above.)
 
 In another method,
-when it is more convenient for Arti to access an object
+when it is more convenient for Arti to access an Object
 by a global identifier `GID`,
-we use a string `GID:MAC(N_s,GID)` for the object's identifier,
+we use a string `GID:MAC(N_s,GID)` for the Object's Identifier,
 where `N_s` is a per-session secret nonce
 that Arti generates and does not share with the application.
 Arti verifies that the MAC is correct
-before looking up the object by its GID.
+before looking up the Object by its GID.
 (This method is suitable for representing _references_ as
 described above.)
 
@@ -344,10 +346,10 @@ until authentication is successful.
 
 > TODO: Perhaps it would be a good idea to say
 > that when a connection is opened,
-> there is an authentication object (not a session object)
-> and only _that object_ can be used
+> there is an authentication Object (not a session Object)
+> and only _that Object_ can be used
 > until one of its responses eventually gives the application
-> a session object?
+> a session Object?
 
 The authentication methods are:
 
@@ -402,7 +404,7 @@ When we are specifying a request, we list the following.
 
 * The method string for the request.
 
-* Which types of object can receive that request.
+* Which types of Object can receive that request.
 
 * The allowable format for that request's associated parameters.
   This is always given as a Rust struct
@@ -435,7 +437,7 @@ there is a "cancel" command, taking arguments of the form:
 { "request_id": id }
 ```
 
-A successful response is the empty object.
+A successful response is the empty JSON object.
 If a successful response is sent,
 then the request was canceled,
 and an error was sent for the canceled request.
@@ -455,7 +457,7 @@ Arti will return an error.
 
 
 
-## Requests that apply to most objects
+## Requests that apply to most Objects
 
 ...
 
@@ -469,7 +471,7 @@ Arti will return an error.
 
 ...
 
-> session.bootstrap object, supports get status
+> session.bootstrap Object, supports get status
 
 ## Instance operations
 
