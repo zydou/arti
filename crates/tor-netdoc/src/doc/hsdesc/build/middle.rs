@@ -1,6 +1,6 @@
 //! Functionality for encoding the middle document of an onion service descriptor.
 //!
-//! NOTE: `HsDescMiddleBuilder` is a private helper for building hidden service descriptors, and is
+//! NOTE: `HsDescMiddle` is a private helper for building hidden service descriptors, and is
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
@@ -11,12 +11,10 @@ use crate::doc::hsdesc::middle::{AuthClient, HsMiddleKwd, HS_DESC_AUTH_TYPE};
 use crate::NetdocBuilder;
 
 use tor_bytes::EncodeError;
-use tor_error::into_bad_api_usage;
 use tor_llcrypto::pk::curve25519::{EphemeralSecret, PublicKey};
 use tor_llcrypto::util::ct::CtByteArray;
 
 use base64ct::{Base64, Encoding};
-use derive_builder::Builder;
 use rand::rngs::OsRng;
 use rand::{thread_rng, Rng};
 
@@ -25,30 +23,27 @@ use std::borrow::Cow;
 /// The representation of the middle document of an onion service descriptor.
 ///
 /// The plaintext format of this document is described in section 2.5.1.2. of rend-spec-v3.
-#[derive(Builder)]
-#[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
+#[derive(Debug)]
 pub(super) struct HsDescMiddle<'a> {
     /// Client authorization parameters, if client authentication is enabled. If set to `None`,
     /// client authentication is disabled.
-    client_auth: Option<&'a ClientAuth>,
+    pub(super) client_auth: Option<&'a ClientAuth>,
     /// The (encrypted) inner document of the onion service descriptor.
     ///
     /// The `encrypted` field is created by encrypting an inner document built using
     /// [`crate::doc::hsdesc::build::inner::HsDescInnerBuilder`] as described in sections
     /// 2.5.2.1. and 2.5.2.2. of rend-spec-v3.
-    encrypted: Vec<u8>,
+    pub(super) encrypted: Vec<u8>,
 }
 
-impl<'a> NetdocBuilder for HsDescMiddleBuilder<'a> {
+impl<'a> NetdocBuilder for HsDescMiddle<'a> {
     fn build_sign(self) -> Result<String, EncodeError> {
         use HsMiddleKwd::*;
 
         let HsDescMiddle {
             client_auth,
             encrypted,
-        } = self
-            .build()
-            .map_err(into_bad_api_usage!("the HsDescMiddle could not be built"))?;
+        } = self;
 
         let mut encoder = NetdocEncoder::new();
 
@@ -129,16 +124,17 @@ mod test {
 
     #[test]
     fn middle_hsdesc_encoding_no_client_auth() {
-        let hs_desc = HsDescMiddleBuilder::default()
-            .client_auth(None)
-            .encrypted(TEST_ENCRYPTED_VALUE.into())
-            .build_sign()
-            .unwrap();
+        let hs_desc = HsDescMiddle {
+            client_auth: None,
+            encrypted: TEST_ENCRYPTED_VALUE.into(),
+        }
+        .build_sign()
+        .unwrap();
 
         let mut lines = hs_desc.splitn(4, '\n');
 
         assert_eq!(lines.next().unwrap(), "desc-auth-type x25519");
-        // If client auth is disabled, HsDescMiddleBuilder will generate a dummy ephemeral key (a
+        // If client auth is disabled, HsDescMiddle will generate a dummy ephemeral key (a
         // different one each time), so this test checks it is present in the built document. It
         // does _not_ actually validate its value.
         assert!(lines
@@ -167,11 +163,12 @@ AQIDBA==
             descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
         };
 
-        let err = HsDescMiddleBuilder::default()
-            .client_auth(Some(&client_auth))
-            .encrypted(TEST_ENCRYPTED_VALUE.into())
-            .build_sign()
-            .unwrap_err();
+        let err = HsDescMiddle {
+            client_auth: Some(&client_auth),
+            encrypted: TEST_ENCRYPTED_VALUE.into(),
+        }
+        .build_sign()
+        .unwrap_err();
 
         assert!(expect_bug(err)
             .contains("client authentication is enabled, but there are no authorized clients"));
@@ -199,11 +196,12 @@ AQIDBA==
             descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
         };
 
-        let hs_desc = HsDescMiddleBuilder::default()
-            .client_auth(Some(&client_auth))
-            .encrypted(TEST_ENCRYPTED_VALUE.into())
-            .build_sign()
-            .unwrap();
+        let hs_desc = HsDescMiddle {
+            client_auth: Some(&client_auth),
+            encrypted: TEST_ENCRYPTED_VALUE.into(),
+        }
+        .build_sign()
+        .unwrap();
 
         assert_eq!(
             hs_desc,

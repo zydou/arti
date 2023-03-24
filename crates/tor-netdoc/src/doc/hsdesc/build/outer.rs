@@ -1,6 +1,6 @@
 //! Functionality for encoding the outer document of an onion service descriptor.
 //!
-//! NOTE: `HsDescOuterBuilder` is a private helper for building hidden service descriptors, and is
+//! NOTE: `HsDescOuter` is a private helper for building hidden service descriptors, and is
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
@@ -15,41 +15,39 @@ use tor_llcrypto::pk::ed25519;
 use tor_units::IntegerMinutes;
 
 use base64ct::{Base64, Encoding};
-use derive_builder::Builder;
 
 use std::time::SystemTime;
 
 /// The representation of the outer wrapper of an onion service descriptor.
 ///
 /// The format of this document is described in section 2.4. of rend-spec-v3.
-#[derive(Builder)]
-#[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
+#[derive(Debug)]
 pub(super) struct HsDescOuter<'a> {
     /// The blinded hidden service signing keys used to sign descriptor signing keys
     /// (KP_hs_blind_id, KS_hs_blind_id).
-    blinded_id: &'a ed25519::Keypair,
+    pub(super) blinded_id: &'a ed25519::Keypair,
     /// The short-term descriptor signing key.
-    hs_desc_sign: &'a ed25519::Keypair,
+    pub(super) hs_desc_sign: &'a ed25519::Keypair,
     /// The expiration time of the descriptor signing key certificate.
-    hs_desc_sign_cert_expiry: SystemTime,
+    pub(super) hs_desc_sign_cert_expiry: SystemTime,
     /// The lifetime of this descriptor, in minutes.
     ///
     /// This doesn't actually list the starting time or the end time for the
     /// descriptor: presumably, because we didn't want to leak the onion
     /// service's view of the wallclock.
-    lifetime: IntegerMinutes<u16>,
+    pub(super) lifetime: IntegerMinutes<u16>,
     /// A revision counter to tell whether this descriptor is more or less recent
     /// than another one for the same blinded ID.
-    revision_counter: RevisionCounter,
+    pub(super) revision_counter: RevisionCounter,
     /// The (superencrypted) middle document of the onion service descriptor.
     ///
     /// The `superencrypted` field is created by encrypting a middle document built using
-    /// [`crate::doc::hsdesc::build::middle::HsDescMiddleBuilder`] as described in sections
+    /// [`crate::doc::hsdesc::build::middle::HsDescMiddle`] as described in sections
     /// 2.5.1.1. and 2.5.1.2. of rend-spec-v3.
-    superencrypted: Vec<u8>,
+    pub(super) superencrypted: Vec<u8>,
 }
 
-impl<'a> NetdocBuilder for HsDescOuterBuilder<'a> {
+impl<'a> NetdocBuilder for HsDescOuter<'a> {
     fn build_sign(self) -> Result<String, EncodeError> {
         use HsOuterKwd::*;
 
@@ -60,9 +58,7 @@ impl<'a> NetdocBuilder for HsDescOuterBuilder<'a> {
             lifetime,
             revision_counter,
             superencrypted,
-        } = self
-            .build()
-            .map_err(into_bad_api_usage!("failed to build HsDescOuter"))?;
+        } = self;
 
         let mut encoder = NetdocEncoder::new();
         let beginning = encoder.cursor();
@@ -132,15 +128,16 @@ mod test {
     fn outer_hsdesc() {
         let blinded_id = test_ed25519_keypair();
         let hs_desc_sign = test_ed25519_keypair();
-        let hs_desc = HsDescOuterBuilder::default()
-            .blinded_id(&blinded_id)
-            .hs_desc_sign(&hs_desc_sign)
-            .hs_desc_sign_cert_expiry(UNIX_EPOCH)
-            .lifetime(IntegerMinutes::new(20))
-            .revision_counter(9001.into())
-            .superencrypted(TEST_SUPERENCRYPTED_VALUE.into())
-            .build_sign()
-            .unwrap();
+        let hs_desc = HsDescOuter {
+            blinded_id: &blinded_id,
+            hs_desc_sign: &hs_desc_sign,
+            hs_desc_sign_cert_expiry: UNIX_EPOCH,
+            lifetime: IntegerMinutes::new(20),
+            revision_counter: 9001.into(),
+            superencrypted: TEST_SUPERENCRYPTED_VALUE.into(),
+        }
+        .build_sign()
+        .unwrap();
 
         assert_eq!(
             hs_desc,

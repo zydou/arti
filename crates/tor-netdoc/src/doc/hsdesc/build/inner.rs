@@ -1,6 +1,6 @@
 //! Functionality for encoding the inner document of an onion service descriptor.
 //!
-//! NOTE: `HsDescInnerBuilder` is a private helper for building hidden service descriptors, and is
+//! NOTE: `HsDescInner` is a private helper for building hidden service descriptors, and is
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
@@ -22,30 +22,28 @@ use base64ct::{Base64, Encoding};
 
 use std::time::SystemTime;
 
-use derive_builder::Builder;
 use smallvec::SmallVec;
 
 /// The representation of the inner document of an onion service descriptor.
 ///
 /// The plaintext format of this document is described in section 2.5.2.2. of rend-spec-v3.
-#[derive(Builder)]
-#[builder(public, derive(Debug), pattern = "owned", build_fn(vis = "pub(super)"))]
+#[derive(Debug)]
 pub(super) struct HsDescInner<'a> {
     /// The descriptor signing key.
-    hs_desc_sign: &'a ed25519::Keypair,
+    pub(super) hs_desc_sign: &'a ed25519::Keypair,
     /// A list of recognized CREATE handshakes that this onion service supports.
     // TODO hs: this should probably be a caret enum, not an integer
-    create2_formats: &'a [u32],
+    pub(super) create2_formats: &'a [u32],
     /// A list of authentication types that this onion service supports.
-    auth_required: Option<&'a SmallVec<[IntroAuthType; 2]>>,
+    pub(super) auth_required: Option<&'a SmallVec<[IntroAuthType; 2]>>,
     /// If true, this a "single onion service" and is not trying to keep its own location private.
-    is_single_onion_service: bool,
+    pub(super) is_single_onion_service: bool,
     /// One or more introduction points used to contact the onion service.
-    intro_points: &'a [IntroPointDesc],
+    pub(super) intro_points: &'a [IntroPointDesc],
     /// The expiration time of an introduction point authentication key certificate.
-    intro_auth_key_cert_expiry: SystemTime,
+    pub(super) intro_auth_key_cert_expiry: SystemTime,
     /// The expiration time of an introduction point encryption key certificate.
-    intro_enc_key_cert_expiry: SystemTime,
+    pub(super) intro_enc_key_cert_expiry: SystemTime,
 }
 
 /// Information in an onion service descriptor about a single introduction point.
@@ -74,7 +72,7 @@ pub struct IntroPointDesc {
     pub(crate) svc_ntor_key: HsSvcNtorKey,
 }
 
-impl<'a> NetdocBuilder for HsDescInnerBuilder<'a> {
+impl<'a> NetdocBuilder for HsDescInner<'a> {
     fn build_sign(self) -> Result<String, EncodeError> {
         use HsInnerKwd::*;
 
@@ -86,9 +84,7 @@ impl<'a> NetdocBuilder for HsDescInnerBuilder<'a> {
             intro_points,
             intro_auth_key_cert_expiry,
             intro_enc_key_cert_expiry,
-        } = self
-            .build()
-            .map_err(into_bad_api_usage!("the HsDescInner could not be built"))?;
+        } = self;
 
         let mut encoder = NetdocEncoder::new();
 
@@ -229,15 +225,16 @@ mod test {
     ) -> Result<String, EncodeError> {
         let hs_desc_sign = test_ed25519_keypair();
 
-        HsDescInnerBuilder::default()
-            .hs_desc_sign(&hs_desc_sign)
-            .create2_formats(create2_formats)
-            .auth_required(auth_required)
-            .is_single_onion_service(is_single_onion_service)
-            .intro_points(intro_points)
-            .intro_auth_key_cert_expiry(UNIX_EPOCH)
-            .intro_enc_key_cert_expiry(UNIX_EPOCH)
-            .build_sign()
+        HsDescInner {
+            hs_desc_sign: &hs_desc_sign,
+            create2_formats,
+            auth_required,
+            is_single_onion_service,
+            intro_points,
+            intro_auth_key_cert_expiry: UNIX_EPOCH,
+            intro_enc_key_cert_expiry: UNIX_EPOCH,
+        }
+        .build_sign()
     }
 
     #[test]
