@@ -148,6 +148,13 @@ When we have TODOs that we want to fix prior to the release of a particular
 feature or milestone, we define a special TODO format.
 Right now we have "TODO HS" (or "TODO hs") for things we intend to fix
 before we release support for Tor Hidden Services (.onion services).
+
+If you want to make a temporary change that ought *definitely* not to be merged,
+mark it with <code>XX&#88;</code>.
+This will be spotted by the CI, preventing a mistaken merge.
+<!-- that's X X X with no spaces.  Putting it here literally would fail CI :-) -->
+
+
 There is a list of features that I wish other crates had in a file called
 `WANT_FROM_OTHER_CRATES`.
 
