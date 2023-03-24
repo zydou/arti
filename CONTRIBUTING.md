@@ -118,6 +118,12 @@ link to your forked arti repository at:
 >
 >      https://gitlab.torproject.org/_name_/arti/-/merge_requests
 
+We prefer not to rebase and squash MRs during the review cycle,
+so when you're MR is reviewed, please add new commits rather than squashing.
+ou can use the `fixup!` (or `squash!`) autosquash syntax if it seems best;
+this is a good idea if the un-fixed state breaks the tests or is otherwise broken,
+but is not needed otherwise.
+
 ## Where are some good places to start hacking?
 
 You might want to begin by looking around the
