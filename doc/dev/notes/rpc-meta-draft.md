@@ -447,6 +447,29 @@ When we are specifying a request, we list the following.
   annotated for use with serde.
 
 
+# Differences from JSON-RPC
+
+ * We use I-JSON (RFC7493).
+
+ * Every request must have an `obj` field.
+
+ * A request's `id` may not be `null`.
+
+ * Requests can generate `update`s (non-final responses).
+
+ * We specify a framing protocol
+   (although we permit new framing protocols in the future).
+
+ * We have connection-oriented session state.
+
+ * We support overlapping and pipelined responses,
+   rather than batched multi-requests.
+
+ * TODO our errors are likely to be a superset of JSON-RPC's.  TBD.
+
+ * TODO re-check this spec against JSON-RPC.
+
+
 # A list of requests
 
 
