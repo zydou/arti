@@ -120,7 +120,11 @@ link to your forked arti repository at:
 
 We prefer not to rebase and squash MRs during the review cycle,
 so if you want to make changes to your MR, please add new commits rather than squashing.
-You can use the `fixup!` (or `squash!`) autosquash syntax if it seems best;
+You can use the
+[`fixup!`](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash)
+(or `squash!`)
+[autosquash](https://thoughtbot.com/blog/autosquashing-git-commits)
+syntax if it seems best;
 this is a good idea if the un-fixed state breaks the tests or is otherwise broken,
 but is not needed otherwise.
 
