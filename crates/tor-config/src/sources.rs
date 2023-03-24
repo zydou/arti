@@ -237,7 +237,7 @@ impl ConfigurationSources {
         for &(ref source, must_read) in &self.files {
             let required = must_read == MustRead::MustRead;
 
-            // Returns Err(error) if we shuold bail,
+            // Returns Err(error) if we should bail,
             // or Ok(()) if we should ignore the error and skip the file.
             let handle_io_error = |e: io::Error| {
                 if e.kind() == io::ErrorKind::NotFound && !required {
