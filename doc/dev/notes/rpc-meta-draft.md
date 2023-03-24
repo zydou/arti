@@ -255,16 +255,18 @@ id
   that has not received a final response.
 
 update
-: A JSON object whose type depends on the request.
+: A JSON object whose type depends on the request method.
   It is required on an update.
 
 result
-: A JSON object whose type depends on the request.
+: A JSON object whose contents depends on the request method.
   It is required on a successful final response.
 
 error
 : A JSON error object, format TBD.
   It is required on a failed final response.
+  Unlike a `result` and `update`,
+  an error can be parsed and validated without knowing the request method.
 
 Any given response will have exactly one of
 "update", "result", and "error".
