@@ -208,8 +208,12 @@ method
   we can eventually start a registry or something.)
 
 params
-: A JSON object describing the parameters for the method. It is optional.
+: A JSON object describing the parameters for the method.
   Its format depends on the method.
+  (Unlike in JSON-RPC, this field is mandatory;
+  or to put it another way, every method we define will
+  require `params` to be provided,
+  even if it is allowed to be empty.)
 
 meta
 : A JSON object describing protocol features to enable for this request.
