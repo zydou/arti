@@ -1246,14 +1246,17 @@ impl NetDir {
         self.hsdir_rings.current.time_period()
     }
 
-    /// Return the secondary onion service directory "time periods".
+    /// Return all the relevant the hidden service directory "time periods"
     ///
-    /// These are additional time periods that we publish descriptors for when we are
-    /// acting as an onion service.
+    /// This includes the current time period (as from
+    /// [`.hs_time_periods`](Netdir::hs_time_periods))
+    /// plus additional time periods that we publish descriptors for when we are
+    /// acting as a hidden service.
+    //
+    // TODO HS do we need this function?
     #[cfg(feature = "hs-service")]
-    pub fn onion_service_secondary_time_periods(&self) -> Vec<TimePeriod> {
+    pub fn hs_all_time_periods(&self) -> Vec<TimePeriod> {
         self.hsdir_rings
-            .secondary
             .iter()
             .map(HsDirRing::time_period)
             .collect()
