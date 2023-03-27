@@ -7,6 +7,7 @@
 use crate::build::{NetdocBuilder, NetdocEncoder};
 use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VERSION_CURRENT};
 
+use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::into_bad_api_usage;
@@ -49,7 +50,7 @@ pub(super) struct HsDescOuter<'a> {
 }
 
 impl<'a> NetdocBuilder for HsDescOuter<'a> {
-    fn build_sign(self) -> Result<String, EncodeError> {
+    fn build_sign<R: RngCore + CryptoRng>(self, _: &mut R) -> Result<String, EncodeError> {
         use HsOuterKwd::*;
 
         let HsDescOuter {
@@ -120,6 +121,7 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::build::test::test_ed25519_keypair;
+    use tor_basic_utils::test_rng::Config;
     use tor_hscrypto::pk::{HsBlindKeypair, HsIdSecretKey};
     use tor_hscrypto::time::TimePeriod;
     use tor_llcrypto::pk::keymanip::ExpandedSecretKey;
@@ -151,7 +153,7 @@ mod test {
             revision_counter: 9001.into(),
             superencrypted: TEST_SUPERENCRYPTED_VALUE.into(),
         }
-        .build_sign()
+        .build_sign(&mut Config::Deterministic.into_rng())
         .unwrap();
 
         assert_eq!(

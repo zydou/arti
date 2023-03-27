@@ -6,6 +6,7 @@ mod outer;
 
 use crate::doc::hsdesc::IntroAuthType;
 use crate::NetdocBuilder;
+use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::into_bad_api_usage;
 use tor_hscrypto::pk::{HsBlindKeypair, HsSvcDescEncKey};
@@ -95,7 +96,7 @@ pub struct ClientAuth {
 }
 
 impl<'a> NetdocBuilder for HsDescBuilder<'a> {
-    fn build_sign(self) -> Result<String, EncodeError> {
+    fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError> {
         /// The superencrypted field must be padded to the nearest multiple of 10k bytes
         ///
         /// rend-spec-v3 2.5.1.1
@@ -116,7 +117,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             intro_auth_key_cert_expiry: hs_desc.intro_auth_key_cert_expiry,
             intro_enc_key_cert_expiry: hs_desc.intro_enc_key_cert_expiry,
         }
-        .build_sign()?;
+        .build_sign(rng)?;
 
         let desc_enc_nonce = hs_desc
             .client_auth
@@ -126,6 +127,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
         // Encrypt the inner document. The encrypted blob is the ciphertext contained in the
         // "encrypted" field described in section 2.5.1.2. of rend-spec-v3.
         let inner_encrypted = hs_desc.encrypt_field(
+            rng,
             inner_plaintext.as_bytes(),
             desc_enc_nonce.as_ref(),
             b"hsdir-encrypted-data",
@@ -137,7 +139,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             client_auth: hs_desc.client_auth,
             encrypted: inner_encrypted,
         }
-        .build_sign()?;
+        .build_sign(rng)?;
 
         // Section 2.5.1.1. of rend-spec-v3: before encryption, pad the plaintext to the nearest
         // multiple of 10k bytes
@@ -147,6 +149,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
         // Encrypt the middle document. The encrypted blob is the ciphertext contained in the
         // "superencrypted" field described in section 2.5.1.1. of rend-spec-v3.
         let middle_encrypted = hs_desc.encrypt_field(
+            rng,
             middle_plaintext.borrow(),
             // desc_enc_nonce is absent when handling the superencryption layer (2.5.1.1).
             None,
@@ -162,15 +165,16 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             revision_counter: hs_desc.revision_counter,
             superencrypted: middle_encrypted,
         }
-        .build_sign()
+        .build_sign(rng)
     }
 }
 
 impl<'a> HsDesc<'a> {
     /// Encrypt the specified plaintext using the algorithm described in section
     /// `[HS-DESC-ENCRYPTION-KEYS]` of rend-spec-v3.txt.
-    fn encrypt_field(
+    fn encrypt_field<R: RngCore + CryptoRng>(
         &self,
+        rng: &mut R,
         plaintext: &[u8],
         desc_enc_nonce: Option<&HsDescEncNonce>,
         string_const: &[u8],
@@ -183,7 +187,7 @@ impl<'a> HsDesc<'a> {
             string_const,
         };
 
-        encrypt.encrypt(&mut rand::thread_rng(), plaintext)
+        encrypt.encrypt(rng, plaintext)
     }
 }
 
@@ -223,7 +227,7 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as HsDescDecoder};
-    use tor_basic_utils::test_rng::testing_rng;
+    use tor_basic_utils::test_rng::{testing_rng, Config};
     use tor_checkable::{SelfSigned, Timebound};
     use tor_hscrypto::pk::HsIdSecretKey;
     use tor_hscrypto::time::TimePeriod;
@@ -313,6 +317,7 @@ mod test {
                 .unwrap();
 
         let blinded_id = HsBlindKeypair { public, secret };
+        let create2_formats = &[1, 2];
         let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)],
@@ -326,7 +331,7 @@ mod test {
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
             .hs_desc_sign_cert_expiry(expiry)
-            .create2_formats(&[1, 2])
+            .create2_formats(create2_formats)
             .auth_required(None)
             .is_single_onion_service(true)
             .intro_points(&intro_points)
@@ -336,7 +341,7 @@ mod test {
             .lifetime(100.into())
             .revision_counter(2.into())
             .subcredential(subcredential)
-            .build_sign()
+            .build_sign(&mut Config::Deterministic.into_rng())
             .unwrap();
 
         let id = ed25519::Ed25519Identity::from(blinded_id.public_key());
@@ -363,7 +368,7 @@ mod test {
             .hs_desc_sign_cert_expiry(expiry)
             // create2_formats is hard-coded rather than extracted from desc, because
             // create2_formats is ignored while parsing
-            .create2_formats(&[1, 2])
+            .create2_formats(create2_formats)
             .auth_required(None)
             .is_single_onion_service(desc.is_single_onion_service)
             .intro_points(&intro_points)
@@ -373,13 +378,10 @@ mod test {
             .lifetime(desc.idx_info.lifetime)
             .revision_counter(desc.idx_info.revision)
             .subcredential(subcredential)
-            .build_sign()
+            .build_sign(&mut Config::Deterministic.into_rng())
             .unwrap();
 
-        // TODO: a more useful assertion. The two won't be identical unless client auth is enabled
-        // (if client auth is disabled, the builder generates a new desc-auth-ephemeral-key and a
-        // client-auth line filled with random values, which will be different for each descriptor).
-        //assert_eq!(&*encoded_desc, &*reencoded_desc);
+        assert_eq!(&*encoded_desc, &*reencoded_desc);
     }
 
     // TODO hs: encode a descriptor with client auth enabled

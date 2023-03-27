@@ -9,6 +9,8 @@ use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::doc::hsdesc::IntroAuthType;
 use crate::NetdocBuilder;
 
+use rand::CryptoRng;
+use rand::RngCore;
 use tor_bytes::{EncodeError, Writer};
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::{bad_api_usage, into_bad_api_usage};
@@ -73,7 +75,7 @@ pub struct IntroPointDesc {
 }
 
 impl<'a> NetdocBuilder for HsDescInner<'a> {
-    fn build_sign(self) -> Result<String, EncodeError> {
+    fn build_sign<R: RngCore + CryptoRng>(self, _: &mut R) -> Result<String, EncodeError> {
         use HsInnerKwd::*;
 
         let HsDescInner {
@@ -211,6 +213,7 @@ mod test {
     };
     use crate::doc::hsdesc::IntroAuthType;
 
+    use rand::thread_rng;
     use smallvec::SmallVec;
     use std::net::Ipv4Addr;
     use std::time::UNIX_EPOCH;
@@ -234,7 +237,7 @@ mod test {
             intro_auth_key_cert_expiry: UNIX_EPOCH,
             intro_enc_key_cert_expiry: UNIX_EPOCH,
         }
-        .build_sign()
+        .build_sign(&mut thread_rng())
     }
 
     #[test]
