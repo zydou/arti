@@ -120,11 +120,11 @@ mod test {
     use std::time::UNIX_EPOCH;
 
     use super::*;
-    use crate::doc::hsdesc::build::test::test_ed25519_keypair;
     use tor_basic_utils::test_rng::Config;
     use tor_hscrypto::pk::{HsBlindKeypair, HsIdSecretKey};
     use tor_hscrypto::time::TimePeriod;
     use tor_llcrypto::pk::keymanip::ExpandedSecretKey;
+    use tor_llcrypto::util::rand_compat::RngCompatExt;
     use tor_units::IntegerMinutes;
 
     // Some dummy bytes, not actually encrypted.
@@ -132,8 +132,9 @@ mod test {
 
     #[test]
     fn outer_hsdesc() {
-        let hs_id = test_ed25519_keypair();
-        let hs_desc_sign = test_ed25519_keypair();
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let hs_id = ed25519::Keypair::generate(&mut rng);
+        let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
         let period = TimePeriod::new(
             humantime::parse_duration("24 hours").unwrap(),
             humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap(),
@@ -162,16 +163,16 @@ mod test {
 descriptor-lifetime 20
 descriptor-signing-key-cert
 -----BEGIN ED25519 CERT-----
-AQgAAAAAAewZqL9VZkkLDGVQ4eYcCdB/2+XvKqaT6DfOOdIK1zY8AQAgBAA5Kj8d
-eaTfk6qmBv21PruTnLxTYHXFQtkxOW0NP02fmIrKeS4bp6rX2iwdiUlvrpiL0f8/
-nfSxLRFbU+fKTsIGc/+5sAxUC5LPFGw13BKg5kyPmpismNyQXqQmTrojJQ0=
+AQgAAAAAAZZVJwNlzVw1ZQGO7MTzC5MsySASd+fswAcjdTJJOifXAQAgBACI78JJ
+/MuWPH0T5rQziVMJK/yETbYCVycypjsytCmeA4eiWhcVBG4r6AY/fXqHZnI3ApID
+fsb92Bs45IrOrkQdATb5mk1dlFb0X6+0wIF0P0gCVuAEkGv1kvcR/zpvhww=
 -----END ED25519 CERT-----
 revision-counter 9001
 superencrypted
 -----BEGIN MESSAGE-----
 AQIDBA==
 -----END MESSAGE-----
-signature apVgqlvq1eUu50uVmfTmmT/Odlt2ra8Q9KDltOtD09j624GKWI4ran7XLkqg30jikqfe2rcYeTHOplA16XQTDQ==
+signature g6wu776AYYD+BXPBocToRXPF9xob3TB34hkR1/h8tDBGjGMnBWZw03INbiX6Z8FaOXCulccQ309fYEO/BmwyDQ==
 "#
         );
     }

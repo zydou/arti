@@ -227,7 +227,7 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as HsDescDecoder};
-    use tor_basic_utils::test_rng::{testing_rng, Config};
+    use tor_basic_utils::test_rng::Config;
     use tor_checkable::{SelfSigned, Timebound};
     use tor_hscrypto::pk::HsIdSecretKey;
     use tor_hscrypto::time::TimePeriod;
@@ -238,23 +238,6 @@ mod test {
 
     // TODO: move the test helpers and constants to a separate module and make them more broadly
     // available if necessary.
-
-    pub(super) const TEST_CURVE25519_PUBLIC1: [u8; 32] = [
-        182, 113, 33, 95, 205, 245, 236, 169, 54, 55, 168, 104, 105, 203, 2, 43, 72, 171, 252, 178,
-        132, 220, 55, 15, 129, 137, 67, 35, 147, 138, 122, 8,
-    ];
-
-    pub(super) const TEST_CURVE25519_PUBLIC2: [u8; 32] = [
-        115, 163, 198, 37, 3, 64, 168, 156, 114, 124, 46, 142, 233, 91, 239, 29, 207, 240, 128,
-        202, 208, 112, 170, 247, 82, 46, 233, 6, 251, 246, 117, 113,
-    ];
-
-    pub(super) const TEST_ED_KEYPAIR: [u8; 64] = [
-        164, 100, 212, 102, 173, 112, 229, 145, 212, 233, 189, 78, 124, 100, 245, 20, 102, 4, 108,
-        203, 245, 104, 234, 23, 9, 111, 238, 233, 53, 88, 41, 157, 236, 25, 168, 191, 85, 102, 73,
-        11, 12, 101, 80, 225, 230, 28, 9, 208, 127, 219, 229, 239, 42, 166, 147, 232, 55, 206, 57,
-        210, 10, 215, 54, 60,
-    ];
 
     // Not a real cookie, just a bunch of ones.
     pub(super) const TEST_DESCRIPTOR_COOKIE: [u8; HS_DESC_ENC_NONCE_LEN] =
@@ -273,38 +256,34 @@ mod test {
         }
     }
 
-    /// Some tests require determinism, so always return the same keypair.
-    pub(super) fn test_ed25519_keypair() -> ed25519::Keypair {
-        ed25519::Keypair::from_bytes(&TEST_ED_KEYPAIR).unwrap()
-    }
-
-    /// Create a new ed25519 keypair.
-    pub(super) fn create_ed25519_keypair() -> ed25519::Keypair {
-        let mut rng = testing_rng().rng_compat();
-        ed25519::Keypair::generate(&mut rng)
+    pub(super) fn create_intro_point_descriptor<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        link_specifiers: Vec<LinkSpec>,
+    ) -> IntroPointDesc {
+        IntroPointDesc {
+            link_specifiers,
+            ipt_ntor_key: create_curve25519_pk(rng),
+            ipt_sid_key: ed25519::Keypair::generate(&mut rng.rng_compat())
+                .public
+                .into(),
+            svc_ntor_key: create_curve25519_pk(rng).into(),
+        }
     }
 
     /// Create a new curve25519 public key.
-    pub(super) fn create_curve25519_pk() -> curve25519::PublicKey {
-        let rng = testing_rng().rng_compat();
+    pub(super) fn create_curve25519_pk<R: RngCore + CryptoRng>(
+        rng: &mut R,
+    ) -> curve25519::PublicKey {
         let ephemeral_key = curve25519::EphemeralSecret::new(rng);
         (&ephemeral_key).into()
     }
 
-    pub(super) fn test_intro_point_descriptor(link_specifiers: Vec<LinkSpec>) -> IntroPointDesc {
-        IntroPointDesc {
-            link_specifiers,
-            ipt_ntor_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC1),
-            ipt_sid_key: test_ed25519_keypair().public.into(),
-            svc_ntor_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC2).into(),
-        }
-    }
-
     #[test]
     fn encode_decode() {
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
         // The identity keypair of the hidden service.
-        let hs_id = test_ed25519_keypair();
-        let hs_desc_sign = test_ed25519_keypair();
+        let hs_id = ed25519::Keypair::generate(&mut rng);
+        let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
         let period = TimePeriod::new(
             humantime::parse_duration("24 hours").unwrap(),
             humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap(),
@@ -319,11 +298,12 @@ mod test {
         let blinded_id = HsBlindKeypair { public, secret };
         let create2_formats = &[1, 2];
         let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)],
-            ipt_ntor_key: create_curve25519_pk(),
-            ipt_sid_key: create_ed25519_keypair().public.into(),
-            svc_ntor_key: create_curve25519_pk().into(),
+            ipt_ntor_key: create_curve25519_pk(&mut rng),
+            ipt_sid_key: ed25519::Keypair::generate(&mut rng).public.into(),
+            svc_ntor_key: create_curve25519_pk(&mut rng).into(),
         }];
 
         // Build and encode a new descriptor:

@@ -112,11 +112,10 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::build::test::{
-        expect_bug, TEST_CURVE25519_PUBLIC1, TEST_DESCRIPTOR_COOKIE,
+        create_curve25519_pk, expect_bug, TEST_DESCRIPTOR_COOKIE,
     };
     use crate::doc::hsdesc::build::ClientAuth;
     use tor_basic_utils::test_rng::Config;
-    use tor_llcrypto::pk::curve25519;
 
     // Some dummy bytes, not actually encrypted.
     const TEST_ENCRYPTED_VALUE: &[u8] = &[1, 2, 3, 4];
@@ -146,7 +145,7 @@ AQIDBA==
     #[test]
     fn middle_hsdesc_encoding_with_bad_client_auth() {
         let client_auth = ClientAuth {
-            ephemeral_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC1).into(),
+            ephemeral_key: create_curve25519_pk(&mut Config::Deterministic.into_rng()).into(),
             auth_clients: vec![],
             descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
         };
@@ -179,7 +178,7 @@ AQIDBA==
         ];
 
         let client_auth = ClientAuth {
-            ephemeral_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC1).into(),
+            ephemeral_key: create_curve25519_pk(&mut Config::Deterministic.into_rng()).into(),
             auth_clients,
             descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
         };
@@ -194,7 +193,7 @@ AQIDBA==
         assert_eq!(
             hs_desc,
             r#"desc-auth-type x25519
-desc-auth-ephemeral-key tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
+desc-auth-ephemeral-key HWIigEAdcOgqgHPDFmzhhkeqvYP/GcMT2fKb5JY6ey8=
 auth-client AgICAgICAgI= AgICAgICAgICAgICAgICAg== AwMDAwMDAwMDAwMDAwMDAw==
 auth-client BAQEBAQEBAQ= BQUFBQUFBQUFBQUFBQUFBQ== BgYGBgYGBgYGBgYGBgYGBg==
 encrypted
