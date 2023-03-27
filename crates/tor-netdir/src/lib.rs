@@ -1262,19 +1262,21 @@ impl NetDir {
             .collect()
     }
 
-    /// Return the relays in this network directory that will be used to store a
+    /// Return the relays in this network directory that will be used as hidden service directories
+    ///
+    /// Depending on `op`,
+    /// these are suitable to either store, or retrieve, a
     /// given onion service's descriptor at a given time period.
     ///
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
     #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
-    pub fn onion_service_dirs(
-        &self,
-        id: HsBlindId,
-        op: OnionServiceDirOp,
-        when: TimePeriod,
-    ) -> std::result::Result<Vec<Relay<'_>>, OnionDirLookupError> {
+    pub fn hs_dirs<'r>(
+        &'r self,
+        hsid: &'r HsBlindId,
+        op: HsDirOp,
+    ) -> impl Iterator<Item = Relay<'r>> + 'r {
         // Algorithm:
         //
         // 1. Determine which HsDirRing to use, based on the time period.
