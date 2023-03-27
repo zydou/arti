@@ -304,8 +304,8 @@ pub struct NetDir {
     ///
     /// # Implementation note
     ///
-    /// For this field, and for `rsidx_by_rsa`, and for
-    /// `MdEntry::*::rsa_idx`, it might be cool to have references instead.
+    /// For this field, and for `rsidx_by_rsa`,
+    /// it might be cool to have references instead.
     /// But that would make this into a self-referential structure,
     /// which isn't possible in safe rust.
     rsidx_by_ed: HashMap<Ed25519Identity, RouterStatusIdx>,
