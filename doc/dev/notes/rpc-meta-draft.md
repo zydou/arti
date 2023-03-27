@@ -527,7 +527,7 @@ and for functionality like opening streams.
 ## Generic, low-level
 
 I'm imagining that the low level
-of any arti-RPC client libary
+of any arti-RPC client library
 will probably look a little like this:
 
 ```
