@@ -252,11 +252,12 @@ impl From<u64> for RelayWeight {
     }
 }
 
-/// An operation for which we might be requesting an onion service directory.
+/// An operation for which we might be requesting a hidden service directory.
 #[derive(Copy, Clone, Debug)]
 #[non_exhaustive]
-pub enum OnionServiceDirOp {
+pub enum HsDirOp {
     /// Uploading an onion service descriptor.
+    #[cfg(feature = "hs-service")]
     Upload,
     /// Downloading an onion service descriptor.
     Download,
