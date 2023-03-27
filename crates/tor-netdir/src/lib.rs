@@ -1586,8 +1586,8 @@ mod test {
         let (consensus, microdescs) = construct_network().unwrap();
 
         let mut dir = PartialNetDir::new(consensus.clone(), Some(&low_threshold));
-        for (idx, md) in microdescs.iter().enumerate() {
-            if idx % 7 == 2 {
+        for (pos, md) in microdescs.iter().enumerate() {
+            if pos % 7 == 2 {
                 continue; // skip a few relays.
             }
             dir.add_microdesc(md.clone());
@@ -1628,8 +1628,8 @@ mod test {
 
         // But if we try again with a slightly higher threshold...
         let mut dir = PartialNetDir::new(consensus, Some(&high_threshold));
-        for (idx, md) in microdescs.into_iter().enumerate() {
-            if idx % 7 == 2 {
+        for (pos, md) in microdescs.into_iter().enumerate() {
+            if pos % 7 == 2 {
                 continue; // skip a few relays.
             }
             dir.add_microdesc(md);
@@ -1758,10 +1758,10 @@ mod test {
 
     #[test]
     fn relay_funcs() {
-        let (consensus, microdescs) = construct_custom_network(|idx, nb| {
-            if idx == 15 {
+        let (consensus, microdescs) = construct_custom_network(|pos, nb| {
+            if pos == 15 {
                 nb.rs.add_or_port("[f0f0::30]:9001".parse().unwrap());
-            } else if idx == 20 {
+            } else if pos == 20 {
                 nb.rs.add_or_port("[f0f0::3131]:9001".parse().unwrap());
             }
         })
@@ -1853,8 +1853,8 @@ mod test {
         // make a netdir where relays 10-19 are badexit, and everybody
         // exits to 443 on IPv6.
         use tor_netdoc::doc::netstatus::RelayFlags;
-        let netdir = construct_custom_netdir(|idx, nb| {
-            if (10..20).contains(&idx) {
+        let netdir = construct_custom_netdir(|pos, nb| {
+            if (10..20).contains(&pos) {
                 nb.rs.add_flags(RelayFlags::BAD_EXIT);
             }
             nb.md.parse_ipv6_policy("accept 443").unwrap();
@@ -1903,8 +1903,8 @@ mod test {
     #[test]
     fn test_by_id() {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
-        let netdir = construct_custom_netdir(|idx, mut nb| {
-            nb.omit_md = idx == 13;
+        let netdir = construct_custom_netdir(|pos, mut nb| {
+            nb.omit_md = pos == 13;
         })
         .unwrap();
 
@@ -2011,8 +2011,8 @@ mod test {
 
     #[test]
     fn family_list() {
-        let netdir = construct_custom_netdir(|idx, n| {
-            if idx == 0x0a {
+        let netdir = construct_custom_netdir(|pos, n| {
+            if pos == 0x0a {
                 n.md.family(
                     "$0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B \
                      $0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C \
@@ -2020,7 +2020,7 @@ mod test {
                         .parse()
                         .unwrap(),
                 );
-            } else if idx == 0x0c {
+            } else if pos == 0x0c {
                 n.md.family("$0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A".parse().unwrap());
             }
         })
