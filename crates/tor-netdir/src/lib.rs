@@ -389,18 +389,38 @@ impl<D> HsDirs<D> {
         }
     }
 
-    /// Iterate over the contained hsdirs
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &D> {
+    /// Iterate over some of the contained hsdirs, according to `secondary`
+    ///
+    /// The current ring is always included.
+    /// Secondary rings are included iff `secondary`.
+    fn iter_filter_secondary(&self, secondary: bool) -> impl Iterator<Item = &D> {
         chain!(iter::once(&self.current), {
             // This is necessary because chain!'s expansion happens *before*
             // the #[cfg] is applied, so we can't have an argument to chain!
             // which is conditionally present.
             #[allow(unused_variables)]
-            let i = iter::empty::<&D>();
+            let i = {
+                let _ = secondary;
+                iter::empty::<&D>()
+            };
             #[cfg(feature = "hs-service")]
-            let i = self.secondary.iter();
+            let i = self.secondary.iter().filter(move |_| secondary);
             i
         },)
+    }
+
+    /// Iterate over all the contained hsdirs
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &D> {
+        self.iter_filter_secondary(true)
+    }
+
+    /// Iterate over the hsdirs relevant for `op`
+    pub(crate) fn iter_for_op(&self, op: HsDirOp) -> impl Iterator<Item = &D> {
+        self.iter_filter_secondary(match op {
+            #[cfg(feature = "hs-service")]
+            HsDirOp::Upload => true,
+            HsDirOp::Download => false,
+        })
     }
 }
 
