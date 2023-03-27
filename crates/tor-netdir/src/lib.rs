@@ -76,7 +76,10 @@ use tracing::warn;
 use typed_index_collections::{TiSlice, TiVec};
 
 #[cfg(feature = "hs-common")]
-use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
+use {
+    itertools::Itertools,
+    tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
+};
 
 pub use err::Error;
 pub use weight::WeightRole;
@@ -1293,8 +1296,19 @@ impl NetDir {
         //         adding them to Dirs until we have added `spread` new elements
         //         that were not there before.
         // 7. return Dirs.
+        let n_replicas = 2; // TODO HS get this from netdir and/or make it configurable
 
-        todo!() // TODO hs
+        self.hsdir_rings
+            .iter_for_op(op)
+            .cartesian_product(0..n_replicas)
+            .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
+                let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
+                ring.ring_items_at(hsdir_idx)
+            })
+            .filter_map(|(_hsid, rs_idx)| {
+                // This ought not to be None but let's not panic or bail if it is
+                self.relay_by_rs_idx(*rs_idx)
+            })
     }
 }
 
