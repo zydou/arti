@@ -10,8 +10,9 @@ use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VE
 use tor_bytes::EncodeError;
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::into_bad_api_usage;
+use tor_hscrypto::pk::HsBlindKeypair;
 use tor_hscrypto::RevisionCounter;
-use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 use tor_units::IntegerMinutes;
 
 use base64ct::{Base64, Encoding};
@@ -25,7 +26,7 @@ use std::time::SystemTime;
 pub(super) struct HsDescOuter<'a> {
     /// The blinded hidden service signing keys used to sign descriptor signing keys
     /// (KP_hs_blind_id, KS_hs_blind_id).
-    pub(super) blinded_id: &'a ed25519::Keypair,
+    pub(super) blinded_id: &'a HsBlindKeypair,
     /// The short-term descriptor signing key.
     pub(super) hs_desc_sign: &'a ed25519::Keypair,
     /// The expiration time of the descriptor signing key certificate.
@@ -71,7 +72,7 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
         let desc_signing_key_cert = Ed25519Cert::constructor()
             .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
             .expiration(hs_desc_sign_cert_expiry)
-            .signing_key(ed25519::Ed25519Identity::from(&blinded_id.public))
+            .signing_key(ed25519::Ed25519Identity::from(blinded_id.public_key()))
             .cert_key(CertifiedKey::Ed25519(hs_desc_sign.public.into()))
             .encode_and_sign(blinded_id)
             .map_err(into_bad_api_usage!(
@@ -119,6 +120,9 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::build::test::test_ed25519_keypair;
+    use tor_hscrypto::pk::{HsBlindKeypair, HsIdSecretKey};
+    use tor_hscrypto::time::TimePeriod;
+    use tor_llcrypto::pk::keymanip::ExpandedSecretKey;
     use tor_units::IntegerMinutes;
 
     // Some dummy bytes, not actually encrypted.
@@ -126,8 +130,19 @@ mod test {
 
     #[test]
     fn outer_hsdesc() {
-        let blinded_id = test_ed25519_keypair();
+        let hs_id = test_ed25519_keypair();
         let hs_desc_sign = test_ed25519_keypair();
+        let period = TimePeriod::new(
+            humantime::parse_duration("24 hours").unwrap(),
+            humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap(),
+            humantime::parse_duration("12 hours").unwrap(),
+        )
+        .unwrap();
+        let (public, secret, _) = HsIdSecretKey::from(ExpandedSecretKey::from(&hs_id.secret))
+            .compute_blinded_key(period)
+            .unwrap();
+        let blinded_id = HsBlindKeypair { public, secret };
+
         let hs_desc = HsDescOuter {
             blinded_id: &blinded_id,
             hs_desc_sign: &hs_desc_sign,
@@ -145,16 +160,16 @@ mod test {
 descriptor-lifetime 20
 descriptor-signing-key-cert
 -----BEGIN ED25519 CERT-----
-AQgAAAAAAewZqL9VZkkLDGVQ4eYcCdB/2+XvKqaT6DfOOdIK1zY8AQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PFnSUwwD3tSQYaF4DKBVemqZwhm+
-6jWFAvdK+7LsP/HaE0r6JcT7pOchkyczbBns2gCdGULRvejzNoq3gegDIQ0=
+AQgAAAAAAewZqL9VZkkLDGVQ4eYcCdB/2+XvKqaT6DfOOdIK1zY8AQAgBAA5Kj8d
+eaTfk6qmBv21PruTnLxTYHXFQtkxOW0NP02fmIrKeS4bp6rX2iwdiUlvrpiL0f8/
+nfSxLRFbU+fKTsIGc/+5sAxUC5LPFGw13BKg5kyPmpismNyQXqQmTrojJQ0=
 -----END ED25519 CERT-----
 revision-counter 9001
 superencrypted
 -----BEGIN MESSAGE-----
 AQIDBA==
 -----END MESSAGE-----
-signature +Y3v0te3Cq4HdfliGTpl3kIKwcMBaRWAclxXRxOcVb1hI+3UNvT59JfJjz8JrBEc1N8TjxlxtTCvJKU4Xy9jBQ==
+signature apVgqlvq1eUu50uVmfTmmT/Odlt2ra8Q9KDltOtD09j624GKWI4ran7XLkqg30jikqfe2rcYeTHOplA16XQTDQ==
 "#
         );
     }

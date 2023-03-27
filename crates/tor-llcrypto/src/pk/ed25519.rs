@@ -294,3 +294,15 @@ pub fn validate_batch(sigs: &[&ValidatableEd25519Signature]) -> bool {
         ed25519_dalek::verify_batch(&ed_msgs[..], &ed_sigs[..], &ed_pks[..]).is_ok()
     }
 }
+
+/// An object that has an Ed25519 [`PublicKey`].
+pub trait Ed25519PublicKey {
+    /// Get the Ed25519 [`PublicKey`].
+    fn public_key(&self) -> &PublicKey;
+}
+
+impl Ed25519PublicKey for Keypair {
+    fn public_key(&self) -> &PublicKey {
+        &self.public
+    }
+}

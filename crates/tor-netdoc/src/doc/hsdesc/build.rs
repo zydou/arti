@@ -8,9 +8,9 @@ use crate::doc::hsdesc::IntroAuthType;
 use crate::NetdocBuilder;
 use tor_bytes::EncodeError;
 use tor_error::into_bad_api_usage;
-use tor_hscrypto::pk::HsSvcDescEncKey;
+use tor_hscrypto::pk::{HsBlindKeypair, HsSvcDescEncKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
-use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 use tor_units::IntegerMinutes;
 
 use derive_builder::Builder;
@@ -34,13 +34,7 @@ use super::middle::AuthClient;
 struct HsDesc<'a> {
     /// The blinded hidden service signing keys used to sign descriptor signing keys
     /// (KP_hs_blind_id, KS_hs_blind_id).
-    ///
-    /// TODO hs: we might want to use a HsBlindIdKey/HsBlindIdSecretKey keypair instead. However,
-    /// it looks like that will require some work: Ed25519CertConstructor::encode_and_sign needs to
-    /// be changed to support types other than ed25519::Keypairs (i.e. skey will need to be of type
-    /// S: Signer + PublicKey, where PublicKey is a trait with a .pk() function that returns an
-    /// ed25519::PublicKey).
-    blinded_id: &'a ed25519::Keypair,
+    blinded_id: &'a HsBlindKeypair,
     /// The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
     hs_desc_sign: &'a ed25519::Keypair,
     /// The expiration time of the descriptor signing key certificate.
@@ -182,7 +176,7 @@ impl<'a> HsDesc<'a> {
         string_const: &[u8],
     ) -> Vec<u8> {
         let encrypt = HsDescEncryption {
-            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.public).into(),
+            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.public_key()).into(),
             desc_enc_nonce,
             subcredential: &self.subcredential,
             revision: self.revision_counter,
@@ -228,14 +222,14 @@ mod test {
     use std::time::Duration;
 
     use super::*;
-    use crate::doc::hsdesc::desc_enc::HS_DESC_ENC_NONCE_LEN;
-    use crate::doc::hsdesc::test::TEST_SUBCREDENTIAL;
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as HsDescDecoder};
     use tor_basic_utils::test_rng::testing_rng;
     use tor_checkable::{SelfSigned, Timebound};
+    use tor_hscrypto::pk::HsIdSecretKey;
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::curve25519;
+    use tor_llcrypto::pk::keymanip::ExpandedSecretKey;
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     // TODO: move the test helpers and constants to a separate module and make them more broadly
@@ -304,7 +298,8 @@ mod test {
 
     #[test]
     fn encode_decode() {
-        let blinded_id = test_ed25519_keypair();
+        // The identity keypair of the hidden service.
+        let hs_id = test_ed25519_keypair();
         let hs_desc_sign = test_ed25519_keypair();
         let period = TimePeriod::new(
             humantime::parse_duration("24 hours").unwrap(),
@@ -312,10 +307,12 @@ mod test {
             humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
+        let (public, secret, subcredential) =
+            HsIdSecretKey::from(ExpandedSecretKey::from(&hs_id.secret))
+                .compute_blinded_key(period)
+                .unwrap();
 
-        // TODO: not a valid subcredential
-        let subcredential = TEST_SUBCREDENTIAL.into();
-
+        let blinded_id = HsBlindKeypair { public, secret };
         let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)],
@@ -342,7 +339,7 @@ mod test {
             .build_sign()
             .unwrap();
 
-        let id = ed25519::Ed25519Identity::from(&blinded_id.public);
+        let id = ed25519::Ed25519Identity::from(blinded_id.public_key());
         // Now decode it
         let enc_desc: EncryptedHsDesc = HsDescDecoder::parse(&encoded_desc, &id.into())
             .unwrap()
