@@ -26,6 +26,7 @@ use std::time::SystemTime;
 
 use base64ct::{Base64, Encoding};
 use humantime::format_rfc3339;
+use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_cert::Ed25519Cert;
 use tor_error::{internal, into_internal, Bug};
@@ -347,7 +348,7 @@ impl Drop for ItemEncoder<'_> {
 /// A trait for building and signing netdocs.
 pub trait NetdocBuilder {
     /// Build the document into textual form.
-    fn build_sign(self) -> Result<String, EncodeError>;
+    fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError>;
 }
 
 #[cfg(test)]

@@ -4,6 +4,8 @@
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
+use std::borrow::Cow;
+
 use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::build::ClientAuth;
 use crate::doc::hsdesc::desc_enc::{HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN};
@@ -15,10 +17,7 @@ use tor_llcrypto::pk::curve25519::{EphemeralSecret, PublicKey};
 use tor_llcrypto::util::ct::CtByteArray;
 
 use base64ct::{Base64, Encoding};
-use rand::rngs::OsRng;
-use rand::{thread_rng, Rng};
-
-use std::borrow::Cow;
+use rand::{CryptoRng, Rng, RngCore};
 
 /// The representation of the middle document of an onion service descriptor.
 ///
@@ -37,7 +36,7 @@ pub(super) struct HsDescMiddle<'a> {
 }
 
 impl<'a> NetdocBuilder for HsDescMiddle<'a> {
-    fn build_sign(self) -> Result<String, EncodeError> {
+    fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError> {
         use HsMiddleKwd::*;
 
         let HsDescMiddle {
@@ -62,12 +61,6 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
                 )
             }
             None => {
-                // As per section 2.5.1.2. of rend-spec-v3, if client auth is disabled, we need to
-                // generate some fake data for the desc-auth-ephemeral-key and auth-client fields.
-                let secret = EphemeralSecret::new(OsRng);
-                let dummy_ephemeral_key = PublicKey::from(&secret);
-
-                let mut rng = thread_rng();
                 // Generate a single client-auth line filled with random values for client-id,
                 // iv, and encrypted-cookie.
                 let dummy_auth_client = AuthClient {
@@ -75,6 +68,11 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
                     iv: rng.gen::<[u8; HS_DESC_IV_LEN]>(),
                     encrypted_cookie: rng.gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(),
                 };
+
+                // As per section 2.5.1.2. of rend-spec-v3, if client auth is disabled, we need to
+                // generate some fake data for the desc-auth-ephemeral-key and auth-client fields.
+                let secret = EphemeralSecret::new(rng);
+                let dummy_ephemeral_key = PublicKey::from(&secret);
 
                 // TODO hs: Remove useless vec![] allocation.
                 (dummy_ephemeral_key, Cow::Owned(vec![dummy_auth_client]))
@@ -114,10 +112,10 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::build::test::{
-        expect_bug, TEST_CURVE25519_PUBLIC1, TEST_DESCRIPTOR_COOKIE,
+        create_curve25519_pk, expect_bug, TEST_DESCRIPTOR_COOKIE,
     };
     use crate::doc::hsdesc::build::ClientAuth;
-    use tor_llcrypto::pk::curve25519;
+    use tor_basic_utils::test_rng::Config;
 
     // Some dummy bytes, not actually encrypted.
     const TEST_ENCRYPTED_VALUE: &[u8] = &[1, 2, 3, 4];
@@ -128,37 +126,26 @@ mod test {
             client_auth: None,
             encrypted: TEST_ENCRYPTED_VALUE.into(),
         }
-        .build_sign()
+        .build_sign(&mut Config::Deterministic.into_rng())
         .unwrap();
 
-        let mut lines = hs_desc.splitn(4, '\n');
-
-        assert_eq!(lines.next().unwrap(), "desc-auth-type x25519");
-        // If client auth is disabled, HsDescMiddle will generate a dummy ephemeral key (a
-        // different one each time), so this test checks it is present in the built document. It
-        // does _not_ actually validate its value.
-        assert!(lines
-            .next()
-            .unwrap()
-            .starts_with("desc-auth-ephemeral-key "));
-        // The above also applies to the auth-client line (since client auth is disabled, it's
-        // going to have a different value on each run).
-        assert!(lines.next().unwrap().starts_with("auth-client "));
         assert_eq!(
-            lines.next().unwrap(),
-            r#"encrypted
+            hs_desc,
+            r#"desc-auth-type x25519
+desc-auth-ephemeral-key XI/a9NGh/7ClaFcKqtdI9DoP8da5ovwPDdgCHUr3xX0=
+auth-client F+Z6EDfG7oc= 7EIXRtlSozVtGAs6+mNujQ== pNtSIyiCahSvUVg+7s71Ow==
+encrypted
 -----BEGIN MESSAGE-----
 AQIDBA==
 -----END MESSAGE-----
 "#
         );
-        assert!(lines.next().is_none());
     }
 
     #[test]
     fn middle_hsdesc_encoding_with_bad_client_auth() {
         let client_auth = ClientAuth {
-            ephemeral_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC1).into(),
+            ephemeral_key: create_curve25519_pk(&mut Config::Deterministic.into_rng()).into(),
             auth_clients: vec![],
             descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
         };
@@ -167,7 +154,7 @@ AQIDBA==
             client_auth: Some(&client_auth),
             encrypted: TEST_ENCRYPTED_VALUE.into(),
         }
-        .build_sign()
+        .build_sign(&mut Config::Deterministic.into_rng())
         .unwrap_err();
 
         assert!(expect_bug(err)
@@ -191,7 +178,7 @@ AQIDBA==
         ];
 
         let client_auth = ClientAuth {
-            ephemeral_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC1).into(),
+            ephemeral_key: create_curve25519_pk(&mut Config::Deterministic.into_rng()).into(),
             auth_clients,
             descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
         };
@@ -200,13 +187,13 @@ AQIDBA==
             client_auth: Some(&client_auth),
             encrypted: TEST_ENCRYPTED_VALUE.into(),
         }
-        .build_sign()
+        .build_sign(&mut Config::Deterministic.into_rng())
         .unwrap();
 
         assert_eq!(
             hs_desc,
             r#"desc-auth-type x25519
-desc-auth-ephemeral-key tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
+desc-auth-ephemeral-key HWIigEAdcOgqgHPDFmzhhkeqvYP/GcMT2fKb5JY6ey8=
 auth-client AgICAgICAgI= AgICAgICAgICAgICAgICAg== AwMDAwMDAwMDAwMDAwMDAw==
 auth-client BAQEBAQEBAQ= BQUFBQUFBQUFBQUFBQUFBQ== BgYGBgYGBgYGBgYGBgYGBg==
 encrypted

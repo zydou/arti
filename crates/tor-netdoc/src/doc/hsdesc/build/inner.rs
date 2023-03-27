@@ -9,6 +9,8 @@ use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::doc::hsdesc::IntroAuthType;
 use crate::NetdocBuilder;
 
+use rand::CryptoRng;
+use rand::RngCore;
 use tor_bytes::{EncodeError, Writer};
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::{bad_api_usage, into_bad_api_usage};
@@ -73,7 +75,7 @@ pub struct IntroPointDesc {
 }
 
 impl<'a> NetdocBuilder for HsDescInner<'a> {
-    fn build_sign(self) -> Result<String, EncodeError> {
+    fn build_sign<R: RngCore + CryptoRng>(self, _: &mut R) -> Result<String, EncodeError> {
         use HsInnerKwd::*;
 
         let HsDescInner {
@@ -206,15 +208,16 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::doc::hsdesc::build::test::{
-        expect_bug, test_ed25519_keypair, test_intro_point_descriptor,
-    };
+    use crate::doc::hsdesc::build::test::{create_intro_point_descriptor, expect_bug};
     use crate::doc::hsdesc::IntroAuthType;
 
+    use rand::thread_rng;
     use smallvec::SmallVec;
     use std::net::Ipv4Addr;
     use std::time::UNIX_EPOCH;
+    use tor_basic_utils::test_rng::Config;
     use tor_linkspec::LinkSpec;
+    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     /// Build an inner document using the specified parameters.
     fn create_inner_desc(
@@ -223,7 +226,8 @@ mod test {
         is_single_onion_service: bool,
         intro_points: &[IntroPointDesc],
     ) -> Result<String, EncodeError> {
-        let hs_desc_sign = test_ed25519_keypair();
+        let hs_desc_sign =
+            ed25519::Keypair::generate(&mut Config::Deterministic.into_rng().rng_compat());
 
         HsDescInner {
             hs_desc_sign: &hs_desc_sign,
@@ -234,7 +238,7 @@ mod test {
             intro_auth_key_cert_expiry: UNIX_EPOCH,
             intro_enc_key_cert_expiry: UNIX_EPOCH,
         }
-        .build_sign()
+        .build_sign(&mut thread_rng())
     }
 
     #[test]
@@ -265,10 +269,11 @@ mod test {
         let link_specs2 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
         let link_specs3 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8901)];
 
+        let mut rng = Config::Deterministic.into_rng();
         let intros = &[
-            test_intro_point_descriptor(link_specs1),
-            test_intro_point_descriptor(link_specs2),
-            test_intro_point_descriptor(link_specs3),
+            create_intro_point_descriptor(&mut rng, link_specs1),
+            create_intro_point_descriptor(&mut rng, link_specs2),
+            create_intro_point_descriptor(&mut rng, link_specs3),
         ];
 
         let hs_desc = create_inner_desc(
@@ -283,49 +288,49 @@ mod test {
             hs_desc,
             r#"create2-formats 1234 32 23
 introduction-point AQAGfwAAAQTS
-onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
+onion-key ntor HWIigEAdcOgqgHPDFmzhhkeqvYP/GcMT2fKb5JY6ey8=
 auth-key
 -----BEGIN ED25519 CERT-----
-AQkAAAAAAewZqL9VZkkLDGVQ4eYcCdB/2+XvKqaT6DfOOdIK1zY8AQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PGJfiGR8BqiEDVPAUl0ToUn+72JW
-zJUcnzAdNAysaR5UrK0i+/d4vOzNsNFQ2f7vkfFuwvQEeDlqw8lddvNwxg0=
+AQkAAAAAAZZVJwNlzVw1ZQGO7MTzC5MsySASd+fswAcjdTJJOifXAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61IVW0XivcAKhvUvNUsU1CFznk3Mz
+KSsp/mBoKi2iY4f4eN2SXx8U6pmnxnXFxYP6obi+tc5QWj1Jbfl1Aci3TAA=
 -----END ED25519 CERT-----
-enc-key ntor c6PGJQNAqJxyfC6O6VvvHc/wgMrQcKr3Ui7pBvv2dXE=
+enc-key ntor 9Upi9XNWyqx3ZwHeQ5r3+Dh116k+C4yHeE9BcM68HDc=
 enc-key-cert
 -----BEGIN ED25519 CERT-----
-AQsAAAAAAR8cWg2fNApajIBOuKccs3OYfVopANyb9NDTpy7J86VTAQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PNm8uaG3bLDi06dUrHSEDBCIVsx5
-CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
+AQsAAAAAAcH+1K5m7pRnMc01mPp5AYVnJK1iZ/fKHwK0tVR/jtBvAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61Hectpha37ioha85fpNt+/yDfebh
+6BKUUQ0jf3SMXuNgX8SV9NSabn14WCSdKG/8RoYBCTR+yRJX0dy55mjg+go=
 -----END ED25519 CERT-----
 introduction-point AQAGfwAAARYv
-onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
+onion-key ntor x/stThC6cVWJJUR7WERZj5VYVPTAOA/UDjHdtprJkiE=
 auth-key
 -----BEGIN ED25519 CERT-----
-AQkAAAAAAewZqL9VZkkLDGVQ4eYcCdB/2+XvKqaT6DfOOdIK1zY8AQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PGJfiGR8BqiEDVPAUl0ToUn+72JW
-zJUcnzAdNAysaR5UrK0i+/d4vOzNsNFQ2f7vkfFuwvQEeDlqw8lddvNwxg0=
+AQkAAAAAAVMhalzZJ8txKHuCX8TEhmO3LbCvDgV0zMT4eQ49SDpBAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61GdVAiMag0dquEx4IywKDLEhxA7N
+2RZFTS2QI+Sk3dyz46WO+epj1YBlgfOYCZlBEx+oFkRlUJdOc0Eu0sDlAw8=
 -----END ED25519 CERT-----
-enc-key ntor c6PGJQNAqJxyfC6O6VvvHc/wgMrQcKr3Ui7pBvv2dXE=
+enc-key ntor XI/a9NGh/7ClaFcKqtdI9DoP8da5ovwPDdgCHUr3xX0=
 enc-key-cert
 -----BEGIN ED25519 CERT-----
-AQsAAAAAAR8cWg2fNApajIBOuKccs3OYfVopANyb9NDTpy7J86VTAQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PNm8uaG3bLDi06dUrHSEDBCIVsx5
-CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
+AQsAAAAAAZYGETSx12Og2xqJNMS9kGOHTEFeBkFPi7k0UaFv5HNKAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61E8vxB5lB83+rQnWmHLzpfuMUZjG
+o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
 -----END ED25519 CERT-----
 introduction-point AQAGfwAAASLF
-onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
+onion-key ntor CJi8nDPhIFA7X9Q+oP7+jzxNo044cblmagk/d7oKWGc=
 auth-key
 -----BEGIN ED25519 CERT-----
-AQkAAAAAAewZqL9VZkkLDGVQ4eYcCdB/2+XvKqaT6DfOOdIK1zY8AQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PGJfiGR8BqiEDVPAUl0ToUn+72JW
-zJUcnzAdNAysaR5UrK0i+/d4vOzNsNFQ2f7vkfFuwvQEeDlqw8lddvNwxg0=
+AQkAAAAAAU4J4xGrMt9q5eHYZSmbOZTi1iKl59nd3ItYXAa/ASlRAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61CGkJzc/ECYHzJeeAKIkRFV/6jr9
+zAB5XnEFghZmXdDTQdqcPXAFydyeHWW4uR+Uii0wPI8VokbU0NoLTNYJGAM=
 -----END ED25519 CERT-----
-enc-key ntor c6PGJQNAqJxyfC6O6VvvHc/wgMrQcKr3Ui7pBvv2dXE=
+enc-key ntor TL7GcN+B++pB6eRN/0nBZGmWe125qh7ccQJ/Hhku+x8=
 enc-key-cert
 -----BEGIN ED25519 CERT-----
-AQsAAAAAAR8cWg2fNApajIBOuKccs3OYfVopANyb9NDTpy7J86VTAQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PNm8uaG3bLDi06dUrHSEDBCIVsx5
-CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
+AQsAAAAAAabaCv4gv9ddyIztD1J8my9mgotmWnkHX94buLAtt15aAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61GxlI6caS8iFp2bLmg1+Pkgij47f
+eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
 -----END ED25519 CERT-----
 "#
         );
@@ -333,13 +338,18 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
 
     #[test]
     fn inner_hsdesc_too_many_link_specifiers() {
-        let hs_desc_sign = test_ed25519_keypair();
+        let hs_desc_sign =
+            ed25519::Keypair::generate(&mut Config::Deterministic.into_rng().rng_compat());
 
         let link_spec = LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999);
         let link_specifiers = std::iter::repeat(link_spec)
             .take(u8::MAX as usize + 1)
             .collect::<Vec<_>>();
-        let intros = &[test_intro_point_descriptor(link_specifiers)];
+
+        let intros = &[create_intro_point_descriptor(
+            &mut Config::Deterministic.into_rng(),
+            link_specifiers,
+        )];
 
         // A descriptor for a location-hidden service with an introduction point with too many link
         // specifiers
@@ -356,9 +366,10 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
 
     #[test]
     fn inner_hsdesc_intro_auth() {
-        let hs_desc_sign = test_ed25519_keypair();
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
         let link_specs = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
-        let intros = &[test_intro_point_descriptor(link_specs)];
+        let intros = &[create_intro_point_descriptor(&mut rng, link_specs)];
         let auth = SmallVec::from([IntroAuthType::Ed25519, IntroAuthType::Ed25519]);
 
         // A descriptor for a location-hidden service with 1 introduction points which requires
@@ -376,19 +387,19 @@ CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
             r#"create2-formats 1234
 intro-auth-required ed25519 ed25519
 introduction-point AQAGfwAAAR+Q
-onion-key ntor tnEhX8317Kk2N6hoacsCK0ir/LKE3DcPgYlDI5OKegg=
+onion-key ntor pVDg7+MoXDE57TaedKLUKQ6OSUYduWcW/8eikjmR9RA=
 auth-key
 -----BEGIN ED25519 CERT-----
-AQkAAAAAAewZqL9VZkkLDGVQ4eYcCdB/2+XvKqaT6DfOOdIK1zY8AQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PGJfiGR8BqiEDVPAUl0ToUn+72JW
-zJUcnzAdNAysaR5UrK0i+/d4vOzNsNFQ2f7vkfFuwvQEeDlqw8lddvNwxg0=
+AQkAAAAAAec/Z6WU0POJ2wsAAJD/erWpQWczFK7ouc8t2RWPD8OhAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61Lte7Exhx6mxnXB+XmxoSqV2IQij
+UdgEfu8viEqFaAdC8b/ffdmeXrRf4OQXJYd562M8Vtxih6CVVp2Bmu9jpwo=
 -----END ED25519 CERT-----
-enc-key ntor c6PGJQNAqJxyfC6O6VvvHc/wgMrQcKr3Ui7pBvv2dXE=
+enc-key ntor x/stThC6cVWJJUR7WERZj5VYVPTAOA/UDjHdtprJkiE=
 enc-key-cert
 -----BEGIN ED25519 CERT-----
-AQsAAAAAAR8cWg2fNApajIBOuKccs3OYfVopANyb9NDTpy7J86VTAQAgBADsGai/
-VWZJCwxlUOHmHAnQf9vl7yqmk+g3zjnSCtc2PNm8uaG3bLDi06dUrHSEDBCIVsx5
-CPFWD3sGHVPIZA5JnK7mbX8zhsX/MnV/0jj+YKLCQtOPwbqC3R7iXWjBsAE=
+AQsAAAAAASPKuL+ddCmgEToN22Ig0Ja1i3RAvLK2y20ragaqGTRMAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61LOY8CatszBdKADp+/LBEHuC2QiE
+zkV7qcj2hWvbquRKigbpsXWa7atUoygiXJnrtVTbN9Q9O5VCEukdXkUEoQk=
 -----END ED25519 CERT-----
 "#
         );

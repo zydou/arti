@@ -6,6 +6,7 @@ mod outer;
 
 use crate::doc::hsdesc::IntroAuthType;
 use crate::NetdocBuilder;
+use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::into_bad_api_usage;
 use tor_hscrypto::pk::{HsBlindKeypair, HsSvcDescEncKey};
@@ -95,7 +96,7 @@ pub struct ClientAuth {
 }
 
 impl<'a> NetdocBuilder for HsDescBuilder<'a> {
-    fn build_sign(self) -> Result<String, EncodeError> {
+    fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError> {
         /// The superencrypted field must be padded to the nearest multiple of 10k bytes
         ///
         /// rend-spec-v3 2.5.1.1
@@ -116,7 +117,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             intro_auth_key_cert_expiry: hs_desc.intro_auth_key_cert_expiry,
             intro_enc_key_cert_expiry: hs_desc.intro_enc_key_cert_expiry,
         }
-        .build_sign()?;
+        .build_sign(rng)?;
 
         let desc_enc_nonce = hs_desc
             .client_auth
@@ -126,6 +127,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
         // Encrypt the inner document. The encrypted blob is the ciphertext contained in the
         // "encrypted" field described in section 2.5.1.2. of rend-spec-v3.
         let inner_encrypted = hs_desc.encrypt_field(
+            rng,
             inner_plaintext.as_bytes(),
             desc_enc_nonce.as_ref(),
             b"hsdir-encrypted-data",
@@ -137,7 +139,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             client_auth: hs_desc.client_auth,
             encrypted: inner_encrypted,
         }
-        .build_sign()?;
+        .build_sign(rng)?;
 
         // Section 2.5.1.1. of rend-spec-v3: before encryption, pad the plaintext to the nearest
         // multiple of 10k bytes
@@ -147,6 +149,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
         // Encrypt the middle document. The encrypted blob is the ciphertext contained in the
         // "superencrypted" field described in section 2.5.1.1. of rend-spec-v3.
         let middle_encrypted = hs_desc.encrypt_field(
+            rng,
             middle_plaintext.borrow(),
             // desc_enc_nonce is absent when handling the superencryption layer (2.5.1.1).
             None,
@@ -162,15 +165,16 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             revision_counter: hs_desc.revision_counter,
             superencrypted: middle_encrypted,
         }
-        .build_sign()
+        .build_sign(rng)
     }
 }
 
 impl<'a> HsDesc<'a> {
     /// Encrypt the specified plaintext using the algorithm described in section
     /// `[HS-DESC-ENCRYPTION-KEYS]` of rend-spec-v3.txt.
-    fn encrypt_field(
+    fn encrypt_field<R: RngCore + CryptoRng>(
         &self,
+        rng: &mut R,
         plaintext: &[u8],
         desc_enc_nonce: Option<&HsDescEncNonce>,
         string_const: &[u8],
@@ -183,7 +187,7 @@ impl<'a> HsDesc<'a> {
             string_const,
         };
 
-        encrypt.encrypt(&mut rand::thread_rng(), plaintext)
+        encrypt.encrypt(rng, plaintext)
     }
 }
 
@@ -223,7 +227,7 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as HsDescDecoder};
-    use tor_basic_utils::test_rng::testing_rng;
+    use tor_basic_utils::test_rng::Config;
     use tor_checkable::{SelfSigned, Timebound};
     use tor_hscrypto::pk::HsIdSecretKey;
     use tor_hscrypto::time::TimePeriod;
@@ -234,23 +238,6 @@ mod test {
 
     // TODO: move the test helpers and constants to a separate module and make them more broadly
     // available if necessary.
-
-    pub(super) const TEST_CURVE25519_PUBLIC1: [u8; 32] = [
-        182, 113, 33, 95, 205, 245, 236, 169, 54, 55, 168, 104, 105, 203, 2, 43, 72, 171, 252, 178,
-        132, 220, 55, 15, 129, 137, 67, 35, 147, 138, 122, 8,
-    ];
-
-    pub(super) const TEST_CURVE25519_PUBLIC2: [u8; 32] = [
-        115, 163, 198, 37, 3, 64, 168, 156, 114, 124, 46, 142, 233, 91, 239, 29, 207, 240, 128,
-        202, 208, 112, 170, 247, 82, 46, 233, 6, 251, 246, 117, 113,
-    ];
-
-    pub(super) const TEST_ED_KEYPAIR: [u8; 64] = [
-        164, 100, 212, 102, 173, 112, 229, 145, 212, 233, 189, 78, 124, 100, 245, 20, 102, 4, 108,
-        203, 245, 104, 234, 23, 9, 111, 238, 233, 53, 88, 41, 157, 236, 25, 168, 191, 85, 102, 73,
-        11, 12, 101, 80, 225, 230, 28, 9, 208, 127, 219, 229, 239, 42, 166, 147, 232, 55, 206, 57,
-        210, 10, 215, 54, 60,
-    ];
 
     // Not a real cookie, just a bunch of ones.
     pub(super) const TEST_DESCRIPTOR_COOKIE: [u8; HS_DESC_ENC_NONCE_LEN] =
@@ -269,38 +256,34 @@ mod test {
         }
     }
 
-    /// Some tests require determinism, so always return the same keypair.
-    pub(super) fn test_ed25519_keypair() -> ed25519::Keypair {
-        ed25519::Keypair::from_bytes(&TEST_ED_KEYPAIR).unwrap()
-    }
-
-    /// Create a new ed25519 keypair.
-    pub(super) fn create_ed25519_keypair() -> ed25519::Keypair {
-        let mut rng = testing_rng().rng_compat();
-        ed25519::Keypair::generate(&mut rng)
+    pub(super) fn create_intro_point_descriptor<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        link_specifiers: Vec<LinkSpec>,
+    ) -> IntroPointDesc {
+        IntroPointDesc {
+            link_specifiers,
+            ipt_ntor_key: create_curve25519_pk(rng),
+            ipt_sid_key: ed25519::Keypair::generate(&mut rng.rng_compat())
+                .public
+                .into(),
+            svc_ntor_key: create_curve25519_pk(rng).into(),
+        }
     }
 
     /// Create a new curve25519 public key.
-    pub(super) fn create_curve25519_pk() -> curve25519::PublicKey {
-        let rng = testing_rng().rng_compat();
+    pub(super) fn create_curve25519_pk<R: RngCore + CryptoRng>(
+        rng: &mut R,
+    ) -> curve25519::PublicKey {
         let ephemeral_key = curve25519::EphemeralSecret::new(rng);
         (&ephemeral_key).into()
     }
 
-    pub(super) fn test_intro_point_descriptor(link_specifiers: Vec<LinkSpec>) -> IntroPointDesc {
-        IntroPointDesc {
-            link_specifiers,
-            ipt_ntor_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC1),
-            ipt_sid_key: test_ed25519_keypair().public.into(),
-            svc_ntor_key: curve25519::PublicKey::from(TEST_CURVE25519_PUBLIC2).into(),
-        }
-    }
-
     #[test]
     fn encode_decode() {
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
         // The identity keypair of the hidden service.
-        let hs_id = test_ed25519_keypair();
-        let hs_desc_sign = test_ed25519_keypair();
+        let hs_id = ed25519::Keypair::generate(&mut rng);
+        let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
         let period = TimePeriod::new(
             humantime::parse_duration("24 hours").unwrap(),
             humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap(),
@@ -313,12 +296,14 @@ mod test {
                 .unwrap();
 
         let blinded_id = HsBlindKeypair { public, secret };
+        let create2_formats = &[1, 2];
         let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)],
-            ipt_ntor_key: create_curve25519_pk(),
-            ipt_sid_key: create_ed25519_keypair().public.into(),
-            svc_ntor_key: create_curve25519_pk().into(),
+            ipt_ntor_key: create_curve25519_pk(&mut rng),
+            ipt_sid_key: ed25519::Keypair::generate(&mut rng).public.into(),
+            svc_ntor_key: create_curve25519_pk(&mut rng).into(),
         }];
 
         // Build and encode a new descriptor:
@@ -326,7 +311,7 @@ mod test {
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
             .hs_desc_sign_cert_expiry(expiry)
-            .create2_formats(&[1, 2])
+            .create2_formats(create2_formats)
             .auth_required(None)
             .is_single_onion_service(true)
             .intro_points(&intro_points)
@@ -336,7 +321,7 @@ mod test {
             .lifetime(100.into())
             .revision_counter(2.into())
             .subcredential(subcredential)
-            .build_sign()
+            .build_sign(&mut Config::Deterministic.into_rng())
             .unwrap();
 
         let id = ed25519::Ed25519Identity::from(blinded_id.public_key());
@@ -363,7 +348,7 @@ mod test {
             .hs_desc_sign_cert_expiry(expiry)
             // create2_formats is hard-coded rather than extracted from desc, because
             // create2_formats is ignored while parsing
-            .create2_formats(&[1, 2])
+            .create2_formats(create2_formats)
             .auth_required(None)
             .is_single_onion_service(desc.is_single_onion_service)
             .intro_points(&intro_points)
@@ -373,13 +358,10 @@ mod test {
             .lifetime(desc.idx_info.lifetime)
             .revision_counter(desc.idx_info.revision)
             .subcredential(subcredential)
-            .build_sign()
+            .build_sign(&mut Config::Deterministic.into_rng())
             .unwrap();
 
-        // TODO: a more useful assertion. The two won't be identical unless client auth is enabled
-        // (if client auth is disabled, the builder generates a new desc-auth-ephemeral-key and a
-        // client-auth line filled with random values, which will be different for each descriptor).
-        //assert_eq!(&*encoded_desc, &*reencoded_desc);
+        assert_eq!(&*encoded_desc, &*reencoded_desc);
     }
 
     // TODO hs: encode a descriptor with client auth enabled
