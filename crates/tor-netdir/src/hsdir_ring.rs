@@ -65,7 +65,10 @@ pub(crate) struct HsDirRing {
 }
 
 /// Compute the [`HsDirIndex`] for a given relay.
-pub(crate) fn relay_hsdir_index(kp_relayid_ed: &Ed25519Identity, params: &HsDirParams) -> HsDirIndex {
+pub(crate) fn relay_hsdir_index(
+    kp_relayid_ed: &Ed25519Identity,
+    params: &HsDirParams,
+) -> HsDirIndex {
     // rend-spec-v3 2.2.3 "hsdir_index(node)"
     //
     // hsdir_index(node) = H("node-idx" | node_identity |
