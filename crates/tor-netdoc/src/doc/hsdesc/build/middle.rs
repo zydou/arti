@@ -30,8 +30,8 @@ pub(super) struct HsDescMiddle<'a> {
     pub(super) client_auth: Option<&'a ClientAuth>,
     /// The (encrypted) inner document of the onion service descriptor.
     ///
-    /// The `encrypted` field is created by encrypting an inner document built using
-    /// [`crate::doc::hsdesc::build::inner::HsDescInnerBuilder`] as described in sections
+    /// The `encrypted` field is created by encrypting an
+    /// [`crate::doc::hsdesc::build::inner::HsDescInner`] inner document as described in sections
     /// 2.5.2.1. and 2.5.2.2. of rend-spec-v3.
     pub(super) encrypted: Vec<u8>,
 }
