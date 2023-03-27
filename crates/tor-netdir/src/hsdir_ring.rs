@@ -65,7 +65,10 @@ pub(crate) struct HsDirRing {
 }
 
 /// Compute the [`HsDirIndex`] for a given relay.
-pub(crate) fn relay_index(kp_relayid_ed: &Ed25519Identity, params: &HsDirParams) -> HsDirIndex {
+pub(crate) fn relay_hsdir_index(
+    kp_relayid_ed: &Ed25519Identity,
+    params: &HsDirParams,
+) -> HsDirIndex {
     // rend-spec-v3 2.2.3 "hsdir_index(node)"
     //
     // hsdir_index(node) = H("node-idx" | node_identity |
@@ -85,7 +88,7 @@ pub(crate) fn relay_index(kp_relayid_ed: &Ed25519Identity, params: &HsDirParams)
 }
 
 /// Compute the starting [`HsDirIndex`] for a given descriptor replica.
-pub(crate) fn service_index(
+pub(crate) fn service_hsdir_index(
     kp_hs_blind_id: &HsBlindId,
     replica: u8,
     params: &HsDirParams,
@@ -162,8 +165,8 @@ impl HsDirRing {
             let reuse_index_values = prev_ring
                 .ring
                 .iter()
-                .filter_map(|(hsdir_index, rsi)| {
-                    Some((prev_netdir.md_by_idx(*rsi)?.ed25519_id(), hsdir_index))
+                .filter_map(|(hsdir_index, rsidx)| {
+                    Some((prev_netdir.md_by_rsidx(*rsidx)?.ed25519_id(), hsdir_index))
                 })
                 .collect();
             Some(reuse_index_values)
@@ -172,19 +175,19 @@ impl HsDirRing {
 
         let mut new_ring: Vec<_> = this_netdir
             .all_hsdirs()
-            .map(|(rsi, relay)| {
+            .map(|(rsidx, relay)| {
                 let ed_id = relay.md.ed25519_id();
                 let hsdir_index = reuse_index_values
                     .get(ed_id)
                     .cloned()
                     .cloned()
-                    .unwrap_or_else(|| relay_index(ed_id, &new_params));
-                (hsdir_index, rsi)
+                    .unwrap_or_else(|| relay_hsdir_index(ed_id, &new_params));
+                (hsdir_index, rsidx)
             })
             .collect();
 
-        // rsi are all different, so no need to think about comparing them
-        new_ring.sort_by_key(|(hsdir_index, _rsi)| *hsdir_index);
+        // rsidx are all different, so no need to think about comparing them
+        new_ring.sort_by_key(|(hsdir_index, _rsidx)| *hsdir_index);
 
         HsDirRing {
             ring: new_ring,
@@ -192,20 +195,20 @@ impl HsDirRing {
         }
     }
 
-    /// Find the location or (notional) insertion point for `idx` within `ring`.
-    fn find_pos(&self, idx: HsDirIndex) -> usize {
+    /// Find the location or (notional) insertion point for `hsdir_index` within `ring`.
+    fn find_pos(&self, hsdir_index: HsDirIndex) -> usize {
         // TODO hs implement this
         todo!()
     }
 
-    /// Yield items from `ring` starting with `idx`, wrapping around once when we
+    /// Yield items from `ring` starting with `hsdir_index`, wrapping around once when we
     /// reach the end, and yielding no element more than once.
     pub(crate) fn ring_items_at(
         &self,
-        idx: HsDirIndex,
+        hsdir_index: HsDirIndex,
     ) -> impl Iterator<Item = &(HsDirIndex, RouterStatusIdx)> {
-        let idx = self.find_pos(idx);
-        self.ring[idx..].iter().chain(&self.ring[..idx])
+        let pos = self.find_pos(hsdir_index);
+        self.ring[pos..].iter().chain(&self.ring[..pos])
     }
 
     /// Return the time period for which this ring applies.
@@ -255,7 +258,7 @@ mod test {
         {
             let kp_hs_blind_id = [0x42; 32].into();
             let replica = 1;
-            let got = service_index(&kp_hs_blind_id, replica, &params);
+            let got = service_hsdir_index(&kp_hs_blind_id, replica, &params);
             assert_eq!(
                 hex::encode(got.as_ref()),
                 "37e5cbbd56a22823714f18f1623ece5983a0d64c78495a8cfab854245e5f9a8a",
@@ -265,7 +268,7 @@ mod test {
         // relay_index AKA hsdir_index
         {
             let kp_relayid_ed = [0x42; 32].into();
-            let got = relay_index(&kp_relayid_ed, &params);
+            let got = relay_hsdir_index(&kp_relayid_ed, &params);
             assert_eq!(
                 hex::encode(got.as_ref()),
                 "db475361014a09965e7e5e4d4a25b8f8d4b8f16cb1d8a7e95eed50249cc1a2d5",
