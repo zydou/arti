@@ -162,8 +162,8 @@ impl HsDirRing {
             let reuse_index_values = prev_ring
                 .ring
                 .iter()
-                .filter_map(|(hsdir_index, rsi)| {
-                    Some((prev_netdir.md_by_idx(*rsi)?.ed25519_id(), hsdir_index))
+                .filter_map(|(hsdir_index, rsidx)| {
+                    Some((prev_netdir.md_by_rsidx(*rsidx)?.ed25519_id(), hsdir_index))
                 })
                 .collect();
             Some(reuse_index_values)
@@ -172,19 +172,19 @@ impl HsDirRing {
 
         let mut new_ring: Vec<_> = this_netdir
             .all_hsdirs()
-            .map(|(rsi, relay)| {
+            .map(|(rsidx, relay)| {
                 let ed_id = relay.md.ed25519_id();
                 let hsdir_index = reuse_index_values
                     .get(ed_id)
                     .cloned()
                     .cloned()
                     .unwrap_or_else(|| relay_index(ed_id, &new_params));
-                (hsdir_index, rsi)
+                (hsdir_index, rsidx)
             })
             .collect();
 
-        // rsi are all different, so no need to think about comparing them
-        new_ring.sort_by_key(|(hsdir_index, _rsi)| *hsdir_index);
+        // rsidx are all different, so no need to think about comparing them
+        new_ring.sort_by_key(|(hsdir_index, _rsidx)| *hsdir_index);
 
         HsDirRing {
             ring: new_ring,

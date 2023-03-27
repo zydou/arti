@@ -295,7 +295,7 @@ pub struct NetDir {
     mds: TiVec<RouterStatusIdx, Option<Arc<Microdesc>>>,
     /// Map from SHA256 of _missing_ microdescriptors to the index of their
     /// corresponding routerstatus.
-    rs_idx_by_missing: HashMap<MdDigest, RouterStatusIdx>,
+    rsidx_by_missing: HashMap<MdDigest, RouterStatusIdx>,
     /// Map from ed25519 identity to index of the routerstatus.
     ///
     /// Note that we don't know the ed25519 identity of a relay until
@@ -304,16 +304,16 @@ pub struct NetDir {
     ///
     /// # Implementation note
     ///
-    /// For this field, and for `rs_idx_by_rsa`, and for
+    /// For this field, and for `rsidx_by_rsa`, and for
     /// `MdEntry::*::rsa_idx`, it might be cool to have references instead.
     /// But that would make this into a self-referential structure,
     /// which isn't possible in safe rust.
-    rs_idx_by_ed: HashMap<Ed25519Identity, RouterStatusIdx>,
+    rsidx_by_ed: HashMap<Ed25519Identity, RouterStatusIdx>,
     /// Map from RSA identity to index of the routerstatus.
     ///
     /// This is constructed at the same time as the NetDir object, so it
     /// can be immutable.
-    rs_idx_by_rsa: Arc<HashMap<RsaIdentity, RouterStatusIdx>>,
+    rsidx_by_rsa: Arc<HashMap<RsaIdentity, RouterStatusIdx>>,
 
     /// Hash ring(s) describing the onion service directory.
     ///
@@ -619,16 +619,16 @@ impl PartialNetDir {
 
         let n_relays = consensus.c_relays().len();
 
-        let rs_idx_by_missing = consensus
+        let rsidx_by_missing = consensus
             .c_relays()
             .iter_enumerated()
-            .map(|(rs_idx, rs)| (*rs.md_digest(), rs_idx))
+            .map(|(rsidx, rs)| (*rs.md_digest(), rsidx))
             .collect();
 
-        let rs_idx_by_rsa = consensus
+        let rsidx_by_rsa = consensus
             .c_relays()
             .iter_enumerated()
-            .map(|(rs_idx, rs)| (*rs.rsa_identity(), rs_idx))
+            .map(|(rsidx, rs)| (*rs.rsa_identity(), rsidx))
             .collect();
 
         #[cfg(feature = "hs-common")]
@@ -645,9 +645,9 @@ impl PartialNetDir {
             consensus: Arc::new(consensus),
             params,
             mds: vec![None; n_relays].into(),
-            rs_idx_by_missing,
-            rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
-            rs_idx_by_ed: HashMap::with_capacity(n_relays),
+            rsidx_by_missing,
+            rsidx_by_rsa: Arc::new(rsidx_by_rsa),
+            rsidx_by_ed: HashMap::with_capacity(n_relays),
             #[cfg(feature = "hs-common")]
             hsdir_rings,
             weights,
@@ -738,20 +738,20 @@ impl NetDir {
     /// Return true if we wanted it, and false otherwise.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     fn add_arc_microdesc(&mut self, md: Arc<Microdesc>) -> bool {
-        if let Some(rs_idx) = self.rs_idx_by_missing.remove(md.digest()) {
-            assert_eq!(self.c_relays()[rs_idx].md_digest(), md.digest());
+        if let Some(rsidx) = self.rsidx_by_missing.remove(md.digest()) {
+            assert_eq!(self.c_relays()[rsidx].md_digest(), md.digest());
 
             // There should never be two approved MDs in the same
             // consensus listing the same ID... but if there is,
             // we'll let the most recent one win.
-            self.rs_idx_by_ed.insert(*md.ed25519_id(), rs_idx);
+            self.rsidx_by_ed.insert(*md.ed25519_id(), rsidx);
 
             // Happy path: we did indeed want this one.
-            self.mds[rs_idx] = Some(md);
+            self.mds[rsidx] = Some(md);
 
             // Save some space in the missing-descriptor list.
-            if self.rs_idx_by_missing.len() < self.rs_idx_by_missing.capacity() / 4 {
-                self.rs_idx_by_missing.shrink_to_fit();
+            if self.rsidx_by_missing.len() < self.rsidx_by_missing.capacity() / 4 {
+                self.rsidx_by_missing.shrink_to_fit();
             }
 
             return true;
@@ -763,13 +763,13 @@ impl NetDir {
 
     /// Construct a (possibly invalid) Relay object from a routerstatus and its
     /// index within the consensus.
-    fn relay_from_rs_and_idx<'a>(
+    fn relay_from_rs_and_rsidx<'a>(
         &'a self,
         rs: &'a netstatus::MdConsensusRouterStatus,
-        rs_idx: RouterStatusIdx,
+        rsidx: RouterStatusIdx,
     ) -> UncheckedRelay<'a> {
-        debug_assert_eq!(self.c_relays()[rs_idx].rsa_identity(), rs.rsa_identity());
-        let md = self.mds[rs_idx].as_deref();
+        debug_assert_eq!(self.c_relays()[rsidx].rsa_identity(), rs.rsa_identity());
+        let md = self.mds[rsidx].as_deref();
         if let Some(md) = md {
             debug_assert_eq!(rs.md_digest(), md.digest());
         }
@@ -800,7 +800,7 @@ impl NetDir {
         // do so many hashtable lookups.
         self.c_relays()
             .iter_enumerated()
-            .map(move |(idx, rs)| self.relay_from_rs_and_idx(rs, idx))
+            .map(move |(rsidx, rs)| self.relay_from_rs_and_rsidx(rs, rsidx))
     }
     /// Return an iterator over all usable Relays.
     pub fn relays(&self) -> impl Iterator<Item = Relay<'_>> {
@@ -809,8 +809,8 @@ impl NetDir {
 
     /// Look up a relay's `MicroDesc` by its `RouterStatusIdx`
     #[cfg_attr(not(feature = "hs-common"), allow(dead_code))]
-    pub(crate) fn md_by_idx(&self, rsi: RouterStatusIdx) -> Option<&Microdesc> {
-        self.mds.get(rsi)?.as_deref()
+    pub(crate) fn md_by_rsidx(&self, rsidx: RouterStatusIdx) -> Option<&Microdesc> {
+        self.mds.get(rsidx)?.as_deref()
     }
 
     /// Return a relay matching a given identity, if we have a
@@ -830,10 +830,10 @@ impl NetDir {
         let id = id.into();
         let answer = match id {
             RelayIdRef::Ed25519(ed25519) => {
-                let rs_idx = *self.rs_idx_by_ed.get(ed25519)?;
-                let rs = self.c_relays().get(rs_idx).expect("Corrupt index");
+                let rsidx = *self.rsidx_by_ed.get(ed25519)?;
+                let rs = self.c_relays().get(rsidx).expect("Corrupt index");
 
-                self.relay_from_rs_and_idx(rs, rs_idx).into_relay()?
+                self.relay_from_rs_and_rsidx(rs, rsidx).into_relay()?
             }
             RelayIdRef::Rsa(rsa) => self
                 .by_rsa_id_unchecked(rsa)
@@ -919,7 +919,7 @@ impl NetDir {
             (Some(r), Some(e)) => self.id_pair_listed(e, r),
             (Some(r), None) => Some(self.rsa_id_is_listed(r)),
             (None, Some(e)) => {
-                if self.rs_idx_by_ed.contains_key(e) {
+                if self.rsidx_by_ed.contains_key(e) {
                     Some(true)
                 } else {
                     None
@@ -932,10 +932,10 @@ impl NetDir {
     /// Return a (possibly unusable) relay with a given RSA identity.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
-        let rs_idx = *self.rs_idx_by_rsa.get(rsa_id)?;
-        let rs = self.c_relays().get(rs_idx).expect("Corrupt index");
+        let rsidx = *self.rsidx_by_rsa.get(rsa_id)?;
+        let rs = self.c_relays().get(rsidx).expect("Corrupt index");
         assert_eq!(rs.rsa_identity(), rsa_id);
-        Some(self.relay_from_rs_and_idx(rs, rs_idx))
+        Some(self.relay_from_rs_and_rsidx(rs, rsidx))
     }
     /// Return the relay with a given RSA identity, if we have one
     /// and it is usable.
@@ -953,11 +953,11 @@ impl NetDir {
     /// The results are not returned in any particular order.
     #[cfg(feature = "hs-common")]
     fn all_hsdirs(&self) -> impl Iterator<Item = (RouterStatusIdx, Relay<'_>)> {
-        self.c_relays().iter_enumerated().filter_map(|(rsi, rs)| {
-            let relay = self.relay_from_rs_and_idx(rs, rsi);
+        self.c_relays().iter_enumerated().filter_map(|(rsidx, rs)| {
+            let relay = self.relay_from_rs_and_rsidx(rs, rsidx);
             relay.is_hsdir_for_ring().then(|| ())?;
             let relay = relay.into_relay()?;
-            Some((rsi, relay))
+            Some((rsidx, relay))
         })
     }
 
@@ -1256,13 +1256,13 @@ impl NetDir {
 
 impl MdReceiver for NetDir {
     fn missing_microdescs(&self) -> Box<dyn Iterator<Item = &MdDigest> + '_> {
-        Box::new(self.rs_idx_by_missing.keys())
+        Box::new(self.rsidx_by_missing.keys())
     }
     fn add_microdesc(&mut self, md: Microdesc) -> bool {
         self.add_arc_microdesc(Arc::new(md))
     }
     fn n_missing(&self) -> usize {
-        self.rs_idx_by_missing.len()
+        self.rsidx_by_missing.len()
     }
 }
 
