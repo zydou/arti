@@ -1234,13 +1234,15 @@ impl NetDir {
         })
     }
 
-    /// Return the current onion service directory "time period".
+    /// Return the current hidden service directory "time period".
     ///
     /// Specifically, this returns the time period that contains the beginning
     /// of the validity period of this `NetDir`'s consensus.  That time period
-    /// is the one we use when acting as an onion service client.
+    /// is the one we use when acting as an hidden service client.
+    //
+    // TODO HS do we need this function?
     #[cfg(feature = "hs-common")]
-    pub fn onion_service_time_period(&self) -> TimePeriod {
+    pub fn hs_time_period(&self) -> TimePeriod {
         self.hsdir_rings.current.time_period()
     }
 
