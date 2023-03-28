@@ -18,6 +18,7 @@ use tracing::{debug, error, trace};
 use tor_circmgr::isolation::Isolation;
 use tor_error::{internal, Bug, ErrorReport as _};
 use tor_hscrypto::pk::HsId;
+use tor_netdir::NetDir;
 use tor_rtcompat::Runtime;
 
 use crate::isol_map;
@@ -198,6 +199,7 @@ type Continuation = (
 /// They both use the same backstop rechecks counter.
 fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     connector: &HsClientConnector<impl Runtime, D>,
+    netdir: &Arc<NetDir>,
     hsid: &HsId,
     secret_keys: &HsClientSecretKeys,
     table_index: TableIndex,
@@ -288,12 +290,13 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         // Make a connection
         let runtime = &connector.runtime;
         let connector = (*connector).clone();
+        let netdir = netdir.clone();
         let secret_keys = secret_keys.clone();
         let hsid = *hsid;
         let connect_future = async move {
             let mut data = data;
 
-            let got = AssertUnwindSafe(D::connect(&connector, hsid, &mut data, secret_keys))
+            let got = AssertUnwindSafe(D::connect(&connector, netdir, hsid, &mut data, secret_keys))
                 .catch_unwind()
                 .await
                 .unwrap_or_else(|_| {
@@ -378,6 +381,7 @@ impl<D: MockableConnectorData> Services<D> {
     // We *do* drop guard.  There is *one* await point, just after drop(guard).
     pub(crate) async fn get_or_launch_connection(
         connector: &HsClientConnector<impl Runtime, D>,
+        netdir: &Arc<NetDir>,
         hs_id: HsId,
         isolation: Box<dyn Isolation>,
         secret_keys: HsClientSecretKeys,
@@ -389,6 +393,7 @@ impl<D: MockableConnectorData> Services<D> {
         let mut obtain = |table_index, guard| {
             obtain_circuit_or_continuation_info(
                 connector,
+                netdir,
                 &hs_id,
                 &secret_keys,
                 table_index,
@@ -471,6 +476,7 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
     /// Connect
     async fn connect<R: Runtime>(
         connector: &HsClientConnector<R, Self>,
+        netdir: Arc<NetDir>,
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
@@ -542,6 +548,7 @@ pub(crate) mod test {
 
         async fn connect<R: Runtime>(
             connector: &HsClientConnector<R, MockData>,
+            _netdir: Arc<NetDir>,
             _hsid: HsId,
             _data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
@@ -602,15 +609,12 @@ pub(crate) mod test {
         )
         .unwrap();
         let circpool = HsCircPool::new(&circmgr);
-        let netdir_provider = tor_netdir::testprovider::TestNetDirProvider::new();
-        let netdir_provider = Arc::new(netdir_provider);
         let (give_send, give) = postage::watch::channel_with(Ready(Ok(())));
         let mock_for_state = MockGlobalState { give };
         #[allow(clippy::let_and_return)] // we'll probably add more in this function
         let hscc = HsClientConnector {
             runtime,
             circpool,
-            netdir_provider,
             services: Default::default(),
             mock_for_state,
         };
@@ -629,6 +633,9 @@ pub(crate) mod test {
         secret_keys: &HsClientSecretKeys,
         isolation: Option<NarrowableIsolation>,
     ) -> Result<MockCirc, HsClientConnError> {
+        let netdir = tor_netdir::testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+        let netdir = Arc::new(netdir);
+
         let hs_id = {
             let mut hs_id = [0_u8; 32];
             hs_id[0] = id;
@@ -636,7 +643,7 @@ pub(crate) mod test {
         };
         #[allow(clippy::redundant_closure)] // srsly, that would be worse
         let isolation = isolation.unwrap_or_default().into();
-        Services::get_or_launch_connection(hsconn, hs_id, isolation, secret_keys.clone()).await
+        Services::get_or_launch_connection(hsconn, &netdir, hs_id, isolation, secret_keys.clone()).await
     }
 
     #[derive(Default, Debug, Clone)]

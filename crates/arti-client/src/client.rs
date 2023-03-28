@@ -534,7 +534,6 @@ impl<R: Runtime> TorClient<R> {
         let hsclient = HsClientConnector::new(
             runtime.clone(),
             HsCircPool::new(&circmgr),
-            dirmgr.clone().upcast_arc(),
         )?;
 
         runtime
@@ -915,9 +914,12 @@ impl<R: Runtime> TorClient<R> {
                 hostname,
                 port,
             } => {
+                let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
+
                 let circ = self
                     .hsclient
                     .get_or_launch_connection(
+                        &netdir,
                         hsid,
                         HsClientSecretKeys::default(), // TODO HS support client auth somehow
                         self.isolation(prefs),
