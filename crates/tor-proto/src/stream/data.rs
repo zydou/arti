@@ -23,7 +23,10 @@ use std::pin::Pin;
 
 use educe::Educe;
 
-use crate::circuit::{ClientCirc, StreamTarget};
+#[cfg(feature = "experimental-api")]
+use crate::circuit::ClientCirc;
+
+use crate::circuit::StreamTarget;
 use crate::stream::StreamReader;
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;

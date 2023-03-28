@@ -46,7 +46,7 @@ use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
 
-#[cfg(feature = "specific-relay")]
+#[cfg(any(feature = "specific-relay", feature = "hs-common"))]
 use tor_linkspec::IntoOwnedChanTarget;
 
 use futures::task::SpawnExt;

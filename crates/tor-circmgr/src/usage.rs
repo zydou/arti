@@ -15,7 +15,10 @@ use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
 #[cfg(feature = "specific-relay")]
-use tor_linkspec::{HasChanMethod, HasRelayIds, OwnedChanTarget};
+use tor_linkspec::{HasChanMethod, HasRelayIds};
+
+#[cfg(any(feature = "specific-relay", feature = "hs-common"))]
+use tor_linkspec::OwnedChanTarget;
 
 use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
