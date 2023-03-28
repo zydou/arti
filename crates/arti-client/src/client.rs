@@ -18,7 +18,10 @@ use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug, ErrorReport};
 use tor_guardmgr::GuardMgr;
 #[cfg(feature = "onion-client")]
-use tor_hsclient::{HsClientConnector, HsClientSecretKeys};
+use {
+    tor_circmgr::hspool::HsCircPool,
+    tor_hsclient::{HsClientConnector, HsClientSecretKeys}
+};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -530,7 +533,7 @@ impl<R: Runtime> TorClient<R> {
         #[cfg(feature = "onion-client")]
         let hsclient = HsClientConnector::new(
             runtime.clone(),
-            circmgr.clone(),
+            HsCircPool::new(&circmgr),
             dirmgr.clone().upcast_arc(),
         )?;
 

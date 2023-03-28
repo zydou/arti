@@ -596,6 +596,7 @@ pub(crate) mod test {
             guardmgr,
         )
         .unwrap();
+        let circpool = HsCircPool::new(&circmgr);
         let netdir_provider = tor_netdir::testprovider::TestNetDirProvider::new();
         let netdir_provider = Arc::new(netdir_provider);
         let (give_send, give) = postage::watch::channel_with(Ready(Ok(())));
@@ -603,7 +604,7 @@ pub(crate) mod test {
         #[allow(clippy::let_and_return)] // we'll probably add more in this function
         let hscc = HsClientConnector {
             runtime,
-            circmgr,
+            circpool,
             netdir_provider,
             services: Default::default(),
             mock_for_state,
