@@ -1,7 +1,7 @@
 //! Code to collect and publish information about a client's bootstrapping
 //! status.
 
-use std::{borrow::Cow, fmt, time::SystemTime};
+use std::{borrow::Cow, fmt, fmt::Display, time::SystemTime};
 
 use derive_more::Display;
 use educe::Educe;
@@ -123,6 +123,18 @@ pub struct Blockage {
     kind: BlockageKind,
     /// A human-readable message about the blockage.
     message: Cow<'static, str>,
+}
+
+impl Blockage {
+    /// Get a programmatic indication of the kind of blockage this is.
+    pub fn kind(&self) -> BlockageKind {
+        self.kind.clone()
+    }
+
+    /// Get a human-readable message about the blockage.
+    pub fn message(&self) -> impl Display + '_ {
+        &self.message
+    }
 }
 
 /// A specific type of blockage that a client believes it is experiencing.
