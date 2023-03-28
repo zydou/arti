@@ -31,7 +31,7 @@ use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
 ///
 /// TODO hs: a comprehensive usage example.
 #[derive(Builder)]
-#[builder(public, derive(Debug), pattern = "owned", build_fn(vis = ""))]
+#[builder(public, derive(Debug, Clone), pattern = "owned", build_fn(vis = ""))]
 struct HsDesc<'a> {
     /// The blinded hidden service signing keys used to sign descriptor signing keys
     /// (KP_hs_blind_id, KS_hs_blind_id).
@@ -222,10 +222,10 @@ mod test {
     use std::time::Duration;
 
     use super::*;
-    use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as HsDescDecoder};
+    use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as ParsedHsDesc};
     use tor_basic_utils::test_rng::Config;
     use tor_checkable::{SelfSigned, Timebound};
-    use tor_hscrypto::pk::HsIdSecretKey;
+    use tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncSecretKey, HsIdSecretKey};
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::curve25519;
@@ -274,6 +274,32 @@ mod test {
         (&ephemeral_key).into()
     }
 
+    /// Parse the specified hidden service descriptor.
+    fn parse_hsdesc(
+        unparsed_desc: &str,
+        blinded_pk: ed25519::PublicKey,
+        subcredential: &Subcredential,
+        hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
+    ) -> ParsedHsDesc {
+        const TIMESTAMP: &str = "2023-01-23T15:00:00Z";
+
+        let id = ed25519::Ed25519Identity::from(blinded_pk);
+        let enc_desc: EncryptedHsDesc = ParsedHsDesc::parse(unparsed_desc, &id.into())
+            .unwrap()
+            .check_signature()
+            .unwrap()
+            .check_valid_at(&humantime::parse_rfc3339(TIMESTAMP).unwrap())
+            .unwrap();
+
+        enc_desc
+            .decrypt(subcredential, hsc_desc_enc)
+            .unwrap()
+            .check_valid_at(&humantime::parse_rfc3339(TIMESTAMP).unwrap())
+            .unwrap()
+            .check_signature()
+            .unwrap()
+    }
+
     #[test]
     fn encode_decode() {
         const CREATE2_FORMATS: &[u32] = &[1, 2];
@@ -297,6 +323,7 @@ mod test {
                 .unwrap();
 
         let blinded_id = HsBlindKeypair { public, secret };
+        let id = ed25519::Ed25519Identity::from(blinded_id.public_key());
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {
@@ -306,8 +333,7 @@ mod test {
             svc_ntor_key: create_curve25519_pk(&mut rng).into(),
         }];
 
-        // Build and encode a new descriptor:
-        let encoded_desc = HsDescBuilder::default()
+        let builder = HsDescBuilder::default()
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
             .hs_desc_sign_cert_expiry(expiry)
@@ -320,28 +346,25 @@ mod test {
             .client_auth(None)
             .lifetime(LIFETIME_MINS.into())
             .revision_counter(REVISION_COUNT.into())
-            .subcredential(subcredential)
+            .subcredential(subcredential);
+
+        // Build and encode a new descriptor (cloning `builder` because it's needed later, when we
+        // test if client auth works):
+        let encoded_desc = builder
+            .clone()
             .build_sign(&mut Config::Deterministic.into_rng())
             .unwrap();
 
-        let id = ed25519::Ed25519Identity::from(blinded_id.public_key());
-        // Now decode it
-        let enc_desc: EncryptedHsDesc = HsDescDecoder::parse(&encoded_desc, &id.into())
-            .unwrap()
-            .check_signature()
-            .unwrap()
-            .check_valid_at(&humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap())
-            .unwrap();
+        // Now decode it...
+        let desc = parse_hsdesc(
+            encoded_desc.as_str(),
+            *blinded_id.public,
+            &subcredential,
+            None, /* No client auth */
+        );
 
-        let desc = enc_desc
-            .decrypt(&subcredential, None)
-            .unwrap()
-            .check_valid_at(&humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap())
-            .unwrap()
-            .check_signature()
-            .unwrap();
-
-        // Now encode it again and check the result is identical to the original
+        // ...and build a new descriptor using the information from the parsed descriptor,
+        // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
@@ -362,7 +385,57 @@ mod test {
             .unwrap();
 
         assert_eq!(&*encoded_desc, &*reencoded_desc);
-    }
 
-    // TODO hs: encode a descriptor with client auth enabled
+        // The same test, this time with client auth enabled (with a single authorized client):
+        let client_skey: HsClientDescEncSecretKey = curve25519::StaticSecret::new(&mut rng).into();
+        let client_pkey: HsClientDescEncKey =
+            curve25519::PublicKey::from(client_skey.as_ref()).into();
+        let auth_clients = vec![*client_pkey];
+
+        let secret = curve25519::StaticSecret::new(&mut rng);
+        let client_auth = ClientAuth {
+            ephemeral_key: HsSvcDescEncKeypair {
+                public: curve25519::PublicKey::from(&secret).into(),
+                secret: secret.into(),
+            },
+            auth_clients,
+            descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
+        };
+
+        let encoded_desc = builder
+            .client_auth(Some(&client_auth))
+            .build_sign(&mut Config::Deterministic.into_rng())
+            .unwrap();
+
+        // Now decode it...
+        let desc = parse_hsdesc(
+            encoded_desc.as_str(),
+            *blinded_id.public,
+            &subcredential,
+            Some((&client_pkey, &client_skey)), /* With client auth */
+        );
+
+        // ...and build a new descriptor using the information from the parsed descriptor,
+        // asserting that the resulting descriptor is identical to the original.
+        let reencoded_desc = HsDescBuilder::default()
+            .blinded_id(&blinded_id)
+            .hs_desc_sign(&hs_desc_sign)
+            .hs_desc_sign_cert_expiry(expiry)
+            // create2_formats is hard-coded rather than extracted from desc, because
+            // create2_formats is ignored while parsing
+            .create2_formats(CREATE2_FORMATS)
+            .auth_required(None)
+            .is_single_onion_service(desc.is_single_onion_service)
+            .intro_points(&intro_points)
+            .intro_auth_key_cert_expiry(expiry)
+            .intro_enc_key_cert_expiry(expiry)
+            .client_auth(Some(&client_auth))
+            .lifetime(desc.idx_info.lifetime)
+            .revision_counter(desc.idx_info.revision)
+            .subcredential(subcredential)
+            .build_sign(&mut Config::Deterministic.into_rng())
+            .unwrap();
+
+        assert_eq!(&*encoded_desc, &*reencoded_desc);
+    }
 }
