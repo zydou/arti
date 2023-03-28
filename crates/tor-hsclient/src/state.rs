@@ -198,6 +198,7 @@ type Continuation = (
 /// They both use the same backstop rechecks counter.
 fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     connector: &HsClientConnector<impl Runtime, D>,
+    hsid: &HsId,
     secret_keys: &HsClientSecretKeys,
     table_index: TableIndex,
     rechecks: &mut impl Iterator,
@@ -288,10 +289,11 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         let runtime = &connector.runtime;
         let connector = (*connector).clone();
         let secret_keys = secret_keys.clone();
+        let hsid = *hsid;
         let connect_future = async move {
             let mut data = data;
 
-            let got = AssertUnwindSafe(D::connect(&connector, &mut data, secret_keys))
+            let got = AssertUnwindSafe(D::connect(&connector, hsid, &mut data, secret_keys))
                 .catch_unwind()
                 .await
                 .unwrap_or_else(|_| {
@@ -387,6 +389,7 @@ impl<D: MockableConnectorData> Services<D> {
         let mut obtain = |table_index, guard| {
             obtain_circuit_or_continuation_info(
                 connector,
+                &hs_id,
                 &secret_keys,
                 table_index,
                 &mut rechecks,
@@ -468,6 +471,7 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
     /// Connect
     async fn connect<R: Runtime>(
         connector: &HsClientConnector<R, Self>,
+        hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
     ) -> Result<Self::ClientCirc, HsClientConnError>;
@@ -538,6 +542,7 @@ pub(crate) mod test {
 
         async fn connect<R: Runtime>(
             connector: &HsClientConnector<R, MockData>,
+            _hsid: HsId,
             _data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
         ) -> Result<Self::ClientCirc, E> {
