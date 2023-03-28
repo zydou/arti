@@ -248,9 +248,9 @@ impl HsIdKey {
     ) -> Result<(HsBlindIdKey, crate::Subcredential), keymanip::BlindingError> {
         // TODO hs: decide whether we want to support this kind of shared secret; C Tor does not.
         let secret = b"";
-        let param = self.blinding_parameter(secret, cur_period);
+        let h = self.blinding_factor(secret, cur_period);
 
-        let blinded_key = keymanip::blind_pubkey(&self.0, param)?;
+        let blinded_key = keymanip::blind_pubkey(&self.0, h)?;
         // rend-spec-v3 section 2.1
         let subcredential_bytes: [u8; 32] = {
             // N_hs_subcred = H("subcredential" | N_hs_cred | blinded-public-key).
@@ -272,11 +272,13 @@ impl HsIdKey {
         Ok((blinded_key.into(), subcredential_bytes.into()))
     }
 
-    /// Compute the 32-byte "blinding parameters" used to compute blinded public
+    /// Compute the 32-byte "blinding factor" used to compute blinded public
     /// (and secret) keys.
-    fn blinding_parameter(&self, secret: &[u8], cur_period: TimePeriod) -> [u8; 32] {
+    ///
+    /// Returns the value `h = H(...)`, from rend-spec-v3 A.2., before clamping.
+    fn blinding_factor(&self, secret: &[u8], cur_period: TimePeriod) -> [u8; 32] {
         // rend-spec-v3 appendix A.2
-        // We generate our key blinding parameter as
+        // We generate our key blinding factor as
         //    h = H(BLIND_STRING | A | s | B | N)
         // Where:
         //    H is SHA3-256.
@@ -317,15 +319,15 @@ impl HsIdSecretKey {
         let secret = b"";
 
         // Note: This implementation is somewhat inefficient, as it recomputes
-        // the PublicKey, and computes our blinding parameters twice.  But we
+        // the PublicKey, and computes our blinding factor twice.  But we
         // only do this on an onion service once per time period: the
         // performance does not matter.
 
         let public_key: HsIdKey = ed25519::PublicKey::from(&self.0).into();
         let (blinded_public_key, subcredential) = public_key.compute_blinded_key(cur_period)?;
 
-        let param = public_key.blinding_parameter(secret, cur_period);
-        let blinded_secret_key = keymanip::blind_seckey(&self.0, param)?;
+        let h = public_key.blinding_factor(secret, cur_period);
+        let blinded_secret_key = keymanip::blind_seckey(&self.0, h)?;
 
         Ok((blinded_public_key, blinded_secret_key.into(), subcredential))
     }
@@ -586,9 +588,9 @@ mod test {
         .unwrap();
         assert_eq!(time_period.interval_num, 1234);
 
-        let param = id_pubkey.blinding_parameter(b"", time_period);
+        let h = id_pubkey.blinding_factor(b"", time_period);
         assert_eq!(
-            param,
+            h,
             hex!("379E50DB31FEE6775ABD0AF6FB7C371E060308F4F847DB09FE4CFE13AF602287")
         );
 
