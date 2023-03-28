@@ -17,11 +17,6 @@ use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug, ErrorReport};
 use tor_guardmgr::GuardMgr;
-#[cfg(feature = "onion-client")]
-use {
-    tor_circmgr::hspool::HsCircPool,
-    tor_hsclient::{HsClientConnector, HsClientSecretKeys}
-};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -32,6 +27,11 @@ use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 ))]
 use tor_rtcompat::PreferredRuntime;
 use tor_rtcompat::{Runtime, SleepProviderExt};
+#[cfg(feature = "onion-client")]
+use {
+    tor_circmgr::hspool::HsCircPool,
+    tor_hsclient::{HsClientConnector, HsClientSecretKeys},
+};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
