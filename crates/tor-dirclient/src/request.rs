@@ -9,6 +9,9 @@ use tor_netdoc::doc::netstatus::ConsensusFlavor;
 use tor_netdoc::doc::routerdesc::RdDigest;
 use tor_proto::circuit::ClientCirc;
 
+#[cfg(feature = "hs-client")]
+use tor_hscrypto::pk::HsBlindId;
+
 /// Alias for a result with a `RequestError`.
 type Result<T> = std::result::Result<T, crate::err::RequestError>;
 
@@ -485,6 +488,46 @@ impl Requestable for RoutersOwnDescRequest {
     }
 }
 
+/// A request to download a hidden service descriptor
+///
+/// rend-spec-v3 2.2.6
+#[derive(Debug, Clone)]
+#[cfg(feature = "hs-client")]
+pub struct HsDescDownloadRequest {
+    /// What hidden service?
+    hsid: HsBlindId,
+}
+
+#[cfg(feature = "hs-client")]
+impl HsDescDownloadRequest {
+    /// Construct a request for all router descriptors.
+    pub fn new(hsid: HsBlindId) -> Self {
+        HsDescDownloadRequest { hsid }
+    }
+}
+
+#[cfg(feature = "hs-client")]
+impl Requestable for HsDescDownloadRequest {
+    fn make_request(&self) -> Result<http::Request<()>> {
+        // TODO HS this should have a unit test
+        let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
+        // TODO HS: is it OK to hardcode the version for now?
+        let uri = format!("/tor/hs/3/{}", hsid);
+        let req = http::Request::builder().method("GET").uri(uri);
+        let req = add_common_headers(req);
+        Ok(req.body(())?)
+    }
+
+    fn partial_docs_ok(&self) -> bool {
+        false
+    }
+
+    fn max_response_len(&self) -> usize {
+        // rend-spec-v3 2.5.1.4
+        // TODO HS: spec says this should be a consensus parameter, but we have no netdir here
+        50 * 1024
+    }
+}
 /// List the encodings we accept
 fn encodings() -> String {
     #[allow(unused_mut)]

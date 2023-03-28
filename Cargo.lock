@@ -3865,6 +3865,7 @@ dependencies = [
  "thiserror",
  "tor-circmgr",
  "tor-error",
+ "tor-hscrypto",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdoc",
