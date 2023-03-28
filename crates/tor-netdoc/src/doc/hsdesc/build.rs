@@ -276,6 +276,11 @@ mod test {
 
     #[test]
     fn encode_decode() {
+        const CREATE2_FORMATS: &[u32] = &[1, 2];
+        const LIFETIME_MINS: u16 = 100;
+        const REVISION_COUNT: u64 = 2;
+        const CERT_EXPIRY_SECS: u64 = 60 * 60;
+
         let mut rng = Config::Deterministic.into_rng().rng_compat();
         // The identity keypair of the hidden service.
         let hs_id = ed25519::Keypair::generate(&mut rng);
@@ -292,8 +297,7 @@ mod test {
                 .unwrap();
 
         let blinded_id = HsBlindKeypair { public, secret };
-        let create2_formats = &[1, 2];
-        let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
+        let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)],
@@ -307,15 +311,15 @@ mod test {
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
             .hs_desc_sign_cert_expiry(expiry)
-            .create2_formats(create2_formats)
+            .create2_formats(CREATE2_FORMATS)
             .auth_required(None)
             .is_single_onion_service(true)
             .intro_points(&intro_points)
             .intro_auth_key_cert_expiry(expiry)
             .intro_enc_key_cert_expiry(expiry)
             .client_auth(None)
-            .lifetime(100.into())
-            .revision_counter(2.into())
+            .lifetime(LIFETIME_MINS.into())
+            .revision_counter(REVISION_COUNT.into())
             .subcredential(subcredential)
             .build_sign(&mut Config::Deterministic.into_rng())
             .unwrap();
@@ -344,7 +348,7 @@ mod test {
             .hs_desc_sign_cert_expiry(expiry)
             // create2_formats is hard-coded rather than extracted from desc, because
             // create2_formats is ignored while parsing
-            .create2_formats(create2_formats)
+            .create2_formats(CREATE2_FORMATS)
             .auth_required(None)
             .is_single_onion_service(desc.is_single_onion_service)
             .intro_points(&intro_points)
