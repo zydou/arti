@@ -232,9 +232,11 @@ dependencies = [
  "asynchronous-codec",
  "erased-serde",
  "futures",
+ "futures-await-test",
  "pin-project",
  "serde",
  "serde_json",
+ "thiserror",
  "tor-rtcompat",
  "typetag",
 ]

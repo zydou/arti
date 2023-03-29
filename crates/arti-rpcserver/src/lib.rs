@@ -5,4 +5,5 @@
 
 #![allow(dead_code)] // XXXX
 
+mod cancel;
 mod msgs;
