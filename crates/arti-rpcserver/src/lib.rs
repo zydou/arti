@@ -7,3 +7,4 @@
 
 mod cancel;
 mod msgs;
+mod streams;

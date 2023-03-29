@@ -230,6 +230,7 @@ dependencies = [
  "anyhow",
  "arti-client",
  "asynchronous-codec",
+ "bytes",
  "erased-serde",
  "futures",
  "futures-await-test",
