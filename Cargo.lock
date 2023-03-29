@@ -3606,6 +3606,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-async-utils"
+version = "0.0.1"
+dependencies = [
+ "futures",
+ "pin-project",
+ "thiserror",
+]
+
+[[package]]
 name = "tor-basic-utils"
 version = "0.5.1"
 dependencies = [
