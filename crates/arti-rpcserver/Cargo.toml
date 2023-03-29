@@ -1,0 +1,26 @@
+[package]
+name = "arti-rpcserver"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.60"
+authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Backend functionality for Arti's RPC service"
+keywords = ["tor", "arti", "rpc"]
+categories = ["asynchronous"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+anyhow = "1"                                                    # XXXX REMOVE
+arti-client = { path = "../arti-client", version = "0.8.2" }
+asynchronous-codec = { version = "0.6.0", features = ["json"] }
+erased-serde = "0.3.25"
+futures = "0.3.14"
+pin-project = "1"
+serde = { version = "1.0.103", features = ["derive"] }
+serde_json = "1.0.50"
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
+typetag = "0.2.7"
+
+[dev-dependencies]

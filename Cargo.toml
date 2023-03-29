@@ -42,6 +42,7 @@ members = [
     "crates/tor-hsclient",
     "crates/tor-hsservice",
     "crates/arti-client",
+    "crates/arti-rpcserver",
     "crates/arti-config",
     "crates/arti-hyper",
     "crates/arti",
@@ -79,4 +80,3 @@ lto = "thin"
 codegen-units = 16
 opt-level = 2
 incremental = true
-
