@@ -166,7 +166,8 @@ information.
 This code does not attempt to be indistinguishable from the current Tor
 implementation.
 
-When building the docs with `cargo doc`, use `--all-features`, or you may
-find broken links.  (We welcome fixes to links broken with `--all-features`.)
+When building the docs with `cargo doc`, use `--workspace --all-features`,
+or you may find broken links.
+(We welcome fixes to links broken with `--all-features`.)
 
 Enjoy hacking on arti!
