@@ -21,7 +21,7 @@ hs-client = ["hs-common"]
 hs-service = ["hs-common"]
 hs-common = []
 experimental-api = ["send-control-msg"]
-send-control-msg = ["visibility"] # send_control_message etc.; TODO HS should this be in hs-client?
+send-control-msg = ["visibility"]                                         # send_control_message etc.; TODO HS should this be in hs-client?
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = []
@@ -49,6 +49,7 @@ subtle = "2"
 thiserror = "1"
 tokio-crate = { package = "tokio", version = "1.7", optional = true }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
+tor-async-utils = { path = "../tor-async-utils", version = "0.0.1" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.6.2" }
 tor-cell = { path = "../tor-cell", version = "0.9.0" }
@@ -75,10 +76,7 @@ itertools = "0.10.1"
 regex = { version = "1", default-features = false, features = ["std"] }
 statrs = "0.16.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = [
-    "tokio",
-    "native-tls",
-] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

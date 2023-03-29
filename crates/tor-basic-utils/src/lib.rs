@@ -42,7 +42,6 @@ use std::collections::BinaryHeap;
 use std::fmt;
 use std::mem;
 
-pub mod futures;
 pub mod iter;
 pub mod n_key_set;
 pub mod retry;
