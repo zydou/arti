@@ -8,7 +8,7 @@ use crate::address::{IntoTorAddr, ResolveInstructions, StreamInstructions};
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use safelog::{sensitive, Sensitive};
-use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
+use tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::{Isolation, StreamIsolation};
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;

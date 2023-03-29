@@ -12,7 +12,7 @@ use crate::channel::OpenChanMsgS2C;
 use crate::circuit::halfcirc::HalfCirc;
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
-use tor_basic_utils::futures::SinkExt as _;
+use tor_async_utils::SinkExt as _;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg::AnyChanMsg, AnyChanCell, CircId};

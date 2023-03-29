@@ -176,6 +176,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-cell",
  "tor-chanmgr",
@@ -3606,25 +3607,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-async-utils"
+version = "0.0.1"
+dependencies = [
+ "futures",
+ "futures-await-test",
+ "pin-project",
+ "postage",
+ "thiserror",
+ "tokio",
+ "void",
+]
+
+[[package]]
 name = "tor-basic-utils"
 version = "0.5.1"
 dependencies = [
  "derive_more",
  "educe",
- "futures",
- "futures-await-test",
  "hex",
  "libc",
  "paste",
- "pin-project",
- "postage",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "serde",
  "slab",
  "thiserror",
- "tokio",
- "void",
 ]
 
 [[package]]
@@ -4229,6 +4237,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-bytes",
  "tor-cell",
