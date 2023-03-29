@@ -49,8 +49,8 @@ use std::sync::{Arc, Mutex};
 
 use educe::Educe;
 
+use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::isolation::StreamIsolation;
-use tor_circmgr::CircMgr;
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::ClientCirc;
@@ -79,7 +79,7 @@ pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = conne
     runtime: R,
     /// A [`CircMgr`] that we use to build circuits to HsDirs, introduction
     /// points, and rendezvous points.
-    circmgr: Arc<CircMgr<R>>,
+    circpool: Arc<HsCircPool<R>>,
     /// A [`NetDirProvider`] that we use to pick rendezvous points.
     netdir_provider: Arc<dyn NetDirProvider>,
     /// Information we are remembering about different onion services.
@@ -92,14 +92,14 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     /// Create a new `HsClientConnector`
     pub fn new(
         runtime: R,
-        circmgr: Arc<CircMgr<R>>,
+        circpool: Arc<HsCircPool<R>>,
         netdir_provider: Arc<dyn NetDirProvider>,
         // TODO HS: there should be a config here, we will probably need it at some point
         // TODO HS: will needs a periodic task handle for us to expire old HS data/circuits
     ) -> Result<Self, StartupError> {
         Ok(HsClientConnector {
             runtime,
-            circmgr,
+            circpool,
             netdir_provider,
             services: Arc::new(Mutex::new(Services::default())),
             mock_for_state: (),

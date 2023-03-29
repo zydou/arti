@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use futures::task::SpawnError;
 
-use safelog::{Redacted, Sensitive};
+#[cfg(feature = "onion-client")]
+use safelog::Redacted;
+use safelog::Sensitive;
 use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};

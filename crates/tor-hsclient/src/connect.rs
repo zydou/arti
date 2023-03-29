@@ -4,6 +4,7 @@
 
 use async_trait::async_trait;
 
+use tor_hscrypto::pk::HsId;
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
@@ -38,6 +39,7 @@ pub struct Data {
 #[allow(dead_code, unused_variables)] // TODO hs remove.
 pub(crate) async fn connect(
     connector: &HsClientConnector<impl Runtime>,
+    hsid: HsId,
     data: &mut Data,
     secret_keys: HsClientSecretKeys,
 ) -> Result<ClientCirc, HsClientConnError> {
@@ -63,10 +65,11 @@ impl MockableConnectorData for Data {
 
     async fn connect<R: Runtime>(
         connector: &HsClientConnector<R>,
+        hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
     ) -> Result<Self::ClientCirc, HsClientConnError> {
-        connect(connector, data, secret_keys).await
+        connect(connector, hsid, data, secret_keys).await
     }
 
     fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
