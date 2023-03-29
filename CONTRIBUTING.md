@@ -168,6 +168,8 @@ implementation.
 
 When building the docs with `cargo doc`, use `--workspace --all-features`,
 or you may find broken links.
-(We welcome fixes to links broken with `--all-features`.)
+(We welcome fixes to links broken with `--all-features`.
+`cargo doc --workspace --all-features --document-private-items`
+is also supported, to reveal (unstable) internal information.)
 
 Enjoy hacking on arti!
