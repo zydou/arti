@@ -126,29 +126,31 @@ impl From<ed25519_dalek::SignatureError> for BlindingError {
     }
 }
 
-/// Helper: clamp a blinding parameter and use it to compute a blinding factor.
+/// Helper: clamp a blinding factor and use it to compute a blinding factor.
+///
+/// Described in part of rend-spec-v3 A.2.
 ///
 /// This is a common step for public-key and private-key blinding.
 #[cfg(any(feature = "hsv3-client", feature = "hsv3-service"))]
-fn blinding_factor(mut param: [u8; 32]) -> Scalar {
-    // Clamp the blinding parameter
-    param[0] &= 248;
-    param[31] &= 63;
-    param[31] |= 64;
+fn clamp_blinding_factor(mut h: [u8; 32]) -> Scalar {
+    h[0] &= 248;
+    h[31] &= 63;
+    h[31] |= 64;
 
     // Transform it into a scalar so that we can do scalar mult.
-    Scalar::from_bytes_mod_order(param)
+    Scalar::from_bytes_mod_order(h)
 }
 
-/// Blind the ed25519 public key `pk` using the blinding parameter
-/// `param`, and return the blinded public key.
+/// Blind the ed25519 public key `pk` using the blinding factor
+/// `h`, and return the blinded public key.
 ///
 /// This algorithm is described in `rend-spec-v3.txt`, section A.2.
 /// In the terminology of that section, the value `pk` corresponds to
-/// `A`, and the value `param` corresponds to `h`.
+/// `A`, and
+/// `h` is the value `h = H(...)`, before clamping.
 ///
-/// Note that the approach used to clamp `param` to a scalar means
-/// that different possible values for `param` may yield the same
+/// Note that the approach used to clamp `h` to a scalar means
+/// that different possible values for `h` may yield the same
 /// output for a given `pk`.  This and other limitations make this
 /// function unsuitable for use outside the context of
 /// `rend-spec-v3.txt` without careful analysis.
@@ -162,10 +164,10 @@ fn blinding_factor(mut param: [u8; 32]) -> Scalar {
 ///
 /// This function is only available when the `hsv3-client` feature is enabled.
 #[cfg(feature = "hsv3-client")]
-pub fn blind_pubkey(pk: &PublicKey, param: [u8; 32]) -> Result<PublicKey, BlindingError> {
+pub fn blind_pubkey(pk: &PublicKey, h: [u8; 32]) -> Result<PublicKey, BlindingError> {
     use curve25519_dalek::edwards::CompressedEdwardsY;
 
-    let blinding_factor = blinding_factor(param);
+    let blinding_factor = clamp_blinding_factor(h);
 
     // Convert the public key to a point on the curve
     let pubkey_point = CompressedEdwardsY(pk.to_bytes())
@@ -178,13 +180,14 @@ pub fn blind_pubkey(pk: &PublicKey, param: [u8; 32]) -> Result<PublicKey, Blindi
     Ok(PublicKey::from_bytes(&blinded_pubkey_point.0)?)
 }
 
-/// Blind the ed25519 secret key `sk` using the blinding parameter `param`, and
+/// Blind the ed25519 secret key `sk` using the blinding factor `h`, and
 /// return the blinded secret key.
 ///
 /// This algorithm is described in `rend-spec-v3.txt`, section A.2.
+/// `h` is the value `h = H(...)`, before clamping.
 ///
-/// Note that the approach used to clamp `param` to a scalar means that
-/// different possible values for `param` may yield the same output for a given
+/// Note that the approach used to clamp `h` to a scalar means that
+/// different possible values for `h` may yield the same output for a given
 /// `pk`.  This and other limitations make this function unsuitable for use
 /// outside the context of `rend-spec-v3.txt` without careful analysis.
 ///
@@ -211,7 +214,7 @@ pub fn blind_pubkey(pk: &PublicKey, param: [u8; 32]) -> Result<PublicKey, Blindi
 #[cfg(feature = "hsv3-service")]
 pub fn blind_seckey(
     sk: &ExpandedSecretKey,
-    param: [u8; 32],
+    h: [u8; 32],
 ) -> Result<ExpandedSecretKey, BlindingError> {
     use arrayref::{array_mut_ref, array_ref};
     use zeroize::Zeroizing;
@@ -221,7 +224,7 @@ pub fn blind_seckey(
     /// implementations consistent.)
     const RH_BLIND_STRING: &[u8] = b"Derive temporary signing key hash input";
 
-    let blinding_factor = blinding_factor(param);
+    let blinding_factor = clamp_blinding_factor(h);
     let secret_key_bytes = Zeroizing::new(sk.to_bytes());
     let mut blinded_key_bytes = Zeroizing::new([0_u8; 64]);
 
