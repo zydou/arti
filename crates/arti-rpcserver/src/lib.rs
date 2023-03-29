@@ -7,4 +7,5 @@
 
 mod cancel;
 mod msgs;
+mod session;
 mod streams;
