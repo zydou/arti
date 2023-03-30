@@ -524,6 +524,7 @@ impl Requestable for HsDescDownloadRequest {
     fn max_response_len(&self) -> usize {
         // rend-spec-v3 2.5.1.4
         // TODO HS: spec says this should be a consensus parameter, but we have no netdir here
+        // 50 KiB
         50 * 1024
     }
 }
