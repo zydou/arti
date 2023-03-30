@@ -12,7 +12,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 use crate::state::MockableConnectorData;
-use crate::{HsClientConnError, HsClientConnector, HsClientSecretKeys};
+use crate::{ConnError, HsClientConnector, HsClientSecretKeys};
 
 /// Information about a hidden service, including our connection history
 #[allow(dead_code, unused_variables)] // TODO hs remove.
@@ -46,7 +46,7 @@ pub(crate) async fn connect(
     hsid: HsId,
     data: &mut Data,
     secret_keys: HsClientSecretKeys,
-) -> Result<ClientCirc, HsClientConnError> {
+) -> Result<ClientCirc, ConnError> {
     // This function must do the following, retrying as appropriate.
     //  - Look up the onion descriptor in the state.
     //  - Download the onion descriptor if one isn't there.
@@ -73,7 +73,7 @@ impl MockableConnectorData for Data {
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<Self::ClientCirc, HsClientConnError> {
+    ) -> Result<Self::ClientCirc, ConnError> {
         connect(connector, netdir, hsid, data, secret_keys).await
     }
 

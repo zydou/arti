@@ -56,7 +56,7 @@ use tor_netdir::NetDir;
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
-pub use err::{HsClientConnError, StartupError};
+pub use err::{ConnError, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 
 use state::Services;
@@ -118,7 +118,7 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         hs_id: HsId,
         secret_keys: HsClientSecretKeys,
         isolation: StreamIsolation,
-    ) -> impl Future<Output = Result<ClientCirc, HsClientConnError>> + Send + Sync + 'r {
+    ) -> impl Future<Output = Result<ClientCirc, ConnError>> + Send + Sync + 'r {
         // As in tor-circmgr,  we take `StreamIsolation`, to ensure that callers in
         // arti-client pass us the final overall isolation,
         // including the per-TorClient isolation.

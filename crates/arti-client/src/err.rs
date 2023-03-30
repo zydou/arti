@@ -14,7 +14,7 @@ use tor_error::{ErrorKind, HasKind};
 
 use crate::TorAddrError;
 #[cfg(feature = "onion-client")]
-use {tor_hsclient::HsClientConnError, tor_hscrypto::pk::HsId};
+use tor_hscrypto::pk::HsId;
 
 /// Main high-level error type for the Arti Tor client
 ///
@@ -168,7 +168,7 @@ enum ErrorDetail {
 
         /// What went wrong
         #[source]
-        cause: HsClientConnError,
+        cause: tor_hsclient::ConnError,
     },
 
     /// Directory manager was unable to bootstrap a working directory.
