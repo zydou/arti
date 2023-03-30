@@ -17,8 +17,9 @@
 
 use std::collections::HashMap;
 
-use derive_more::AsRef;
+use derive_more::{AsRef, From, Into};
 use digest::Digest;
+use typed_index_collections::TiVec;
 
 use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
 use tor_llcrypto::d::Sha3_256;
@@ -43,6 +44,14 @@ use crate::{NetDir, RouterStatusIdx};
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, AsRef)]
 pub(crate) struct HsDirIndex(#[as_ref] [u8; 32]);
 
+/// Position in the hsdir hash ring
+///
+/// This an "index" in the sense that you can use it to index `HsDirRing.ring`,
+/// but in the spec, in the context of the hsdir,
+/// "index" is used to the sort key - here, [`HsDirIndex`].
+#[derive(Debug, From, Into, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub(crate) struct HsDirPos(usize);
+
 /// A hash ring as used in `NetDir`.
 ///
 /// This type is immutable once constructed: entries cannot be added, changed,
@@ -61,7 +70,7 @@ pub(crate) struct HsDirRing {
     ///
     /// This vector is empty in a partial netdir; it is filled in when we
     /// convert to a complete netdir.
-    ring: Vec<(HsDirIndex, RouterStatusIdx)>,
+    ring: TiVec<HsDirPos, (HsDirIndex, RouterStatusIdx)>,
 }
 
 /// Compute the [`HsDirIndex`] for a given relay.
@@ -117,7 +126,7 @@ impl HsDirRing {
     pub(crate) fn empty_from_params(params: HsDirParams) -> Self {
         Self {
             params,
-            ring: Vec::new(),
+            ring: TiVec::new(),
         }
     }
 
@@ -173,7 +182,7 @@ impl HsDirRing {
         })()
         .unwrap_or_default();
 
-        let mut new_ring: Vec<_> = this_netdir
+        let mut new_ring: TiVec<_, _> = this_netdir
             .all_hsdirs()
             .map(|(rsidx, relay)| {
                 let ed_id = relay.md.ed25519_id();
@@ -196,7 +205,7 @@ impl HsDirRing {
     }
 
     /// Find the location or (notional) insertion point for `hsdir_index` within `ring`.
-    fn find_pos(&self, hsdir_index: HsDirIndex) -> usize {
+    fn find_pos(&self, hsdir_index: HsDirIndex) -> HsDirPos {
         // TODO hs implement this
         todo!()
     }
