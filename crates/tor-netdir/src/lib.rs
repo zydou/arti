@@ -867,16 +867,17 @@ impl NetDir {
         assert!(answer.has_identity(id));
         Some(answer)
     }
+
     /// Obtain a `Relay` given a `RouterStatusIdx`
     ///
-    /// Differs from `relay_from_rs_and_rsi` as follow:
+    /// Differs from `relay_from_rs_and_rsi` as follows:
     ///  * That function expects the caller to already have an `MdConsensusRouterStatus`;
     ///    it checks with `debug_assert` that the relay in the netdir matches.
     ///  * That function panics if the `RouterStatusIdx` is invalid; this one returns `None`.
     ///  * That function returns an `UncheckedRelay`; this one a `Relay`.
     ///
     /// `None` could be returned here, even with a valid `rsi`,
-    /// if `rsi` refers to an unuseable relay.
+    /// if `rsi` refers to an unusable relay.
     #[cfg_attr(not(feature = "hs-common"), allow(dead_code))]
     pub(crate) fn relay_by_rs_idx(&self, rs_idx: RouterStatusIdx) -> Option<Relay<'_>> {
         let rs = self.c_relays().get(rs_idx)?;
