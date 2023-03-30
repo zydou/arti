@@ -132,10 +132,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
 }
 
 /// "Continuation" return type from `obtain_circuit_or_continuation_info`
-type Continuation = (
-    Arc<Mutex<Option<ConnError>>>,
-    postage::barrier::Receiver,
-);
+type Continuation = (Arc<Mutex<Option<ConnError>>>, postage::barrier::Receiver);
 
 /// Obtain a circuit from the `Services` table, or return a continuation
 ///
@@ -296,13 +293,14 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         let connect_future = async move {
             let mut data = data;
 
-            let got = AssertUnwindSafe(D::connect(&connector, netdir, hsid, &mut data, secret_keys))
-                .catch_unwind()
-                .await
-                .unwrap_or_else(|_| {
-                    data = D::default();
-                    Err(internal!("hidden service connector task panicked!").into())
-                });
+            let got =
+                AssertUnwindSafe(D::connect(&connector, netdir, hsid, &mut data, secret_keys))
+                    .catch_unwind()
+                    .await
+                    .unwrap_or_else(|_| {
+                        data = D::default();
+                        Err(internal!("hidden service connector task panicked!").into())
+                    });
             let last_used = connector.runtime.now();
             let got_error = got.as_ref().map(|_| ()).map_err(Clone::clone);
 
@@ -633,7 +631,9 @@ pub(crate) mod test {
         secret_keys: &HsClientSecretKeys,
         isolation: Option<NarrowableIsolation>,
     ) -> Result<MockCirc, ConnError> {
-        let netdir = tor_netdir::testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+        let netdir = tor_netdir::testnet::construct_netdir()
+            .unwrap_if_sufficient()
+            .unwrap();
         let netdir = Arc::new(netdir);
 
         let hs_id = {
@@ -643,7 +643,8 @@ pub(crate) mod test {
         };
         #[allow(clippy::redundant_closure)] // srsly, that would be worse
         let isolation = isolation.unwrap_or_default().into();
-        Services::get_or_launch_connection(hsconn, &netdir, hs_id, isolation, secret_keys.clone()).await
+        Services::get_or_launch_connection(hsconn, &netdir, hs_id, isolation, secret_keys.clone())
+            .await
     }
 
     #[derive(Default, Debug, Clone)]

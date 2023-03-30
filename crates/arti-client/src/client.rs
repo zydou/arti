@@ -534,15 +534,11 @@ impl<R: Runtime> TorClient<R> {
         let hsclient = {
             let circpool = HsCircPool::new(&circmgr);
 
-            circpool.launch_background_tasks(
-                &runtime,
-                &dirmgr.clone().upcast_arc(),
-            ).map_err(ErrorDetail::CircMgrSetup)?;
+            circpool
+                .launch_background_tasks(&runtime, &dirmgr.clone().upcast_arc())
+                .map_err(ErrorDetail::CircMgrSetup)?;
 
-            HsClientConnector::new(
-                runtime.clone(),
-                circpool,
-            )?
+            HsClientConnector::new(runtime.clone(), circpool)?
         };
 
         runtime
