@@ -398,19 +398,16 @@ impl<D> HsDirs<D> {
     /// The current ring is always included.
     /// Secondary rings are included iff `secondary` and the `hs-service` feature is enabled.
     fn iter_filter_secondary(&self, secondary: bool) -> impl Iterator<Item = &D> {
-        chain!(iter::once(&self.current), {
-            // This is necessary because chain!'s expansion happens *before*
-            // the #[cfg] is applied, so we can't have an argument to chain!
-            // which is conditionally present.
-            #[allow(unused_variables)]
-            let i = {
-                let _ = secondary;
-                iter::empty::<&D>()
-            };
-            #[cfg(feature = "hs-service")]
-            let i = self.secondary.iter().filter(move |_| secondary);
-            i
-        },)
+        let i = iter::once(&self.current);
+
+        // With "hs-service" disabled, there are no secondary rings,
+        // so we don't care.
+        let _ = secondary;
+
+        #[cfg(feature = "hs-service")]
+        let i = chain!(i, self.secondary.iter().filter(move |_| secondary));
+
+        i
     }
 
     /// Iterate over all the contained hsdirs
