@@ -396,7 +396,7 @@ impl<D> HsDirs<D> {
     /// Iterate over some of the contained hsdirs, according to `secondary`
     ///
     /// The current ring is always included.
-    /// Secondary rings are included iff `secondary`.
+    /// Secondary rings are included iff `secondary` and the `hs-service` feature is enabled.
     fn iter_filter_secondary(&self, secondary: bool) -> impl Iterator<Item = &D> {
         chain!(iter::once(&self.current), {
             // This is necessary because chain!'s expansion happens *before*
