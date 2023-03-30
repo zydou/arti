@@ -215,13 +215,12 @@ impl<R: Runtime> HsCircPool<R> {
         avoid_target: Option<&OwnedCircTarget>,
     ) -> Result<ClientCirc> {
         // First, look for a circuit that is already built, if any is suitable.
-        let mut rng = rand::thread_rng();
         let subnet_config = self.circmgr.builder().path_config().subnet_config();
         let target = avoid_target.map(|target| TargetInfo {
             target,
             relay: netdir.by_ids(target),
         });
-        let found_usable_circ = self.pool.take_one_where(&mut rng, |circ| {
+        let found_usable_circ = self.pool.take_one_where(&mut rand::thread_rng(), |circ| {
             circuit_compatible_with_target(netdir, subnet_config, circ, target.as_ref())
         });
 
