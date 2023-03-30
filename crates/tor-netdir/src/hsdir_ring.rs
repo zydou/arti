@@ -16,11 +16,13 @@
 #![allow(unused_variables, dead_code)] //TODO hs: remove
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use derive_more::{AsRef, From, Into};
 use digest::Digest;
 use typed_index_collections::TiVec;
 
+use tor_basic_utils::impl_debug_hex;
 use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -41,8 +43,10 @@ use crate::{NetDir, RouterStatusIdx};
 ///
 /// Note that this is _not_ an index into any array; it is instead an index into
 /// a space of possible values in a (virtual!) ring of 2^256 elements.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, AsRef)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, AsRef)]
 pub(crate) struct HsDirIndex(#[as_ref] [u8; 32]);
+
+impl_debug_hex! { HsDirIndex .0 }
 
 /// Position in the hsdir hash ring
 ///

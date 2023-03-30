@@ -16,7 +16,7 @@ use digest::Digest;
 use itertools::{chain, Itertools};
 use signature::Signer;
 use thiserror::Error;
-use tor_basic_utils::StrExt as _;
+use tor_basic_utils::{impl_debug_hex, StrExt as _};
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::ed25519::Ed25519PublicKey;
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
@@ -352,9 +352,10 @@ define_bytes! {
 ///
 /// Note: This is a separate type from [`HsBlindIdKey`] because it is about
 /// 6x smaller.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct HsBlindId([u8; 32]);
 }
+impl_debug_hex! { HsBlindId .0 }
 
 impl HsBlindIdKey {
     /// Return a representation of this key as a [`HsBlindId`].
