@@ -1271,6 +1271,10 @@ impl NetDir {
     /// these are suitable to either store, or retrieve, a
     /// given onion service's descriptor at a given time period.
     ///
+    /// When `op` is `Download`, the order is random.
+    // TODO HS ^ this is not in fact true right now.
+    /// When `op` is `Upload`, the order is not specified.
+    ///
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
@@ -1298,6 +1302,13 @@ impl NetDir {
         // 7. return Dirs.
         let n_replicas = 2; // TODO HS get this from netdir and/or make it configurable
         let spread_fetch = 3; // TODO HS get this from netdir and/or make it configurable
+
+        // TODO HS We don't implement this bit of the spec (2.2.3 penultimate para):
+        //
+        //                                                        ... If any of those
+        //       nodes have already been selected for a lower-numbered replica of the
+        //       service, any nodes already chosen are disregarded (i.e. skipped over)
+        //       when choosing a replica's hsdir_spread_store nodes.
 
         self.hsdir_rings
             .iter_for_op(op)
