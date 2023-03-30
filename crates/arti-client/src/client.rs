@@ -914,6 +914,7 @@ impl<R: Runtime> TorClient<R> {
                 hostname,
                 port,
             } => {
+                self.wait_for_bootstrap().await?;
                 let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
 
                 let circ = self
@@ -1097,6 +1098,8 @@ impl<R: Runtime> TorClient<R> {
         exit_ports: &[TargetPort],
         prefs: &StreamPrefs,
     ) -> StdResult<ClientCirc, ErrorDetail> {
+        // TODO HS probably this netdir ought to be made in connect_with_prefs
+        // like for StreamInstructions::Hs.
         self.wait_for_bootstrap().await?;
         let dir = self.netdir(Timeliness::Timely, "build a circuit")?;
 
