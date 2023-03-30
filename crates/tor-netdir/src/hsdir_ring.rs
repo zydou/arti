@@ -206,8 +206,9 @@ impl HsDirRing {
 
     /// Find the location or (notional) insertion point for `hsdir_index` within `ring`.
     fn find_pos(&self, hsdir_index: HsDirIndex) -> HsDirPos {
-        // TODO hs implement this
-        todo!()
+        self.ring
+            .binary_search_by_key(&hsdir_index, |(hsdir_index, _rs_idx)| *hsdir_index)
+            .unwrap_or_else(|pos| pos)
     }
 
     /// Yield items from `ring` starting with `hsdir_index`, wrapping around once when we
