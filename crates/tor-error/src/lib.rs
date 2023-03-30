@@ -454,6 +454,24 @@ pub enum ErrorKind {
     #[display(fmt = "remote hostname not found")]
     RemoteHostNotFound,
 
+    /// The target hidden service (`.onion` service) was not found in the directory
+    ///
+    /// We successfully connected to at least one directory server,
+    /// but it didn't have a record of the hidden service.
+    ///
+    /// This probably means that the hidden service is not running, or does not exist.
+    /// (It might mean that the directory servers are faulty,
+    /// and that the hidden service was unable to publish its descriptor.)
+    #[display(fmt = "Onion Service not found")]
+    OnionServiceNotFound,
+
+    /// Protocol trouble involving the target hidden service (`.onion` service)
+    ///
+    /// Something unexpected happened when trying to connect to the selected hidden service.
+    /// It seems to have been due to the hidden service violating the Tor protocols somehow.
+    #[display(fmt = "Onion Service protocol failed (apprently due to service behaviour)")]
+    OnionServiceProtocolFailed,
+
     /// An resolve operation finished with an error.
     ///
     /// Contrary to [`RemoteHostNotFound`](ErrorKind::RemoteHostNotFound),
