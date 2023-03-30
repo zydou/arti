@@ -531,10 +531,19 @@ impl<R: Runtime> TorClient<R> {
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
         #[cfg(feature = "onion-client")]
-        let hsclient = HsClientConnector::new(
-            runtime.clone(),
-            HsCircPool::new(&circmgr),
-        )?;
+        let hsclient = {
+            let circpool = HsCircPool::new(&circmgr);
+
+            circpool.launch_background_tasks(
+                &runtime,
+                &dirmgr.clone().upcast_arc(),
+            ).map_err(ErrorDetail::CircMgrSetup)?;
+
+            HsClientConnector::new(
+                runtime.clone(),
+                circpool,
+            )?
+        };
 
         runtime
             .spawn(tasks_monitor_dormant(
