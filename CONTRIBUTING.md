@@ -118,6 +118,16 @@ link to your forked arti repository at:
 >
 >      https://gitlab.torproject.org/_name_/arti/-/merge_requests
 
+We prefer not to rebase and squash MRs during the review cycle,
+so if you want to make changes to your MR, please add new commits rather than squashing.
+You can use the
+[`fixup!`](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash)
+(or `squash!`)
+[autosquash](https://thoughtbot.com/blog/autosquashing-git-commits)
+syntax if it seems best;
+this is a good idea if the un-fixed state breaks the tests or is otherwise broken,
+but is not needed otherwise.
+
 ## Where are some good places to start hacking?
 
 You might want to begin by looking around the
@@ -135,8 +145,19 @@ Improvements or bugfixes to the existing code would be great.
 
 Improving the look and feel of the documentation would also rock.
 
-I've made a bunch of notes throughout the document in comments with strings
+We've made a bunch of notes throughout the document in comments with strings
 like "FIXME" or "TODO".
+
+When we have TODOs that we want to fix prior to the release of a particular
+feature or milestone, we define a special TODO format.
+Right now we have "TODO HS" (or "TODO hs") for things we intend to fix
+before we release support for Tor Hidden Services (.onion services).
+
+If you want to make a temporary change that ought *definitely* not to be merged,
+mark it with <code>XX&#88;</code>.
+This will be spotted by the CI, preventing a mistaken merge.
+<!-- that's X X X with no spaces.  Putting it here literally would fail CI :-) -->
+
 
 There is a list of features that I wish other crates had in a file called
 `WANT_FROM_OTHER_CRATES`.
