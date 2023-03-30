@@ -77,7 +77,7 @@ use state::Services;
 pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = connect::Data> {
     /// The runtime
     runtime: R,
-    /// A [`CircMgr`] that we use to build circuits to HsDirs, introduction
+    /// A [`HsCircPool`] that we use to build circuits to HsDirs, introduction
     /// points, and rendezvous points.
     circpool: Arc<HsCircPool<R>>,
     /// Information we are remembering about different onion services.
