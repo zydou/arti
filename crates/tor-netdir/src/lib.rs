@@ -1297,13 +1297,14 @@ impl NetDir {
         //         that were not there before.
         // 7. return Dirs.
         let n_replicas = 2; // TODO HS get this from netdir and/or make it configurable
+        let spread_fetch = 3; // TODO HS get this from netdir and/or make it configurable
 
         self.hsdir_rings
             .iter_for_op(op)
             .cartesian_product(1..=n_replicas) // 1-indexed !
             .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
                 let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
-                ring.ring_items_at(hsdir_idx)
+                ring.ring_items_at(hsdir_idx, spread_fetch)
             })
             .filter_map(|(_hsdir_idx, rs_idx)| {
                 // This ought not to be None but let's not panic or bail if it is
