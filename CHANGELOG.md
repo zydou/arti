@@ -3,6 +3,105 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.3 — 31 March 2023
+
+BLURB TODO
+
+Up to date through 58dfe040f9bfc9f2d2a582ce8ec5ddfd4d7abb73
+
+### Breaking changes in lower level crates
+
+- Moved futures-related utilities from `tor-basic-utils` to a new
+  `tor-async-utils` crate. ([!1091])
+- When the `expand-paths` Cargo feature is not enabled, we now reject
+  paths in our configuration containing unescaped `$` and `~` strings.
+  Previously we would treat them as literals, which would break
+  when `expand-paths` was provided. ([#790], [!1069])
+
+### Onion service development
+
+- We now have working implementations for all of the message types that Tor
+  uses to implement onion services. These are included in our fuzzing, and
+  are cross-validated against the C Tor implementation. ([!1038], [!1043],
+  [!1045], [!1052])
+- Our onion service descriptor parsing code now validates the inner
+  certificates embedded in the descriptors, for parity with C Tor's behavior.
+  ([#744], [!1044])
+- Refactor responsibility for HS circuit management out of `CircMgr`
+  ([!1047])
+- Revise APIs and outline implementations for the initial parts of a state
+  manager and client implementation.  ([!1034], [!1086])
+- Handle requests for `.onion` addresses by routing them to our onion service
+  code.  (This code does not yet do anything useful.) ([!1060], [!1071])
+- Our circuit implementation now has APIs needed to send special-purpose
+  messages and receive replies for them.  We'll use this to implement
+  onion service handshakes outside of the `tor-proto` module. ([!1051])
+- Implement functionality to pre-construct and launch circuits as needed for
+  onion service directory, introduction, and rendezvous
+  communications. ([#691], [!1065])
+- Implement code to construct, encrypt, and sign onion service
+  descriptors. ([#745], [!1070], [!1084])
+
+### Major bugfixes
+
+- Prevent a fatal error when finding a usable consensus in a read-only
+  directory store. ([#779], [!1055])
+
+### Infrastructure
+
+- Add a new `check_env` script to detect whether the environment is set
+  up correctly to build Arti. ([!1030])
+- We have the beginnings of a `fixup-features` tool, to make sure that our
+  "full" and "experimental" Cargo features behave in the way we expect,
+  and eventually to enable us to use [`cargo-semver-checks`] on our
+  non-experimental features only.  This tool is not yet ready for
+  use; its semantics are subtly wrong. ([#771], [!1059])
+- Our CI scripts now rejects merges containing the string
+  "XX<!-- look, a squirrel -->XX";
+  we use this string to indicate places where the code must be fixed
+  before it can be merged. ([#782], [!1067])
+
+### Testing
+
+- More of our tests now specify times using [`humantime`] (rather than as
+  a number of seconds since the Unix epoch). ([!1037])
+- Our fuzzers now compile again.
+  ([53e44b58f5fa0cfa], [!1063])
+
+### Documentation
+
+- New example code for building a `BridgeConfig` and launching a TorClient
+  with bridges, without having a config file. ([#791], [!1074])
+
+
+### Cleanups, minor features, and minor bugfixes
+
+- Our `caret` macro now works correctly for uninhabited
+  enumerations. ([841905948f913f73])
+- Defend against possible misuse of [`tor_bytes::Reader::extract_n`].
+  This wasn't a security hole, but could have become one in the
+  future. ([!1053])
+- Do not ask exits to resolve IP addresses: we already know the IP address
+  for an IP address. ([!1057])
+- Fix a bunch of new warnings from Rust 1.68. ([!1062])
+- Expose builder for [`TransportConfigList`] as part of the public
+  API. ([455a7a710917965f])
+- Enforce use of blinded keys in places where they are required. ([!1081])
+- Add accessors for the [`Blockage`] type, so other programs can
+  ask what has gone wrong with the connection to the network. ([#800],
+  [!1088]).
+
+
+### Acknowledgments
+
+TODO
+
+Links also TODO.
+
+
+
+
+
 # Arti 1.1.2 — 28 February 2023
 
 Arti 1.1.2 continues our work on onion services, and builds out more of
