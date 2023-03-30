@@ -531,11 +531,15 @@ impl<R: Runtime> TorClient<R> {
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
         #[cfg(feature = "onion-client")]
-        let hsclient = HsClientConnector::new(
-            runtime.clone(),
-            HsCircPool::new(&circmgr),
-            dirmgr.clone().upcast_arc(),
-        )?;
+        let hsclient = {
+            let circpool = HsCircPool::new(&circmgr);
+
+            circpool
+                .launch_background_tasks(&runtime, &dirmgr.clone().upcast_arc())
+                .map_err(ErrorDetail::CircMgrSetup)?;
+
+            HsClientConnector::new(runtime.clone(), circpool)?
+        };
 
         runtime
             .spawn(tasks_monitor_dormant(
@@ -915,9 +919,13 @@ impl<R: Runtime> TorClient<R> {
                 hostname,
                 port,
             } => {
+                self.wait_for_bootstrap().await?;
+                let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
+
                 let circ = self
                     .hsclient
                     .get_or_launch_connection(
+                        &netdir,
                         hsid,
                         HsClientSecretKeys::default(), // TODO HS support client auth somehow
                         self.isolation(prefs),
@@ -1095,6 +1103,8 @@ impl<R: Runtime> TorClient<R> {
         exit_ports: &[TargetPort],
         prefs: &StreamPrefs,
     ) -> StdResult<ClientCirc, ErrorDetail> {
+        // TODO HS probably this netdir ought to be made in connect_with_prefs
+        // like for StreamInstructions::Hs.
         self.wait_for_bootstrap().await?;
         let dir = self.netdir(Timeliness::Timely, "build a circuit")?;
 

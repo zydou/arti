@@ -18,10 +18,11 @@ use tracing::{debug, error, trace};
 use tor_circmgr::isolation::Isolation;
 use tor_error::{internal, Bug, ErrorReport as _};
 use tor_hscrypto::pk::HsId;
+use tor_netdir::NetDir;
 use tor_rtcompat::Runtime;
 
 use crate::isol_map;
-use crate::{HsClientConnError, HsClientConnector, HsClientSecretKeys};
+use crate::{ConnError, HsClientConnector, HsClientSecretKeys};
 
 slotmap::new_key_type! {
     struct TableIndex;
@@ -114,7 +115,7 @@ enum ServiceState<D: MockableConnectorData> {
         /// Where the task will store the error.
         ///
         /// Lock hierarchy: this lock is "inside" the big lock on `Services`.
-        error: Arc<Mutex<Option<HsClientConnError>>>,
+        error: Arc<Mutex<Option<ConnError>>>,
     },
     /// Dummy value for use with temporary mem replace
     Dummy,
@@ -131,10 +132,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
 }
 
 /// "Continuation" return type from `obtain_circuit_or_continuation_info`
-type Continuation = (
-    Arc<Mutex<Option<HsClientConnError>>>,
-    postage::barrier::Receiver,
-);
+type Continuation = (Arc<Mutex<Option<ConnError>>>, postage::barrier::Receiver);
 
 /// Obtain a circuit from the `Services` table, or return a continuation
 ///
@@ -198,12 +196,13 @@ type Continuation = (
 /// They both use the same backstop rechecks counter.
 fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     connector: &HsClientConnector<impl Runtime, D>,
+    netdir: &Arc<NetDir>,
     hsid: &HsId,
     secret_keys: &HsClientSecretKeys,
     table_index: TableIndex,
     rechecks: &mut impl Iterator,
     mut guard: MutexGuard<'_, Services<D>>,
-) -> Result<Either<Continuation, D::ClientCirc>, HsClientConnError> {
+) -> Result<Either<Continuation, D::ClientCirc>, ConnError> {
     let blank_state = || ServiceState::blank(&connector.runtime);
 
     for _recheck in rechecks {
@@ -239,7 +238,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                     continue;
                 }
                 *last_used = now;
-                return Ok::<_, HsClientConnError>(Right(circuit.clone()));
+                return Ok::<_, ConnError>(Right(circuit.clone()));
             }
             ServiceState::Working {
                 barrier_recv,
@@ -288,18 +287,20 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         // Make a connection
         let runtime = &connector.runtime;
         let connector = (*connector).clone();
+        let netdir = netdir.clone();
         let secret_keys = secret_keys.clone();
         let hsid = *hsid;
         let connect_future = async move {
             let mut data = data;
 
-            let got = AssertUnwindSafe(D::connect(&connector, hsid, &mut data, secret_keys))
-                .catch_unwind()
-                .await
-                .unwrap_or_else(|_| {
-                    data = D::default();
-                    Err(internal!("hidden service connector task panicked!").into())
-                });
+            let got =
+                AssertUnwindSafe(D::connect(&connector, netdir, hsid, &mut data, secret_keys))
+                    .catch_unwind()
+                    .await
+                    .unwrap_or_else(|_| {
+                        data = D::default();
+                        Err(internal!("hidden service connector task panicked!").into())
+                    });
             let last_used = connector.runtime.now();
             let got_error = got.as_ref().map(|_| ()).map_err(Clone::clone);
 
@@ -342,7 +343,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
             .await;
 
             match (got_error, stored) {
-                (Ok::<(), HsClientConnError>(()), Ok::<(), Bug>(())) => {}
+                (Ok::<(), ConnError>(()), Ok::<(), Bug>(())) => {}
                 (Err(got_error), Ok(())) => debug!(
                     "HS connection failure: {}",
                     // TODO HS show hs_id,
@@ -364,7 +365,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         };
         runtime
             .spawn_obj(Box::new(connect_future).into())
-            .map_err(|cause| HsClientConnError::Spawn {
+            .map_err(|cause| ConnError::Spawn {
                 spawning: "connection task",
                 cause: cause.into(),
             })?;
@@ -378,10 +379,11 @@ impl<D: MockableConnectorData> Services<D> {
     // We *do* drop guard.  There is *one* await point, just after drop(guard).
     pub(crate) async fn get_or_launch_connection(
         connector: &HsClientConnector<impl Runtime, D>,
+        netdir: &Arc<NetDir>,
         hs_id: HsId,
         isolation: Box<dyn Isolation>,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<D::ClientCirc, HsClientConnError> {
+    ) -> Result<D::ClientCirc, ConnError> {
         let blank_state = || ServiceState::blank(&connector.runtime);
 
         let mut rechecks = 0..MAX_RECHECKS;
@@ -389,6 +391,7 @@ impl<D: MockableConnectorData> Services<D> {
         let mut obtain = |table_index, guard| {
             obtain_circuit_or_continuation_info(
                 connector,
+                netdir,
                 &hs_id,
                 &secret_keys,
                 table_index,
@@ -471,10 +474,11 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
     /// Connect
     async fn connect<R: Runtime>(
         connector: &HsClientConnector<R, Self>,
+        netdir: Arc<NetDir>,
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<Self::ClientCirc, HsClientConnError>;
+    ) -> Result<Self::ClientCirc, ConnError>;
 
     /// Is circuit OK?  Ie, not `.is_closing()`.
     fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool;
@@ -501,7 +505,7 @@ pub(crate) mod test {
     use tor_rtcompat::test_with_one_runtime;
     use tracing_test::traced_test;
 
-    use HsClientConnError as E;
+    use ConnError as E;
 
     #[derive(Debug, Default)]
     struct MockData {
@@ -542,6 +546,7 @@ pub(crate) mod test {
 
         async fn connect<R: Runtime>(
             connector: &HsClientConnector<R, MockData>,
+            _netdir: Arc<NetDir>,
             _hsid: HsId,
             _data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
@@ -602,15 +607,12 @@ pub(crate) mod test {
         )
         .unwrap();
         let circpool = HsCircPool::new(&circmgr);
-        let netdir_provider = tor_netdir::testprovider::TestNetDirProvider::new();
-        let netdir_provider = Arc::new(netdir_provider);
         let (give_send, give) = postage::watch::channel_with(Ready(Ok(())));
         let mock_for_state = MockGlobalState { give };
         #[allow(clippy::let_and_return)] // we'll probably add more in this function
         let hscc = HsClientConnector {
             runtime,
             circpool,
-            netdir_provider,
             services: Default::default(),
             mock_for_state,
         };
@@ -628,7 +630,12 @@ pub(crate) mod test {
         id: u8,
         secret_keys: &HsClientSecretKeys,
         isolation: Option<NarrowableIsolation>,
-    ) -> Result<MockCirc, HsClientConnError> {
+    ) -> Result<MockCirc, ConnError> {
+        let netdir = tor_netdir::testnet::construct_netdir()
+            .unwrap_if_sufficient()
+            .unwrap();
+        let netdir = Arc::new(netdir);
+
         let hs_id = {
             let mut hs_id = [0_u8; 32];
             hs_id[0] = id;
@@ -636,7 +643,8 @@ pub(crate) mod test {
         };
         #[allow(clippy::redundant_closure)] // srsly, that would be worse
         let isolation = isolation.unwrap_or_default().into();
-        Services::get_or_launch_connection(hsconn, hs_id, isolation, secret_keys.clone()).await
+        Services::get_or_launch_connection(hsconn, &netdir, hs_id, isolation, secret_keys.clone())
+            .await
     }
 
     #[derive(Default, Debug, Clone)]

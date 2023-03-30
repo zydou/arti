@@ -10,7 +10,7 @@ use tor_error::{Bug, ErrorKind, HasKind};
 /// Error that occurred attempting to reach a hidden service
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-pub enum HsClientConnError {
+pub enum ConnError {
     /// Unable to spawn
     #[error("Unable to spawn {spawning}")]
     Spawn {
@@ -26,9 +26,9 @@ pub enum HsClientConnError {
     Bug(#[from] Bug),
 }
 
-impl HasKind for HsClientConnError {
+impl HasKind for ConnError {
     fn kind(&self) -> ErrorKind {
-        use HsClientConnError as CE;
+        use ConnError as CE;
         match self {
             CE::Spawn { cause, .. } => cause.kind(),
             CE::Bug(e) => e.kind(),

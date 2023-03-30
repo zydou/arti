@@ -52,11 +52,11 @@ use educe::Educe;
 use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::isolation::StreamIsolation;
 use tor_hscrypto::pk::HsId;
-use tor_netdir::NetDirProvider;
+use tor_netdir::NetDir;
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
-pub use err::{HsClientConnError, StartupError};
+pub use err::{ConnError, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 
 use state::Services;
@@ -80,8 +80,6 @@ pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = conne
     /// A [`CircMgr`] that we use to build circuits to HsDirs, introduction
     /// points, and rendezvous points.
     circpool: Arc<HsCircPool<R>>,
-    /// A [`NetDirProvider`] that we use to pick rendezvous points.
-    netdir_provider: Arc<dyn NetDirProvider>,
     /// Information we are remembering about different onion services.
     services: Arc<Mutex<state::Services<D>>>,
     /// For mocking in tests of `state.rs`
@@ -93,14 +91,12 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     pub fn new(
         runtime: R,
         circpool: Arc<HsCircPool<R>>,
-        netdir_provider: Arc<dyn NetDirProvider>,
         // TODO HS: there should be a config here, we will probably need it at some point
         // TODO HS: will needs a periodic task handle for us to expire old HS data/circuits
     ) -> Result<Self, StartupError> {
         Ok(HsClientConnector {
             runtime,
             circpool,
-            netdir_provider,
             services: Arc::new(Mutex::new(Services::default())),
             mock_for_state: (),
         })
@@ -116,17 +112,18 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     // Without this, it is possible for `Services::get_or_launch_connection`
     // to not return a `Send` future.
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1034#note_2881718
-    pub fn get_or_launch_connection(
-        &self,
+    pub fn get_or_launch_connection<'r>(
+        &'r self,
+        netdir: &'r Arc<NetDir>,
         hs_id: HsId,
         secret_keys: HsClientSecretKeys,
         isolation: StreamIsolation,
-    ) -> impl Future<Output = Result<ClientCirc, HsClientConnError>> + Send + Sync + '_ {
+    ) -> impl Future<Output = Result<ClientCirc, ConnError>> + Send + Sync + 'r {
         // As in tor-circmgr,  we take `StreamIsolation`, to ensure that callers in
         // arti-client pass us the final overall isolation,
         // including the per-TorClient isolation.
         // But internally we need a Box<dyn Isolation> since we need .join().
         let isolation = Box::new(isolation);
-        Services::get_or_launch_connection(self, hs_id, isolation, secret_keys)
+        Services::get_or_launch_connection(self, netdir, hs_id, isolation, secret_keys)
     }
 }
