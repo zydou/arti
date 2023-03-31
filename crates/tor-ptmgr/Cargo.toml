@@ -26,12 +26,12 @@ fs-mistrust = { version = "0.6.2", path = "../fs-mistrust" }
 futures = "0.3.14"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
-tor-chanmgr = { version = "0.8.2", path = "../tor-chanmgr", features = ["pt-client"] }
+tor-chanmgr = { version = "0.8.3", path = "../tor-chanmgr", features = ["pt-client"] }
 tor-config = { version = "0.8.0", path = "../tor-config" }
 tor-error = { version = "0.4.1", path = "../tor-error" }
 tor-linkspec = { version = "0.6.3", path = "../tor-linkspec", features = ["pt-client"] }
 tor-rtcompat = { version = "0.8.1", path = "../tor-rtcompat" }
-tor-socksproto = { version = "0.6.2", path = "../tor-socksproto" }
+tor-socksproto = { version = "0.6.3", path = "../tor-socksproto" }
 tracing = "0.1.18"
 visibility = { version = "0.0.1", optional = true }
 

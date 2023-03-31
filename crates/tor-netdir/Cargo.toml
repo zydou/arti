@@ -53,7 +53,7 @@ tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.2", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.6.3" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.6.3" }
-tor-protover = { path = "../tor-protover", version = "0.4.0" }
+tor-protover = { path = "../tor-protover", version = "0.4.2" }
 tor-units = { path = "../tor-units", version = "0.5.0" }
 tracing = "0.1.18"
 typed-index-collections = "3.1"

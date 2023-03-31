@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirclient"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -42,7 +42,7 @@ tracing = "0.1.18"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.7.2" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

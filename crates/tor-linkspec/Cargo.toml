@@ -34,7 +34,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.6.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.6.3" }
 tor-config = { path = "../tor-config", version = "0.8.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
-tor-protover = { path = "../tor-protover", version = "0.4.0" }
+tor-protover = { path = "../tor-protover", version = "0.4.2" }
 
 [dev-dependencies]
 hex-literal = "0.3"

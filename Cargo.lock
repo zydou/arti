@@ -3713,7 +3713,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -3839,7 +3839,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "digest 0.10.6",
  "hex",
@@ -3849,7 +3849,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "async-compression",
  "base64ct",
@@ -4049,7 +4049,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "rand_core 0.6.4",
@@ -4274,7 +4274,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "caret",
  "thiserror",
@@ -4326,7 +4326,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "async-trait",
  "futures",
@@ -4342,7 +4342,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "arbitrary",
  "caret",

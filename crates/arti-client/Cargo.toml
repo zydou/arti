@@ -88,7 +88,7 @@ thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.0.1" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.6.0" }
 tor-cell = { path = "../tor-cell", version = "0.9.1" }
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.8.2" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.8.3" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.7.3" }
 tor-config = { path = "../tor-config", version = "0.8.0" }

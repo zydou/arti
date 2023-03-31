@@ -93,7 +93,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
 tor-config = { path = "../tor-config", version = "0.8.0" }
 tor-error = { path = "../tor-error", version = "0.4.1", default-features = false }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", default-features = false }
-tor-socksproto = { path = "../tor-socksproto", version = "0.6.2" }
+tor-socksproto = { path = "../tor-socksproto", version = "0.6.3" }
 tracing = "0.1.18"
 tracing-appender = "0.2.0"
 tracing-journald = { version = "0.3.0", optional = true }

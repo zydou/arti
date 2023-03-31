@@ -63,8 +63,8 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.6.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.7.3" }
 tor-config = { path = "../tor-config", version = "0.8.0" }
-tor-consdiff = { path = "../tor-consdiff", version = "0.4.2" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.6.2", default-features = false }
+tor-consdiff = { path = "../tor-consdiff", version = "0.4.3" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.6.3", default-features = false }
 tor-error = { path = "../tor-error", version = "0.4.1" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.2" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
@@ -82,7 +82,7 @@ tempfile = "3"
 tokio = { version = "1.7", features = ["full"] }
 tor-linkspec = { path = "../tor-linkspec", version = "0.6.3" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.7.2" }
 tracing-test = "0.2"
 [package.metadata.docs.rs]
 all-features = true
