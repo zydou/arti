@@ -13,6 +13,7 @@ categories = ["rust-patterns"]
 
 [features]
 default = ["backtrace"]
+experimental-api = []
 
 [dependencies]
 backtrace = { version = "0.3.39", optional = true }
