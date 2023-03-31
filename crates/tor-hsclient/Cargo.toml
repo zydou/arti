@@ -11,8 +11,6 @@ keywords = ["tor", "arti", "cryptography"]
 categories = ["cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
-publish = false
-
 [features]
 default = []
 
