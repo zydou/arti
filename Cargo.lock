@@ -132,7 +132,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "arti",
@@ -206,7 +206,7 @@ version = "0.5.1"
 
 [[package]]
 name = "arti-hyper"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "arti",
@@ -1304,7 +1304,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -3747,7 +3747,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "humantime 2.1.0",
  "signature 1.6.4",
@@ -3957,7 +3957,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -4127,7 +4127,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bitflags 2.0.2",
  "derive_builder_fork_arti",
@@ -4282,7 +4282,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4305,7 +4305,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "async-io",
  "async-native-tls",
