@@ -14,6 +14,11 @@ We've also solved a few annoying bugs, made our CI more bulletproof against
 certain programming mistakes, and exposed a few APIs that had been missing
 before elsewhere in our code.
 
+### Major bugfixes
+
+- Prevent a fatal error when finding a usable consensus in a read-only
+  directory store. ([#779], [!1055])
+
 ### Breaking changes in lower level crates
 
 - Moved futures-related utilities from `tor-basic-utils` to a new
@@ -48,11 +53,6 @@ before elsewhere in our code.
 - Implement code to construct, encrypt, and sign onion service
   descriptors. ([#745], [!1070], [!1084])
 - More work on usable APIs for HSDir ring. ([!1095])
-
-### Major bugfixes
-
-- Prevent a fatal error when finding a usable consensus in a read-only
-  directory store. ([#779], [!1055])
 
 ### Infrastructure
 
