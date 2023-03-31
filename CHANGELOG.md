@@ -7,7 +7,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 BLURB TODO
 
-Up to date through 58dfe040f9bfc9f2d2a582ce8ec5ddfd4d7abb73
+Up to date through e5369fc4927fadf8d8976fed2abd52063f6dc358
 
 ### Breaking changes in lower level crates
 
@@ -32,7 +32,8 @@ Up to date through 58dfe040f9bfc9f2d2a582ce8ec5ddfd4d7abb73
 - Revise APIs and outline implementations for the initial parts of a state
   manager and client implementation.  ([!1034], [!1086])
 - Handle requests for `.onion` addresses by routing them to our onion service
-  code.  (This code does not yet do anything useful.) ([!1060], [!1071])
+  code.  (This code does not yet do anything useful.) ([!1060], [!1071],
+  [!1098])
 - Our circuit implementation now has APIs needed to send special-purpose
   messages and receive replies for them.  We'll use this to implement
   onion service handshakes outside of the `tor-proto` module. ([!1051])
@@ -41,6 +42,7 @@ Up to date through 58dfe040f9bfc9f2d2a582ce8ec5ddfd4d7abb73
   communications. ([#691], [!1065])
 - Implement code to construct, encrypt, and sign onion service
   descriptors. ([#745], [!1070], [!1084])
+- More work on usable APIs for HSDir ring. ([!1095])
 
 ### Major bugfixes
 
