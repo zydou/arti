@@ -3,6 +3,9 @@
 #2 WARNING: This file MUST be sorted.
 David Goulet
 eta
+gabi-250
+Gabi Moldovan
+Gabriela Moldovan
 Ian Jackson
 Nick Mathewson
 Tor CI Release
