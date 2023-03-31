@@ -27,7 +27,7 @@ use rand::{CryptoRng, Rng, RngCore};
 pub(super) struct HsDescMiddle<'a> {
     /// Client authorization parameters, if client authentication is enabled. If set to `None`,
     /// client authentication is disabled.
-    pub(super) client_auth: Option<&'a ClientAuth>,
+    pub(super) client_auth: Option<&'a ClientAuth<'a>>,
     /// The "subcredential" of the onion service.
     pub(super) subcredential: Subcredential,
     /// The (encrypted) inner document of the onion service descriptor.
@@ -182,7 +182,7 @@ AQIDBA==
                 public,
                 secret: secret.into(),
             },
-            auth_clients: vec![],
+            auth_clients: &[],
             descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
@@ -215,7 +215,7 @@ AQIDBA==
                 public,
                 secret: secret.into(),
             },
-            auth_clients,
+            auth_clients: &auth_clients,
             descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
