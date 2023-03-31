@@ -1,6 +1,6 @@
 [package]
 name = "tor-rtcompat"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"

@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdoc"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -81,14 +81,14 @@ smallvec = "1.10"
 thiserror = "1"
 time = { version = "0.3", features = ["std", "parsing", "macros"] }
 tinystr = "0.7.0"
-tor-bytes = { path = "../tor-bytes", version = "0.6.2" }
-tor-cert = { path = "../tor-cert", version = "0.6.2" }
+tor-bytes = { path = "../tor-bytes", version = "0.6.3" }
+tor-cert = { path = "../tor-cert", version = "0.6.3" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
 tor-error = { path = "../tor-error", version = "0.4.1" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.1", optional = true }
-tor-linkspec = { path = "../tor-linkspec", version = "0.6.2", optional = true }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
-tor-protover = { path = "../tor-protover", version = "0.4.0" }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.2", optional = true }
+tor-linkspec = { path = "../tor-linkspec", version = "0.6.3", optional = true }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
+tor-protover = { path = "../tor-protover", version = "0.4.2" }
 tor-units = { version = "0.5.0", path = "../tor-units", optional = true }
 visibility = { version = "0.0.1", optional = true }
 visible = { version = "0.0.1", optional = true }
@@ -99,7 +99,7 @@ zeroize = "1"
 hex-literal = "0.3"
 itertools = "0.10.1"
 serde_json = "1.0.50"
-tor-basic-utils = { version = "0.5.0", path = "../tor-basic-utils" }
+tor-basic-utils = { version = "0.6.0", path = "../tor-basic-utils" }
 
 [package.metadata.docs.rs]
 all-features = true

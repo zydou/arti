@@ -1,6 +1,6 @@
 [package]
 name = "tor-config"
-version = "0.7.2"
+version = "0.8.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -32,7 +32,7 @@ shellexpand = { version = "3.0", optional = true }
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 toml = "0.7.2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.6.0" }
 tor-error = { path = "../tor-error", version = "0.4.1" }
 tracing = "0.1.18"
 

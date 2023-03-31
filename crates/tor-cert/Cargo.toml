@@ -1,6 +1,6 @@
 [package]
 name = "tor-cert"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -17,14 +17,14 @@ experimental = ["encode"]
 encode = ["derive_builder"]
 
 [dependencies]
-caret = { path = "../caret", version = "0.3.0" }
+caret = { path = "../caret", version = "0.3.2" }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti", optional = true }
 digest = "0.10.0"
 signature = "1"
 thiserror = "1"
-tor-bytes = { path = "../tor-bytes", version = "0.6.2" }
+tor-bytes = { path = "../tor-bytes", version = "0.6.3" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
 
 [dev-dependencies]
 base64ct = "1.5.1"
