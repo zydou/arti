@@ -8,4 +8,8 @@ and associated [`HasKind`] trait.
 There is also some other miscellany, supporting error handling in
 crates higher up the dependency stack.
 
+## Features
+
+`backtrace` -- Enable backtraces in internal errors.  (On by default.)
+
 License: MIT OR Apache-2.0
