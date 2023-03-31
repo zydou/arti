@@ -137,9 +137,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::doc::hsdesc::build::test::{
-        create_curve25519_pk, expect_bug, TEST_DESCRIPTOR_COOKIE,
-    };
+    use crate::doc::hsdesc::build::test::{create_curve25519_pk, expect_bug};
     use crate::doc::hsdesc::build::ClientAuth;
     use crate::doc::hsdesc::test::TEST_SUBCREDENTIAL;
     use tor_basic_utils::test_rng::Config;
@@ -185,7 +183,7 @@ AQIDBA==
                 secret: secret.into(),
             },
             auth_clients: vec![],
-            descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
+            descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
         let err = HsDescMiddle {
@@ -218,7 +216,7 @@ AQIDBA==
                 secret: secret.into(),
             },
             auth_clients,
-            descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
+            descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
         let hs_desc = HsDescMiddle {
@@ -233,8 +231,8 @@ AQIDBA==
             hs_desc,
             r#"desc-auth-type x25519
 desc-auth-ephemeral-key 9Upi9XNWyqx3ZwHeQ5r3+Dh116k+C4yHeE9BcM68HDc=
-auth-client pxfSbhBMPw0= F+Z6EDfG7ofsQhdG2VKjNQ== 2ZH4k2l+bSv+pjhwHQ3pTg==
-auth-client DV7nt+CDOno= bRgLOvpjbo2k21IjKIJqFA== fv8A2pPllndWdFwFDPaynw==
+auth-client pxfSbhBMPw0= F+Z6EDfG7ofsQhdG2VKjNQ== fEursUD9Bj5Q9mFP8sIddA==
+auth-client DV7nt+CDOno= bRgLOvpjbo2k21IjKIJqFA== 2yVT+Lpm/WL4JAU64zlGpQ==
 encrypted
 -----BEGIN MESSAGE-----
 AQIDBA==

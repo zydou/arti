@@ -232,12 +232,8 @@ mod test {
     use tor_llcrypto::pk::keymanip::ExpandedSecretKey;
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
-    // TODO: move the test helpers and constants to a separate module and make them more broadly
-    // available if necessary.
-
-    // Not a real cookie, just a bunch of ones.
-    pub(super) const TEST_DESCRIPTOR_COOKIE: [u8; HS_DESC_ENC_NONCE_LEN] =
-        [1; HS_DESC_ENC_NONCE_LEN];
+    // TODO: move the test helpers to a separate module and make them more broadly available if
+    // necessary.
 
     /// Expect `err` to be a `Bug`, and return its string representation.
     ///
@@ -399,7 +395,7 @@ mod test {
                 secret: secret.into(),
             },
             auth_clients,
-            descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
+            descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
         let encoded_desc = builder
