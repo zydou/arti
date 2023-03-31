@@ -27,7 +27,7 @@ rand_core = "0.6.2"
 slotmap = "1.0.6"
 thiserror = "1"
 tor-circmgr = { version = "0.7.3", path = "../tor-circmgr", features = ["hs-client"] }
-tor-config = { path = "../tor-config", version = "0.7.1" }
+tor-config = { path = "../tor-config", version = "0.8.0" }
 tor-error = { path = "../tor-error", version = "0.4.1" }
 tor-hscrypto = { version = "0.1.2", path = "../tor-hscrypto" }
 tor-llcrypto = { version = "0.4.3", path = "../tor-llcrypto" }

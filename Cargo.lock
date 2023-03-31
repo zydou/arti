@@ -3636,7 +3636,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "derive_more",
  "educe",
@@ -3799,7 +3799,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "config",
  "derive_builder_fork_arti",

@@ -23,7 +23,7 @@ tracing = "0.1.18"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 rand = "0.8"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.6.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
 [package.metadata.docs.rs]
 all-features = true

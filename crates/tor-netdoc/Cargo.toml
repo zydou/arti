@@ -99,7 +99,7 @@ zeroize = "1"
 hex-literal = "0.3"
 itertools = "0.10.1"
 serde_json = "1.0.50"
-tor-basic-utils = { version = "0.5.0", path = "../tor-basic-utils" }
+tor-basic-utils = { version = "0.6.0", path = "../tor-basic-utils" }
 
 [package.metadata.docs.rs]
 all-features = true

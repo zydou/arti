@@ -90,7 +90,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 signal-hook = { version = "0.3", optional = true }
 signal-hook-async-std = { version = "0.2", optional = true }
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
-tor-config = { path = "../tor-config", version = "0.7.2" }
+tor-config = { path = "../tor-config", version = "0.8.0" }
 tor-error = { path = "../tor-error", version = "0.4.1", default-features = false }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", default-features = false }
 tor-socksproto = { path = "../tor-socksproto", version = "0.6.2" }

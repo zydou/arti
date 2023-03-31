@@ -59,10 +59,10 @@ signature = "1"
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 time = { version = "0.3", features = ["formatting", "parsing"] }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.6.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.7.3" }
-tor-config = { path = "../tor-config", version = "0.7.2" }
+tor-config = { path = "../tor-config", version = "0.8.0" }
 tor-consdiff = { path = "../tor-consdiff", version = "0.4.2" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.6.2", default-features = false }
 tor-error = { path = "../tor-error", version = "0.4.1" }

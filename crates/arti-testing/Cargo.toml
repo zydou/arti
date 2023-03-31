@@ -30,7 +30,7 @@ rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 tokio = { version = "1.7", features = ["signal", "macros"] }
 tor-checkable = { path = "../tor-checkable", version = "0.4.2", features = ["experimental-api"] }
-tor-config = { path = "../tor-config", version = "0.7.2" }
+tor-config = { path = "../tor-config", version = "0.8.0" }
 tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.9.3", features = [
     "dirfilter",
 ] }
