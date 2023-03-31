@@ -1,12 +1,12 @@
 //! Handle the middle document of an onion service descriptor.
 
-use digest::XofReader;
 use once_cell::sync::Lazy;
 use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey, HsSvcDescEncKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::util::ct::CtByteArray;
 
+use crate::doc::hsdesc::desc_enc::build_descriptor_cookie_key;
 use crate::parse::tokenize::{Item, NetDocReader};
 use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::B64;
@@ -88,36 +88,13 @@ impl HsDescMiddle {
         ks_hsc_desc_enc: &HsClientDescEncSecretKey,
     ) -> Option<HsDescEncNonce> {
         use cipher::{KeyIvInit, StreamCipher};
-        use digest::{ExtendableOutput, Update};
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
-        use tor_llcrypto::d::Shake256 as KDF;
 
-        // Perform a diffie hellman handshake using `KS_hsc_desc_enc` and `KP_hss_desc_enc`,
-        // and use it to find our client_id and cookie_key.
-        //
-        // The spec says:
-        //
-        //     SECRET_SEED = x25519(hs_y, client_X)
-        //                 = x25519(client_y, hs_X)
-        //     KEYS = KDF(N_hs_subcred | SECRET_SEED, 40)
-        //     CLIENT-ID = fist 8 bytes of KEYS
-        //     COOKIE-KEY = last 32 bytes of KEYS
-        //
-        // Where:
-        //     hs_{X,y} = K{P,S}_hss_desc_enc
-        //     client_{X,Y} = K{P,S}_hsc_desc_enc
-        let secret_seed = ks_hsc_desc_enc
-            .as_ref()
-            .diffie_hellman(&self.svc_desc_enc_key);
-        let mut kdf = KDF::default();
-        kdf.update(subcredential.as_ref());
-        kdf.update(secret_seed.as_bytes());
-        let mut keys = kdf.finalize_xof();
-        let mut client_id = CtByteArray::from([0_u8; 8]);
-        let mut cookie_key = [0_u8; 32];
-        keys.read(client_id.as_mut());
-        keys.read(&mut cookie_key);
-
+        let (client_id, cookie_key) = build_descriptor_cookie_key(
+            ks_hsc_desc_enc.as_ref(),
+            &self.svc_desc_enc_key,
+            subcredential,
+        );
         // See whether there is any matching client_id in self.auth_ids.
         // TODO HS: Perhaps we should use `tor_proto::util::ct::lookup`.  We would
         // have to put it in a lower level module.
@@ -137,15 +114,15 @@ impl HsDescMiddle {
 /// Information that a single authorized client can use to decrypt the onion
 /// service descriptor.
 #[derive(Debug, Clone)]
-pub struct AuthClient {
+pub(super) struct AuthClient {
     /// A check field that clients can use to see if this [`AuthClient`] entry corresponds to a key they hold.
     ///
     /// This is the first part of the `auth-client` line.
-    pub(crate) client_id: CtByteArray<HS_DESC_CLIENT_ID_LEN>,
+    pub(super) client_id: CtByteArray<HS_DESC_CLIENT_ID_LEN>,
     /// An IV used to decrypt `encrypted_cookie`.
     ///
     /// This is the second item on the `auth-client` line.
-    pub(crate) iv: [u8; HS_DESC_IV_LEN],
+    pub(super) iv: [u8; HS_DESC_IV_LEN],
     /// An encrypted value used to find the descriptor cookie `N_hs_desc_enc`,
     /// which in turn is
     /// needed to decrypt the [HsDescMiddle]'s `encrypted_body`.
@@ -153,7 +130,7 @@ pub struct AuthClient {
     /// This is the third item on the `auth-client` line.  When decrypted, it
     /// reveals a `DescEncEncryptionCookie` (`N_hs_desc_enc`, not yet so named
     /// in the spec).
-    pub(crate) encrypted_cookie: [u8; HS_DESC_ENC_NONCE_LEN],
+    pub(super) encrypted_cookie: [u8; HS_DESC_ENC_NONCE_LEN],
 }
 
 impl AuthClient {

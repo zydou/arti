@@ -11,6 +11,8 @@ use arrayref::array_ref;
 use cipher::{KeyIvInit, StreamCipher};
 use digest::{ExtendableOutput, FixedOutput, Update, XofReader};
 use rand::{CryptoRng, Rng};
+use tor_llcrypto::pk::curve25519::PublicKey;
+use tor_llcrypto::pk::curve25519::StaticSecret;
 use tor_llcrypto::util::ct::CtByteArray;
 use zeroize::Zeroizing as Z;
 
@@ -186,6 +188,41 @@ impl<'a> HsDescEncryption<'a> {
 #[derive(Clone, Debug, Default, thiserror::Error)]
 #[error("Unable to decrypt onion service descriptor.")]
 pub struct DecryptionError {}
+
+/// Create the CLIENT-ID and COOKIE-KEY required for hidden service client auth.
+///
+/// This is used by HS clients to decrypt the descriptor cookie from the onion service descriptor,
+/// and by HS services to build the client-auth sections of descriptors.
+///
+/// Section 2.5.1.2. of rend-spec-v3 says:
+/// ```text
+///     SECRET_SEED = x25519(hs_y, client_X)
+///                 = x25519(client_y, hs_X)
+///     KEYS = KDF(N_hs_subcred | SECRET_SEED, 40)
+///     CLIENT-ID = first 8 bytes of KEYS
+///     COOKIE-KEY = last 32 bytes of KEYS
+///
+/// Where:
+///     hs_{X,y} = K{P,S}_hss_desc_enc
+///     client_{X,Y} = K{P,S}_hsc_desc_enc
+/// ```
+pub(crate) fn build_descriptor_cookie_key(
+    our_secret_key: &StaticSecret,
+    their_public_key: &PublicKey,
+    subcredential: &Subcredential,
+) -> (CtByteArray<8>, [u8; 32]) {
+    let secret_seed = our_secret_key.diffie_hellman(their_public_key);
+    let mut kdf = KDF::default();
+    kdf.update(subcredential.as_ref());
+    kdf.update(secret_seed.as_bytes());
+    let mut keys = kdf.finalize_xof();
+    let mut client_id = CtByteArray::from([0_u8; 8]);
+    let mut cookie_key = [0_u8; 32];
+    keys.read(client_id.as_mut());
+    keys.read(&mut cookie_key);
+
+    (client_id, cookie_key)
+}
 
 #[cfg(test)]
 mod test {

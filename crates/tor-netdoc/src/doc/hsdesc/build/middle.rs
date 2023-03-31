@@ -4,15 +4,16 @@
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
-use std::borrow::Cow;
-
 use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::build::ClientAuth;
-use crate::doc::hsdesc::desc_enc::{HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN};
+use crate::doc::hsdesc::desc_enc::{
+    build_descriptor_cookie_key, HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN,
+};
 use crate::doc::hsdesc::middle::{AuthClient, HsMiddleKwd, HS_DESC_AUTH_TYPE};
 use crate::NetdocBuilder;
 
 use tor_bytes::EncodeError;
+use tor_hscrypto::Subcredential;
 use tor_llcrypto::pk::curve25519::{EphemeralSecret, PublicKey};
 use tor_llcrypto::util::ct::CtByteArray;
 
@@ -26,7 +27,9 @@ use rand::{CryptoRng, Rng, RngCore};
 pub(super) struct HsDescMiddle<'a> {
     /// Client authorization parameters, if client authentication is enabled. If set to `None`,
     /// client authentication is disabled.
-    pub(super) client_auth: Option<&'a ClientAuth>,
+    pub(super) client_auth: Option<&'a ClientAuth<'a>>,
+    /// The "subcredential" of the onion service.
+    pub(super) subcredential: Subcredential,
     /// The (encrypted) inner document of the onion service descriptor.
     ///
     /// The `encrypted` field is created by encrypting an
@@ -37,54 +40,77 @@ pub(super) struct HsDescMiddle<'a> {
 
 impl<'a> NetdocBuilder for HsDescMiddle<'a> {
     fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError> {
+        use cipher::{KeyIvInit, StreamCipher};
+        use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
         use HsMiddleKwd::*;
 
         let HsDescMiddle {
             client_auth,
+            subcredential,
             encrypted,
         } = self;
 
         let mut encoder = NetdocEncoder::new();
 
-        let (ephemeral_key, auth_clients): (_, Cow<Vec<_>>) = match client_auth {
-            Some(client_auth) if client_auth.auth_clients.is_empty() => {
-                return Err(tor_error::bad_api_usage!(
-                    "client authentication is enabled, but there are no authorized clients"
-                )
-                .into());
-            }
-            Some(client_auth) => {
-                // Client auth is enabled.
-                (
-                    *client_auth.ephemeral_key,
-                    Cow::Borrowed(&client_auth.auth_clients),
-                )
-            }
-            None => {
-                // Generate a single client-auth line filled with random values for client-id,
-                // iv, and encrypted-cookie.
-                let dummy_auth_client = AuthClient {
-                    client_id: CtByteArray::from(rng.gen::<[u8; HS_DESC_CLIENT_ID_LEN]>()),
-                    iv: rng.gen::<[u8; HS_DESC_IV_LEN]>(),
-                    encrypted_cookie: rng.gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(),
-                };
+        let (ephemeral_key, auth_clients): (_, Box<dyn std::iter::Iterator<Item = AuthClient>>) =
+            match client_auth {
+                Some(client_auth) if client_auth.auth_clients.is_empty() => {
+                    return Err(tor_error::bad_api_usage!(
+                        "client authentication is enabled, but there are no authorized clients"
+                    )
+                    .into());
+                }
+                Some(client_auth) => {
+                    // Client auth is enabled.
+                    let auth_clients = client_auth.auth_clients.iter().map(|client| {
+                        let (client_id, cookie_key) = build_descriptor_cookie_key(
+                            client_auth.ephemeral_key.secret.as_ref(),
+                            client,
+                            &subcredential,
+                        );
 
-                // As per section 2.5.1.2. of rend-spec-v3, if client auth is disabled, we need to
-                // generate some fake data for the desc-auth-ephemeral-key and auth-client fields.
-                let secret = EphemeralSecret::new(rng);
-                let dummy_ephemeral_key = PublicKey::from(&secret);
+                        // Encrypt the descriptor cookie with the public key of the client.
+                        let mut encrypted_cookie = client_auth.descriptor_cookie;
+                        let iv = rng.gen::<[u8; HS_DESC_IV_LEN]>();
+                        let mut cipher = Cipher::new(&cookie_key.into(), &iv.into());
+                        cipher.apply_keystream(&mut encrypted_cookie);
 
-                // TODO hs: Remove useless vec![] allocation.
-                (dummy_ephemeral_key, Cow::Owned(vec![dummy_auth_client]))
-            }
-        };
+                        AuthClient {
+                            client_id,
+                            iv,
+                            encrypted_cookie,
+                        }
+                    });
+
+                    (*client_auth.ephemeral_key.public, Box::new(auth_clients))
+                }
+                None => {
+                    // Generate a single client-auth line filled with random values for client-id,
+                    // iv, and encrypted-cookie.
+                    let dummy_auth_client = AuthClient {
+                        client_id: CtByteArray::from(rng.gen::<[u8; HS_DESC_CLIENT_ID_LEN]>()),
+                        iv: rng.gen::<[u8; HS_DESC_IV_LEN]>(),
+                        encrypted_cookie: rng.gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(),
+                    };
+
+                    // As per section 2.5.1.2. of rend-spec-v3, if client auth is disabled, we need to
+                    // generate some fake data for the desc-auth-ephemeral-key and auth-client fields.
+                    let secret = EphemeralSecret::new(rng);
+                    let dummy_ephemeral_key = PublicKey::from(&secret);
+
+                    (
+                        dummy_ephemeral_key,
+                        Box::new(std::iter::once(dummy_auth_client)),
+                    )
+                }
+            };
 
         encoder.item(DESC_AUTH_TYPE).arg(&HS_DESC_AUTH_TYPE);
         encoder
             .item(DESC_AUTH_EPHEMERAL_KEY)
             .arg(&Base64::encode_string(ephemeral_key.as_bytes()));
 
-        for auth_client in &*auth_clients {
+        for auth_client in auth_clients {
             encoder
                 .item(AUTH_CLIENT)
                 .arg(&Base64::encode_string(&*auth_client.client_id))
@@ -111,11 +137,13 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::doc::hsdesc::build::test::{
-        create_curve25519_pk, expect_bug, TEST_DESCRIPTOR_COOKIE,
-    };
+    use crate::doc::hsdesc::build::test::{create_curve25519_pk, expect_bug};
     use crate::doc::hsdesc::build::ClientAuth;
+    use crate::doc::hsdesc::test::TEST_SUBCREDENTIAL;
     use tor_basic_utils::test_rng::Config;
+    use tor_hscrypto::pk::HsSvcDescEncKeypair;
+    use tor_llcrypto::pk::curve25519;
+    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     // Some dummy bytes, not actually encrypted.
     const TEST_ENCRYPTED_VALUE: &[u8] = &[1, 2, 3, 4];
@@ -124,6 +152,7 @@ mod test {
     fn middle_hsdesc_encoding_no_client_auth() {
         let hs_desc = HsDescMiddle {
             client_auth: None,
+            subcredential: TEST_SUBCREDENTIAL.into(),
             encrypted: TEST_ENCRYPTED_VALUE.into(),
         }
         .build_sign(&mut Config::Deterministic.into_rng())
@@ -144,17 +173,25 @@ AQIDBA==
 
     #[test]
     fn middle_hsdesc_encoding_with_bad_client_auth() {
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let secret = curve25519::StaticSecret::new(&mut rng);
+        let public = curve25519::PublicKey::from(&secret).into();
+
         let client_auth = ClientAuth {
-            ephemeral_key: create_curve25519_pk(&mut Config::Deterministic.into_rng()).into(),
-            auth_clients: vec![],
-            descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
+            ephemeral_key: HsSvcDescEncKeypair {
+                public,
+                secret: secret.into(),
+            },
+            auth_clients: &[],
+            descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
         let err = HsDescMiddle {
             client_auth: Some(&client_auth),
+            subcredential: TEST_SUBCREDENTIAL.into(),
             encrypted: TEST_ENCRYPTED_VALUE.into(),
         }
-        .build_sign(&mut Config::Deterministic.into_rng())
+        .build_sign(&mut rng)
         .unwrap_err();
 
         assert!(expect_bug(err)
@@ -163,28 +200,28 @@ AQIDBA==
 
     #[test]
     fn middle_hsdesc_encoding_client_auth() {
+        let mut rng = Config::Deterministic.into_rng().rng_compat();
         // 2 authorized clients
         let auth_clients = vec![
-            AuthClient {
-                client_id: [2; 8].into(),
-                iv: [2; 16],
-                encrypted_cookie: [3; 16],
-            },
-            AuthClient {
-                client_id: [4; 8].into(),
-                iv: [5; 16],
-                encrypted_cookie: [6; 16],
-            },
+            create_curve25519_pk(&mut rng),
+            create_curve25519_pk(&mut rng),
         ];
 
+        let secret = curve25519::StaticSecret::new(&mut rng);
+        let public = curve25519::PublicKey::from(&secret).into();
+
         let client_auth = ClientAuth {
-            ephemeral_key: create_curve25519_pk(&mut Config::Deterministic.into_rng()).into(),
-            auth_clients,
-            descriptor_cookie: TEST_DESCRIPTOR_COOKIE,
+            ephemeral_key: HsSvcDescEncKeypair {
+                public,
+                secret: secret.into(),
+            },
+            auth_clients: &auth_clients,
+            descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
         let hs_desc = HsDescMiddle {
             client_auth: Some(&client_auth),
+            subcredential: TEST_SUBCREDENTIAL.into(),
             encrypted: TEST_ENCRYPTED_VALUE.into(),
         }
         .build_sign(&mut Config::Deterministic.into_rng())
@@ -193,9 +230,9 @@ AQIDBA==
         assert_eq!(
             hs_desc,
             r#"desc-auth-type x25519
-desc-auth-ephemeral-key HWIigEAdcOgqgHPDFmzhhkeqvYP/GcMT2fKb5JY6ey8=
-auth-client AgICAgICAgI= AgICAgICAgICAgICAgICAg== AwMDAwMDAwMDAwMDAwMDAw==
-auth-client BAQEBAQEBAQ= BQUFBQUFBQUFBQUFBQUFBQ== BgYGBgYGBgYGBgYGBgYGBg==
+desc-auth-ephemeral-key 9Upi9XNWyqx3ZwHeQ5r3+Dh116k+C4yHeE9BcM68HDc=
+auth-client pxfSbhBMPw0= F+Z6EDfG7ofsQhdG2VKjNQ== fEursUD9Bj5Q9mFP8sIddA==
+auth-client DV7nt+CDOno= bRgLOvpjbo2k21IjKIJqFA== 2yVT+Lpm/WL4JAU64zlGpQ==
 encrypted
 -----BEGIN MESSAGE-----
 AQIDBA==
