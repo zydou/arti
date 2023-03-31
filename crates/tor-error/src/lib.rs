@@ -466,6 +466,19 @@ pub enum ErrorKind {
     #[display(fmt = "Onion Service not found")]
     OnionServiceNotFound,
 
+    /// The target hidden service (`.onion` service) seems to be down
+    ///
+    /// We successfully obtained a hidden service descriptor for the service,
+    /// so we know it is supposed to exist,
+    /// but we weren't able to communicate with it via any of its
+    /// introduction points.
+    ///
+    /// This probably means that the hidden service is not running.
+    /// (It might mean that the introduction point relays are faulty.)
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = "Onion Service not running")]
+    OnionServiceNotRunning,
+
     /// Protocol trouble involving the target hidden service (`.onion` service)
     ///
     /// Something unexpected happened when trying to connect to the selected hidden service.
