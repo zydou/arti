@@ -204,6 +204,11 @@ impl HsDirRing {
         }
     }
 
+    /// Return the parameters used for this ring
+    pub(crate) fn params(&self) -> &HsDirParams {
+        &self.params
+    }
+
     /// Find the location or (notional) insertion point for `hsdir_index` within `ring`.
     fn find_pos(&self, hsdir_index: HsDirIndex) -> HsDirPos {
         self.ring

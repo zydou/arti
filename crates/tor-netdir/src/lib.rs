@@ -76,7 +76,10 @@ use tracing::warn;
 use typed_index_collections::{TiSlice, TiVec};
 
 #[cfg(feature = "hs-common")]
-use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
+use {
+    itertools::Itertools,
+    tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
+};
 
 pub use err::Error;
 pub use weight::WeightRole;
@@ -252,11 +255,12 @@ impl From<u64> for RelayWeight {
     }
 }
 
-/// An operation for which we might be requesting an onion service directory.
+/// An operation for which we might be requesting a hidden service directory.
 #[derive(Copy, Clone, Debug)]
 #[non_exhaustive]
-pub enum OnionServiceDirOp {
+pub enum HsDirOp {
     /// Uploading an onion service descriptor.
+    #[cfg(feature = "hs-service")]
     Upload,
     /// Downloading an onion service descriptor.
     Download,
@@ -389,18 +393,35 @@ impl<D> HsDirs<D> {
         }
     }
 
-    /// Iterate over the contained hsdirs
+    /// Iterate over some of the contained hsdirs, according to `secondary`
+    ///
+    /// The current ring is always included.
+    /// Secondary rings are included iff `secondary` and the `hs-service` feature is enabled.
+    fn iter_filter_secondary(&self, secondary: bool) -> impl Iterator<Item = &D> {
+        let i = iter::once(&self.current);
+
+        // With "hs-service" disabled, there are no secondary rings,
+        // so we don't care.
+        let _ = secondary;
+
+        #[cfg(feature = "hs-service")]
+        let i = chain!(i, self.secondary.iter().filter(move |_| secondary));
+
+        i
+    }
+
+    /// Iterate over all the contained hsdirs
     pub(crate) fn iter(&self) -> impl Iterator<Item = &D> {
-        chain!(iter::once(&self.current), {
-            // This is necessary because chain!'s expansion happens *before*
-            // the #[cfg] is applied, so we can't have an argument to chain!
-            // which is conditionally present.
-            #[allow(unused_variables)]
-            let i = iter::empty::<&D>();
+        self.iter_filter_secondary(true)
+    }
+
+    /// Iterate over the hsdirs relevant for `op`
+    pub(crate) fn iter_for_op(&self, op: HsDirOp) -> impl Iterator<Item = &D> {
+        self.iter_filter_secondary(match op {
             #[cfg(feature = "hs-service")]
-            let i = self.secondary.iter();
-            i
-        },)
+            HsDirOp::Upload => true,
+            HsDirOp::Download => false,
+        })
     }
 }
 
@@ -844,6 +865,23 @@ impl NetDir {
         Some(answer)
     }
 
+    /// Obtain a `Relay` given a `RouterStatusIdx`
+    ///
+    /// Differs from `relay_from_rs_and_rsi` as follows:
+    ///  * That function expects the caller to already have an `MdConsensusRouterStatus`;
+    ///    it checks with `debug_assert` that the relay in the netdir matches.
+    ///  * That function panics if the `RouterStatusIdx` is invalid; this one returns `None`.
+    ///  * That function returns an `UncheckedRelay`; this one a `Relay`.
+    ///
+    /// `None` could be returned here, even with a valid `rsi`,
+    /// if `rsi` refers to an unusable relay.
+    #[cfg_attr(not(feature = "hs-common"), allow(dead_code))]
+    pub(crate) fn relay_by_rs_idx(&self, rs_idx: RouterStatusIdx) -> Option<Relay<'_>> {
+        let rs = self.c_relays().get(rs_idx)?;
+        let md = self.mds.get(rs_idx)?.as_deref();
+        UncheckedRelay { rs, md }.into_relay()
+    }
+
     /// Return a relay with the same identities as those in `target`, if one
     /// exists.
     ///
@@ -1197,42 +1235,49 @@ impl NetDir {
         })
     }
 
-    /// Return the current onion service directory "time period".
+    /// Return the current hidden service directory "time period".
     ///
     /// Specifically, this returns the time period that contains the beginning
     /// of the validity period of this `NetDir`'s consensus.  That time period
-    /// is the one we use when acting as an onion service client.
+    /// is the one we use when acting as an hidden service client.
+    //
+    // TODO HS do we need this function?
     #[cfg(feature = "hs-common")]
-    pub fn onion_service_time_period(&self) -> TimePeriod {
+    pub fn hs_time_period(&self) -> TimePeriod {
         self.hsdir_rings.current.time_period()
     }
 
-    /// Return the secondary onion service directory "time periods".
+    /// Return all the relevant the hidden service directory "time periods"
     ///
-    /// These are additional time periods that we publish descriptors for when we are
-    /// acting as an onion service.
+    /// This includes the current time period (as from
+    /// [`.hs_time_periods`](Netdir::hs_time_periods))
+    /// plus additional time periods that we publish descriptors for when we are
+    /// acting as a hidden service.
+    //
+    // TODO HS do we need this function?
     #[cfg(feature = "hs-service")]
-    pub fn onion_service_secondary_time_periods(&self) -> Vec<TimePeriod> {
+    pub fn hs_all_time_periods(&self) -> Vec<TimePeriod> {
         self.hsdir_rings
-            .secondary
             .iter()
             .map(HsDirRing::time_period)
             .collect()
     }
 
-    /// Return the relays in this network directory that will be used to store a
+    /// Return the relays in this network directory that will be used as hidden service directories
+    ///
+    /// Depending on `op`,
+    /// these are suitable to either store, or retrieve, a
     /// given onion service's descriptor at a given time period.
     ///
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
     #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
-    pub fn onion_service_dirs(
-        &self,
-        id: HsBlindId,
-        op: OnionServiceDirOp,
-        when: TimePeriod,
-    ) -> std::result::Result<Vec<Relay<'_>>, OnionDirLookupError> {
+    pub fn hs_dirs<'r>(
+        &'r self,
+        hsid: &'r HsBlindId,
+        op: HsDirOp,
+    ) -> impl Iterator<Item = Relay<'r>> + 'r {
         // Algorithm:
         //
         // 1. Determine which HsDirRing to use, based on the time period.
@@ -1249,8 +1294,19 @@ impl NetDir {
         //         adding them to Dirs until we have added `spread` new elements
         //         that were not there before.
         // 7. return Dirs.
+        let n_replicas = 2; // TODO HS get this from netdir and/or make it configurable
 
-        todo!() // TODO hs
+        self.hsdir_rings
+            .iter_for_op(op)
+            .cartesian_product(0..n_replicas)
+            .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
+                let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
+                ring.ring_items_at(hsdir_idx)
+            })
+            .filter_map(|(_hsid, rs_idx)| {
+                // This ought not to be None but let's not panic or bail if it is
+                self.relay_by_rs_idx(*rs_idx)
+            })
     }
 }
 
