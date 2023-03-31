@@ -509,7 +509,6 @@ impl HsDescDownloadRequest {
 #[cfg(feature = "hs-client")]
 impl Requestable for HsDescDownloadRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
-        // TODO HS this should have a unit test
         let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
         // TODO HS: is it OK to hardcode the version for now?
         let uri = format!("/tor/hs/3/{}", hsid);
@@ -565,6 +564,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     #[test]
     fn test_md_request() -> Result<()> {
@@ -711,6 +711,26 @@ mod test {
         assert_eq!(ds, vec![d1, d2]);
         let req2 = crate::util::encode_request(&req2.make_request()?);
         assert_eq!(req, req2);
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "hs-client")]
+    fn test_hs_desc_download_request() -> Result<()> {
+        let hsid = [1, 2, 3, 4].iter().cycle().take(32).cloned().collect_vec();
+        let hsid = Ed25519Identity::new(hsid[..].try_into().unwrap());
+        let hsid = HsBlindId::from(hsid);
+        let req = HsDescDownloadRequest::new(hsid);
+        assert!(!req.partial_docs_ok());
+        assert_eq!(req.max_response_len(), 50 * 1024);
+
+        let req = crate::util::encode_request(&req.make_request()?);
+
+        assert_eq!(
+            req,
+            format!("GET /tor/hs/3/AQIDBAECAwQBAgMEAQIDBAECAwQBAgMEAQIDBAECAwQ HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings())
+        );
+
         Ok(())
     }
 }
