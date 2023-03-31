@@ -1305,7 +1305,7 @@ impl NetDir {
                 let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
                 ring.ring_items_at(hsdir_idx)
             })
-            .filter_map(|(_hsid, rs_idx)| {
+            .filter_map(|(_hsdir_idx, rs_idx)| {
                 // This ought not to be None but let's not panic or bail if it is
                 self.relay_by_rs_idx(*rs_idx)
             })
