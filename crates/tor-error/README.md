@@ -21,6 +21,5 @@ them between patch versions.
 * `experimental-api`: Add additional non-stable APIs to our public
   interfaces.
 
-License: MIT OR Apache-2.0
 
 License: MIT OR Apache-2.0
