@@ -462,6 +462,7 @@ pub enum ErrorKind {
     /// This probably means that the hidden service is not running, or does not exist.
     /// (It might mean that the directory servers are faulty,
     /// and that the hidden service was unable to publish its descriptor.)
+    #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service not found")]
     OnionServiceNotFound,
 
@@ -469,6 +470,7 @@ pub enum ErrorKind {
     ///
     /// Something unexpected happened when trying to connect to the selected hidden service.
     /// It seems to have been due to the hidden service violating the Tor protocols somehow.
+    #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service protocol failed (apprently due to service behaviour)")]
     OnionServiceProtocolFailed,
 
