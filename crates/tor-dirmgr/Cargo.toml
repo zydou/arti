@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirmgr"
-version = "0.9.2"
+version = "0.9.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -52,7 +52,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.3.0" }
 rusqlite = { version = "0.29.0", features = ["time"] }
-safelog = { path = "../safelog", version = "0.2.1" }
+safelog = { path = "../safelog", version = "0.2.2" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
@@ -61,16 +61,16 @@ thiserror = "1"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.7.2" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.7.3" }
 tor-config = { path = "../tor-config", version = "0.7.2" }
 tor-consdiff = { path = "../tor-consdiff", version = "0.4.2" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.6.2", default-features = false }
 tor-error = { path = "../tor-error", version = "0.4.1" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.2" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.2" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
 tor-netdir = { path = "../tor-netdir", version = "0.8.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.6.2" }
-tor-proto = { path = "../tor-proto", version = "0.9.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.3" }
+tor-proto = { path = "../tor-proto", version = "0.9.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tracing = "0.1.18"
 
@@ -80,7 +80,7 @@ float_eq = "1.0.0"
 hex-literal = "0.3"
 tempfile = "3"
 tokio = { version = "1.7", features = ["full"] }
-tor-linkspec = { path = "../tor-linkspec", version = "0.6.2" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.6.3" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
 tracing-test = "0.2"

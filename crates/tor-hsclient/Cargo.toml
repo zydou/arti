@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsclient"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -26,20 +26,20 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand_core = "0.6.2"
 slotmap = "1.0.6"
 thiserror = "1"
-tor-circmgr = { version = "0.7.2", path = "../tor-circmgr", features = ["hs-client"] }
+tor-circmgr = { version = "0.7.3", path = "../tor-circmgr", features = ["hs-client"] }
 tor-config = { path = "../tor-config", version = "0.7.1" }
 tor-error = { path = "../tor-error", version = "0.4.1" }
-tor-hscrypto = { version = "0.1.1", path = "../tor-hscrypto" }
-tor-llcrypto = { version = "0.4.2", path = "../tor-llcrypto" }
+tor-hscrypto = { version = "0.1.2", path = "../tor-hscrypto" }
+tor-llcrypto = { version = "0.4.3", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.8.0", path = "../tor-netdir" }
-tor-proto = { version = "0.9.0", path = "../tor-proto", features = ["send-control-msg"] }
+tor-proto = { version = "0.9.1", path = "../tor-proto", features = ["send-control-msg"] }
 tor-rtcompat = { version = "0.8.1", path = "../tor-rtcompat" }
 tracing = "0.1.18"
 
 [dev-dependencies]
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.8.1" }
-tor-circmgr = { version = "0.7.2", path = "../tor-circmgr", features = ["hs-client", "testing"] }
+tor-circmgr = { version = "0.7.3", path = "../tor-circmgr", features = ["hs-client", "testing"] }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.1", features = ["testing"] }
 tor-netdir = { path = "../tor-netdir", version = "0.8.0", features = ["testing"] }
 tor-persist = { path = "../tor-persist", version = "0.6.1", features = ["testing"] }
