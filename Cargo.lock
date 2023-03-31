@@ -238,6 +238,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tor-rpccmd",
  "tor-rtcompat",
  "typetag",
 ]
@@ -4372,6 +4373,17 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "visibility",
+]
+
+[[package]]
+name = "tor-rpccmd"
+version = "0.0.1"
+dependencies = [
+ "futures",
+ "futures-await-test",
+ "serde",
+ "thiserror",
+ "typetag",
 ]
 
 [[package]]

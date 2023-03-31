@@ -18,6 +18,7 @@ members = [
     "crates/tor-units",
     "crates/tor-rtcompat",
     "crates/tor-rtmock",
+    "crates/tor-rpccmd",
     "crates/tor-llcrypto",
     "crates/tor-protover",
     "crates/tor-bytes",

@@ -1,23 +1,10 @@
 //! Message types used in the Arti's RPC protocol.
-
-// TODO RPC: Many of these should move into a forthcoming lower-level crate, once we
-// split this into multiple crates.
 //
 // TODO: This could become a more zero-copy-friendly with some effort, but it's
 // not really sure if it's needed.
 
 use serde::{Deserialize, Serialize};
-
-/// An identifier for an Object within the context of a Session.
-///
-/// These are opaque from the client's perspective.
-#[derive(Debug, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct ObjectId(
-    // (We use Box<str> to save a word here, since these don't have to be
-    // mutable ever.)
-    Box<str>,
-);
+use tor_rpccmd as rpc;
 
 /// An identifier for a Request within the context of a Session.
 ///
@@ -52,23 +39,6 @@ pub struct ReqMeta {
     pub(crate) updates: bool,
 }
 
-/// The parameters and method name associated with a given Request.
-///
-/// We use [`typetag`] here so that we define `Command`s in other crates.
-///
-/// # Note
-///
-/// In order to comply with our spec, all Commands' data must be represented as a json
-/// object.
-//
-// TODO RPC: Possible issue here is that, if this trait is public, anybody outside
-// of Arti can use this trait to add new commands to the RPC engine. Should we
-// care?
-#[typetag::deserialize(tag = "method", content = "data")]
-pub trait Command: std::fmt::Debug + Send {
-    // TODO RPC: this will need some kind of "run this command" trait.
-}
-
 /// A single Request received from an RPC client.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Request {
@@ -77,13 +47,18 @@ pub(crate) struct Request {
     /// We'll use this to link all responses to this request.
     pub(crate) id: RequestId,
     /// The object to receive this request.
-    pub(crate) obj: ObjectId,
+    pub(crate) obj: rpc::ObjectId,
     /// Any metadata to explain how this request is handled.
     #[serde(default)]
     pub(crate) meta: ReqMeta,
     /// The command to actually execute.
+    ///
+    /// Using "flatten" here will make it expand to "method" and "params".
+    ///
+    /// TODO RPC: Note that our spec says that "params" can be omitted, but I
+    /// don't think we support that right now.
     #[serde(flatten)]
-    pub(crate) command: Box<dyn Command>,
+    pub(crate) command: Box<dyn rpc::Command>,
 }
 
 /// A Response to send to an RPC client.
@@ -172,7 +147,7 @@ mod test {
     }
 
     #[typetag::deserialize(name = "dummy")]
-    impl Command for DummyCmd {}
+    impl rpc::Command for DummyCmd {}
 
     #[derive(Serialize)]
     struct DummyResponse {
@@ -189,7 +164,7 @@ mod test {
             r,
             Request {
                 id: RequestId::Int(7),
-                obj: ObjectId("hello".into()),
+                obj: rpc::ObjectId::from("hello"),
                 meta: ReqMeta::default(),
                 command: Box::new(DummyCmd { stuff: 0 })
             }

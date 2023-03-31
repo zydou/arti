@@ -1,0 +1,23 @@
+[package]
+name = "tor-rpccmd"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.60"
+authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Low level functionality for Arti's RPC service"
+keywords = ["tor", "arti", "rpc"]
+categories = ["asynchronous"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+#XXXX remove whatever is unneeded here.
+futures = "0.3.14"
+serde = { version = "1.0.103", features = [ "derive"] }
+thiserror = "1"
+typetag = "0.2.7"
+
+[dev-dependencies]
+#XXXX remove whatever is unneeded here.
+futures-await-test = "0.3.0"
