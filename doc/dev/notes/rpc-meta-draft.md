@@ -155,7 +155,8 @@ some are only suitable for one kind of Object.
 When we define a method,
 we state its name,
 and the names and types of the parameters `params`.
-and the expected contents of the successful `result`.
+and the expected contents of the successful `result`,
+and any `updates`s.
 
 Unrecognized parameters must be ignored.
 Indeed, any unrecognized fields in a JSON object must be ignored,
@@ -260,7 +261,7 @@ id
   that has not received a final response.
 
 update
-: A JSON object whose type depends on the request method.
+: A JSON object whose contents depends on the request method.
   It is required on an update.
 
 result
