@@ -148,7 +148,8 @@ mod test {
 
     #[typetag::deserialize(name = "dummy")]
     impl rpc::Command for DummyCmd {}
-    tor_rpccmd::impl_const_type_id!(DummyCmd); // XXXX
+
+    tor_rpccmd::decl_command! {DummyCmd}
 
     #[derive(Serialize)]
     struct DummyResponse {

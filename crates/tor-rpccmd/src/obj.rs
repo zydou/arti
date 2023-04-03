@@ -31,3 +31,30 @@ where
         Self(value.into())
     }
 }
+
+/// Declare that one or more space-separated types should be considered as
+/// RPC objects.
+///
+/// # Example
+///
+/// ```
+/// use tor_rpccmd as rpc;
+///
+/// #[derive(serde::Deserialize)]
+/// struct Houseplant {
+///    oxygen_per_sec: f64,
+///    benign_neglect: u8
+/// }
+///
+/// rpc::decl_object!{Houseplant}
+/// ```
+#[macro_export]
+macro_rules! decl_object {
+    {$($id:ident)*}
+    =>
+    {
+        $(
+            $crate::impl_const_type_id!{$id}
+        )*
+    }
+}

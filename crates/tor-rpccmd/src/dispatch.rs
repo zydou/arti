@@ -63,14 +63,13 @@ impl InvokeEntry_ {
 /// #[derive(Debug)]
 /// struct ExampleObject {}
 /// impl rpc::Object for ExampleObject {}
+/// rpc::decl_object! {ExampleObject}
 ///
 /// #[derive(Debug,serde::Deserialize)]
 /// struct ExampleCommand {}
 /// #[typetag::deserialize]
 /// impl rpc::Command for ExampleCommand {}
-///
-/// // TODO RPC Hide this macro.
-/// rpc::impl_const_type_id!{ExampleObject ExampleCommand}
+/// rpc::decl_command! {ExampleCommand}
 ///
 /// rpc::rpc_invoke_fn!{
 ///     // XXXX wrong return type.
@@ -193,10 +192,12 @@ mod test {
 
     #[derive(Debug, serde::Deserialize)]
     pub struct SayHi {}
-    crate::impl_const_type_id!(Animal SayHi);
     impl crate::Object for Animal {}
     #[typetag::deserialize]
     impl crate::Command for SayHi {}
+
+    crate::decl_object! {Animal}
+    crate::decl_command! {SayHi}
 
     rpc_invoke_fn! {
         /// Hello there
