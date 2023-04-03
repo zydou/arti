@@ -51,6 +51,8 @@ pub mod testnet;
 #[cfg(feature = "testing")]
 pub mod testprovider;
 
+#[cfg(feature = "hs-service")]
+use itertools::chain;
 use static_assertions::const_assert;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
@@ -61,7 +63,7 @@ use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 #[cfg(feature = "hs-common")]
-use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, itertools::chain, std::iter};
+use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, std::iter};
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
