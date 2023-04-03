@@ -303,8 +303,8 @@ Any given response will have exactly one of
 
 In this spec JSON means I-JSON (RFC7493).
 The client must not send JSON documents that are not valid I-JSON.
-(but arti may not necessarily reject such documents).
-arti will only send valid I-JSON
+(but Arti may not necessarily reject such documents).
+Arti will only send valid I-JSON
 (assuming the client does so too).
 
 We speak of `fields`. meaning the members of a JSON object.
