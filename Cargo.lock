@@ -4011,6 +4011,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tor-chanmgr",
+ "tor-checkable",
  "tor-circmgr",
  "tor-config",
  "tor-error",

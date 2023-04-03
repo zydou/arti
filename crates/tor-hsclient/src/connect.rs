@@ -5,7 +5,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use educe::Educe;
 
+use tor_checkable::timed::TimerangeBound;
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
 use tor_proto::circuit::ClientCirc;
@@ -16,21 +18,23 @@ use crate::{ConnError, HsClientConnector, HsClientSecretKeys};
 
 /// Information about a hidden service, including our connection history
 #[allow(dead_code, unused_variables)] // TODO hs remove.
-#[derive(Default, Debug)]
+#[derive(Default, Educe)]
+#[educe(Debug)]
 // This type is actually crate-private, since it isn't re-exported, but it must
 // be `pub` because it appears as a default for a type parameter in HsClientConnector.
 pub struct Data {
-    //    /// A time when we should check whether this descriptor is still the latest.
-    //    desc_fresh_until: SystemTime,
-    //    /// A time when we should expire this entry completely.
-    //    expires: SystemTime,
     /// The latest known onion service descriptor for this service.
-    desc: (), // TODO hs: use actual onion service descriptor type.
+    #[educe(Debug(ignore))] // TODO HS do better than this
+    desc: Option<TimerangeBound<HsDesc>>,
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
     ///
     ipts: (), // TODO hs: make this type real, use `RetryDelay`, etc.
 }
+
+/// A downloaded hidden service descriptor - dummy alias
+// TODO HS make this a real `tor_netdoc::doc::hsdesc::HsDesc`.
+type HsDesc = String;
 
 /// Actually make a HS connection, updating our recorded state as necessary
 ///

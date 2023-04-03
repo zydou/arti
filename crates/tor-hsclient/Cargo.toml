@@ -24,6 +24,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand_core = "0.6.2"
 slotmap = "1.0.6"
 thiserror = "1"
+tor-checkable = { path = "../tor-checkable", version = "0.4.2" }
 tor-circmgr = { version = "0.7.3", path = "../tor-circmgr", features = ["hs-client"] }
 tor-config = { path = "../tor-config", version = "0.8.0" }
 tor-error = { path = "../tor-error", version = "0.4.1" }
