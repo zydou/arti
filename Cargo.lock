@@ -4387,6 +4387,7 @@ version = "0.0.1"
 dependencies = [
  "assert-impl",
  "downcast-rs",
+ "erased-serde",
  "futures",
  "futures-await-test",
  "inventory",

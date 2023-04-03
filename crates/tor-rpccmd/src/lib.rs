@@ -37,6 +37,7 @@ pub enum LookupError {
 }
 
 /// A trait describing the context in which an RPC command is executed.
+#[async_trait]
 pub trait Context: Send + Sync {
     /// Look up an object by identity within this context.
     ///
@@ -45,6 +46,29 @@ pub trait Context: Send + Sync {
     /// that the [`ObjectId`] is ill-formed,
     /// or that the user has no permission to access the object.
     fn lookup_object(&self, id: &ObjectId) -> Option<Arc<dyn Object>>;
+
+    /// Return true if the request for the current command included a request for incremental updates.
+    fn accepts_updates(&self) -> bool;
+
+    /// Try to send an update update to this request.
+    ///
+    /// Returns an error if no updates were requested.
+    ///
+    /// TODO RPC: I think maybe instead this should be a function that returns a
+    /// `Box<dyn Sink<>>`, but I'm not sure that's right, or the the best way to
+    /// achieve it.
+    async fn send_untyped_update(
+        &self,
+        update: Box<dyn erased_serde::Serialize + Send>,
+    ) -> Result<(), SendUpdateError>;
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum SendUpdateError {
+    #[error("Application did not request updates")]
+    NoUpdatesWanted,
+    #[error("Request cancelled")]
+    RequestCancelled,
 }
 
 /// Extension trait for [`Context`].
@@ -59,6 +83,14 @@ pub trait ContextExt: Context {
             .ok_or_else(|| LookupError::NoObject(id.clone()))?
             .downcast_arc()
             .map_err(|_| LookupError::WrongType(id.clone()))
+    }
+
+    /// Send an update to this request, if possible.
+    async fn send_update<T: serde::Serialize + 'static + Send>(
+        &self,
+        update: T,
+    ) -> Result<(), SendUpdateError> {
+        self.send_untyped_update(Box::new(update)).await
     }
 }
 impl<T: Context> ContextExt for T {}

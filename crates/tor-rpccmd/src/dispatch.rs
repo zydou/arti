@@ -207,12 +207,24 @@ mod test {
     }
 
     struct Ctx {}
+    #[async_trait::async_trait]
     impl crate::Context for Ctx {
         fn lookup_object(
             &self,
             _id: &crate::ObjectId,
         ) -> Option<std::sync::Arc<dyn crate::Object>> {
             todo!()
+        }
+
+        fn accepts_updates(&self) -> bool {
+            false
+        }
+
+        async fn send_untyped_update(
+            &self,
+            _update: Box<dyn erased_serde::Serialize + Send>,
+        ) -> Result<(), crate::SendUpdateError> {
+            Ok(())
         }
     }
 
