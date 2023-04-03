@@ -37,16 +37,19 @@ tor-hscrypto = { version = "0.1.2", path = "../tor-hscrypto" }
 tor-linkspec = { version = "0.6.3", path = "../tor-linkspec" }
 tor-llcrypto = { version = "0.4.3", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.8.0", path = "../tor-netdir", features = [ "hs-client" ] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.3", features = [ "hs-client" ] }
 tor-proto = { version = "0.9.1", path = "../tor-proto", features = ["send-control-msg"] }
 tor-rtcompat = { version = "0.8.1", path = "../tor-rtcompat" }
 tracing = "0.1.18"
 
 [dev-dependencies]
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
+tor-async-utils = { path = "../tor-async-utils", version = "0.0.1" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.8.3" }
 tor-circmgr = { version = "0.7.3", path = "../tor-circmgr", features = ["hs-client", "testing"] }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.8.1", features = ["testing"] }
 tor-netdir = { path = "../tor-netdir", version = "0.8.0", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.3", features = ["testing"] }
 tor-persist = { path = "../tor-persist", version = "0.6.1", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1", features = ["tokio", "native-tls"] }
 tracing-test = "0.2"

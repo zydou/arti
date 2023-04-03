@@ -401,3 +401,123 @@ impl MockableConnectorData for Data {
         !circuit.is_closing()
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use crate::*;
+    use futures::FutureExt as _;
+    use std::panic::AssertUnwindSafe;
+    use tokio_crate as tokio;
+    use tor_async_utils::JoinReadWrite;
+    use tor_linkspec::HasRelayIds as _;
+    use tor_netdoc::doc::hsdesc::test_data;
+    use tor_rtcompat::tokio::TokioNativeTlsRuntime;
+    use tracing_test::traced_test;
+
+    #[derive(Debug)]
+    struct MocksGlobal {
+        got_desc: Option<HsDesc>,
+    }
+    #[derive(Clone, Debug)]
+    struct Mocks<I> {
+        mglobal: Arc<Mutex<MocksGlobal>>,
+        id: I,
+    }
+
+    #[allow(dead_code)] // TODO HS delete this, and maybe id, if it ends up indeed unused
+    impl<I> Mocks<I> {
+        fn map_id<J>(&self, f: impl FnOnce(&I) -> J) -> Mocks<J> {
+            Mocks {
+                mglobal: self.mglobal.clone(),
+                id: f(&self.id),
+            }
+        }
+    }
+
+    impl<R: Runtime> MocksForConnect<R> for Mocks<()> {
+        type HsCircPool = Mocks<()>;
+        fn test_got_desc(&self, desc: &HsDesc) {
+            self.mglobal.lock().unwrap().got_desc = Some(desc.clone());
+        }
+    }
+    #[async_trait]
+    impl<R: Runtime> MockableCircPool<R> for Mocks<()> {
+        type ClientCirc = Mocks<()>;
+        async fn get_or_launch_specific(
+            &self,
+            _netdir: &NetDir,
+            kind: HsCircKind,
+            target: OwnedCircTarget,
+        ) -> tor_circmgr::Result<Self::ClientCirc> {
+            assert_eq!(kind, HsCircKind::ClientHsDir);
+            // TODO HS check that we only made one of these requests
+            Ok(self.clone())
+        }
+    }
+    #[async_trait]
+    impl MockableClientCirc for Mocks<()> {
+        type DirStream = JoinReadWrite<futures::io::Cursor<Box<[u8]>>, futures::io::Sink>;
+        async fn begin_dir_stream(&self) -> tor_proto::Result<Self::DirStream> {
+            let response = format!(
+                r#"HTTP/1.1 200 OK
+
+{}"#,
+                test_data::TEST_DATA_2
+            )
+            .into_bytes()
+            .into_boxed_slice();
+
+            Ok(JoinReadWrite::new(
+                futures::io::Cursor::new(response),
+                futures::io::sink(),
+            ))
+        }
+    }
+
+    #[traced_test]
+    #[tokio::test]
+    async fn test_connect() {
+        let netdir = tor_netdir::testnet::construct_netdir();
+        let netdir = Arc::new(netdir.unwrap_if_sufficient().unwrap());
+        let runtime = TokioNativeTlsRuntime::current().unwrap();
+        let mglobal = Arc::new(Mutex::new(MocksGlobal { got_desc: None }));
+        let mocks = Mocks { mglobal, id: () };
+        // From C Tor src/test/test_hs_common.c test_build_address
+        let hsid = test_data::TEST_HSID_2.into();
+        let mut data = Data::default();
+
+        let _got = AssertUnwindSafe(
+            Context::new(
+                &runtime,
+                &mocks,
+                netdir,
+                hsid,
+                &mut data,
+                HsClientSecretKeys::default(),
+                mocks.clone(),
+            )
+            .unwrap()
+            .connect(),
+        )
+        .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
+        .await;
+
+        assert_eq!(
+            mocks.mglobal.lock().unwrap().got_desc,
+            Some(test_data::TEST_DATA_2.to_string())
+        );
+
+        // TODO hs check the circuit in got is the one we gave out
+    }
+}
