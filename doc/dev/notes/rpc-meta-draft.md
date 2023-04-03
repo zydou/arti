@@ -15,7 +15,7 @@ for both local and out-of-process use.
 
 This document will begin by focusing
 on the _semantics_ of our RPC system
-using an abstract stream of I-JSON objects.
+using an abstract stream of objects.
 
 Once those are defined, we'll discuss
 a particular instantiation of the system
@@ -106,6 +106,11 @@ an "error" indicates a failure.
 > some request types will never get one in practice.
 > For example, a request to observe all circuit-build events
 > will receive only a series of updates.
+
+Messages are representable as JSON -
+specifically, the are within the subset defined in RFC7493 (I-JSON).
+In the current concrete protocol they are *represented as* JSON;
+we may define other encodings/framkings in the future.
 
 ## Requests, Objects, and Visibility
 
