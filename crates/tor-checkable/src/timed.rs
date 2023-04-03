@@ -26,6 +26,8 @@ use std::time;
 ///            Err(TimeValidityError::Expired(one_hour)));
 ///
 /// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct TimerangeBound<T> {
     /// The underlying object, which we only want to expose if it is
     /// currently timely.
