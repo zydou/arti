@@ -15,7 +15,7 @@ for both local and out-of-process use.
 
 This document will begin by focusing
 on the _semantics_ of our RPC system
-using an abstract stream of JSON objects.
+using an abstract stream of I-JSON objects.
 
 Once those are defined, we'll discuss
 a particular instantiation of the system
