@@ -8,6 +8,7 @@ use std::time::SystemTime;
 
 use async_trait::async_trait;
 use educe::Educe;
+use futures::{AsyncRead, AsyncWrite};
 use itertools::Itertools;
 use tracing::{debug, trace};
 
@@ -63,8 +64,8 @@ type HsDesc = String;
 /// "mock circuit and netdir, used for testing `connnect.rs`",
 /// so it is not, itself, unit-testable.
 #[allow(dead_code, unused_variables)] // TODO hs remove.
-pub(crate) async fn connect(
-    connector: &HsClientConnector<impl Runtime>,
+pub(crate) async fn connect<R: Runtime>(
+    connector: &HsClientConnector<R>,
     netdir: Arc<NetDir>,
     hsid: HsId,
     data: &mut Data,
@@ -72,7 +73,7 @@ pub(crate) async fn connect(
 ) -> Result<ClientCirc, ConnError> {
     Context::new(
         &connector.runtime,
-        &connector.circpool,
+        &*connector.circpool,
         netdir,
         hsid,
         data,
@@ -92,7 +93,7 @@ struct Context<'c, 'd, R: Runtime, M: MocksForConnect<R>> {
     /// Runtime
     runtime: &'c R,
     /// Circpool
-    circpool: &'c HsCircPool<R>,
+    circpool: &'c M::HsCircPool,
     /// Netdir
     netdir: Arc<NetDir>,
     /// Per-HS-association long term mutable state
@@ -113,7 +114,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
     /// Make a new `Context` from the input data
     fn new(
         runtime: &'c R,
-        circpool: &'c HsCircPool<R>,
+        circpool: &'c M::HsCircPool,
         netdir: Arc<NetDir>,
         hsid: HsId,
         data: &'d mut Data,
@@ -165,9 +166,11 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         //  - Add a virtual hop to the rendezvous circuit.
         //  - Return the rendezvous circuit.
 
+        let mocks = self.mocks.clone();
+
         let desc = self.descriptor_ensure().await?;
 
-        eprintln!("HS DESC:\n{}\n", &desc); // TODO HS remove
+        mocks.test_got_desc(desc);
 
         // TODO HS complete the implementation
         todo!()
@@ -324,10 +327,59 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
 /// which is used to *replace* this file, when testing `state.rs`.
 ///
 /// `MocksForConnect` provides mock facilities for *testing* this file.
-trait MocksForConnect<R> {
+//
+// TODO this should probably live somewhere else, maybe tor-circmgr even?
+// TODO this really ought to be made by macros or something
+trait MocksForConnect<R>: Clone {
+    /// HS circuit pool
+    type HsCircPool: MockableCircPool<R>;
+    /// Tell tests we got this descriptor text
+    fn test_got_desc(&self, desc: &HsDesc) {
+        eprintln!("HS DESC:\n{}\n", &desc); // TODO HS remove
+    }
+}
+/// Mock for `HsCircPool`
+#[async_trait]
+trait MockableCircPool<R> {
+    /// Client circuit
+    type ClientCirc: MockableClientCirc;
+    async fn get_or_launch_specific(
+        &self,
+        netdir: &NetDir,
+        kind: HsCircKind,
+        target: OwnedCircTarget,
+    ) -> tor_circmgr::Result<Self::ClientCirc>;
+}
+/// Mock for `ClientCirc`
+#[async_trait]
+trait MockableClientCirc {
+    /// Client circuit
+    type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
+    async fn begin_dir_stream(&self) -> tor_proto::Result<Self::DirStream>;
 }
 
 impl<R: Runtime> MocksForConnect<R> for () {
+    type HsCircPool = HsCircPool<R>;
+}
+#[async_trait]
+impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
+    type ClientCirc = ClientCirc;
+    async fn get_or_launch_specific(
+        &self,
+        netdir: &NetDir,
+        kind: HsCircKind,
+        target: OwnedCircTarget,
+    ) -> tor_circmgr::Result<ClientCirc> {
+        self.get_or_launch_specific(netdir, kind, target).await
+    }
+}
+#[async_trait]
+impl MockableClientCirc for ClientCirc {
+    /// Client circuit
+    type DirStream = tor_proto::stream::DataStream;
+    async fn begin_dir_stream(&self) -> tor_proto::Result<Self::DirStream> {
+        self.begin_dir_stream().await
+    }
 }
 
 #[async_trait]
