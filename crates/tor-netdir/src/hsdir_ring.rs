@@ -232,7 +232,10 @@ impl HsDirRing {
         spread: usize,
     ) -> impl Iterator<Item = &(HsDirIndex, RouterStatusIdx)> {
         let pos = self.find_pos(hsdir_index);
-        self.ring[pos..].iter().chain(&self.ring[..pos]).take(spread)
+        self.ring[pos..]
+            .iter()
+            .chain(&self.ring[..pos])
+            .take(spread)
     }
 
     /// Return the time period for which this ring applies.
