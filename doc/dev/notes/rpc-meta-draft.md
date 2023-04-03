@@ -207,7 +207,11 @@ id
   This may be a number or a string. It is required.
   (Floating point numbers and
   integers that can't be precisely represented as an IEEE-754 double
-  are not guaranteed to round trip accurately.)
+  are not guaranteed to round trip accurately.
+  Integers whose absolute value is no greater than
+  `2^53-1 = 9007199254740991`,
+  will round trip accurately.
+  64-bit integers might not.)
 
 obj
 : An Object Identifier for the Object that will receive this request.
