@@ -22,7 +22,7 @@ use tor_llcrypto::pk::{curve25519, ed25519, ValidatableSignature};
 /// The contents of the inner document of an onion service descriptor.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-pub(super) struct HsDescInner {
+pub(crate) struct HsDescInner {
     /// The authentication types that this onion service accepts when
     /// connecting.
     // TODO HS: This should probably be a bitfield or enum-set of something.

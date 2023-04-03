@@ -37,8 +37,8 @@ ns_consensus = []
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "rand", "tor-cert/encode"]
-hs-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
+hs-service = ["hs-common", "tor-cert/encode"]
+hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
 hsdesc-inner-docs = ["visibility"]
 

@@ -11,6 +11,7 @@
 #![allow(dead_code, unused_variables, clippy::missing_panics_doc)] // TODO hs: remove.
 mod desc_enc;
 
+#[cfg(feature = "hs-service")]
 mod build;
 mod inner;
 mod middle;

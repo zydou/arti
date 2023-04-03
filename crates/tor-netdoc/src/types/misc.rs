@@ -9,7 +9,7 @@ pub(crate) use b16impl::*;
 pub(crate) use b64impl::*;
 pub(crate) use curve25519impl::*;
 pub(crate) use ed25519impl::*;
-#[cfg(feature = "routerdesc")]
+#[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
@@ -308,10 +308,11 @@ mod rsa {
 }
 
 /// Types for decoding Ed25519 certificates
-#[cfg(feature = "routerdesc")]
+#[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 mod edcert {
     use crate::{ParseErrorKind as EK, Pos, Result};
     use tor_cert::{CertType, Ed25519Cert, KeyUnknownCert};
+    #[cfg(feature = "routerdesc")]
     use tor_llcrypto::pk::ed25519;
 
     /// An ed25519 certificate as parsed from a directory object, with
@@ -347,6 +348,7 @@ mod edcert {
             Ok(self)
         }
         /// Give an error if this certificate's subject_key is not `pk`
+        #[cfg(feature = "routerdesc")]
         pub(crate) fn check_subject_key_is(self, pk: &ed25519::Ed25519Identity) -> Result<Self> {
             if self.0.peek_subject_key().as_ed25519() != Some(pk) {
                 return Err(EK::BadObjectVal
