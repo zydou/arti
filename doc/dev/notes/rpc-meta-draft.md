@@ -455,7 +455,7 @@ When we are specifying a request, we list the following.
 
  * A request's `id` may not be `null`.
 
- * Requests can generate `update`s (non-final responses).
+ * There can be `update`s - non-final responses.
 
  * We specify a framing protocol
    (although we permit new framing protocols in the future).
