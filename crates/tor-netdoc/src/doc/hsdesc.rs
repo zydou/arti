@@ -306,6 +306,34 @@ impl StoredHsDescMeta {
     }
 }
 
+/// Test data
+#[cfg(any(test, feature = "testing"))]
+#[allow(missing_docs)]
+#[allow(clippy::missing_docs_in_private_items)]
+pub mod test_data {
+    use hex_literal::hex;
+
+    pub const TEST_DATA: &str = include_str!("../../testdata/hsdesc1.txt");
+
+    pub const TEST_SUBCREDENTIAL: [u8; 32] =
+        hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37");
+
+    // This HsDesc uses DescEnc authentication.
+    pub const TEST_DATA_2: &str = include_str!("../../testdata/hsdesc2.txt");
+    pub const TEST_DATA_TIMEPERIOD_2: u64 = 19397;
+    // paozpdhgz2okvc6kgbxvh2bnfsmt4xergrtcl4obkhopyvwxkpjzvoad.onion
+    pub const TEST_HSID_2: [u8; 32] =
+        hex!("781D978CE6CE9CAA8BCA306F53E82D2C993E5C91346625F1C151DCFC56D753D3");
+    pub const TEST_SUBCREDENTIAL_2: [u8; 32] =
+        hex!("24A133E905102BDA9A6AFE57F901366A1B8281865A91F1FE0853E4B50CC8B070");
+    // SACGOAEODFGCYY22NYZV45ZESFPFLDGLMBWFACKEO34XGHASSAMQ (base32)
+    pub const TEST_PUBKEY_2: [u8; 32] =
+        hex!("900467008E194C2C635A6E335E7724915E558CCB606C50094476F9731C129019");
+    // SDZNMD4RP4SCH4EYTTUZPFRZINNFWAOPPKZ6BINZAC7LREV24RBQ (base32)
+    pub const TEST_SECKEY_2: [u8; 32] =
+        hex!("90F2D60F917F2423F0989CE9979639435A5B01CF7AB3E0A1B900BEB892BAE443");
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -320,30 +348,12 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use std::time::Duration;
 
+    use super::test_data::*;
     use super::*;
     use hex_literal::hex;
     use tor_checkable::{SelfSigned, Timebound};
     use tor_hscrypto::{pk::HsIdKey, time::TimePeriod};
     use tor_llcrypto::pk::ed25519;
-
-    pub(super) const TEST_DATA: &str = include_str!("../../testdata/hsdesc1.txt");
-    pub(super) const TEST_SUBCREDENTIAL: [u8; 32] =
-        hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37");
-
-    // This HsDesc uses DescEnc authentication.
-    pub(super) const TEST_DATA_2: &str = include_str!("../../testdata/hsdesc2.txt");
-    pub(super) const TEST_DATA_TIMEPERIOD_2: u64 = 19397;
-    // paozpdhgz2okvc6kgbxvh2bnfsmt4xergrtcl4obkhopyvwxkpjzvoad.onion
-    pub(super) const TEST_HSID_2: [u8; 32] =
-        hex!("781D978CE6CE9CAA8BCA306F53E82D2C993E5C91346625F1C151DCFC56D753D3");
-    pub(super) const TEST_SUBCREDENTIAL_2: [u8; 32] =
-        hex!("24A133E905102BDA9A6AFE57F901366A1B8281865A91F1FE0853E4B50CC8B070");
-    // SACGOAEODFGCYY22NYZV45ZESFPFLDGLMBWFACKEO34XGHASSAMQ (base32)
-    pub(super) const TEST_PUBKEY_2: [u8; 32] =
-        hex!("900467008E194C2C635A6E335E7724915E558CCB606C50094476F9731C129019");
-    // SDZNMD4RP4SCH4EYTTUZPFRZINNFWAOPPKZ6BINZAC7LREV24RBQ (base32)
-    pub(super) const TEST_SECKEY_2: [u8; 32] =
-        hex!("90F2D60F917F2423F0989CE9979639435A5B01CF7AB3E0A1B900BEB892BAE443");
 
     #[test]
     fn parse_meta_good() -> Result<()> {

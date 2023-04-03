@@ -415,7 +415,7 @@ mod test {
     use crate::doc::hsdesc::{
         middle::HsDescMiddle,
         outer::HsDescOuter,
-        test::{TEST_DATA, TEST_SUBCREDENTIAL},
+        test_data::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
 
     #[test]

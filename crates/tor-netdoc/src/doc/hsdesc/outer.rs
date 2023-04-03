@@ -297,7 +297,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::doc::hsdesc::test::{TEST_DATA, TEST_SUBCREDENTIAL};
+    use crate::doc::hsdesc::test_data::{TEST_DATA, TEST_SUBCREDENTIAL};
     use tor_checkable::SelfSigned;
 
     #[test]

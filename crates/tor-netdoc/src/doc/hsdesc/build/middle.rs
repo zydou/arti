@@ -139,7 +139,7 @@ mod test {
     use super::*;
     use crate::doc::hsdesc::build::test::{create_curve25519_pk, expect_bug};
     use crate::doc::hsdesc::build::ClientAuth;
-    use crate::doc::hsdesc::test::TEST_SUBCREDENTIAL;
+    use crate::doc::hsdesc::test_data::TEST_SUBCREDENTIAL;
     use tor_basic_utils::test_rng::Config;
     use tor_hscrypto::pk::HsSvcDescEncKeypair;
     use tor_llcrypto::pk::curve25519;
