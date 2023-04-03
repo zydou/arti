@@ -509,13 +509,6 @@ Arti will return an error.
 (It might not be possible to distinguish these two cases).
 
 
-## Authentication
-
-...
-
-> Also authorization, "get instance"
-
-
 TODO: Currently this violates our rule that every request has an `obj`.
 Options: 
  1. Relax the rule
@@ -524,6 +517,13 @@ Options:
  3. Specify that the cancellation should be sent to the original object.
     IMO this is improper:
     cancellation is a framing operation.
+
+
+## Authentication
+
+...
+
+> Also authorization, "get instance"
 
 
 ## Requests that apply to most Objects
