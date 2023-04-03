@@ -56,7 +56,7 @@ use tor_netdir::NetDir;
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
-pub use err::{ConnError, StartupError};
+pub use err::{ConnError, DescriptorError, DescriptorErrorDetail, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 
 use state::Services;

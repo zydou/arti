@@ -1,20 +1,34 @@
 //! Main implementation of the connection functionality
 
-//use std::time::SystemTime;
+use std::time::Duration;
 
+use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use async_trait::async_trait;
 use educe::Educe;
+use itertools::Itertools;
+use tracing::{debug, trace};
 
-use tor_checkable::timed::TimerangeBound;
-use tor_hscrypto::pk::HsId;
-use tor_netdir::NetDir;
+use retry_error::RetryError;
+use safelog::Redacted;
+use tor_checkable::{timed::TimerangeBound, Timebound};
+use tor_circmgr::hspool::{HsCircKind, HsCircPool};
+use tor_dirclient::request::Requestable as _;
+use tor_error::{into_internal, ErrorReport as _};
+use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsId, HsIdKey};
+use tor_linkspec::OwnedCircTarget;
+use tor_llcrypto::pk::ed25519::Ed25519Identity;
+use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_proto::circuit::ClientCirc;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SleepProviderExt as _};
 
 use crate::state::MockableConnectorData;
-use crate::{ConnError, HsClientConnector, HsClientSecretKeys};
+use crate::{ConnError, DescriptorError, DescriptorErrorDetail};
+use crate::{HsClientConnector, HsClientSecretKeys};
+
+use ConnError as CE;
 
 /// Information about a hidden service, including our connection history
 #[allow(dead_code, unused_variables)] // TODO hs remove.
@@ -58,6 +72,7 @@ pub(crate) async fn connect(
 ) -> Result<ClientCirc, ConnError> {
     Context::new(
         &connector.runtime,
+        &connector.circpool,
         netdir,
         hsid,
         data,
@@ -76,6 +91,8 @@ pub(crate) async fn connect(
 struct Context<'c, 'd, R: Runtime, M: MocksForConnect<R>> {
     /// Runtime
     runtime: &'c R,
+    /// Circpool
+    circpool: &'c HsCircPool<R>,
     /// Netdir
     netdir: Arc<NetDir>,
     /// Per-HS-association long term mutable state
@@ -84,24 +101,43 @@ struct Context<'c, 'd, R: Runtime, M: MocksForConnect<R>> {
     secret_keys: HsClientSecretKeys,
     /// HS ID
     hsid: HsId,
+    /// Blinded HS ID
+    hs_blind_id: HsBlindId,
+    /// Blinded HS ID as a key
+    hs_blind_id_key: HsBlindIdKey,
     /// Mock data
     mocks: M,
 }
 
 impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
     /// Make a new `Context` from the input data
-    #[allow(clippy::unnecessary_wraps)] // TODO HS remove
     fn new(
         runtime: &'c R,
+        circpool: &'c HsCircPool<R>,
         netdir: Arc<NetDir>,
         hsid: HsId,
         data: &'d mut Data,
         secret_keys: HsClientSecretKeys,
         mocks: M,
     ) -> Result<Self, ConnError> {
+        let time_period = netdir.hs_time_period();
+        let (hs_blind_id_key, _subcred) = HsIdKey::try_from(hsid)
+            .map_err(|_| CE::InvalidHsId)?
+            .compute_blinded_key(time_period)
+            .map_err(
+                // TODO HS what on earth do these errors mean, in practical terms ?
+                // In particular, we'll want to convert them to a ConnError variant,
+                // but what ErrorKind should they have ?
+                into_internal!("key blinding error, don't know how to handle"),
+            )?;
+        let hs_blind_id = hs_blind_id_key.id();
+
         Ok(Context {
             netdir,
             hsid,
+            hs_blind_id,
+            hs_blind_id_key,
+            circpool,
             runtime,
             data,
             secret_keys,
@@ -128,7 +164,157 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         //  - Wait for a RENDEZVOUS2 cell on the rendezvous circuit
         //  - Add a virtual hop to the rendezvous circuit.
         //  - Return the rendezvous circuit.
+
+        let desc = self.descriptor_ensure().await?;
+
+        eprintln!("HS DESC:\n{}\n", &desc); // TODO HS remove
+
+        // TODO HS complete the implementation
         todo!()
+    }
+
+    /// Ensure that `Data.desc` contains the HS descriptor
+    ///
+    /// Does retries and timeouts
+    async fn descriptor_ensure(&mut self) -> Result<&HsDesc, CE> {
+        // TODO HS are these right? make configurable?
+        // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
+        /// Maxmimum number of hsdir connection and retrieval attempts we'll make
+        const MAX_TOTAL_ATTEMPTS: usize = 6;
+        /// Limit on the duration of each retrieval attempt
+        const EACH_TIMEOUT: Duration = Duration::from_secs(10);
+
+        if let Some(previously) = &self.data.desc {
+            let now = self.runtime.wallclock();
+            if let Ok(_desc) = previously.as_ref().check_valid_at(&now) {
+                // Ideally we would just return desc but that confuses borrowck.
+                // https://github.com/rust-lang/rust/issues/51545
+                return Ok(self
+                    .data
+                    .desc
+                    .as_ref()
+                    .expect("Some but now None")
+                    .as_ref()
+                    .check_valid_at(&now)
+                    .expect("Ok but now Err"));
+            }
+            // Seems to be not valid now.  Try to fetch a fresh one.
+        }
+
+        let hs_dirs = self
+            .netdir
+            .hs_dirs(&self.hs_blind_id, HsDirOp::Download)
+            .collect_vec();
+        trace!(
+            "HS desc fetch for {}, using {} hsdirs",
+            &self.hsid,
+            hs_dirs.len()
+        );
+
+        let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
+        let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
+        let (desc, bounds) = loop {
+            let relay = match attempts.next() {
+                Some(relay) => relay,
+                None => {
+                    return Err(if errors.is_empty() {
+                        CE::NoHsDirs
+                    } else {
+                        CE::DescriptorDownload(errors)
+                    })
+                }
+            };
+            let hsdir_for_error: Redacted<Ed25519Identity> = (*relay.id()).into();
+            match self
+                .runtime
+                .timeout(EACH_TIMEOUT, self.descriptor_fetch_attempt(relay))
+                .await
+                .unwrap_or_else(|_timeout| Err(DescriptorErrorDetail::Timeout))
+            {
+                Ok(desc) => break desc,
+                Err(error) => {
+                    debug!(
+                        "failed hsdir desc fetch for {} from {}: {}",
+                        &self.hsid,
+                        &relay.id(),
+                        error.report()
+                    );
+                    errors.push(tor_error::Report(DescriptorError {
+                        hsdir: hsdir_for_error,
+                        error,
+                    }));
+                }
+            }
+        };
+
+        // Store the bounded value in the cache for reuse,
+        // but return a reference to the unwrapped `HsDesc`.
+        //
+        // Because the `HsDesc` must be owned by `data.desc`,
+        // we must first wrap it in the TimerangeBound,
+        // and then dangerously_assume_timely to get a reference out again.
+        let ret = self.data.desc.insert(TimerangeBound::new(desc, bounds));
+        let ret: &String = ret.as_ref().dangerously_assume_timely();
+
+        Ok(ret)
+    }
+
+    /// Make one attempt to fetch the descriptor from a specific hsdir
+    ///
+    /// No timeout
+    ///
+    /// On success, returns the descriptor.
+    ///
+    /// Also returns a `RangeBounds<SystemTime>` which represents the descriptor's validity.
+    /// (This is separate, because the descriptor's validity at the current time *has* been checked,)
+    async fn descriptor_fetch_attempt(
+        &self,
+        hsdir: &Relay<'_>,
+    ) -> Result<(HsDesc, impl RangeBounds<SystemTime>), DescriptorErrorDetail> {
+        let request = tor_dirclient::request::HsDescDownloadRequest::new(self.hs_blind_id);
+        trace!(
+            "hsdir for {}, trying {}/{}, request {:?} (http request {:?}",
+            &self.hsid,
+            &hsdir.id(),
+            &hsdir.rsa_id(),
+            &request,
+            request.make_request()
+        );
+
+        let circuit = self
+            .circpool
+            .get_or_launch_specific(
+                &self.netdir,
+                HsCircKind::ClientHsDir,
+                OwnedCircTarget::from_circ_target(hsdir),
+            )
+            .await?;
+        let mut stream = circuit
+            .begin_dir_stream()
+            .await
+            .map_err(DescriptorErrorDetail::Stream)?;
+
+        let response = tor_dirclient::download(self.runtime, &request, &mut stream, None)
+            .await
+            .map_err(|dir_error| match dir_error {
+                tor_dirclient::Error::RequestFailed(rfe) => DescriptorErrorDetail::from(rfe.error),
+                tor_dirclient::Error::CircMgr(ce) => into_internal!(
+                    "tor-dirclient complains about circmgr going wrong but we gave it a stream"
+                )(ce)
+                .into(),
+                other => into_internal!(
+                    "tor-dirclient gave unexpected error, tor-hsclient code needs updating"
+                )(other)
+                .into(),
+            })?;
+
+        let desc_text = response.into_output_string().map_err(|rfe| rfe.error)?;
+        // TODO HS parse and check signatures and times, instead of this nonsense
+        let hsdesc = desc_text;
+        let unbounded_todo = Bound::Unbounded::<SystemTime>; // TODO HS remove
+        let bound = (unbounded_todo, unbounded_todo);
+
+        Ok((hsdesc, bound))
     }
 }
 
