@@ -1,6 +1,10 @@
+use downcast_rs::DowncastSync;
 use serde::{Deserialize, Serialize};
 
-pub trait Object {}
+use crate::typeid::GetConstTypeId_;
+
+pub trait Object: GetConstTypeId_ + DowncastSync {}
+downcast_rs::impl_downcast!(sync Object);
 
 /// An identifier for an Object within the context of a Session.
 ///
