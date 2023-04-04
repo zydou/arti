@@ -59,7 +59,7 @@ impl InvokeEntry_ {
 /// # Example
 ///
 /// ```
-/// use tor_rpccmd as rpc;
+/// use tor_rpccmd::{self as rpc};
 ///
 /// #[derive(Debug)]
 /// struct ExampleObject {}
@@ -78,16 +78,16 @@ impl InvokeEntry_ {
 /// }
 ///
 /// rpc::rpc_invoke_fn!{
-
-///     // Note that the return type of this function must be a Result, and must be
-///     // `Serialize + Send + 'static`.
-///     async fn example(obj: ExampleObject, cmd: ExampleCommand, ctx) -> Result<ExampleResult, String> {
-///         // XXXX In this function, obj is actually an Arc<ExampleObject>,
-///         //      cmd is actually a Box<ExampleCommand>,
-///         //      and ctx is actually an Arc<dyn rpc::Context>!
-///         //     
-///         // XXXX This is quite infelicitous, since the details are hidden.  We should
-///         //      probably make the type information explicit instead.
+///     // Note that the types of this function are very constrained:
+///     //  - `obj` must be an Arc<O> for some `Object` type.
+///     //  - `cmd` must be Box<C> for come `Command` type.
+///     //  - `ctx` must be Arc<dyn rpc::Context>.
+///     //  - The return type must be a Result.
+///     //  - The OK variant of the result must be Serialize + Send + 'static.
+///     //  - The Err variant of the result must implement Into<rpc::RpcError>.
+///     async fn example(obj: Arc<ExampleObject>,
+///                      cmd: Box<ExampleCommand>,
+///                      ctx: Arc<dyn rpc::Context>) -> Result<ExampleResult, rpc::RpcError> {
 ///         println!("Running example command!");
 ///         Ok(ExampleResult { text: "here is your result".into() })
 ///     }
@@ -97,15 +97,14 @@ impl InvokeEntry_ {
 macro_rules! rpc_invoke_fn {
     {
         $(#[$meta:meta])*
-        $v:vis async fn $name:ident($obj:ident : $objtype:ty, $cmd:ident: $cmdtype:ty, $ctx:ident) -> $rtype:ty {
+        $v:vis async fn $name:ident($obj:ident : Arc<$objtype:ty>, $cmd:ident: Box<$cmdtype:ty>, $ctx:ident: Arc<dyn $ctxtype:ty>) -> $rtype:ty {
             $($body:tt)*
         }
         $( $($more:tt)+ )?
     } => {$crate::paste::paste!{
         // First we declare the function that the user gave us.
         $(#[$meta])*
-        // XXXX mangling the types here is not good; see comment in example above.
-        $v async fn $name($obj: std::sync::Arc<$objtype>, $cmd: Box<$cmdtype>, $ctx: std::sync::Arc<dyn $crate::Context>) -> $rtype {
+        $v async fn $name($obj: std::sync::Arc<$objtype>, $cmd: Box<$cmdtype>, $ctx: std::sync::Arc<dyn $ctxtype>) -> $rtype {
            $($body)*
         }
         // Now we declare a type-erased version of the function that takes Arc<dyn> and Box<dyn> arguments, and returns
@@ -223,7 +222,7 @@ mod test {
 
     rpc_invoke_fn! {
         /// Hello there
-        async fn invoke(_obj: Animal, cmd: SayHi, _ctx) -> Result<Hello, crate::RpcError> {
+        async fn invoke(_obj: Arc<Animal>, cmd: Box<SayHi>, _ctx: Arc<dyn crate::Context>) -> Result<Hello, crate::RpcError> {
             Ok(Hello{ name: format!("{:?}", cmd) })
         }
     }
