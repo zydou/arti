@@ -355,6 +355,24 @@ code 	message 	meaning
 -32001	Request error		The requested operation was recognised could not be performed
 ```
 
+#### Example error response JSON document
+
+```
+{
+   "id" : "5631557cdce0caa0",
+   "error" : {
+      "message" : "Cannot connect to a local-only address without enabling allow_local_addrs",
+      "arti_kinds" : [
+         "ForbiddenStreamTarget"
+      ],
+      "data" : {
+         "arti::ErrorDetail::Address" : "BadOnion",
+      },
+      "code" : -32001
+   }
+}
+```
+
 #### JSON-RPC compatibility
 
 This error format is compatible with JSON-RPC 2.0.
