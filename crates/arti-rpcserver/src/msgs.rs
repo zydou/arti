@@ -98,6 +98,12 @@ impl BoxedResponseBody {
     }
 }
 
+impl From<rpc::RpcError> for BoxedResponseBody {
+    fn from(inp: rpc::RpcError) -> BoxedResponseBody {
+        BoxedResponseBody::Error(Box::new(inp))
+    }
+}
+
 impl std::fmt::Debug for BoxedResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // We use serde_json to format the output for debugging, since that's all we care about at this point.

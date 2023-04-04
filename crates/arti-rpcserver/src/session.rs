@@ -8,11 +8,14 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Sink, SinkExt, StreamExt,
 };
+use pin_project::pin_project;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
     msgs::{BoxedResponse, BoxedResponseBody, Request, RequestId},
 };
+
+use tor_rpccmd as rpc;
 
 /// A session with an RPC client.  
 ///
@@ -46,6 +49,15 @@ impl Session {
                 inflight: HashMap::new(),
             }),
         }
+    }
+
+    /// Look up a given object by its object ID relative to this session.
+    fn lookup_object(
+        self: &Arc<Self>,
+        id: &rpc::ObjectId,
+    ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
+        // TODO RPC implement.
+        Err(rpc::LookupError::NoObject(id.clone()))
     }
 
     /// Un-register the request `id` and stop tracking its information.
@@ -133,9 +145,14 @@ impl Session {
                             let fut = self.run_command_lowlevel(tx_channel, req);
                             let (handle, fut) = Cancel::new(fut);
                             self.register_request(id.clone(), handle);
-                            let fut = fut.map(|r| r.unwrap_or_else(|_cancelled|
-                                // TODO RPC real error type
-                                BoxedResponse{ id, body: BoxedResponseBody::Error(Box::new("hey i got cancelled"))}));
+                            let fut = fut.map(|r| match r {
+                                Ok(Ok(v)) => BoxedResponse { id, body: BoxedResponseBody::Result(v) },
+                                Ok(Err(e)) => BoxedResponse { id, body: e.into() },
+                                // TODO RPC: This is not the correct error type.
+                                Err(_cancelled) =>  BoxedResponse{ id, body: BoxedResponseBody::Error(Box::new("hey i got cancelled")) }
+                            });
+
+
                             finished_requests.push(fut.boxed());
                         }
                     }
@@ -158,26 +175,138 @@ impl Session {
         self: &Arc<Self>,
         tx_updates: Option<&UpdateSender>,
         request: Request,
-    ) -> BoxedResponse {
-        // TODO RPC: This function does not yet actually run the commands!  it just echoes the request back.
+    ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
+        let Request {
+            id, obj, command, ..
+        } = request;
+        let obj = self.lookup_object(&obj)?;
 
-        let encoded = format!("{:?}", request.command);
-        if let Some(tx) = tx_updates {
-            let mut tx = tx.clone();
-            let _ = tx
-                .send(BoxedResponse {
-                    id: request.id.clone(),
-                    body: BoxedResponseBody::Update(Box::new("thinking...")),
-                })
-                .await;
-        }
-        #[derive(serde::Serialize)]
-        struct Echo {
-            echo: String,
-        }
-        BoxedResponse {
-            id: request.id,
-            body: BoxedResponseBody::Result(Box::new(Echo { echo: encoded })),
-        }
+        let context: Box<dyn rpc::Context> = match tx_updates {
+            Some(tx) => Box::new(RequestContext {
+                session: Arc::clone(self),
+                id: id.clone(),
+                reply_tx: tx.clone(),
+            }),
+            None => Box::new(RequestContext {
+                session: Arc::clone(self),
+                id: id.clone(),
+                reply_tx: (),
+            }),
+        };
+
+        rpc::invoke_command(obj, command, context)?.await
+    }
+}
+
+#[pin_project]
+struct RequestContext<T> {
+    session: Arc<Session>,
+    id: RequestId,
+    #[pin]
+    reply_tx: T,
+}
+
+impl<T> Sink<Box<dyn erased_serde::Serialize + Send + 'static>> for RequestContext<T>
+where
+    T: Sink<BoxedResponse>,
+{
+    type Error = rpc::SendUpdateError;
+
+    fn poll_ready(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        let this = self.project();
+        this.reply_tx
+            .poll_ready(cx)
+            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
+    }
+
+    fn start_send(
+        self: std::pin::Pin<&mut Self>,
+        item: Box<dyn erased_serde::Serialize + Send + 'static>,
+    ) -> Result<(), Self::Error> {
+        let this = self.project();
+        let item = BoxedResponse {
+            id: this.id.clone(),
+            body: BoxedResponseBody::Update(item),
+        };
+        this.reply_tx
+            .start_send(item)
+            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        let this = self.project();
+        this.reply_tx
+            .poll_flush(cx)
+            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
+    }
+
+    fn poll_close(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        let this = self.project();
+        this.reply_tx
+            .poll_close(cx)
+            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
+    }
+}
+impl<T> rpc::Context for RequestContext<T>
+where
+    T: Sink<BoxedResponse> + Send,
+{
+    fn lookup_object(&self, id: &rpc::ObjectId) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
+        self.session.lookup_object(id)
+    }
+
+    fn accepts_updates(&self) -> bool {
+        true
+    }
+}
+
+impl Sink<Box<dyn erased_serde::Serialize + Send + 'static>> for RequestContext<()> {
+    type Error = rpc::SendUpdateError;
+
+    fn poll_ready(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Err(rpc::SendUpdateError::NoUpdatesWanted))
+    }
+
+    fn start_send(
+        self: std::pin::Pin<&mut Self>,
+        _item: Box<dyn erased_serde::Serialize + Send + 'static>,
+    ) -> Result<(), Self::Error> {
+        Err(rpc::SendUpdateError::NoUpdatesWanted)
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+}
+
+impl rpc::Context for RequestContext<()> {
+    fn lookup_object(&self, id: &rpc::ObjectId) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
+        self.session.lookup_object(id)
+    }
+
+    fn accepts_updates(&self) -> bool {
+        false
     }
 }
