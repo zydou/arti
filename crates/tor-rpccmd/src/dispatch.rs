@@ -312,7 +312,7 @@ mod test {
         fn lookup_object(
             &self,
             _id: &crate::ObjectId,
-        ) -> Option<std::sync::Arc<dyn crate::Object>> {
+        ) -> Result<std::sync::Arc<dyn crate::Object>, crate::LookupError> {
             todo!()
         }
 

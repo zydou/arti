@@ -78,12 +78,7 @@ pub trait Context:
     Send + Sink<Box<dyn erased_serde::Serialize + Send + 'static>, Error = SendUpdateError>
 {
     /// Look up an object by identity within this context.
-    ///
-    /// A return of `None` may indicate that the object has disappeared,
-    /// that the object doesn't exist,
-    /// that the [`ObjectId`] is ill-formed,
-    /// or that the user has no permission to access the object.
-    fn lookup_object(&self, id: &ObjectId) -> Option<Arc<dyn Object>>;
+    fn lookup_object(&self, id: &ObjectId) -> Result<Arc<dyn Object>, LookupError>;
 
     /// Return true if the request for the current command included a request for incremental updates.
     fn accepts_updates(&self) -> bool;
@@ -110,8 +105,7 @@ pub trait ContextExt: Context {
     ///
     /// Return an error if the object can't be found, or has the wrong type.
     fn lookup<T: Object>(&self, id: &ObjectId) -> Result<Arc<T>, LookupError> {
-        self.lookup_object(id)
-            .ok_or_else(|| LookupError::NoObject(id.clone()))?
+        self.lookup_object(id)?
             .downcast_arc()
             .map_err(|_| LookupError::WrongType(id.clone()))
     }
