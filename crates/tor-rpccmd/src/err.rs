@@ -34,6 +34,28 @@ where
     }
 }
 
+impl From<crate::dispatch::InvokeError> for crate::RpcError {
+    fn from(_value: crate::dispatch::InvokeError) -> Self {
+        crate::RpcError {
+            message: "Tried to invoke unsupported command on object".to_string(),
+            code: -23456,                               // TODO RPC wrong.
+            kind: tor_error::ErrorKind::NotImplemented, // TODO RPC wrong
+            data: None,
+        }
+    }
+}
+
+impl From<crate::LookupError> for crate::RpcError {
+    fn from(value: crate::LookupError) -> Self {
+        crate::RpcError {
+            message: value.to_string(),
+            code: -3001,                       // TODO RPC wrong.
+            kind: tor_error::ErrorKind::Other, // TODO RPC wrong.
+            data: None,
+        }
+    }
+}
+
 /// Helper: Serialize an ErrorKind in RpcError.
 ///
 /// TODO RPC: This function is bogus and should probably get replaced when we
