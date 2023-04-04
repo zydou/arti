@@ -11,14 +11,11 @@ use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 
 use crate::typeid::ConstTypeId_;
-use crate::{Command, Context, Object};
+use crate::{Command, Context, Object, RpcError};
 
 /// The return type from an RPC function.
 #[doc(hidden)]
-pub type RpcResult = Result<
-    Box<dyn erased_serde::Serialize + Send + 'static>,
-    Box<dyn erased_serde::Serialize + Send + 'static>,
->;
+pub type RpcResult = Result<Box<dyn erased_serde::Serialize + Send + 'static>, RpcError>;
 
 // A boxed future holding the result of an RPC command.
 type RpcResultFuture = BoxFuture<'static, RpcResult>;
@@ -81,8 +78,7 @@ impl InvokeEntry_ {
 /// }
 ///
 /// rpc::rpc_invoke_fn!{
-///     // XXXX wrong error type.
-///
+
 ///     // Note that the return type of this function must be a Result, and must be
 ///     // `Serialize + Send + 'static`.
 ///     async fn example(obj: ExampleObject, cmd: ExampleCommand, ctx) -> Result<ExampleResult, String> {
@@ -129,7 +125,7 @@ macro_rules! rpc_invoke_fn {
             $name(obj, cmd, ctx).map(|r| {
                 let r: $crate::RpcResult = match r {
                     Ok(v) => Ok(Box::new(v)),
-                    Err(e) => Err(Box::new(e))
+                    Err(e) => Err($crate::RpcError::from(e))
                 };
                 r
             }).boxed()
@@ -227,7 +223,7 @@ mod test {
 
     rpc_invoke_fn! {
         /// Hello there
-        async fn invoke(_obj: Animal, cmd: SayHi, _ctx) -> Result<Hello, String> {
+        async fn invoke(_obj: Animal, cmd: SayHi, _ctx) -> Result<Hello, crate::RpcError> {
             Ok(Hello{ name: format!("{:?}", cmd) })
         }
     }

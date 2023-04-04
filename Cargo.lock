@@ -4396,6 +4396,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tor-error",
  "typetag",
 ]
 
