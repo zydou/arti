@@ -16,7 +16,7 @@ pub use dispatch::invoke_command;
 pub use obj::{Object, ObjectId};
 
 #[doc(hidden)]
-pub use {downcast_rs, futures, inventory, paste};
+pub use {dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, paste};
 
 /// An error returned from [`ContextExt::lookup`].
 ///

@@ -14,7 +14,11 @@ use crate::typeid::ConstTypeId_;
 use crate::{Command, Context, Object};
 
 /// The return type from an RPC function.
-type RpcResult = String; // XXXX Not the actual type we want.
+#[doc(hidden)]
+pub type RpcResult = Result<
+    Box<dyn erased_serde::Serialize + Send + 'static>,
+    Box<dyn erased_serde::Serialize + Send + 'static>,
+>;
 
 // A boxed future holding the result of an RPC command.
 type RpcResultFuture = BoxFuture<'static, RpcResult>;
@@ -71,9 +75,17 @@ impl InvokeEntry_ {
 /// impl rpc::Command for ExampleCommand {}
 /// rpc::decl_command! {ExampleCommand}
 ///
+/// #[derive(serde::Serialize)]
+/// struct ExampleResult {
+///    text: String,
+/// }
+///
 /// rpc::rpc_invoke_fn!{
-///     // XXXX wrong return type.
-///     async fn example(obj: ExampleObject, cmd: ExampleCommand, ctx) -> String {
+///     // XXXX wrong error type.
+///
+///     // Note that the return type of this function must be a Result, and must be
+///     // `Serialize + Send + 'static`.
+///     async fn example(obj: ExampleObject, cmd: ExampleCommand, ctx) -> Result<ExampleResult, String> {
 ///         // XXXX In this function, obj is actually an Arc<ExampleObject>,
 ///         //      cmd is actually a Box<ExampleCommand>,
 ///         //      and ctx is actually an Arc<dyn rpc::Context>!
@@ -81,7 +93,7 @@ impl InvokeEntry_ {
 ///         // XXXX This is quite infelicitous, since the details are hidden.  We should
 ///         //      probably make the type information explicit instead.
 ///         println!("Running example command!");
-///         "here is your result".into()
+///         Ok(ExampleResult { text: "here is your result".into() })
 ///     }
 /// }
 /// ```
@@ -103,7 +115,10 @@ macro_rules! rpc_invoke_fn {
         // Now we declare a type-erased version of the function that takes Arc<dyn> and Box<dyn> arguments, and returns
         // a boxed future.
         #[doc(hidden)]
-        fn [<_typeerased_ $name>](obj: std::sync::Arc<dyn $crate::Object>, cmd: Box<dyn $crate::Command>, ctx: std::sync::Arc<dyn $crate::Context>) -> $crate::futures::future::BoxFuture<'static, $rtype> {
+        fn [<_typeerased_ $name>](obj: std::sync::Arc<dyn $crate::Object>,
+                                  cmd: Box<dyn $crate::Command>,
+                                  ctx: std::sync::Arc<dyn $crate::Context>)
+        -> $crate::futures::future::BoxFuture<'static, $crate::RpcResult> {
             use $crate::futures::FutureExt;
             let obj = obj
                 .downcast_arc::<$objtype>()
@@ -111,7 +126,13 @@ macro_rules! rpc_invoke_fn {
             let cmd = cmd
                 .downcast::<$cmdtype>()
                 .unwrap_or_else(|_| panic!());
-            $name(obj, cmd, ctx).boxed()
+            $name(obj, cmd, ctx).map(|r| {
+                let r: $crate::RpcResult = match r {
+                    Ok(v) => Ok(Box::new(v)),
+                    Err(e) => Err(Box::new(e))
+                };
+                r
+            }).boxed()
         }
         // Finally we use `inventory` to register the type-erased function with
         // the right types.
@@ -199,10 +220,15 @@ mod test {
     crate::decl_object! {Animal}
     crate::decl_command! {SayHi}
 
+    #[derive(serde::Serialize)]
+    struct Hello {
+        name: String,
+    }
+
     rpc_invoke_fn! {
         /// Hello there
-        async fn invoke(_obj: Animal, cmd: SayHi, _ctx) -> String {
-            format!("{:?}", cmd)
+        async fn invoke(_obj: Animal, cmd: SayHi, _ctx) -> Result<Hello, String> {
+            Ok(Hello{ name: format!("{:?}", cmd) })
         }
     }
 
@@ -236,6 +262,9 @@ mod test {
         let hi: Box<dyn Command> = Box::new(SayHi {});
         let ctx = Arc::new(Ctx {});
         let s = invoke_command(animal, hi, ctx).unwrap().await;
-        assert_eq!(&s, "SayHi");
+        assert_eq!(
+            serde_json::to_string(&s.unwrap_or_else(|_| panic!())).unwrap(),
+            r#"{"name":"SayHi"}"#
+        );
     }
 }
