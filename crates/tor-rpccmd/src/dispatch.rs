@@ -17,7 +17,7 @@ use crate::{Command, Context, Object, RpcError};
 #[doc(hidden)]
 pub type RpcResult = Result<Box<dyn erased_serde::Serialize + Send + 'static>, RpcError>;
 
-// A boxed future holding the result of an RPC command.
+/// A boxed future holding the result of an RPC command.
 type RpcResultFuture = BoxFuture<'static, RpcResult>;
 
 /// A type-erased RPC-command invocation function.
@@ -146,7 +146,9 @@ macro_rules! rpc_invoke_fn {
 /// Actual types to use when looking up a function in our HashMap.
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 struct FuncType {
+    /// The type of object to which this function applies.
     obj_id: ConstTypeId_,
+    /// The type of command to which this function applies.
     cmd_id: ConstTypeId_,
 }
 
@@ -202,17 +204,27 @@ pub fn invoke_command(
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use futures_await_test::async_test;
 
     // Define 3 animals and one brick.
     #[derive(Clone)]
-    pub struct Swan {}
+    struct Swan {}
     #[derive(Clone)]
-    pub struct Wombat {}
+    struct Wombat {}
     #[derive(Clone)]
-    pub struct Sheep {}
+    struct Sheep {}
     #[derive(Clone)]
-    pub struct Brick {}
+    struct Brick {}
 
     impl crate::Object for Swan {}
     impl crate::Object for Wombat {}
@@ -222,9 +234,9 @@ mod test {
 
     // Define 2 commands.
     #[derive(Debug, serde::Deserialize)]
-    pub struct GetName {}
+    struct GetName {}
     #[derive(Debug, serde::Deserialize)]
-    pub struct GetKids {}
+    struct GetKids {}
     #[typetag::deserialize]
     impl crate::Command for GetName {}
     #[typetag::deserialize]

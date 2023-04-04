@@ -1,8 +1,11 @@
+//! Object type for our RPC system.
+
 use downcast_rs::DowncastSync;
 use serde::{Deserialize, Serialize};
 
 use crate::typeid::GetConstTypeId_;
 
+/// An object to which commands can be addressed by our RPC system.
 pub trait Object: GetConstTypeId_ + DowncastSync {}
 downcast_rs::impl_downcast!(sync Object);
 

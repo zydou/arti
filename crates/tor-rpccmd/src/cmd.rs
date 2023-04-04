@@ -1,3 +1,5 @@
+//! Command type for the RPC system.
+
 use downcast_rs::Downcast;
 
 use crate::typeid::GetConstTypeId_;

@@ -34,6 +34,10 @@ where
     }
 }
 
+/// Helper: Serialize an ErrorKind in RpcError.
+///
+/// TODO RPC: This function is bogus and should probably get replaced when we
+/// have more of a handle on our error format.
 fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S::Ok, S::Error> {
     // TODO RPC: this format is wrong and temporary.
     s.serialize_str(&format!("{:?}", kind))

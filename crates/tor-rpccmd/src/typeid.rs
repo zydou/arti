@@ -21,6 +21,7 @@
 ///
 /// [relevant Rust feature]: https://github.com/rust-lang/rust/issues/77125
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
+#[allow(clippy::exhaustive_structs)]
 pub struct ConstTypeId_(
     /// Sadly this has to be `pub` so we can construct these from other crates.
     ///
@@ -77,6 +78,17 @@ pub use impl_const_type_id;
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use assert_impl::assert_impl;
 
     struct Foo(usize);
