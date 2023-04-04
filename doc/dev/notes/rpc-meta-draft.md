@@ -341,6 +341,11 @@ data
   The `data` can be parsed without knowing the method that generated the error,
   although obviously the meaning will depend on what operation was being attempted.
 
+  Improved erorr handling in Arti may mean Arti generates
+  different error `data` for particular situations in the future,
+  so clients should avoid relying on the precise contents,
+  other than for non-critical functions such as reporting.
+
 code
 : A Number that indicates the error type that occurred according
   to the following table:
