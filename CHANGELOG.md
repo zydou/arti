@@ -10,8 +10,8 @@ to fix a compatibility issue.  We had previously configured the
 `tor-llcrypto` crate to work with any version of [`x25519-dalek`]
 version "2.0.0-pre.1" or later, but the recent release of version
 "2.0.0-rc.2" had a breaking change that stopped `tor-llcrypto` from
-compiling.  The new version of `tor-llcrypto` pins the old version of
-`x25519-dalek`, to avoid the incompatibility.  We expect that our
+compiling.  The new version of `tor-llcrypto` now properly pins the old version of
+`x25519-dalek`, to avoid picking up such incompatible pre-releases.  We expect that our
 next release of tor-llcrypto will upgrade to the newer `x25519-dalek`
 release.
 
