@@ -394,7 +394,8 @@ The differences are:
    it is dealt with at the framing layer
    (probably, by summarily closing the transport connection)
 
- * The `arti_kind` and `long_message` fields have been added.
+ * The `arti_kind` field has been added,
+   and use of `code` is discouraged.
 
  * The `message` field may be less concise than JSON-RPC envisages.
 
