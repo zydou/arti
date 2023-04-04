@@ -204,27 +204,61 @@ pub fn invoke_command(
 mod test {
     use futures_await_test::async_test;
 
-    pub struct Animal {}
+    // Define 3 animals and one brick.
+    #[derive(Clone)]
+    pub struct Swan {}
+    #[derive(Clone)]
+    pub struct Wombat {}
+    #[derive(Clone)]
+    pub struct Sheep {}
+    #[derive(Clone)]
+    pub struct Brick {}
 
+    impl crate::Object for Swan {}
+    impl crate::Object for Wombat {}
+    impl crate::Object for Sheep {}
+    impl crate::Object for Brick {}
+    crate::decl_object! {Swan Wombat Sheep Brick}
+
+    // Define 2 commands.
     #[derive(Debug, serde::Deserialize)]
-    pub struct SayHi {}
-    impl crate::Object for Animal {}
+    pub struct GetName {}
+    #[derive(Debug, serde::Deserialize)]
+    pub struct GetKids {}
     #[typetag::deserialize]
-    impl crate::Command for SayHi {}
-
-    crate::decl_object! {Animal}
-    crate::decl_command! {SayHi}
+    impl crate::Command for GetName {}
+    #[typetag::deserialize]
+    impl crate::Command for GetKids {}
+    crate::decl_command! {GetName GetKids}
 
     #[derive(serde::Serialize)]
-    struct Hello {
-        name: String,
+    struct Outcome {
+        v: String,
     }
 
     rpc_invoke_fn! {
-        /// Hello there
-        async fn invoke(_obj: Arc<Animal>, cmd: Box<SayHi>, _ctx: Arc<dyn crate::Context>) -> Result<Hello, crate::RpcError> {
-            Ok(Hello{ name: format!("{:?}", cmd) })
+        async fn getname_swan(_obj: Arc<Swan>, _cmd: Box<GetName>, _ctx: Arc<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+            Ok(Outcome{ v: "swan".to_string() })
         }
+        async fn getname_sheep(_obj: Arc<Sheep>, _cmd: Box<GetName>, _ctx: Arc<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+            Ok(Outcome{ v: "sheep".to_string() })
+        }
+        async fn getname_wombat(_obj: Arc<Wombat>, _cmd: Box<GetName>, _ctx: Arc<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+            Ok(Outcome{ v: "wombat".to_string() })
+        }
+        async fn getname_brick(_obj: Arc<Brick>, _cmd: Box<GetName>, _ctx: Arc<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+            Ok(Outcome{ v: "brick".to_string() })
+        }
+        async fn getkids_swan(_obj: Arc<Swan>, _cmd: Box<GetKids>, _ctx: Arc<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+            Ok(Outcome{ v: "cygnets".to_string() })
+        }
+        async fn getkids_sheep(_obj: Arc<Sheep>, _cmd: Box<GetKids>, _ctx: Arc<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+            Ok(Outcome{ v: "lambs".to_string() })
+        }
+        async fn getkids_wombat(_obj: Arc<Wombat>, _cmd: Box<GetKids>, _ctx: Arc<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+            Ok(Outcome{ v: "joeys".to_string() })
+        }
+        // bricks don't have children.
     }
 
     struct Ctx {}
@@ -249,17 +283,46 @@ mod test {
         }
     }
 
-    // TODO RPC: Improve this test!
     #[async_test]
-    async fn t() {
+    async fn try_invoke() {
         use super::*;
-        let animal: Arc<dyn Object> = Arc::new(Animal {});
-        let hi: Box<dyn Command> = Box::new(SayHi {});
-        let ctx = Arc::new(Ctx {});
-        let s = invoke_command(animal, hi, ctx).unwrap().await;
+        fn invoke_helper<O: Object, C: Command>(
+            obj: O,
+            cmd: C,
+        ) -> Result<RpcResultFuture, InvokeError> {
+            let animal: Arc<dyn crate::Object> = Arc::new(obj);
+            let request: Box<dyn crate::Command> = Box::new(cmd);
+            let ctx = Arc::new(Ctx {});
+            invoke_command(animal, request, ctx)
+        }
+        async fn invoke_ok<O: crate::Object, C: crate::Command>(obj: O, cmd: C) -> String {
+            let res = invoke_helper(obj, cmd).unwrap().await.unwrap();
+            serde_json::to_string(&res).unwrap()
+        }
+        async fn sentence<O: crate::Object + Clone>(obj: O) -> String {
+            format!(
+                "Hello I am a friendly {} and these are my lovely {}.",
+                invoke_ok(obj.clone(), GetName {}).await,
+                invoke_ok(obj, GetKids {}).await
+            )
+        }
+
         assert_eq!(
-            serde_json::to_string(&s.unwrap_or_else(|_| panic!())).unwrap(),
-            r#"{"name":"SayHi"}"#
+            sentence(Swan {}).await,
+            r#"Hello I am a friendly {"v":"swan"} and these are my lovely {"v":"cygnets"}."#
         );
+        assert_eq!(
+            sentence(Sheep {}).await,
+            r#"Hello I am a friendly {"v":"sheep"} and these are my lovely {"v":"lambs"}."#
+        );
+        assert_eq!(
+            sentence(Wombat {}).await,
+            r#"Hello I am a friendly {"v":"wombat"} and these are my lovely {"v":"joeys"}."#
+        );
+
+        assert!(matches!(
+            invoke_helper(Brick {}, GetKids {}),
+            Err(InvokeError::NoImpl)
+        ));
     }
 }
