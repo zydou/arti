@@ -11,7 +11,7 @@ to fix a compatibility issue.  We had previously configured the
 version "2.0.0-pre.1" or later, but the recent release of version
 "2.0.0-rc.2" had a breaking change that stopped `tor-llcrypto` from
 compiling.  The new version of `tor-llcrypto` now properly pins the old version of
-`x25519-dalek`, to avoid picking up such incompatible pre-releases.  We expect that our
+`x25519-dalek`, to avoid picking up such incompatible pre-releases.  We hope that our
 next release of tor-llcrypto will upgrade to the newer `x25519-dalek`
 release.
 
