@@ -3,6 +3,25 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# tor-llcrypto patch release 0.4.4 — 4 April 2023
+
+On 4 April 2023, we put out a patch release (0.4.4) to `tor-llcrypto`,
+to fix a compatibility issue.  We had previously configured the
+`tor-llcrypto` crate to work with any version of [`x25519-dalek`]
+version "2.0.0-pre.1" or later, but the recent release of version
+"2.0.0-rc.2" had a breaking change that stopped `tor-llcrypto` from
+compiling.  The new version of `tor-llcrypto` now properly pins the
+old version of `x25519-dalek`, to avoid picking up such incompatible
+pre-releases.  We hope that our next release of tor-llcrypto will
+upgrade to the newer `x25519-dalek` release.
+
+Additional resources: [#807] [!1108].
+
+[!1108]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1108
+[#807]: https://gitlab.torproject.org/tpo/core/arti/-/issues/807
+[`x25519-dalek`]: https://github.com/dalek-cryptography/x25519-dalek
+
+
 # Arti 1.1.3 — 31 March 2023
 
 Arti 1.1.3 continues our work on onion services.  We can now parse all
