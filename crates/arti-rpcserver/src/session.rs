@@ -25,6 +25,9 @@ pub(crate) struct Session {
     inner: Mutex<Inner>,
 }
 
+impl rpc::Object for Session {}
+rpc::decl_object! {Session}
+
 /// The inner, lock-protected part of a session.
 struct Inner {
     /// Map from request ID to handles; used when we need to cancel a request.
@@ -56,7 +59,10 @@ impl Session {
         self: &Arc<Self>,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        // TODO RPC implement.
+        if id.as_ref() == "session" {
+            return Ok(self.clone());
+        }
+
         Err(rpc::LookupError::NoObject(id.clone()))
     }
 
@@ -308,5 +314,22 @@ impl rpc::Context for RequestContext<()> {
 
     fn accepts_updates(&self) -> bool {
         false
+    }
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+struct Echo {
+    msg: String,
+}
+#[typetag::deserialize(name = "echo")]
+impl rpc::Command for Echo {}
+rpc::decl_command! {Echo}
+
+rpc::rpc_invoke_fn! {
+    /// Implementation for calling "echo" on a session
+    ///
+    /// TODO RPC: Remove this. It shouldn't exist.
+    async fn echo_on_session(_obj: Arc<Session>, cmd: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
+        Ok(cmd)
     }
 }
