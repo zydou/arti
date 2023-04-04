@@ -49,6 +49,7 @@ use std::sync::Arc;
 pub use cmd::Command;
 pub use dispatch::invoke_command;
 pub use err::RpcError;
+use futures::Sink;
 pub use obj::{Object, ObjectId};
 
 #[doc(hidden)]
@@ -73,8 +74,9 @@ pub enum LookupError {
 }
 
 /// A trait describing the context in which an RPC command is executed.
-#[async_trait]
-pub trait Context: Send + Sync {
+pub trait Context:
+    Send + Sink<Box<dyn erased_serde::Serialize + Send + 'static>, Error = SendUpdateError>
+{
     /// Look up an object by identity within this context.
     ///
     /// A return of `None` may indicate that the object has disappeared,
@@ -85,18 +87,6 @@ pub trait Context: Send + Sync {
 
     /// Return true if the request for the current command included a request for incremental updates.
     fn accepts_updates(&self) -> bool;
-
-    /// Try to send an update update to this request.
-    ///
-    /// Returns an error if no updates were requested.
-    ///
-    /// TODO RPC: I think maybe instead this should be a function that returns a
-    /// `Box<dyn Sink<>>`, but I'm not sure that's right, or the the best way to
-    /// achieve it.
-    async fn send_untyped_update(
-        &self,
-        update: Box<dyn erased_serde::Serialize + Send>,
-    ) -> Result<(), SendUpdateError>;
 }
 
 /// An error caused while trying to send an update to a command.
@@ -124,14 +114,6 @@ pub trait ContextExt: Context {
             .ok_or_else(|| LookupError::NoObject(id.clone()))?
             .downcast_arc()
             .map_err(|_| LookupError::WrongType(id.clone()))
-    }
-
-    /// Send an update to this request, if possible.
-    async fn send_update<T: serde::Serialize + 'static + Send>(
-        &self,
-        update: T,
-    ) -> Result<(), SendUpdateError> {
-        self.send_untyped_update(Box::new(update)).await
     }
 }
 impl<T: Context> ContextExt for T {}
