@@ -110,7 +110,7 @@ an "error" indicates a failure.
 Messages are representable as JSON -
 specifically, the are within the subset defined in RFC7493 (I-JSON).
 In the current concrete protocol they are *represented as* JSON;
-we may define other encodings/framkings in the future.
+we may define other encodings/framings in the future.
 
 ## Requests, Objects, and Visibility
 
@@ -307,7 +307,7 @@ The client must not send JSON documents that are not valid I-JSON.
 Arti will only send valid I-JSON
 (assuming the client does so too).
 
-We speak of `fields`. meaning the members of a JSON object.
+We speak of `fields`, meaning the members of a JSON object.
 
 ### A variant: JSON-RPC.
 
