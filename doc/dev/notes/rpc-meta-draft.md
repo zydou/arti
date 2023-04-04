@@ -348,7 +348,14 @@ data
 
 code
 : A Number that indicates the error type that occurred according
-  to the following table:
+  to the following table.
+  The values are in accordance with the JSON-RPC specification.
+
+  The `code` field is provided for JSON-RPC compatibility,
+  and its use is not recommended.
+  Use `arti_kind` to distinguish error categories instead.
+  For example, instead of comparing `code` to `-32601`,
+  recognise `RpcMethodNotFound` in `arti_kinds`.
 
 ```
 code 	message 	meaning
