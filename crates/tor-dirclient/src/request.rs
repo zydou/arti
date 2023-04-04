@@ -9,6 +9,9 @@ use tor_netdoc::doc::netstatus::ConsensusFlavor;
 use tor_netdoc::doc::routerdesc::RdDigest;
 use tor_proto::circuit::ClientCirc;
 
+#[cfg(feature = "hs-client")]
+use tor_hscrypto::pk::HsBlindId;
+
 /// Alias for a result with a `RequestError`.
 type Result<T> = std::result::Result<T, crate::err::RequestError>;
 
@@ -485,6 +488,46 @@ impl Requestable for RoutersOwnDescRequest {
     }
 }
 
+/// A request to download a hidden service descriptor
+///
+/// rend-spec-v3 2.2.6
+#[derive(Debug, Clone)]
+#[cfg(feature = "hs-client")]
+pub struct HsDescDownloadRequest {
+    /// What hidden service?
+    hsid: HsBlindId,
+}
+
+#[cfg(feature = "hs-client")]
+impl HsDescDownloadRequest {
+    /// Construct a request for all router descriptors.
+    pub fn new(hsid: HsBlindId) -> Self {
+        HsDescDownloadRequest { hsid }
+    }
+}
+
+#[cfg(feature = "hs-client")]
+impl Requestable for HsDescDownloadRequest {
+    fn make_request(&self) -> Result<http::Request<()>> {
+        let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
+        // TODO HS: is it OK to hardcode the version for now?
+        let uri = format!("/tor/hs/3/{}", hsid);
+        let req = http::Request::builder().method("GET").uri(uri);
+        let req = add_common_headers(req);
+        Ok(req.body(())?)
+    }
+
+    fn partial_docs_ok(&self) -> bool {
+        false
+    }
+
+    fn max_response_len(&self) -> usize {
+        // rend-spec-v3 2.5.1.4
+        // TODO HS: spec says this should be a consensus parameter, but we have no netdir here
+        // 50 KiB
+        50 * 1024
+    }
+}
 /// List the encodings we accept
 fn encodings() -> String {
     #[allow(unused_mut)]
@@ -522,6 +565,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     #[test]
     fn test_md_request() -> Result<()> {
@@ -668,6 +712,26 @@ mod test {
         assert_eq!(ds, vec![d1, d2]);
         let req2 = crate::util::encode_request(&req2.make_request()?);
         assert_eq!(req, req2);
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "hs-client")]
+    fn test_hs_desc_download_request() -> Result<()> {
+        let hsid = [1, 2, 3, 4].iter().cycle().take(32).cloned().collect_vec();
+        let hsid = Ed25519Identity::new(hsid[..].try_into().unwrap());
+        let hsid = HsBlindId::from(hsid);
+        let req = HsDescDownloadRequest::new(hsid);
+        assert!(!req.partial_docs_ok());
+        assert_eq!(req.max_response_len(), 50 * 1024);
+
+        let req = crate::util::encode_request(&req.make_request()?);
+
+        assert_eq!(
+            req,
+            format!("GET /tor/hs/3/AQIDBAECAwQBAgMEAQIDBAECAwQBAgMEAQIDBAECAwQ HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings())
+        );
+
         Ok(())
     }
 }
