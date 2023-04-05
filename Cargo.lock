@@ -238,8 +238,11 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
+ "tokio-util",
  "tor-rpccmd",
  "tor-rtcompat",
+ "tracing",
  "typetag",
 ]
 

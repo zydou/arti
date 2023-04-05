@@ -11,8 +11,15 @@ keywords = ["tor", "arti", "rpc"]
 categories = ["asynchronous"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+default = []
+full = []
+
+experimental = ["tokio"]
+tokio = ["tokio-crate", "tokio-util"]
+
 [dependencies]
-anyhow = "1"                                                    # XXXX REMOVE
+anyhow = "1"                                                                               # XXXX REMOVE
 arti-client = { path = "../arti-client", version = "0.8.2" }
 asynchronous-codec = { version = "0.6.0", features = ["json"] }
 bytes = "1"
@@ -22,8 +29,11 @@ pin-project = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "1"
+tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["full"] }
+tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-rpccmd = { path = "../tor-rpccmd", version = "0.0.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
+tracing = "0.1.18"
 typetag = "0.2.7"
 
 [dev-dependencies]
