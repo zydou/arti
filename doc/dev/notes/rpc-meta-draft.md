@@ -759,3 +759,30 @@ fn poll_id(Session) -> Option<Fd>;
 
 
 
+# Appendix
+
+Experimenting with Arti
+
+We have a limited implementation of this protocol in Arti right now,
+on an experimental basis.
+It only works on Unix, with `tokio`.
+To try it, enable the `rpc` Cargo feature on the `arti` crate,
+and then connect to `~/.arti-rpc-TESTING/PIPE`.  (You can use
+`nc -U` to do this.)
+
+Right now only two commands are supported:
+Authenticating and an echo command.
+The echo command will only work post-authentication.
+
+Here is an example session:
+
+```
+C: { "id":3, "obj": "session", "method":"auth:authenticate", "params": {"method": "inherent:unix_path"} }
+S: {"id":3,"result":{}}
+C: { "id":7, "obj": "session", "method":"echo", "params": {"msg": "Hello World"} }
+S: {"id":7,"result":{"msg":"Hello World"}}
+```
+
+Note that the server will currently close your connection
+at the first sign of invalid JSON.
+
