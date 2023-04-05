@@ -19,7 +19,6 @@ experimental = ["tokio"]
 tokio = ["tokio-crate", "tokio-util"]
 
 [dependencies]
-anyhow = "1"                                                                               # XXXX REMOVE
 arti-client = { path = "../arti-client", version = "0.8.2" }
 asynchronous-codec = { version = "0.6.0", features = ["json"] }
 bytes = "1"

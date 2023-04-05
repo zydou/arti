@@ -228,7 +228,6 @@ dependencies = [
 name = "arti-rpcserver"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "arti-client",
  "asynchronous-codec",
  "bytes",

@@ -110,8 +110,7 @@ impl Session {
         self: Arc<Self>,
         mut request_stream: IN,
         mut response_sink: OUT,
-    ) -> anyhow::Result<()>
-    // XXXX Make a real error type and remove this dependency.
+    ) -> Result<(), SessionError>
     where
         IN: FusedStream<Item = Result<Request, asynchronous_codec::JsonCodecError>> + Unpin,
         OUT: Sink<BoxedResponse> + Unpin,
@@ -137,7 +136,7 @@ impl Session {
                     let r: BoxedResponse = r.expect("Somehow, future::pending() terminated.");
                     debug_assert!(r.body.is_final());
                     self.remove_request(&r.id);
-                    response_sink.send(r).await?;
+                    response_sink.send(r).await.map_err(|_| SessionError::WriteFailed)?;
                 }
 
                 r = rx_update.next() => {
@@ -145,7 +144,7 @@ impl Session {
                     // inform the client.
                     let update = r.expect("Somehow, tx_update got closed.");
                     debug_assert!(! update.body.is_final());
-                    response_sink.send(update).await?;
+                    response_sink.send(update).await.map_err(|_| SessionError::WriteFailed)?;
                 }
 
                 req = request_stream.next() => {
@@ -164,7 +163,7 @@ impl Session {
                                     id: RequestId::Str("-----".into()),
                                     // TODO RPC real error type
                                     body: BoxedResponseBody::Error(Box::new(format!("Parse error: {}", e)))
-                                }).await?;
+                                }).await.map_err(|_| SessionError::WriteFailed)?;
 
                             // TODO RPC: Perhaps we should keep going? (Only if this is an authenticated session!)
                             break 'outer;
@@ -228,6 +227,15 @@ impl Session {
 
         rpc::invoke_command(obj, command, context)?.await
     }
+}
+
+/// A failure that results in closing a Session.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub(crate) enum SessionError {
+    /// Unable to write to our connection.
+    #[error("Could not write to connection")]
+    WriteFailed,
 }
 
 /// A Context object that we pass to each command invocation.
