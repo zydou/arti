@@ -786,3 +786,4 @@ S: {"id":7,"result":{"msg":"Hello World"}}
 Note that the server will currently close your connection
 at the first sign of invalid JSON.
 
+Please don't expect the final implementation to work this way!
