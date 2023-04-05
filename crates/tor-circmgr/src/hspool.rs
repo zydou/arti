@@ -27,7 +27,7 @@ use tracing::{debug, warn};
 /// We will use this to tell how the path for a given circuit is to be
 /// constructed.
 #[cfg(feature = "hs-common")]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum HsCircKind {
     /// Circuit from an onion service to an HsDir.
