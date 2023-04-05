@@ -12,15 +12,7 @@ categories = ["command-line-utilities", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = [
-    "tokio",
-    "native-tls",
-    "dns-proxy",
-    "harden",
-    "compression",
-    "bridge-client",
-    "pt-client",
-]
+default = ["tokio", "native-tls", "dns-proxy", "harden", "compression", "bridge-client", "pt-client"]
 
 full = [
     "async-std",
