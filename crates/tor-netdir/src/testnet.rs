@@ -147,7 +147,7 @@ where
     let f = RelayFlags::RUNNING | RelayFlags::VALID | RelayFlags::V2DIR;
     // define 4 groups of flags
     let flags = [
-        f,
+        f | RelayFlags::HSDIR,
         f | RelayFlags::EXIT,
         f | RelayFlags::GUARD,
         f | RelayFlags::EXIT | RelayFlags::GUARD,
