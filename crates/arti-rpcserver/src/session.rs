@@ -9,6 +9,7 @@ use futures::{
     FutureExt, Sink, SinkExt, StreamExt,
 };
 use pin_project::pin_project;
+use rpc::RpcError;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
@@ -28,6 +29,14 @@ pub(crate) struct Session {
 impl rpc::Object for Session {}
 rpc::decl_object! {Session}
 
+/// An unauthenticated session object, as exposed to an RPC client that hasn't authenticated.
+struct UnauthenticatedSession {
+    /// The inner session.
+    inner: Arc<Session>,
+}
+impl rpc::Object for UnauthenticatedSession {}
+rpc::decl_object! {UnauthenticatedSession}
+
 /// The inner, lock-protected part of a session.
 struct Inner {
     /// Map from request ID to handles; used when we need to cancel a request.
@@ -36,6 +45,9 @@ struct Inner {
     // this into a multimap, or we can declare that cancelling a request only
     // cancels the most recent request sent with that ID.
     inflight: HashMap<RequestId, CancelHandle>,
+
+    /// True if the user has authenticated.
+    authenticated: bool,
 }
 
 /// How many updates can be pending, per session, before they start to block?
@@ -50,6 +62,7 @@ impl Session {
         Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
+                authenticated: false,
             }),
         }
     }
@@ -59,8 +72,19 @@ impl Session {
         self: &Arc<Self>,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
+        let authenticated = self.inner.lock().expect("lock poisoned").authenticated;
+
         if id.as_ref() == "session" {
-            return Ok(self.clone());
+            if authenticated {
+                return Ok(self.clone());
+            } else {
+                return Ok(Arc::new(UnauthenticatedSession {
+                    inner: self.clone(),
+                }));
+            }
+        } else if !authenticated {
+            // Maybe thos should be a permission-denied error instead.
+            return Err(rpc::LookupError::NoObject(id.clone()));
         }
 
         Err(rpc::LookupError::NoObject(id.clone()))
@@ -331,5 +355,50 @@ rpc::rpc_invoke_fn! {
     /// TODO RPC: Remove this. It shouldn't exist.
     async fn echo_on_session(_obj: Arc<Session>, cmd: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
         Ok(cmd)
+    }
+}
+
+/// Command to implement basic authentication.  Right now only "I connected to
+/// you so I must have permission!" is supported.
+#[derive(Debug, serde::Deserialize)]
+struct Authenticate {
+    method: String,
+}
+#[typetag::deserialize(name = "auth:authenticate")]
+impl rpc::Command for Authenticate {}
+rpc::decl_command! {Authenticate}
+
+/// An empty structure used for "okay" replies with no additional data.
+///
+/// TODO RPC: It would be good if we could specialize our serde impl so that we could just use () for this.
+#[derive(Debug, serde::Serialize)]
+struct Nil {}
+
+/// An error during authentication.
+#[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
+enum AuthenticationFailure {
+    /// We don't recognize the type of authentication that the user asked for.
+    #[error("authentication method not recognized.")]
+    UnrecognizedMethod,
+}
+impl tor_error::HasKind for AuthenticationFailure {
+    fn kind(&self) -> tor_error::ErrorKind {
+        // TODO RPC not right.
+        tor_error::ErrorKind::LocalProtocolViolation
+    }
+}
+
+rpc::rpc_invoke_fn! {
+    async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, cmd: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
+        if cmd.method == "inherent:unix_path" {
+            // Only unix named pipes are supported right now, so if you have
+            // permission to connect to the pipes, you have permission to
+            // connect.
+        } else {
+            return Err(RpcError::from(AuthenticationFailure::UnrecognizedMethod));
+        }
+
+        unauth.inner.inner.lock().expect("Poisoned lock").authenticated = true;
+        Ok(Nil {})
     }
 }

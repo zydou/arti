@@ -240,6 +240,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tor-error",
  "tor-rpccmd",
  "tor-rtcompat",
  "tracing",
