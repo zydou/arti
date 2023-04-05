@@ -142,6 +142,19 @@ async fn run<R: Runtime>(
     // for bootstrap to complete, rather than getting errors.
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
+
+    #[cfg(all(feature = "rpc", feature = "tokio"))]
+    let pipe_dir = {
+        // TODO RPC: This is a kludge and belongs elsewhere.
+        // TODO RPC: This path is not final and should not be.
+        let pipedir = tor_config::CfgPath::new("~/.arti-rpc-TESTING/".to_owned());
+        let path = pipedir.path()?;
+        client_config
+            .fs_mistrust()
+            .verifier()
+            .make_secure_dir(path)?
+    };
+
     let client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)
         .bootstrap_behavior(OnDemand);
@@ -177,6 +190,21 @@ async fn run<R: Runtime>(
     if proxy.is_empty() {
         warn!("No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option.");
         return Ok(());
+    }
+
+    #[cfg(all(feature = "rpc", feature = "tokio"))]
+    {
+        // TODO RPC This code doesn't really belong here; it's just an example.
+        use futures::task::SpawnExt;
+
+        let pipe_path = pipe_dir.join("PIPE")?;
+        // It's just a unix thing; if we leave this sitting around, binding to it won't
+        // work right.  There is probably a better solution.
+        if pipe_path.exists() {
+            std::fs::remove_file(&pipe_path)?;
+        }
+
+        runtime.spawn(arti_rpcserver::listen::accept_connections(pipe_path).map(|_| ()))?;
     }
 
     let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);
