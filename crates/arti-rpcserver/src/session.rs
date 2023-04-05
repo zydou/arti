@@ -1,3 +1,5 @@
+//! RPC session support, mainloop, and protocol implementation.
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -143,7 +145,7 @@ impl Session {
                     // inform the client.
                     let update = r.expect("Somehow, tx_update got closed.");
                     debug_assert!(! update.body.is_final());
-                    response_sink.send(update).await?
+                    response_sink.send(update).await?;
                 }
 
                 req = request_stream.next() => {
@@ -228,10 +230,17 @@ impl Session {
     }
 }
 
+/// A Context object that we pass to each command invocation.
+///
+/// It provides the `rpc::Context` interface, which is used to send incremental
+/// updates and lookup objects by their ID.
 #[pin_project]
 struct RequestContext<T> {
+    /// The underlying RPC session.
     session: Arc<Session>,
+    /// The request ID. It's used to tag every reply.
     id: RequestId,
+    /// A `futures::Sink` if incremental updates are wanted; `()` otherwise.
     #[pin]
     reply_tx: T,
 }
@@ -341,8 +350,10 @@ impl rpc::Context for RequestContext<()> {
     }
 }
 
+/// A simple temporary command to echo a reply.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct Echo {
+    /// A message to echo.
     msg: String,
 }
 #[typetag::deserialize(name = "echo")]
@@ -362,6 +373,9 @@ rpc::rpc_invoke_fn! {
 /// you so I must have permission!" is supported.
 #[derive(Debug, serde::Deserialize)]
 struct Authenticate {
+    /// The authentication method as enumerated in the spec.
+    ///
+    /// TODO RPC: The only supported one for now is "inherent:unix_path"
     method: String,
 }
 #[typetag::deserialize(name = "auth:authenticate")]

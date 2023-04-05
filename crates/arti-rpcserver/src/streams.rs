@@ -1,3 +1,5 @@
+//! Helper types for framing Json objects into async read/writes
+
 use std::marker::PhantomData;
 
 use asynchronous_codec::JsonCodec;
@@ -7,7 +9,8 @@ use serde::Serialize;
 use crate::msgs::BoxedResponse;
 use crate::msgs::Request;
 
-/// A stream of [`Request`] taken from an `AsyncRead` and deserialized from Json.
+/// A stream of [`Request`] taken from `T` (an `AsyncRead`) and deserialized from Json.
+#[allow(dead_code)] // TODO RPC
 pub(crate) type RequestStream<T> = asynchronous_codec::FramedRead<T, JsonCodec<(), Request>>;
 
 /// As JsonCodec, but only supports encoding, and places a newline after every
@@ -47,11 +50,23 @@ where
 
 /// A stream of [`BoxedResponse`] serialized as newline-terminated json objects
 /// onto an `AsyncWrite.`
+#[allow(dead_code)] // TODO RPC
 pub(crate) type ResponseSink<T> =
     asynchronous_codec::FramedWrite<T, JsonLinesEncoder<BoxedResponse>>;
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use super::*;
     use crate::msgs::*;
     use futures::sink::SinkExt as _;

@@ -12,7 +12,7 @@ use tor_rpccmd as rpc;
 /// but doing so may make Arti's responses ambiguous.
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum RequestId {
+pub(crate) enum RequestId {
     /// A client-provided string.
     //
     // (We use Box<str> to save a word here, since these don't have to be
@@ -33,7 +33,7 @@ pub enum RequestId {
 // NOTE: When adding new fields to this type, make sure that `Default` gives
 // the correct value for an absent metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ReqMeta {
+pub(crate) struct ReqMeta {
     /// If true, the client will accept intermediate Updates other than the
     /// final Request or Response.
     pub(crate) updates: bool,
@@ -149,6 +149,7 @@ mod test {
     #[derive(Debug, serde::Deserialize)]
     struct DummyCmd {
         #[serde(default)]
+        #[allow(dead_code)]
         stuff: u64,
     }
 

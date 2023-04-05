@@ -1,3 +1,5 @@
+//! Cancellable futures.
+
 use std::{
     pin::Pin,
     sync::{Arc, Mutex},
@@ -38,6 +40,8 @@ struct Inner {
 /// An object that can be used to cancel a future.
 #[derive(Clone)]
 pub(crate) struct CancelHandle {
+    /// The shared state for the cancellable future between `Cancel` and
+    /// `CancelHandle`.
     inner: Arc<Mutex<Inner>>,
 }
 
@@ -60,6 +64,7 @@ impl<F> Cancel<F> {
 
 impl CancelHandle {
     /// Cancel the associated future, if it has not already finished.
+    #[allow(dead_code)] // TODO RPC
     pub(crate) fn cancel(&self) {
         let mut inner = self.inner.lock().expect("poisoned lock");
         inner.cancelled = true;
@@ -104,6 +109,17 @@ impl<F: FusedFuture> FusedFuture for Cancel<F> {
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use super::*;
     use futures_await_test::async_test;
 
