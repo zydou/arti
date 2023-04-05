@@ -30,6 +30,9 @@ build_docs = ["rand"]
 # bridge clients.
 routerdesc = []
 
+# Expose interfaces useful for testing
+testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
+
 # Enable the "ns consensus" document type, which some relays cache and serve.
 ns_consensus = []
 
@@ -37,16 +40,16 @@ ns_consensus = []
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "rand", "tor-cert/encode"]
-hs-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
+hs-service = ["hs-common", "tor-cert/encode"]
+hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
-hsdesc-inner-docs = ["visibility"]
+hsdesc-inner-docs = ["visibility"] # TODO maybe fold this feature into `testing`
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental-api = []
+experimental-api = ["testing"]
 
 # Expose various struct fields as "pub", for testing.
 #
@@ -69,6 +72,7 @@ derive_more = "0.99.3"
 digest = "0.10.0"
 educe = "0.4.6"
 hex = "0.4"
+hex-literal = { version = "0.3", optional = true }
 humantime = "2"
 itertools = "0.10.1"
 once_cell = "1"

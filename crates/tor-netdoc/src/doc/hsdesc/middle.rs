@@ -248,7 +248,7 @@ mod test {
     use super::*;
     use crate::doc::hsdesc::{
         outer::HsDescOuter,
-        test::{TEST_DATA, TEST_SUBCREDENTIAL},
+        test_data::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
 
     #[test]
