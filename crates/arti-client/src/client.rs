@@ -309,7 +309,11 @@ impl StreamPrefs {
     }
 
     // TODO hs: make setters for the `connect_to_onion_services` field.
-
+    #[cfg(feature = "hs-client")]
+    pub fn connection_to_onion_service(&mut self, connect_to_onion_services: bool) -> &mut Self {
+        self.connect_to_onion_services = connect_to_onion_services;
+        self
+    }
     /// Return a TargetPort to describe what kind of exit policy our
     /// target circuit needs to support.
     fn wrap_target_port(&self, port: u16) -> TargetPort {
