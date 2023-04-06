@@ -38,8 +38,11 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+mod join_read_write;
 mod sinkext;
 mod watch;
+
+pub use join_read_write::*;
 
 pub use sinkext::{SinkExt, SinkPrepareSendFuture, SinkSendable};
 
