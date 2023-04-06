@@ -420,13 +420,13 @@ mod test {
     use std::panic::AssertUnwindSafe;
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
-    use tor_linkspec::HasRelayIds as _;
     use tor_netdoc::doc::hsdesc::test_data;
     use tor_rtcompat::tokio::TokioNativeTlsRuntime;
     use tracing_test::traced_test;
 
     #[derive(Debug, Default)]
     struct MocksGlobal {
+        hsdirs_asked: Vec<OwnedCircTarget>,
         got_desc: Option<HsDesc>,
     }
     #[derive(Clone, Debug)]
@@ -461,7 +461,7 @@ mod test {
             target: OwnedCircTarget,
         ) -> tor_circmgr::Result<Self::ClientCirc> {
             assert_eq!(kind, HsCircKind::ClientHsDir);
-            // TODO HS check that we only made one of these requests
+            self.mglobal.lock().unwrap().hsdirs_asked.push(target);
             Ok(self.clone())
         }
     }
@@ -513,10 +513,10 @@ mod test {
         .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
         .await;
 
-        assert_eq!(
-            mocks.mglobal.lock().unwrap().got_desc,
-            Some(test_data::TEST_DATA_2.to_string())
-        );
+        let mglobal = mocks.mglobal.lock().unwrap();
+
+        assert_eq!(mglobal.hsdirs_asked.len(), 1);
+        assert_eq!(mglobal.got_desc, Some(test_data::TEST_DATA_2.to_string()));
 
         // TODO hs check the circuit in got is the one we gave out
     }
