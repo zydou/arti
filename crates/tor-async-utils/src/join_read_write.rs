@@ -1,7 +1,4 @@
 //! Join a readable and writeable into a single `AsyncRead` + `AsyncWrite`
-//!
-//! In some sense this is the converse of
-//! [`AsyncReadExt::split`](futures::AsyncReadExt::split).
 
 use std::io::Error;
 use std::pin::Pin;
@@ -15,6 +12,11 @@ use pin_project::pin_project;
 /// `AsyncRead` is forwarded to `R`.
 ///
 /// `AsyncWrite` is forwarded to `W`.
+///
+/// This is the converse of
+/// [`AsyncReadExt::split`](futures::AsyncReadExt::split).
+/// But, if `R` and `W` came from splitting a single `AsyncRead + AsyncWrite`,
+/// you probably want the `reunite` or `unsplit` method, instead of `JoinReadWrite`.
 ///
 /// Does *not* implement any kind of flushing behaviour when switching between reading and writing.
 #[pin_project]
