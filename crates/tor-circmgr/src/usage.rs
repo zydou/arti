@@ -203,6 +203,7 @@ pub(crate) enum SupportedCircUsage {
     /// This circuit is for some hs-related usage.
     /// (It should never be given to the circuit manager; the
     /// `HsPool` code will handle it instead.)
+    #[cfg(feature = "hs-common")]
     HsOnly,
     /// Use only for BEGINDIR-based non-anonymous directory connections
     /// to a particular target (which may not be in the netdir).
@@ -432,6 +433,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
             SCU::DirSpecificTarget(_) => CU::Dir,
             SCU::Exit { .. } => CU::UserTraffic,
             SCU::NoUsage => CU::UselessCircuit,
+            #[cfg(feature = "hs-common")]
             SCU::HsOnly => CU::UserTraffic,
         }
     }
