@@ -528,4 +528,7 @@ mod test {
 
         // TODO hs check the circuit in got is the one we gave out
     }
+
+    // TODO HS: test retries (of every retry loop we have here)
+    // TODO HS: test error paths
 }
