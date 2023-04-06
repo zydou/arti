@@ -19,6 +19,31 @@ use pin_project::pin_project;
 /// you probably want the `reunite` or `unsplit` method, instead of `JoinReadWrite`.
 ///
 /// Does *not* implement any kind of flushing behaviour when switching between reading and writing.
+///
+/// # Example
+///
+/// ```
+/// # #[tokio::main]
+/// # async fn main() {
+/// use tor_async_utils::JoinReadWrite;
+/// use futures::{AsyncReadExt as _, AsyncWriteExt as _};
+///
+/// let read = b"hello\n";
+/// let mut read = &read[..];
+/// let mut write = Vec::<u8>::new();
+///
+/// let mut joined = JoinReadWrite::new(read, write);
+///
+/// let mut got = String::new();
+/// let _: usize = joined.read_to_string(&mut got).await.unwrap();
+/// assert_eq!(got, "hello\n");
+///
+/// let () = joined.write_all(b"some data").await.unwrap();
+///
+/// let (r, w) = joined.into_parts();
+/// assert_eq!(w, b"some data");
+/// # }
+/// ```
 #[pin_project]
 pub struct JoinReadWrite<R: AsyncRead, W: AsyncWrite> {
     /// readable
@@ -31,29 +56,6 @@ pub struct JoinReadWrite<R: AsyncRead, W: AsyncWrite> {
 
 impl<R: AsyncRead, W: AsyncWrite> JoinReadWrite<R, W> {
     /// Join an `AsyncRead` and an `AsyncWrite` into a single `impl AsyncRead + AsyncWrite`
-    ///
-    /// ```
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// use tor_async_utils::JoinReadWrite;
-    /// use futures::{AsyncReadExt as _, AsyncWriteExt as _};
-    ///
-    /// let read = b"hello\n";
-    /// let mut read = &read[..];
-    /// let mut write = Vec::<u8>::new();
-    ///
-    /// let mut joined = JoinReadWrite::new(read, write);
-    ///
-    /// let mut got = String::new();
-    /// let _: usize = joined.read_to_string(&mut got).await.unwrap();
-    /// assert_eq!(got, "hello\n");
-    ///
-    /// let () = joined.write_all(b"some data").await.unwrap();
-    ///
-    /// let (r, w) = joined.into_parts();
-    /// assert_eq!(w, b"some data");
-    /// # }
-    /// ```
     pub fn new(r: R, w: W) -> Self {
         JoinReadWrite { r, w }
     }
