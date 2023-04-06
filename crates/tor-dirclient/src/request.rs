@@ -565,7 +565,6 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     #[test]
     fn test_md_request() -> Result<()> {
@@ -718,6 +717,7 @@ mod test {
     #[test]
     #[cfg(feature = "hs-client")]
     fn test_hs_desc_download_request() -> Result<()> {
+        use tor_llcrypto::pk::ed25519::Ed25519Identity;
         let hsid = [1, 2, 3, 4].iter().cycle().take(32).cloned().collect_vec();
         let hsid = Ed25519Identity::new(hsid[..].try_into().unwrap());
         let hsid = HsBlindId::from(hsid);
