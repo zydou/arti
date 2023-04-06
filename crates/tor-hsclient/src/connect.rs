@@ -425,7 +425,7 @@ mod test {
     use tor_rtcompat::tokio::TokioNativeTlsRuntime;
     use tracing_test::traced_test;
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     struct MocksGlobal {
         got_desc: Option<HsDesc>,
     }
@@ -491,7 +491,7 @@ mod test {
         let netdir = tor_netdir::testnet::construct_netdir();
         let netdir = Arc::new(netdir.unwrap_if_sufficient().unwrap());
         let runtime = TokioNativeTlsRuntime::current().unwrap();
-        let mglobal = Arc::new(Mutex::new(MocksGlobal { got_desc: None }));
+        let mglobal = Arc::new(Mutex::new(MocksGlobal::default()));
         let mocks = Mocks { mglobal, id: () };
         // From C Tor src/test/test_hs_common.c test_build_address
         let hsid = test_data::TEST_HSID_2.into();
