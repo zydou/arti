@@ -19,7 +19,7 @@ specific-relay = []
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-testing = []
+testing = ["tor-guardmgr/testing"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
