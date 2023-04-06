@@ -84,7 +84,7 @@ pub(crate) async fn connect<R: Runtime>(
     .await
 }
 
-/// Common context for hidden service connection operations
+/// Common context for hidden service client connection operations
 ///
 /// TODO HS: this struct will grow a generic parameter, and mock state variable,
 /// for allowing its impls to be unit tested.
