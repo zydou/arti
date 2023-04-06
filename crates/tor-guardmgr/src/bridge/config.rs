@@ -15,13 +15,13 @@ use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_linkspec::RelayId;
 use tor_linkspec::TransportId;
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
-use tor_linkspec::{HasAddrs, HasRelayIds, PtTargetAddr, RelayIdRef, RelayIdType};
+use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
 use tor_linkspec::BridgeAddr;
 
 #[cfg(feature = "pt-client")]
-use tor_linkspec::PtTarget;
+use tor_linkspec::{PtTarget, PtTargetAddr};
 
 mod err;
 pub use err::BridgeParseError;
