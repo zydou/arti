@@ -884,7 +884,7 @@ mod test {
             assert!(matches!(
                 TransportId::from_str("obfs4"),
                 Err(TransportIdError::NoSupport)
-            ))
+            ));
         }
     }
 
