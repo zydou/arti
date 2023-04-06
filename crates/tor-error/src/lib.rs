@@ -583,6 +583,8 @@ pub enum ErrorKind {
     // TODO: in the future, errors of this type should distinguish between
     // cases where this happens because of a user restriction and cases where it
     // happens because of a severely broken directory.
+    //
+    // The latter should be classified as TorDirectoryBroken.
     #[display(fmt = "could not construct a path")]
     NoPath,
 
@@ -596,6 +598,20 @@ pub enum ErrorKind {
     // TODO: same as for NoPath.
     #[display(fmt = "no exit available for path")]
     NoExit,
+
+    /// The Tor consensus directory is broken or unsuitable
+    ///
+    /// This could occur when running very old software
+    /// against the current Tor network,
+    /// so that the newer network is incompatible.
+    ///
+    /// It might also mean a catastrophic failure of the Tor network,
+    /// or that a deficient test network is in use.
+    ///
+    /// Currently some instances of this kind of problem
+    /// are reported as `NoPath` or `NoExit`.
+    #[display(fmt = "Tor network consensus directory is not usable")]
+    TorDirectoryUnusable,
 
     /// An operation failed because of _possible_ clock skew.
     ///
