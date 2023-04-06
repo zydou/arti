@@ -24,6 +24,8 @@ enum ExitPathBuilderInner<'a> {
     },
 
     /// Request a path to any relay, even those that cannot exit.
+    // TODO: #785 may make this non-conditional.
+    #[cfg(feature = "hs-common")]
     AnyRelay,
 
     /// Request a path that uses a given relay as exit node.
@@ -85,6 +87,7 @@ impl<'a> ExitPathBuilder<'a> {
     /// TODO: This doesn't seem to belong in a type called ExitPathBuilder.
     /// Perhaps we should rename ExitPathBuilder, split it into multiple types,
     /// or move this method.
+    #[cfg(feature = "hs-common")]
     pub(crate) fn for_any_compatible_with(compatible_with: Option<OwnedChanTarget>) -> Self {
         Self {
             inner: ExitPathBuilderInner::AnyRelay,
@@ -140,6 +143,7 @@ impl<'a> ExitPathBuilder<'a> {
                     })
             }
 
+            #[cfg(feature = "hs-common")]
             ExitPathBuilderInner::AnyRelay => netdir
                 .pick_relay(rng, WeightRole::Middle, |r| {
                     can_share.count(relays_can_share_circuit_opt(r, guard, config))
