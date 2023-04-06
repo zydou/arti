@@ -75,8 +75,12 @@ impl<'a> ExitPathBuilder<'a> {
         }
     }
 
-    /// Create a new builder that will try to build a three-hop non-exit
-    /// path to a given
+    /// Create a new builder that will try to build a three-hop non-exit path
+    /// that is compatible with being extended to an optional given relay.
+    ///
+    /// (The provided relay is _not_ included in the built path: we only ensure
+    /// that the path we build does not have any features that would stop us
+    /// extending it to that relay as a fourth hop.)
     ///
     /// TODO: This doesn't seem to belong in a type called ExitPathBuilder.
     /// Perhaps we should rename ExitPathBuilder, split it into multiple types,
