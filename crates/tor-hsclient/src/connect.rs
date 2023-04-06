@@ -178,7 +178,13 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
 
     /// Ensure that `Data.desc` contains the HS descriptor
     ///
-    /// Does retries and timeouts
+    /// If we have a previously-downloaded descriptor, which is still valid,
+    /// just returns a reference to it.
+    ///
+    /// Otherwise, tries to obtain the descriptor by downloading it from hsdir(s).
+    ///
+    /// Does all necessary retries and timeouts.
+    /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure(&mut self) -> Result<&HsDesc, CE> {
         // TODO HS are these right? make configurable?
         // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
