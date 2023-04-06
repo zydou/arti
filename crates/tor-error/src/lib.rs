@@ -599,7 +599,7 @@ pub enum ErrorKind {
     #[display(fmt = "no exit available for path")]
     NoExit,
 
-    /// The Tor consensus directory is broken (or unsuitable)
+    /// The Tor consensus directory is broken or unsuitable
     ///
     /// This could occur when running very old software
     /// against the current Tor network,
@@ -610,8 +610,8 @@ pub enum ErrorKind {
     ///
     /// Currently some instances of this kind of problem
     /// are reported as `NoPath` or `NoExit`.
-    #[display(fmt = "Tor network consensus directory is broken")]
-    TorDirectoryBroken,
+    #[display(fmt = "Tor network consensus directory is not usable")]
+    TorDirectoryUnusable,
 
     /// An operation failed because of _possible_ clock skew.
     ///
