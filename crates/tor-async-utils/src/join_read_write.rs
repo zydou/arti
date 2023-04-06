@@ -10,11 +10,10 @@ use pin_project::pin_project;
 /// Async readable/writeable that dispatches reads to `R` and writes to `W`
 ///
 /// `AsyncRead` is forwarded to `R`.
-///
 /// `AsyncWrite` is forwarded to `W`.
 ///
-/// This is the converse of
-/// [`AsyncReadExt::split`](futures::AsyncReadExt::split).
+/// [`JoinReadWrite::new()`] is the converse of
+/// [`AsyncReadExt::split()`](futures::AsyncReadExt::split).
 /// But, if `R` and `W` came from splitting a single `AsyncRead + AsyncWrite`,
 /// you probably want the `reunite` or `unsplit` method, instead of `JoinReadWrite`.
 ///
