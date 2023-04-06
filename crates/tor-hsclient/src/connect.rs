@@ -220,6 +220,8 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
             hs_dirs.len()
         );
 
+        // TODO HS consider launching multiple requests in parallel
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
         let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
         let (desc, bounds) = loop {
