@@ -338,13 +338,6 @@ pub enum ErrorKind {
     #[display(fmt = "problem with network or connection")]
     LocalNetworkError,
 
-    /// A problem occurred with a protocol to a local (not anonymized) party.
-    ///
-    /// This is likely a protocol-specific problem, such as bad authentication
-    /// over SOCKS.
-    #[display(fmt = "local authentication refused.")]
-    LocalProtocolFailed,
-
     /// A problem occurred when launching or communicating with an external
     /// process running on this computer.
     #[display(fmt = "an externally launched plug-in tool failed")]
@@ -485,7 +478,7 @@ pub enum ErrorKind {
     /// It seems to have been due to the hidden service violating the Tor protocols somehow.
     #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service protocol failed (apprently due to service behaviour)")]
-    OnionServiceProtocolFailed,
+    OnionServiceProtocolViolation,
 
     /// An resolve operation finished with an error.
     ///
@@ -509,8 +502,8 @@ pub enum ErrorKind {
     /// protocol violation by the peer;
     /// peer refusing to provide service;
     /// etc.
-    #[display(fmt = "remote protocol failed")]
-    RemoteProtocolFailed,
+    #[display(fmt = "remote protocol violation")]
+    RemoteProtocolViolation,
 
     /// An operation failed, and the relay in question reported that it's too
     /// busy to answer our request.
