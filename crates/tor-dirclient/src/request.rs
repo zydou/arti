@@ -376,15 +376,30 @@ impl FromIterator<MdDigest> for MicrodescRequest {
 }
 
 /// A request for one, many or all router descriptors.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[cfg(feature = "routerdesc")]
 pub struct RouterDescRequest {
+    /// The descriptors to request.
+    requested_descriptors: RequestedDescs,
+}
+
+/// Tracks the different router descriptor types.
+#[derive(Debug, Clone)]
+#[cfg(feature = "routerdesc")]
+enum RequestedDescs {
     /// If this is set, we just ask for all the descriptors.
-    // TODO: maybe this should be an enum, or maybe this case should
-    // be a different type.
-    all_descriptors: bool,
+    AllDescriptors,
     /// A list of digests to download.
-    digests: Vec<RdDigest>,
+    Digests(Vec<RdDigest>),
+}
+
+#[cfg(feature = "routerdesc")]
+impl Default for RouterDescRequest {
+    fn default() -> Self {
+        RouterDescRequest {
+            requested_descriptors: RequestedDescs::Digests(Vec::new()),
+        }
+    }
 }
 
 #[cfg(feature = "routerdesc")]
@@ -392,24 +407,12 @@ impl RouterDescRequest {
     /// Construct a request for all router descriptors.
     pub fn all() -> Self {
         RouterDescRequest {
-            all_descriptors: true,
-            digests: Vec::new(),
+            requested_descriptors: RequestedDescs::AllDescriptors,
         }
     }
     /// Construct a new empty request.
     pub fn new() -> Self {
         RouterDescRequest::default()
-    }
-    /// Add `d` to the list of digests we want to request.
-    pub fn push(&mut self, d: RdDigest) {
-        if !self.all_descriptors {
-            self.digests.push(d);
-        }
-    }
-
-    /// Return an iterator over the descriptor digests that we're asking for.
-    pub fn digests(&self) -> impl Iterator<Item = &RdDigest> {
-        self.digests.iter()
     }
 }
 
@@ -418,14 +421,18 @@ impl Requestable for RouterDescRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
         let mut uri = "/tor/server/".to_string();
 
-        if self.all_descriptors {
-            uri.push_str("all");
-        } else {
-            uri.push_str("d/");
-            let ids = digest_list_stringify(&self.digests, hex::encode, "+")
-                .ok_or(RequestError::EmptyRequest)?;
-            uri.push_str(&ids);
+        match self.requested_descriptors {
+            RequestedDescs::Digests(ref digests) => {
+                uri.push_str("d/");
+                let ids = digest_list_stringify(digests, hex::encode, "+")
+                    .ok_or(RequestError::EmptyRequest)?;
+                uri.push_str(&ids);
+            }
+            RequestedDescs::AllDescriptors => {
+                uri.push_str("all");
+            }
         }
+
         uri.push_str(".z");
 
         let req = http::Request::builder().method("GET").uri(uri);
@@ -435,15 +442,17 @@ impl Requestable for RouterDescRequest {
     }
 
     fn partial_docs_ok(&self) -> bool {
-        self.digests.len() > 1 || self.all_descriptors
+        match self.requested_descriptors {
+            RequestedDescs::Digests(ref digests) => digests.len() > 1,
+            RequestedDescs::AllDescriptors => true,
+        }
     }
 
     fn max_response_len(&self) -> usize {
         // TODO: Pick a more principled number; I just made these up.
-        if self.all_descriptors {
-            64 * 1024 * 1024 // big but not impossible
-        } else {
-            self.digests.len().saturating_mul(8 * 1024)
+        match self.requested_descriptors {
+            RequestedDescs::Digests(ref digests) => digests.len().saturating_mul(8 * 1024),
+            RequestedDescs::AllDescriptors => 64 * 1024 * 1024, // big but not impossible
         }
     }
 }
@@ -451,11 +460,11 @@ impl Requestable for RouterDescRequest {
 #[cfg(feature = "routerdesc")]
 impl FromIterator<RdDigest> for RouterDescRequest {
     fn from_iter<I: IntoIterator<Item = RdDigest>>(iter: I) -> Self {
-        let mut req = Self::new();
-        for i in iter {
-            req.push(i);
+        let digests = iter.into_iter().collect();
+
+        RouterDescRequest {
+            requested_descriptors: RequestedDescs::Digests(digests),
         }
-        req
     }
 }
 
@@ -694,9 +703,14 @@ mod test {
         let d2 = b"of writing in hex...";
 
         let mut req = RouterDescRequest::default();
-        req.push(*d1);
+
+        if let RequestedDescs::Digests(ref mut digests) = req.requested_descriptors {
+            digests.push(*d1);
+        }
         assert!(!req.partial_docs_ok());
-        req.push(*d2);
+        if let RequestedDescs::Digests(ref mut digests) = req.requested_descriptors {
+            digests.push(*d2);
+        }
         assert!(req.partial_docs_ok());
         assert_eq!(req.max_response_len(), 16 << 10);
 
@@ -707,7 +721,10 @@ mod test {
 
         // Try it with FromIterator, and use some accessors.
         let req2: RouterDescRequest = vec![*d1, *d2].into_iter().collect();
-        let ds: Vec<_> = req2.digests().collect();
+        let ds: Vec<_> = match req2.requested_descriptors {
+            RequestedDescs::Digests(ref digests) => digests.iter().collect(),
+            RequestedDescs::AllDescriptors => Vec::new(),
+        };
         assert_eq!(ds, vec![d1, d2]);
         let req2 = crate::util::encode_request(&req2.make_request()?);
         assert_eq!(req, req2);

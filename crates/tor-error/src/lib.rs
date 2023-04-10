@@ -227,7 +227,7 @@ pub enum ErrorKind {
     /// responding to traffic. It can also happen if an exit is overloaded, and
     /// unable to answer your replies in a timely manner.
     ///
-    /// In either case, trying later, or on a different circuit, might help.  
+    /// In either case, trying later, or on a different circuit, might help.
     //
     // TODO: Say that this is distinct from the case where the exit _tells you_
     // that there is a timeout.
