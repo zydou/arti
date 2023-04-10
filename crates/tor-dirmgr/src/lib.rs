@@ -357,7 +357,11 @@ impl<R: Runtime> DirMgr<R> {
         let dirmgr = Arc::new(Self::from_config(config, runtime, store, None, true)?);
 
         // TODO: add some way to return a directory that isn't up-to-date
-        let _success = dirmgr.load_directory(AttemptId::next()).await?;
+        let attempt = AttemptId::next();
+        trace!(%attempt, "Trying to load a full directory from cache");
+        let outcome = dirmgr.load_directory(attempt).await;
+        trace!(%attempt, "Load result: {outcome:?}");
+        let _success = outcome?;
 
         dirmgr
             .netdir(Timeliness::Timely)
@@ -462,6 +466,7 @@ impl<R: Runtime> DirMgr<R> {
 
         // Try to load from the cache.
         let attempt_id = AttemptId::next();
+        trace!(attempt=%attempt_id, "Starting to bootstrap directory");
         let have_directory = self.load_directory(attempt_id).await?;
 
         let (mut sender, receiver) = if have_directory {
@@ -726,6 +731,7 @@ impl<R: Runtime> DirMgr<R> {
                 None => return Ok(()),
             }
             attempt_id = bootstrap::AttemptId::next();
+            trace!(attempt=%attempt_id, "Beginning new attempt to bootstrap directory");
             state = state.reset();
         }
     }
