@@ -652,6 +652,8 @@ impl<R: Runtime> DirMgr<R> {
             ))
         };
 
+        trace!("Entering download loop.");
+
         loop {
             let mut usable = false;
 
@@ -664,7 +666,8 @@ impl<R: Runtime> DirMgr<R> {
             };
             let mut retry_delay = retry_config.schedule();
 
-            'retry_attempt: for _ in retry_config.attempts() {
+            'retry_attempt: for try_num in retry_config.attempts() {
+                trace!(attempt=%attempt_id, ?try_num, "Trying to download a directory.");
                 let outcome = bootstrap::download(
                     Weak::clone(&weak),
                     &mut state,
@@ -673,6 +676,7 @@ impl<R: Runtime> DirMgr<R> {
                     &mut on_complete,
                 )
                 .await;
+                trace!(attempt=%attempt_id, ?try_num, ?outcome, "Download is over.");
 
                 if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
@@ -694,9 +698,9 @@ impl<R: Runtime> DirMgr<R> {
 
                     let delay = retry_delay.next_delay(&mut rand::thread_rng());
                     warn!(
-                        "Unable to download a usable directory: {}.  We will restart in {:?}.",
+                        "Unable to download a usable directory: {}.  We will restart in {}.",
                         err.report(),
-                        delay,
+                        humantime::format_duration(delay),
                     );
                     {
                         let dirmgr = upgrade_weak_ref(&weak)?;
@@ -705,7 +709,7 @@ impl<R: Runtime> DirMgr<R> {
                     schedule.sleep(delay).await?;
                     state = state.reset();
                 } else {
-                    info!("Directory is complete.");
+                    info!(attempt=%attempt_id, "Directory is complete.");
                     usable = true;
                     break 'retry_attempt;
                 }
@@ -727,7 +731,10 @@ impl<R: Runtime> DirMgr<R> {
 
             let reset_at = state.reset_time();
             match reset_at {
-                Some(t) => schedule.sleep_until_wallclock(t).await?,
+                Some(t) => {
+                    trace!("Sleeping until {}", time::OffsetDateTime::from(t));
+                    schedule.sleep_until_wallclock(t).await?;
+                }
                 None => return Ok(()),
             }
             attempt_id = bootstrap::AttemptId::next();
