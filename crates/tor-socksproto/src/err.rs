@@ -61,7 +61,7 @@ impl HasKind for Error {
             }
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
             E::NotImplemented(_) => EK::NotImplemented,
-            E::AuthRejected => EK::LocalProtocolFailed,
+            E::AuthRejected => EK::LocalProtocolViolation,
             E::AlreadyFinished(e) => e.kind(),
             E::Bug(e) => e.kind(),
         }

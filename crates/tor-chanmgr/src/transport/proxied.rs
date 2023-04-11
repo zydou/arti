@@ -238,7 +238,7 @@ impl tor_error::HasKind for ProxyError {
             E::SocksProto(_) => EK::LocalProtocolViolation,
             E::Bug(e) => e.kind(),
             E::UnexpectedData => EK::NotImplemented,
-            E::SocksError(_) => EK::LocalProtocolFailed,
+            E::SocksError(_) => EK::LocalProtocolViolation,
         }
     }
 }
