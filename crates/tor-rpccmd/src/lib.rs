@@ -47,7 +47,7 @@ pub mod typeid;
 use std::sync::Arc;
 
 pub use cmd::Command;
-pub use dispatch::invoke_command;
+pub use dispatch::DispatchTable;
 pub use err::RpcError;
 use futures::Sink;
 pub use obj::{Object, ObjectId};

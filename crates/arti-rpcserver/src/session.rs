@@ -12,6 +12,7 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Sink, SinkExt, StreamExt,
 };
+use once_cell::sync::Lazy;
 use pin_project::pin_project;
 use rpc::RpcError;
 
@@ -70,6 +71,13 @@ pub(crate) type BoxedRequestStream =
 /// A type-erased [`Sink`] accepting [`BoxedResponse`]s.
 pub(crate) type BoxedResponseSink =
     Pin<Box<dyn Sink<BoxedResponse, Error = asynchronous_codec::JsonCodecError> + Send>>;
+
+/// A lazily constructed type-based dispatch table used for invoking functions
+/// based on RPC object and method types.
+//
+// TODO RPC: This will be moved into an Arc that lives in some kind of
+// SessionManager.
+static DISPATCH_TABLE: Lazy<rpc::DispatchTable> = Lazy::new(rpc::DispatchTable::from_inventory);
 
 impl Session {
     /// Create a new session.
@@ -237,7 +245,7 @@ impl Session {
             }),
         };
 
-        rpc::invoke_command(obj, command, context)?.await
+        DISPATCH_TABLE.invoke(obj, command, context)?.await
     }
 }
 

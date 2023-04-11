@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use once_cell::sync::Lazy;
 
 use crate::typeid::ConstTypeId_;
 use crate::{Command, Context, Object, RpcError};
@@ -153,32 +152,68 @@ struct FuncType {
     cmd_id: any::TypeId,
 }
 
-/// Table mapping `FuncType` to `ErasedInvokeFn`.
+/// A collection of method implementations for different method and object types.
 ///
-/// This is constructed once, the first time we use our dispatch code.
-static FUNCTION_TABLE: Lazy<HashMap<FuncType, ErasedInvokeFn>> = Lazy::new(|| {
-    // We want to assert that there are no duplicates, so we can't use "collect"
-    let mut map = HashMap::new();
-    for ent in inventory::iter::<InvokeEntry_>() {
-        let InvokeEntry_ {
-            obj_id,
-            cmd_id,
-            func,
-        } = *ent;
-        let old_val = map.insert(
-            FuncType {
-                obj_id: obj_id.into(),
-                cmd_id: cmd_id.into(),
-            },
-            func,
-        );
-        assert!(
-            old_val.is_none(),
-            "Tried to register two RPC functions with the same type IDs!"
-        );
+/// A DispatchTable is constructed at run-time from entries registered with
+/// [`rpc_invoke_fn!`].
+#[derive(Debug, Clone)]
+pub struct DispatchTable {
+    /// An internal HashMap used to look up the correct function for a given
+    /// method/object pair.
+    map: HashMap<FuncType, ErasedInvokeFn>,
+}
+
+impl DispatchTable {
+    /// Construct a `DispatchTable` from the entries registered statically via
+    /// [`rpc_invoke_fn!`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if two entries are found for the same (method,object) types.
+    pub fn from_inventory() -> Self {
+        // We want to assert that there are no duplicates, so we can't use "collect"
+        let mut map = HashMap::new();
+        for ent in inventory::iter::<InvokeEntry_>() {
+            let InvokeEntry_ {
+                obj_id,
+                cmd_id,
+                func,
+            } = *ent;
+            let old_val = map.insert(
+                FuncType {
+                    obj_id: obj_id.into(),
+                    cmd_id: cmd_id.into(),
+                },
+                func,
+            );
+            assert!(
+                old_val.is_none(),
+                "Tried to register two RPC functions with the same type IDs!"
+            );
+        }
+        Self { map }
     }
-    map
-});
+
+    /// Try to find an appropriate function for calling a given RPC command on a
+    /// given RPC-visible object.
+    ///
+    /// On success, return a Future.
+    pub fn invoke(
+        &self,
+        obj: Arc<dyn Object>,
+        cmd: Box<dyn Command>,
+        ctx: Box<dyn Context>,
+    ) -> Result<RpcResultFuture, InvokeError> {
+        let func_type = FuncType {
+            obj_id: obj.type_id(),
+            cmd_id: cmd.type_id(),
+        };
+
+        let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
+
+        Ok(func(obj, cmd, ctx))
+    }
+}
 
 /// An error that occurred while trying to invoke a command on an object.
 #[derive(Debug, thiserror::Error)]
@@ -188,25 +223,6 @@ pub enum InvokeError {
     /// type and command type.
     #[error("No implementation for provided object and command types.")]
     NoImpl,
-}
-
-/// Try to find an appropriate function for calling a given RPC command on a
-/// given RPC-visible object.
-///
-/// On success, return a Future.
-pub fn invoke_command(
-    obj: Arc<dyn Object>,
-    cmd: Box<dyn Command>,
-    ctx: Box<dyn Context>,
-) -> Result<RpcResultFuture, InvokeError> {
-    let func_type = FuncType {
-        obj_id: obj.type_id(),
-        cmd_id: cmd.type_id(),
-    };
-
-    let func = FUNCTION_TABLE.get(&func_type).ok_or(InvokeError::NoImpl)?;
-
-    Ok(func(obj, cmd, ctx))
 }
 
 #[cfg(test)]
@@ -332,41 +348,48 @@ mod test {
     async fn try_invoke() {
         use super::*;
         fn invoke_helper<O: Object, C: Command>(
+            table: &DispatchTable,
             obj: O,
             cmd: C,
         ) -> Result<RpcResultFuture, InvokeError> {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
             let request: Box<dyn crate::Command> = Box::new(cmd);
             let ctx = Box::new(Ctx {});
-            invoke_command(animal, request, ctx)
+            table.invoke(animal, request, ctx)
         }
-        async fn invoke_ok<O: crate::Object, C: crate::Command>(obj: O, cmd: C) -> String {
-            let res = invoke_helper(obj, cmd).unwrap().await.unwrap();
+        async fn invoke_ok<O: crate::Object, C: crate::Command>(
+            table: &DispatchTable,
+            obj: O,
+            cmd: C,
+        ) -> String {
+            let res = invoke_helper(table, obj, cmd).unwrap().await.unwrap();
             serde_json::to_string(&res).unwrap()
         }
-        async fn sentence<O: crate::Object + Clone>(obj: O) -> String {
+        async fn sentence<O: crate::Object + Clone>(table: &DispatchTable, obj: O) -> String {
             format!(
                 "Hello I am a friendly {} and these are my lovely {}.",
-                invoke_ok(obj.clone(), GetName {}).await,
-                invoke_ok(obj, GetKids {}).await
+                invoke_ok(table, obj.clone(), GetName {}).await,
+                invoke_ok(table, obj, GetKids {}).await
             )
         }
 
+        let table = DispatchTable::from_inventory();
+
         assert_eq!(
-            sentence(Swan {}).await,
+            sentence(&table, Swan {}).await,
             r#"Hello I am a friendly {"v":"swan"} and these are my lovely {"v":"cygnets"}."#
         );
         assert_eq!(
-            sentence(Sheep {}).await,
+            sentence(&table, Sheep {}).await,
             r#"Hello I am a friendly {"v":"sheep"} and these are my lovely {"v":"lambs"}."#
         );
         assert_eq!(
-            sentence(Wombat {}).await,
+            sentence(&table, Wombat {}).await,
             r#"Hello I am a friendly {"v":"wombat"} and these are my lovely {"v":"joeys"}."#
         );
 
         assert!(matches!(
-            invoke_helper(Brick {}, GetKids {}),
+            invoke_helper(&table, Brick {}, GetKids {}),
             Err(InvokeError::NoImpl)
         ));
     }
