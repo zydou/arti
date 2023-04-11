@@ -29,15 +29,17 @@ pub async fn accept_connections<P: AsRef<Path>>(path: P) -> Result<()> {
         let (stream, _addr) = listener.accept().await?;
         let session = Arc::new(crate::session::Session::new());
         let (input, output) = stream.into_split();
-        let input = asynchronous_codec::FramedRead::new(
-            input.compat(),
-            asynchronous_codec::JsonCodec::<(), Request>::new(),
-        )
-        .fuse();
-        let output = asynchronous_codec::FramedWrite::new(
+        let input = Box::pin(
+            asynchronous_codec::FramedRead::new(
+                input.compat(),
+                asynchronous_codec::JsonCodec::<(), Request>::new(),
+            )
+            .fuse(),
+        );
+        let output = Box::pin(asynchronous_codec::FramedWrite::new(
             output.compat_write(),
             crate::streams::JsonLinesEncoder::<BoxedResponse>::default(),
-        );
+        ));
 
         tokio::spawn(async {
             let result = session.run_loop(input, output).await;

@@ -60,6 +60,17 @@ const UPDATE_CHAN_SIZE: usize = 128;
 /// Channel type used to send updates to the main session loop.
 type UpdateSender = mpsc::Sender<BoxedResponse>;
 
+/// A type-erased [`FusedStream`] yielding [`Request`]s.
+//
+// (We name this type and [`BoxedResponseSink`] below so as to keep the signature for run_loop
+// nice and simple.)
+pub(crate) type BoxedRequestStream =
+    Pin<Box<dyn FusedStream<Item = Result<Request, asynchronous_codec::JsonCodecError>> + Send>>;
+
+/// A type-erased [`Sink`] accepting [`BoxedResponse`]s.
+pub(crate) type BoxedResponseSink =
+    Pin<Box<dyn Sink<BoxedResponse, Error = asynchronous_codec::JsonCodecError> + Send>>;
+
 impl Session {
     /// Create a new session.
     pub(crate) fn new() -> Self {
@@ -108,16 +119,11 @@ impl Session {
 
     /// Run in a loop, handling requests from `request_stream` and writing
     /// responses onto `response_stream`.
-    pub(crate) async fn run_loop<IN, OUT>(
+    pub(crate) async fn run_loop(
         self: Arc<Self>,
-        mut request_stream: IN,
-        mut response_sink: OUT,
-    ) -> Result<(), SessionError>
-    where
-        IN: FusedStream<Item = Result<Request, asynchronous_codec::JsonCodecError>> + Unpin,
-        OUT: Sink<BoxedResponse> + Unpin,
-        OUT::Error: std::error::Error + Send + Sync + 'static,
-    {
+        mut request_stream: BoxedRequestStream,
+        mut response_sink: BoxedResponseSink,
+    ) -> Result<(), SessionError> {
         // This function will multiplex on three streams:
         // * `request_stream` -- a stream of incoming requests from the client.
         // * `finished_requests` -- a stream of responses from requests that
