@@ -349,7 +349,7 @@ data
   The `data` can be parsed without knowing the method that generated the error,
   although obviously the meaning will depend on what operation was being attempted.
 
-  Improved erorr handling in Arti may mean Arti generate
+  Improved error handling in Arti may make Arti generate
   different error `data` for particular situations in the future,
   so clients should avoid relying on the precise contents,
   other than for non-critical functions such as reporting.
@@ -372,7 +372,7 @@ code 	message 	meaning
 -32602 	Invalid params 		Invalid method parameter(s).
 -32603 	Internal error		The server suffered some kind of internal problem
 1	Object error		The requested target object was not valid
-2	Request error		The requested operation was recognised could not be performed
+2	Request error		The requested operation was recognised but could not be performed
 ```
 
 We do not anticipate regularly extending this list of values.
