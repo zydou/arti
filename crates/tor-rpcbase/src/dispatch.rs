@@ -243,13 +243,13 @@ mod test {
 
     // Define 3 animals and one brick.
     #[derive(Clone)]
-    struct Swan {}
+    struct Swan;
     #[derive(Clone)]
-    struct Wombat {}
+    struct Wombat;
     #[derive(Clone)]
-    struct Sheep {}
+    struct Sheep;
     #[derive(Clone)]
-    struct Brick {}
+    struct Brick;
 
     impl crate::Object for Swan {}
     impl crate::Object for Wombat {}
@@ -259,9 +259,9 @@ mod test {
 
     // Define 2 commands.
     #[derive(Debug, serde::Deserialize)]
-    struct GetName {}
+    struct GetName;
     #[derive(Debug, serde::Deserialize)]
-    struct GetKids {}
+    struct GetKids;
     #[typetag::deserialize]
     impl crate::Command for GetName {}
     #[typetag::deserialize]
@@ -368,28 +368,28 @@ mod test {
         async fn sentence<O: crate::Object + Clone>(table: &DispatchTable, obj: O) -> String {
             format!(
                 "Hello I am a friendly {} and these are my lovely {}.",
-                invoke_ok(table, obj.clone(), GetName {}).await,
-                invoke_ok(table, obj, GetKids {}).await
+                invoke_ok(table, obj.clone(), GetName).await,
+                invoke_ok(table, obj, GetKids).await
             )
         }
 
         let table = DispatchTable::from_inventory();
 
         assert_eq!(
-            sentence(&table, Swan {}).await,
+            sentence(&table, Swan).await,
             r#"Hello I am a friendly {"v":"swan"} and these are my lovely {"v":"cygnets"}."#
         );
         assert_eq!(
-            sentence(&table, Sheep {}).await,
+            sentence(&table, Sheep).await,
             r#"Hello I am a friendly {"v":"sheep"} and these are my lovely {"v":"lambs"}."#
         );
         assert_eq!(
-            sentence(&table, Wombat {}).await,
+            sentence(&table, Wombat).await,
             r#"Hello I am a friendly {"v":"wombat"} and these are my lovely {"v":"joeys"}."#
         );
 
         assert!(matches!(
-            invoke_helper(&table, Brick {}, GetKids {}),
+            invoke_helper(&table, Brick, GetKids),
             Err(InvokeError::NoImpl)
         ));
     }
