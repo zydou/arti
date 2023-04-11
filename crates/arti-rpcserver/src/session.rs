@@ -136,6 +136,10 @@ impl Session {
                     let r: BoxedResponse = r.expect("Somehow, future::pending() terminated.");
                     debug_assert!(r.body.is_final());
                     self.remove_request(&r.id);
+                    // Calling `await` here (and below) is deliberate: we _want_
+                    // to stop reading the client's requests if the client is
+                    // not reading their responses (or not) reading them fast
+                    // enough.
                     response_sink.send(r).await.map_err(|_| SessionError::WriteFailed)?;
                 }
 
