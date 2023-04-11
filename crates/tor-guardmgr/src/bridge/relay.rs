@@ -73,7 +73,7 @@ impl<'a> BridgeRelay<'a> {
     /// If we have enough information about this relay to build a circuit through it,
     /// return a BridgeRelayWithDesc for it.
     pub fn as_relay_with_desc(&self) -> Option<BridgeRelayWithDesc<'_>> {
-        self.desc.is_some().then(|| BridgeRelayWithDesc(self))
+        self.desc.is_some().then_some(BridgeRelayWithDesc(self))
     }
 }
 

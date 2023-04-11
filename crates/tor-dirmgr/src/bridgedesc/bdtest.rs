@@ -198,14 +198,14 @@ where
 
 fn queues_are_empty(bdm: &Bdm) -> Option<()> {
     let state = bdm.mgr.lock_only();
-    (state.running.is_empty() && state.queued.is_empty()).then(|| ())
+    (state.running.is_empty() && state.queued.is_empty()).then_some(())
 }
 
 fn in_results(bdm: &Bdm, bridge: &BridgeKey, wanted: Option<Result<(), ()>>) -> Option<()> {
     let bridges = bdm.bridges();
     let got = bridges.get(bridge);
     let got = got.map(|got| got.as_ref().map(|_| ()).map_err(|_| ()));
-    (got == wanted).then(|| ())
+    (got == wanted).then_some(())
 }
 
 async fn clear_and_re_request<S>(bdm: &Bdm, events: &mut S, bridge: &BridgeKey)
@@ -216,7 +216,7 @@ where
     bdm.set_bridges(&[]);
     stream_drain_until(3, events, || async {
         in_results(bdm, bridge, None)
-            .and_then(|()| bdm.mgr.lock_only().running.is_empty().then(|| ()))
+            .and_then(|()| bdm.mgr.lock_only().running.is_empty().then_some(()))
     })
     .await;
     bdm.set_bridges(&[bridge.clone()]);
@@ -280,7 +280,7 @@ async fn success() -> Result<(), anyhow::Error> {
         bridges
             .iter()
             .all(|b| bdm.bridges().contains_key(b))
-            .then(|| ())
+            .then_some(())
     })
     .await;
 
@@ -299,7 +299,7 @@ async fn success() -> Result<(), anyhow::Error> {
 
     let () = stream_drain_until(13, &mut events, || async {
         bdm.check_consistency(Some(&bridges));
-        (mock.mstate.lock().await.download_calls == NFAIL).then(|| ())
+        (mock.mstate.lock().await.download_calls == NFAIL).then_some(())
     })
     .await;
 
@@ -356,7 +356,7 @@ async fn success() -> Result<(), anyhow::Error> {
     // should produce a removed bridge event
     let () = stream_drain_until(1, &mut events, || async {
         bdm.check_consistency(Some(&bridges));
-        (!bdm.bridges().contains_key(&removed)).then(|| ())
+        (!bdm.bridges().contains_key(&removed)).then_some(())
     })
     .await;
 
@@ -454,7 +454,7 @@ async fn cache() -> Result<(), anyhow::Error> {
     mock.sleep.advance(Duration::from_secs(20000)).await;
 
     stream_drain_until(3, &mut events, || async {
-        (mock.mstate.lock().await.download_calls > 0).then(|| ())
+        (mock.mstate.lock().await.download_calls > 0).then_some(())
     })
     .await;
 

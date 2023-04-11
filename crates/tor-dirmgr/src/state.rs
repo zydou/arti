@@ -968,7 +968,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
                 } else {
                     collected_microdescs
                         .is_empty()
-                        .then(move || NetDirChange::AddMicrodescs(collected_microdescs))
+                        .then_some(NetDirChange::AddMicrodescs(collected_microdescs))
                 }
             }
             _ => None,

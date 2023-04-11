@@ -133,7 +133,7 @@ where
             } = self.table.get(t_index)
                 // should be Some, unless data structure corrupted, but don't panic here
                     ?;
-            (t_k2 == k2).then(|| ())?;
+            (t_k2 == k2).then_some(())?;
             let new_isolation = t_isolation.join(&*isolation)?;
             Some((t_index, new_isolation))
         }) {

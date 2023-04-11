@@ -61,7 +61,7 @@ impl CmdLine {
             .and_then(|range| {
                 let startline = linepos(range.start);
                 let endline = linepos(range.end);
-                (startline == endline).then(|| startline)
+                (startline == endline).then_some(startline)
             })
             .and_then(|pos| self.contents.get(pos));
 
