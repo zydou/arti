@@ -332,16 +332,24 @@ arti_kinds
   and fall back to some kind of default processing.
 
 data
-: An Object containing additional error information,
-  in the format of the externally-tagged serialisation of a Rust enum.
+: A JSON value containing additional error information.
   An application may use this to handle certain known errors,
   but must always be prepared to receive unknown errors.
-  The type names (tag name) of errors are in a global namespace,
+
+  The value of `data` will be one of the following:
+    * a string, being the error data type name
+    * an object with a single field; the field name is the error data type name;
+      the meaning of the value of that field depends on the error data type name.
+
+  Each method type name defines the format of the associated value.
+  (Note: this is the "externally tagged" serde serialisation format for a Rust enum.)
+
+  The error data type names are in a global namespace,
   like method names.
   The `data` can be parsed without knowing the method that generated the error,
   although obviously the meaning will depend on what operation was being attempted.
 
-  Improved erorr handling in Arti may mean Arti generates
+  Improved erorr handling in Arti may mean Arti generate
   different error `data` for particular situations in the future,
   so clients should avoid relying on the precise contents,
   other than for non-critical functions such as reporting.
