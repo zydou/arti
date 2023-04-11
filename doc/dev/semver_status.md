@@ -40,8 +40,3 @@ We will add guidance to this section as we come up with it. For now, see
 [SemVer compatibility] in the Cargo book.
 
 [SemVer Compatibility]: https://doc.rust-lang.org/cargo/reference/semver.html
-
-# DO NOT EDIT BELOW.
-
-(We used to append here, so I've added an explicit note not to do that.)
-
