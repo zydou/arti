@@ -363,9 +363,11 @@ code 	message 	meaning
 -32601 	Method not found 	The method does not exist / is not available on this object.
 -32602 	Invalid params 		Invalid method parameter(s).
 -32603 	Internal error		The server suffered some kind of internal problem
--32000	Object error		The requested target object was not valid
--32001	Request error		The requested operation was recognised could not be performed
+1	Object error		The requested target object was not valid
+2	Request error		The requested operation was recognised could not be performed
 ```
+
+We do not anticipate regularly extending this list of values.
 
 #### Example error response JSON document
 
