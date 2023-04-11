@@ -34,7 +34,7 @@ Here is an example `semver.md` file:
 >BREAKING: The `Quokka` trait now inherits from Debug.
 >```
 
-# What is a breaking change?
+## What is a breaking change?
 
 We will add guidance to this section as we come up with it. For now, see
 [SemVer compatibility] in the Cargo book.
