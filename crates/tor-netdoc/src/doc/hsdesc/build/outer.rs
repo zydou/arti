@@ -84,9 +84,6 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
             .item(DESCRIPTOR_SIGNING_KEY_CERT)
             .object("ED25519 CERT", desc_signing_key_cert);
         encoder.item(REVISION_COUNTER).arg(&*revision_counter);
-
-        // TODO: According to section 2.4. of rend-spec-v3 this blob should _not_ end with a
-        // newline character. We need to update the encoder to support this.
         encoder
             .item(SUPERENCRYPTED)
             .object("MESSAGE", superencrypted);
