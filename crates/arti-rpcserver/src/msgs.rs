@@ -68,13 +68,13 @@ pub(crate) struct BoxedResponse {
     pub(crate) id: RequestId,
     /// The body  that we're sending.
     #[serde(flatten)]
-    pub(crate) body: BoxedResponseBody,
+    pub(crate) body: ResponseBody,
 }
 
 /// The body of a response for an RPC client.
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum BoxedResponseBody {
+pub(crate) enum ResponseBody {
     /// The request has failed; no more responses will be sent in reply to it.
     //
     // TODO RPC: This should be a more specific type.
@@ -87,24 +87,24 @@ pub(crate) enum BoxedResponseBody {
     Update(Box<dyn erased_serde::Serialize + Send>),
 }
 
-impl BoxedResponseBody {
+impl ResponseBody {
     /// Return true if this body type indicates that no future responses will be
     /// sent for this request.
     pub(crate) fn is_final(&self) -> bool {
         match self {
-            BoxedResponseBody::Error(_) | BoxedResponseBody::Result(_) => true,
-            BoxedResponseBody::Update(_) => false,
+            ResponseBody::Error(_) | ResponseBody::Result(_) => true,
+            ResponseBody::Update(_) => false,
         }
     }
 }
 
-impl From<rpc::RpcError> for BoxedResponseBody {
-    fn from(inp: rpc::RpcError) -> BoxedResponseBody {
-        BoxedResponseBody::Error(Box::new(inp))
+impl From<rpc::RpcError> for ResponseBody {
+    fn from(inp: rpc::RpcError) -> ResponseBody {
+        ResponseBody::Error(Box::new(inp))
     }
 }
 
-impl std::fmt::Debug for BoxedResponseBody {
+impl std::fmt::Debug for ResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // We use serde_json to format the output for debugging, since that's all we care about at this point.
         let json = |x| match serde_json::to_string(x) {
@@ -184,7 +184,7 @@ mod test {
     fn fmt_replies() {
         let resp = BoxedResponse {
             id: RequestId::Int(7),
-            body: BoxedResponseBody::Result(Box::new(DummyResponse {
+            body: ResponseBody::Result(Box::new(DummyResponse {
                 hello: 99,
                 world: "foo".into(),
             })),

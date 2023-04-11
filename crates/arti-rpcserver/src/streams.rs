@@ -81,15 +81,15 @@ mod test {
         let mut buf = Vec::new();
         let r1 = BoxedResponse {
             id: RequestId::Int(7),
-            body: BoxedResponseBody::Update(Box::new(Empty {})),
+            body: ResponseBody::Update(Box::new(Empty {})),
         };
         let r2 = BoxedResponse {
             id: RequestId::Int(8),
-            body: BoxedResponseBody::Error(Box::new(Empty {})),
+            body: ResponseBody::Error(Box::new(Empty {})),
         };
         let r3 = BoxedResponse {
             id: RequestId::Int(9),
-            body: BoxedResponseBody::Result(Box::new(Empty {})),
+            body: ResponseBody::Result(Box::new(Empty {})),
         };
 
         // These should get serialized as follows.

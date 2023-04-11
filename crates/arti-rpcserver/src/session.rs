@@ -15,7 +15,7 @@ use rpc::RpcError;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
-    msgs::{BoxedResponse, BoxedResponseBody, Request, RequestId},
+    msgs::{BoxedResponse, Request, RequestId, ResponseBody},
 };
 
 use tor_rpccmd as rpc;
@@ -162,7 +162,7 @@ impl Session {
                                 .send(BoxedResponse {
                                     id: RequestId::Str("-----".into()),
                                     // TODO RPC real error type
-                                    body: BoxedResponseBody::Error(Box::new(format!("Parse error: {}", e)))
+                                    body: ResponseBody::Error(Box::new(format!("Parse error: {}", e)))
                                 }).await.map_err(|_| SessionError::WriteFailed)?;
 
                             // TODO RPC: Perhaps we should keep going? (Only if this is an authenticated session!)
@@ -177,10 +177,10 @@ impl Session {
                             let (handle, fut) = Cancel::new(fut);
                             self.register_request(id.clone(), handle);
                             let fut = fut.map(|r| match r {
-                                Ok(Ok(v)) => BoxedResponse { id, body: BoxedResponseBody::Result(v) },
+                                Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Result(v) },
                                 Ok(Err(e)) => BoxedResponse { id, body: e.into() },
                                 // TODO RPC: This is not the correct error type.
-                                Err(_cancelled) =>  BoxedResponse{ id, body: BoxedResponseBody::Error(Box::new("hey i got cancelled")) }
+                                Err(_cancelled) =>  BoxedResponse{ id, body: ResponseBody::Error(Box::new("hey i got cancelled")) }
                             });
 
 
@@ -276,7 +276,7 @@ where
         let this = self.project();
         let item = BoxedResponse {
             id: this.id.clone(),
-            body: BoxedResponseBody::Update(item),
+            body: ResponseBody::Update(item),
         };
         this.reply_tx
             .start_send(item)
