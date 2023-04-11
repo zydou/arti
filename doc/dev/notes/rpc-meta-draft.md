@@ -371,6 +371,10 @@ We do not anticipate regularly extending this list of values.
 
 #### Example error response JSON document
 
+Note: this is an expanded display for clarity!
+Arti will actually send an error response on a single line,
+to conform to jsonlines framing.
+
 ```
 {
    "id" : "5631557cdce0caa0",
