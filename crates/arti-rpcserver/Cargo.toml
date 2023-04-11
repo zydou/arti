@@ -32,7 +32,7 @@ thiserror = "1"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["full"] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-error = { path = "../tor-error", version = "0.4.1" }
-tor-rpccmd = { path = "../tor-rpccmd", version = "0.0.1" }
+tor-rpcbase = { path = "../tor-rpcbase", version = "0.0.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.1" }
 tracing = "0.1.18"
 typetag = "0.2.7"

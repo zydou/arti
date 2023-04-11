@@ -1,4 +1,4 @@
-# tor-rpccmd
+# tor-rpcbase
 
 Backend for Arti's RPC service
 

@@ -39,7 +39,7 @@ where
 /// # Example
 ///
 /// ```
-/// use tor_rpccmd as rpc;
+/// use tor_rpcbase as rpc;
 ///
 /// #[derive(serde::Deserialize)]
 /// struct Houseplant {

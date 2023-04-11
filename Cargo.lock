@@ -242,7 +242,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tor-error",
- "tor-rpccmd",
+ "tor-rpcbase",
  "tor-rtcompat",
  "tracing",
  "typetag",
@@ -4387,7 +4387,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tor-rpccmd"
+name = "tor-rpcbase"
 version = "0.0.1"
 dependencies = [
  "assert-impl",

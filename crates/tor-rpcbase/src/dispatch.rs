@@ -59,7 +59,7 @@ impl InvokeEntry_ {
 /// # Example
 ///
 /// ```
-/// use tor_rpccmd::{self as rpc};
+/// use tor_rpcbase::{self as rpc};
 ///
 /// #[derive(Debug)]
 /// struct ExampleObject {}

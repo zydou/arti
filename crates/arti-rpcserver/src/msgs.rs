@@ -4,7 +4,7 @@
 // not really sure if it's needed.
 
 use serde::{Deserialize, Serialize};
-use tor_rpccmd as rpc;
+use tor_rpcbase as rpc;
 
 /// An identifier for a Request within the context of a Session.
 ///
@@ -156,7 +156,7 @@ mod test {
     #[typetag::deserialize(name = "dummy")]
     impl rpc::Command for DummyCmd {}
 
-    tor_rpccmd::decl_command! {DummyCmd}
+    tor_rpcbase::decl_command! {DummyCmd}
 
     #[derive(Serialize)]
     struct DummyResponse {

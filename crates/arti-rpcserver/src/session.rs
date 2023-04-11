@@ -20,7 +20,7 @@ use crate::{
     msgs::{BoxedResponse, Request, RequestId, ResponseBody},
 };
 
-use tor_rpccmd as rpc;
+use tor_rpcbase as rpc;
 
 /// A session with an RPC client.  
 ///

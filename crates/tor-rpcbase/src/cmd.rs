@@ -26,7 +26,7 @@ downcast_rs::impl_downcast!(Command);
 /// # Example
 ///
 /// ```
-/// use tor_rpccmd as rpc;
+/// use tor_rpcbase as rpc;
 ///
 /// #[derive(Debug, serde::Deserialize)]
 /// struct Castigate {
