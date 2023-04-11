@@ -51,6 +51,8 @@ pub mod testnet;
 #[cfg(feature = "testing")]
 pub mod testprovider;
 
+#[cfg(feature = "hs-service")]
+use itertools::chain;
 use static_assertions::const_assert;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
@@ -61,7 +63,7 @@ use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 #[cfg(feature = "hs-common")]
-use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, itertools::chain, std::iter};
+use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, std::iter};
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
@@ -1269,6 +1271,10 @@ impl NetDir {
     /// these are suitable to either store, or retrieve, a
     /// given onion service's descriptor at a given time period.
     ///
+    /// When `op` is `Download`, the order is random.
+    // TODO HS ^ this is not in fact true right now.
+    /// When `op` is `Upload`, the order is not specified.
+    ///
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
@@ -1286,7 +1292,7 @@ impl NetDir {
         //    `hsdir_spread_fetch` based on `op`.
         // 4. Let n_replicas = the parameter `hsdir_n_replicas`.
         // 5. Initialize Dirs = []
-        // 6. for idx in 0..n_replicas:
+        // 6. for idx in 1..=n_replicas:
         //       - let H = hsdir_ring::onion_service_index(id, replica, rand,
         //         period).
         //       - Find the position of H within hsdir_ring.
@@ -1295,15 +1301,23 @@ impl NetDir {
         //         that were not there before.
         // 7. return Dirs.
         let n_replicas = 2; // TODO HS get this from netdir and/or make it configurable
+        let spread_fetch = 3; // TODO HS get this from netdir and/or make it configurable
+
+        // TODO HS We don't implement this bit of the spec (2.2.3 penultimate para):
+        //
+        //                                                        ... If any of those
+        //       nodes have already been selected for a lower-numbered replica of the
+        //       service, any nodes already chosen are disregarded (i.e. skipped over)
+        //       when choosing a replica's hsdir_spread_store nodes.
 
         self.hsdir_rings
             .iter_for_op(op)
-            .cartesian_product(0..n_replicas)
+            .cartesian_product(1..=n_replicas) // 1-indexed !
             .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
                 let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
-                ring.ring_items_at(hsdir_idx)
+                ring.ring_items_at(hsdir_idx, spread_fetch)
             })
-            .filter_map(|(_hsid, rs_idx)| {
+            .filter_map(|(_hsdir_idx, rs_idx)| {
                 // This ought not to be None but let's not panic or bail if it is
                 self.relay_by_rs_idx(*rs_idx)
             })

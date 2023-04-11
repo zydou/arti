@@ -220,14 +220,22 @@ impl HsDirRing {
             .unwrap_or_else(|pos| pos)
     }
 
-    /// Yield items from `ring` starting with `hsdir_index`, wrapping around once when we
-    /// reach the end, and yielding no element more than once.
+    /// Yield `spread_fetch` items from `ring` starting with `hsdir_index`
+    ///
+    /// Wraps around once when we
+    /// reach the end.
+    ///
+    /// Yields no element more than once, even if the ring is smaller than `spread_fetch`.
     pub(crate) fn ring_items_at(
         &self,
         hsdir_index: HsDirIndex,
+        spread: usize,
     ) -> impl Iterator<Item = &(HsDirIndex, RouterStatusIdx)> {
         let pos = self.find_pos(hsdir_index);
-        self.ring[pos..].iter().chain(&self.ring[..pos])
+        self.ring[pos..]
+            .iter()
+            .chain(&self.ring[..pos])
+            .take(spread)
     }
 
     /// Return the time period for which this ring applies.
