@@ -265,7 +265,7 @@ macro_rules! macro_first_nonempty {
 /// ```ignore
 /// impl_debug_hex! { $type }
 /// impl_debug_hex! { $type . $field_accessor }
-/// impl_debug_hex! { $type , $accessor_fn ] }
+/// impl_debug_hex! { $type , $accessor_fn }
 /// ```
 ///
 /// By default, this expects `$type` to implement `AsRef<[u8]>`.

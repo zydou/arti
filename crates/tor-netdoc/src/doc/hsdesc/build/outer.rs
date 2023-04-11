@@ -44,7 +44,8 @@ pub(super) struct HsDescOuter<'a> {
     /// The (superencrypted) middle document of the onion service descriptor.
     ///
     /// The `superencrypted` field is created by encrypting an
-    /// [`crate::doc::hsdesc::build::middle::HsDescMiddle`] middle document as described in
+    /// [`build::middle::HsDescMiddle`](super::middle::HsDescMiddle)
+    /// middle document as described in
     /// sections 2.5.1.1. and 2.5.1.2. of rend-spec-v3.
     pub(super) superencrypted: Vec<u8>,
 }
