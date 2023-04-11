@@ -1250,7 +1250,7 @@ impl NetDir {
     /// Return all the relevant the hidden service directory "time periods"
     ///
     /// This includes the current time period (as from
-    /// [`.hs_time_period`](Netdir::hs_time_period))
+    /// [`.hs_time_period`](NetDir::hs_time_period))
     /// plus additional time periods that we publish descriptors for when we are
     /// acting as a hidden service.
     //
