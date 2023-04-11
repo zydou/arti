@@ -1,14 +1,14 @@
 //! A kludgy replacement for [`std::any::TypeId`] that can be used in a constant context.
 
-/// A less helpful variant of `std::any::TypeId` that can be used in a const
+/// A less helpful variant of `std::any::TypeId` that can be created in a const
 /// context.
 ///
 /// Until the [relevant Rust feature] is stabilized, it's not possible to get a
 /// TypeId for a type and store it in a const.  But sadly, we need to do so for
 /// our dispatch code.
 ///
-/// Thus, we use a nasty hack: we use the address of the function
-/// `TypeId::of::<T>` as the identifier for the type of T.
+/// Thus, we use a nasty hack: we save the the address of the function
+/// `TypeId::of::<T>` and use it _later_ to get type of T.
 ///
 /// This type and the module containing it are hidden: Nobody should actually
 /// use it outside of our dispatch code.  Once we can use `TypeId` instead, we
@@ -17,28 +17,26 @@
 /// To make a type participate in this system, use the [`impl_const_type_id`]
 /// macro.
 ///
+/// The [`ConstTypeId_`] function deliberately does not implement `Eq` and
+/// friends. To compare two of these, use `TypeId::from()` to convert it into
+/// a real `TypeId`.
+///
 /// **Do not mention this type outside of this module.**
 ///
 /// [relevant Rust feature]: https://github.com/rust-lang/rust/issues/77125
-#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[allow(clippy::exhaustive_structs)]
 pub struct ConstTypeId_(
     /// Sadly this has to be `pub` so we can construct these from other crates.
     ///
     /// We could make a constructor, but there is no point.
-    pub *const (),
+    pub fn() -> std::any::TypeId,
 );
 
-// Safety: We never actually access the pointer.
-unsafe impl Send for ConstTypeId_ {}
-// Safety: We never actually access the pointer.
-unsafe impl Sync for ConstTypeId_ {}
-
-/// An object for which we can access a [`ConstTypeId_`] dynamically.
-///
-/// **Do not mention this type outside of this module.**
-pub trait GetConstTypeId_ {
-    fn const_type_id(&self) -> ConstTypeId_;
+impl From<ConstTypeId_> for std::any::TypeId {
+    fn from(value: ConstTypeId_) -> Self {
+        (value.0)()
+    }
 }
 
 /// An object for which we can get a [`ConstTypeId_`] at compile time.
@@ -62,14 +60,8 @@ macro_rules! impl_const_type_id {
         $(
             impl $crate::typeid::HasConstTypeId_ for $type {
                 const CONST_TYPE_ID_: $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
-                    std::any::TypeId::of::<$type> as *const ()
+                    std::any::TypeId::of::<$type>
                 );
-            }
-
-            impl $crate::typeid::GetConstTypeId_ for $type {
-                fn const_type_id(&self) -> $crate::typeid::ConstTypeId_ {
-                    <$type as $crate::typeid::HasConstTypeId_>::CONST_TYPE_ID_
-                }
             }
         )*
     }
@@ -99,13 +91,16 @@ mod test {
     #[test]
     fn typeid_basics() {
         use super::*;
+        use std::any::{Any, TypeId};
         assert_impl!(Send: ConstTypeId_);
         assert_impl!(Sync: ConstTypeId_);
         let foo1 = Foo(3);
         let foo2 = Foo(4);
         let bar = Bar {};
 
-        assert_eq!(foo1.const_type_id(), foo2.const_type_id());
-        assert_ne!(foo1.const_type_id(), bar.const_type_id());
+        assert_eq!(TypeId::from(Foo::CONST_TYPE_ID_), foo1.type_id());
+        assert_eq!(TypeId::from(Foo::CONST_TYPE_ID_), foo2.type_id());
+        assert_eq!(TypeId::from(Bar::CONST_TYPE_ID_), bar.type_id());
+        assert_ne!(TypeId::from(Foo::CONST_TYPE_ID_), bar.type_id());
     }
 }

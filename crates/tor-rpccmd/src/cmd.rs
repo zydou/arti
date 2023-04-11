@@ -2,8 +2,6 @@
 
 use downcast_rs::Downcast;
 
-use crate::typeid::GetConstTypeId_;
-
 /// The parameters and method name associated with a given Request.
 ///
 /// We use [`typetag`] here so that we define `Command`s in other crates.
@@ -19,7 +17,7 @@ use crate::typeid::GetConstTypeId_;
 // of Arti can use this trait to add new commands to the RPC engine. Should we
 // care?
 #[typetag::deserialize(tag = "method", content = "params")]
-pub trait Command: GetConstTypeId_ + std::fmt::Debug + Send + Downcast {}
+pub trait Command: std::fmt::Debug + Send + Downcast {}
 downcast_rs::impl_downcast!(Command);
 
 /// Declare that one or more space-separated types should be considered as

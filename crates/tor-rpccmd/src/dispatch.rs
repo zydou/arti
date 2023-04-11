@@ -4,6 +4,7 @@
 //! Objects (the things that we give the commands to); we want to be able to
 //! provide different implementations for each command, on each object.
 
+use std::any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -147,9 +148,9 @@ macro_rules! rpc_invoke_fn {
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 struct FuncType {
     /// The type of object to which this function applies.
-    obj_id: ConstTypeId_,
+    obj_id: any::TypeId,
     /// The type of command to which this function applies.
-    cmd_id: ConstTypeId_,
+    cmd_id: any::TypeId,
 }
 
 /// Table mapping `FuncType` to `ErasedInvokeFn`.
@@ -164,7 +165,13 @@ static FUNCTION_TABLE: Lazy<HashMap<FuncType, ErasedInvokeFn>> = Lazy::new(|| {
             cmd_id,
             func,
         } = *ent;
-        let old_val = map.insert(FuncType { obj_id, cmd_id }, func);
+        let old_val = map.insert(
+            FuncType {
+                obj_id: obj_id.into(),
+                cmd_id: cmd_id.into(),
+            },
+            func,
+        );
         assert!(
             old_val.is_none(),
             "Tried to register two RPC functions with the same type IDs!"
@@ -193,8 +200,8 @@ pub fn invoke_command(
     ctx: Box<dyn Context>,
 ) -> Result<RpcResultFuture, InvokeError> {
     let func_type = FuncType {
-        obj_id: obj.const_type_id(),
-        cmd_id: cmd.const_type_id(),
+        obj_id: obj.type_id(),
+        cmd_id: cmd.type_id(),
     };
 
     let func = FUNCTION_TABLE.get(&func_type).ok_or(InvokeError::NoImpl)?;
