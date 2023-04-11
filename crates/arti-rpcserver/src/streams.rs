@@ -21,10 +21,9 @@ pub(crate) struct JsonLinesEncoder<T> {
     _phantom: PhantomData<fn(T) -> ()>,
 }
 
-impl<T> JsonLinesEncoder<T> {
-    /// Return a new JsonLinesEncoder.
-    pub(crate) fn new() -> Self {
-        JsonLinesEncoder {
+impl<T> Default for JsonLinesEncoder<T> {
+    fn default() -> Self {
+        Self {
             _phantom: PhantomData,
         }
     }
@@ -102,7 +101,7 @@ mod test {
         expect.push('\n');
 
         {
-            let mut sink = ResponseSink::new(&mut buf, JsonLinesEncoder::new());
+            let mut sink = ResponseSink::new(&mut buf, JsonLinesEncoder::default());
             sink.send(r1).await.unwrap();
             sink.send(r2).await.unwrap();
             sink.send(r3).await.unwrap();

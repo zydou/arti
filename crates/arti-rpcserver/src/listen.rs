@@ -36,7 +36,7 @@ pub async fn accept_connections<P: AsRef<Path>>(path: P) -> Result<()> {
         .fuse();
         let output = asynchronous_codec::FramedWrite::new(
             output.compat_write(),
-            crate::streams::JsonLinesEncoder::<BoxedResponse>::new(),
+            crate::streams::JsonLinesEncoder::<BoxedResponse>::default(),
         );
 
         tokio::spawn(async {
