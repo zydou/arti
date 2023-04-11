@@ -14,7 +14,6 @@ use futures::{
 };
 use once_cell::sync::Lazy;
 use pin_project::pin_project;
-use rpc::RpcError;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
@@ -379,6 +378,19 @@ rpc::rpc_invoke_fn! {
     }
 }
 
+/// The authentication method as enumerated in the spec.
+///
+/// Conceptually, an authentication method answers the question "How can the
+/// Arti process know you have permissions to use or administer it?"
+///
+/// TODO RPC: The only supported one for now is "inherent:unix_path"
+#[derive(Debug, Copy, Clone, serde::Deserialize)]
+enum AuthenticationMethod {
+    /// Inherent authority based on the ability to access an AF_UNIX address.
+    #[serde(rename = "inherent:unix_path")]
+    InherentUnixPath,
+}
+
 /// Command to implement basic authentication.  Right now only "I connected to
 /// you so I must have permission!" is supported.
 #[derive(Debug, serde::Deserialize)]
@@ -386,7 +398,7 @@ struct Authenticate {
     /// The authentication method as enumerated in the spec.
     ///
     /// TODO RPC: The only supported one for now is "inherent:unix_path"
-    method: String,
+    method: AuthenticationMethod,
 }
 #[typetag::deserialize(name = "auth:authenticate")]
 impl rpc::Command for Authenticate {}
@@ -400,11 +412,8 @@ struct Nil {}
 
 /// An error during authentication.
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
-enum AuthenticationFailure {
-    /// We don't recognize the type of authentication that the user asked for.
-    #[error("authentication method not recognized.")]
-    UnrecognizedMethod,
-}
+enum AuthenticationFailure {}
+
 impl tor_error::HasKind for AuthenticationFailure {
     fn kind(&self) -> tor_error::ErrorKind {
         // TODO RPC not right.
@@ -414,12 +423,10 @@ impl tor_error::HasKind for AuthenticationFailure {
 
 rpc::rpc_invoke_fn! {
     async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, cmd: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
-        if cmd.method == "inherent:unix_path" {
-            // Only unix named pipes are supported right now, so if you have
-            // permission to connect to the pipes, you have permission to
-            // connect.
-        } else {
-            return Err(RpcError::from(AuthenticationFailure::UnrecognizedMethod));
+        match cmd.method {
+            // For now, we only support AF_UNIX connections, and we assume that if you have permission to open such a connection to us, you have permission to use Arti.
+            // We will refine this later on!
+            AuthenticationMethod::InherentUnixPath => {}
         }
 
         unauth.inner.inner.lock().expect("Poisoned lock").authenticated = true;
