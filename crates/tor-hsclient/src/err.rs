@@ -48,8 +48,7 @@ pub enum ConnError {
 #[error("tried hsdir {hsdir}: {error}")]
 pub struct DescriptorError {
     /// Which hsdir we were trying
-    // TODO HS: is this the right type here?
-    // Maybe there shouldn't be a `RelayIdentityForDisplay` from `HasRelayIds`
+    // TODO #813 this should be Redacted<RelayDescription> or something
     // TODO HS: is even this too much leakage?
     // Perhaps the set of redacted hsdir ids may identify the service;
     // in that case this should be `Sensitive` instead.
