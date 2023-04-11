@@ -40,7 +40,7 @@ location.
 | OS      | Configuration File                                 |
 |---------|----------------------------------------------------|
 | Unix    | `~/.config/arti/arti.toml`                         |
-| macOS   | `~/Library/Application Support/arti/arti.toml`     |
+| macOS   | `~/Library/Application Support/org.torproject.arti/arti.toml`     |
 | Windows | `\Users\<USERNAME>\AppData\Roaming\arti\arti.toml` |
 
 The configuration file is TOML.
