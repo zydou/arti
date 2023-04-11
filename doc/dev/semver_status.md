@@ -40,3 +40,35 @@ We will add guidance to this section as we come up with it. For now, see
 [SemVer compatibility] in the Cargo book.
 
 [SemVer Compatibility]: https://doc.rust-lang.org/cargo/reference/semver.html
+
+### When from lower-level crates appear in the APIs of higher-level crates
+
+If a type (concrete type or trait) is returned (or accepted)
+by an API of a higher-level crate,
+then a breaking change to that *crate* is a breaking change
+for the higher-level crate, too.
+
+This includes any case where a higher-layer type
+implements a public trait from a lower-layer.
+
+Even if the type is not itself re-exported by the higher-layer crate.
+
+#### Reasoning, and worked example:
+
+Suppose `tor_error::ErrorKind` gets a breaking change,
+and we bump the major[1] for `tor_error` but not for `arti_client`.
+Obviously our new `arti_client` uses the new `tor_error`.
+
+A downstream might use both `tor-error` and `arti-client`.
+If they do this in the usual way,
+a `cargo update` will get them the new `arti_client` but old `tor_error`.
+Now their program has *two* `tor_error`:
+one whose `ErrorKind` is implemented by `arti_client::Error`,
+and one that the downstream application code sees.
+The effect is that the downstream application
+can no longer call `.has_kind()` on an `arti_client::Error`
+because they don't have the *right* `HasKind` method in scope.
+
+Note that this does not depend on the nature of the breaking change,
+nor on the re-export of any names.
+It only depends on the exposure of the type and its trait implementations.
