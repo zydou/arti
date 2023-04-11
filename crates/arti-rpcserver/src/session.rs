@@ -2,7 +2,9 @@
 
 use std::{
     collections::HashMap,
+    pin::Pin,
     sync::{Arc, Mutex},
+    task::{Context, Poll},
 };
 
 use futures::{
@@ -263,10 +265,7 @@ where
 {
     type Error = rpc::SendUpdateError;
 
-    fn poll_ready(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
         this.reply_tx
             .poll_ready(cx)
@@ -274,7 +273,7 @@ where
     }
 
     fn start_send(
-        self: std::pin::Pin<&mut Self>,
+        self: Pin<&mut Self>,
         item: Box<dyn erased_serde::Serialize + Send + 'static>,
     ) -> Result<(), Self::Error> {
         let this = self.project();
@@ -287,20 +286,14 @@ where
             .map_err(|_| rpc::SendUpdateError::RequestCancelled)
     }
 
-    fn poll_flush(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
         this.reply_tx
             .poll_flush(cx)
             .map_err(|_| rpc::SendUpdateError::RequestCancelled)
     }
 
-    fn poll_close(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
         this.reply_tx
             .poll_close(cx)
@@ -323,32 +316,23 @@ where
 impl Sink<Box<dyn erased_serde::Serialize + Send + 'static>> for RequestContext<()> {
     type Error = rpc::SendUpdateError;
 
-    fn poll_ready(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Err(rpc::SendUpdateError::NoUpdatesWanted))
+    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Err(rpc::SendUpdateError::NoUpdatesWanted))
     }
 
     fn start_send(
-        self: std::pin::Pin<&mut Self>,
+        self: Pin<&mut Self>,
         _item: Box<dyn erased_serde::Serialize + Send + 'static>,
     ) -> Result<(), Self::Error> {
         Err(rpc::SendUpdateError::NoUpdatesWanted)
     }
 
-    fn poll_flush(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
-    fn poll_close(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 }
 

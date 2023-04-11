@@ -214,7 +214,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use std::task::Poll;
+    use std::{pin::Pin, task::Poll};
 
     use futures_await_test::async_test;
 
@@ -281,28 +281,28 @@ mod test {
         type Error = crate::SendUpdateError;
 
         fn poll_ready(
-            self: std::pin::Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _cx: &mut std::task::Context<'_>,
         ) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Err(crate::SendUpdateError::NoUpdatesWanted))
         }
 
         fn start_send(
-            self: std::pin::Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _item: Box<dyn erased_serde::Serialize + Send + 'static>,
         ) -> Result<(), Self::Error> {
             Err(crate::SendUpdateError::NoUpdatesWanted)
         }
 
         fn poll_flush(
-            self: std::pin::Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _cx: &mut std::task::Context<'_>,
         ) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
         }
 
         fn poll_close(
-            self: std::pin::Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _cx: &mut std::task::Context<'_>,
         ) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
