@@ -72,3 +72,5 @@ because they don't have the *right* `HasKind` method in scope.
 Note that this does not depend on the nature of the breaking change,
 nor on the re-export of any names.
 It only depends on the exposure of the type and its trait implementations.
+
+[1] "Major" here includes the 2nd component in a 0.x version.
