@@ -73,4 +73,8 @@ Note that this does not depend on the nature of the breaking change,
 nor on the re-export of any names.
 It only depends on the exposure of the type and its trait implementations.
 
+(The ["semver trick"](https://github.com/dtolnay/semver-trick)
+can sometimes be used to help multiple different versions
+of the same crate share global state, or perhaps, traits etc.)
+
 [1] "Major" here includes the 2nd component in a 0.x version.
