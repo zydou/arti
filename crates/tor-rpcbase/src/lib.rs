@@ -37,19 +37,19 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-mod cmd;
 pub mod dispatch;
 mod err;
+mod method;
 mod obj;
 #[doc(hidden)]
 pub mod typeid;
 
 use std::sync::Arc;
 
-pub use cmd::Method;
 pub use dispatch::DispatchTable;
 pub use err::RpcError;
 use futures::Sink;
+pub use method::Method;
 pub use obj::{Object, ObjectId};
 
 #[doc(hidden)]
