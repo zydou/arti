@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::net::UnixListener;
 use tokio_crate as tokio;
 
-use crate::msgs::{BoxedResponse, Request};
+use crate::msgs::{BoxedResponse, FlexibleRequest};
 
 /// Listen for incoming connections at a unix path, and handle them as RPC
 /// connections.  Runs forever, or until an error occurs.
@@ -32,7 +32,7 @@ pub async fn accept_connections<P: AsRef<Path>>(path: P) -> Result<()> {
         let input = Box::pin(
             asynchronous_codec::FramedRead::new(
                 input.compat(),
-                asynchronous_codec::JsonCodec::<(), Request>::new(),
+                asynchronous_codec::JsonCodec::<(), FlexibleRequest>::new(),
             )
             .fuse(),
         );

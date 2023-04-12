@@ -3,6 +3,7 @@
 // TODO: This could become a more zero-copy-friendly with some effort, but it's
 // not really sure if it's needed.
 
+mod invalid;
 use serde::{Deserialize, Serialize};
 use tor_rpcbase as rpc;
 
@@ -61,6 +62,18 @@ pub(crate) struct Request {
     pub(crate) method: Box<dyn rpc::Method>,
 }
 
+/// A request that may or may not be valid.
+///
+/// If it invalid, it contains information that can be used to construct an error.
+#[derive(Debug, serde::Deserialize)]
+#[serde(untagged)]
+pub(crate) enum FlexibleRequest {
+    /// A valid request.
+    Valid(Request),
+    /// An invalid request.
+    Invalid(invalid::InvalidRequest),
+}
+
 /// A Response to send to an RPC client.
 #[derive(Debug, Serialize)]
 pub(crate) struct BoxedResponse {
@@ -69,6 +82,23 @@ pub(crate) struct BoxedResponse {
     /// The body  that we're sending.
     #[serde(flatten)]
     pub(crate) body: ResponseBody,
+}
+
+impl BoxedResponse {
+    /// Construct a BoxedResponse from an error that can be converted into an
+    /// RpcError.
+    ///
+    /// If `id` is absent, we use a fixed ID reserved for requests whose IDs
+    /// can't be determined.
+    pub(crate) fn from_error<E>(id: Option<RequestId>, error: E) -> Self
+    where
+        E: Into<rpc::RpcError>,
+    {
+        let id = id.unwrap_or_else(|| RequestId::Str("<SYNTAX>".into()));
+        let error: rpc::RpcError = error.into();
+        let body = ResponseBody::Error(Box::new(error));
+        Self { id, body }
+    }
 }
 
 /// The body of a response for an RPC client.
@@ -171,7 +201,10 @@ mod test {
 
     #[test]
     fn valid_requests() {
-        let parse_request = |s| serde_json::from_str::<Request>(s).unwrap();
+        let parse_request = |s| match serde_json::from_str::<FlexibleRequest>(s) {
+            Ok(FlexibleRequest::Valid(req)) => req,
+            _ => panic!(),
+        };
 
         let r = parse_request(r#"{"id": 7, "obj": "hello", "method": "dummy", "params": {} }"#);
         assert_dbg_eq!(
@@ -182,6 +215,65 @@ mod test {
                 meta: ReqMeta::default(),
                 method: Box::new(DummyMethod { stuff: 0 })
             }
+        );
+    }
+
+    #[test]
+    fn invalid_requests() {
+        use crate::err::RequestParseError as RPE;
+        fn parsing_error(s: &str) -> RPE {
+            match serde_json::from_str::<FlexibleRequest>(s) {
+                Ok(FlexibleRequest::Invalid(req)) => req.error(),
+                x => panic!("Didn't expect {:?}", x),
+            }
+        }
+
+        macro_rules! expect_err {
+            ($p:pat, $e:expr) => {
+                let err = parsing_error($e);
+                assert!(matches!(err, $p), "Unexpected error type {:?}", err);
+            };
+        }
+
+        expect_err!(
+            RPE::IdMissing,
+            r#"{ "obj": "hello", "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::IdType,
+            r#"{ "id": {}, "obj": "hello", "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::ObjMissing,
+            r#"{ "id": 3, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::ObjType,
+            r#"{ "id": 3, "obj": 9, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MethodMissing,
+            r#"{ "id": 3, "obj": "hello",  "params": {} }"#
+        );
+        expect_err!(
+            RPE::MethodType,
+            r#"{ "id": 3, "obj": "hello", "method": [], "params": {} }"#
+        );
+        expect_err!(
+            RPE::MetaType,
+            r#"{ "id": 3, "obj": "hello", "meta": 7, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MetaType,
+            r#"{ "id": 3, "obj": "hello", "meta": { "updates": 3}, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MethodProblem,
+            r#"{ "id": 3, "obj": "hello", "method": "arti:this-is-not-a-method", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MissingParams,
+            r#"{ "id": 3, "obj": "hello", "method": "dummy" }"#
         );
     }
 

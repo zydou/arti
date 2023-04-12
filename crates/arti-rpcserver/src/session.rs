@@ -7,6 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use asynchronous_codec::JsonCodecError;
 use futures::{
     channel::mpsc,
     stream::{FusedStream, FuturesUnordered},
@@ -14,10 +15,12 @@ use futures::{
 };
 use once_cell::sync::Lazy;
 use pin_project::pin_project;
+use serde_json::error::Category as JsonErrorCategory;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
-    msgs::{BoxedResponse, Request, RequestId, ResponseBody},
+    err::RequestParseError,
+    msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
 };
 
 use tor_rpcbase as rpc;
@@ -64,8 +67,9 @@ type UpdateSender = mpsc::Sender<BoxedResponse>;
 //
 // (We name this type and [`BoxedResponseSink`] below so as to keep the signature for run_loop
 // nice and simple.)
-pub(crate) type BoxedRequestStream =
-    Pin<Box<dyn FusedStream<Item = Result<Request, asynchronous_codec::JsonCodecError>> + Send>>;
+pub(crate) type BoxedRequestStream = Pin<
+    Box<dyn FusedStream<Item = Result<FlexibleRequest, asynchronous_codec::JsonCodecError>> + Send>,
+>;
 
 /// A type-erased [`Sink`] accepting [`BoxedResponse`]s.
 pub(crate) type BoxedResponseSink =
@@ -174,20 +178,35 @@ impl Session {
                             break 'outer;
                         }
                         Some(Err(e)) => {
-                            // We got a parse error from the JSON codec.
+                            // We got a non-recoverable error from the JSON codec.
+                           let error = match e {
+                                JsonCodecError::Io(_) => return Err(SessionError::ReadFailed),
+                                JsonCodecError::Json(e) => match e.classify() {
+                                    JsonErrorCategory::Eof => break 'outer,
+                                    JsonErrorCategory::Io => return Err(SessionError::ReadFailed),
+                                    JsonErrorCategory::Syntax => RequestParseError::InvalidJson,
+                                    JsonErrorCategory::Data => RequestParseError::NotAnObject,
+                                }
+                            };
 
-                            // TODO RPC: This is out-of-spec, but we may as well do something on a parse error.
                             response_sink
-                                .send(BoxedResponse {
-                                    id: RequestId::Str("-----".into()),
-                                    // TODO RPC real error type
-                                    body: ResponseBody::Error(Box::new(format!("Parse error: {}", e)))
-                                }).await.map_err(|_| SessionError::WriteFailed)?;
+                                .send(
+                                    BoxedResponse::from_error(None, error)
+                                ).await.map_err(|_| SessionError::WriteFailed)?;
 
-                            // TODO RPC: Perhaps we should keep going? (Only if this is an authenticated session!)
+                            // TODO RPC: Perhaps we should keep going on the NotAnObject case?
+                            //      (InvalidJson is not recoverable!)
                             break 'outer;
                         }
-                        Some(Ok(req)) => {
+                        Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
+                            // We could at least
+                            response_sink
+                                .send(
+                                    BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
+                                ).await.map_err(|_| SessionError::WriteFailed)?;
+
+                        }
+                        Some(Ok(FlexibleRequest::Valid(req))) => {
                             // We have a request. Time to launch it!
 
                             let tx_channel = req.meta.updates.then(|| &tx_update);
@@ -255,6 +274,9 @@ pub(crate) enum SessionError {
     /// Unable to write to our connection.
     #[error("Could not write to connection")]
     WriteFailed,
+    /// Read error from connection.
+    #[error("Problem reading from connection")]
+    ReadFailed,
 }
 
 /// A Context object that we pass to each method invocation.
