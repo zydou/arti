@@ -217,8 +217,7 @@ impl Session {
                             let fut = fut.map(|r| match r {
                                 Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Success(v) },
                                 Ok(Err(e)) => BoxedResponse { id, body: e.into() },
-                                // TODO RPC: This is not the correct error type.
-                                Err(_cancelled) =>  BoxedResponse{ id, body: ResponseBody::Error(Box::new("hey i got cancelled")) }
+                                Err(_cancelled) => BoxedResponse::from_error(Some(id), RequestCancelled),
                             });
 
 
@@ -453,5 +452,20 @@ rpc::rpc_invoke_fn! {
 
         unauth.inner.inner.lock().expect("Poisoned lock").authenticated = true;
         Ok(Nil {})
+    }
+}
+
+/// An error given when an RPC request is cancelled.
+///
+/// This is a separate type from [`crate::cancel::Cancelled`] since eventually
+/// we want to move that type into a general-purpose location, and make it not
+/// RPC-specific.
+#[derive(thiserror::Error, Clone, Debug, serde::Serialize)]
+#[error("RPC request was cancelled")]
+pub(crate) struct RequestCancelled;
+impl tor_error::HasKind for RequestCancelled {
+    fn kind(&self) -> tor_error::ErrorKind {
+        // TODO RPC: Can we do better here?
+        tor_error::ErrorKind::Other
     }
 }

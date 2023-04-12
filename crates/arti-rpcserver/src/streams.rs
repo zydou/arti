@@ -71,6 +71,7 @@ mod test {
     use crate::msgs::*;
     use futures::sink::SinkExt as _;
     use futures_await_test::async_test;
+    use tor_rpcbase as rpc;
 
     #[derive(serde::Serialize)]
     struct Empty {}
@@ -85,7 +86,9 @@ mod test {
         };
         let r2 = BoxedResponse {
             id: RequestId::Int(8),
-            body: ResponseBody::Error(Box::new(Empty {})),
+            body: ResponseBody::Error(Box::new(rpc::RpcError::from(
+                crate::session::RequestCancelled,
+            ))),
         };
         let r3 = BoxedResponse {
             id: RequestId::Int(9),

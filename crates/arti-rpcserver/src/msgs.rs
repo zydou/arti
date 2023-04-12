@@ -105,10 +105,8 @@ impl BoxedResponse {
 #[derive(Serialize)]
 pub(crate) enum ResponseBody {
     /// The request has failed; no more responses will be sent in reply to it.
-    //
-    // TODO RPC: This should be a more specific type.
     #[serde(rename = "error")]
-    Error(Box<dyn erased_serde::Serialize + Send>),
+    Error(Box<rpc::RpcError>),
     /// The request has succeeded; no more responses will be sent in reply to
     /// it.
     ///
@@ -147,7 +145,7 @@ impl std::fmt::Debug for ResponseBody {
             Err(e) => format!("«could not serialize: {}»", e),
         };
         match self {
-            Self::Error(arg0) => f.debug_tuple("Error").field(&json(arg0)).finish(),
+            Self::Error(arg0) => f.debug_tuple("Error").field(arg0).finish(),
             Self::Update(arg0) => f.debug_tuple("Update").field(&json(arg0)).finish(),
             Self::Success(arg0) => f.debug_tuple("Success").field(&json(arg0)).finish(),
         }
