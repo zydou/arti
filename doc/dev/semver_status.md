@@ -43,9 +43,10 @@ We will add guidance to this section as we come up with it. For now, see
 
 ### When from lower-level crates appear in the APIs of higher-level crates
 
-If a type (concrete type or trait) is returned (or accepted)
+If a type (concrete type or trait) from a lower-level crate
+is returned (or accepted)
 by an API of a higher-level crate,
-then a breaking change to that *crate* is a breaking change
+then a breaking change to that lower-level crate is a breaking change
 for the higher-level crate, too.
 
 This includes any case where a higher-layer type
