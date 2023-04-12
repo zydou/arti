@@ -1,0 +1,30 @@
+[package]
+name = "tor-rpcbase"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.60"
+authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Low level functionality for Arti's RPC service"
+keywords = ["tor", "arti", "rpc"]
+categories = ["asynchronous"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+downcast-rs = "1.2.0"
+erased-serde = "0.3.25"
+futures = "0.3.14"
+futures-await-test = "0.3.0"
+inventory = "0.3.5"
+once_cell = "1"
+paste = "1"
+serde = { version = "1.0.103", features = ["derive"] }
+thiserror = "1"
+tor-error = { path = "../tor-error/", version = "0.4.1" }
+typetag = "0.2.7"
+
+[dev-dependencies]
+assert-impl = "0.1.3"
+futures-await-test = "0.3.0"
+serde_json = "1.0.50"

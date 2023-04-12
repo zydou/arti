@@ -1052,7 +1052,7 @@ mod test {
                 .unbounded_send(CtrlMsg::AddFakeHop {
                     supports_flowctrl_1: true,
                     fwd_lasthop: idx == 2,
-                    rev_lasthop: idx == next_msg_from.into(),
+                    rev_lasthop: idx == u8::from(next_msg_from),
                     params,
                     done: tx,
                 })
