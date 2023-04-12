@@ -1,4 +1,5 @@
 //! Main implementation of the connection functionality
+#![allow(clippy::print_stderr)] // Code here is not finished.  TODO hs remove.
 
 use std::time::Duration;
 
