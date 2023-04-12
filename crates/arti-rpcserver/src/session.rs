@@ -196,7 +196,7 @@ impl Session {
                             let (handle, fut) = Cancel::new(fut);
                             self.register_request(id.clone(), handle);
                             let fut = fut.map(|r| match r {
-                                Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Result(v) },
+                                Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Success(v) },
                                 Ok(Err(e)) => BoxedResponse { id, body: e.into() },
                                 // TODO RPC: This is not the correct error type.
                                 Err(_cancelled) =>  BoxedResponse{ id, body: ResponseBody::Error(Box::new("hey i got cancelled")) }

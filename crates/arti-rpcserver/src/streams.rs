@@ -88,7 +88,7 @@ mod test {
         };
         let r3 = BoxedResponse {
             id: RequestId::Int(9),
-            body: ResponseBody::Result(Box::new(Empty {})),
+            body: ResponseBody::Success(Box::new(Empty {})),
         };
 
         // These should get serialized as follows.

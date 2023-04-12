@@ -73,17 +73,22 @@ pub(crate) struct BoxedResponse {
 
 /// The body of a response for an RPC client.
 #[derive(Serialize)]
-#[serde(rename_all = "lowercase")]
 pub(crate) enum ResponseBody {
     /// The request has failed; no more responses will be sent in reply to it.
     //
     // TODO RPC: This should be a more specific type.
+    #[serde(rename = "error")]
     Error(Box<dyn erased_serde::Serialize + Send>),
     /// The request has succeeded; no more responses will be sent in reply to
     /// it.
-    Result(Box<dyn erased_serde::Serialize + Send>),
+    ///
+    /// Note that in the spec, this is called a "result": we don't propagate
+    /// that terminology into Rust, where `Result` has a different meaning.
+    #[serde(rename = "result")]
+    Success(Box<dyn erased_serde::Serialize + Send>),
     /// The request included the `updates` flag to increment that incremental
     /// progress information is acceptable.
+    #[serde(rename = "update")]
     Update(Box<dyn erased_serde::Serialize + Send>),
 }
 
@@ -92,7 +97,7 @@ impl ResponseBody {
     /// sent for this request.
     pub(crate) fn is_final(&self) -> bool {
         match self {
-            ResponseBody::Error(_) | ResponseBody::Result(_) => true,
+            ResponseBody::Error(_) | ResponseBody::Success(_) => true,
             ResponseBody::Update(_) => false,
         }
     }
@@ -114,7 +119,7 @@ impl std::fmt::Debug for ResponseBody {
         match self {
             Self::Error(arg0) => f.debug_tuple("Error").field(&json(arg0)).finish(),
             Self::Update(arg0) => f.debug_tuple("Update").field(&json(arg0)).finish(),
-            Self::Result(arg0) => f.debug_tuple("Result").field(&json(arg0)).finish(),
+            Self::Success(arg0) => f.debug_tuple("Success").field(&json(arg0)).finish(),
         }
     }
 }
@@ -184,7 +189,7 @@ mod test {
     fn fmt_replies() {
         let resp = BoxedResponse {
             id: RequestId::Int(7),
-            body: ResponseBody::Result(Box::new(DummyResponse {
+            body: ResponseBody::Success(Box::new(DummyResponse {
                 hello: 99,
                 world: "foo".into(),
             })),
