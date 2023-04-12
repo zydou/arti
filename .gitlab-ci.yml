@@ -64,17 +64,30 @@ rust-checks:
   script:
     - rustup show
     - rustup component add rustfmt
-    - ./maint/via-cargo-install-in-ci cargo-audit cargo-sort cargo-license
+    - ./maint/via-cargo-install-in-ci cargo-sort cargo-license
     - cargo fmt -- --check
     - ./maint/check_licenses
-    - ./maint/cargo_audit
     - ./maint/cargo_sort
     - ./maint/check_tree
   cache:
     paths:
-      - cargo-audit
       - cargo-sort
       - cargo-license
+
+cargo-audit:
+  # This can start to fail even when our code doesn't change.
+  # Usually the new advisory is not a huge concern.
+  # Run it last, separately, so if we think we may want to merge anyway,
+  # all the other tests will have been run.
+  stage: test
+  image: rust:latest
+  script:
+    - rustup show
+    - ./maint/via-cargo-install-in-ci cargo-audit
+    - ./maint/cargo_audit
+  cache:
+    paths:
+      - cargo-audit
 
 rust-latest:
   stage: build
