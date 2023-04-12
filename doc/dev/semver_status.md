@@ -41,7 +41,7 @@ We will add guidance to this section as we come up with it. For now, see
 
 [SemVer Compatibility]: https://doc.rust-lang.org/cargo/reference/semver.html
 
-### When from lower-level crates appear in the APIs of higher-level crates
+### When types from lower-level crates appear in the APIs of higher-level crates
 
 If a type (concrete type or trait) from a lower-level crate
 is returned (or accepted)
