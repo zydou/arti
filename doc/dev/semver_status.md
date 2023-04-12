@@ -63,7 +63,7 @@ Obviously our new `arti_client` uses the new `tor_error`.
 A downstream might use both `tor-error` and `arti-client`.
 If they do this in the usual way,
 a `cargo update` will get them the new `arti_client` but old `tor_error`.
-Now their program has *two* `tor_error`:
+Now their program has *two* instances of `tor_error`:
 one whose `ErrorKind` is implemented by `arti_client::Error`,
 and one that the downstream application code sees.
 The effect is that the downstream application
