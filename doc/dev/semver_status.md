@@ -50,9 +50,8 @@ then a breaking change to that lower-level crate is a breaking change
 for the higher-level crate, too.
 
 This includes any case where a higher-layer type
-implements a public trait from a lower-layer.
-
-Even if the type is not itself re-exported by the higher-layer crate.
+implements a public trait from a lower-layer;
+even if the type is not itself re-exported by the higher-layer crate.
 
 #### Reasoning, and worked example:
 
