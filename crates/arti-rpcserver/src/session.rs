@@ -422,8 +422,8 @@ impl tor_error::HasKind for AuthenticationFailure {
 }
 
 rpc::rpc_invoke_fn! {
-    async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, cmd: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
-        match cmd.method {
+    async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, method: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
+        match method.method {
             // For now, we only support AF_UNIX connections, and we assume that if you have permission to open such a connection to us, you have permission to use Arti.
             // We will refine this later on!
             AuthenticationMethod::InherentUnixPath => {}
