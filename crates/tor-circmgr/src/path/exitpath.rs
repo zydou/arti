@@ -133,6 +133,13 @@ impl<'a> ExitPathBuilder<'a> {
 
                 // Non-strict case.  Arguably this doesn't belong in
                 // ExitPathBuilder.
+                //
+                // Note that we use WeightRole::Exit here even though we don't
+                // care that this is actually an exit. That's because the
+                // purpose of this path is to learn average circuit build time
+                // information, so we want our distribution of possible final
+                // nodes to resemble the one that we would use for real
+                // circuits.
                 netdir
                     .pick_relay(rng, WeightRole::Exit, |r| {
                         can_share.count(relays_can_share_circuit_opt(r, guard, config))
