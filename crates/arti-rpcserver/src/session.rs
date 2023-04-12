@@ -192,7 +192,7 @@ impl Session {
 
                             let tx_channel = req.meta.updates.then(|| &tx_update);
                             let id = req.id.clone();
-                            let fut = self.run_command_lowlevel(tx_channel, req);
+                            let fut = self.run_method_lowlevel(tx_channel, req);
                             let (handle, fut) = Cancel::new(fut);
                             self.register_request(id.clone(), handle);
                             let fut = fut.map(|r| match r {
@@ -213,21 +213,21 @@ impl Session {
         Ok(())
     }
 
-    /// Run a single command, and return its final response.
+    /// Run a single method, and return its final response.
     ///
-    /// If `tx_updates` is provided, and this command generates updates, it
+    /// If `tx_updates` is provided, and this method generates updates, it
     /// should send those updates on `tx_updates`
     ///
     /// Note that this function is able to send responses with IDs that do not
     /// match the original.  It should enforce correct IDs on whatever response
     /// it generates.
-    async fn run_command_lowlevel(
+    async fn run_method_lowlevel(
         self: &Arc<Self>,
         tx_updates: Option<&UpdateSender>,
         request: Request,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
         let Request {
-            id, obj, command, ..
+            id, obj, method, ..
         } = request;
         let obj = self.lookup_object(&obj)?;
 
@@ -244,7 +244,7 @@ impl Session {
             }),
         };
 
-        DISPATCH_TABLE.invoke(obj, command, context)?.await
+        DISPATCH_TABLE.invoke(obj, method, context)?.await
     }
 }
 
@@ -257,7 +257,7 @@ pub(crate) enum SessionError {
     WriteFailed,
 }
 
-/// A Context object that we pass to each command invocation.
+/// A Context object that we pass to each method invocation.
 ///
 /// It provides the `rpc::Context` interface, which is used to send incremental
 /// updates and lookup objects by their ID.
@@ -359,7 +359,7 @@ impl rpc::Context for RequestContext<()> {
     }
 }
 
-/// A simple temporary command to echo a reply.
+/// A simple temporary method to echo a reply.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct Echo {
     /// A message to echo.
@@ -373,8 +373,8 @@ rpc::rpc_invoke_fn! {
     /// Implementation for calling "echo" on a session
     ///
     /// TODO RPC: Remove this. It shouldn't exist.
-    async fn echo_on_session(_obj: Arc<Session>, cmd: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
-        Ok(cmd)
+    async fn echo_on_session(_obj: Arc<Session>, method: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
+        Ok(method)
     }
 }
 
@@ -391,7 +391,7 @@ enum AuthenticationMethod {
     InherentUnixPath,
 }
 
-/// Command to implement basic authentication.  Right now only "I connected to
+/// Method to implement basic authentication.  Right now only "I connected to
 /// you so I must have permission!" is supported.
 #[derive(Debug, serde::Deserialize)]
 struct Authenticate {

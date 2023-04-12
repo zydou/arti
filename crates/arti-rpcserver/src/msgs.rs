@@ -51,14 +51,14 @@ pub(crate) struct Request {
     /// Any metadata to explain how this request is handled.
     #[serde(default)]
     pub(crate) meta: ReqMeta,
-    /// The command to actually execute.
+    /// The method to actually execute.
     ///
     /// Using "flatten" here will make it expand to "method" and "params".
     ///
     /// TODO RPC: Note that our spec says that "params" can be omitted, but I
     /// don't think we support that right now.
     #[serde(flatten)]
-    pub(crate) command: Box<dyn rpc::Method>,
+    pub(crate) method: Box<dyn rpc::Method>,
 }
 
 /// A Response to send to an RPC client.
@@ -143,20 +143,20 @@ mod test {
         };
     }
 
-    // TODO RPC: note that the existence of this command type can potentially
+    // TODO RPC: note that the existence of this method type can potentially
     // leak into our real RPC engine when we're compiled with `test` enabled!
-    // We should consider how bad this is, and maybe use a real command instead.
+    // We should consider how bad this is, and maybe use a real method instead.
     #[derive(Debug, serde::Deserialize)]
-    struct DummyCmd {
+    struct DummyMethod {
         #[serde(default)]
         #[allow(dead_code)]
         stuff: u64,
     }
 
     #[typetag::deserialize(name = "dummy")]
-    impl rpc::Method for DummyCmd {}
+    impl rpc::Method for DummyMethod {}
 
-    tor_rpcbase::decl_method! {DummyCmd}
+    tor_rpcbase::decl_method! {DummyMethod}
 
     #[derive(Serialize)]
     struct DummyResponse {
@@ -175,7 +175,7 @@ mod test {
                 id: RequestId::Int(7),
                 obj: rpc::ObjectId::from("hello"),
                 meta: ReqMeta::default(),
-                command: Box::new(DummyCmd { stuff: 0 })
+                method: Box::new(DummyMethod { stuff: 0 })
             }
         );
     }
