@@ -121,7 +121,7 @@ impl SkewEstimate {
         let min_observations = 8;
 
         let skews: Vec<_> = skews
-            .filter_map(|obs| obs.more_recent_than(cutoff).then(|| obs.skew))
+            .filter_map(|obs| obs.more_recent_than(cutoff).then_some(obs.skew))
             .collect();
         if skews.len() < min_observations {
             return None;
