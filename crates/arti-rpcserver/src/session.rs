@@ -378,14 +378,14 @@ rpc::rpc_invoke_fn! {
     }
 }
 
-/// The authentication method as enumerated in the spec.
+/// The authentication scheme as enumerated in the spec.
 ///
-/// Conceptually, an authentication method answers the question "How can the
+/// Conceptually, an authentication scheme answers the question "How can the
 /// Arti process know you have permissions to use or administer it?"
 ///
 /// TODO RPC: The only supported one for now is "inherent:unix_path"
 #[derive(Debug, Copy, Clone, serde::Deserialize)]
-enum AuthenticationMethod {
+enum AuthenticationScheme {
     /// Inherent authority based on the ability to access an AF_UNIX address.
     #[serde(rename = "inherent:unix_path")]
     InherentUnixPath,
@@ -395,10 +395,10 @@ enum AuthenticationMethod {
 /// you so I must have permission!" is supported.
 #[derive(Debug, serde::Deserialize)]
 struct Authenticate {
-    /// The authentication method as enumerated in the spec.
+    /// The authentication scheme as enumerated in the spec.
     ///
     /// TODO RPC: The only supported one for now is "inherent:unix_path"
-    method: AuthenticationMethod,
+    scheme: AuthenticationScheme,
 }
 #[typetag::deserialize(name = "auth:authenticate")]
 impl rpc::Method for Authenticate {}
@@ -423,10 +423,10 @@ impl tor_error::HasKind for AuthenticationFailure {
 
 rpc::rpc_invoke_fn! {
     async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, method: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
-        match method.method {
+        match method.scheme {
             // For now, we only support AF_UNIX connections, and we assume that if you have permission to open such a connection to us, you have permission to use Arti.
             // We will refine this later on!
-            AuthenticationMethod::InherentUnixPath => {}
+            AuthenticationScheme::InherentUnixPath => {}
         }
 
         unauth.inner.inner.lock().expect("Poisoned lock").authenticated = true;
