@@ -62,11 +62,11 @@ pub enum Dormancy {
     /// but they may continue until they complete (or fail).
     // TODO async task cancellation: actually cancel these in this case
     ///
-    /// So a dormant BridgeDescManager may still continue to
+    /// So a dormant BridgeDescMgr may still continue to
     /// change the return value from [`bridges()`](BridgeDescProvider::bridges)
     /// and continue to report [`BridgeDescEvent`]s.
     ///
-    /// When the BridgeDescManager is dormant,
+    /// When the BridgeDescMgr is dormant,
     /// `bridges()` may return stale descriptors
     /// (that is, descriptors which ought to have been refetched and may no longer be valid),
     /// or stale errors
