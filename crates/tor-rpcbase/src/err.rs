@@ -1,6 +1,6 @@
 //! Error-related functionality for RPC functions.
 
-/// An error type returned by failing RPC commands.
+/// An error type returned by failing RPC methods.
 #[derive(serde::Serialize)]
 pub struct RpcError {
     /// A human-readable message.
@@ -37,7 +37,7 @@ where
 impl From<crate::dispatch::InvokeError> for crate::RpcError {
     fn from(_value: crate::dispatch::InvokeError) -> Self {
         crate::RpcError {
-            message: "Tried to invoke unsupported command on object".to_string(),
+            message: "Tried to invoke unsupported method on object".to_string(),
             code: -23456,                               // TODO RPC wrong.
             kind: tor_error::ErrorKind::NotImplemented, // TODO RPC wrong
             data: None,

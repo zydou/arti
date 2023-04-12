@@ -366,8 +366,8 @@ struct Echo {
     msg: String,
 }
 #[typetag::deserialize(name = "echo")]
-impl rpc::Command for Echo {}
-rpc::decl_command! {Echo}
+impl rpc::Method for Echo {}
+rpc::decl_method! {Echo}
 
 rpc::rpc_invoke_fn! {
     /// Implementation for calling "echo" on a session
@@ -401,8 +401,8 @@ struct Authenticate {
     method: AuthenticationMethod,
 }
 #[typetag::deserialize(name = "auth:authenticate")]
-impl rpc::Command for Authenticate {}
-rpc::decl_command! {Authenticate}
+impl rpc::Method for Authenticate {}
+rpc::decl_method! {Authenticate}
 
 /// An empty structure used for "okay" replies with no additional data.
 ///

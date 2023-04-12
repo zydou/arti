@@ -46,7 +46,7 @@ pub mod typeid;
 
 use std::sync::Arc;
 
-pub use cmd::Command;
+pub use cmd::Method;
 pub use dispatch::DispatchTable;
 pub use err::RpcError;
 use futures::Sink;
@@ -73,18 +73,18 @@ pub enum LookupError {
     WrongType(ObjectId),
 }
 
-/// A trait describing the context in which an RPC command is executed.
+/// A trait describing the context in which an RPC method is executed.
 pub trait Context:
     Send + Sink<Box<dyn erased_serde::Serialize + Send + 'static>, Error = SendUpdateError>
 {
     /// Look up an object by identity within this context.
     fn lookup_object(&self, id: &ObjectId) -> Result<Arc<dyn Object>, LookupError>;
 
-    /// Return true if the request for the current command included a request for incremental updates.
+    /// Return true if the request for the current method included a request for incremental updates.
     fn accepts_updates(&self) -> bool;
 }
 
-/// An error caused while trying to send an update to a command.
+/// An error caused while trying to send an update to a method.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum SendUpdateError {

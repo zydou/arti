@@ -58,7 +58,7 @@ pub(crate) struct Request {
     /// TODO RPC: Note that our spec says that "params" can be omitted, but I
     /// don't think we support that right now.
     #[serde(flatten)]
-    pub(crate) command: Box<dyn rpc::Command>,
+    pub(crate) command: Box<dyn rpc::Method>,
 }
 
 /// A Response to send to an RPC client.
@@ -154,9 +154,9 @@ mod test {
     }
 
     #[typetag::deserialize(name = "dummy")]
-    impl rpc::Command for DummyCmd {}
+    impl rpc::Method for DummyCmd {}
 
-    tor_rpcbase::decl_command! {DummyCmd}
+    tor_rpcbase::decl_method! {DummyCmd}
 
     #[derive(Serialize)]
     struct DummyResponse {

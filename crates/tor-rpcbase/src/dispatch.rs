@@ -1,8 +1,8 @@
 //! A multiple-argument dispatch system for our RPC system.
 //!
-//! Our RPC functionality is polymorphic in Commands (what we're told to do) and
-//! Objects (the things that we give the commands to); we want to be able to
-//! provide different implementations for each command, on each object.
+//! Our RPC functionality is polymorphic in Methods (what we're told to do) and
+//! Objects (the things that we give the methods to); we want to be able to
+//! provide different implementations for each method, on each object.
 
 use std::any;
 use std::collections::HashMap;
@@ -11,20 +11,20 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 
 use crate::typeid::ConstTypeId_;
-use crate::{Command, Context, Object, RpcError};
+use crate::{Context, Method, Object, RpcError};
 
 /// The return type from an RPC function.
 #[doc(hidden)]
 pub type RpcResult = Result<Box<dyn erased_serde::Serialize + Send + 'static>, RpcError>;
 
-/// A boxed future holding the result of an RPC command.
+/// A boxed future holding the result of an RPC method.
 type RpcResultFuture = BoxFuture<'static, RpcResult>;
 
-/// A type-erased RPC-command invocation function.
+/// A type-erased RPC-method invocation function.
 ///
 /// This function takes `Arc`s rather than a reference, so that it can return a
 /// `'static` future.
-type ErasedInvokeFn = fn(Arc<dyn Object>, Box<dyn Command>, Box<dyn Context>) -> RpcResultFuture;
+type ErasedInvokeFn = fn(Arc<dyn Object>, Box<dyn Method>, Box<dyn Context>) -> RpcResultFuture;
 
 /// An entry for our dynamic dispatch code.
 ///
@@ -38,7 +38,7 @@ pub struct InvokeEntry_ {
 }
 
 // Note that using `inventory` here means that _anybody_ can define new
-// commands!  This may not be the greatest property.
+// methods!  This may not be the greatest property.
 inventory::collect!(InvokeEntry_);
 
 impl InvokeEntry_ {
@@ -53,7 +53,7 @@ impl InvokeEntry_ {
     }
 }
 
-/// Declare an RPC function that will be used to call a single type of [`Command`] on a
+/// Declare an RPC function that will be used to call a single type of [`Method`] on a
 /// single type of [`Object`].
 ///
 /// # Example
@@ -67,10 +67,10 @@ impl InvokeEntry_ {
 /// rpc::decl_object! {ExampleObject}
 ///
 /// #[derive(Debug,serde::Deserialize)]
-/// struct ExampleCommand {}
+/// struct ExampleMethod {}
 /// #[typetag::deserialize]
-/// impl rpc::Command for ExampleCommand {}
-/// rpc::decl_command! {ExampleCommand}
+/// impl rpc::Method for ExampleMethod {}
+/// rpc::decl_method! {ExampleMethod}
 ///
 /// #[derive(serde::Serialize)]
 /// struct ExampleResult {
@@ -80,15 +80,15 @@ impl InvokeEntry_ {
 /// rpc::rpc_invoke_fn!{
 ///     // Note that the types of this function are very constrained:
 ///     //  - `obj` must be an Arc<O> for some `Object` type.
-///     //  - `cmd` must be Box<C> for come `Command` type.
+///     //  - `mth` must be Box<C> for some `Method` type.
 ///     //  - `ctx` must be Box<dyn rpc::Context>.
 ///     //  - The return type must be a Result.
 ///     //  - The OK variant of the result must be Serialize + Send + 'static.
 ///     //  - The Err variant of the result must implement Into<rpc::RpcError>.
 ///     async fn example(obj: Arc<ExampleObject>,
-///                      cmd: Box<ExampleCommand>,
+///                      cmd: Box<ExampleMethod>,
 ///                      ctx: Box<dyn rpc::Context>) -> Result<ExampleResult, rpc::RpcError> {
-///         println!("Running example command!");
+///         println!("Running example method!");
 ///         Ok(ExampleResult { text: "here is your result".into() })
 ///     }
 /// }
@@ -111,7 +111,7 @@ macro_rules! rpc_invoke_fn {
         // a boxed future.
         #[doc(hidden)]
         fn [<_typeerased_ $name>](obj: std::sync::Arc<dyn $crate::Object>,
-                                  cmd: Box<dyn $crate::Command>,
+                                  cmd: Box<dyn $crate::Method>,
                                   ctx: Box<dyn $crate::Context>)
         -> $crate::futures::future::BoxFuture<'static, $crate::RpcResult> {
             use $crate::futures::FutureExt;
@@ -148,7 +148,7 @@ macro_rules! rpc_invoke_fn {
 struct FuncType {
     /// The type of object to which this function applies.
     obj_id: any::TypeId,
-    /// The type of command to which this function applies.
+    /// The type of method to which this function applies.
     cmd_id: any::TypeId,
 }
 
@@ -194,14 +194,14 @@ impl DispatchTable {
         Self { map }
     }
 
-    /// Try to find an appropriate function for calling a given RPC command on a
+    /// Try to find an appropriate function for calling a given RPC method on a
     /// given RPC-visible object.
     ///
     /// On success, return a Future.
     pub fn invoke(
         &self,
         obj: Arc<dyn Object>,
-        cmd: Box<dyn Command>,
+        cmd: Box<dyn Method>,
         ctx: Box<dyn Context>,
     ) -> Result<RpcResultFuture, InvokeError> {
         let func_type = FuncType {
@@ -215,13 +215,13 @@ impl DispatchTable {
     }
 }
 
-/// An error that occurred while trying to invoke a command on an object.
+/// An error that occurred while trying to invoke a method on an object.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum InvokeError {
     /// There is no implementation for the given combination of object
-    /// type and command type.
-    #[error("No implementation for provided object and command types.")]
+    /// type and method type.
+    #[error("No implementation for provided object and method types.")]
     NoImpl,
 }
 
@@ -257,16 +257,16 @@ mod test {
     impl crate::Object for Brick {}
     crate::decl_object! {Swan Wombat Sheep Brick}
 
-    // Define 2 commands.
+    // Define 2 methods.
     #[derive(Debug, serde::Deserialize)]
     struct GetName;
     #[derive(Debug, serde::Deserialize)]
     struct GetKids;
     #[typetag::deserialize]
-    impl crate::Command for GetName {}
+    impl crate::Method for GetName {}
     #[typetag::deserialize]
-    impl crate::Command for GetKids {}
-    crate::decl_command! {GetName GetKids}
+    impl crate::Method for GetKids {}
+    crate::decl_method! {GetName GetKids}
 
     #[derive(serde::Serialize)]
     struct Outcome {
@@ -347,17 +347,17 @@ mod test {
     #[async_test]
     async fn try_invoke() {
         use super::*;
-        fn invoke_helper<O: Object, C: Command>(
+        fn invoke_helper<O: Object, C: Method>(
             table: &DispatchTable,
             obj: O,
             cmd: C,
         ) -> Result<RpcResultFuture, InvokeError> {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
-            let request: Box<dyn crate::Command> = Box::new(cmd);
+            let request: Box<dyn crate::Method> = Box::new(cmd);
             let ctx = Box::new(Ctx {});
             table.invoke(animal, request, ctx)
         }
-        async fn invoke_ok<O: crate::Object, C: crate::Command>(
+        async fn invoke_ok<O: crate::Object, C: crate::Method>(
             table: &DispatchTable,
             obj: O,
             cmd: C,
