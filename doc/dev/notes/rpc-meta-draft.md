@@ -506,13 +506,13 @@ until authentication is successful.
 > until one of its responses eventually gives the application
 > a session Object?
 
-The authentication methods are:
+The authentication schemes are:
 
 auth:get_proto
 : Ask Arti which version of the protocol is in use.
 
 auth:query
-: Ask Arti which authentication methods are acceptable.
+: Ask Arti which authentication schemes are acceptable.
 
 auth:authenticate
 : Try to authenticate using one of the provided authentication
@@ -520,7 +520,7 @@ auth:authenticate
 
 > TODO: Provide more information about these in greater detail.
 
-Three recognized authentication methods are:
+Three recognized authentication schemes are:
 
 inherent:peer_uid
 : Attempt to authenticate based on the the application's
@@ -609,7 +609,7 @@ When we are specifying a request, we list the following.
 > "cancel every request with the same id as this request".)
 
 To try to cancel a request,
-there is a "cancel" command, taking arguments of the form:
+there is a "cancel" method, taking arguments of the form:
 
 ```
 { "request_id": id }
