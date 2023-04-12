@@ -264,6 +264,12 @@ id
   It will match the id of a request
   that has not received a final response.
 
+  (As an exception:
+  A error caused by a request in which the id could not be parsed
+  will have the special id, "<SYNTAX>".
+  We can't use the id of the request with the syntax problem,
+  since it couldn't be parsed.)
+
 update
 : A JSON object whose contents depends on the request method.
   It is required on an update.
