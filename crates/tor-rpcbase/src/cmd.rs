@@ -6,7 +6,7 @@ use downcast_rs::Downcast;
 ///
 /// We use [`typetag`] here so that we define `Command`s in other crates.
 ///
-/// See [`decl_command!`] for a template to declare one of these.
+/// See [`decl_command!`](crate::decl_command) for a template to declare one of these.
 ///
 /// # Note
 ///

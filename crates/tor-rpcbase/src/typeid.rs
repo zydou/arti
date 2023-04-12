@@ -49,7 +49,7 @@ pub trait HasConstTypeId_ {
     const CONST_TYPE_ID_: ConstTypeId_;
 }
 
-/// Implement [`GetConstTypeId_`] and [`HasConstTypeId_`] for one or more types.
+/// Implement [`HasConstTypeId_`] for one or more types.
 ///
 /// To avoid truly unpleasant consequences, this macro only works on simple
 /// identifiers, so you can't run it on arbitrary types, or on types in other
