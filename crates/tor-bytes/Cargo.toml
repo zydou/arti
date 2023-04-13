@@ -24,7 +24,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
 zeroize = "1"
 
 [dev-dependencies]
-hex-literal = "0.3"
+hex-literal = "0.4"
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }

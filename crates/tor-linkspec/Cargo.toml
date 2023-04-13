@@ -37,7 +37,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.3" }
 tor-protover = { path = "../tor-protover", version = "0.4.2" }
 
 [dev-dependencies]
-hex-literal = "0.3"
+hex-literal = "0.4"
 itertools = "0.10.1"
 serde_test = "1.0.124"
 

@@ -62,7 +62,7 @@ typed-index-collections = "3.1"
 [dev-dependencies]
 float_eq = "1.0.0"
 hex = "0.4"
-hex-literal = "0.3"
+hex-literal = "0.4"
 rand_chacha = "0.3"
 tor-netdoc = { path = "../tor-netdoc", version = "0.6.3", features = ["build_docs"] }
 [package.metadata.docs.rs]
