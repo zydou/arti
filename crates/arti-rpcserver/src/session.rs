@@ -4,7 +4,6 @@ use std::{
     collections::HashMap,
     pin::Pin,
     sync::{Arc, Mutex},
-    task::{Context, Poll},
 };
 
 use asynchronous_codec::JsonCodecError;
@@ -252,20 +251,31 @@ impl Session {
         } = request;
         let obj = self.lookup_object(&obj)?;
 
-        let context: Box<dyn rpc::Context> = match tx_updates {
-            Some(tx) => Box::new(RequestContext {
-                session: Arc::clone(self),
-                id: id.clone(),
-                reply_tx: tx.clone(),
-            }),
-            None => Box::new(RequestContext {
-                session: Arc::clone(self),
-                id: id.clone(),
-                reply_tx: (),
-            }),
+        let context: Box<dyn rpc::Context> = Box::new(RequestContext {
+            session: Arc::clone(self),
+        });
+
+        let sender = match tx_updates {
+            None => None,
+            Some(sink) => {
+                let sink =
+                    sink.clone()
+                        .with(move |obj: Box<dyn erased_serde::Serialize + Send>| {
+                            // TODO: I don't like using "with" here since it expects a future.
+                            let id = id.clone();
+                            async {
+                                Result::<BoxedResponse, _>::Ok(BoxedResponse {
+                                    id: Some(id),
+                                    body: ResponseBody::Update(obj),
+                                })
+                            }
+                        });
+                let sink: rpc::dispatch::BoxedUpdateSink = Box::pin(sink);
+                Some(sink)
+            }
         };
 
-        DISPATCH_TABLE.invoke(obj, method, context)?.await
+        DISPATCH_TABLE.invoke(obj, method, context, sender)?.await
     }
 }
 
@@ -286,100 +296,14 @@ pub(crate) enum SessionError {
 /// It provides the `rpc::Context` interface, which is used to send incremental
 /// updates and lookup objects by their ID.
 #[pin_project]
-struct RequestContext<T> {
+struct RequestContext {
     /// The underlying RPC session.
     session: Arc<Session>,
-    /// The request ID. It's used to tag every reply.
-    id: RequestId,
-    /// A `futures::Sink` if incremental updates are wanted; `()` otherwise.
-    #[pin]
-    reply_tx: T,
 }
 
-impl<T> Sink<Box<dyn erased_serde::Serialize + Send + 'static>> for RequestContext<T>
-where
-    T: Sink<BoxedResponse>,
-{
-    type Error = rpc::SendUpdateError;
-
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let this = self.project();
-        this.reply_tx
-            .poll_ready(cx)
-            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
-    }
-
-    fn start_send(
-        self: Pin<&mut Self>,
-        item: Box<dyn erased_serde::Serialize + Send + 'static>,
-    ) -> Result<(), Self::Error> {
-        let this = self.project();
-        let item = BoxedResponse {
-            id: Some(this.id.clone()),
-            body: ResponseBody::Update(item),
-        };
-        this.reply_tx
-            .start_send(item)
-            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let this = self.project();
-        this.reply_tx
-            .poll_flush(cx)
-            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let this = self.project();
-        this.reply_tx
-            .poll_close(cx)
-            .map_err(|_| rpc::SendUpdateError::RequestCancelled)
-    }
-}
-impl<T> rpc::Context for RequestContext<T>
-where
-    T: Sink<BoxedResponse> + Send,
-{
+impl rpc::Context for RequestContext {
     fn lookup_object(&self, id: &rpc::ObjectId) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
         self.session.lookup_object(id)
-    }
-
-    fn accepts_updates(&self) -> bool {
-        true
-    }
-}
-
-impl Sink<Box<dyn erased_serde::Serialize + Send + 'static>> for RequestContext<()> {
-    type Error = rpc::SendUpdateError;
-
-    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Err(rpc::SendUpdateError::NoUpdatesWanted))
-    }
-
-    fn start_send(
-        self: Pin<&mut Self>,
-        _item: Box<dyn erased_serde::Serialize + Send + 'static>,
-    ) -> Result<(), Self::Error> {
-        Err(rpc::SendUpdateError::NoUpdatesWanted)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-}
-
-impl rpc::Context for RequestContext<()> {
-    fn lookup_object(&self, id: &rpc::ObjectId) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        self.session.lookup_object(id)
-    }
-
-    fn accepts_updates(&self) -> bool {
-        false
     }
 }
 
