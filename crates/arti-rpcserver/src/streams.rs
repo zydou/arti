@@ -81,17 +81,17 @@ mod test {
         // Sanity-checking for our sink type.
         let mut buf = Vec::new();
         let r1 = BoxedResponse {
-            id: RequestId::Int(7),
+            id: Some(RequestId::Int(7)),
             body: ResponseBody::Update(Box::new(Empty {})),
         };
         let r2 = BoxedResponse {
-            id: RequestId::Int(8),
+            id: Some(RequestId::Int(8)),
             body: ResponseBody::Error(Box::new(rpc::RpcError::from(
                 crate::session::RequestCancelled,
             ))),
         };
         let r3 = BoxedResponse {
-            id: RequestId::Int(9),
+            id: Some(RequestId::Int(9)),
             body: ResponseBody::Success(Box::new(Empty {})),
         };
 

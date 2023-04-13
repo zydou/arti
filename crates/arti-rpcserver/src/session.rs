@@ -154,7 +154,7 @@ impl Session {
                     // A task is done, so we can inform the client.
                     let r: BoxedResponse = r.expect("Somehow, future::pending() terminated.");
                     debug_assert!(r.body.is_final());
-                    self.remove_request(&r.id);
+                    self.remove_request(r.id.as_ref().expect("Somehow, a request was launched without an ID."));
                     // Calling `await` here (and below) is deliberate: we _want_
                     // to stop reading the client's requests if the client is
                     // not reading their responses (or not) reading them fast
@@ -199,12 +199,14 @@ impl Session {
                             break 'outer;
                         }
                         Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
-                            // We could at least
                             response_sink
                                 .send(
                                     BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
                                 ).await.map_err(|_| SessionError::WriteFailed)?;
-
+                            if bad_req.id().is_none() {
+                                // The spec says we must close the connection in this case.
+                                break 'outer;
+                            }
                         }
                         Some(Ok(FlexibleRequest::Valid(req))) => {
                             // We have a request. Time to launch it!
@@ -214,10 +216,11 @@ impl Session {
                             let fut = self.run_method_lowlevel(tx_channel, req);
                             let (handle, fut) = Cancel::new(fut);
                             self.register_request(id.clone(), handle);
+                            let id = Some(id);
                             let fut = fut.map(|r| match r {
                                 Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Success(v) },
                                 Ok(Err(e)) => BoxedResponse { id, body: e.into() },
-                                Err(_cancelled) => BoxedResponse::from_error(Some(id), RequestCancelled),
+                                Err(_cancelled) => BoxedResponse::from_error(id, RequestCancelled),
                             });
 
 
@@ -312,7 +315,7 @@ where
     ) -> Result<(), Self::Error> {
         let this = self.project();
         let item = BoxedResponse {
-            id: this.id.clone(),
+            id: Some(this.id.clone()),
             body: ResponseBody::Update(item),
         };
         this.reply_tx

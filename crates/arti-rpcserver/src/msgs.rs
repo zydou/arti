@@ -78,7 +78,13 @@ pub(crate) enum FlexibleRequest {
 #[derive(Debug, Serialize)]
 pub(crate) struct BoxedResponse {
     /// An ID for the request that we're responding to.
-    pub(crate) id: RequestId,
+    ///
+    /// This is always present on a response to every valid request; it is also
+    /// present on responses to invalid requests if we could decern what their
+    /// `id` field was. We only omit it when the request id was indeterminate.
+    /// If we do that, we close the connection immediately afterwards.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) id: Option<RequestId>,
     /// The body  that we're sending.
     #[serde(flatten)]
     pub(crate) body: ResponseBody,
@@ -87,14 +93,10 @@ pub(crate) struct BoxedResponse {
 impl BoxedResponse {
     /// Construct a BoxedResponse from an error that can be converted into an
     /// RpcError.
-    ///
-    /// If `id` is absent, we use a fixed ID reserved for requests whose IDs
-    /// can't be determined.
     pub(crate) fn from_error<E>(id: Option<RequestId>, error: E) -> Self
     where
         E: Into<rpc::RpcError>,
     {
-        let id = id.unwrap_or_else(|| RequestId::Str("<SYNTAX>".into()));
         let error: rpc::RpcError = error.into();
         let body = ResponseBody::Error(Box::new(error));
         Self { id, body }
@@ -278,7 +280,7 @@ mod test {
     #[test]
     fn fmt_replies() {
         let resp = BoxedResponse {
-            id: RequestId::Int(7),
+            id: Some(RequestId::Int(7)),
             body: ResponseBody::Success(Box::new(DummyResponse {
                 hello: 99,
                 world: "foo".into(),
@@ -289,5 +291,18 @@ mod test {
         // serde_json guarantees that the fields will be serialized in this
         // exact order.
         assert_eq!(s, r#"{"id":7,"result":{"hello":99,"world":"foo"}}"#);
+
+        let resp = BoxedResponse {
+            id: None,
+            body: ResponseBody::Error(Box::new(rpc::RpcError::from(
+                crate::err::RequestParseError::IdMissing,
+            ))),
+        };
+        let s = serde_json::to_string(&resp).unwrap();
+        // NOTE: as above.
+        assert_eq!(
+            s,
+            r#"{"error":{"message":"Request did not have any `id` field.","code":-32600,"kinds":["arti:RpcInvalidRequest"],"data":"IdMissing"}}"#
+        );
     }
 }

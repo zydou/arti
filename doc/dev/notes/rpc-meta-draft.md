@@ -258,7 +258,7 @@ Responses follow the following metaformat:
 
 id
 : An identifier for the request.
-  It is required.
+  It is (almost always) required.
   As in JSON-RPC, it will match the id of a request
   previously sent in this session.
   It will match the id of a request
@@ -266,9 +266,11 @@ id
 
   (As an exception:
   A error caused by a request in which the id could not be parsed
-  will have the special id, "<SYNTAX>".
+  will have no id itself.
   We can't use the id of the request with the syntax problem,
-  since it couldn't be parsed.)
+  since it couldn't be parsed.
+  Such errors are always fatal;
+  after sending one, the server will close the connection.)
 
 update
 : A JSON object whose contents depends on the request method.
