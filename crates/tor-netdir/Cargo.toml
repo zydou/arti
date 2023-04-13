@@ -38,7 +38,7 @@ futures = "0.3.14"
 hex = { version = "0.4", optional = true }
 humantime = "2"
 itertools = "0.10.1"
-num_enum = "0.5"
+num_enum = "0.6"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
