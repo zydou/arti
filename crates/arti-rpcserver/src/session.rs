@@ -7,6 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use asynchronous_codec::JsonCodecError;
 use futures::{
     channel::mpsc,
     stream::{FusedStream, FuturesUnordered},
@@ -14,10 +15,12 @@ use futures::{
 };
 use once_cell::sync::Lazy;
 use pin_project::pin_project;
+use serde_json::error::Category as JsonErrorCategory;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
-    msgs::{BoxedResponse, Request, RequestId, ResponseBody},
+    err::RequestParseError,
+    msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
 };
 
 use tor_rpcbase as rpc;
@@ -64,8 +67,9 @@ type UpdateSender = mpsc::Sender<BoxedResponse>;
 //
 // (We name this type and [`BoxedResponseSink`] below so as to keep the signature for run_loop
 // nice and simple.)
-pub(crate) type BoxedRequestStream =
-    Pin<Box<dyn FusedStream<Item = Result<Request, asynchronous_codec::JsonCodecError>> + Send>>;
+pub(crate) type BoxedRequestStream = Pin<
+    Box<dyn FusedStream<Item = Result<FlexibleRequest, asynchronous_codec::JsonCodecError>> + Send>,
+>;
 
 /// A type-erased [`Sink`] accepting [`BoxedResponse`]s.
 pub(crate) type BoxedResponseSink =
@@ -150,7 +154,7 @@ impl Session {
                     // A task is done, so we can inform the client.
                     let r: BoxedResponse = r.expect("Somehow, future::pending() terminated.");
                     debug_assert!(r.body.is_final());
-                    self.remove_request(&r.id);
+                    self.remove_request(r.id.as_ref().expect("Somehow, a request was launched without an ID."));
                     // Calling `await` here (and below) is deliberate: we _want_
                     // to stop reading the client's requests if the client is
                     // not reading their responses (or not) reading them fast
@@ -174,32 +178,49 @@ impl Session {
                             break 'outer;
                         }
                         Some(Err(e)) => {
-                            // We got a parse error from the JSON codec.
+                            // We got a non-recoverable error from the JSON codec.
+                           let error = match e {
+                                JsonCodecError::Io(_) => return Err(SessionError::ReadFailed),
+                                JsonCodecError::Json(e) => match e.classify() {
+                                    JsonErrorCategory::Eof => break 'outer,
+                                    JsonErrorCategory::Io => return Err(SessionError::ReadFailed),
+                                    JsonErrorCategory::Syntax => RequestParseError::InvalidJson,
+                                    JsonErrorCategory::Data => RequestParseError::NotAnObject,
+                                }
+                            };
 
-                            // TODO RPC: This is out-of-spec, but we may as well do something on a parse error.
                             response_sink
-                                .send(BoxedResponse {
-                                    id: RequestId::Str("-----".into()),
-                                    // TODO RPC real error type
-                                    body: ResponseBody::Error(Box::new(format!("Parse error: {}", e)))
-                                }).await.map_err(|_| SessionError::WriteFailed)?;
+                                .send(
+                                    BoxedResponse::from_error(None, error)
+                                ).await.map_err(|_| SessionError::WriteFailed)?;
 
-                            // TODO RPC: Perhaps we should keep going? (Only if this is an authenticated session!)
+                            // TODO RPC: Perhaps we should keep going on the NotAnObject case?
+                            //      (InvalidJson is not recoverable!)
                             break 'outer;
                         }
-                        Some(Ok(req)) => {
+                        Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
+                            response_sink
+                                .send(
+                                    BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
+                                ).await.map_err(|_| SessionError::WriteFailed)?;
+                            if bad_req.id().is_none() {
+                                // The spec says we must close the connection in this case.
+                                break 'outer;
+                            }
+                        }
+                        Some(Ok(FlexibleRequest::Valid(req))) => {
                             // We have a request. Time to launch it!
 
                             let tx_channel = req.meta.updates.then(|| &tx_update);
                             let id = req.id.clone();
-                            let fut = self.run_command_lowlevel(tx_channel, req);
+                            let fut = self.run_method_lowlevel(tx_channel, req);
                             let (handle, fut) = Cancel::new(fut);
                             self.register_request(id.clone(), handle);
+                            let id = Some(id);
                             let fut = fut.map(|r| match r {
-                                Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Result(v) },
+                                Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Success(v) },
                                 Ok(Err(e)) => BoxedResponse { id, body: e.into() },
-                                // TODO RPC: This is not the correct error type.
-                                Err(_cancelled) =>  BoxedResponse{ id, body: ResponseBody::Error(Box::new("hey i got cancelled")) }
+                                Err(_cancelled) => BoxedResponse::from_error(id, RequestCancelled),
                             });
 
 
@@ -213,21 +234,21 @@ impl Session {
         Ok(())
     }
 
-    /// Run a single command, and return its final response.
+    /// Run a single method, and return its final response.
     ///
-    /// If `tx_updates` is provided, and this command generates updates, it
+    /// If `tx_updates` is provided, and this method generates updates, it
     /// should send those updates on `tx_updates`
     ///
     /// Note that this function is able to send responses with IDs that do not
     /// match the original.  It should enforce correct IDs on whatever response
     /// it generates.
-    async fn run_command_lowlevel(
+    async fn run_method_lowlevel(
         self: &Arc<Self>,
         tx_updates: Option<&UpdateSender>,
         request: Request,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
         let Request {
-            id, obj, command, ..
+            id, obj, method, ..
         } = request;
         let obj = self.lookup_object(&obj)?;
 
@@ -244,7 +265,7 @@ impl Session {
             }),
         };
 
-        DISPATCH_TABLE.invoke(obj, command, context)?.await
+        DISPATCH_TABLE.invoke(obj, method, context)?.await
     }
 }
 
@@ -255,9 +276,12 @@ pub(crate) enum SessionError {
     /// Unable to write to our connection.
     #[error("Could not write to connection")]
     WriteFailed,
+    /// Read error from connection.
+    #[error("Problem reading from connection")]
+    ReadFailed,
 }
 
-/// A Context object that we pass to each command invocation.
+/// A Context object that we pass to each method invocation.
 ///
 /// It provides the `rpc::Context` interface, which is used to send incremental
 /// updates and lookup objects by their ID.
@@ -291,7 +315,7 @@ where
     ) -> Result<(), Self::Error> {
         let this = self.project();
         let item = BoxedResponse {
-            id: this.id.clone(),
+            id: Some(this.id.clone()),
             body: ResponseBody::Update(item),
         };
         this.reply_tx
@@ -359,50 +383,50 @@ impl rpc::Context for RequestContext<()> {
     }
 }
 
-/// A simple temporary command to echo a reply.
+/// A simple temporary method to echo a reply.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct Echo {
     /// A message to echo.
     msg: String,
 }
 #[typetag::deserialize(name = "echo")]
-impl rpc::Command for Echo {}
-rpc::decl_command! {Echo}
+impl rpc::Method for Echo {}
+rpc::decl_method! {Echo}
 
 rpc::rpc_invoke_fn! {
     /// Implementation for calling "echo" on a session
     ///
     /// TODO RPC: Remove this. It shouldn't exist.
-    async fn echo_on_session(_obj: Arc<Session>, cmd: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
-        Ok(cmd)
+    async fn echo_on_session(_obj: Arc<Session>, method: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
+        Ok(method)
     }
 }
 
-/// The authentication method as enumerated in the spec.
+/// The authentication scheme as enumerated in the spec.
 ///
-/// Conceptually, an authentication method answers the question "How can the
+/// Conceptually, an authentication scheme answers the question "How can the
 /// Arti process know you have permissions to use or administer it?"
 ///
 /// TODO RPC: The only supported one for now is "inherent:unix_path"
 #[derive(Debug, Copy, Clone, serde::Deserialize)]
-enum AuthenticationMethod {
+enum AuthenticationScheme {
     /// Inherent authority based on the ability to access an AF_UNIX address.
     #[serde(rename = "inherent:unix_path")]
     InherentUnixPath,
 }
 
-/// Command to implement basic authentication.  Right now only "I connected to
+/// Method to implement basic authentication.  Right now only "I connected to
 /// you so I must have permission!" is supported.
 #[derive(Debug, serde::Deserialize)]
 struct Authenticate {
-    /// The authentication method as enumerated in the spec.
+    /// The authentication scheme as enumerated in the spec.
     ///
     /// TODO RPC: The only supported one for now is "inherent:unix_path"
-    method: AuthenticationMethod,
+    scheme: AuthenticationScheme,
 }
 #[typetag::deserialize(name = "auth:authenticate")]
-impl rpc::Command for Authenticate {}
-rpc::decl_command! {Authenticate}
+impl rpc::Method for Authenticate {}
+rpc::decl_method! {Authenticate}
 
 /// An empty structure used for "okay" replies with no additional data.
 ///
@@ -422,14 +446,29 @@ impl tor_error::HasKind for AuthenticationFailure {
 }
 
 rpc::rpc_invoke_fn! {
-    async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, cmd: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
-        match cmd.method {
+    async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, method: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
+        match method.scheme {
             // For now, we only support AF_UNIX connections, and we assume that if you have permission to open such a connection to us, you have permission to use Arti.
             // We will refine this later on!
-            AuthenticationMethod::InherentUnixPath => {}
+            AuthenticationScheme::InherentUnixPath => {}
         }
 
         unauth.inner.inner.lock().expect("Poisoned lock").authenticated = true;
         Ok(Nil {})
+    }
+}
+
+/// An error given when an RPC request is cancelled.
+///
+/// This is a separate type from [`crate::cancel::Cancelled`] since eventually
+/// we want to move that type into a general-purpose location, and make it not
+/// RPC-specific.
+#[derive(thiserror::Error, Clone, Debug, serde::Serialize)]
+#[error("RPC request was cancelled")]
+pub(crate) struct RequestCancelled;
+impl tor_error::HasKind for RequestCancelled {
+    fn kind(&self) -> tor_error::ErrorKind {
+        // TODO RPC: Can we do better here?
+        tor_error::ErrorKind::Other
     }
 }

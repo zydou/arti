@@ -3,7 +3,7 @@
 use downcast_rs::DowncastSync;
 use serde::{Deserialize, Serialize};
 
-/// An object to which commands can be addressed by our RPC system.
+/// An object in our RPC system to which methods can be addressed.
 pub trait Object: DowncastSync {}
 downcast_rs::impl_downcast!(sync Object);
 

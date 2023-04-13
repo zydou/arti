@@ -38,6 +38,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod cancel;
+mod err;
 mod msgs;
 mod session;
 mod streams;

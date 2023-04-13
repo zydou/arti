@@ -7,11 +7,12 @@ use bytes::BytesMut;
 use serde::Serialize;
 
 use crate::msgs::BoxedResponse;
-use crate::msgs::Request;
+use crate::msgs::FlexibleRequest;
 
 /// A stream of [`Request`] taken from `T` (an `AsyncRead`) and deserialized from Json.
 #[allow(dead_code)] // TODO RPC
-pub(crate) type RequestStream<T> = asynchronous_codec::FramedRead<T, JsonCodec<(), Request>>;
+pub(crate) type RequestStream<T> =
+    asynchronous_codec::FramedRead<T, JsonCodec<(), FlexibleRequest>>;
 
 /// As JsonCodec, but only supports encoding, and places a newline after every
 /// object.
@@ -70,6 +71,7 @@ mod test {
     use crate::msgs::*;
     use futures::sink::SinkExt as _;
     use futures_await_test::async_test;
+    use tor_rpcbase as rpc;
 
     #[derive(serde::Serialize)]
     struct Empty {}
@@ -79,16 +81,18 @@ mod test {
         // Sanity-checking for our sink type.
         let mut buf = Vec::new();
         let r1 = BoxedResponse {
-            id: RequestId::Int(7),
+            id: Some(RequestId::Int(7)),
             body: ResponseBody::Update(Box::new(Empty {})),
         };
         let r2 = BoxedResponse {
-            id: RequestId::Int(8),
-            body: ResponseBody::Error(Box::new(Empty {})),
+            id: Some(RequestId::Int(8)),
+            body: ResponseBody::Error(Box::new(rpc::RpcError::from(
+                crate::session::RequestCancelled,
+            ))),
         };
         let r3 = BoxedResponse {
-            id: RequestId::Int(9),
-            body: ResponseBody::Result(Box::new(Empty {})),
+            id: Some(RequestId::Int(9)),
+            body: ResponseBody::Success(Box::new(Empty {})),
         };
 
         // These should get serialized as follows.

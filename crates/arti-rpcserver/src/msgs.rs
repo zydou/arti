@@ -3,6 +3,7 @@
 // TODO: This could become a more zero-copy-friendly with some effort, but it's
 // not really sure if it's needed.
 
+mod invalid;
 use serde::{Deserialize, Serialize};
 use tor_rpcbase as rpc;
 
@@ -51,39 +52,73 @@ pub(crate) struct Request {
     /// Any metadata to explain how this request is handled.
     #[serde(default)]
     pub(crate) meta: ReqMeta,
-    /// The command to actually execute.
+    /// The method to actually execute.
     ///
     /// Using "flatten" here will make it expand to "method" and "params".
     ///
     /// TODO RPC: Note that our spec says that "params" can be omitted, but I
     /// don't think we support that right now.
     #[serde(flatten)]
-    pub(crate) command: Box<dyn rpc::Command>,
+    pub(crate) method: Box<dyn rpc::Method>,
+}
+
+/// A request that may or may not be valid.
+///
+/// If it invalid, it contains information that can be used to construct an error.
+#[derive(Debug, serde::Deserialize)]
+#[serde(untagged)]
+pub(crate) enum FlexibleRequest {
+    /// A valid request.
+    Valid(Request),
+    /// An invalid request.
+    Invalid(invalid::InvalidRequest),
 }
 
 /// A Response to send to an RPC client.
 #[derive(Debug, Serialize)]
 pub(crate) struct BoxedResponse {
     /// An ID for the request that we're responding to.
-    pub(crate) id: RequestId,
+    ///
+    /// This is always present on a response to every valid request; it is also
+    /// present on responses to invalid requests if we could decern what their
+    /// `id` field was. We only omit it when the request id was indeterminate.
+    /// If we do that, we close the connection immediately afterwards.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) id: Option<RequestId>,
     /// The body  that we're sending.
     #[serde(flatten)]
     pub(crate) body: ResponseBody,
 }
 
+impl BoxedResponse {
+    /// Construct a BoxedResponse from an error that can be converted into an
+    /// RpcError.
+    pub(crate) fn from_error<E>(id: Option<RequestId>, error: E) -> Self
+    where
+        E: Into<rpc::RpcError>,
+    {
+        let error: rpc::RpcError = error.into();
+        let body = ResponseBody::Error(Box::new(error));
+        Self { id, body }
+    }
+}
+
 /// The body of a response for an RPC client.
 #[derive(Serialize)]
-#[serde(rename_all = "lowercase")]
 pub(crate) enum ResponseBody {
     /// The request has failed; no more responses will be sent in reply to it.
-    //
-    // TODO RPC: This should be a more specific type.
-    Error(Box<dyn erased_serde::Serialize + Send>),
+    #[serde(rename = "error")]
+    Error(Box<rpc::RpcError>),
     /// The request has succeeded; no more responses will be sent in reply to
     /// it.
-    Result(Box<dyn erased_serde::Serialize + Send>),
+    ///
+    /// Note that in the spec, this is called a "result": we don't propagate
+    /// that terminology into Rust, where `Result` has a different meaning.
+    #[serde(rename = "result")]
+    Success(Box<dyn erased_serde::Serialize + Send>),
     /// The request included the `updates` flag to increment that incremental
     /// progress information is acceptable.
+    #[serde(rename = "update")]
     Update(Box<dyn erased_serde::Serialize + Send>),
 }
 
@@ -92,7 +127,7 @@ impl ResponseBody {
     /// sent for this request.
     pub(crate) fn is_final(&self) -> bool {
         match self {
-            ResponseBody::Error(_) | ResponseBody::Result(_) => true,
+            ResponseBody::Error(_) | ResponseBody::Success(_) => true,
             ResponseBody::Update(_) => false,
         }
     }
@@ -112,9 +147,9 @@ impl std::fmt::Debug for ResponseBody {
             Err(e) => format!("«could not serialize: {}»", e),
         };
         match self {
-            Self::Error(arg0) => f.debug_tuple("Error").field(&json(arg0)).finish(),
+            Self::Error(arg0) => f.debug_tuple("Error").field(arg0).finish(),
             Self::Update(arg0) => f.debug_tuple("Update").field(&json(arg0)).finish(),
-            Self::Result(arg0) => f.debug_tuple("Result").field(&json(arg0)).finish(),
+            Self::Success(arg0) => f.debug_tuple("Success").field(&json(arg0)).finish(),
         }
     }
 }
@@ -143,20 +178,20 @@ mod test {
         };
     }
 
-    // TODO RPC: note that the existence of this command type can potentially
+    // TODO RPC: note that the existence of this method type can potentially
     // leak into our real RPC engine when we're compiled with `test` enabled!
-    // We should consider how bad this is, and maybe use a real command instead.
+    // We should consider how bad this is, and maybe use a real method instead.
     #[derive(Debug, serde::Deserialize)]
-    struct DummyCmd {
+    struct DummyMethod {
         #[serde(default)]
         #[allow(dead_code)]
         stuff: u64,
     }
 
     #[typetag::deserialize(name = "dummy")]
-    impl rpc::Command for DummyCmd {}
+    impl rpc::Method for DummyMethod {}
 
-    tor_rpcbase::decl_command! {DummyCmd}
+    tor_rpcbase::decl_method! {DummyMethod}
 
     #[derive(Serialize)]
     struct DummyResponse {
@@ -166,7 +201,10 @@ mod test {
 
     #[test]
     fn valid_requests() {
-        let parse_request = |s| serde_json::from_str::<Request>(s).unwrap();
+        let parse_request = |s| match serde_json::from_str::<FlexibleRequest>(s) {
+            Ok(FlexibleRequest::Valid(req)) => req,
+            _ => panic!(),
+        };
 
         let r = parse_request(r#"{"id": 7, "obj": "hello", "method": "dummy", "params": {} }"#);
         assert_dbg_eq!(
@@ -175,16 +213,75 @@ mod test {
                 id: RequestId::Int(7),
                 obj: rpc::ObjectId::from("hello"),
                 meta: ReqMeta::default(),
-                command: Box::new(DummyCmd { stuff: 0 })
+                method: Box::new(DummyMethod { stuff: 0 })
             }
+        );
+    }
+
+    #[test]
+    fn invalid_requests() {
+        use crate::err::RequestParseError as RPE;
+        fn parsing_error(s: &str) -> RPE {
+            match serde_json::from_str::<FlexibleRequest>(s) {
+                Ok(FlexibleRequest::Invalid(req)) => req.error(),
+                x => panic!("Didn't expect {:?}", x),
+            }
+        }
+
+        macro_rules! expect_err {
+            ($p:pat, $e:expr) => {
+                let err = parsing_error($e);
+                assert!(matches!(err, $p), "Unexpected error type {:?}", err);
+            };
+        }
+
+        expect_err!(
+            RPE::IdMissing,
+            r#"{ "obj": "hello", "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::IdType,
+            r#"{ "id": {}, "obj": "hello", "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::ObjMissing,
+            r#"{ "id": 3, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::ObjType,
+            r#"{ "id": 3, "obj": 9, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MethodMissing,
+            r#"{ "id": 3, "obj": "hello",  "params": {} }"#
+        );
+        expect_err!(
+            RPE::MethodType,
+            r#"{ "id": 3, "obj": "hello", "method": [], "params": {} }"#
+        );
+        expect_err!(
+            RPE::MetaType,
+            r#"{ "id": 3, "obj": "hello", "meta": 7, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MetaType,
+            r#"{ "id": 3, "obj": "hello", "meta": { "updates": 3}, "method": "dummy", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MethodProblem,
+            r#"{ "id": 3, "obj": "hello", "method": "arti:this-is-not-a-method", "params": {} }"#
+        );
+        expect_err!(
+            RPE::MissingParams,
+            r#"{ "id": 3, "obj": "hello", "method": "dummy" }"#
         );
     }
 
     #[test]
     fn fmt_replies() {
         let resp = BoxedResponse {
-            id: RequestId::Int(7),
-            body: ResponseBody::Result(Box::new(DummyResponse {
+            id: Some(RequestId::Int(7)),
+            body: ResponseBody::Success(Box::new(DummyResponse {
                 hello: 99,
                 world: "foo".into(),
             })),
@@ -194,5 +291,18 @@ mod test {
         // serde_json guarantees that the fields will be serialized in this
         // exact order.
         assert_eq!(s, r#"{"id":7,"result":{"hello":99,"world":"foo"}}"#);
+
+        let resp = BoxedResponse {
+            id: None,
+            body: ResponseBody::Error(Box::new(rpc::RpcError::from(
+                crate::err::RequestParseError::IdMissing,
+            ))),
+        };
+        let s = serde_json::to_string(&resp).unwrap();
+        // NOTE: as above.
+        assert_eq!(
+            s,
+            r#"{"error":{"message":"Request did not have any `id` field.","code":-32600,"kinds":["arti:RpcInvalidRequest"],"data":"IdMissing"}}"#
+        );
     }
 }
