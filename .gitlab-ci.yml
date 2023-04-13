@@ -192,7 +192,7 @@ build-repro:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG != null
   stage: build
   # If you upgrade this image, also change the one in docker_reproducible_build
-  image: rust:1.63.0-alpine3.16
+  image: rust:1.68.2-alpine3.17
   script:
     - apk add bash
     - ./maint/reproducible_build linux windows macos
