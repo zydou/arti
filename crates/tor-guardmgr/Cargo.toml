@@ -37,7 +37,7 @@ futures = "0.3.14"
 humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.10.1"
-num_enum = "0.5"
+num_enum = "0.6"
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"

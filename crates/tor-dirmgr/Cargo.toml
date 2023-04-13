@@ -77,7 +77,7 @@ tracing = "0.1.18"
 [dev-dependencies]
 anyhow = "1.0.23"
 float_eq = "1.0.0"
-hex-literal = "0.3"
+hex-literal = "0.4"
 tempfile = "3"
 tokio = { version = "1.7", features = ["full"] }
 tor-linkspec = { path = "../tor-linkspec", version = "0.6.3" }

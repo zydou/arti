@@ -38,7 +38,7 @@ futures = "0.3.14"
 hex = { version = "0.4", optional = true }
 humantime = "2"
 itertools = "0.10.1"
-num_enum = "0.5"
+num_enum = "0.6"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
@@ -62,7 +62,7 @@ typed-index-collections = "3.1"
 [dev-dependencies]
 float_eq = "1.0.0"
 hex = "0.4"
-hex-literal = "0.3"
+hex-literal = "0.4"
 rand_chacha = "0.3"
 tor-netdoc = { path = "../tor-netdoc", version = "0.6.3", features = ["build_docs"] }
 [package.metadata.docs.rs]

@@ -50,7 +50,7 @@ void = "1"
 [dev-dependencies]
 float_eq = "1.0.0"
 futures-await-test = "0.3.0"
-hex-literal = "0.3"
+hex-literal = "0.4"
 itertools = "0.10.1"
 tor-cell = { path = "../tor-cell", version = "0.9.1", features = ["testing"] }
 tor-netdir = { path = "../tor-netdir", version = "0.8.0", features = ["testing"] }
