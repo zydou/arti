@@ -83,17 +83,9 @@ enum RpcCode {
     InvalidParams = -32602,
     /// "The server suffered some kind of internal problem"
     InternalError = -32603,
-    /// "The requested target object was not valid"
-    //
-    // TODO RPC: I am using this code for _all_ kinds of object-not-found error,
-    // whether in the target object or elsewhere.  We should fix this, or in the
-    // spec.
+    /// "Some requested object was not valid"
     ObjectError = 1,
-    /// "The requested operation was recognised but could not be performed"
-    //
-    // TODO RPC: I am using this as a catch-all code for  whenever the ErrorKind
-    // does not suggest something better.  We should clarify or fix this
-    // behavior.
+    /// "Some other error occurred"
     RequestError = 2,
 }
 
