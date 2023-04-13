@@ -44,7 +44,7 @@ pub(crate) fn enable_process_hardening() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    secmem_proc::harden_process_std_err().context("Problem while hardening process")?;
+    secmem_proc::harden_process().context("Problem while hardening process")?;
 
     Ok(())
 }
