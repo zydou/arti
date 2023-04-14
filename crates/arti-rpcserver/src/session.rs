@@ -59,9 +59,6 @@ struct Inner {
 /// How many updates can be pending, per session, before they start to block?
 const UPDATE_CHAN_SIZE: usize = 128;
 
-/// Channel type used to send updates to the main session loop.
-type UpdateSender = mpsc::Sender<BoxedResponse>;
-
 /// A type-erased [`FusedStream`] yielding [`Request`]s.
 //
 // (We name this type and [`BoxedResponseSink`] below so as to keep the signature for run_loop
@@ -136,36 +133,35 @@ impl Session {
     ) -> Result<(), SessionError> {
         // This function will multiplex on three streams:
         // * `request_stream` -- a stream of incoming requests from the client.
-        // * `finished_requests` -- a stream of responses from requests that
-        //   are done, which we're sending to the client.
-        // * `rx_update` -- a stream of updates sent from in-progress tasks.
+        // * `finished_requests` -- a stream of requests that are done.
+        // * `rx_response` -- a stream of updates and final responses sent from
+        //   in-progress tasks. (We put updates and final responsese onto the
+        //   same channel to ensure that they stay in-order for each method
+        //   invocation.
         //
         // Note that the blocking behavior here is deliberate: We want _all_ of
         // these reads to start blocking when response_sink.send is blocked.
 
-        let (tx_update, mut rx_update) = mpsc::channel::<BoxedResponse>(UPDATE_CHAN_SIZE);
+        let (tx_response, mut rx_response) = mpsc::channel::<BoxedResponse>(UPDATE_CHAN_SIZE);
         let mut finished_requests = FuturesUnordered::new();
         finished_requests.push(futures::future::pending().boxed());
 
         'outer: loop {
             futures::select! {
                 r = finished_requests.next() => {
-                    // A task is done, so we can inform the client.
-                    let r: BoxedResponse = r.expect("Somehow, future::pending() terminated.");
-                    debug_assert!(r.body.is_final());
-                    self.remove_request(r.id.as_ref().expect("Somehow, a request was launched without an ID."));
+                    // A task is done, so we can forget about it.
+                    let () = r.expect("Somehow, future::pending() terminated.");
+                }
+
+                r = rx_response.next() => {
+                    // The future for some request has sent a response (success,
+                    // failure, or update), so we can inform the client.
+                    let update = r.expect("Somehow, tx_update got closed.");
+                    debug_assert!(! update.body.is_final());
                     // Calling `await` here (and below) is deliberate: we _want_
                     // to stop reading the client's requests if the client is
                     // not reading their responses (or not) reading them fast
                     // enough.
-                    response_sink.send(r).await.map_err(|_| SessionError::WriteFailed)?;
-                }
-
-                r = rx_update.next() => {
-                    // The future for some request has sent an update, so we can
-                    // inform the client.
-                    let update = r.expect("Somehow, tx_update got closed.");
-                    debug_assert!(! update.body.is_final());
                     response_sink.send(update).await.map_err(|_| SessionError::WriteFailed)?;
                 }
 
@@ -209,20 +205,7 @@ impl Session {
                         }
                         Some(Ok(FlexibleRequest::Valid(req))) => {
                             // We have a request. Time to launch it!
-
-                            let tx_channel = req.meta.updates.then(|| &tx_update);
-                            let id = req.id.clone();
-                            let fut = self.run_method_lowlevel(tx_channel, req);
-                            let (handle, fut) = Cancel::new(fut);
-                            self.register_request(id.clone(), handle);
-                            let id = Some(id);
-                            let fut = fut.map(|r| match r {
-                                Ok(Ok(v)) => BoxedResponse { id, body: ResponseBody::Success(v) },
-                                Ok(Err(e)) => BoxedResponse { id, body: e.into() },
-                                Err(_cancelled) => BoxedResponse::from_error(id, RequestCancelled),
-                            });
-
-
+                            let fut = self.run_method_and_deliver_response(tx_response.clone(), req);
                             finished_requests.push(fut.boxed());
                         }
                     }
@@ -231,6 +214,72 @@ impl Session {
         }
 
         Ok(())
+    }
+
+    /// Invoke `request` and send all of its responses to `tx_response`.
+    async fn run_method_and_deliver_response(
+        self: &Arc<Self>,
+        mut tx_response: mpsc::Sender<BoxedResponse>,
+        request: Request,
+    ) {
+        let Request {
+            id,
+            obj,
+            meta,
+            method,
+        } = request;
+
+        // TODO RPC: Actually, this should be the point where we build an
+        // Either-not in tor_rpcbase.
+        let update_sender = if meta.updates {
+            let id_clone = id.clone();
+            let sink =
+                tx_response
+                    .clone()
+                    .with(move |obj: Box<dyn erased_serde::Serialize + Send>| {
+                        // TODO: I don't like using "with" here since it expects a future.
+                        // TODO: "id_clone_clone"? Can't we do better?
+                        //       (The obvious solutions made the borrow checker sad.)
+                        let id_clone_clone = id_clone.clone();
+                        async {
+                            Result::<BoxedResponse, _>::Ok(BoxedResponse {
+                                id: Some(id_clone_clone),
+                                body: ResponseBody::Update(obj),
+                            })
+                        }
+                    });
+            let sink: rpc::dispatch::BoxedUpdateSink = Box::pin(sink);
+            Some(sink)
+        } else {
+            None
+        };
+
+        // Create `run_method_lowlevel` future, and make it cancellable.
+        let fut = self.run_method_lowlevel(update_sender, obj, method);
+        let (handle, fut) = Cancel::new(fut);
+        self.register_request(id.clone(), handle);
+
+        // Run the cancellable future to completion, and figure out how to respond.
+        let body = match fut.await {
+            Ok(Ok(value)) => ResponseBody::Success(value),
+            // TODO: If we're going to box this, let's do so earlier.
+            Ok(Err(err)) => ResponseBody::Error(Box::new(err)),
+            Err(_cancelled) => ResponseBody::Error(Box::new(rpc::RpcError::from(RequestCancelled))),
+        };
+
+        // Send the response.
+        //
+        // (It's okay to ignore the error here, since it can only mean that the
+        // RPC session has closed.)
+        let _ignore_err = tx_response
+            .send(BoxedResponse {
+                id: Some(id.clone()),
+                body,
+            })
+            .await;
+
+        // Unregister the request.
+        self.remove_request(&id);
     }
 
     /// Run a single method, and return its final response.
@@ -243,39 +292,18 @@ impl Session {
     /// it generates.
     async fn run_method_lowlevel(
         self: &Arc<Self>,
-        tx_updates: Option<&UpdateSender>,
-        request: Request,
+        tx_updates: Option<rpc::dispatch::BoxedUpdateSink>,
+        obj: rpc::ObjectId,
+        method: Box<dyn rpc::Method>,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
-        let Request {
-            id, obj, method, ..
-        } = request;
         let obj = self.lookup_object(&obj)?;
 
         let context: Box<dyn rpc::Context> = Box::new(RequestContext {
             session: Arc::clone(self),
         });
-
-        let sender = match tx_updates {
-            None => None,
-            Some(sink) => {
-                let sink =
-                    sink.clone()
-                        .with(move |obj: Box<dyn erased_serde::Serialize + Send>| {
-                            // TODO: I don't like using "with" here since it expects a future.
-                            let id = id.clone();
-                            async {
-                                Result::<BoxedResponse, _>::Ok(BoxedResponse {
-                                    id: Some(id),
-                                    body: ResponseBody::Update(obj),
-                                })
-                            }
-                        });
-                let sink: rpc::dispatch::BoxedUpdateSink = Box::pin(sink);
-                Some(sink)
-            }
-        };
-
-        DISPATCH_TABLE.invoke(obj, method, context, sender)?.await
+        DISPATCH_TABLE
+            .invoke(obj, method, context, tx_updates)?
+            .await
     }
 }
 
