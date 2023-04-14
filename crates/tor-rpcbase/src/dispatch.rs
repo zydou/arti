@@ -30,12 +30,8 @@ type RpcResultFuture = BoxFuture<'static, RpcResult>;
 ///
 /// This function takes `Arc`s rather than a reference, so that it can return a
 /// `'static` future.
-type ErasedInvokeFn = fn(
-    Arc<dyn Object>,
-    Box<dyn Method>,
-    Box<dyn Context>,
-    Option<BoxedUpdateSink>,
-) -> RpcResultFuture;
+type ErasedInvokeFn =
+    fn(Arc<dyn Object>, Box<dyn Method>, Box<dyn Context>, BoxedUpdateSink) -> RpcResultFuture;
 
 /// A boxed sink on which updates can be sent.
 pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> + Send>>;
@@ -138,7 +134,7 @@ macro_rules! rpc_invoke_fn {
                                   method: Box<dyn $crate::Method>,
                                   ctx: Box<dyn $crate::Context>,
                                   #[allow(unused)]
-                                  sink: Option<$crate::dispatch::BoxedUpdateSink>)
+                                  sink: $crate::dispatch::BoxedUpdateSink)
         -> $crate::futures::future::BoxFuture<'static, $crate::RpcResult> {
             use $crate::futures::FutureExt;
             #[allow(unused)]
@@ -150,17 +146,14 @@ macro_rules! rpc_invoke_fn {
                 .downcast::<$methodtype>()
                 .unwrap_or_else(|_| panic!());
             $(
-                let $sink = match sink {
-                    // TODO: I would prefer to have a `with` alternative that
-                    // applied a simple (non async) function to a Sink.
-                    Some(sink) => sink.with(|update:$updatetype| async {
-                        let boxed: $crate::dispatch::RpcValue = Box::new(update);
-                        Ok(boxed)
-                    }).left_sink(),
-                    None => sink::drain().sink_err_into().right_sink(),
-                };
+                // TODO: I would prefer to have a `with` alternative that
+                // applied a simple (non async) function to a Sink.
+                let $sink = sink.with(|update:$updatetype| async {
+                    let boxed: $crate::dispatch::RpcValue = Box::new(update);
+                    Ok(boxed)
+                });
             )?
-            $name(obj, method, ctx, $($sink)?).map(|r| {
+            $name(obj, method, ctx $(, $sink)?).map(|r| {
                 let r: $crate::RpcResult = match r {
                     Ok(v) => Ok(Box::new(v)),
                     Err(e) => Err($crate::RpcError::from(e))
@@ -242,7 +235,7 @@ impl DispatchTable {
         obj: Arc<dyn Object>,
         method: Box<dyn Method>,
         ctx: Box<dyn Context>,
-        sink: Option<BoxedUpdateSink>,
+        sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError> {
         let func_type = FuncType {
             obj_id: obj.type_id(),
@@ -361,7 +354,7 @@ mod test {
             let request: Box<dyn crate::Method> = Box::new(method);
             let ctx = Box::new(Ctx {});
             let discard = Box::pin(futures::sink::drain().sink_err_into());
-            table.invoke(animal, request, ctx, Some(discard))
+            table.invoke(animal, request, ctx, discard)
         }
         async fn invoke_ok<O: crate::Object, M: crate::Method>(
             table: &DispatchTable,

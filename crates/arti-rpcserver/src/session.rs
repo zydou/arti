@@ -14,6 +14,7 @@ use futures::{
 };
 use once_cell::sync::Lazy;
 use pin_project::pin_project;
+use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
 
 use crate::{
@@ -229,9 +230,7 @@ impl Session {
             method,
         } = request;
 
-        // TODO RPC: Actually, this should be the point where we build an
-        // Either-not in tor_rpcbase.
-        let update_sender = if meta.updates {
+        let update_sender: BoxedUpdateSink = if meta.updates {
             let id_clone = id.clone();
             let sink =
                 tx_response
@@ -248,10 +247,10 @@ impl Session {
                             })
                         }
                     });
-            let sink: rpc::dispatch::BoxedUpdateSink = Box::pin(sink);
-            Some(sink)
+            Box::pin(sink)
         } else {
-            None
+            let sink = futures::sink::drain().sink_err_into();
+            Box::pin(sink)
         };
 
         // Create `run_method_lowlevel` future, and make it cancellable.
@@ -292,7 +291,7 @@ impl Session {
     /// it generates.
     async fn run_method_lowlevel(
         self: &Arc<Self>,
-        tx_updates: Option<rpc::dispatch::BoxedUpdateSink>,
+        tx_updates: rpc::dispatch::BoxedUpdateSink,
         obj: rpc::ObjectId,
         method: Box<dyn rpc::Method>,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
