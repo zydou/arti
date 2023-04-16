@@ -72,7 +72,7 @@ if [ -n "$windows" ]; then
 	mv /arti/target/x86_64-pc-windows-gnu/release/arti.exe "$here"/arti-windows.exe
 fi
 if [ -n "$macos" ]; then
-	apk add bash cmake patch clang libc-dev libxml2-dev openssl-dev fts-dev build-base python3 bsd-compat-headers xz
+	apk add bash cmake patch clang libc-dev libxml2-dev openssl-dev musl-fts-dev build-base python3 bsd-compat-headers xz
 	rustup target add x86_64-apple-darwin
 
 	mkdir -p .cargo
