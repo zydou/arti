@@ -9,7 +9,8 @@ use serde::Serialize;
 use crate::msgs::BoxedResponse;
 use crate::msgs::FlexibleRequest;
 
-/// A stream of [`Request`] taken from `T` (an `AsyncRead`) and deserialized from Json.
+/// A stream of [`Request`](crate::msgs::Request)
+/// taken from `T` (an `AsyncRead`) and deserialized from Json.
 #[allow(dead_code)] // TODO RPC
 pub(crate) type RequestStream<T> =
     asynchronous_codec::FramedRead<T, JsonCodec<(), FlexibleRequest>>;
