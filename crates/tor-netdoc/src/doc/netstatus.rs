@@ -443,7 +443,9 @@ bitflags! {
     /// If the document contained any flags that we _didn't_ recognize,
     /// they are not listed in this type.
     ///
-    /// The bit values used to represent the flags have no meaning.
+    /// The bit values used to represent the flags have no meaning;
+    /// they may change between releases of this crate.  Relying on their
+    /// values may void your semver guarantees.
     #[derive(Clone, Copy, Debug)]
     pub struct RelayFlags: u16 {
         /// Is this a directory authority?
