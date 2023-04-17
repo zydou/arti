@@ -6,9 +6,10 @@ use tor_rpcbase as rpc;
 use super::{ReqMeta, RequestId};
 use crate::err::RequestParseError;
 
-/// An invalid approximation of a request.  
+/// An invalid approximation of a request.
 ///
-/// If we can't deserialize a [`Request`] properly, we try to deserialize it into
+/// If we can't deserialize a [`Request`](super::Request) properly,
+/// we try to deserialize it into
 /// _this_ structure so we can explain what was wrong with it.
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct InvalidRequest {
