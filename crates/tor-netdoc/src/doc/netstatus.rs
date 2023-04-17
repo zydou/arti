@@ -471,28 +471,28 @@ bitflags! {
         /// Note that this flag is only used by authorities as part of
         /// the voting process; clients do not and should not act
         /// based on whether it is set.
-        const MIDDLE_ONLY = (1<<12);
+        const MIDDLE_ONLY = (1<<6);
         /// If set, there is no consensus for the ed25519 key for this relay.
-        const NO_ED_CONSENSUS = (1<<6);
+        const NO_ED_CONSENSUS = (1<<7);
         /// Is this relay considered "stable" enough for long-lived circuits?
-        const STABLE = (1<<7);
+        const STABLE = (1<<8);
         /// Set if the authorities are requesting a fresh descriptor for
         /// this relay.
-        const STALE_DESC = (1<<8);
+        const STALE_DESC = (1<<9);
         /// Set if this relay is currently running.
         ///
         /// This flag can appear in votes, but in consensuses, every relay
         /// is assumed to be running.
-        const RUNNING = (1<<9);
+        const RUNNING = (1<<10);
         /// Set if this relay is considered "valid" -- allowed to be on
         /// the network.
         ///
         /// This flag can appear in votes, but in consensuses, every relay
         /// is assumed to be valid.
-        const VALID = (1<<10);
+        const VALID = (1<<11);
         /// Set if this relay supports a currently recognized version of the
         /// directory protocol.
-        const V2DIR = (1<<11);
+        const V2DIR = (1<<12);
     }
 }
 
