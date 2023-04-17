@@ -467,6 +467,10 @@ bitflags! {
         const HSDIR = (1<<5);
         /// Set if this relay is considered "middle only", not suitable to run
         /// as an exit or guard relay.
+        ///
+        /// Note that this flag is only used by authorities as part of
+        /// the voting process; clients do not and should not act
+        /// based on whether it is set.
         const MIDDLE_ONLY = (1<<12);
         /// If set, there is no consensus for the ed25519 key for this relay.
         const NO_ED_CONSENSUS = (1<<6);
