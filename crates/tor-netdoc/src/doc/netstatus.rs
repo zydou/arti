@@ -465,6 +465,9 @@ bitflags! {
         /// Does this relay participate on the onion service directory
         /// ring?
         const HSDIR = (1<<5);
+        /// Set if this relay is considered "middle only", not suitable to run
+        /// as an exit or guard relay.
+        const MIDDLE_ONLY = (1<<12);
         /// If set, there is no consensus for the ed25519 key for this relay.
         const NO_ED_CONSENSUS = (1<<6);
         /// Is this relay considered "stable" enough for long-lived circuits?
@@ -1150,6 +1153,7 @@ impl std::str::FromStr for RelayFlags {
             "Fast" => RelayFlags::FAST,
             "Guard" => RelayFlags::GUARD,
             "HSDir" => RelayFlags::HSDIR,
+            "MiddleOnly" => RelayFlags::MIDDLE_ONLY,
             "NoEdConsensus" => RelayFlags::NO_ED_CONSENSUS,
             "Stable" => RelayFlags::STABLE,
             "StaleDesc" => RelayFlags::STALE_DESC,
