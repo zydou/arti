@@ -159,6 +159,10 @@ macro_rules! implement_accessors {
             pub fn is_flagged_hsdir(&self) -> bool {
                 self.rs.flags.contains(RelayFlags::HSDIR)
             }
+            /// Return true if this routerstatus is listed with the MiddleOnly flag.
+            pub fn is_flagged_middle_only(&self) -> bool {
+                self.rs.flags.contains(RelayFlags::MIDDLE_ONLY)
+            }
         }
     };
 }
