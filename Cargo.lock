@@ -241,6 +241,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tor-async-utils",
  "tor-error",
  "tor-rpcbase",
  "tor-rtcompat",

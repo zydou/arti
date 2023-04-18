@@ -10,12 +10,13 @@ use asynchronous_codec::JsonCodecError;
 use futures::{
     channel::mpsc,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Sink, SinkExt, StreamExt,
+    FutureExt, Sink, SinkExt as _, StreamExt,
 };
 use once_cell::sync::Lazy;
 use pin_project::pin_project;
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
+use tor_async_utils::SinkExt as _;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
@@ -235,17 +236,11 @@ impl Session {
             let sink =
                 tx_response
                     .clone()
-                    .with(move |obj: Box<dyn erased_serde::Serialize + Send>| {
-                        // TODO: I don't like using "with" here since it expects a future.
-                        // TODO: "id_clone_clone"? Can't we do better?
-                        //       (The obvious solutions made the borrow checker sad.)
-                        let id_clone_clone = id_clone.clone();
-                        async {
-                            Result::<BoxedResponse, _>::Ok(BoxedResponse {
-                                id: Some(id_clone_clone),
-                                body: ResponseBody::Update(obj),
-                            })
-                        }
+                    .with_fn(move |obj: Box<dyn erased_serde::Serialize + Send>| {
+                        Result::<BoxedResponse, _>::Ok(BoxedResponse {
+                            id: Some(id_clone.clone()),
+                            body: ResponseBody::Update(obj),
+                        })
                     });
             Box::pin(sink)
         } else {
