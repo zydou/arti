@@ -44,6 +44,6 @@ mod watch;
 
 pub use join_read_write::*;
 
-pub use sinkext::{SinkExt, SinkPrepareSendFuture, SinkSendable};
+pub use sinkext::{SinkPrepareExt, SinkPrepareSendFuture, SinkSendable};
 
 pub use watch::{DropNotifyEofSignallable, DropNotifyWatchSender, PostageWatchSenderExt};

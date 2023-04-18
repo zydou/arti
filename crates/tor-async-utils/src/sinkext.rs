@@ -14,8 +14,8 @@ use pin_project::pin_project;
 macro_rules! dprintln { { $f:literal $($a:tt)* } => { () } }
 //macro_rules! dprintln { { $f:literal $($a:tt)* } => { eprintln!(concat!("    ",$f) $($a)*) } }
 
-/// Extension trait for [`Sink`]
-pub trait SinkExt<'w, OS, OM>
+/// Extension trait for [`Sink`] to add a method for cancel-safe usage.
+pub trait SinkPrepareExt<'w, OS, OM>
 where
     OS: Sink<OM>,
 {
@@ -23,7 +23,7 @@ where
     ///
     /// ```
     /// # use futures::channel::mpsc;
-    /// # use tor_async_utils::SinkExt as _;
+    /// # use tor_async_utils::SinkPrepareExt as _;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(),mpsc::SendError> {
@@ -132,7 +132,7 @@ where
     /// # async fn main() {
     /// use futures::select;
     /// use futures::{SinkExt as _, StreamExt as _};
-    /// use tor_async_utils::SinkExt as _;
+    /// use tor_async_utils::SinkPrepareExt as _;
     ///
     /// let (mut input_w, mut input_r) = futures::channel::mpsc::unbounded::<usize>();
     /// let (mut output_w, mut output_r) = futures::channel::mpsc::unbounded::<String>();
@@ -157,7 +157,7 @@ where
     ///
     /// # Formally
     ///
-    /// [`prepare_send_from`](SinkExt::prepare_send_from)
+    /// [`prepare_send_from`](SinkPrepareExt::prepare_send_from)
     /// returns a [`SinkPrepareSendFuture`] which, when awaited:
     ///
     ///  * Waits for `OS` to be ready to receive an item.
@@ -184,7 +184,7 @@ where
     /// ## Output sink errors
     ///
     /// The call site can experience output sink errors in two places,
-    /// [`prepare_send_from()`](SinkExt::prepare_send_from) and [`SinkSendable::send()`].
+    /// [`prepare_send_from()`](SinkPrepareExt::prepare_send_from) and [`SinkSendable::send()`].
     /// The caller should typically handle them the same way regardless of when they occurred.
     ///
     /// If the error happens at [`SinkSendable::send()`],
@@ -221,7 +221,7 @@ where
         IF: Future<Output = IM>;
 }
 
-impl<'w, OS, OM> SinkExt<'w, OS, OM> for Pin<&'w mut OS>
+impl<'w, OS, OM> SinkPrepareExt<'w, OS, OM> for Pin<&'w mut OS>
 where
     OS: Sink<OM>,
 {
@@ -240,7 +240,7 @@ where
     }
 }
 
-impl<'w, OS, OM> SinkExt<'w, OS, OM> for &'w mut OS
+impl<'w, OS, OM> SinkPrepareExt<'w, OS, OM> for &'w mut OS
 where
     OS: Sink<OM> + Unpin,
 {
@@ -255,7 +255,7 @@ where
     }
 }
 
-/// Future for `SinkExt::prepare_send_from`
+/// Future for `SinkPrepareExt::prepare_send_from`
 #[pin_project]
 #[must_use]
 pub struct SinkPrepareSendFuture<'w, IF, OS, OM> {
@@ -283,7 +283,7 @@ pub struct SinkPrepareSendFuture<'w, IF, OS, OM> {
 
 /// A [`Sink`] which is ready to receive an item
 ///
-/// Produced by [`SinkExt::prepare_send_from`].  See there for the overview docs.
+/// Produced by [`SinkPrepareExt::prepare_send_from`].  See there for the overview docs.
 ///
 /// This references an output sink `OS`.
 /// It offers the ability to write into the sink without blocking,
@@ -322,7 +322,7 @@ where
         }
         ///
         const BAD_POLL_MSG: &str =
-            "future from SinkExt::prepare_send_from (SinkPrepareSendFuture) \
+            "future from SinkPrepareExt::prepare_send_from (SinkPrepareSendFuture) \
                  polled after returning Ready(Ok)";
 
         let () = match ready!(get_output!(self_).poll_ready(cx)) {
