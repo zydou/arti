@@ -902,10 +902,15 @@ impl<R: Runtime> GetMicrodescsState<R> {
             partial_dir.fill_from_previous_netdir(old_dir);
         }
 
+        // Always upgrade at least once: otherwise, we won't notice we're ready unless we
+        // add a microdescriptor.
+        let mut partial = PendingNetDir::Partial(partial_dir);
+        partial.upgrade_if_necessary();
+
         GetMicrodescsState {
             cache_usage,
             n_microdescs,
-            partial: PendingNetDir::Partial(partial_dir),
+            partial,
             meta,
             newly_listed: Vec::new(),
             reset_time,
