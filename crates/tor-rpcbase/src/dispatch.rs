@@ -74,19 +74,24 @@ impl InvokeEntry_ {
 ///
 /// ```
 /// use tor_rpcbase::{self as rpc};
+///
+/// use futures::sink::{Sink, SinkExt};
 /// use std::sync::Arc;
 ///
 /// #[derive(Debug)]
 /// struct ExampleObject {}
 /// impl rpc::Object for ExampleObject {}
-/// rpc::decl_object! {ExampleObject}
+/// #[derive(Debug)]
+/// struct ExampleObject2 {}
+/// impl rpc::Object for ExampleObject2 {}
+/// rpc::decl_object! {ExampleObject ExampleObject2}
 ///
 /// #[derive(Debug,serde::Deserialize)]
 /// struct ExampleMethod {}
 /// rpc::decl_method! { "arti:x-example" => ExampleMethod}
 /// impl rpc::Method for ExampleMethod {
 ///     type Output = ExampleResult;
-///     type Update = rpc::NoUpdates;
+///     type Update = Progress;
 /// }
 ///
 /// #[derive(serde::Serialize)]
@@ -94,13 +99,16 @@ impl InvokeEntry_ {
 ///    text: String,
 /// }
 ///
+/// #[derive(serde::Serialize)]
+/// struct Progress(f64);
+///
 /// // Note that the types of this function are very constrained:
 /// //  - `obj` must be an Arc<O> for some `Object` type.
 /// //  - `mth` must be Box<M> for some `Method` type.
 /// //  - `ctx` must be Box<dyn rpc::Context>.
 /// //  - The function must be async.
 /// //  - The return type must be a Result.
-/// //  - The OK variant of the result must be Serialize + Send + 'static.
+/// //  - The OK variant of the result must M::Output.
 /// //  - The Err variant of the result must implement Into<rpc::RpcError>.
 /// async fn example(obj: Arc<ExampleObject>,
 ///                  method: Box<ExampleMethod>,
@@ -112,12 +120,43 @@ impl InvokeEntry_ {
 /// rpc::rpc_invoke_fn!{
 ///     example(ExampleObject, ExampleMethod);
 /// }
+///
+/// // You can declare an example that produces updates as well:
+/// // - The fourth argument must be `impl Sink<M::Update> + Unpin`.
+/// async fn example2(obj: Arc<ExampleObject2>,
+///                   method: Box<ExampleMethod>,
+///                   ctx: Box<dyn rpc::Context>,
+///                   mut updates: impl Sink<Progress, Error=rpc::SendUpdateError> + Unpin
+/// ) -> Result<ExampleResult, rpc::RpcError> {
+///     updates.send(Progress(0.90)).await?;
+///     Ok(ExampleResult { text: "that was fast, wasn't it?".to_string() })
+/// }
+///
+/// rpc::rpc_invoke_fn! {
+///     example2(ExampleObject2, ExampleMethod) [Updates];
+/// }
 /// ```
 #[macro_export]
 macro_rules! rpc_invoke_fn {
     {
-        $funcname:ident($objtype:ty, $methodtype:ty $(, $sink:ident: Sink)? $(,)?);  // XXXX sink syntax not final.
+        $funcname:ident($objtype:ty, $methodtype:ty $(,)?) $([ $($flag:ident),* $(,)?])?;
         $( $($more:tt)+ )?
+    } => {
+        $crate::rpc_invoke_fn!{@imp-expand $funcname, $objtype, $methodtype, [$($($flag)*)?]}
+        $($crate::rpc_invoke_fn!{$($more)*})?
+    };
+    {
+        @imp-expand $funcname:ident, $objtype:ty, $methodtype:ty, []
+    } => {
+        $crate::rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, }
+    };
+    {
+        @imp-expand $funcname:ident, $objtype:ty, $methodtype:ty, [Updates]
+    } => {
+        $crate::rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, sink }
+    };
+    {
+        @final $funcname:ident, $objtype:ty, $methodtype:ty, $($sinkvar:ident)?
     } => {$crate::paste::paste!{
         // We declare a type-erased version of the function that takes Arc<dyn> and Box<dyn> arguments, and returns
         // a boxed future.
@@ -141,11 +180,11 @@ macro_rules! rpc_invoke_fn {
                 .downcast::<$methodtype>()
                 .unwrap_or_else(|_| panic!());
             $(
-                let $sink = sink.with_fn(|update|
+                let $sinkvar = sink.with_fn(|update|
                     $crate::dispatch::RpcSendResult::Ok(Box::new(update))
                 );
             )?
-            $funcname(obj, method, ctx $(, $sink)?).map(|r| {
+            $funcname(obj, method, ctx $(, $sinkvar)?).map(|r| {
                 let r: $crate::RpcResult = match r {
                     Ok(v) => Ok(Box::new(Output::from(v))),
                     Err(e) => Err($crate::RpcError::from(e))
@@ -162,8 +201,6 @@ macro_rules! rpc_invoke_fn {
                 [<_typeerased_ $funcname >]
             )
         }
-
-        $(rpc_invoke_fn!{$($more)+})?
     }}
 }
 
@@ -378,7 +415,7 @@ mod test {
 
         getkids_swan(Swan,GetKids);
         getkids_sheep(Sheep,GetKids);
-        getkids_wombat(Wombat,GetKids,sink:Sink);
+        getkids_wombat(Wombat,GetKids) [Updates];
     }
 
     struct Ctx {}
