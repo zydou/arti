@@ -39,11 +39,11 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod join_read_write;
-mod sinkext;
+mod prepare_send;
 mod watch;
 
 pub use join_read_write::*;
 
-pub use sinkext::{SinkPrepareExt, SinkPrepareSendFuture, SinkSendable};
+pub use prepare_send::{SinkPrepareExt, SinkPrepareSendFuture, SinkSendable};
 
 pub use watch::{DropNotifyEofSignallable, DropNotifyWatchSender, PostageWatchSenderExt};
