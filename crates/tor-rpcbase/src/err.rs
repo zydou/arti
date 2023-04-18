@@ -116,6 +116,20 @@ impl std::fmt::Debug for RpcError {
     }
 }
 
+impl From<crate::SendUpdateError> for RpcError {
+    fn from(value: crate::SendUpdateError) -> Self {
+        Self {
+            message: value.to_string(),
+            code: RpcCode::RequestError,
+            // This value should be visibly wrong, since sending an update
+            // can only fail if we have a programming error (Internal), or the stream to
+            // send updates to the user is closed (in which case no value can arrive).
+            kinds: tor_error::ErrorKind::Internal,
+            data: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
