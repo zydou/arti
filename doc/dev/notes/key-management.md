@@ -122,7 +122,10 @@ TODO: decide what the metadata is serialized to
     }
 
     /// An identifier for a client/relay/...
-    pub enum LocalUserIdentity(String);
+    #[derive(AsRef, Into, ...)]
+    pub struct LocalUserIdentity(String);
+
+    impl FromStr for LocalUserIdentity { /* check syntax rules */ }
 
     struct HsClientSecretKeyIdentity { ... }
 
