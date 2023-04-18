@@ -219,11 +219,8 @@ obj
 
 method
 : A string naming the method to invoke. It is required.
-  Method names are namespaced;
-  For now, we commit to not using any method name
-  beginning with "x-" or "X-".
-  (If you want to reserve any other prefix,
-  we can eventually start a registry or something.)
+  Method names are namespaced; see
+  "Method Namespacing" below.
 
 params
 : A JSON object describing the parameters for the method.
@@ -306,6 +303,33 @@ Any given response will have exactly one of
 
 > TODO: Specify our error format to be the same as,
 > or similar to, that used by JSON-RPC.
+
+
+#### Method namespacing
+
+Any method name containing a colon belongs to a namespace.
+The namespace of a method is everything up to the first colon.
+(For example, the method name `arti:connect`
+is in the namespace `arti`.
+The method name `gettype` is not in any namespace.)
+
+Only this spec MAY declare non-namespaced methods.
+All methods defined elsewhere SHOULD be in a namespace.
+
+Right now, the following namespaces are reserved:
+
+* `arti` — For use by the Arti tor implementation project.
+* `auth` — Defined in this spec; for authenticating an initial session.
+
+To reserve a namespace, open a merge request to change the list above.
+
+Namespaces starting with `x-` will never be allocated.
+They are reserved for experimental use.
+
+Method names starting with `x-` indicate
+experimental or unstable status:
+any code using them should expect to be unstable.
+
 
 ### Errors
 
