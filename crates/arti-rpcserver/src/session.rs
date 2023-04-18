@@ -342,17 +342,24 @@ struct Echo {
 }
 rpc::decl_method! { "arti:x-echo" => Echo}
 impl rpc::Method for Echo {
-    type Output = String;
+    type Output = Echo;
     type Update = rpc::NoUpdates;
 }
 
+/// Implementation for calling "echo" on a session
+///
+/// TODO RPC: Remove this. It shouldn't exist.
+async fn echo_on_session(
+    _obj: Arc<Session>,
+    method: Box<Echo>,
+    _ctx: Box<dyn rpc::Context>,
+) -> Result<Echo, rpc::RpcError> {
+    Ok(*method)
+}
+
 rpc::rpc_invoke_fn! {
-    /// Implementation for calling "echo" on a session
-    ///
-    /// TODO RPC: Remove this. It shouldn't exist.
-    async fn echo_on_session(_obj: Arc<Session>, method: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
-        Ok(method)
-    }
+    echo_on_session(Session,Echo);
+
 }
 
 /// The authentication scheme as enumerated in the spec.
@@ -400,17 +407,32 @@ impl tor_error::HasKind for AuthenticationFailure {
     }
 }
 
-rpc::rpc_invoke_fn! {
-    async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, method: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
-        match method.scheme {
-            // For now, we only support AF_UNIX connections, and we assume that if you have permission to open such a connection to us, you have permission to use Arti.
-            // We will refine this later on!
-            AuthenticationScheme::InherentUnixPath => {}
-        }
-
-        unauth.inner.inner.lock().expect("Poisoned lock").authenticated = true;
-        Ok(Nil {})
+/// Invoke the "authenticate" method on a session.
+///
+/// TODO RPC: This behavior is wrong; we'll need to fix it to be all
+/// capabilities-like.
+async fn authenticate_session(
+    unauth: Arc<UnauthenticatedSession>,
+    method: Box<Authenticate>,
+    _ctx: Box<dyn rpc::Context>,
+) -> Result<Nil, rpc::RpcError> {
+    match method.scheme {
+        // For now, we only support AF_UNIX connections, and we assume that if
+        // you have permission to open such a connection to us, you have
+        // permission to use Arti. We will refine this later on!
+        AuthenticationScheme::InherentUnixPath => {}
     }
+
+    unauth
+        .inner
+        .inner
+        .lock()
+        .expect("Poisoned lock")
+        .authenticated = true;
+    Ok(Nil {})
+}
+rpc::rpc_invoke_fn! {
+    authenticate_session(UnauthenticatedSession, Authenticate);
 }
 
 /// An error given when an RPC request is cancelled.
