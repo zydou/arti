@@ -48,12 +48,13 @@ use std::{convert::Infallible, sync::Arc};
 
 pub use dispatch::DispatchTable;
 pub use err::RpcError;
-pub use method::{DynMethod, Method, NoUpdates};
+pub use method::{is_method_name, iter_method_names, DynMethod, Method, NoUpdates};
 pub use obj::{Object, ObjectId};
 
 #[doc(hidden)]
 pub use {
-    dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, paste, tor_async_utils,
+    dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, method::MethodInfo_, paste,
+    tor_async_utils,
 };
 
 /// An error returned from [`ContextExt::lookup`].

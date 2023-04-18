@@ -1,6 +1,9 @@
 //! Method type for the RPC system.
 
+use std::collections::HashSet;
+
 use downcast_rs::Downcast;
+use once_cell::sync::Lazy;
 
 /// The parameters and method name associated with a given Request.
 ///
@@ -42,6 +45,22 @@ pub trait Method: DynMethod {
 #[allow(clippy::exhaustive_enums)]
 pub enum NoUpdates {}
 
+/// A method we're registering.
+///
+/// This struct's methods are public so it can be constructed from
+/// `decl_method!`.
+///
+/// If you construct it yourself, you'll be in trouble.  But you already knew
+/// that, since you're looking at a `doc(hidden)` thing.
+#[doc(hidden)]
+#[allow(clippy::exhaustive_structs)]
+pub struct MethodInfo_ {
+    /// The name of the method.
+    pub method_name: &'static str,
+}
+
+inventory::collect!(MethodInfo_);
+
 /// Declare that one or more space-separated types should be considered as RPC
 /// methods.
 ///
@@ -77,6 +96,23 @@ macro_rules! decl_method {
             $crate::impl_const_type_id!{$id}
             #[typetag::deserialize(name = $name)]
             impl $crate::DynMethod for $id {}
+            $crate::inventory::submit!{
+                $crate::MethodInfo_ { method_name : $name }
+            }
         )*
     }
+}
+
+/// Return true if `name` is the name of some method.
+pub fn is_method_name(name: &str) -> bool {
+    /// Lazy set of all method names.
+    static METHOD_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| iter_method_names().collect());
+    METHOD_NAMES.contains(name)
+}
+
+/// Return an iterator that yields every registered method name.
+///
+/// Used (e.g.) to enforce syntactic requirements on method names.
+pub fn iter_method_names() -> impl Iterator<Item = &'static str> {
+    inventory::iter::<MethodInfo_>().map(|mi| mi.method_name)
 }

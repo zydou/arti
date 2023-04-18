@@ -64,9 +64,10 @@ impl InvalidRequest {
             _ => {}
         }
 
-        match self.method {
+        match &self.method {
             None => return E::MethodMissing,
             Some(Bad(_)) => return E::MethodType,
+            Some(Good(name)) if !rpc::is_method_name(name) => return E::MethodUnrecognized,
             _ => {}
         }
 
@@ -78,8 +79,6 @@ impl InvalidRequest {
             return E::MissingParams;
         }
 
-        // This is, sadly, the best we can do until we can look into the typetag
-        // registry ourselves to see whether the method was recognized.
-        E::MethodProblem
+        E::ParamType
     }
 }
