@@ -293,7 +293,7 @@ impl Session {
         self: &Arc<Self>,
         tx_updates: rpc::dispatch::BoxedUpdateSink,
         obj: rpc::ObjectId,
-        method: Box<dyn rpc::Method>,
+        method: Box<dyn rpc::DynMethod>,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
         let obj = self.lookup_object(&obj)?;
 
@@ -340,9 +340,11 @@ struct Echo {
     /// A message to echo.
     msg: String,
 }
-#[typetag::deserialize(name = "echo")]
-impl rpc::Method for Echo {}
-rpc::decl_method! {Echo}
+rpc::decl_method! { "arti:x-echo" => Echo}
+impl rpc::Method for Echo {
+    type Output = String;
+    type Update = rpc::NoUpdates;
+}
 
 rpc::rpc_invoke_fn! {
     /// Implementation for calling "echo" on a session
@@ -375,9 +377,11 @@ struct Authenticate {
     /// TODO RPC: The only supported one for now is "inherent:unix_path"
     scheme: AuthenticationScheme,
 }
-#[typetag::deserialize(name = "auth:authenticate")]
-impl rpc::Method for Authenticate {}
-rpc::decl_method! {Authenticate}
+rpc::decl_method! {"auth:authenticate" => Authenticate}
+impl rpc::Method for Authenticate {
+    type Output = Nil;
+    type Update = rpc::NoUpdates;
+}
 
 /// An empty structure used for "okay" replies with no additional data.
 ///

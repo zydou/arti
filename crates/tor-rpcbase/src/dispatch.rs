@@ -13,7 +13,7 @@ use futures::future::BoxFuture;
 use futures::Sink;
 
 use crate::typeid::ConstTypeId_;
-use crate::{Context, Method, Object, RpcError, SendUpdateError};
+use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
 
 /// A type-erased serializable value.
 #[doc(hidden)]
@@ -31,7 +31,7 @@ type RpcResultFuture = BoxFuture<'static, RpcResult>;
 /// This function takes `Arc`s rather than a reference, so that it can return a
 /// `'static` future.
 type ErasedInvokeFn =
-    fn(Arc<dyn Object>, Box<dyn Method>, Box<dyn Context>, BoxedUpdateSink) -> RpcResultFuture;
+    fn(Arc<dyn Object>, Box<dyn DynMethod>, Box<dyn Context>, BoxedUpdateSink) -> RpcResultFuture;
 
 /// A boxed sink on which updates can be sent.
 pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> + Send>>;
@@ -78,9 +78,11 @@ impl InvokeEntry_ {
 ///
 /// #[derive(Debug,serde::Deserialize)]
 /// struct ExampleMethod {}
-/// #[typetag::deserialize]
-/// impl rpc::Method for ExampleMethod {}
-/// rpc::decl_method! {ExampleMethod}
+/// rpc::decl_method! { "arti:x-example" => ExampleMethod}
+/// impl rpc::Method for ExampleMethod {
+///     type Output = ExampleResult;
+///     type Update = rpc::NoUpdates;
+/// }
 ///
 /// #[derive(serde::Serialize)]
 /// struct ExampleResult {
@@ -131,7 +133,7 @@ macro_rules! rpc_invoke_fn {
         // a boxed future.
         #[doc(hidden)]
         fn [<_typeerased_ $name>](obj: std::sync::Arc<dyn $crate::Object>,
-                                  method: Box<dyn $crate::Method>,
+                                  method: Box<dyn $crate::DynMethod>,
                                   ctx: Box<dyn $crate::Context>,
                                   #[allow(unused)]
                                   sink: $crate::dispatch::BoxedUpdateSink)
@@ -233,7 +235,7 @@ impl DispatchTable {
     pub fn invoke(
         &self,
         obj: Arc<dyn Object>,
-        method: Box<dyn Method>,
+        method: Box<dyn DynMethod>,
         ctx: Box<dyn Context>,
         sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError> {
@@ -271,6 +273,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use crate::{Method, NoUpdates};
     use futures::SinkExt;
     use futures_await_test::async_test;
 
@@ -295,11 +298,15 @@ mod test {
     struct GetName;
     #[derive(Debug, serde::Deserialize)]
     struct GetKids;
-    #[typetag::deserialize]
-    impl crate::Method for GetName {}
-    #[typetag::deserialize]
-    impl crate::Method for GetKids {}
-    crate::decl_method! {GetName GetKids}
+    crate::decl_method! { "x-test:getname"=>GetName, "x-test:getkids" => GetKids}
+    impl Method for GetName {
+        type Output = String;
+        type Update = NoUpdates;
+    }
+    impl Method for GetKids {
+        type Output = String;
+        type Update = NoUpdates;
+    }
 
     #[derive(serde::Serialize)]
     struct Outcome {
@@ -351,7 +358,7 @@ mod test {
             method: M,
         ) -> Result<RpcResultFuture, InvokeError> {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
-            let request: Box<dyn crate::Method> = Box::new(method);
+            let request: Box<dyn DynMethod> = Box::new(method);
             let ctx = Box::new(Ctx {});
             let discard = Box::pin(futures::sink::drain().sink_err_into());
             table.invoke(animal, request, ctx, discard)

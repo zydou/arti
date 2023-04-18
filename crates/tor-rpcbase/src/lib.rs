@@ -48,7 +48,7 @@ use std::{convert::Infallible, sync::Arc};
 
 pub use dispatch::DispatchTable;
 pub use err::RpcError;
-pub use method::Method;
+pub use method::{DynMethod, Method, NoUpdates};
 pub use obj::{Object, ObjectId};
 
 #[doc(hidden)]
