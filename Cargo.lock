@@ -4437,6 +4437,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "thiserror",
+ "tor-async-utils",
  "tor-error",
  "typetag",
 ]

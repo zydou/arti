@@ -23,6 +23,10 @@ pub type RpcValue = Box<dyn erased_serde::Serialize + Send + 'static>;
 #[doc(hidden)]
 pub type RpcResult = Result<RpcValue, RpcError>;
 
+/// The return type from sending an update.
+#[doc(hidden)]
+pub type RpcSendResult = Result<RpcValue, SendUpdateError>;
+
 /// A boxed future holding the result of an RPC method.
 type RpcResultFuture = BoxFuture<'static, RpcResult>;
 
@@ -127,7 +131,9 @@ macro_rules! rpc_invoke_fn {
             type Output = <$methodtype as $crate::Method>::Output;
             use $crate::futures::FutureExt;
             #[allow(unused)]
-            use $crate::futures::sink::{self, SinkExt};
+            use $crate::{
+                tor_async_utils::SinkExt as _
+            };
             let obj = obj
                 .downcast_arc::<$objtype>()
                 .unwrap_or_else(|_| panic!());
@@ -135,12 +141,9 @@ macro_rules! rpc_invoke_fn {
                 .downcast::<$methodtype>()
                 .unwrap_or_else(|_| panic!());
             $(
-                // TODO: I would prefer to have a `with` alternative that
-                // applied a simple (non async) function to a Sink.
-                let $sink = Box::pin(sink.with(|update: <$methodtype as $crate::Method>::Update| async {
-                    let boxed: $crate::dispatch::RpcValue = Box::new(update);
-                    Ok::<_,$crate::SendUpdateError>(boxed)
-                }));
+                let $sink = sink.with_fn(|update|
+                    $crate::dispatch::RpcSendResult::Ok(Box::new(update))
+                );
             )?
             $funcname(obj, method, ctx $(, $sink)?).map(|r| {
                 let r: $crate::RpcResult = match r {

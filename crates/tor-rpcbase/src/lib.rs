@@ -52,7 +52,9 @@ pub use method::{DynMethod, Method, NoUpdates};
 pub use obj::{Object, ObjectId};
 
 #[doc(hidden)]
-pub use {dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, paste};
+pub use {
+    dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, paste, tor_async_utils,
+};
 
 /// An error returned from [`ContextExt::lookup`].
 ///
