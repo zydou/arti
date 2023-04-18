@@ -137,10 +137,10 @@ macro_rules! rpc_invoke_fn {
             $(
                 // TODO: I would prefer to have a `with` alternative that
                 // applied a simple (non async) function to a Sink.
-                let $sink = sink.with(|update: <$methodtype as $crate::Method>::Update| async {
+                let $sink = Box::pin(sink.with(|update: <$methodtype as $crate::Method>::Update| async {
                     let boxed: $crate::dispatch::RpcValue = Box::new(update);
                     Ok::<_,$crate::SendUpdateError>(boxed)
-                });
+                }));
             )?
             $funcname(obj, method, ctx $(, $sink)?).map(|r| {
                 let r: $crate::RpcResult = match r {
@@ -293,7 +293,7 @@ mod test {
     }
     impl Method for GetKids {
         type Output = Outcome;
-        type Update = NoUpdates;
+        type Update = String;
     }
 
     #[derive(serde::Serialize)]
@@ -359,8 +359,9 @@ mod test {
         _obj: Arc<Wombat>,
         _method: Box<GetKids>,
         _ctx: Box<dyn crate::Context>,
-        _sink: impl futures::sink::Sink<NoUpdates>,
+        mut sink: impl futures::sink::Sink<String> + Unpin, // TODO RPC: Remove "unpin" if possible.
     ) -> Result<Outcome, crate::RpcError> {
+        let _ignore = sink.send("brb, burrowing".to_string()).await;
         Ok(Outcome {
             v: "joeys".to_string(),
         })
