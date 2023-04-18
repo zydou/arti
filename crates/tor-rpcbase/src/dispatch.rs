@@ -6,16 +6,22 @@
 
 use std::any;
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
+use futures::Sink;
 
 use crate::typeid::ConstTypeId_;
-use crate::{Context, Method, Object, RpcError};
+use crate::{Context, Method, Object, RpcError, SendUpdateError};
+
+/// A type-erased serializable value.
+#[doc(hidden)]
+pub type RpcValue = Box<dyn erased_serde::Serialize + Send + 'static>;
 
 /// The return type from an RPC function.
 #[doc(hidden)]
-pub type RpcResult = Result<Box<dyn erased_serde::Serialize + Send + 'static>, RpcError>;
+pub type RpcResult = Result<RpcValue, RpcError>;
 
 /// A boxed future holding the result of an RPC method.
 type RpcResultFuture = BoxFuture<'static, RpcResult>;
@@ -24,7 +30,11 @@ type RpcResultFuture = BoxFuture<'static, RpcResult>;
 ///
 /// This function takes `Arc`s rather than a reference, so that it can return a
 /// `'static` future.
-type ErasedInvokeFn = fn(Arc<dyn Object>, Box<dyn Method>, Box<dyn Context>) -> RpcResultFuture;
+type ErasedInvokeFn =
+    fn(Arc<dyn Object>, Box<dyn Method>, Box<dyn Context>, BoxedUpdateSink) -> RpcResultFuture;
+
+/// A boxed sink on which updates can be sent.
+pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> + Send>>;
 
 /// An entry for our dynamic dispatch code.
 ///
@@ -97,14 +107,24 @@ impl InvokeEntry_ {
 macro_rules! rpc_invoke_fn {
     {
         $(#[$meta:meta])*
-        $v:vis async fn $name:ident($obj:ident : Arc<$objtype:ty>, $method:ident: Box<$methodtype:ty>, $(mut)? $ctx:ident: Box<dyn $ctxtype:ty>) -> $rtype:ty {
+        $v:vis async fn $name:ident(
+            $obj:ident : Arc<$objtype:ty>,
+            $method:ident: Box<$methodtype:ty>,
+            $(mut)? $ctx:ident: Box<dyn $ctxtype:ty>
+            $(, $(mut)? $sink:ident : impl Sink<$updatetype:ty>)?
+        ) -> $rtype:ty {
             $($body:tt)*
         }
         $( $($more:tt)+ )?
     } => {$crate::paste::paste!{
         // First we declare the function that the user gave us.
         $(#[$meta])*
-        $v async fn $name($obj: std::sync::Arc<$objtype>, $method: Box<$methodtype>, mut $ctx: Box<dyn $ctxtype>) -> $rtype {
+        $v async fn $name(
+            $obj: std::sync::Arc<$objtype>,
+            $method: Box<$methodtype>,
+            mut $ctx: Box<dyn $ctxtype>
+            $(, mut $sink: impl $crate::futures::sink::Sink<$updatetype, Error=$crate::SendUpdateError>)?
+        ) -> $rtype {
            $($body)*
         }
         // Now we declare a type-erased version of the function that takes Arc<dyn> and Box<dyn> arguments, and returns
@@ -112,16 +132,28 @@ macro_rules! rpc_invoke_fn {
         #[doc(hidden)]
         fn [<_typeerased_ $name>](obj: std::sync::Arc<dyn $crate::Object>,
                                   method: Box<dyn $crate::Method>,
-                                  ctx: Box<dyn $crate::Context>)
+                                  ctx: Box<dyn $crate::Context>,
+                                  #[allow(unused)]
+                                  sink: $crate::dispatch::BoxedUpdateSink)
         -> $crate::futures::future::BoxFuture<'static, $crate::RpcResult> {
             use $crate::futures::FutureExt;
+            #[allow(unused)]
+            use $crate::futures::sink::{self, SinkExt};
             let obj = obj
                 .downcast_arc::<$objtype>()
                 .unwrap_or_else(|_| panic!());
             let method = method
                 .downcast::<$methodtype>()
                 .unwrap_or_else(|_| panic!());
-            $name(obj, method, ctx).map(|r| {
+            $(
+                // TODO: I would prefer to have a `with` alternative that
+                // applied a simple (non async) function to a Sink.
+                let $sink = sink.with(|update:$updatetype| async {
+                    let boxed: $crate::dispatch::RpcValue = Box::new(update);
+                    Ok(boxed)
+                });
+            )?
+            $name(obj, method, ctx $(, $sink)?).map(|r| {
                 let r: $crate::RpcResult = match r {
                     Ok(v) => Ok(Box::new(v)),
                     Err(e) => Err($crate::RpcError::from(e))
@@ -203,6 +235,7 @@ impl DispatchTable {
         obj: Arc<dyn Object>,
         method: Box<dyn Method>,
         ctx: Box<dyn Context>,
+        sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError> {
         let func_type = FuncType {
             obj_id: obj.type_id(),
@@ -211,7 +244,7 @@ impl DispatchTable {
 
         let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
 
-        Ok(func(obj, method, ctx))
+        Ok(func(obj, method, ctx, sink))
     }
 }
 
@@ -237,8 +270,8 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use std::{pin::Pin, task::Poll};
 
+    use futures::SinkExt;
     use futures_await_test::async_test;
 
     // Define 3 animals and one brick.
@@ -292,7 +325,7 @@ mod test {
         async fn getkids_sheep(_obj: Arc<Sheep>, _method: Box<GetKids>, _ctx: Box<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
             Ok(Outcome{ v: "lambs".to_string() })
         }
-        async fn getkids_wombat(_obj: Arc<Wombat>, _method: Box<GetKids>, _ctx: Box<dyn crate::Context>) -> Result<Outcome, crate::RpcError> {
+        async fn getkids_wombat(_obj: Arc<Wombat>, _method: Box<GetKids>, _ctx: Box<dyn crate::Context>, _updates: impl Sink<String>) -> Result<Outcome, crate::RpcError> {
             Ok(Outcome{ v: "joeys".to_string() })
         }
         // bricks don't have children.
@@ -300,47 +333,12 @@ mod test {
 
     struct Ctx {}
 
-    impl futures::sink::Sink<Box<dyn erased_serde::Serialize + Send + 'static>> for Ctx {
-        type Error = crate::SendUpdateError;
-
-        fn poll_ready(
-            self: Pin<&mut Self>,
-            _cx: &mut std::task::Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Err(crate::SendUpdateError::NoUpdatesWanted))
-        }
-
-        fn start_send(
-            self: Pin<&mut Self>,
-            _item: Box<dyn erased_serde::Serialize + Send + 'static>,
-        ) -> Result<(), Self::Error> {
-            Err(crate::SendUpdateError::NoUpdatesWanted)
-        }
-
-        fn poll_flush(
-            self: Pin<&mut Self>,
-            _cx: &mut std::task::Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_close(
-            self: Pin<&mut Self>,
-            _cx: &mut std::task::Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Ok(()))
-        }
-    }
     impl crate::Context for Ctx {
         fn lookup_object(
             &self,
             _id: &crate::ObjectId,
         ) -> Result<std::sync::Arc<dyn crate::Object>, crate::LookupError> {
             todo!()
-        }
-
-        fn accepts_updates(&self) -> bool {
-            false
         }
     }
 
@@ -355,7 +353,8 @@ mod test {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
             let request: Box<dyn crate::Method> = Box::new(method);
             let ctx = Box::new(Ctx {});
-            table.invoke(animal, request, ctx)
+            let discard = Box::pin(futures::sink::drain().sink_err_into());
+            table.invoke(animal, request, ctx, discard)
         }
         async fn invoke_ok<O: crate::Object, M: crate::Method>(
             table: &DispatchTable,

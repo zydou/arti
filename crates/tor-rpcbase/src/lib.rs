@@ -44,11 +44,10 @@ mod obj;
 #[doc(hidden)]
 pub mod typeid;
 
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
 
 pub use dispatch::DispatchTable;
 pub use err::RpcError;
-use futures::Sink;
 pub use method::Method;
 pub use obj::{Object, ObjectId};
 
@@ -74,14 +73,9 @@ pub enum LookupError {
 }
 
 /// A trait describing the context in which an RPC method is executed.
-pub trait Context:
-    Send + Sink<Box<dyn erased_serde::Serialize + Send + 'static>, Error = SendUpdateError>
-{
+pub trait Context: Send {
     /// Look up an object by identity within this context.
     fn lookup_object(&self, id: &ObjectId) -> Result<Arc<dyn Object>, LookupError>;
-
-    /// Return true if the request for the current method included a request for incremental updates.
-    fn accepts_updates(&self) -> bool;
 }
 
 /// An error caused while trying to send an update to a method.
@@ -95,6 +89,17 @@ pub enum SendUpdateError {
     /// The request was cancelled, or the connection was closed.
     #[error("Request cancelled")]
     RequestCancelled,
+}
+
+impl From<Infallible> for SendUpdateError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
+}
+impl From<futures::channel::mpsc::SendError> for SendUpdateError {
+    fn from(_: futures::channel::mpsc::SendError) -> Self {
+        SendUpdateError::RequestCancelled
+    }
 }
 
 /// Extension trait for [`Context`].
