@@ -39,9 +39,12 @@
 
 mod cancel;
 mod err;
+mod mgr;
 mod msgs;
 mod session;
 mod streams;
 
 #[cfg(feature = "tokio")]
 pub mod listen;
+
+pub use mgr::RpcMgr;

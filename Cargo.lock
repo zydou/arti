@@ -234,7 +234,6 @@ dependencies = [
  "erased-serde",
  "futures",
  "futures-await-test",
- "once_cell",
  "pin-project",
  "serde",
  "serde_json",

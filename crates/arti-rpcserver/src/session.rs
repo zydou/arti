@@ -12,7 +12,6 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Sink, SinkExt as _, StreamExt,
 };
-use once_cell::sync::Lazy;
 use pin_project::pin_project;
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
@@ -32,6 +31,10 @@ use tor_rpcbase as rpc;
 pub(crate) struct Session {
     /// The mutable state of this session
     inner: Mutex<Inner>,
+
+    /// Lookup table to find the implementations for methods
+    /// based on RPC object and method types.
+    dispatch_table: Arc<rpc::DispatchTable>,
 }
 
 impl rpc::Object for Session {}
@@ -73,21 +76,15 @@ pub(crate) type BoxedRequestStream = Pin<
 pub(crate) type BoxedResponseSink =
     Pin<Box<dyn Sink<BoxedResponse, Error = asynchronous_codec::JsonCodecError> + Send>>;
 
-/// A lazily constructed type-based dispatch table used for invoking functions
-/// based on RPC object and method types.
-//
-// TODO RPC: This will be moved into an Arc that lives in some kind of
-// SessionManager.
-static DISPATCH_TABLE: Lazy<rpc::DispatchTable> = Lazy::new(rpc::DispatchTable::from_inventory);
-
 impl Session {
     /// Create a new session.
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(dispatch_table: Arc<rpc::DispatchTable>) -> Self {
         Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
                 authenticated: false,
             }),
+            dispatch_table,
         }
     }
 
@@ -300,7 +297,7 @@ impl Session {
         let context: Box<dyn rpc::Context> = Box::new(RequestContext {
             session: Arc::clone(self),
         });
-        DISPATCH_TABLE
+        self.dispatch_table
             .invoke(obj, method, context, tx_updates)?
             .await
     }

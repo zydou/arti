@@ -204,7 +204,9 @@ async fn run<R: Runtime>(
             std::fs::remove_file(&pipe_path)?;
         }
 
-        runtime.spawn(arti_rpcserver::listen::accept_connections(pipe_path).map(|_| ()))?;
+        runtime.spawn(
+            arti_rpcserver::listen::accept_connections(pipe_path, client.clone()).map(|_| ()),
+        )?;
     }
 
     let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);
