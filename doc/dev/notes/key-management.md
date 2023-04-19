@@ -22,19 +22,101 @@ See also: [#728]
     let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(key_id)?;
 ```
 
+## Key stores
+
+The key manager is an interface to one or more key stores.
+
+Supported key stores:
+* C Tor key store: an on-disk store that is backwards-compatible with C Tor (new
+  keys are stored in the format used by C Tor, and any existing keys are
+  expected to be in this format too).
+* Arti key store: an on-disk store that stores keys in OpenSSH key
+  format.
+
+In the future we plan to also support HSM-based key stores.
+
+## Key passphrases
+
+OpenSSH keys can have passphrases. While the first version of the key manager
+won't be able to handle such keys, we will add passphrase support at some point
+in the future.
+
 ## Proposed configuration changes
 
+We introduce a new `[keys]` section for configuring the key stores. The
+`[keys.permissions]` section specifies the permissions all top-level key store
+directories are expected to have. It serves a similar purpose to
+`[storage.permissions]`.
+
+Initially, it will only be possible to configure two disk-backed key stores: the
+Arti key store via the `[keys.arti_store]` section, and the C Tor key store via
+the `[keys.ctor_store]` section. Future versions will be able to support the
+configuration of arbitrary key store implementations.
+
+The order of the key store sections is important, because keys are looked up in
+each of the configured key stores, in the order they are specified in the
+config. For example, if the Arti key store comes before the C Tor key store in
+the config, when prompted to retrieve a key, the key manager will search
+for the key in the Arti key store before checking the C Tor one:
+
 ```toml
-# Key manager options
+[keys.arti_store]
+...
+
+[keys.ctor_store]
+...
+```
+
+Note that both key stores are optional. It is possible to run Arti without
+configuring a key store (for example, when running Arti as a client).
+
+TODO hs: pick reasonable default values for the various top-level key store
+directories (`root_dir`, `client_dir`, `key_dir`).
+
+```toml
+# Key store options
 [keys]
-# The root of the key store, if the key store type is "arti" or "ctor".
-keystore_dir = ""
-# The key store type.
-#   If set to "arti", we will use Arti's disk key storage format.
-#   If set to "ctor", we will use the storage format used by C Tor.
-#   If set to "hsm", we will store the keys on a smartcard (TODO hs: this will
-#   require further config and API changes).
-keystore_kind = "arti"
+
+# Describe the filesystem permissions to enforce.
+[keys.permissions]
+# If set to true, we ignore all filesystem permissions.
+#dangerously_trust_everyone = false
+
+# What user (if any) is trusted to own files and directories?  ":current" means
+# to trust the current user.
+#trust_user = ":current"
+
+# What group (if any) is trusted to have read/write access to files and
+# directories?  ":selfnamed" means to trust the group with the same name as the
+# current user, if that user is a member.
+#trust_group = ":username"
+
+# If set, gives a path prefix that will always be trusted.  For example, if this
+# option is set to "/home/", and we are checking "/home/username/.cache", then
+# we always accept the permissions on "/" and "/home", but we check the
+# permissions on "/home/username" and "/home/username/.cache".
+#
+# (This is not the default.)
+#
+#     ignore_prefix = "/home/"
+#ignore_prefix = ""
+
+# The Arti key store.
+[keys.arti_store]
+# The root of the key store. All keys are stored somewhere in the `root_dir`
+# heirarchy
+root_dir = ""
+
+# The C Tor key store.
+[keys.ctor_store]
+# The client authorization key directory (if running Arti as a client).
+#
+# This corresponds to C Tor's ClientOnionAuthDir option.
+client_dir = ""
+# The key directory.
+#
+# This corresponds to C Tor's KeyDirectory option.
+key_dir = ""
 ```
 
 ## Key identities
@@ -48,8 +130,7 @@ section of the `tor` manpage), which stores keys and their associated metadata
 in the same file.
 
 In addition to the C Tor key format, Arti will also be able to store keys
-in [OpenSSH format]. The metadata will be serialized and stored in the `comment`
-string of the key. The key metadata we're interested in is:
+in OpenSSH format. The key metadata we're interested in is:
 * `arti_path`: the location of the key in the Arti key store.
 * `ctor_path`: the location of the key in the C Tor key store.
 * `hsm_slot`: the slot where the key is located on the smartcard
@@ -232,11 +313,4 @@ impl KeyMgr {
 }
 ```
 
-### Outstanding questions
-
-1. Do we want the key manager to be able to load each key from a different
-   storage medium (i.e. do not fix a specific `store_type` at configuration
-   time)? If so, the API described here will need to be revised.
-
 [#728]: https://gitlab.torproject.org/tpo/core/arti/-/issues/728
-[OpenSSH format]: https://coolaj86.com/articles/the-openssh-private-key-format/
