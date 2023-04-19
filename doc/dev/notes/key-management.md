@@ -227,13 +227,6 @@ Another would be to simply store it as-is.
     /// The path of a key in the C Tor key store.
     pub struct CTorPath(PathBuf);
 
-    /// The location of a key on a smartcard
-    pub struct HsmLocation {
-        /// The slot where the key is located.
-        slot: usize
-        // TODO hs: what other fields does this need?
-    }
-
     /// Information about where a particular key could be stored.
     pub trait KeyIdentity: Serialize + Deserialize {
         /// The location of the key in the Arti key store.
@@ -243,17 +236,6 @@ Another would be to simply store it as-is.
 
         /// The location of the key in the C Tor key store (if supported).
         fn ctor_path(&self) -> Option<CTorPath>;
-
-        /// The slot where the key is located on the smartcard.
-        fn hsm_slot(&self) -> Option<HsmLocation>;
-
-        /// The string representation of this key identity;
-        fn string_rep(self) -> String {
-            // TODO hs: serialize as what?
-            serde_json::to_string(&self)
-        }
-
-        // TODO hs: other methods?
     }
 
     /// The result of deserializing the comment field of an openSSH key.
@@ -303,8 +285,6 @@ enum KeyStoreKind {
     CTor(PathBuf),
     /// An Arti key store that uses OpenSSH key format.
     Arti(PathBuf),
-    /// An HSM key store (TODO hs: figure out how this is going to work).
-    Hsm,
 }
 
 /// The key manager.
@@ -344,7 +324,6 @@ impl KeyMgr {
                 let raw_key = fs::read(key_path)?;
                 K::ctor_decode(raw_key, key_id).map(Some)
             }
-            KeyStoreKind::Hsm => unimplemented!(),
         }
     }
 
@@ -364,7 +343,6 @@ impl KeyMgr {
 
                 fs::write(key_path, key)
             }
-            KeyStoreKind::Hsm => unimplemented!(),
         }
     }
 
