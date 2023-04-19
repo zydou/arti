@@ -41,12 +41,13 @@ pub(crate) enum RequestParseError {
     #[error("Request's `meta` field was not valid.")]
     MetaType,
 
-    /// There was a problem parsing our method and parameters:
-    /// either the method name was unrecognized, or the parameters were of the wrong type.
-    //
-    // TODO RPC: Our spec implies that we _can_ distinguish these cases. :p
-    #[error("Method unrecognized or parameter types incorrect")]
-    MethodProblem,
+    /// The `method` field was not the name of any recognized method.
+    #[error("Request's `method` field was unrecognized")]
+    MethodUnrecognized,
+
+    /// The parameters were of the wrong type for the method.
+    #[error("Parameter types incorrect for specified method")]
+    ParamType,
 
     /// The `params` field was missing.
     #[error("Request's `params` field was missing.")]
@@ -68,7 +69,8 @@ impl tor_error::HasKind for RequestParseError {
             | Self::MethodType
             | Self::MetaType
             | Self::MissingParams => EK::RpcInvalidRequest,
-            Self::MethodProblem => EK::RpcInvalidMethodParameters, // TODO RPC: See notes.
+            Self::MethodUnrecognized => EK::RpcMethodNotFound,
+            Self::ParamType => EK::RpcInvalidMethodParameters,
         }
     }
 }

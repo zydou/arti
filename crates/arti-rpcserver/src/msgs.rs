@@ -59,7 +59,7 @@ pub(crate) struct Request {
     /// TODO RPC: Note that our spec says that "params" can be omitted, but I
     /// don't think we support that right now.
     #[serde(flatten)]
-    pub(crate) method: Box<dyn rpc::Method>,
+    pub(crate) method: Box<dyn rpc::DynMethod>,
 }
 
 /// A request that may or may not be valid.
@@ -188,10 +188,12 @@ mod test {
         stuff: u64,
     }
 
-    #[typetag::deserialize(name = "dummy")]
-    impl rpc::Method for DummyMethod {}
+    impl rpc::Method for DummyMethod {
+        type Output = DummyResponse;
+        type Update = rpc::NoUpdates;
+    }
 
-    tor_rpcbase::decl_method! {DummyMethod}
+    tor_rpcbase::decl_method! {"x-test:dummy" => DummyMethod}
 
     #[derive(Serialize)]
     struct DummyResponse {
@@ -206,7 +208,8 @@ mod test {
             _ => panic!(),
         };
 
-        let r = parse_request(r#"{"id": 7, "obj": "hello", "method": "dummy", "params": {} }"#);
+        let r =
+            parse_request(r#"{"id": 7, "obj": "hello", "method": "x-test:dummy", "params": {} }"#);
         assert_dbg_eq!(
             r,
             Request {
@@ -237,19 +240,19 @@ mod test {
 
         expect_err!(
             RPE::IdMissing,
-            r#"{ "obj": "hello", "method": "dummy", "params": {} }"#
+            r#"{ "obj": "hello", "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
             RPE::IdType,
-            r#"{ "id": {}, "obj": "hello", "method": "dummy", "params": {} }"#
+            r#"{ "id": {}, "obj": "hello", "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
             RPE::ObjMissing,
-            r#"{ "id": 3, "method": "dummy", "params": {} }"#
+            r#"{ "id": 3, "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
             RPE::ObjType,
-            r#"{ "id": 3, "obj": 9, "method": "dummy", "params": {} }"#
+            r#"{ "id": 3, "obj": 9, "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
             RPE::MethodMissing,
@@ -261,19 +264,23 @@ mod test {
         );
         expect_err!(
             RPE::MetaType,
-            r#"{ "id": 3, "obj": "hello", "meta": 7, "method": "dummy", "params": {} }"#
+            r#"{ "id": 3, "obj": "hello", "meta": 7, "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
             RPE::MetaType,
-            r#"{ "id": 3, "obj": "hello", "meta": { "updates": 3}, "method": "dummy", "params": {} }"#
+            r#"{ "id": 3, "obj": "hello", "meta": { "updates": 3}, "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
-            RPE::MethodProblem,
+            RPE::MethodUnrecognized,
             r#"{ "id": 3, "obj": "hello", "method": "arti:this-is-not-a-method", "params": {} }"#
         );
         expect_err!(
             RPE::MissingParams,
-            r#"{ "id": 3, "obj": "hello", "method": "dummy" }"#
+            r#"{ "id": 3, "obj": "hello", "method": "x-test:dummy" }"#
+        );
+        expect_err!(
+            RPE::ParamType,
+            r#"{ "id": 3, "obj": "hello", "method": "x-test:dummy", "params": 7 }"#
         );
     }
 

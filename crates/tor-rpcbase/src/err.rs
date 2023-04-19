@@ -15,6 +15,13 @@ pub struct RpcError {
     data: Option<Box<dyn erased_serde::Serialize + Send>>,
 }
 
+impl RpcError {
+    /// Return true if this is an internal error.
+    pub fn is_internal(&self) -> bool {
+        matches!(self.kinds, tor_error::ErrorKind::Internal)
+    }
+}
+
 impl<T> From<T> for RpcError
 where
     T: std::error::Error + tor_error::HasKind + serde::Serialize + Send + 'static,
@@ -113,6 +120,17 @@ impl std::fmt::Debug for RpcError {
             .field("kinds", &self.kinds)
             .field("data", &self.data.as_ref().map(|_| "..."))
             .finish()
+    }
+}
+
+impl From<crate::SendUpdateError> for RpcError {
+    fn from(value: crate::SendUpdateError) -> Self {
+        Self {
+            message: value.to_string(),
+            code: RpcCode::RequestError,
+            kinds: tor_error::ErrorKind::Internal,
+            data: None,
+        }
     }
 }
 

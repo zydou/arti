@@ -48,11 +48,14 @@ use std::{convert::Infallible, sync::Arc};
 
 pub use dispatch::DispatchTable;
 pub use err::RpcError;
-pub use method::Method;
+pub use method::{is_method_name, iter_method_names, DynMethod, Method, NoUpdates};
 pub use obj::{Object, ObjectId};
 
 #[doc(hidden)]
-pub use {dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, paste};
+pub use {
+    dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, method::MethodInfo_, paste,
+    tor_async_utils,
+};
 
 /// An error returned from [`ContextExt::lookup`].
 ///
@@ -79,16 +82,22 @@ pub trait Context: Send {
 }
 
 /// An error caused while trying to send an update to a method.
+///
+/// These errors should be impossible in our current implementation, since they
+/// can only happen if the `mpsc::Receiver` is closed—which can only happen
+/// when the session loop drops it, which only happens when the session loop has
+/// stopped polling its `FuturesUnordered` full of RPC request futures. Thus, any
+/// `send` that would encounter this error should be in a future that is never
+/// polled under circumstances when the error could happen.
+///
+/// Still, programming errors are real, so we are handling this rather than
+/// declaring it a panic or something.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum SendUpdateError {
-    /// The application didn't ask for any updates for this request.
-    #[error("Application did not request updates")]
-    NoUpdatesWanted,
-
     /// The request was cancelled, or the connection was closed.
-    #[error("Request cancelled")]
-    RequestCancelled,
+    #[error("Unable to send on MPSC connection")]
+    ConnectionClosed,
 }
 
 impl From<Infallible> for SendUpdateError {
@@ -98,7 +107,7 @@ impl From<Infallible> for SendUpdateError {
 }
 impl From<futures::channel::mpsc::SendError> for SendUpdateError {
     fn from(_: futures::channel::mpsc::SendError) -> Self {
-        SendUpdateError::RequestCancelled
+        SendUpdateError::ConnectionClosed
     }
 }
 

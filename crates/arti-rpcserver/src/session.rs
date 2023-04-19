@@ -10,12 +10,13 @@ use asynchronous_codec::JsonCodecError;
 use futures::{
     channel::mpsc,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Sink, SinkExt, StreamExt,
+    FutureExt, Sink, SinkExt as _, StreamExt,
 };
 use once_cell::sync::Lazy;
 use pin_project::pin_project;
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
+use tor_async_utils::SinkExt as _;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
@@ -235,17 +236,11 @@ impl Session {
             let sink =
                 tx_response
                     .clone()
-                    .with(move |obj: Box<dyn erased_serde::Serialize + Send>| {
-                        // TODO: I don't like using "with" here since it expects a future.
-                        // TODO: "id_clone_clone"? Can't we do better?
-                        //       (The obvious solutions made the borrow checker sad.)
-                        let id_clone_clone = id_clone.clone();
-                        async {
-                            Result::<BoxedResponse, _>::Ok(BoxedResponse {
-                                id: Some(id_clone_clone),
-                                body: ResponseBody::Update(obj),
-                            })
-                        }
+                    .with_fn(move |obj: Box<dyn erased_serde::Serialize + Send>| {
+                        Result::<BoxedResponse, _>::Ok(BoxedResponse {
+                            id: Some(id_clone.clone()),
+                            body: ResponseBody::Update(obj),
+                        })
                     });
             Box::pin(sink)
         } else {
@@ -262,7 +257,12 @@ impl Session {
         let body = match fut.await {
             Ok(Ok(value)) => ResponseBody::Success(value),
             // TODO: If we're going to box this, let's do so earlier.
-            Ok(Err(err)) => ResponseBody::Error(Box::new(err)),
+            Ok(Err(err)) => {
+                if err.is_internal() {
+                    tracing::warn!("Reporting an internal error on an RPC session: {:?}", err);
+                }
+                ResponseBody::Error(Box::new(err))
+            }
             Err(_cancelled) => ResponseBody::Error(Box::new(rpc::RpcError::from(RequestCancelled))),
         };
 
@@ -293,7 +293,7 @@ impl Session {
         self: &Arc<Self>,
         tx_updates: rpc::dispatch::BoxedUpdateSink,
         obj: rpc::ObjectId,
-        method: Box<dyn rpc::Method>,
+        method: Box<dyn rpc::DynMethod>,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
         let obj = self.lookup_object(&obj)?;
 
@@ -340,17 +340,26 @@ struct Echo {
     /// A message to echo.
     msg: String,
 }
-#[typetag::deserialize(name = "echo")]
-impl rpc::Method for Echo {}
-rpc::decl_method! {Echo}
+rpc::decl_method! { "arti:x-echo" => Echo}
+impl rpc::Method for Echo {
+    type Output = Echo;
+    type Update = rpc::NoUpdates;
+}
+
+/// Implementation for calling "echo" on a session
+///
+/// TODO RPC: Remove this. It shouldn't exist.
+async fn echo_on_session(
+    _obj: Arc<Session>,
+    method: Box<Echo>,
+    _ctx: Box<dyn rpc::Context>,
+) -> Result<Echo, rpc::RpcError> {
+    Ok(*method)
+}
 
 rpc::rpc_invoke_fn! {
-    /// Implementation for calling "echo" on a session
-    ///
-    /// TODO RPC: Remove this. It shouldn't exist.
-    async fn echo_on_session(_obj: Arc<Session>, method: Box<Echo>, _ctx:Box<dyn rpc::Context>) -> Result<Box<Echo>, rpc::RpcError> {
-        Ok(method)
-    }
+    echo_on_session(Session,Echo);
+
 }
 
 /// The authentication scheme as enumerated in the spec.
@@ -375,9 +384,11 @@ struct Authenticate {
     /// TODO RPC: The only supported one for now is "inherent:unix_path"
     scheme: AuthenticationScheme,
 }
-#[typetag::deserialize(name = "auth:authenticate")]
-impl rpc::Method for Authenticate {}
-rpc::decl_method! {Authenticate}
+rpc::decl_method! {"auth:authenticate" => Authenticate}
+impl rpc::Method for Authenticate {
+    type Output = Nil;
+    type Update = rpc::NoUpdates;
+}
 
 /// An empty structure used for "okay" replies with no additional data.
 ///
@@ -396,17 +407,32 @@ impl tor_error::HasKind for AuthenticationFailure {
     }
 }
 
-rpc::rpc_invoke_fn! {
-    async fn authenticate_session(unauth: Arc<UnauthenticatedSession>, method: Box<Authenticate>, _ctx: Box<dyn rpc::Context>) -> Result<Nil, rpc::RpcError> {
-        match method.scheme {
-            // For now, we only support AF_UNIX connections, and we assume that if you have permission to open such a connection to us, you have permission to use Arti.
-            // We will refine this later on!
-            AuthenticationScheme::InherentUnixPath => {}
-        }
-
-        unauth.inner.inner.lock().expect("Poisoned lock").authenticated = true;
-        Ok(Nil {})
+/// Invoke the "authenticate" method on a session.
+///
+/// TODO RPC: This behavior is wrong; we'll need to fix it to be all
+/// capabilities-like.
+async fn authenticate_session(
+    unauth: Arc<UnauthenticatedSession>,
+    method: Box<Authenticate>,
+    _ctx: Box<dyn rpc::Context>,
+) -> Result<Nil, rpc::RpcError> {
+    match method.scheme {
+        // For now, we only support AF_UNIX connections, and we assume that if
+        // you have permission to open such a connection to us, you have
+        // permission to use Arti. We will refine this later on!
+        AuthenticationScheme::InherentUnixPath => {}
     }
+
+    unauth
+        .inner
+        .inner
+        .lock()
+        .expect("Poisoned lock")
+        .authenticated = true;
+    Ok(Nil {})
+}
+rpc::rpc_invoke_fn! {
+    authenticate_session(UnauthenticatedSession, Authenticate);
 }
 
 /// An error given when an RPC request is cancelled.
