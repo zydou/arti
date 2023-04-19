@@ -257,7 +257,12 @@ impl Session {
         let body = match fut.await {
             Ok(Ok(value)) => ResponseBody::Success(value),
             // TODO: If we're going to box this, let's do so earlier.
-            Ok(Err(err)) => ResponseBody::Error(Box::new(err)),
+            Ok(Err(err)) => {
+                if err.is_internal() {
+                    tracing::warn!("Reporting an internal error on an RPC session: {:?}", err);
+                }
+                ResponseBody::Error(Box::new(err))
+            }
             Err(_cancelled) => ResponseBody::Error(Box::new(rpc::RpcError::from(RequestCancelled))),
         };
 
