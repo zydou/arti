@@ -238,16 +238,6 @@ Another would be to simply store it as-is.
         fn ctor_path(&self) -> Option<CTorPath>;
     }
 
-    /// The result of deserializing the comment field of an openSSH key.
-    // TODO hs: we might not actually need this
-    #[derive(Serialize, Deserialize)]
-    enum KeyIdentityResult<K: KeyIdentity> {
-        /// A known key identity.
-        Key(K),
-        /// An unsupported key type.
-        Unknown(String),
-    }
-
     /// An identifier for a client/relay/...
     #[derive(AsRef, Into, ...)]
     pub struct LocalUserIdentity(String);
