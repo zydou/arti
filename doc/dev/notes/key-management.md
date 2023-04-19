@@ -122,43 +122,107 @@ key_dir = ""
 ## Key identities
 
 A key by itself is not very useful. In order for Arti to be able to use it, it
-needs to know what the key is supposed to be used for. As such, we need to store
-some metadata alongside each key.
+needs to also know the _role_ of the key (i.e., what that key is supposed to be
+used for), among other things. As such, we need to store some metadata alongside
+each key.
 
-C Tor achieves this using a passwd-style format (see the `CLIENT AUTHORIZATION`
-section of the `tor` manpage), which stores keys and their associated metadata
-in the same file.
+For client authorization keys, C Tor achieves this using a passwd-style format
+(see the `CLIENT AUTHORIZATION` section of the `tor` manpage), which stores keys
+and their associated metadata in the same file. Other keys don't have other
+metadata than their _role_ (i.e. "Ed25519 permanent identity key", "medium-term
+Ed25519 signing key", etc.), which can be unambiguously determined by looking at
+the path/file name of the key file (e.g. the role of
+`<KeyDirectory>/ed25519_master_id_private_key` is "Ed25519 permanent identity
+key of a relay", `<HiddenServiceDirectory>/private_key` is "the private key of
+the hidden service whose data is stored at `<HiddenServiceDirectory>`", etc.).
 
-In addition to the C Tor key format, Arti will also be able to store keys
-in OpenSSH format. The key metadata we're interested in is:
-* `arti_path`: the location of the key in the Arti key store.
-* `ctor_path`: the location of the key in the C Tor key store.
-* `hsm_slot`: the slot where the key is located on the smartcard
-* a string that includes the key name (from the spec), as well as information
-  about that specific instance of the key:
-  ```
-   {
-     "type": "HsClientSecretKeyIdentity",
-     "key_name": "k_hsc_desc_enc",
-     "service": "foo.onion",
-     "user_identity": "wombat"
-   }
-  ```
-  This string will be included in the `comment` section of any newly generated
-  key. It is also expected to be present (and in the correct format) for all
-  existing keys in an Arti key store.
+For this reason, we introduce the concept of a "key identity" (specified for
+each supported key type via the `KeyIdentity` trait). A "key identity" uniquely
+identifies an instance of a type of key. From an implementation standpoint,
+`KeyIdentity` implementers must specify:
+* `arti_path`: the location of the key in the Arti key store. This also serves
+  as a unique identifier for a particular instance of a key.
+* `ctor_path`: the location of the key in the C Tor key store (optional).
 
-Keys make their metadata available via the `KeyIdentity` trait.
+For the keys stored in the Arti key store (i.e. in the OpenSSH format), the
+`KeyIdentity::arti_path()` is converted to a string and placed in the `coment`
+field of the key. When retrieving keys from the Arti store, the key manager
+compares the `comment` of the stored key with the `KeyIdentity::arti_path()` of
+the requested key identity. If the values match, it retrieves the key.
+Otherwise, it returns an error.
 
-### Metadata format
+To identify the path of a key in the Arti key store, the key manager prepends
+`keys.arti_store.root_dir` to `KeyIdentity::arti_path()` and appends an
+extension.
 
-TODO: decide what the metadata is serialized to
+For example, an Arti key store might have the following structure (note that
+each path within the `keys.arti_store.root_dir` directory, minus the extension,
+is the `arti_path` of a particular key):
+```
+<keys.arti_store.root_dir>
+├── alice                     # HS client identity "alice"
+│   ├── foo.onion
+│   │   ├── hsc_desc_enc      # arti_path = "alice/foo.onion/hsc_desc_enc"
+│   │   │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
+│   │   │                     # descriptors of foo.onion")
+│   │   └── hsc_intro_auth    # arti_path = "alice/foo.onion/hsc_intro_auth"
+│   │                         # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
+│   │                         # signatures to prove to foo.onion she is authorized")
+│   │                         # Note: this is not implemented in C Tor
+│   └── bar.onion
+│       ├── hsc_desc_enc      # arti_path = "alice/foo.onion/hsc_desc_enc"
+│       │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
+│       │                     # descriptors of bar.onion")
+│       └── hsc_intro_auth    # arti_path = "alice/bar.onion/hsc_intro_auth"
+│                             # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
+│                             # signatures to prove to bar.onion she is authorized")
+├── bob                       # HS client identity "bob"
+│   └── foo.onion
+│       ├── hsc_desc_enc      # arti_path = "bob/foo.onion/hsc_desc_enc"
+│       │                     # (HS client Bob's x25519 hsc_desc_enc keypair for decrypting the HS
+│       │                     # descriptors of foo.onion")
+│       └── hsc_intro_auth    # arti_path = "bob/foo.onion/hsc_intro_auth"
+│                             # (HS client Bob's ed25519 hsc_intro_auth keypair for computing
+│                             # signatures to prove to foo.onion he is authorized")
+│                             # Note: this is not implemented in C Tor
+│
+├── baz.onion                 # Hidden service baz.onion
+│   ├── authorized_clients    # The clients authorized to access baz.onion
+│   │   └── dan
+│   │        └── hsc_desc_enc # arti_path = "baz.onion/authorized_clients/dan/hsc_desc_enc.pub"
+│   │                         # (The public part of HS client Dan's x25519 hsc_desc_enc keypair for
+│   │                         # decrypting baz.onions descriptors)
+│   │
+│   │
+│   │  
+│   ├── hs_id                 # arti_path = "baz.onion/hs_id" (baz.onion's identity key)
+│   └── hs_blind_id           # arti_path = "baz.onion/hs_blind_id" (baz.onion's blinded identity key)
+├── Carol                     # Relay Carol
+│   └── ...
+└── ....
+```
+
+### Comment field format
+
+TODO hs: decide what format to store the `arti_path` in. One option would be
+to encode it as an email address: `<arti_path>@_artikeyid.arti.torproject.org`.
+Another would be to simply store it as-is.
 
 ### The `KeyIdentity` trait
 
 ```rust
     /// The path of a key in the Arti key store.
-    pub struct ArtiPath(PathBuf);
+    ///
+    /// NOTE: There is a 1:1 mapping between a value that implements
+    /// `KeyIdentity` and its corresponding `ArtiPath`.
+    /// A `KeyIdentity` can be converted to an `ArtiPath`,
+    /// but the reverse conversion is not supported.
+    //
+    // TODO hs: restrict the character set and syntax for values of this type
+    // (it should not be possible to construct an ArtiPath out of a String that
+    // uses disallowed chars, or one that is in the wrong format (TBD exactly what
+    // this format is supposed to look like)
+    pub struct ArtiPath(String);
 
     /// The path of a key in the C Tor key store.
     pub struct CTorPath(PathBuf);
@@ -172,9 +236,9 @@ TODO: decide what the metadata is serialized to
 
     /// Information about where a particular key could be stored.
     pub trait KeyIdentity: Serialize + Deserialize {
-        type CTorKey;
-
         /// The location of the key in the Arti key store.
+        ///
+        /// This also acts as a unique identifier for a specific key instance.
         fn arti_path(&self) -> ArtiPath;
 
         /// The location of the key in the C Tor key store (if supported).
@@ -266,7 +330,7 @@ impl KeyMgr {
 
                 let raw_key = fs::read(key_path)?;
                 // TODO hs: compare the comment field of the key with
-                // key_id.string_rep(), returning an error (or maybe `Ok(None)`) if
+                // key_id.arti_path(), returning an error (or maybe `Ok(None)`) if
                 // they don't match
                 K::arti_decode(raw_key, key_id).map(Some)
             }
