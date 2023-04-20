@@ -25,14 +25,19 @@ pub struct RpcMgr {
 
 impl RpcMgr {
     /// Create a new RpcMgr.
-    pub fn new<R: Runtime>(_: TorClient<R>) -> Self {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
         RpcMgr {
             dispatch_table: Arc::new(rpc::DispatchTable::from_inventory()),
         }
     }
 
-    /// Start a new session based on this RpcMgr.
-    pub fn new_session(&self) -> Session {
+    /// Start a new session based on this RpcMgr, with a given TorClient.
+    ///
+    /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
+    /// be possible to invoke any of its methods. See #837.
+    pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Session {
+        drop(client); //TODO RPC
         Session::new(self.dispatch_table.clone())
     }
 }

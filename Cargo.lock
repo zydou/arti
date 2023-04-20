@@ -196,6 +196,7 @@ dependencies = [
  "tor-persist",
  "tor-proto",
  "tor-ptmgr",
+ "tor-rpcbase",
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",

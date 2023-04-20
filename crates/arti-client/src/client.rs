@@ -4,6 +4,10 @@
 //! Once the client is bootstrapped, you can make anonymous
 //! connections ("streams") over the Tor network using
 //! [`TorClient::connect`].
+
+#[cfg(feature = "rpc")]
+mod rpc;
+
 use crate::address::{IntoTorAddr, ResolveInstructions, StreamInstructions};
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};

@@ -35,11 +35,11 @@ pub(crate) async fn run_rpc_listener<R: Runtime>(
     // TODO RPC: Maybe the UnixListener functionality belongs in tor-rtcompat?
     // But I certainly don't want to make breaking changes there if we can help it.
     let listener = UnixListener::bind(path)?;
-    let mgr = RpcMgr::new(client);
+    let mgr = RpcMgr::new();
 
     loop {
         let (stream, _addr) = listener.accept().await?;
-        let session = Arc::new(mgr.new_session());
+        let session = Arc::new(mgr.new_session(client.isolated_client()));
         let (input, output) = stream.into_split();
 
         #[cfg(feature = "tokio")]
