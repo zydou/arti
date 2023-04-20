@@ -44,7 +44,5 @@ mod msgs;
 mod session;
 mod streams;
 
-#[cfg(feature = "tokio")]
-pub mod listen;
-
 pub use mgr::RpcMgr;
+pub use session::{Session, SessionError};

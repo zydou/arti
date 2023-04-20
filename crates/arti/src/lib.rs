@@ -67,6 +67,9 @@ mod reload_cfg;
 #[cfg(not(feature = "experimental-api"))]
 mod socks;
 
+#[cfg(feature = "rpc")]
+mod rpc;
+
 use std::ffi::OsString;
 use std::fmt::Write;
 
@@ -143,16 +146,27 @@ async fn run<R: Runtime>(
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
 
-    #[cfg(all(feature = "rpc", feature = "tokio"))]
-    let pipe_dir = {
-        // TODO RPC: This is a kludge and belongs elsewhere.
-        // TODO RPC: This path is not final and should not be.
-        let pipedir = tor_config::CfgPath::new("~/.arti-rpc-TESTING/".to_owned());
-        let path = pipedir.path()?;
-        client_config
-            .fs_mistrust()
-            .verifier()
-            .make_secure_dir(path)?
+    #[cfg(feature = "rpc")]
+    let rpc_path = {
+        if let Some(path) = &arti_config.rpc().rpc_listen {
+            let path = path.path()?;
+            let parent = path
+                .parent()
+                .ok_or(anyhow::anyhow!("No parent directory for rpc_listen path?"))?;
+            client_config
+                .fs_mistrust()
+                .verifier()
+                .make_secure_dir(parent)?;
+            // It's just a unix thing; if we leave this sitting around, binding to it won't
+            // work right.  There is probably a better solution.
+            if path.exists() {
+                std::fs::remove_file(&path)?;
+            }
+
+            Some(path)
+        } else {
+            None
+        }
     };
 
     let client_builder = TorClient::with_runtime(runtime.clone())
@@ -194,19 +208,14 @@ async fn run<R: Runtime>(
 
     #[cfg(all(feature = "rpc", feature = "tokio"))]
     {
-        // TODO RPC This code doesn't really belong here; it's just an example.
         use futures::task::SpawnExt;
-
-        let pipe_path = pipe_dir.join("PIPE")?;
-        // It's just a unix thing; if we leave this sitting around, binding to it won't
-        // work right.  There is probably a better solution.
-        if pipe_path.exists() {
-            std::fs::remove_file(&pipe_path)?;
+        // TODO RPC This code doesn't really belong here; it's just an example.
+        if let Some(listen_path) = rpc_path {
+            let rt_clone = runtime.clone();
+            // TODO Conceivably this listener belongs on a renamed "proxy" list.
+            runtime
+                .spawn(rpc::run_rpc_listener(rt_clone, listen_path, client.clone()).map(|_| ()))?;
         }
-
-        runtime.spawn(
-            arti_rpcserver::listen::accept_connections(pipe_path, client.clone()).map(|_| ()),
-        )?;
     }
 
     let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);

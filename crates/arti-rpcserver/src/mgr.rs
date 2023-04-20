@@ -32,7 +32,7 @@ impl RpcMgr {
     }
 
     /// Start a new session based on this RpcMgr.
-    pub(crate) fn new_session(&self) -> Session {
+    pub fn new_session(&self) -> Session {
         Session::new(self.dispatch_table.clone())
     }
 }

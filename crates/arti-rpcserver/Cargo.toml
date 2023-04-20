@@ -15,9 +15,6 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 full = []
 
-experimental = ["tokio"]
-tokio = ["tokio-crate", "tokio-util"]
-
 [dependencies]
 arti-client = { path = "../arti-client", version = "0.9.0" }
 asynchronous-codec = { version = "0.6.0", features = ["json"] }
@@ -28,8 +25,6 @@ pin-project = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "1"
-tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["full"] }
-tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.0" }
 tor-error = { path = "../tor-error", version = "0.5.0" }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.1.0" }

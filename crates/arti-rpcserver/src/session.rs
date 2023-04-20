@@ -28,7 +28,7 @@ use tor_rpcbase as rpc;
 /// A session with an RPC client.  
 ///
 /// Tracks information that persists from one request to another.
-pub(crate) struct Session {
+pub struct Session {
     /// The mutable state of this session
     inner: Mutex<Inner>,
 
@@ -121,6 +121,29 @@ impl Session {
     fn register_request(&self, id: RequestId, handle: CancelHandle) {
         let mut inner = self.inner.lock().expect("lock poisoned");
         inner.inflight.insert(id, handle);
+    }
+
+    /// Run this session in a loop, decoding JSON requests from `input` and
+    /// writing JSON responses onto `output`.
+    pub async fn run<IN, OUT>(self: Arc<Self>, input: IN, output: OUT) -> Result<(), SessionError>
+    where
+        IN: futures::AsyncRead + Send + Sync + Unpin + 'static,
+        OUT: futures::AsyncWrite + Send + Sync + Unpin + 'static,
+    {
+        let write = Box::pin(asynchronous_codec::FramedWrite::new(
+            output,
+            crate::streams::JsonLinesEncoder::<BoxedResponse>::default(),
+        ));
+
+        let read = Box::pin(
+            asynchronous_codec::FramedRead::new(
+                input,
+                asynchronous_codec::JsonCodec::<(), FlexibleRequest>::new(),
+            )
+            .fuse(),
+        );
+
+        self.run_loop(read, write).await
     }
 
     /// Run in a loop, handling requests from `request_stream` and writing
@@ -306,7 +329,7 @@ impl Session {
 /// A failure that results in closing a Session.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub(crate) enum SessionError {
+pub enum SessionError {
     /// Unable to write to our connection.
     #[error("Could not write to connection")]
     WriteFailed,
