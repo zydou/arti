@@ -30,7 +30,7 @@ http = "0.2"
 httparse = "1.2"
 httpdate = "1.0"
 itertools = "0.10.1"
-memchr = "2"
+memchr = "2.5"
 thiserror = "1"
 tor-circmgr = { path = "../tor-circmgr", version = "0.7.3" }
 tor-error = { path = "../tor-error", version = "0.4.1" }
