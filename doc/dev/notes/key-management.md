@@ -225,7 +225,7 @@ is the `arti_path` of a particular key):
     pub struct CTorPath(PathBuf);
 
     /// Information about where a particular key could be stored.
-    pub trait KeyIdentity: Serialize + Deserialize {
+    pub trait KeyIdentity {
         /// The location of the key in the Arti key store.
         ///
         /// This also acts as a unique identifier for a specific key instance.
