@@ -160,46 +160,49 @@ each path within the `keys.arti_store.root_dir` directory, minus the extension,
 is the `arti_path` of a particular key):
 ```
 <keys.arti_store.root_dir>
-├── alice                     # HS client identity "alice"
-│   ├── foo.onion
-│   │   ├── hsc_desc_enc      # arti_path = "alice/foo.onion/hsc_desc_enc"
-│   │   │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
-│   │   │                     # descriptors of foo.onion")
-│   │   └── hsc_intro_auth    # arti_path = "alice/foo.onion/hsc_intro_auth"
-│   │                         # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
-│   │                         # signatures to prove to foo.onion she is authorized")
-│   │                         # Note: this is not implemented in C Tor
-│   └── bar.onion
-│       ├── hsc_desc_enc      # arti_path = "alice/foo.onion/hsc_desc_enc"
-│       │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
-│       │                     # descriptors of bar.onion")
-│       └── hsc_intro_auth    # arti_path = "alice/bar.onion/hsc_intro_auth"
-│                             # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
-│                             # signatures to prove to bar.onion she is authorized")
-├── bob                       # HS client identity "bob"
-│   └── foo.onion
-│       ├── hsc_desc_enc      # arti_path = "bob/foo.onion/hsc_desc_enc"
-│       │                     # (HS client Bob's x25519 hsc_desc_enc keypair for decrypting the HS
-│       │                     # descriptors of foo.onion")
-│       └── hsc_intro_auth    # arti_path = "bob/foo.onion/hsc_intro_auth"
-│                             # (HS client Bob's ed25519 hsc_intro_auth keypair for computing
-│                             # signatures to prove to foo.onion he is authorized")
-│                             # Note: this is not implemented in C Tor
+├── client
+│   ├── alice                     # HS client identity "alice"
+│   │   ├── foo.onion
+│   │   │   ├── hsc_desc_enc      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
+│   │   │   │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
+│   │   │   │                     # descriptors of foo.onion")
+│   │   │   └── hsc_intro_auth    # arti_path = "client/alice/foo.onion/hsc_intro_auth"
+│   │   │                         # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
+│   │   │                         # signatures to prove to foo.onion she is authorized")
+│   │   │                         # Note: this is not implemented in C Tor
+│   │   └── bar.onion
+│   │       ├── hsc_desc_enc      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
+│   │       │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
+│   │       │                     # descriptors of bar.onion")
+│   │       └── hsc_intro_auth    # arti_path = "client/alice/bar.onion/hsc_intro_auth"
+│   │                             # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
+│   │                             # signatures to prove to bar.onion she is authorized")
+│   └── bob                       # HS client identity "bob"
+│       └── foo.onion
+│           ├── hsc_desc_enc      # arti_path = "client/bob/foo.onion/hsc_desc_enc"
+│           │                     # (HS client Bob's x25519 hsc_desc_enc keypair for decrypting the HS
+│           │                     # descriptors of foo.onion")
+│           └── hsc_intro_auth    # arti_path = "client/bob/foo.onion/hsc_intro_auth"
+│                                 # (HS client Bob's ed25519 hsc_intro_auth keypair for computing
+│                                 # signatures to prove to foo.onion he is authorized")
+│                                 # Note: this is not implemented in C Tor
+├── hs
+│   └── baz.onion                 # Hidden service baz.onion
+│       ├── authorized_clients    # The clients authorized to access baz.onion
+│       │   └── dan
+│       │        └── hsc_desc_enc # arti_path = "hs/baz.onion/authorized_clients/dan/hsc_desc_enc.pub"
+│       │                         # (The public part of HS client Dan's x25519 hsc_desc_enc keypair for
+│       │                         # decrypting baz.onions descriptors)
+│       │
+│       │
+│       │  
+│       ├── hs_id                 # arti_path = "hs/baz.onion/hs_id" (baz.onion's identity key)
+│       └── hs_blind_id           # arti_path = "hs/baz.onion/hs_blind_id" (baz.onion's blinded identity key)
 │
-├── baz.onion                 # Hidden service baz.onion
-│   ├── authorized_clients    # The clients authorized to access baz.onion
-│   │   └── dan
-│   │        └── hsc_desc_enc # arti_path = "baz.onion/authorized_clients/dan/hsc_desc_enc.pub"
-│   │                         # (The public part of HS client Dan's x25519 hsc_desc_enc keypair for
-│   │                         # decrypting baz.onions descriptors)
-│   │
-│   │
-│   │  
-│   ├── hs_id                 # arti_path = "baz.onion/hs_id" (baz.onion's identity key)
-│   └── hs_blind_id           # arti_path = "baz.onion/hs_blind_id" (baz.onion's blinded identity key)
-├── Carol                     # Relay Carol
-│   └── ...
-└── ....
+├── relay
+│   └── Carol                     # Relay Carol
+│        └── ...
+...
 ```
 
 ### Comment field format
