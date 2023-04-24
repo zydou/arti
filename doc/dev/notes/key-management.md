@@ -205,12 +205,6 @@ is the `arti_path` of a particular key):
 ...
 ```
 
-### Comment field format
-
-TODO hs: decide what format to store the `arti_path` in. One option would be
-to encode it as an email address: `<arti_path>@_artikeyid.arti.torproject.org`.
-Another would be to simply store it as-is.
-
 ### The `KeyIdentity` trait
 
 ```rust
