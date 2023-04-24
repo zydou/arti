@@ -131,25 +131,10 @@ key_dir = ""
 
 ## Key identities
 
-A key by itself is not very useful. In order for Arti to be able to use it, it
-needs to also know the _role_ of the key (i.e., what that key is supposed to be
-used for), among other things. As such, we need to store some metadata alongside
-each key.
-
-For client authorization keys, C Tor achieves this using a passwd-style format
-(see the `CLIENT AUTHORIZATION` section of the `tor` manpage), which stores keys
-and their associated metadata in the same file. Other keys don't have other
-metadata than their _role_ (i.e. "Ed25519 permanent identity key", "medium-term
-Ed25519 signing key", etc.), which can be unambiguously determined by looking at
-the path/file name of the key file (e.g. the role of
-`<KeyDirectory>/ed25519_master_id_private_key` is "Ed25519 permanent identity
-key of a relay", `<HiddenServiceDirectory>/private_key` is "the private key of
-the hidden service whose data is stored at `<HiddenServiceDirectory>`", etc.).
-
-For this reason, we introduce the concept of a "key identity" (specified for
-each supported key type via the `KeyIdentity` trait). A "key identity" uniquely
-identifies an instance of a type of key. From an implementation standpoint,
-`KeyIdentity` implementers must specify:
+We introduce the concept of a "key identity" (specified for each supported key
+type via the `KeyIdentity` trait). A "key identity" uniquely identifies an
+instance of a type of key. From an implementation standpoint, `KeyIdentity`
+implementers must specify:
 * `arti_path`: the location of the key in the Arti key store. This also serves
   as a unique identifier for a particular instance of a key.
 * `ctor_path`: the location of the key in the C Tor key store (optional).
