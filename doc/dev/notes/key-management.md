@@ -17,9 +17,19 @@ See also: [#728]
 ## Usage example
 
 ```rust
-    let key_id: HsClientSecretKeyIdentity =
-       (LocalUserIdentity, HsId, HsClientSecretKeySpecifier).into();
-    let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(key_id)?;
+let client_id = HsClientIdentity::from_str("alice")?;
+
+let intro_auth_key_id: HsClientSecretKeyIdentity =
+    (client_id, hs_id, HsClientKeyRole::IntroAuth).into();
+
+// Get KP_hsc_intro_auth
+let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_auth_key_id)?;
+
+// Alternatively, instead of returning a type-erased value, KeyStore::get could return a `Key`
+// (TODO hs: come up with a better name), `Key` being an enum over all supported key types.
+// `Key` could then have a `Key::as` convenience function that returns the underlying key (or
+// an error if none of the variants have the requested type):
+// let sk: Option<ed25519::SecretKey> = keymgr.get(&key_id)?.as::<ed25519::SecretKey>().unwrap();
 ```
 
 ## Key stores
@@ -144,60 +154,49 @@ identifies an instance of a type of key. From an implementation standpoint,
   as a unique identifier for a particular instance of a key.
 * `ctor_path`: the location of the key in the C Tor key store (optional).
 
-For the keys stored in the Arti key store (i.e. in the OpenSSH format), the
-`KeyIdentity::arti_path()` is converted to a string and placed in the `coment`
-field of the key. When retrieving keys from the Arti store, the key manager
-compares the `comment` of the stored key with the `KeyIdentity::arti_path()` of
-the requested key identity. If the values match, it retrieves the key.
-Otherwise, it returns an error.
-
-To identify the path of a key in the Arti key store, the key manager prepends
-`keys.arti_store.root_dir` to `KeyIdentity::arti_path()` and appends an
-extension.
-
 For example, an Arti key store might have the following structure (note that
 each path within the `keys.arti_store.root_dir` directory, minus the extension,
 is the `arti_path` of a particular key):
 ```
 <keys.arti_store.root_dir>
 ├── client
-│   ├── alice                     # HS client identity "alice"
+│   ├── alice                               # HS client identity "alice"
 │   │   ├── foo.onion
-│   │   │   ├── hsc_desc_enc      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
-│   │   │   │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
-│   │   │   │                     # descriptors of foo.onion")
-│   │   │   └── hsc_intro_auth    # arti_path = "client/alice/foo.onion/hsc_intro_auth"
-│   │   │                         # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
-│   │   │                         # signatures to prove to foo.onion she is authorized")
-│   │   │                         # Note: this is not implemented in C Tor
+│   │   │   ├── hsc_desc_enc.arti_priv      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
+│   │   │   │                               # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
+│   │   │   │                               # descriptors of foo.onion")
+│   │   │   └── hsc_intro_auth.arti_priv    # arti_path = "client/alice/foo.onion/hsc_intro_auth"
+│   │   │                                   # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
+│   │   │                                   # signatures to prove to foo.onion she is authorized")
+│   │   │                                   # Note: this is not implemented in C Tor
 │   │   └── bar.onion
-│   │       ├── hsc_desc_enc      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
-│   │       │                     # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
-│   │       │                     # descriptors of bar.onion")
-│   │       └── hsc_intro_auth    # arti_path = "client/alice/bar.onion/hsc_intro_auth"
-│   │                             # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
-│   │                             # signatures to prove to bar.onion she is authorized")
-│   └── bob                       # HS client identity "bob"
+│   │       ├── hsc_desc_enc.arti_priv      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
+│   │       │                               # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
+│   │       │                               # descriptors of bar.onion")
+│   │       └── hsc_intro_auth.arti_priv    # arti_path = "client/alice/bar.onion/hsc_intro_auth"
+│   │                                       # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
+│   │                                       # signatures to prove to bar.onion she is authorized")
+│   └── bob                                 # HS client identity "bob"
 │       └── foo.onion
-│           ├── hsc_desc_enc      # arti_path = "client/bob/foo.onion/hsc_desc_enc"
-│           │                     # (HS client Bob's x25519 hsc_desc_enc keypair for decrypting the HS
-│           │                     # descriptors of foo.onion")
-│           └── hsc_intro_auth    # arti_path = "client/bob/foo.onion/hsc_intro_auth"
-│                                 # (HS client Bob's ed25519 hsc_intro_auth keypair for computing
-│                                 # signatures to prove to foo.onion he is authorized")
-│                                 # Note: this is not implemented in C Tor
+│           ├── hsc_desc_enc.arti_priv      # arti_path = "client/bob/foo.onion/hsc_desc_enc"
+│           │                               # (HS client Bob's x25519 hsc_desc_enc keypair for decrypting the HS
+│           │                               # descriptors of foo.onion")
+│           └── hsc_intro_auth.arti_priv    # arti_path = "client/bob/foo.onion/hsc_intro_auth"
+│                                           # (HS client Bob's ed25519 hsc_intro_auth keypair for computing
+│                                           # signatures to prove to foo.onion he is authorized")
+│                                           # Note: this is not implemented in C Tor
 ├── hs
-│   └── baz.onion                 # Hidden service baz.onion
-│       ├── authorized_clients    # The clients authorized to access baz.onion
+│   └── baz.onion                           # Hidden service baz.onion
+│       ├── authorized_clients              # The clients authorized to access baz.onion
 │       │   └── dan
-│       │        └── hsc_desc_enc # arti_path = "hs/baz.onion/authorized_clients/dan/hsc_desc_enc.pub"
-│       │                         # (The public part of HS client Dan's x25519 hsc_desc_enc keypair for
-│       │                         # decrypting baz.onions descriptors)
+│       │        └── hsc_desc_enc.arti_pub  # arti_path = "hs/baz.onion/authorized_clients/dan/hsc_desc_enc"
+│       │                                   # (The public part of HS client Dan's x25519 hsc_desc_enc keypair for
+│       │                                   # decrypting baz.onions descriptors)
 │       │
 │       │
 │       │  
-│       ├── hs_id                 # arti_path = "hs/baz.onion/hs_id" (baz.onion's identity key)
-│       └── hs_blind_id           # arti_path = "hs/baz.onion/hs_blind_id" (baz.onion's blinded identity key)
+│       ├── hs_id.arti_priv                 # arti_path = "hs/baz.onion/hs_id" (baz.onion's identity key)
+│       └── hs_blind_id.arti_priv           # arti_path = "hs/baz.onion/hs_blind_id" (baz.onion's blinded identity key)
 │
 ├── relay
 │   └── Carol                     # Relay Carol
@@ -208,45 +207,72 @@ is the `arti_path` of a particular key):
 ### The `KeyIdentity` trait
 
 ```rust
-    /// The path of a key in the Arti key store.
+/// The path of a key in the Arti key store.
+///
+/// NOTE: There is a 1:1 mapping between a value that implements
+/// `KeyIdentity` and its corresponding `ArtiPath`.
+/// A `KeyIdentity` can be converted to an `ArtiPath`,
+/// but the reverse conversion is not supported.
+//
+// TODO hs: restrict the character set and syntax for values of this type
+// (it should not be possible to construct an ArtiPath out of a String that
+// uses disallowed chars, or one that is in the wrong format (TBD exactly what
+// this format is supposed to look like)
+pub struct ArtiPath(PathBuf);
+
+/// The path of a key in the C Tor key store.
+pub struct CTorPath(PathBuf);
+
+/// The "identity" of a key.
+///
+/// `KeyIdentity::arti_path()` uniquely identifies an instance of a key.
+pub trait KeyIdentity {
+    /// The location of the key in the Arti key store.
     ///
-    /// NOTE: There is a 1:1 mapping between a value that implements
-    /// `KeyIdentity` and its corresponding `ArtiPath`.
-    /// A `KeyIdentity` can be converted to an `ArtiPath`,
-    /// but the reverse conversion is not supported.
-    //
-    // TODO hs: restrict the character set and syntax for values of this type
-    // (it should not be possible to construct an ArtiPath out of a String that
-    // uses disallowed chars, or one that is in the wrong format (TBD exactly what
-    // this format is supposed to look like)
-    pub struct ArtiPath(String);
+    /// This also acts as a unique identifier for a specific key instance.
+    fn arti_path(&self) -> ArtiPath;
 
-    /// The path of a key in the C Tor key store.
-    pub struct CTorPath(PathBuf);
+    /// The location of the key in the C Tor key store (if supported).
+    fn ctor_path(&self) -> Option<CTorPath>;
+}
 
-    /// Information about where a particular key could be stored.
-    pub trait KeyIdentity {
-        /// The location of the key in the Arti key store.
-        ///
-        /// This also acts as a unique identifier for a specific key instance.
-        fn arti_path(&self) -> ArtiPath;
+/// An identifier for an HS client.
+#[derive(AsRef, Into, ...)]
+struct HsClientIdentity(String);
 
-        /// The location of the key in the C Tor key store (if supported).
-        fn ctor_path(&self) -> Option<CTorPath>;
+impl FromStr for HsClientIdentity { /* check syntax rules */ }
+
+/// The role of a HS client key.
+enum HsClientKeyRole {
+    /// A key for deriving keys for decrypting HS descriptors (KP_hsc_desc_enc).
+    DescEnc,
+    /// A key for computing INTRODUCE1 signatures (KP_hsc_intro_auth).
+    IntroAuth,
+}
+
+struct HsClientSecretKeyIdentity {
+    /// The client associated with this key.
+    client_id: HsClientIdentity,
+    /// The hidden service this authorization key is for.
+    hs_id: HsId,
+    /// The role of the key.
+    role: HsClientKeyRole,
+}
+
+impl KeyIdentity for HsClientSecretKeyIdentity {
+    fn arti_path(&self) -> ArtiPath {
+        ArtiPath(
+            Path::new("client")
+                .join(self.client_id.to_string())
+                .join(self.hs_id.to_string())
+                .join(self.role.to_string()),
+        )
     }
 
-    /// An identifier for a client/relay/...
-    #[derive(AsRef, Into, ...)]
-    pub struct LocalUserIdentity(String);
-
-    impl FromStr for LocalUserIdentity { /* check syntax rules */ }
-
-    struct HsClientSecretKeyIdentity { ... }
-
-
-    impl KeyIdentity for HsClientSecretKeyIdentity {
+    fn ctor_path(&self) -> Option<CTorPath> {
         ...
     }
+}
 
 ```
 
@@ -262,56 +288,39 @@ pub trait EncodableKey {
 
 // Implement `EncodableKey` for all the key types we wish to support.
 impl EncodableKey for ed25519::SecretKey {
-    ...
+    fn key_type() -> KeyType {
+        KeyType::Ed25519Private
+    }
 }
-
 ...
 
-enum KeyStoreKind {
-    /// A C Tor-style key store.
-    CTor(PathBuf),
-    /// An Arti key store that uses OpenSSH key format.
-    Arti(PathBuf),
-}
-
 /// The key manager.
+#[derive(Default)]
 struct KeyMgr {
-    /// The type of persistent store.
-    store_kind: KeyStoreKind,
-   ...
+    /// The underlying persistent stores.
+    key_store: Vec<Box<dyn KeyStore>>,
 }
 
 impl KeyMgr {
     /// Read a key from the key store, attempting to deserialize it as `K`.
-    pub fn get<K: EncodableKey>(
-        &self,
-        key_id: &dyn KeyIdentity
-    ) -> Result<Option<EncodableKey::Key>> {
-        match self.store_kind {
-            KS_hs_ipt_sidKeyStoreKind::Arti(keystore) => {
-                let key_path = keystore.join(key_id.arti_path());
-                if !key_path.exists() {
-                    // Not found
-                    return Ok(None);
-                }
+    pub fn get<K: Any + EncodableKey>(&self, key_id: &dyn KeyIdentity) -> Result<Option<K>> {
+        // Check if the requested key identity exists in any of the key stores:
+        for store in &self.key_store {
+            let key = store.get(key_id, K::key_type())?;
 
-                let raw_key = fs::read(key_path)?;
-                // TODO hs: compare the comment field of the key with
-                // key_id.arti_path(), returning an error (or maybe `Ok(None)`) if
-                // they don't match
-                K::arti_decode(raw_key, key_id).map(Some)
-            }
-            KeyStoreKind::CTor(keystore) => {
-                let key_path = keystore.join(key_id.ctor_path());
-                if !key_path.exists() {
-                    // Not found
-                    return Ok(None);
-                }
-
-                let raw_key = fs::read(key_path)?;
-                K::ctor_decode(raw_key, key_id).map(Some)
+            if key.is_some() {
+                // Found it! Now try to downcast it to the right type (the
+                // downcast should _not_ fail, because K::key_type() tells the
+                // store to return a key of type `K` constructed from the key
+                // material read from disk)
+                return key
+                    .map(|k| k.downcast::<K>().map(|k| *k).map_err(|e| /* bug */ ...))
+                    .transpose();
             }
         }
+
+        // Not found
+        Ok(None)
     }
 
     /// Write `key` to the key store.
@@ -340,6 +349,198 @@ impl KeyMgr {
         unimplemented!()
     }
 }
+```
+
+## Proposed key store API
+
+The key manager reads from (and writes to) the configured key stores. The key
+stores all implement the `KeyStore` trait:
+
+```rust
+/// A generic key store.
+pub trait KeyStore {
+    /// Retrieve the key identified by `key_id`.
+    fn get(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<Option<ErasedKey>>;
+
+    /// Write `key` to the key store.
+    fn insert(&self, key: &dyn EncodableKey, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()>;
+
+    /// Remove the specified key.
+    fn remove(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()>;
+}
+```
+
+We will initially support 2 key store implementations (one for the C Tor key
+store, and another for the Arti store):
+```rust
+
+impl KeyStore for ArtiNativeKeyStore {
+    fn get(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<Option<ErasedKey>> {
+        let key_path = self.key_path(key_id, key_type);
+
+        let input = match fs::read(key_path) {
+            Ok(input) => input,
+            Err(e) if matches!(e.kind(), ErrorKind::NotFound) => return Ok(None),
+            Err(e) => return Err(...),
+        };
+
+        key_type.read_ssh_format_erased(&input).map(Some)
+    }
+
+    fn insert(&self, key: &dyn EncodableKey, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()> {
+        let key_path = self.key_path(key_id, key_type);
+
+        let ssh_format = key_type.write_ssh_format(key)?;
+        fs::write(key_path, ssh_format).map_err(|_| ())?;
+
+        Ok(())
+    }
+
+    fn remove(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()> {
+        let key_path = self.key_path(key_id, key_type);
+
+        fs::remove_file(key_path).map_err(|e| ...)?;
+
+        Ok(())
+    }
+}
+
+impl ArtiNativeKeyStore {
+    /// The path on disk of the key with the specified identity and type.
+    fn key_path(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> PathBuf {
+        self.keystore_dir
+            .join(key_id.arti_path().0)
+            .join(key_type.extension())
+    }
+}
+
+impl KeyStore for CTorKeyStore {
+    ...
+}
+
+#[derive(Copy, Clone, ...)]
+pub enum KeyType {
+    Ed25519Private,
+    Ed25519Public,
+
+    X25519StaticSecret,
+    X25519Public,
+    // ...plus all the other key types we're interested in.
+}
+
+impl KeyType {
+    /// The file extension for a key of this type.
+    ///
+    /// We use nonstandard extensions to prevent keys from being used in unexpected ways (e.g. if
+    /// the user renames a key from KP_hsc_intro_auth.arti_priv to KP_hsc_intro_auth.arti_priv.old,
+    /// the arti key store should disregard the backup file).
+    ///
+    /// The key stores will ignore any files that don't have a recognized extension.
+    pub fn extension(&self) -> &'static str {
+        // TODO hs: come up with a better convention for extensions.
+        if self.is_private() {
+            ".arti_priv"
+        } else {
+            ".arti_pub"
+        }
+    }
+
+    /// Whether the key is public or private.
+    fn is_private(&self) -> bool {
+        match self {
+            // Secret key types
+            KeyType::Ed25519Private | KeyType::X25519StaticSecret => true,
+            // Public key types
+            KeyType::Ed25519Public | KeyType::X25519Public => false,
+        }
+    }
+}
+
+pub enum Algorithm {
+    Ed25519,
+    X25519,
+    ...
+}
+
+impl Algorithm {
+    fn as_str(&self) -> &'static str {
+        ...
+    }
+}
+
+```
+
+The `ArtiNativeKeyStore` uses the `SshKeyType` implementation of `KeyType`
+to read and write OpenSSH key files:
+```rust
+
+pub trait SshKeyType: Send + Sync + 'static {
+    fn ssh_algorithm(&self) -> Algorithm;
+
+    /// Read an OpenSSH key, parse the key material into a known key type, returning the
+    /// type-erased value.
+    ///
+    /// The caller is expected to downcast the value returned to a concrete type.
+    fn read_ssh_format_erased(&self, input: &[u8]) -> Result<ErasedKey>;
+
+    /// Encode an OpenSSH-formatted key.
+    fn write_ssh_format(&self, key: &dyn EncodableKey) -> Result<Vec<u8>>;
+}
+
+impl SshKeyType for KeyType {
+    fn ssh_algorithm(&self) -> Algorithm {
+        ...
+    }
+
+    fn read_ssh_format_erased(&self, input: &[u8]) -> Result<ErasedKey> {
+        match self {
+            KeyType::Ed25519Private => {
+                let sk = ssh_key::PrivateKey::from_bytes(input).map_err(|_| ())?;
+
+                // Build the expected key type (i.e. convert ssh_key key types to the key types
+                // we use internally).
+                let sk = match sk.key_data() {
+                    KeypairData::Ed25519(kp) => {
+                        ed25519::SecretKey ::from_bytes(&kp.private.to_bytes())?
+                    }
+                    _ => {
+                        // bug
+                        return Err(...);
+                    }
+                };
+
+                Ok(Box::new(sk))
+            }
+            KeyType::Ed25519Public => {
+                let pk = ssh_key::PublicKey::from_bytes(input).map_err(|_| ())?;
+
+                // Build the expected key type (i.e. convert ssh_key key types to the key types
+                // we use internally).
+                let pk = match pk.key_data() {
+                    KeyData::Ed25519(pk) => ed25519::PublicKey::from_bytes(&pk.0)?,
+                    _ => {
+                        // bug
+                        return Err(...);
+                    }
+                };
+
+                Ok(Box::new(pk))
+            }
+            KeyType::X25519StaticSecret | KeyType::X25519Public => {
+                // The ssh-key crate doesn't support arbitrary key types. We'll probably
+                // need a more general-purpose crate for parsing OpenSSH (one that allows
+                // arbitrary values for the algorithm), or to roll our own (we
+                // could also fork ssh-key and modify it as required).
+                todo!()
+            }
+        }
+    }
+
+    fn write_ssh_format(&self, key: &dyn EncodableKey) -> Result<Vec<u8>> {
+        /* Encode `key` in SSH key format. */
+    }
+}
+
 ```
 
 [#728]: https://gitlab.torproject.org/tpo/core/arti/-/issues/728
