@@ -264,6 +264,7 @@ impl KeyIdentity for HsClientSecretKeyIdentity {
 ## Proposed key manager API
 
 ```rust
+/// A key that can be stored in, or retrieved from, a `KeyStore.`
 pub trait EncodableKey {
     /// The underlying key type.
     fn key_type() -> KeyType
@@ -308,7 +309,14 @@ impl KeyMgr {
         Ok(None)
     }
 
-    /// Write `key` to the key store.
+    /// Insert the specified key into the appropriate key store.
+    ///
+    /// If the key bundle (key family?) of this `key` exists in one of the key stores, the key is
+    /// inserted there. Otherwise, the key is inserted into the first key store.
+    ///
+    /// If the key already exists, it is overwritten.
+    ///
+    /// TODO hs: update the API to return a Result<Option<K>> here (i.e. the old key)
     pub fn insert<K: EncodableKey>(
         &self,
         key_id: &dyn KeyIdentity,
@@ -318,20 +326,35 @@ impl KeyMgr {
             if store.has_key_bundle(key_id) {
                 return store.insert(&key, key_id, K::key_type());
             }
-            KeyStoreKind::CTor(keystore) => {
-                let key_path = keystore.join(key_id.ctor_path());
-                let key = K::arti_encode(key_id)?;
-
-                fs::write(key_path, key)
-            }
         }
+
+        // None of the stores has the key bundle of key_id, so we insert the key into the first key
+        // store.
+        if let Some(store) = self.key_store.first() {
+            return store.insert(&key, key_id, K::key_type());
+        }
+
+        // Bug: no key stores were configured
+        Err(...)
     }
 
-    pub fn remove(
+    /// Remove the specified key.
+    ///
+    /// If the key exists in multiple key stores, this will only remove it from the first one. An
+    /// error is returned if none of the key stores contain the specified key.
+    pub fn remove<K: EncodableKey>(
         &self,
         key_id: &dyn KeyIdentity,
     ) -> Result<()> {
-        unimplemented!()
+        for store in &self.key_store {
+            match store.remove(key_id, K::key_type()) {
+                Ok(()) => return Ok(()),
+                Err(e) if e is NotFound => continue,
+                Err(e) => return Err(e),
+            }
+        }
+
+        Err(not found)
     }
 }
 ```
