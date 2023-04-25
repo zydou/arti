@@ -243,6 +243,9 @@ pub enum ParseErrorKind {
     /// There was some signature that we couldn't validate.
     #[display(fmt = "couldn't validate signature")]
     BadSignature, // TODO(nickm): say which kind of signature.
+    /// The object is not valid at the required time.
+    #[display(fmt = "couldn't validate time bound")]
+    BadTimeBound,
     /// There was a tor version we couldn't parse.
     #[display(fmt = "couldn't parse Tor version")]
     BadTorVersion,
@@ -297,6 +300,9 @@ pub(crate) enum ParseErrorSource {
     /// An error when validating a signature on an embedded binary certificate.
     #[error("Invalid certificate")]
     CertSignature(#[from] tor_cert::CertError),
+    /// An error caused by an expired or not-yet-valid descriptor.
+    #[error("Descriptor expired or not yet valid")]
+    UntimelyDescriptor(#[from] tor_checkable::TimeValidityError),
     /// Invalid protocol versions.
     #[error("Protocol versions")]
     Protovers(#[from] tor_protover::ParseError),
@@ -456,6 +462,7 @@ macro_rules! declare_into  {
 }
 
 declare_into! { signature::Error => BadSignature }
+declare_into! { tor_checkable::TimeValidityError => BadTimeBound }
 declare_into! { tor_bytes::Error => Undecodable }
 declare_into! { std::num::ParseIntError => BadArgument }
 declare_into! { std::net::AddrParseError => BadArgument }

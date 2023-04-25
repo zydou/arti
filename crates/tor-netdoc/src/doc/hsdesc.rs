@@ -23,6 +23,7 @@ use crate::{ParseErrorKind as EK, Result};
 
 use tor_checkable::signed::{self, SignatureGated};
 use tor_checkable::timed::{self, TimerangeBound};
+use tor_checkable::{SelfSigned, Timebound};
 use tor_hscrypto::pk::{
     HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey, HsSvcNtorKey,
 };
@@ -209,6 +210,35 @@ impl HsDesc {
 
         Ok(result)
     }
+
+    /// A convenience function for parsing, decrypting and validating HS descriptors.
+    ///
+    /// This function:
+    ///   * parses the outermost document of the descriptor in `input`, and validates that its
+    ///   identity is consistent with `blinded_onion_id`.
+    ///   * decrypts both layers of encryption in the onion service descriptor. If `hsc_desc_enc`
+    ///   is provided, we use it to decrypt the inner encryption layer; otherwise, we require that
+    ///   the inner document is encrypted using the "no client authorization" method.
+    ///   * checks if both layers are valid at the `valid_at` timestamp
+    ///   * validates the signatures on both layers
+    ///
+    /// Returns an error if the descriptor cannot be parsed, or if one of the validation steps
+    /// fails.
+    pub fn parse_decrypt_validate(
+        input: &str,
+        blinded_onion_id: &HsBlindId,
+        valid_at: SystemTime,
+        subcredential: &Subcredential,
+        hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
+    ) -> Result<Self> {
+        Self::parse(input, blinded_onion_id)?
+            .check_signature()?
+            .check_valid_at(&valid_at)?
+            .decrypt(subcredential, hsc_desc_enc)?
+            .check_valid_at(&valid_at)?
+            .check_signature()
+            .map_err(|e| e.into())
+    }
 }
 
 impl EncryptedHsDesc {
@@ -351,7 +381,6 @@ mod test {
     use super::test_data::*;
     use super::*;
     use hex_literal::hex;
-    use tor_checkable::{SelfSigned, Timebound};
     use tor_hscrypto::{pk::HsIdKey, time::TimePeriod};
     use tor_llcrypto::pk::ed25519;
 
