@@ -352,6 +352,14 @@ impl rpc::Context for RequestContext {
     fn lookup_object(&self, id: &rpc::ObjectId) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
         self.session.lookup_object(id)
     }
+
+    fn register_owned(&self, _object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
+        todo!() // XXXX
+    }
+
+    fn register_weak(&self, _object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
+        todo!() // XXXX
+    }
 }
 
 /// A simple temporary method to echo a reply.

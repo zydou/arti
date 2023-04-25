@@ -427,6 +427,13 @@ mod test {
         ) -> Result<std::sync::Arc<dyn crate::Object>, crate::LookupError> {
             todo!()
         }
+        fn register_owned(&self, _object: Arc<dyn crate::Object>) -> crate::ObjectId {
+            todo!()
+        }
+
+        fn register_weak(&self, _object: Arc<dyn crate::Object>) -> crate::ObjectId {
+            todo!()
+        }
     }
 
     #[async_test]

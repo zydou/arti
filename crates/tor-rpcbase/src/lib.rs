@@ -79,6 +79,29 @@ pub enum LookupError {
 pub trait Context: Send {
     /// Look up an object by identity within this context.
     fn lookup_object(&self, id: &ObjectId) -> Result<Arc<dyn Object>, LookupError>;
+
+    /// Find an owning reference to `object` within this context.  If none can
+    /// be found, or if only a non-owning reference is found, make sure that
+    /// this context contains an owning reference to `object`.
+    ///
+    /// Return an ObjectId for this object.
+    ///
+    /// TODO RPC: We may need to change the above semantics and the name of this
+    /// function depending on how we decide to name and specify things.
+    fn register_owned(&self, object: Arc<dyn Object>) -> ObjectId;
+
+    /// Find any owning reference to `object` within this context.  If none can
+    /// be found, make sure that
+    /// this context contains a non-owning reference to `object`.
+    ///
+    /// Return an ObjectId for this object.
+    ///
+    /// Note that this takes an Arc, since that's required in order to find a
+    /// working type Id for the target object.
+    ///
+    /// TODO RPC: We may need to change the above semantics and the name of this
+    /// function depending on how we decide to name and specify things.
+    fn register_weak(&self, object: Arc<dyn Object>) -> ObjectId;
 }
 
 /// An error caused while trying to send an update to a method.
