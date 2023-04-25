@@ -187,6 +187,38 @@ impl HsDesc {
     ///
     /// On success, the caller will get a wrapped object which they must
     /// validate and then decrypt.
+    ///
+    /// Use [`HsDesc::parse_decrypt_validate`] if you just need an [`HsDesc`] and don't want to
+    /// handle the validation/decryption of the wrapped object yourself.
+    ///
+    /// # Example
+    /// ```
+    /// # use hex_literal::hex;
+    /// # use tor_checkable::{SelfSigned, Timebound};
+    /// # use tor_netdoc::doc::hsdesc::HsDesc;
+    /// # use tor_netdoc::Error;
+    /// #
+    /// # let unparsed_desc: &str = include_str!("../../testdata/hsdesc1.txt");
+    /// # let blinded_id =
+    /// #    hex!("43cc0d62fc6252f578705ca645a46109e265290343b1137e90189744b20b3f2d").into();
+    /// # let subcredential =
+    /// #    hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37").into();
+    /// # let timestamp = humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap();
+    /// #
+    /// // Parse the descriptor
+    /// let unchecked_desc = HsDesc::parse(unparsed_desc, &blinded_id)?;
+    /// // Validate the signature and timeliness of the outer document
+    /// let checked_desc = unchecked_desc
+    ///     .check_signature()?
+    ///     .check_valid_at(&timestamp)?;
+    /// // Decrypt the outer and inner layers of the descriptor
+    /// let unchecked_decrypted_desc = checked_desc.decrypt(&subcredential, None)?;
+    /// // Validate the signature and timeliness of the inner document
+    /// let hsdesc = unchecked_decrypted_desc
+    ///     .check_valid_at(&timestamp)?
+    ///     .check_signature()?;
+    /// # Ok::<(), Error>(())
+    /// ```
     pub fn parse(
         input: &str,
         // We don't actually need this to parse the HsDesc, but we _do_ need it to prevent
