@@ -551,4 +551,18 @@ impl SshKeyType for KeyType {
 
 ```
 
+## Concurrent access for disk-based key stores
+
+The key stores will allow concurrent modification by different processes. In
+order to implement this safely without locking, the key store operations (get,
+insert, remove) will need to be atomic. Reading and removing keys atomically is
+trivial. To create/import a key atomically, we write the new key to a temporary
+file before using `rename(2)` to atomically replace the existing one (this
+ensures preexisting keys are replaced atomically).
+
+Note: on Windows, we can't use `rename` to atomically replace an existing file
+with a new one (`rename` returns an error if the destination path already
+exists). As such, on Windows we will need some sort of synchronization mechanism
+(unless it exposes some other APIs we can use for atomic renaming).
+
 [#728]: https://gitlab.torproject.org/tpo/core/arti/-/issues/728
