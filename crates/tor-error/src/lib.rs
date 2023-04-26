@@ -472,6 +472,22 @@ pub enum ErrorKind {
     #[display(fmt = "Onion Service not running")]
     OnionServiceNotRunning,
 
+    /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
+    ///
+    /// We successfully obtained a hidden service descriptor for the service, but we cannot use it
+    /// because it fails to parse.
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = "Onion Service descriptor parsing failed")]
+    OnionServiceDescriptorParsingFailed,
+
+    /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
+    ///
+    /// We successfully obtained a hidden service descriptor for the service, but we cannot use it
+    /// because it is invalid.
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = "Onion Service descriptor validation failed")]
+    OnionServiceDescriptorValidationFailed,
+
     /// Protocol trouble involving the target hidden service (`.onion` service)
     ///
     /// Something unexpected happened when trying to connect to the selected hidden service.

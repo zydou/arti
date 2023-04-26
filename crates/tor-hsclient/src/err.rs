@@ -95,6 +95,10 @@ pub enum DescriptorErrorDetail {
     #[error("directory error")]
     Directory(#[from] tor_dirclient::RequestError),
 
+    /// Failed to parse or validate descriptor
+    #[error("invalid descriptor")]
+    InvalidDescriptor(#[from] tor_netdoc::Error),
+
     /// Internal error
     #[error("{0}")]
     Bug(#[from] Bug),
@@ -132,6 +136,7 @@ impl HasKind for DescriptorError {
 impl HasKind for DescriptorErrorDetail {
     fn kind(&self) -> ErrorKind {
         use tor_dirclient::RequestError as RE;
+        use tor_netdoc::ParseErrorKind as PEK;
         use DescriptorErrorDetail as DED;
         use ErrorKind as EK;
         match self {
@@ -142,6 +147,10 @@ impl HasKind for DescriptorErrorDetail {
             DED::Directory(RE::ResponseTooLong(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(RE::Utf8Encoding(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(other_re) => other_re.kind(),
+            DED::InvalidDescriptor(e) => match e.parse_error_kind() {
+                PEK::BadTimeBound | PEK::BadSignature => EK::OnionServiceDescriptorValidationFailed,
+                _ => EK::OnionServiceDescriptorParsingFailed,
+            },
             DED::Bug(e) => e.kind(),
         }
     }
