@@ -46,7 +46,7 @@ pub struct NodeBuilders {
 }
 
 /// Helper: a customization function that does nothing.
-fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders) {}
+pub fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders) {}
 
 /// As [`construct_network()`], but return a [`PartialNetDir`].
 pub fn construct_netdir() -> PartialNetDir {
@@ -58,13 +58,14 @@ pub fn construct_netdir() -> PartialNetDir {
 pub fn construct_custom_netdir_with_params<F, P, PK>(
     func: F,
     params: P,
+    lifetime: Option<Lifetime>,
 ) -> BuildResult<PartialNetDir>
 where
     F: FnMut(usize, &mut NodeBuilders),
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
-    let (consensus, microdescs) = construct_custom_network(func)?;
+    let (consensus, microdescs) = construct_custom_network(func, lifetime)?;
     let mut dir = PartialNetDir::new(consensus, Some(&params.into_iter().collect()));
     for md in microdescs {
         dir.add_microdesc(md);
@@ -78,13 +79,13 @@ pub fn construct_custom_netdir<F>(func: F) -> BuildResult<PartialNetDir>
 where
     F: FnMut(usize, &mut NodeBuilders),
 {
-    construct_custom_netdir_with_params(func, iter::empty::<(&str, _)>())
+    construct_custom_netdir_with_params(func, iter::empty::<(&str, _)>(), None)
 }
 
 /// As [`construct_custom_network`], but do not require a
 /// customization function.
 pub fn construct_network() -> BuildResult<(MdConsensus, Vec<Microdesc>)> {
-    construct_custom_network(simple_net_func)
+    construct_custom_network(simple_net_func, None)
 }
 
 /// Build a fake network with enough information to enable some basic
@@ -140,7 +141,10 @@ pub fn construct_network() -> BuildResult<(MdConsensus, Vec<Microdesc>)> {
 /// Instead, refactor this function so that it takes a
 /// description of what kind of network to build, and then builds it from
 /// that description.
-pub fn construct_custom_network<F>(mut func: F) -> BuildResult<(MdConsensus, Vec<Microdesc>)>
+pub fn construct_custom_network<F>(
+    mut func: F,
+    lifetime: Option<Lifetime>,
+) -> BuildResult<(MdConsensus, Vec<Microdesc>)>
 where
     F: FnMut(usize, &mut NodeBuilders),
 {
@@ -153,11 +157,16 @@ where
         f | RelayFlags::EXIT | RelayFlags::GUARD,
     ];
 
-    let now = SystemTime::now();
-    let one_day = Duration::new(86400, 0);
+    let lifetime = lifetime.map(Ok).unwrap_or_else(|| {
+        let now = SystemTime::now();
+        let one_day = Duration::new(86400, 0);
+
+        Lifetime::new(now, now + one_day / 2, now + one_day)
+    })?;
+
     let mut bld = MdConsensus::builder();
     bld.consensus_method(34)
-        .lifetime(Lifetime::new(now, now + one_day / 2, now + one_day)?)
+        .lifetime(lifetime)
         .param("bwweightscale", 1)
         .weights("".parse()?);
 

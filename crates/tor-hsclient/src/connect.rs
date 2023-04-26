@@ -441,11 +441,13 @@ mod test {
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
-    use std::panic::AssertUnwindSafe;
+    use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
-    use tor_netdoc::doc::hsdesc::test_data;
-    use tor_rtcompat::tokio::TokioNativeTlsRuntime;
+    use tor_llcrypto::pk::curve25519;
+    use tor_netdoc::doc::{hsdesc::test_data, netstatus::Lifetime};
+    use tor_rtcompat::{tokio::TokioNativeTlsRuntime, CompoundRuntime};
+    use tor_rtmock::time::MockSleepProvider;
     use tracing_test::traced_test;
 
     #[derive(Debug, Default)]
@@ -512,14 +514,42 @@ mod test {
     #[traced_test]
     #[tokio::test]
     async fn test_connect() {
-        let netdir = tor_netdir::testnet::construct_netdir();
+        let valid_after = humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap();
+        let fresh_until = valid_after + humantime::parse_duration("1 hours").unwrap();
+        let valid_until = valid_after + humantime::parse_duration("24 hours").unwrap();
+        let lifetime = Lifetime::new(valid_after, fresh_until, valid_until).unwrap();
+
+        let netdir = tor_netdir::testnet::construct_custom_netdir_with_params(
+            tor_netdir::testnet::simple_net_func,
+            iter::empty::<(&str, _)>(),
+            Some(lifetime),
+        )
+        .expect("failed to build default testing netdir");
+
         let netdir = Arc::new(netdir.unwrap_if_sufficient().unwrap());
         let runtime = TokioNativeTlsRuntime::current().unwrap();
+        let now = humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap();
+        let mock_sp = MockSleepProvider::new(now);
+        let runtime = CompoundRuntime::new(
+            runtime.clone(),
+            mock_sp,
+            runtime.clone(),
+            runtime.clone(),
+            runtime,
+        );
+        let time_period = netdir.hs_time_period();
+
         let mglobal = Arc::new(Mutex::new(MocksGlobal::default()));
         let mocks = Mocks { mglobal, id: () };
         // From C Tor src/test/test_hs_common.c test_build_address
         let hsid = test_data::TEST_HSID_2.into();
         let mut data = Data::default();
+
+        let pk = curve25519::PublicKey::from(test_data::TEST_PUBKEY_2).into();
+        let sk = curve25519::StaticSecret::from(test_data::TEST_SECKEY_2).into();
+        let mut secret_keys_builder = HsClientSecretKeysBuilder::default();
+        secret_keys_builder.ks_hsc_desc_enc(sk);
+        let secret_keys = secret_keys_builder.build().unwrap();
 
         let _got = AssertUnwindSafe(
             Context::new(
@@ -528,7 +558,7 @@ mod test {
                 netdir,
                 hsid,
                 &mut data,
-                HsClientSecretKeys::default(),
+                secret_keys,
                 mocks.clone(),
             )
             .unwrap()
@@ -537,11 +567,31 @@ mod test {
         .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
         .await;
 
+        let (hs_blind_id_key, subcredential) = HsIdKey::try_from(hsid)
+            .unwrap()
+            .compute_blinded_key(time_period)
+            .unwrap();
+        let hs_blind_id = hs_blind_id_key.id();
 
-        // TODO hs: make the tests pass again
-        //let mglobal = mocks.mglobal.lock().unwrap();
-        //assert_eq!(mglobal.hsdirs_asked.len(), 1);
-        //assert_eq!(mglobal.got_desc, Some(test_data::TEST_DATA_2.to_string()));
+        let sk = curve25519::StaticSecret::from(test_data::TEST_SECKEY_2).into();
+
+        let hsdesc = HsDesc::parse_decrypt_validate(
+            test_data::TEST_DATA_2,
+            &hs_blind_id,
+            now,
+            &subcredential,
+            Some((&pk, &sk)),
+        )
+        .unwrap();
+
+        let mglobal = mocks.mglobal.lock().unwrap();
+        assert_eq!(mglobal.hsdirs_asked.len(), 1);
+        // TODO hs: here and in other places, consider implementing PartialEq instead, or creating
+        // an assert_dbg_eq macro (which would be part of a test_helpers crate or something)
+        assert_eq!(
+            format!("{:?}", mglobal.got_desc),
+            format!("{:?}", Some(hsdesc))
+        );
 
         // TODO hs check the circuit in got is the one we gave out
     }

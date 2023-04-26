@@ -43,6 +43,7 @@ tor-rtcompat = { version = "0.9.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 
 [dev-dependencies]
+humantime = "2"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.9.0" }
@@ -52,4 +53,5 @@ tor-netdir = { path = "../tor-netdir", version = "0.9.0", features = ["testing"]
 tor-netdoc = { path = "../tor-netdoc", version = "0.7.0", features = ["testing"] }
 tor-persist = { path = "../tor-persist", version = "0.7.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.8.0" }
 tracing-test = "0.2"

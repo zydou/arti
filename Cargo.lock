@@ -4165,6 +4165,7 @@ dependencies = [
  "educe",
  "either",
  "futures",
+ "humantime 2.1.0",
  "itertools",
  "postage",
  "rand_core 0.6.4",
@@ -4190,6 +4191,7 @@ dependencies = [
  "tor-persist",
  "tor-proto",
  "tor-rtcompat",
+ "tor-rtmock",
  "tracing",
  "tracing-test",
 ]
