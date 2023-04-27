@@ -124,10 +124,7 @@ impl RelayId {
 
     /// Return the type of this relay identity.
     pub fn id_type(&self) -> RelayIdType {
-        match self {
-            RelayId::Ed25519(_) => RelayIdType::Ed25519,
-            RelayId::Rsa(_) => RelayIdType::Rsa,
-        }
+        self.as_ref().id_type()
     }
 
     /// Return a byte-slice corresponding to the contents of this identity.
@@ -136,10 +133,7 @@ impl RelayId {
     /// handled with care to make sure that it does not get confused with an
     /// identity of some other type.
     pub fn as_bytes(&self) -> &[u8] {
-        match self {
-            RelayId::Ed25519(key) => key.as_bytes(),
-            RelayId::Rsa(key) => key.as_bytes(),
-        }
+        self.as_ref().as_bytes()
     }
 }
 
