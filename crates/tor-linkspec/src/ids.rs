@@ -5,6 +5,8 @@
 //! modern identity that is an Ed25519 public key.  This code lets us abstract
 //! over those types, and over other new types that may exist in the future.
 
+use std::fmt;
+
 use derive_more::{Display, From};
 use safelog::Redactable;
 use tor_llcrypto::pk::{
@@ -48,15 +50,19 @@ pub enum RelayIdType {
     Rsa,
 }
 
+impl fmt::Display for RelayId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.as_ref(), f)
+    }
+}
+
 /// A single relay identity.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Display, From, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, From, Hash)]
 #[non_exhaustive]
 pub enum RelayId {
     /// An Ed25519 identity.
-    #[display(fmt = "ed25519:{}", _0)]
     Ed25519(Ed25519Identity),
     /// An RSA identity.
-    #[display(fmt = "{}", _0)]
     Rsa(RsaIdentity),
 }
 
