@@ -68,6 +68,7 @@ use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, std::iter};
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use rand::seq::SliceRandom;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -258,7 +259,7 @@ impl From<u64> for RelayWeight {
 }
 
 /// An operation for which we might be requesting a hidden service directory.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum HsDirOp {
     /// Uploading an onion service descriptor.
@@ -1106,7 +1107,6 @@ impl NetDir {
         R: rand::Rng,
         P: FnMut(&Relay<'a>) -> bool,
     {
-        use rand::seq::SliceRandom;
         let relays: Vec<_> = self.relays().filter(usable).collect();
         // This algorithm uses rand::distributions::WeightedIndex, and uses
         // gives O(n) time and space  to build the index, plus O(log n)
@@ -1159,7 +1159,6 @@ impl NetDir {
         R: rand::Rng,
         P: FnMut(&Relay<'a>) -> bool,
     {
-        use rand::seq::SliceRandom;
         let relays: Vec<_> = self.relays().filter(usable).collect();
         // NOTE: See discussion in pick_relay().
         let mut relays = match relays[..].choose_multiple_weighted(rng, n, |r| {
@@ -1272,18 +1271,16 @@ impl NetDir {
     /// given onion service's descriptor at a given time period.
     ///
     /// When `op` is `Download`, the order is random.
-    // TODO HS ^ this is not in fact true right now.
     /// When `op` is `Upload`, the order is not specified.
     ///
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
     #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
-    pub fn hs_dirs<'r>(
-        &'r self,
-        hsid: &'r HsBlindId,
-        op: HsDirOp,
-    ) -> impl Iterator<Item = Relay<'r>> + 'r {
+    pub fn hs_dirs<'r, R>(&'r self, hsid: &HsBlindId, op: HsDirOp, rng: &mut R) -> Vec<Relay<'r>>
+    where
+        R: rand::Rng,
+    {
         // Algorithm:
         //
         // 1. Determine which HsDirRing to use, based on the time period.
@@ -1310,7 +1307,8 @@ impl NetDir {
         //       service, any nodes already chosen are disregarded (i.e. skipped over)
         //       when choosing a replica's hsdir_spread_store nodes.
 
-        self.hsdir_rings
+        let mut hs_dirs = self
+            .hsdir_rings
             .iter_for_op(op)
             .cartesian_product(1..=n_replicas) // 1-indexed !
             .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
@@ -1321,6 +1319,20 @@ impl NetDir {
                 // This ought not to be None but let's not panic or bail if it is
                 self.relay_by_rs_idx(*rs_idx)
             })
+            .collect_vec();
+
+        match op {
+            HsDirOp::Download => {
+                // When `op` is `Download`, the order is random.
+                hs_dirs.shuffle(rng);
+            }
+            #[cfg(feature = "hs-service")]
+            HsDirOp::Upload => {
+                // When `op` is `Upload`, the order is not specified.
+            }
+        }
+
+        hs_dirs
     }
 }
 

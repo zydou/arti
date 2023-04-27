@@ -10,7 +10,6 @@ use std::time::SystemTime;
 use async_trait::async_trait;
 use educe::Educe;
 use futures::{AsyncRead, AsyncWrite};
-use itertools::Itertools;
 use tor_hscrypto::Subcredential;
 use tracing::{debug, trace};
 
@@ -212,10 +211,12 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
             // Seems to be not valid now.  Try to fetch a fresh one.
         }
 
-        let hs_dirs = self
-            .netdir
-            .hs_dirs(&self.hs_blind_id, HsDirOp::Download)
-            .collect_vec();
+        let hs_dirs = self.netdir.hs_dirs(
+            &self.hs_blind_id,
+            HsDirOp::Download,
+            &mut self.mocks.thread_rng(),
+        );
+
         trace!(
             "HS desc fetch for {}, using {} hsdirs",
             &self.hsid,
@@ -357,10 +358,17 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
 trait MocksForConnect<R>: Clone {
     /// HS circuit pool
     type HsCircPool: MockableCircPool<R>;
+
+    /// A random number generator
+    type Rng: rand::Rng;
+
     /// Tell tests we got this descriptor text
     fn test_got_desc(&self, desc: &HsDesc) {
         eprintln!("HS DESC:\n{:?}\n", &desc); // TODO HS remove
     }
+
+    /// Return a random number generator
+    fn thread_rng(&self) -> Self::Rng;
 }
 /// Mock for `HsCircPool`
 #[async_trait]
@@ -384,6 +392,11 @@ trait MockableClientCirc {
 
 impl<R: Runtime> MocksForConnect<R> for () {
     type HsCircPool = HsCircPool<R>;
+    type Rng = rand::rngs::ThreadRng;
+
+    fn thread_rng(&self) -> Self::Rng {
+        rand::thread_rng()
+    }
 }
 #[async_trait]
 impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
@@ -444,6 +457,7 @@ mod test {
     use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
+    use tor_basic_utils::test_rng::{testing_rng, TestingRng};
     use tor_llcrypto::pk::curve25519;
     use tor_netdoc::doc::{hsdesc::test_data, netstatus::Lifetime};
     use tor_rtcompat::{tokio::TokioNativeTlsRuntime, CompoundRuntime};
@@ -473,8 +487,14 @@ mod test {
 
     impl<R: Runtime> MocksForConnect<R> for Mocks<()> {
         type HsCircPool = Mocks<()>;
+        type Rng = TestingRng;
+
         fn test_got_desc(&self, desc: &HsDesc) {
             self.mglobal.lock().unwrap().got_desc = Some(desc.clone());
+        }
+
+        fn thread_rng(&self) -> Self::Rng {
+            testing_rng()
         }
     }
     #[async_trait]
