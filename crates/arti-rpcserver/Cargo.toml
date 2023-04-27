@@ -21,6 +21,7 @@ asynchronous-codec = { version = "0.6.0", features = ["json"] }
 bytes = "1"
 erased-serde = "0.3.25"
 futures = "0.3.14"
+generational-arena = "0.2.8"
 pin-project = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"

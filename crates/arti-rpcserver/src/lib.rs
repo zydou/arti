@@ -41,6 +41,7 @@ mod cancel;
 mod err;
 mod mgr;
 mod msgs;
+mod objmap;
 mod session;
 mod streams;
 
