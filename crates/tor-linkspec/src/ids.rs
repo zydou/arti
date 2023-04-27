@@ -164,7 +164,7 @@ impl<'a> RelayIdRef<'a> {
     }
 
     /// Return a byte-slice corresponding to the contents of this identity.
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &'a [u8] {
         match self {
             RelayIdRef::Ed25519(key) => key.as_bytes(),
             RelayIdRef::Rsa(key) => key.as_bytes(),
