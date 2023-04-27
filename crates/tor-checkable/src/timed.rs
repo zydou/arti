@@ -105,13 +105,9 @@ impl<T> TimerangeBound<T> {
     /// The caller takes responsibility for making sure that the bounds are
     /// actually checked.
     pub fn dangerously_into_parts(self) -> (T, (Bound<time::SystemTime>, Bound<time::SystemTime>)) {
-        (
-            self.obj,
-            (
-                self.start.map(Bound::Included).unwrap_or(Bound::Unbounded),
-                self.end.map(Bound::Included).unwrap_or(Bound::Unbounded),
-            ),
-        )
+        let bounds = self.bounds();
+
+        (self.obj, bounds)
     }
 
     /// Return a reference to the inner object of this TimeRangeBound, without
@@ -142,6 +138,14 @@ impl<T> TimerangeBound<T> {
         T: Deref,
     {
         self.as_ref().dangerously_map(|t| &**t)
+    }
+
+    /// Return the underlying time bounds of this object.
+    pub fn bounds(&self) -> (Bound<time::SystemTime>, Bound<time::SystemTime>) {
+        (
+            self.start.map(Bound::Included).unwrap_or(Bound::Unbounded),
+            self.end.map(Bound::Included).unwrap_or(Bound::Unbounded),
+        )
     }
 }
 

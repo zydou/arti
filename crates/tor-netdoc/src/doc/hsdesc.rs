@@ -271,6 +271,11 @@ impl HsDesc {
             .check_signature()
             .map_err(|e| e.into())
     }
+
+    /// Return the lifetime of this descriptor.
+    pub fn lifetime(&self) -> IntegerMinutes<u16> {
+        self.idx_info.lifetime
+    }
 }
 
 impl EncryptedHsDesc {
@@ -394,6 +399,8 @@ pub mod test_data {
     // SDZNMD4RP4SCH4EYTTUZPFRZINNFWAOPPKZ6BINZAC7LREV24RBQ (base32)
     pub const TEST_SECKEY_2: [u8; 32] =
         hex!("90F2D60F917F2423F0989CE9979639435A5B01CF7AB3E0A1B900BEB892BAE443");
+    /// The lifetime of the descriptor in seconds.
+    pub const TEST_LIFETIME_SECS_2: u64 = 180 * 60;
 }
 
 #[cfg(test)]

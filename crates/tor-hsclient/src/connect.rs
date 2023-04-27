@@ -339,10 +339,18 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         )
         .map_err(DescriptorErrorDetail::from)?;
 
-        let unbounded_todo = Bound::Unbounded::<SystemTime>; // TODO HS remove
-        let bound = (unbounded_todo, unbounded_todo);
+        // Cache the descriptor for the amount of time specified in the descriptor-lifetime field.
+        let upper_bound = Bound::Included(
+            now + Duration::try_from(hsdesc.lifetime()).map_err(|e| {
+                into_internal!(
+                    "bad descriptor-lifetime (this descriptor should have failed to parse)"
+                )(e)
+            })?,
+        );
 
-        Ok((hsdesc, bound))
+        let bounds = (Bound::Unbounded, upper_bound);
+
+        Ok((hsdesc, bounds))
     }
 }
 
@@ -571,21 +579,20 @@ mod test {
         secret_keys_builder.ks_hsc_desc_enc(sk);
         let secret_keys = secret_keys_builder.build().unwrap();
 
-        let _got = AssertUnwindSafe(
-            Context::new(
-                &runtime,
-                &mocks,
-                netdir,
-                hsid,
-                &mut data,
-                secret_keys,
-                mocks.clone(),
-            )
-            .unwrap()
-            .connect(),
+        let mut ctx = Context::new(
+            &runtime,
+            &mocks,
+            netdir,
+            hsid,
+            &mut data,
+            secret_keys,
+            mocks.clone(),
         )
-        .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
-        .await;
+        .unwrap();
+
+        let _got = AssertUnwindSafe(ctx.connect())
+            .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
+            .await;
 
         let (hs_blind_id_key, subcredential) = HsIdKey::try_from(hsid)
             .unwrap()
@@ -611,6 +618,15 @@ mod test {
         assert_eq!(
             format!("{:?}", mglobal.got_desc),
             format!("{:?}", Some(hsdesc))
+        );
+
+        // Check how long the descriptor is valid for
+        let bounds = ctx.data.desc.as_ref().unwrap().bounds();
+        assert_eq!(bounds.start_bound(), Bound::Unbounded);
+        Duration::try_from(mglobal.got_desc.as_ref().unwrap().lifetime()).unwrap();
+        assert_eq!(
+            bounds.end_bound(),
+            Bound::Included(now + Duration::from_secs(test_data::TEST_LIFETIME_SECS_2)).as_ref()
         );
 
         // TODO hs check the circuit in got is the one we gave out
