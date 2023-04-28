@@ -6,7 +6,7 @@ use arti_client::TorClient;
 use tor_rpcbase as rpc;
 use tor_rtcompat::Runtime;
 
-use crate::session::Session;
+use crate::session::Connection;
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///
@@ -32,8 +32,8 @@ impl RpcMgr {
     ///
     /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
     /// be possible to invoke any of its methods. See #837.
-    pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Session {
+    pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Connection {
         let client_obj = Arc::new(client);
-        Session::new(self.dispatch_table.clone(), client_obj)
+        Connection::new(self.dispatch_table.clone(), client_obj)
     }
 }

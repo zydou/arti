@@ -1,4 +1,4 @@
-//! RPC session support, mainloop, and protocol implementation.
+//! RPC connection support, mainloop, and protocol implementation.
 
 use std::{
     collections::HashMap,
@@ -28,23 +28,21 @@ use crate::{
 
 use tor_rpcbase as rpc;
 
-/// A session with an RPC client.  
-///
-/// TODO: Rename to "Connection".
+/// An open connection from an RPC client.  
 ///
 /// Tracks information that persists from one request to another.
-pub struct Session {
-    /// The mutable state of this session
+pub struct Connection {
+    /// The mutable state of this connection
     inner: Mutex<Inner>,
 
     /// Lookup table to find the implementations for methods
     /// based on RPC object and method types.
     dispatch_table: Arc<rpc::DispatchTable>,
 }
-impl rpc::Object for Session {}
-rpc::decl_object! {Session}
+impl rpc::Object for Connection {}
+rpc::decl_object! {Connection}
 
-/// The inner, lock-protected part of a session.
+/// The inner, lock-protected part of an RPC connection.
 struct Inner {
     /// Map from request ID to handles; used when we need to cancel a request.
     //
@@ -54,15 +52,15 @@ struct Inner {
     inflight: HashMap<RequestId, CancelHandle>,
 
     /// An object map used to look up most objects by ID, and keep track of
-    /// which objects are owned by this session.
+    /// which objects are owned by this connection.
     objects: ObjMap,
 
-    /// A `TorClient` object that we will give out if the session is successfully
+    /// A `TorClient` object that we will give out if the connection is successfully
     /// authenticated, _and not otherwise_.
     client: Arc<dyn rpc::Object>,
 }
 
-/// How many updates can be pending, per session, before they start to block?
+/// How many updates can be pending, per connection, before they start to block?
 const UPDATE_CHAN_SIZE: usize = 128;
 
 /// A type-erased [`FusedStream`] yielding [`Request`]s.
@@ -77,8 +75,8 @@ pub(crate) type BoxedRequestStream = Pin<
 pub(crate) type BoxedResponseSink =
     Pin<Box<dyn Sink<BoxedResponse, Error = asynchronous_codec::JsonCodecError> + Send>>;
 
-impl Session {
-    /// Create a new session.
+impl Connection {
+    /// Create a new connection.
     pub(crate) fn new(
         dispatch_table: Arc<rpc::DispatchTable>,
         client: Arc<dyn rpc::Object>,
@@ -93,15 +91,14 @@ impl Session {
         }
     }
 
-    /// Look up a given object by its object ID relative to this session.
+    /// Look up a given object by its object ID relative to this connection.
     fn lookup_object(
         self: &Arc<Self>,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
         let inner = self.inner.lock().expect("lock poisoned");
 
-        // TODO RPC: I want to rename this to "connection".
-        if id.as_ref() == "session" {
+        if id.as_ref() == "connection" {
             Ok(self.clone())
         } else {
             inner
@@ -123,9 +120,13 @@ impl Session {
         inner.inflight.insert(id, handle);
     }
 
-    /// Run this session in a loop, decoding JSON requests from `input` and
+    /// Run in a loop, decoding JSON requests from `input` and
     /// writing JSON responses onto `output`.
-    pub async fn run<IN, OUT>(self: Arc<Self>, input: IN, output: OUT) -> Result<(), SessionError>
+    pub async fn run<IN, OUT>(
+        self: Arc<Self>,
+        input: IN,
+        output: OUT,
+    ) -> Result<(), ConnectionError>
     where
         IN: futures::AsyncRead + Send + Sync + Unpin + 'static,
         OUT: futures::AsyncWrite + Send + Sync + Unpin + 'static,
@@ -152,7 +153,7 @@ impl Session {
         self: Arc<Self>,
         mut request_stream: BoxedRequestStream,
         mut response_sink: BoxedResponseSink,
-    ) -> Result<(), SessionError> {
+    ) -> Result<(), ConnectionError> {
         // This function will multiplex on three streams:
         // * `request_stream` -- a stream of incoming requests from the client.
         // * `finished_requests` -- a stream of requests that are done.
@@ -184,7 +185,7 @@ impl Session {
                     // to stop reading the client's requests if the client is
                     // not reading their responses (or not) reading them fast
                     // enough.
-                    response_sink.send(update).await.map_err(|_| SessionError::WriteFailed)?;
+                    response_sink.send(update).await.map_err(|_| ConnectionError::WriteFailed)?;
                 }
 
                 req = request_stream.next() => {
@@ -197,10 +198,10 @@ impl Session {
                         Some(Err(e)) => {
                             // We got a non-recoverable error from the JSON codec.
                            let error = match e {
-                                JsonCodecError::Io(_) => return Err(SessionError::ReadFailed),
+                                JsonCodecError::Io(_) => return Err(ConnectionError::ReadFailed),
                                 JsonCodecError::Json(e) => match e.classify() {
                                     JsonErrorCategory::Eof => break 'outer,
-                                    JsonErrorCategory::Io => return Err(SessionError::ReadFailed),
+                                    JsonErrorCategory::Io => return Err(ConnectionError::ReadFailed),
                                     JsonErrorCategory::Syntax => RequestParseError::InvalidJson,
                                     JsonErrorCategory::Data => RequestParseError::NotAnObject,
                                 }
@@ -209,7 +210,7 @@ impl Session {
                             response_sink
                                 .send(
                                     BoxedResponse::from_error(None, error)
-                                ).await.map_err(|_| SessionError::WriteFailed)?;
+                                ).await.map_err(|_| ConnectionError::WriteFailed)?;
 
                             // TODO RPC: Perhaps we should keep going on the NotAnObject case?
                             //      (InvalidJson is not recoverable!)
@@ -219,7 +220,7 @@ impl Session {
                             response_sink
                                 .send(
                                     BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
-                                ).await.map_err(|_| SessionError::WriteFailed)?;
+                                ).await.map_err(|_| ConnectionError::WriteFailed)?;
                             if bad_req.id().is_none() {
                                 // The spec says we must close the connection in this case.
                                 break 'outer;
@@ -279,7 +280,10 @@ impl Session {
             // TODO: If we're going to box this, let's do so earlier.
             Ok(Err(err)) => {
                 if err.is_internal() {
-                    tracing::warn!("Reporting an internal error on an RPC session: {:?}", err);
+                    tracing::warn!(
+                        "Reporting an internal error on an RPC connection: {:?}",
+                        err
+                    );
                 }
                 ResponseBody::Error(Box::new(err))
             }
@@ -289,7 +293,7 @@ impl Session {
         // Send the response.
         //
         // (It's okay to ignore the error here, since it can only mean that the
-        // RPC session has closed.)
+        // RPC connection has closed.)
         let _ignore_err = tx_response
             .send(BoxedResponse {
                 id: Some(id.clone()),
@@ -318,7 +322,7 @@ impl Session {
         let obj = self.lookup_object(&obj)?;
 
         let context: Box<dyn rpc::Context> = Box::new(RequestContext {
-            session: Arc::clone(self),
+            conn: Arc::clone(self),
         });
         self.dispatch_table
             .invoke(obj, method, context, tx_updates)?
@@ -326,10 +330,10 @@ impl Session {
     }
 }
 
-/// A failure that results in closing a Session.
+/// A failure that results in closing a [`Connection`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum SessionError {
+pub enum ConnectionError {
     /// Unable to write to our connection.
     #[error("Could not write to connection")]
     WriteFailed,
@@ -344,17 +348,17 @@ pub enum SessionError {
 /// updates and lookup objects by their ID.
 #[pin_project]
 struct RequestContext {
-    /// The underlying RPC session.
-    session: Arc<Session>,
+    /// The underlying RPC connection.
+    conn: Arc<Connection>,
 }
 
 impl rpc::Context for RequestContext {
     fn lookup_object(&self, id: &rpc::ObjectId) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        self.session.lookup_object(id)
+        self.conn.lookup_object(id)
     }
 
     fn register_owned(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        self.session
+        self.conn
             .inner
             .lock()
             .expect("Lock poisoned")
@@ -364,7 +368,7 @@ impl rpc::Context for RequestContext {
     }
 
     fn register_weak(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        self.session
+        self.conn
             .inner
             .lock()
             .expect("Lock poisoned")
@@ -386,7 +390,7 @@ impl rpc::Method for Echo {
     type Update = rpc::NoUpdates;
 }
 
-/// Implementation for calling "echo" on a session
+/// Implementation for calling "echo" on a TorClient.
 ///
 /// TODO RPC: Remove this. It shouldn't exist.
 async fn echo_on_session(
@@ -449,12 +453,12 @@ impl tor_error::HasKind for AuthenticationFailure {
     }
 }
 
-/// Invoke the "authenticate" method on a session.
+/// Invoke the "authenticate" method on a connection.
 ///
 /// TODO RPC: This behavior is wrong; we'll need to fix it to be all
 /// capabilities-like.
-async fn authenticate_session(
-    unauth: Arc<Session>,
+async fn authenticate_connection(
+    unauth: Arc<Connection>,
     method: Box<Authenticate>,
     ctx: Box<dyn rpc::Context>,
 ) -> Result<AuthenticateReply, rpc::RpcError> {
@@ -471,8 +475,7 @@ async fn authenticate_session(
     Ok(AuthenticateReply { client })
 }
 rpc::rpc_invoke_fn! {
-    // TODO RPC XXXX This goes on Connection.
-    authenticate_session(Session, Authenticate);
+    authenticate_connection(Connection, Authenticate);
 }
 
 /// An error given when an RPC request is cancelled.

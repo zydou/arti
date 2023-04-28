@@ -46,4 +46,4 @@ mod session;
 mod streams;
 
 pub use mgr::RpcMgr;
-pub use session::{Session, SessionError};
+pub use session::{Connection, ConnectionError};
