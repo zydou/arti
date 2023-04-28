@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use arti_client::TorClient;
 use asynchronous_codec::JsonCodecError;
 use futures::{
     channel::mpsc,
@@ -16,16 +17,20 @@ use pin_project::pin_project;
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
 use tor_async_utils::SinkExt as _;
+use tor_rtcompat::PreferredRuntime;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
     err::RequestParseError,
     msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
+    objmap::ObjMap,
 };
 
 use tor_rpcbase as rpc;
 
 /// A session with an RPC client.  
+///
+/// TODO: Rename to "Connection".
 ///
 /// Tracks information that persists from one request to another.
 pub struct Session {
@@ -36,17 +41,8 @@ pub struct Session {
     /// based on RPC object and method types.
     dispatch_table: Arc<rpc::DispatchTable>,
 }
-
 impl rpc::Object for Session {}
 rpc::decl_object! {Session}
-
-/// An unauthenticated session object, as exposed to an RPC client that hasn't authenticated.
-struct UnauthenticatedSession {
-    /// The inner session.
-    inner: Arc<Session>,
-}
-impl rpc::Object for UnauthenticatedSession {}
-rpc::decl_object! {UnauthenticatedSession}
 
 /// The inner, lock-protected part of a session.
 struct Inner {
@@ -57,8 +53,13 @@ struct Inner {
     // cancels the most recent request sent with that ID.
     inflight: HashMap<RequestId, CancelHandle>,
 
-    /// True if the user has authenticated.
-    authenticated: bool,
+    /// An object map used to look up most objects by ID, and keep track of
+    /// which objects are owned by this session.
+    objects: ObjMap,
+
+    /// A `TorClient` object that we will give out if the session is successfully
+    /// authenticated, _and not otherwise_.
+    client: Arc<dyn rpc::Object>,
 }
 
 /// How many updates can be pending, per session, before they start to block?
@@ -78,11 +79,15 @@ pub(crate) type BoxedResponseSink =
 
 impl Session {
     /// Create a new session.
-    pub(crate) fn new(dispatch_table: Arc<rpc::DispatchTable>) -> Self {
+    pub(crate) fn new(
+        dispatch_table: Arc<rpc::DispatchTable>,
+        client: Arc<dyn rpc::Object>,
+    ) -> Self {
         Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
-                authenticated: false,
+                objects: ObjMap::new(),
+                client,
             }),
             dispatch_table,
         }
@@ -93,22 +98,17 @@ impl Session {
         self: &Arc<Self>,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        let authenticated = self.inner.lock().expect("lock poisoned").authenticated;
+        let inner = self.inner.lock().expect("lock poisoned");
 
+        // TODO RPC: I want to rename this to "connection".
         if id.as_ref() == "session" {
-            if authenticated {
-                return Ok(self.clone());
-            } else {
-                return Ok(Arc::new(UnauthenticatedSession {
-                    inner: self.clone(),
-                }));
-            }
-        } else if !authenticated {
-            // Maybe thos should be a permission-denied error instead.
-            return Err(rpc::LookupError::NoObject(id.clone()));
+            Ok(self.clone())
+        } else {
+            inner
+                .objects
+                .lookup(id.try_into()?)
+                .ok_or(rpc::LookupError::NoObject(id.clone()))
         }
-
-        Err(rpc::LookupError::NoObject(id.clone()))
     }
 
     /// Un-register the request `id` and stop tracking its information.
@@ -353,12 +353,24 @@ impl rpc::Context for RequestContext {
         self.session.lookup_object(id)
     }
 
-    fn register_owned(&self, _object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        todo!() // XXXX
+    fn register_owned(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
+        self.session
+            .inner
+            .lock()
+            .expect("Lock poisoned")
+            .objects
+            .insert_strong(object)
+            .into()
     }
 
-    fn register_weak(&self, _object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        todo!() // XXXX
+    fn register_weak(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
+        self.session
+            .inner
+            .lock()
+            .expect("Lock poisoned")
+            .objects
+            .insert_weak(object)
+            .into()
     }
 }
 
@@ -378,7 +390,7 @@ impl rpc::Method for Echo {
 ///
 /// TODO RPC: Remove this. It shouldn't exist.
 async fn echo_on_session(
-    _obj: Arc<Session>,
+    _obj: Arc<TorClient<PreferredRuntime>>,
     method: Box<Echo>,
     _ctx: Box<dyn rpc::Context>,
 ) -> Result<Echo, rpc::RpcError> {
@@ -386,7 +398,7 @@ async fn echo_on_session(
 }
 
 rpc::rpc_invoke_fn! {
-    echo_on_session(Session,Echo);
+    echo_on_session(TorClient<PreferredRuntime>,Echo);
 
 }
 
@@ -412,17 +424,19 @@ struct Authenticate {
     /// TODO RPC: The only supported one for now is "inherent:unix_path"
     scheme: AuthenticationScheme,
 }
-rpc::decl_method! {"auth:authenticate" => Authenticate}
-impl rpc::Method for Authenticate {
-    type Output = Nil;
-    type Update = rpc::NoUpdates;
+
+/// A reply from the `Authenticate` method.
+#[derive(Debug, serde::Serialize)]
+struct AuthenticateReply {
+    /// An owned reference to a `TorClient` object.
+    client: rpc::ObjectId,
 }
 
-/// An empty structure used for "okay" replies with no additional data.
-///
-/// TODO RPC: It would be good if we could specialize our serde impl so that we could just use () for this.
-#[derive(Debug, serde::Serialize)]
-struct Nil {}
+rpc::decl_method! {"auth:authenticate" => Authenticate}
+impl rpc::Method for Authenticate {
+    type Output = AuthenticateReply;
+    type Update = rpc::NoUpdates;
+}
 
 /// An error during authentication.
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
@@ -440,10 +454,10 @@ impl tor_error::HasKind for AuthenticationFailure {
 /// TODO RPC: This behavior is wrong; we'll need to fix it to be all
 /// capabilities-like.
 async fn authenticate_session(
-    unauth: Arc<UnauthenticatedSession>,
+    unauth: Arc<Session>,
     method: Box<Authenticate>,
-    _ctx: Box<dyn rpc::Context>,
-) -> Result<Nil, rpc::RpcError> {
+    ctx: Box<dyn rpc::Context>,
+) -> Result<AuthenticateReply, rpc::RpcError> {
     match method.scheme {
         // For now, we only support AF_UNIX connections, and we assume that if
         // you have permission to open such a connection to us, you have
@@ -451,16 +465,14 @@ async fn authenticate_session(
         AuthenticationScheme::InherentUnixPath => {}
     }
 
-    unauth
-        .inner
-        .inner
-        .lock()
-        .expect("Poisoned lock")
-        .authenticated = true;
-    Ok(Nil {})
+    let client = Arc::clone(&unauth.inner.lock().expect("Poisoned lock").client);
+
+    let client = ctx.register_weak(client);
+    Ok(AuthenticateReply { client })
 }
 rpc::rpc_invoke_fn! {
-    authenticate_session(UnauthenticatedSession, Authenticate);
+    // TODO RPC XXXX This goes on Connection.
+    authenticate_session(Session, Authenticate);
 }
 
 /// An error given when an RPC request is cancelled.

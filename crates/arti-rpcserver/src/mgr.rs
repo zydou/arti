@@ -14,12 +14,8 @@ use crate::session::Session;
 ///
 /// TODO RPC: Actually not all of the above functionality is implemented yet. But it should be.
 pub struct RpcMgr {
-    // DOCDOC
-    // TODO: I think we're going to need a non-generic version of this, and a general pattern for declaring
-    // non-generic wrappers for some of our Runtime-parameterized things.
-    //
-    // `base_client: TorClient<R>,`
-    /// DOCDOC
+    /// Our reference to the dispatch table used to look up the functions that
+    /// implement each object on each
     dispatch_table: Arc<rpc::DispatchTable>,
 }
 
@@ -37,7 +33,7 @@ impl RpcMgr {
     /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
     /// be possible to invoke any of its methods. See #837.
     pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Session {
-        drop(client); //TODO RPC
-        Session::new(self.dispatch_table.clone())
+        let client_obj = Arc::new(client);
+        Session::new(self.dispatch_table.clone(), client_obj)
     }
 }
