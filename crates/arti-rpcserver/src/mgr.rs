@@ -6,7 +6,7 @@ use arti_client::TorClient;
 use tor_rpcbase as rpc;
 use tor_rtcompat::Runtime;
 
-use crate::session::Connection;
+use crate::connection::Connection;
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///

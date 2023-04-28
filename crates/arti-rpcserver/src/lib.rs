@@ -38,12 +38,12 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod cancel;
+mod connection;
 mod err;
 mod mgr;
 mod msgs;
 mod objmap;
-mod session;
 mod streams;
 
+pub use connection::{Connection, ConnectionError};
 pub use mgr::RpcMgr;
-pub use session::{Connection, ConnectionError};
