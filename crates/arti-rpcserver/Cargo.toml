@@ -16,7 +16,7 @@ default = []
 full = []
 
 [dependencies]
-arti-client = { path = "../arti-client", version = "0.9.0" }
+arti-client = { path = "../arti-client", version = "0.9.0", features = ["rpc"] }
 asynchronous-codec = { version = "0.6.0", features = ["json"] }
 bytes = "1"
 erased-serde = "0.3.25"
