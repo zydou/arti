@@ -50,7 +50,8 @@ few other inconsistently-named APIs.
 
 ### Breaking changes in lower level crates
 
-- Convert the DirClient request type for `RouterDesc`s into an enum.
+- Convert the DirClient request type for `RouterDesc`s into an enum,
+  and remove its `push()` method.
   ([!1112])
 - Rename `BridgeDescManager` to `BridgeDescMgr` for consistency
   with other type names. ([#805] (!1122))
