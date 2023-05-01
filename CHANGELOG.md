@@ -3,6 +3,106 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.4 — 3 May 2023
+
+(THIS IS UP TO DATE WITH 9ecc237c189336488e91fea951bfb72d6ffe8258.)
+
+Arti 1.1.4 fixes a major bug in the directory downloading code that
+could cause clients to stay stuck with an old version of the
+directory.
+
+Additionally, this version advances our efforts on onion services:
+we have implementations for descriptor downloading, and a design for
+improved key management.
+
+For this month and the next, our efforts are divided between onion
+services and work on a new RPC API (a successor to C Tor's "control
+port") that will give applications a safe and powerful way to work
+with Arti without having to write their code in Rust or link Arti as
+a library (unless they want to).  We have an early version of this
+protocol implemented, but it does not yet expose any useful
+functionality.
+
+Arti 1.1.4 also increases our MSRV (Minumum Supported Rust Version)
+to Rust 1.65, in accordance with our [MSRV Policy], and renames a
+few other inconsistently-named APIs.
+
+
+### Major Bugfixes
+
+- Download directories correctly in the case where we start with our cache
+  containing all the microdescriptors from the previous directory.
+  Previously, we had a bug where we only questioned when it would be time
+  to fetch a new consensus when we added a new microdescriptor from
+  the network.  This bug could lead to Arti running for a while
+  with an expired directory. ([#802] [!1126])
+
+### Breaking changes
+
+- We now require Rust 1.65 or later for all of our crates.
+  This change is required so that we can work correctly with several
+  of our dependencies, including the [`typetag`] crate which we
+  will need for RPC. ([#815] [!1131] [!1137])
+- In all crates, rename `*ProtocolFailed` errors to `*ProtocolViolation`.
+  This is a more correct name, but does potentially break API users
+  depending on the old versions. ([#804] [!1121] [!1132])
+
+
+### Breaking changes in lower level crates
+
+- Convert the DirClient request type for `RouterDesc`s into an enum.
+  ([!1112])
+- Rename `BridgeDescManager` to `BridgeDescMgr` for consistency
+  with other type names. ([#805] (!1122))
+- In `tor-basic-utils`, rename `SinkExt` to `SinkPrepareExt`, since it is not
+  actually an extension trait on all `Sink`s. ([5cd5e6a3f8431eab])
+
+### Onion service development
+
+- Added and refactored some APIs in `tor-netdir` to better support onion
+  service HSDir rings. ([!1094])
+- Clean up APIs for creating encrypted onion service descriptors. ([!1097])
+- Support for downloading onion service descriptors on demand.  ([!1116]
+  [!1118])
+- Design an API and document on-disk behavior for a
+  [key-management subsystem], to be used not
+  only for onion services, but eventually for other kinds of keys. ([#834]
+  [!1147])
+
+### RPC/Embedding development
+
+- New specification for our capabilities-based RPC meta-protocol in
+  [`rpc-meta-draft`]. ([!1078] [!1107] [!1141])
+- An incomplete work-in-progress implementation of our new RPC framework,
+  with a capabilities-based JSON-encoded protocol that allows for
+  RPC-visible methods to be implemented on objects throughout our
+  codebase.  For now, it is off-by-default, and exposes nothing useful.
+  ([!1092] [!1136] [!1144] [!1148])
+
+### Documentation
+
+- Better explain how to build our documentation. ([!1090])
+- Fix incorrect documentation of OSX configuration location. ([!1125])
+- Document some second-order effects of our semver conformance. ([!1129])
+
+
+### Cleanups, minor features, and minor bugfixes
+
+- Improvements to [`TimerangeBound`] API. ([!1105])
+- Fix builds with several combinations of features. ([#801] [!1106])
+- Code to join an `AsyncRead` and `AsyncWrite` into a single object
+  implementing both traits. ([!1115])
+- Expose the `MiddleOnly` flag on router status objects, for tools that want
+  it. ([#833] [!1145] [!1146])
+
+### Acknowledgments
+
+TODO NICKM WRITE THIS.
+
+TODO NICKM Use the link generator once the Changelog is doen.
+
+
+
 # tor-llcrypto patch release 0.4.4 — 4 April 2023
 
 On 4 April 2023, we put out a patch release (0.4.4) to `tor-llcrypto`,
@@ -14,7 +114,6 @@ compiling.  The new version of `tor-llcrypto` now properly pins the
 old version of `x25519-dalek`, to avoid picking up such incompatible
 pre-releases.  We hope that our next release of tor-llcrypto will
 upgrade to the newer `x25519-dalek` release.
-
 Additional resources: [#807] [!1108].
 
 [!1108]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1108
