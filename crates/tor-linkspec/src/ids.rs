@@ -5,6 +5,8 @@
 //! modern identity that is an Ed25519 public key.  This code lets us abstract
 //! over those types, and over other new types that may exist in the future.
 
+use std::fmt;
+
 use derive_more::{Display, From};
 use safelog::Redactable;
 use tor_llcrypto::pk::{
@@ -48,15 +50,19 @@ pub enum RelayIdType {
     Rsa,
 }
 
+impl fmt::Display for RelayId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.as_ref(), f)
+    }
+}
+
 /// A single relay identity.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Display, From, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, From, Hash)]
 #[non_exhaustive]
 pub enum RelayId {
     /// An Ed25519 identity.
-    #[display(fmt = "ed25519:{}", _0)]
     Ed25519(Ed25519Identity),
     /// An RSA identity.
-    #[display(fmt = "{}", _0)]
     Rsa(RsaIdentity),
 }
 
@@ -118,10 +124,7 @@ impl RelayId {
 
     /// Return the type of this relay identity.
     pub fn id_type(&self) -> RelayIdType {
-        match self {
-            RelayId::Ed25519(_) => RelayIdType::Ed25519,
-            RelayId::Rsa(_) => RelayIdType::Rsa,
-        }
+        self.as_ref().id_type()
     }
 
     /// Return a byte-slice corresponding to the contents of this identity.
@@ -130,10 +133,7 @@ impl RelayId {
     /// handled with care to make sure that it does not get confused with an
     /// identity of some other type.
     pub fn as_bytes(&self) -> &[u8] {
-        match self {
-            RelayId::Ed25519(key) => key.as_bytes(),
-            RelayId::Rsa(key) => key.as_bytes(),
-        }
+        self.as_ref().as_bytes()
     }
 }
 
@@ -158,7 +158,7 @@ impl<'a> RelayIdRef<'a> {
     }
 
     /// Return a byte-slice corresponding to the contents of this identity.
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &'a [u8] {
         match self {
             RelayIdRef::Ed25519(key) => key.as_bytes(),
             RelayIdRef::Rsa(key) => key.as_bytes(),
