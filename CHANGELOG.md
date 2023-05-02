@@ -83,6 +83,7 @@ few other inconsistently-named APIs.
 ### Documentation
 
 - Better explain how to build our documentation. ([!1090])
+- Explain that we explicitly support `--document-private-items`. ([!1090])
 - Fix incorrect documentation of OSX configuration location. ([!1125])
 - Document some second-order effects of our semver conformance. ([!1129])
 
