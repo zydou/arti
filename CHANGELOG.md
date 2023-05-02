@@ -55,7 +55,7 @@ few other inconsistently-named APIs.
   ([!1112])
 - Rename `BridgeDescManager` to `BridgeDescMgr` for consistency
   with other type names. ([#805] (!1122))
-- In `tor-basic-utils`, rename `SinkExt` to `SinkPrepareExt`, since it is not
+- In `tor-async-utils`, rename `SinkExt` to `SinkPrepareExt`, since it is not
   actually an extension trait on all `Sink`s. ([5cd5e6a3f8431eab])
 
 ### Onion service development
