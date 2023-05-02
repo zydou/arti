@@ -102,9 +102,55 @@ few other inconsistently-named APIs.
 
 ### Acknowledgments
 
-TODO NICKM WRITE THIS.
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, juga, Neel Chauhan, tranna, and Trinity Pointard.
+Also, our deep thanks to [Zcash Community Grants] for funding the
+development of Arti!
 
-TODO NICKM Use the link generator once the Changelog is doen.
+[!1078]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1078
+[!1090]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1090
+[!1092]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1092
+[!1094]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1094
+[!1097]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1097
+[!1105]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1105
+[!1106]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1106
+[!1107]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1107
+[!1112]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1112
+[!1115]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1115
+[!1116]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1116
+[!1118]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118
+[!1121]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1121
+[!1125]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1125
+[!1126]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1126
+[!1129]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1129
+[!1131]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1131
+[!1132]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1132
+[!1136]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1136
+[!1137]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1137
+[!1141]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1141
+[!1144]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1144
+[!1145]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1145
+[!1146]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1146
+[!1147]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1147
+[!1148]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1148
+[!1156]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1156
+[!1166]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1166
+[#801]: https://gitlab.torproject.org/tpo/core/arti/-/issues/801
+[#802]: https://gitlab.torproject.org/tpo/core/arti/-/issues/802
+[#804]: https://gitlab.torproject.org/tpo/core/arti/-/issues/804
+[#805]: https://gitlab.torproject.org/tpo/core/arti/-/issues/805
+[#815]: https://gitlab.torproject.org/tpo/core/arti/-/issues/815
+[#833]: https://gitlab.torproject.org/tpo/core/arti/-/issues/833
+[#834]: https://gitlab.torproject.org/tpo/core/arti/-/issues/834
+[#843]: https://gitlab.torproject.org/tpo/core/arti/-/issues/843
+[5cd5e6a3f8431eab]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5cd5e6a3f8431eab20e43fcdaa4e93d9afc9b729
+[MSRV Policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`TimerangeBound`]: https://tpo.pages.torproject.net/core/doc/rust/tor_checkable/timed/struct.TimerangeBound.html
+[`rpc-meta-draft`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/rpc-meta-draft.md
+[`typetag`]: https://crates.io/crates/typetag
+[key-management subsystem]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/key-management.md
+
 
 
 
