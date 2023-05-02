@@ -219,9 +219,10 @@ impl StorageConfig {
 /// if you want a working configuration.
 ///
 /// ```
+/// ##[cfg(feature = "pt-client")]
 /// # fn demo() -> anyhow::Result<()> {
 /// use arti_client::config::{TorClientConfig, BridgeConfigBuilder, CfgPath};
-/// // Requires that the pt-config feature is enabled.
+/// // Requires that the pt-client feature is enabled.
 /// use arti_client::config::pt::ManagedTransportConfigBuilder;
 ///
 /// let mut builder = TorClientConfig::builder();
