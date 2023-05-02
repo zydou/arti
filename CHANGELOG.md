@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.4 — 3 May 2023
 
-(THIS IS UP TO DATE WITH 9ecc237c189336488e91fea951bfb72d6ffe8258.)
+(THIS IS UP TO DATE WITH 5ff19678fe33781bc856fec21273e69ab8bf3938)
 
 Arti 1.1.4 fixes a major bug in the directory downloading code that
 could cause clients to stay stuck with an old version of the
@@ -96,6 +96,9 @@ few other inconsistently-named APIs.
   implementing both traits. ([!1115])
 - Expose the `MiddleOnly` flag on router status objects, for tools that want
   it. ([#833] [!1145] [!1146])
+- Only run doctest for `BridgesConfig` when the `pt-client` feature
+  is enabled; otherwise it will fail. ([#843], [!1166])
+- Refactoring in and around `RelayId`. ([!1156])
 
 ### Acknowledgments
 
