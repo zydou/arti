@@ -32,7 +32,7 @@ few other inconsistently-named APIs.
 
 - Download directories correctly in the case where we start with our cache
   containing all the microdescriptors from the previous directory.
-  Previously, we had a bug where we only questioned when it would be time
+  Previously, we had a bug where we only checked whether it was time
   to fetch a new consensus when we added a new microdescriptor from
   the network.  This bug could lead to Arti running for a while
   with an expired directory. ([#802] [!1126])
