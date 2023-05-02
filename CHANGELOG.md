@@ -3,6 +3,157 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.4 — 3 May 2023
+
+(THIS IS UP TO DATE WITH 5ff19678fe33781bc856fec21273e69ab8bf3938)
+
+Arti 1.1.4 fixes a major bug in the directory downloading code that
+could cause clients to stay stuck with an old version of the
+directory.
+
+Additionally, this version advances our efforts on onion services:
+we have implementations for descriptor downloading, and a design for
+improved key management.
+
+For this month and the next, our efforts are divided between onion
+services and work on a new RPC API (a successor to C Tor's "control
+port") that will give applications a safe and powerful way to work
+with Arti without having to write their code in Rust or link Arti as
+a library (unless they want to).  We have an early version of this
+protocol implemented, but it does not yet expose any useful
+functionality.
+
+Arti 1.1.4 also increases our MSRV (Minumum Supported Rust Version)
+to Rust 1.65, in accordance with our [MSRV Policy], and renames a
+few other inconsistently-named APIs.
+
+
+### Major Bugfixes
+
+- Download directories correctly in the case where we start with our cache
+  containing all the microdescriptors from the previous directory.
+  Previously, we had a bug where we only checked whether it was time
+  to fetch a new consensus when we added a new microdescriptor from
+  the network.  This bug could lead to Arti running for a while
+  with an expired directory. ([#802] [!1126])
+
+### Breaking changes
+
+- We now require Rust 1.65 or later for all of our crates.
+  This change is required so that we can work correctly with several
+  of our dependencies, including the [`typetag`] crate which we
+  will need for RPC. ([#815] [!1131] [!1137])
+- In all crates, rename `*ProtocolFailed` errors to `*ProtocolViolation`.
+  This is a more correct name, but does potentially break API users
+  depending on the old versions. ([#804] [!1121] [!1132])
+
+
+### Breaking changes in lower level crates
+
+- Convert the DirClient request type for `RouterDesc`s into an enum,
+  and remove its `push()` method.
+  ([!1112])
+- Rename `BridgeDescManager` to `BridgeDescMgr` for consistency
+  with other type names. ([#805] (!1122))
+- In `tor-async-utils`, rename `SinkExt` to `SinkPrepareExt`, since it is not
+  actually an extension trait on all `Sink`s. ([5cd5e6a3f8431eab])
+
+### Onion service development
+
+- Added and refactored some APIs in `tor-netdir` to better support onion
+  service HSDir rings. ([!1094])
+- Clean up APIs for creating encrypted onion service descriptors. ([!1097])
+- Support for downloading onion service descriptors on demand.  ([!1116]
+  [!1118])
+- Design an API and document on-disk behavior for a
+  [key-management subsystem], to be used not
+  only for onion services, but eventually for other kinds of keys. ([#834]
+  [!1147])
+
+### RPC/Embedding development
+
+- New specification for our capabilities-based RPC meta-protocol in
+  [`rpc-meta-draft`]. ([!1078] [!1107] [!1141])
+- An incomplete work-in-progress implementation of our new RPC framework,
+  with a capabilities-based JSON-encoded protocol that allows for
+  RPC-visible methods to be implemented on objects throughout our
+  codebase.  For now, it is off-by-default, and exposes nothing useful.
+  ([!1092] [!1136] [!1144] [!1148])
+
+### Documentation
+
+- Better explain how to build our documentation. ([!1090])
+- Explain that we explicitly support `--document-private-items`. ([!1090])
+- Fix incorrect documentation of OSX configuration location. ([!1125])
+- Document some second-order effects of our semver conformance. ([!1129])
+
+
+### Cleanups, minor features, and minor bugfixes
+
+- Improvements to [`TimerangeBound`] API. ([!1105])
+- Fix builds with several combinations of features. ([#801] [!1106])
+- Code to join an `AsyncRead` and `AsyncWrite` into a single object
+  implementing both traits. ([!1115])
+- Expose the `MiddleOnly` flag on router status objects, for tools that want
+  it. ([#833] [!1145] [!1146])
+- Only run doctest for `BridgesConfig` when the `pt-client` feature
+  is enabled; otherwise it will fail. ([#843], [!1166])
+- Refactoring in and around `RelayId`. ([!1156])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, juga, Neel Chauhan, tranna, and Trinity Pointard.
+Also, our deep thanks to [Zcash Community Grants] for funding the
+development of Arti!
+
+[!1078]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1078
+[!1090]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1090
+[!1092]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1092
+[!1094]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1094
+[!1097]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1097
+[!1105]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1105
+[!1106]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1106
+[!1107]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1107
+[!1112]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1112
+[!1115]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1115
+[!1116]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1116
+[!1118]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118
+[!1121]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1121
+[!1125]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1125
+[!1126]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1126
+[!1129]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1129
+[!1131]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1131
+[!1132]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1132
+[!1136]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1136
+[!1137]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1137
+[!1141]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1141
+[!1144]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1144
+[!1145]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1145
+[!1146]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1146
+[!1147]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1147
+[!1148]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1148
+[!1156]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1156
+[!1166]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1166
+[#801]: https://gitlab.torproject.org/tpo/core/arti/-/issues/801
+[#802]: https://gitlab.torproject.org/tpo/core/arti/-/issues/802
+[#804]: https://gitlab.torproject.org/tpo/core/arti/-/issues/804
+[#805]: https://gitlab.torproject.org/tpo/core/arti/-/issues/805
+[#815]: https://gitlab.torproject.org/tpo/core/arti/-/issues/815
+[#833]: https://gitlab.torproject.org/tpo/core/arti/-/issues/833
+[#834]: https://gitlab.torproject.org/tpo/core/arti/-/issues/834
+[#843]: https://gitlab.torproject.org/tpo/core/arti/-/issues/843
+[5cd5e6a3f8431eab]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5cd5e6a3f8431eab20e43fcdaa4e93d9afc9b729
+[MSRV Policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`TimerangeBound`]: https://tpo.pages.torproject.net/core/doc/rust/tor_checkable/timed/struct.TimerangeBound.html
+[`rpc-meta-draft`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/rpc-meta-draft.md
+[`typetag`]: https://crates.io/crates/typetag
+[key-management subsystem]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/key-management.md
+
+
+
+
 # tor-llcrypto patch release 0.4.4 — 4 April 2023
 
 On 4 April 2023, we put out a patch release (0.4.4) to `tor-llcrypto`,
@@ -14,7 +165,6 @@ compiling.  The new version of `tor-llcrypto` now properly pins the
 old version of `x25519-dalek`, to avoid picking up such incompatible
 pre-releases.  We hope that our next release of tor-llcrypto will
 upgrade to the newer `x25519-dalek` release.
-
 Additional resources: [#807] [!1108].
 
 [!1108]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1108
