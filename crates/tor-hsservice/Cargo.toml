@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsservice"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -20,11 +20,11 @@ default = []
 async-trait = "0.1.2"
 rand_core = "0.6.2"
 thiserror = "1"
-tor-circmgr = { version = "0.7.3", path = "../tor-circmgr", features = ["hs-service"] }
-tor-hscrypto = { version = "0.1.2", path = "../tor-hscrypto" }
-tor-llcrypto = { version = "0.4.3", path = "../tor-llcrypto" }
-tor-netdir = { version = "0.8.0", path = "../tor-netdir" }
-tor-proto = { version = "0.9.1", path = "../tor-proto" }
-tor-rtcompat = { version = "0.8.1", path = "../tor-rtcompat" }
+tor-circmgr = { version = "0.8.0", path = "../tor-circmgr", features = ["hs-service"] }
+tor-hscrypto = { version = "0.2.0", path = "../tor-hscrypto" }
+tor-llcrypto = { version = "0.5.0", path = "../tor-llcrypto" }
+tor-netdir = { version = "0.9.0", path = "../tor-netdir" }
+tor-proto = { version = "0.10.0", path = "../tor-proto" }
+tor-rtcompat = { version = "0.9.0", path = "../tor-rtcompat" }
 
 [dev-dependencies]
