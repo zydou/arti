@@ -204,18 +204,12 @@ impl ArenaEntry {
         TaggedAddr {
             addr: self.obj.raw_addr(),
             type_id: self.id,
+            is_strong: matches!(self.obj, ObjRef::Strong(_)),
         }
-    }
-
-    /// Debugging-mode only. Return true if this object matches `other` in its
-    /// type and address.
-    #[cfg(debug_assertions)]
-    fn same_object(&self, other: &Arc<dyn rpc::Object>) -> bool {
-        self.tagged_addr() == TaggedAddr::for_object(other)
     }
 }
 
-/// An address and type identity, used to identify a `Arc<dyn rpc::Object>`.
+/// An address, type identity, and ownership status, used to identify a `Arc<dyn rpc::Object>`.
 ///
 /// This type is necessary because of the way that Rust implements `Arc<dyn
 /// Foo>`. It's represented as a "fat pointer", containing:
@@ -250,15 +244,24 @@ struct TaggedAddr {
     addr: RawAddr,
     /// The type of the object.
     type_id: any::TypeId,
+    /// True if this is a strong reference.
+    ///
+    /// TODO: We could use one of the unused lower-order bits in raw-addr to
+    /// avoid bloating this type.
+    is_strong: bool,
 }
 
 impl TaggedAddr {
     /// Return the `TaggedAddr` to uniquely identify `obj` over the course of
     /// its existence.
-    fn for_object(obj: &Arc<dyn rpc::Object>) -> Self {
+    fn for_object(obj: &Arc<dyn rpc::Object>, is_strong: bool) -> Self {
         let type_id = (*obj).type_id();
         let addr = raw_addr_of(obj);
-        TaggedAddr { addr, type_id }
+        TaggedAddr {
+            addr,
+            type_id,
+            is_strong,
+        }
     }
 }
 
@@ -372,15 +375,12 @@ impl ObjMap {
     }
 
     /// Ensure that there is a strong entry for `value` in self (by inserting it
-    /// as needed, or upgrading a weak entry), and return its index.
+    /// as needed), and return its index.
     pub(crate) fn insert_strong(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        let ptr = TaggedAddr::for_object(&value);
+        let ptr = TaggedAddr::for_object(&value, true);
         if let Some(idx) = self.reverse_map.get(&ptr) {
             if let Some(entry) = self.arena.get_mut(idx.0) {
-                debug_assert!(entry.same_object(&value));
-                if entry.is_weak() {
-                    entry.obj = ObjRef::Strong(value);
-                }
+                debug_assert!(entry.tagged_addr() == ptr);
                 return *idx;
             }
         }
@@ -396,11 +396,11 @@ impl ObjMap {
     /// If there is no entry, create a weak entry.
     #[allow(clippy::needless_pass_by_value)] // TODO: Decide whether to make this take a reference.
     pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        let ptr = TaggedAddr::for_object(&value);
+        let ptr = TaggedAddr::for_object(&value, false);
         if let Some(idx) = self.reverse_map.get(&ptr) {
             #[cfg(debug_assertions)]
             match self.arena.get(idx.0) {
-                Some(entry) => debug_assert!(entry.same_object(&value)),
+                Some(entry) => debug_assert!(entry.tagged_addr() == ptr),
                 None => panic!("Found a dangling reference"),
             }
             return *idx;
@@ -432,10 +432,7 @@ impl ObjMap {
         for (index, entry) in self.arena.iter() {
             let ptr = entry.tagged_addr();
             assert_eq!(self.reverse_map.get(&ptr), Some(&GenIdx(index)));
-
-            if let Some(s) = entry.strong() {
-                assert_eq!(ptr, TaggedAddr::for_object(&s));
-            }
+            assert_eq!(ptr, entry.tagged_addr());
         }
 
         for (ptr, idx) in self.reverse_map.iter() {
@@ -528,52 +525,52 @@ mod test {
         let wrapped_weak = Arc::downgrade(&wrapped_dyn);
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn),
-            TaggedAddr::for_object(&object_dyn2)
+            TaggedAddr::for_object(&object_dyn, true),
+            TaggedAddr::for_object(&object_dyn2, true)
         );
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn),
-            TaggedAddr::for_object(&object2)
+            TaggedAddr::for_object(&object_dyn, true),
+            TaggedAddr::for_object(&object2, true)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn),
-            TaggedAddr::for_object(&wrapped_dyn2)
+            TaggedAddr::for_object(&wrapped_dyn, true),
+            TaggedAddr::for_object(&wrapped_dyn2, true)
         );
 
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn),
-            TaggedAddr::for_object(&wrapped_dyn)
+            TaggedAddr::for_object(&object_dyn, true),
+            TaggedAddr::for_object(&wrapped_dyn, true)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn).addr,
-            TaggedAddr::for_object(&wrapped_dyn).addr
+            TaggedAddr::for_object(&object_dyn, true).addr,
+            TaggedAddr::for_object(&wrapped_dyn, true).addr
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn).addr,
+            TaggedAddr::for_object(&wrapped_dyn, true).addr,
             raw_addr_of_weak(&wrapped_weak)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn).type_id,
+            TaggedAddr::for_object(&object_dyn, true).type_id,
             any::TypeId::of::<ExampleObject>()
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn).type_id,
+            TaggedAddr::for_object(&wrapped_dyn, true).type_id,
             any::TypeId::of::<Wrapper>()
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn).addr,
+            TaggedAddr::for_object(&object_dyn, true).addr,
             raw_addr_of(&object)
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn).addr,
+            TaggedAddr::for_object(&wrapped_dyn, true).addr,
             raw_addr_of(&wrapped)
         );
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn).addr,
+            TaggedAddr::for_object(&object_dyn, true).addr,
             raw_addr_of(&object2)
         );
     }
@@ -659,19 +656,20 @@ mod test {
         let id2 = map.insert_weak(obj2.clone());
 
         {
-            assert_eq!(id1, map.insert_weak(obj1.clone()));
+            assert_ne!(id2, map.insert_weak(obj1.clone()));
             assert_eq!(id2, map.insert_weak(obj2.clone()));
         }
 
         {
             assert_eq!(id1, map.insert_strong(obj1.clone()));
-            assert_eq!(id2, map.insert_strong(obj2.clone()));
+            assert_ne!(id2, map.insert_strong(obj2.clone()));
         }
     }
 
     #[test]
     fn upgrade() {
-        // Make sure that inserting an object as weak and strong (either order) leaves it strong.
+        // Make sure that inserting an object as weak and strong (in either
+        // order) makes two separate entries.
         let obj1: Arc<dyn rpc::Object> = Arc::new(ExampleObject("hello".to_string()));
         let obj2: Arc<dyn rpc::Object> = Arc::new(ExampleObject("world".to_string()));
         let addr1 = raw_addr_of(&obj1);
@@ -681,8 +679,8 @@ mod test {
         let id1 = map.insert_strong(obj1.clone());
         let id2 = map.insert_weak(obj2.clone());
 
-        assert_eq!(id1, map.insert_weak(obj1.clone()));
-        assert_eq!(id2, map.insert_strong(obj2.clone()));
+        assert_ne!(id2, map.insert_weak(obj1.clone()));
+        assert_ne!(id1, map.insert_strong(obj2.clone()));
         map.assert_okay();
 
         drop(obj1);
