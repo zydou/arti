@@ -433,7 +433,7 @@ struct Authenticate {
 #[derive(Debug, serde::Serialize)]
 struct AuthenticateReply {
     /// An owned reference to a `TorClient` object.
-    client: rpc::ObjectId,
+    client: Option<rpc::ObjectId>,
 }
 
 rpc::decl_method! {"auth:authenticate" => Authenticate}
@@ -471,7 +471,7 @@ async fn authenticate_connection(
 
     let client = Arc::clone(&unauth.inner.lock().expect("Poisoned lock").client);
 
-    let client = ctx.register_weak(client);
+    let client = Some(ctx.register_weak(client));
     Ok(AuthenticateReply { client })
 }
 rpc::rpc_invoke_fn! {
