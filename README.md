@@ -8,6 +8,15 @@ of the [Tor](https://www.torproject.org/) anonymity protocols in the
 
 ## Links:
 
+This is the README for the Arti project as a whole.
+If you want find more practical information
+you might want to check out these links:
+
+   * [The Arti website](https://arti.torproject.org)
+
+   * [The README for the `arti` binary crate](./crates/arti/README.md),
+     which includes instructions for how to run Arti with Tor Browser.
+
    * [Official source repository](https://gitlab.torproject.org/tpo/core/arti)
 
    * [API-level developer documentation](https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html)
