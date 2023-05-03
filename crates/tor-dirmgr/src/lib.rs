@@ -357,7 +357,11 @@ impl<R: Runtime> DirMgr<R> {
         let dirmgr = Arc::new(Self::from_config(config, runtime, store, None, true)?);
 
         // TODO: add some way to return a directory that isn't up-to-date
-        let _success = dirmgr.load_directory(AttemptId::next()).await?;
+        let attempt = AttemptId::next();
+        trace!(%attempt, "Trying to load a full directory from cache");
+        let outcome = dirmgr.load_directory(attempt).await;
+        trace!(%attempt, "Load result: {outcome:?}");
+        let _success = outcome?;
 
         dirmgr
             .netdir(Timeliness::Timely)
@@ -462,6 +466,7 @@ impl<R: Runtime> DirMgr<R> {
 
         // Try to load from the cache.
         let attempt_id = AttemptId::next();
+        trace!(attempt=%attempt_id, "Starting to bootstrap directory");
         let have_directory = self.load_directory(attempt_id).await?;
 
         let (mut sender, receiver) = if have_directory {
@@ -647,6 +652,8 @@ impl<R: Runtime> DirMgr<R> {
             ))
         };
 
+        trace!("Entering download loop.");
+
         loop {
             let mut usable = false;
 
@@ -659,7 +666,8 @@ impl<R: Runtime> DirMgr<R> {
             };
             let mut retry_delay = retry_config.schedule();
 
-            'retry_attempt: for _ in retry_config.attempts() {
+            'retry_attempt: for try_num in retry_config.attempts() {
+                trace!(attempt=%attempt_id, ?try_num, "Trying to download a directory.");
                 let outcome = bootstrap::download(
                     Weak::clone(&weak),
                     &mut state,
@@ -668,6 +676,7 @@ impl<R: Runtime> DirMgr<R> {
                     &mut on_complete,
                 )
                 .await;
+                trace!(attempt=%attempt_id, ?try_num, ?outcome, "Download is over.");
 
                 if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
@@ -689,9 +698,9 @@ impl<R: Runtime> DirMgr<R> {
 
                     let delay = retry_delay.next_delay(&mut rand::thread_rng());
                     warn!(
-                        "Unable to download a usable directory: {}.  We will restart in {:?}.",
+                        "Unable to download a usable directory: {}.  We will restart in {}.",
                         err.report(),
-                        delay,
+                        humantime::format_duration(delay),
                     );
                     {
                         let dirmgr = upgrade_weak_ref(&weak)?;
@@ -700,7 +709,7 @@ impl<R: Runtime> DirMgr<R> {
                     schedule.sleep(delay).await?;
                     state = state.reset();
                 } else {
-                    info!("Directory is complete.");
+                    info!(attempt=%attempt_id, "Directory is complete.");
                     usable = true;
                     break 'retry_attempt;
                 }
@@ -722,10 +731,14 @@ impl<R: Runtime> DirMgr<R> {
 
             let reset_at = state.reset_time();
             match reset_at {
-                Some(t) => schedule.sleep_until_wallclock(t).await?,
+                Some(t) => {
+                    trace!("Sleeping until {}", time::OffsetDateTime::from(t));
+                    schedule.sleep_until_wallclock(t).await?;
+                }
                 None => return Ok(()),
             }
             attempt_id = bootstrap::AttemptId::next();
+            trace!(attempt=%attempt_id, "Beginning new attempt to bootstrap directory");
             state = state.reset();
         }
     }
