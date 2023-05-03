@@ -1,6 +1,6 @@
 [package]
 name = "tor-rpcbase"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.60"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
@@ -22,8 +22,8 @@ paste = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_repr = "0.1.12"
 thiserror = "1"
-tor-async-utils = { path = "../tor-async-utils", version = "0.0.1" }
-tor-error = { path = "../tor-error/", version = "0.4.1", features = ["rpc"] }
+tor-async-utils = { path = "../tor-async-utils", version = "0.1.0" }
+tor-error = { path = "../tor-error/", version = "0.5.0", features = ["rpc"] }
 typetag = "0.2.7"
 
 [dev-dependencies]
