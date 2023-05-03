@@ -5,8 +5,6 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.4 — 3 May 2023
 
-(THIS IS UP TO DATE WITH 5ff19678fe33781bc856fec21273e69ab8bf3938)
-
 Arti 1.1.4 fixes a major bug in the directory downloading code that
 could cause clients to stay stuck with an old version of the
 directory.
