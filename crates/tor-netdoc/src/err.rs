@@ -243,6 +243,10 @@ pub enum ParseErrorKind {
     /// There was some signature that we couldn't validate.
     #[display(fmt = "couldn't validate signature")]
     BadSignature, // TODO(nickm): say which kind of signature.
+    #[cfg(feature = "experimental-api")]
+    /// The object is not valid at the required time.
+    #[display(fmt = "couldn't validate time bound")]
+    BadTimeBound,
     /// There was a tor version we couldn't parse.
     #[display(fmt = "couldn't parse Tor version")]
     BadTorVersion,
@@ -276,6 +280,8 @@ pub enum ParseErrorKind {
 }
 
 /// The underlying source for an [`Error`](crate::Error).
+// TODO hs: Signature, CertSignature, and UntimelyDescriptor are validation errors, not parse
+// errors. They need to be refactored out of ParseError into a new error type.
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum ParseErrorSource {
@@ -297,6 +303,10 @@ pub(crate) enum ParseErrorSource {
     /// An error when validating a signature on an embedded binary certificate.
     #[error("Invalid certificate")]
     CertSignature(#[from] tor_cert::CertError),
+    #[cfg(feature = "experimental-api")]
+    /// An error caused by an expired or not-yet-valid descriptor.
+    #[error("Descriptor expired or not yet valid")]
+    UntimelyDescriptor(#[from] tor_checkable::TimeValidityError),
     /// Invalid protocol versions.
     #[error("Protocol versions")]
     Protovers(#[from] tor_protover::ParseError),
@@ -456,6 +466,8 @@ macro_rules! declare_into  {
 }
 
 declare_into! { signature::Error => BadSignature }
+#[cfg(feature = "experimental-api")]
+declare_into! { tor_checkable::TimeValidityError => BadTimeBound }
 declare_into! { tor_bytes::Error => Undecodable }
 declare_into! { std::num::ParseIntError => BadArgument }
 declare_into! { std::net::AddrParseError => BadArgument }

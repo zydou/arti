@@ -23,6 +23,7 @@ use crate::{ParseErrorKind as EK, Result};
 
 use tor_checkable::signed::{self, SignatureGated};
 use tor_checkable::timed::{self, TimerangeBound};
+use tor_checkable::{SelfSigned, Timebound};
 use tor_hscrypto::pk::{
     HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey, HsSvcNtorKey,
 };
@@ -186,6 +187,38 @@ impl HsDesc {
     ///
     /// On success, the caller will get a wrapped object which they must
     /// validate and then decrypt.
+    ///
+    /// Use [`HsDesc::parse_decrypt_validate`] if you just need an [`HsDesc`] and don't want to
+    /// handle the validation/decryption of the wrapped object yourself.
+    ///
+    /// # Example
+    /// ```
+    /// # use hex_literal::hex;
+    /// # use tor_checkable::{SelfSigned, Timebound};
+    /// # use tor_netdoc::doc::hsdesc::HsDesc;
+    /// # use tor_netdoc::Error;
+    /// #
+    /// # let unparsed_desc: &str = include_str!("../../testdata/hsdesc1.txt");
+    /// # let blinded_id =
+    /// #    hex!("43cc0d62fc6252f578705ca645a46109e265290343b1137e90189744b20b3f2d").into();
+    /// # let subcredential =
+    /// #    hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37").into();
+    /// # let timestamp = humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap();
+    /// #
+    /// // Parse the descriptor
+    /// let unchecked_desc = HsDesc::parse(unparsed_desc, &blinded_id)?;
+    /// // Validate the signature and timeliness of the outer document
+    /// let checked_desc = unchecked_desc
+    ///     .check_signature()?
+    ///     .check_valid_at(&timestamp)?;
+    /// // Decrypt the outer and inner layers of the descriptor
+    /// let unchecked_decrypted_desc = checked_desc.decrypt(&subcredential, None)?;
+    /// // Validate the signature and timeliness of the inner document
+    /// let hsdesc = unchecked_decrypted_desc
+    ///     .check_valid_at(&timestamp)?
+    ///     .check_signature()?;
+    /// # Ok::<(), Error>(())
+    /// ```
     pub fn parse(
         input: &str,
         // We don't actually need this to parse the HsDesc, but we _do_ need it to prevent
@@ -208,6 +241,36 @@ impl HsDesc {
         }
 
         Ok(result)
+    }
+
+    /// A convenience function for parsing, decrypting and validating HS descriptors.
+    ///
+    /// This function:
+    ///   * parses the outermost document of the descriptor in `input`, and validates that its
+    ///   identity is consistent with `blinded_onion_id`.
+    ///   * decrypts both layers of encryption in the onion service descriptor. If `hsc_desc_enc`
+    ///   is provided, we use it to decrypt the inner encryption layer; otherwise, we require that
+    ///   the inner document is encrypted using the "no client authorization" method.
+    ///   * checks if both layers are valid at the `valid_at` timestamp
+    ///   * validates the signatures on both layers
+    ///
+    /// Returns an error if the descriptor cannot be parsed, or if one of the validation steps
+    /// fails.
+    #[cfg(feature = "experimental-api")]
+    pub fn parse_decrypt_validate(
+        input: &str,
+        blinded_onion_id: &HsBlindId,
+        valid_at: SystemTime,
+        subcredential: &Subcredential,
+        hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
+    ) -> Result<Self> {
+        Self::parse(input, blinded_onion_id)?
+            .check_signature()?
+            .check_valid_at(&valid_at)?
+            .decrypt(subcredential, hsc_desc_enc)?
+            .check_valid_at(&valid_at)?
+            .check_signature()
+            .map_err(|e| e.into())
     }
 }
 
@@ -351,7 +414,6 @@ mod test {
     use super::test_data::*;
     use super::*;
     use hex_literal::hex;
-    use tor_checkable::{SelfSigned, Timebound};
     use tor_hscrypto::{pk::HsIdKey, time::TimePeriod};
     use tor_llcrypto::pk::ed25519;
 
