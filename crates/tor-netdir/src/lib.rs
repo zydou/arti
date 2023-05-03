@@ -841,7 +841,7 @@ impl NetDir {
     ///
     /// (Does not return unusable relays.)
     ///
-    ///    
+    ///
     /// Note that a `None` answer is not always permanent: if a microdescriptor
     /// is subsequently added for a relay with this ID, the ID may become usable
     /// even if it was not usable before.
@@ -1828,13 +1828,16 @@ mod test {
 
     #[test]
     fn relay_funcs() {
-        let (consensus, microdescs) = construct_custom_network(|pos, nb| {
-            if pos == 15 {
-                nb.rs.add_or_port("[f0f0::30]:9001".parse().unwrap());
-            } else if pos == 20 {
-                nb.rs.add_or_port("[f0f0::3131]:9001".parse().unwrap());
-            }
-        })
+        let (consensus, microdescs) = construct_custom_network(
+            |pos, nb| {
+                if pos == 15 {
+                    nb.rs.add_or_port("[f0f0::30]:9001".parse().unwrap());
+                } else if pos == 20 {
+                    nb.rs.add_or_port("[f0f0::3131]:9001".parse().unwrap());
+                }
+            },
+            None,
+        )
         .unwrap();
         let subnet_config = SubnetConfig::default();
         let mut dir = PartialNetDir::new(consensus, None);

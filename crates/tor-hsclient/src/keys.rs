@@ -42,7 +42,7 @@ pub struct HsClientSecretKeys {
     ///
     /// This is compared and hashed by the Arc pointer value.
     /// We don't want to implement key comparison by comparing secret key values.
-    keys: Arc<ClientSecretKeyValues>,
+    pub(crate) keys: Arc<ClientSecretKeyValues>,
 }
 
 impl Debug for HsClientSecretKeys {
@@ -104,10 +104,10 @@ type ClientSecretKeyValues = HsClientSecretKeysBuilder;
 #[derive(Default, Debug)]
 pub struct HsClientSecretKeysBuilder {
     /// Possibly, a key that is used to decrypt a descriptor.
-    ks_hsc_desc_enc: Option<HsClientDescEncSecretKey>,
+    pub(crate) ks_hsc_desc_enc: Option<HsClientDescEncSecretKey>,
 
     /// Possibly, a key that is used to authenticate while introducing.
-    ks_hsc_intro_auth: Option<HsClientIntroAuthSecretKey>,
+    pub(crate) ks_hsc_intro_auth: Option<HsClientIntroAuthSecretKey>,
 }
 
 // TODO derive these setters
