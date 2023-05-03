@@ -63,7 +63,7 @@ tor-protover = { path = "../tor-protover", version = "0.5.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.8.0" }
 tor-units = { path = "../tor-units", version = "0.6.0" }
-tracing = "0.1.18"
+tracing = "0.1.36"
 typenum = "1.12"
 visibility = { version = "0.0.1", optional = true }
 zeroize = "1"

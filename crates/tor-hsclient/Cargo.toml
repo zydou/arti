@@ -40,7 +40,7 @@ tor-netdir = { version = "0.9.0", path = "../tor-netdir", features = [ "hs-clien
 tor-netdoc = { path = "../tor-netdoc", version = "0.7.0", features = [ "hs-client" ] }
 tor-proto = { version = "0.10.0", path = "../tor-proto", features = ["send-control-msg"] }
 tor-rtcompat = { version = "0.9.0", path = "../tor-rtcompat" }
-tracing = "0.1.18"
+tracing = "0.1.36"
 
 [dev-dependencies]
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }

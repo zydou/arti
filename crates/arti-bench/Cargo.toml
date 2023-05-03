@@ -26,7 +26,7 @@ tokio = { version = "1.7", features = ["full"] }
 tokio-socks = "0.5"
 tor-config = { path = "../tor-config", version = "0.9.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0", features = ["tokio", "native-tls"] }
-tracing = "0.1.18"
+tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 [package.metadata.docs.rs]
 all-features = true
