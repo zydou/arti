@@ -3,9 +3,7 @@
 
 use std::time::Duration;
 
-use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use async_trait::async_trait;
 use educe::Educe;
@@ -227,7 +225,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
         let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
-        let (desc, bounds) = loop {
+        let desc = loop {
             let relay = match attempts.next() {
                 Some(relay) => relay,
                 None => {
@@ -267,7 +265,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         // Because the `HsDesc` must be owned by `data.desc`,
         // we must first wrap it in the TimerangeBound,
         // and then dangerously_assume_timely to get a reference out again.
-        let ret = self.data.desc.insert(TimerangeBound::new(desc, bounds));
+        let ret = self.data.desc.insert(desc);
         Ok(ret.as_ref().dangerously_assume_timely())
     }
 
@@ -277,12 +275,12 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
     ///
     /// On success, returns the descriptor.
     ///
-    /// Also returns a `RangeBounds<SystemTime>` which represents the descriptor's validity.
-    /// (This is separate, because the descriptor's validity at the current time *has* been checked,)
+    /// While the returned descriptor is `TimerangeBound`, its validity at the current time *has*
+    /// been checked.
     async fn descriptor_fetch_attempt(
         &self,
         hsdir: &Relay<'_>,
-    ) -> Result<(HsDesc, impl RangeBounds<SystemTime>), DescriptorErrorDetail> {
+    ) -> Result<TimerangeBound<HsDesc>, DescriptorErrorDetail> {
         let request = tor_dirclient::request::HsDescDownloadRequest::new(self.hs_blind_id);
         trace!(
             "hsdir for {}, trying {}/{}, request {:?} (http request {:?}",
@@ -330,27 +328,14 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
 
         let now = self.runtime.wallclock();
 
-        let hsdesc = HsDesc::parse_decrypt_validate(
+        HsDesc::parse_decrypt_validate(
             &desc_text,
             &self.hs_blind_id,
             now,
             &self.subcredential,
             hsc_desc_enc.as_ref().map(|(kp, ks)| (kp, *ks)),
         )
-        .map_err(DescriptorErrorDetail::from)?;
-
-        // Cache the descriptor for the amount of time specified in the descriptor-lifetime field.
-        let upper_bound = Bound::Included(
-            now + Duration::try_from(hsdesc.lifetime()).map_err(|e| {
-                into_internal!(
-                    "bad descriptor-lifetime (this descriptor should have failed to parse)"
-                )(e)
-            })?,
-        );
-
-        let bounds = (Bound::Unbounded, upper_bound);
-
-        Ok((hsdesc, bounds))
+        .map_err(DescriptorErrorDetail::from)
     }
 }
 
@@ -462,6 +447,7 @@ mod test {
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
+    use std::ops::{Bound, RangeBounds};
     use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
@@ -609,7 +595,8 @@ mod test {
             &subcredential,
             Some((&pk, &sk)),
         )
-        .unwrap();
+        .unwrap()
+        .dangerously_assume_timely();
 
         let mglobal = mocks.mglobal.lock().unwrap();
         assert_eq!(mglobal.hsdirs_asked.len(), 1);
@@ -623,10 +610,11 @@ mod test {
         // Check how long the descriptor is valid for
         let bounds = ctx.data.desc.as_ref().unwrap().bounds();
         assert_eq!(bounds.start_bound(), Bound::Unbounded);
-        Duration::try_from(mglobal.got_desc.as_ref().unwrap().lifetime()).unwrap();
+
+        let desc_valid_until = humantime::parse_rfc3339("2023-02-11T20:00:00Z").unwrap();
         assert_eq!(
             bounds.end_bound(),
-            Bound::Included(now + Duration::from_secs(test_data::TEST_LIFETIME_SECS_2)).as_ref()
+            Bound::Included(desc_valid_until).as_ref()
         );
 
         // TODO hs check the circuit in got is the one we gave out

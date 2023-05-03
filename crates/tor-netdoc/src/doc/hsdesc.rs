@@ -22,7 +22,7 @@ pub use desc_enc::DecryptionError;
 use crate::{NetdocErrorKind as EK, Result};
 
 use tor_checkable::signed::{self, SignatureGated};
-use tor_checkable::timed::{self, TimerangeBound};
+use tor_checkable::timed::{self, intersect_bounds, TimerangeBound};
 use tor_checkable::{SelfSigned, Timebound};
 use tor_hscrypto::pk::{
     HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey, HsSvcNtorKey,
@@ -262,19 +262,24 @@ impl HsDesc {
         valid_at: SystemTime,
         subcredential: &Subcredential,
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
-    ) -> Result<Self> {
-        Self::parse(input, blinded_onion_id)?
-            .check_signature()?
-            .check_valid_at(&valid_at)?
-            .decrypt(subcredential, hsc_desc_enc)?
-            .check_valid_at(&valid_at)?
-            .check_signature()
-            .map_err(|e| e.into())
-    }
+    ) -> Result<TimerangeBound<Self>> {
+        let unchecked_desc = Self::parse(input, blinded_onion_id)?.check_signature()?;
 
-    /// Return the lifetime of this descriptor.
-    pub fn lifetime(&self) -> IntegerMinutes<u16> {
-        self.idx_info.lifetime
+        let outer_desc_bounds = unchecked_desc.bounds();
+
+        let unchecked_desc = unchecked_desc
+            .check_valid_at(&valid_at)?
+            .decrypt(subcredential, hsc_desc_enc)?;
+
+        let inner_desc_bounds = unchecked_desc.bounds();
+
+        let hsdesc = unchecked_desc
+            .check_valid_at(&valid_at)?
+            .check_signature()?;
+
+        let range = intersect_bounds(outer_desc_bounds, inner_desc_bounds)?;
+
+        Ok(TimerangeBound::new(hsdesc, range))
     }
 }
 
@@ -399,8 +404,6 @@ pub mod test_data {
     // SDZNMD4RP4SCH4EYTTUZPFRZINNFWAOPPKZ6BINZAC7LREV24RBQ (base32)
     pub const TEST_SECKEY_2: [u8; 32] =
         hex!("90F2D60F917F2423F0989CE9979639435A5B01CF7AB3E0A1B900BEB892BAE443");
-    /// The lifetime of the descriptor in seconds.
-    pub const TEST_LIFETIME_SECS_2: u64 = 180 * 60;
 }
 
 #[cfg(test)]
