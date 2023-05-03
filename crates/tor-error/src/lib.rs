@@ -474,16 +474,26 @@ pub enum ErrorKind {
 
     /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
     ///
-    /// We successfully obtained a hidden service descriptor for the service, but we cannot use it
-    /// because it fails to parse.
+    /// None of the hidden service descriptors we found for this service could be parsed.
+    ///
+    /// This error has several possible causes:
+    ///   * We are running a version of the protocol that is incompatible with the version used
+    ///   by the hidden service for advertising itself.
+    ///   * All the directories we spoke to are malfunctioning and accepted the descriptor despite
+    ///   it being broken in a way they can see. This could indicate that some or all of the
+    ///   directories are hostile.
     #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service descriptor parsing failed")]
     OnionServiceDescriptorParsingFailed,
 
     /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
     ///
-    /// We successfully obtained a hidden service descriptor for the service, but we cannot use it
-    /// because it is invalid.
+    /// None of the hidden service descriptors we found for this service were valid (either because
+    /// of an invalid signature, or because of an untimely certificate).
+    ///
+    /// This error has several possible causes:
+    ///   * Our clock is set incorrectly
+    ///   * The clock of the hidden service is set incorrectly
     #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service descriptor validation failed")]
     OnionServiceDescriptorValidationFailed,
