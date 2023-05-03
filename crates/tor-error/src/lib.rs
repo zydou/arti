@@ -472,6 +472,20 @@ pub enum ErrorKind {
     #[display(fmt = "Onion Service not running")]
     OnionServiceNotRunning,
 
+    // TODO hs: We need this error type to also indicate the reason the error might've occurred:
+    //   * If the outer layers of the descriptor are broken (i.e. the parts that are visible even
+    //   without client authorization), then we'd expect any hsdir to reject hidden service's
+    //   upload of the descriptor. If a number of hsdirs are serving broken descriptors for a
+    //   service, we can assume some (or all) of them are being hostile (and intentionally serving
+    //   mangled descriptors to DoS the service)
+    //   * If the parsing error occurred in the inner layer, the problem is due to the hidden
+    //   service rather than the hsdir that served the descriptor
+    //
+    //   OnionServiceDescriptorParsingFailed will need to be split into 2 subtypes (one for errors
+    //   that are potentially caused by malicious hsdirs, and another for errors caused by the
+    //   service itself). We'll also need to add some additional information to `tor_netoc::Error`
+    //   to be able to create this distinction.
+    //
     /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
     ///
     /// None of the hidden service descriptors we found for this service could be parsed.
