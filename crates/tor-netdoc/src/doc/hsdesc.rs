@@ -298,7 +298,7 @@ impl EncryptedHsDesc {
     // TODO hs: I'm not sure that taking `hsc_desc_enc` as an argument is correct. Instead, maybe
     // we should take a set of keys?
     pub fn decrypt(
-        self,
+        &self,
         subcredential: &Subcredential,
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
     ) -> Result<TimerangeBound<SignatureGated<HsDesc>>> {
