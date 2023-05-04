@@ -19,6 +19,7 @@ RECOGNIZED_LICENSES=(
     CC0-1.0
     ISC
     MIT
+    MPL-2.0
     Unicode-DFS-2016
     Unlicense
     Zlib

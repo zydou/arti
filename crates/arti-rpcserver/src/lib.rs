@@ -38,10 +38,12 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod cancel;
+mod connection;
 mod err;
+mod mgr;
 mod msgs;
-mod session;
+mod objmap;
 mod streams;
 
-#[cfg(feature = "tokio")]
-pub mod listen;
+pub use connection::{Connection, ConnectionError};
+pub use mgr::RpcMgr;

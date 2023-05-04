@@ -88,7 +88,7 @@ mod test {
         let r2 = BoxedResponse {
             id: Some(RequestId::Int(8)),
             body: ResponseBody::Error(Box::new(rpc::RpcError::from(
-                crate::session::RequestCancelled,
+                crate::connection::RequestCancelled,
             ))),
         };
         let r3 = BoxedResponse {

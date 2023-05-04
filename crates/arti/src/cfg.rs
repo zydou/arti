@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use arti_client::TorClientConfig;
 use tor_config::resolve_alternative_specs;
+#[cfg(feature = "rpc")]
+use tor_config::CfgPath;
 pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
@@ -159,6 +161,32 @@ fn default_max_files() -> u64 {
     16384
 }
 
+/// Configuration for Arti's RPC subsystem.
+///
+/// You cannot change this section on a running Arti client.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct RpcConfig {
+    /// Location to listen for incoming RPC connections.
+    #[cfg(feature = "rpc")]
+    #[builder(default = "default_rpc_path()")]
+    pub(crate) rpc_listen: Option<CfgPath>,
+}
+
+/// Return the default value for our configuration path.
+#[cfg(feature = "rpc")]
+#[allow(clippy::unnecessary_wraps)]
+fn default_rpc_path() -> Option<CfgPath> {
+    let s = if cfg!(target_os = "windows") {
+        r"\\.\pipe\arti\SOCKET"
+    } else {
+        "~/.local/run/arti/SOCKET"
+    };
+    Some(CfgPath::new(s.to_string()))
+}
+
 /// Structure to hold Arti's configuration options, whether from a
 /// configuration file or the command line.
 //
@@ -192,6 +220,12 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(default))]
     logging: LoggingConfig,
 
+    /// Configuration for RPC subsystem
+    #[cfg(feature = "rpc")]
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    rpc: RpcConfig,
+
     /// Information on system resources used by Arti.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
@@ -223,6 +257,12 @@ impl ArtiConfig {
     /// Return the [`ProxyConfig`] for this configuration.
     pub fn proxy(&self) -> &ProxyConfig {
         &self.proxy
+    }
+
+    /// Return the [`RpcConfig`] for this configuration.
+    #[cfg(feature = "rpc")]
+    pub fn rpc(&self) -> &RpcConfig {
+        &self.rpc
     }
 }
 
@@ -573,6 +613,10 @@ mod test {
         "bridges.transports",
         "tor_network.authorities",
         "tor_network.fallback_caches",
+        #[cfg(feature = "rpc")]
+        "rpc",
+        #[cfg(feature = "rpc")]
+        "rpc.rpc_listen",
     ];
 
     /// Config file exhaustiveness and default checking
