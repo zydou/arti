@@ -90,12 +90,26 @@ mod fake_generational_arena {
     }
 }
 
-/// Strong or weak reference to an Object.
-enum ObjRef {
-    /// A strong reference
-    Strong(Arc<dyn rpc::Object>),
-    /// A weak reference
-    Weak(Weak<dyn rpc::Object>),
+/// A mechanism to look up RPC `Objects` by their `ObjectId`.
+#[derive(Default)]
+pub(crate) struct ObjMap {
+    /// Generationally indexed arena of object references.
+    ///
+    /// Invariants:
+    /// * No object has more than one reference in this arena.
+    /// * Every `entry` in this arena at position `idx` has a corresponding
+    ///   entry in `reverse_map` entry such that
+    ///   `reverse_map[entry.tagged_addr()] == idx`.
+    arena: Arena<ArenaEntry>,
+    /// Backwards reference to look up arena references by the underlying object identity.
+    ///
+    /// Invariants:
+    /// * For every `(addr,idx)` entry in this map, there is a corresponding
+    ///   ArenaEntry in `arena` such that `arena[idx].tagged_addr() == addr`
+    reverse_map: HashMap<TaggedAddr, GenIdx>,
+    /// Testing only: How many times have we tidied this map?
+    #[cfg(test)]
+    n_tidies: usize,
 }
 
 /// A single entry to an Object stored in the generational arena.
@@ -108,6 +122,14 @@ struct ArenaEntry {
     /// See the [`TaggedAddr`] for more info on
     /// why this is needed.
     id: any::TypeId,
+}
+
+/// Strong or weak reference to an Object.
+enum ObjRef {
+    /// A strong reference
+    Strong(Arc<dyn rpc::Object>),
+    /// A weak reference
+    Weak(Weak<dyn rpc::Object>),
 }
 
 impl ObjRef {
@@ -140,6 +162,52 @@ impl ObjRef {
 /// we must also know the object's TypeId.  See [`TaggedAddr`] for more information.
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 struct RawAddr(usize);
+
+/// An address, type identity, and ownership status, used to identify a `Arc<dyn rpc::Object>`.
+///
+/// This type is necessary because of the way that Rust implements `Arc<dyn
+/// Foo>`. It's represented as a "fat pointer", containing:
+///    * A pointer to the  object itself (and the reference counts that make the
+///      `Arc<>` work.)
+///    * A vtable pointer explaining how to invoke the methods of `Foo` on this
+///      particular object.
+///
+/// The trouble here is that `Arc::ptr_eq()` can give an incorrect result, since
+/// a single type can be instantiated with multiple instances of its vtable
+/// pointer, which [breaks pointer comparison on `dyn`
+/// pointers](https://doc.rust-lang.org/std/ptr/fn.eq.html).
+///
+/// Thus, instead of comparing objects by (object pointer, vtable pointer)
+/// tuples, we have to compare them by (object pointer, type id).
+///
+/// (We _do_ have to look at type ids, and not just the pointers, since
+/// `repr(transparent)` enables people to have two `Arc<dyn Object>`s that have
+/// the same object pointer but different types.)[^1]
+///
+/// # Limitations
+///
+/// This type only uniquely identifies an Arc/Weak object for that object's
+/// lifespan. After the last (strong or weak) reference is dropped, this
+/// `TaggedAddr` may refer to a different object.
+///
+/// [^1]: TODO: Verify whether the necessary transmutation here is actually
+///     guaranteed to work.
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+struct TaggedAddr {
+    /// The address of the object.
+    addr: RawAddr,
+    /// The type of the object.
+    type_id: any::TypeId,
+    /// True if this is a strong reference.
+    ///
+    /// TODO: We could use one of the unused lower-order bits in raw-addr to
+    /// avoid bloating this type.
+    is_strong: bool,
+}
+
+/// A generational index for [`ObjMap`].
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub(crate) struct GenIdx(generational_arena::Index);
 
 /// Return the [`RawAddr`] of an arbitrary `Arc<T>`.
 fn raw_addr_of<T: ?Sized>(arc: &Arc<T>) -> RawAddr {
@@ -212,48 +280,6 @@ impl ArenaEntry {
     }
 }
 
-/// An address, type identity, and ownership status, used to identify a `Arc<dyn rpc::Object>`.
-///
-/// This type is necessary because of the way that Rust implements `Arc<dyn
-/// Foo>`. It's represented as a "fat pointer", containing:
-///    * A pointer to the  object itself (and the reference counts that make the
-///      `Arc<>` work.)
-///    * A vtable pointer explaining how to invoke the methods of `Foo` on this
-///      particular object.
-///
-/// The trouble here is that `Arc::ptr_eq()` can give an incorrect result, since
-/// a single type can be instantiated with multiple instances of its vtable
-/// pointer, which [breaks pointer comparison on `dyn`
-/// pointers](https://doc.rust-lang.org/std/ptr/fn.eq.html).
-///
-/// Thus, instead of comparing objects by (object pointer, vtable pointer)
-/// tuples, we have to compare them by (object pointer, type id).
-///
-/// (We _do_ have to look at type ids, and not just the pointers, since
-/// `repr(transparent)` enables people to have two `Arc<dyn Object>`s that have
-/// the same object pointer but different types.)[^1]
-///
-/// # Limitations
-///
-/// This type only uniquely identifies an Arc/Weak object for that object's
-/// lifespan. After the last (strong or weak) reference is dropped, this
-/// `TaggedAddr` may refer to a different object.
-///
-/// [^1]: TODO: Verify whether the necessary transmutation here is actually
-///     guaranteed to work.
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-struct TaggedAddr {
-    /// The address of the object.
-    addr: RawAddr,
-    /// The type of the object.
-    type_id: any::TypeId,
-    /// True if this is a strong reference.
-    ///
-    /// TODO: We could use one of the unused lower-order bits in raw-addr to
-    /// avoid bloating this type.
-    is_strong: bool,
-}
-
 impl TaggedAddr {
     /// Return the `TaggedAddr` to uniquely identify `obj` over the course of
     /// its existence.
@@ -267,10 +293,6 @@ impl TaggedAddr {
         }
     }
 }
-
-/// A generational index for [`ObjMap`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct GenIdx(generational_arena::Index);
 
 /// The character we use to start all generational indices when encoded as a string.
 const IDX_INDICATOR_CHAR: char = '%';
@@ -304,28 +326,6 @@ impl TryFrom<&rpc::ObjectId> for GenIdx {
 
         Err(rpc::LookupError::NoObject(id.clone()))
     }
-}
-
-/// A mechanism to look up RPC `Objects` by their `ObjectId`.
-#[derive(Default)]
-pub(crate) struct ObjMap {
-    /// Generationally indexed arena of object references.
-    ///
-    /// Invariants:
-    /// * No object has more than one reference in this arena.
-    /// * Every `entry` in this arena at position `idx` has a corresponding
-    ///   entry in `reverse_map` entry such that
-    ///   `reverse_map[entry.tagged_addr()] == idx`.
-    arena: Arena<ArenaEntry>,
-    /// Backwards reference to look up arena references by the underlying object identity.
-    ///
-    /// Invariants:
-    /// * For every `(addr,idx)` entry in this map, there is a corresponding
-    ///   ArenaEntry in `arena` such that `arena[idx].tagged_addr() == addr`
-    reverse_map: HashMap<TaggedAddr, GenIdx>,
-    /// Testing only: How many times have we tidied this map?
-    #[cfg(test)]
-    n_tidies: usize,
 }
 
 impl ObjMap {
