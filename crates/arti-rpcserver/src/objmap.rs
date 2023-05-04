@@ -2,7 +2,10 @@
 //!
 //! This mapper stores strong or weak references, and uses a generational index
 //! to keep track of names for them.
-#![allow(dead_code)] // XXXX
+//!
+//! TODO RPC: Add an object diagram here once the implementation settles down.
+
+#![allow(dead_code)] // TODO RPC: Remove this once the crate is stable.
 
 use std::any;
 use std::collections::HashMap;
