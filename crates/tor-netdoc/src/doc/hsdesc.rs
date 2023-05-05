@@ -18,11 +18,13 @@ mod middle;
 mod outer;
 
 pub use desc_enc::DecryptionError;
+use tor_basic_utils::rangebounds::RangeBoundsExt;
+use tor_error::internal;
 
 use crate::{NetdocErrorKind as EK, Result};
 
 use tor_checkable::signed::{self, SignatureGated};
-use tor_checkable::timed::{self, intersect_bounds, TimerangeBound};
+use tor_checkable::timed::{self, TimerangeBound};
 use tor_checkable::{SelfSigned, Timebound};
 use tor_hscrypto::pk::{
     HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey, HsSvcNtorKey,
@@ -265,21 +267,32 @@ impl HsDesc {
     ) -> Result<TimerangeBound<Self>> {
         let unchecked_desc = Self::parse(input, blinded_onion_id)?.check_signature()?;
 
-        let outer_desc_bounds = unchecked_desc.bounds();
+        let (inner_desc, new_bounds) = {
+            // We use is_valid_at and dangerously_into_parts instead of check_valid_at because we
+            // need the time bounds of the outer layer (for computing the intersection with the
+            // time bounds of the inner layer).
+            unchecked_desc.is_valid_at(&valid_at)?;
+            // It's safe to use dangerously_into_parts() as we've just checked if unchecked_desc is
+            // valid at the current time
+            let (unchecked_desc, bounds) = unchecked_desc.dangerously_into_parts();
+            let inner_timerangebound = unchecked_desc.decrypt(subcredential, hsc_desc_enc)?;
 
-        let unchecked_desc = unchecked_desc
-            .check_valid_at(&valid_at)?
-            .decrypt(subcredential, hsc_desc_enc)?;
+            let new_bounds = bounds
+                .intersect(&inner_timerangebound)
+                .map(|(b1, b2)| (b1.cloned(), b2.cloned()));
 
-        let inner_desc_bounds = unchecked_desc.bounds();
+            (inner_timerangebound, new_bounds)
+        };
 
-        let hsdesc = unchecked_desc
-            .check_valid_at(&valid_at)?
-            .check_signature()?;
+        let hsdesc = inner_desc.check_valid_at(&valid_at)?.check_signature()?;
 
-        let range = intersect_bounds(outer_desc_bounds, inner_desc_bounds)?;
+        // If we've reached this point, it means the descriptor is valid at specified time. This
+        // means the time bounds of the two layers definitely intersect, so new_bounds **must** be
+        // Some. It is a bug if new_bounds is None.
+        let new_bounds = new_bounds
+            .ok_or_else(|| internal!("failed to compute TimerangeBounds for a valid descriptor"))?;
 
-        Ok(TimerangeBound::new(hsdesc, range))
+        Ok(TimerangeBound::new(hsdesc, new_bounds))
     }
 }
 

@@ -1,6 +1,5 @@
 //! Convenience implementation of a TimeBound object.
 
-use std::cmp;
 use std::ops::{Bound, Deref, RangeBounds};
 use std::time;
 
@@ -188,43 +187,6 @@ impl<T> crate::Timebound<T> for TimerangeBound<T> {
     }
 }
 
-/// Compute the intersection of two `RangeBound`s.
-///
-/// Returns a [TimeValidityError::Unspecified](crate::TimeValidityError::Unspecified) error if the
-/// two ranges do not intersect.
-pub fn intersect_bounds<U>(
-    b1: U,
-    b2: U,
-) -> Result<(Bound<time::SystemTime>, Bound<time::SystemTime>), crate::TimeValidityError>
-where
-    U: RangeBounds<time::SystemTime>,
-{
-    let b1_start = unwrap_bound(b1.start_bound());
-    let b2_start = unwrap_bound(b2.start_bound());
-    let b1_end = unwrap_bound(b1.end_bound());
-    let b2_end = unwrap_bound(b2.end_bound());
-
-    let start = match (b1_start, b2_start) {
-        (Some(b1), Some(b2)) => Bound::Included(cmp::max(b1, b2)),
-        (Some(b), _) | (_, Some(b)) => Bound::Included(b),
-        _ => Bound::Unbounded,
-    };
-
-    let end = match (b1_end, b2_end) {
-        (Some(b1), Some(b2)) => Bound::Included(cmp::min(b1, b2)),
-        (Some(b), _) | (_, Some(b)) => Bound::Included(b),
-        _ => Bound::Unbounded,
-    };
-
-    match (unwrap_bound(start.as_ref()), unwrap_bound(end.as_ref())) {
-        (Some(start), Some(end)) if start > end => {
-            // If the two ranges don't intersect, return an error.
-            Err(crate::TimeValidityError::Unspecified)
-        }
-        _ => Ok((start, end)),
-    }
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -366,38 +328,5 @@ mod test {
         let tb3: TimerangeBound<&str> = tb1.as_deref();
         assert_eq!(tb1, tb2.dangerously_map(|s| s.clone()));
         assert_eq!(tb1, tb3.dangerously_map(|s| s.to_owned()));
-    }
-
-    #[test]
-    fn test_intersect_bounds() {
-        const MIN: Duration = Duration::from_secs(60);
-
-        //  t1  -  -  t2  -
-        //      t3  -  -  t4
-        let t1 = SystemTime::now();
-        let t2 = t1 + 2 * MIN;
-
-        let t3 = t1 + MIN;
-        let t4 = t3 + 3 * MIN;
-
-        let b1 = (Bound::Included(t1), Bound::Included(t2));
-        let b2 = (Bound::Included(t3), Bound::Included(t4));
-        let expected = (Bound::Included(t3), Bound::Included(t2));
-        assert_eq!(intersect_bounds(b1, b2).unwrap(), expected);
-        assert_eq!(intersect_bounds(b2, b1).unwrap(), expected);
-
-        //  t1  -  -  t2  -  -
-        //                   t3  -  -  t4
-        let t3 = t2 + 2 * MIN;
-        let t4 = t3 + 3 * MIN;
-        let b2 = (Bound::Included(t3), Bound::Included(t4));
-        assert_eq!(
-            intersect_bounds(b1, b2).unwrap_err(),
-            crate::TimeValidityError::Unspecified
-        );
-        assert_eq!(
-            intersect_bounds(b2, b1).unwrap_err(),
-            crate::TimeValidityError::Unspecified
-        );
     }
 }
