@@ -38,8 +38,8 @@ where
         let end = bounds_min(this_end, other_end);
 
         match (start, end) {
-            (Included(start), Excluded(end)) if start == end => {
-                // The interval [n, n) = {} (empty set).
+            (Excluded(start), Excluded(end)) | (Included(start), Excluded(end)) if start == end => {
+                // The interval (n, n) = [n, n) = {} (empty set).
                 None
             }
             (Included(start), Included(end))

@@ -143,10 +143,23 @@ impl<T> TimerangeBound<T> {
 
     /// Return the underlying time bounds of this object.
     pub fn bounds(&self) -> (Bound<time::SystemTime>, Bound<time::SystemTime>) {
-        (
-            self.start.map(Bound::Included).unwrap_or(Bound::Unbounded),
-            self.end.map(Bound::Included).unwrap_or(Bound::Unbounded),
-        )
+        (self.start_bound().cloned(), self.end_bound().cloned())
+    }
+}
+
+impl<T> RangeBounds<time::SystemTime> for TimerangeBound<T> {
+    fn start_bound(&self) -> Bound<&time::SystemTime> {
+        self.start
+            .as_ref()
+            .map(Bound::Included)
+            .unwrap_or(Bound::Unbounded)
+    }
+
+    fn end_bound(&self) -> Bound<&time::SystemTime> {
+        self.end
+            .as_ref()
+            .map(Bound::Included)
+            .unwrap_or(Bound::Unbounded)
     }
 }
 
