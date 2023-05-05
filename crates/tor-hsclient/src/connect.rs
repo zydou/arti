@@ -262,9 +262,12 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         // Store the bounded value in the cache for reuse,
         // but return a reference to the unwrapped `HsDesc`.
         //
-        // Because the `HsDesc` must be owned by `data.desc`,
-        // we must first wrap it in the TimerangeBound,
+        // The `HsDesc` must be owned by `data.desc`,
+        // so first add it to `data.desc`,
         // and then dangerously_assume_timely to get a reference out again.
+        //
+        // It is safe to dangerously_assume_timely,
+        // as descriptor_fetch_attempt has already checked the timeliness of the descriptor.
         let ret = self.data.desc.insert(desc);
         Ok(ret.as_ref().dangerously_assume_timely())
     }
