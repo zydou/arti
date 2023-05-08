@@ -19,13 +19,15 @@ shadow \
   > shadow.log
 
 # Check whether file transfers via arti inside the simulation succeeded
-successes="$(grep -c stream-success shadow.data/hosts/articlient/tgen.*.stdout || true)"
-if [ "$successes" = 10 ]
-then
-  echo "Simulation successful"
-else
-  echo "Failed. Only got $successes successful streams."
-fi
+for HOST in articlient articlient-bridge; do
+  successes="$(grep -c stream-success shadow.data/hosts/$HOST/tgen.*.stdout || true)"
+  if [ "$successes" = 10 ]
+  then
+    echo "Simulation successful"
+  else
+    echo "Failed. Only got $successes successful streams."
+  fi
+done
 
 pushd shadow.data/hosts/articlient-bridge/
 for PCAP in *.pcap; do
