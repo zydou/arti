@@ -124,9 +124,9 @@ fn list_enabled_features() -> &'static [&'static str] {
     &[
         #[cfg(feature = "journald")]
         "journald",
-        #[cfg(feature = "static-sqlite")]
+        #[cfg(any(feature = "static-sqlite", feature = "static"))]
         "static-sqlite",
-        #[cfg(feature = "static-native-tls")]
+        #[cfg(any(feature = "static-native-tls", feature = "static"))]
         "static-native-tls",
     ]
 }
