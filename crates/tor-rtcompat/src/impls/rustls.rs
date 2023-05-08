@@ -4,7 +4,7 @@ use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use rustls::{Certificate, Error as TLSError, ServerName};
+use rustls::{Certificate, CertificateError, Error as TLSError, ServerName};
 use rustls_crate as rustls;
 
 use std::{
@@ -170,7 +170,7 @@ impl rustls_crate::client::ServerCertVerifier for Verifier {
         // so when invoked via native_tls in the test code for this crate.
         cert.check_signature(scheme, message, dss.signature())
             .map(|_| rustls::client::HandshakeSignatureValid::assertion())
-            .map_err(|_| TLSError::InvalidCertificateSignature)
+            .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
     }
 
     fn verify_tls13_signature(
@@ -184,13 +184,14 @@ impl rustls_crate::client::ServerCertVerifier for Verifier {
 
         cert.check_tls13_signature(scheme, message, dss.signature())
             .map(|_| rustls::client::HandshakeSignatureValid::assertion())
-            .map_err(|_| TLSError::InvalidCertificateSignature)
+            .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
     }
 }
 
 /// Parse a `rustls::Certificate` as an `x509_signature::X509Certificate`, if possible.
 fn get_cert(c: &rustls::Certificate) -> Result<x509_signature::X509Certificate, TLSError> {
-    x509_signature::parse_certificate(c.as_ref()).map_err(|_| TLSError::InvalidCertificateSignature)
+    x509_signature::parse_certificate(c.as_ref())
+        .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
 }
 
 /// Convert from the signature scheme type used in `rustls` to the one used in
@@ -219,18 +220,12 @@ fn convert_scheme(
         R::RSA_PSS_SHA512 => X::RSA_PSS_SHA512,
         R::ED25519 => X::ED25519,
         R::ED448 => X::ED448,
-        R::RSA_PKCS1_SHA1 | R::ECDSA_SHA1_Legacy | R::ECDSA_NISTP521_SHA512 => {
-            // The `x509-signature` crate doesn't support these, nor should it really.
-            return Err(TLSError::PeerIncompatibleError(format!(
-                "Unsupported signature scheme {:?}",
-                scheme
-            )));
-        }
-        R::Unknown(_) => {
-            return Err(TLSError::PeerIncompatibleError(format!(
-                "Unrecognized signature scheme {:?}",
-                scheme
-            )))
+        _ => {
+            // Either `x509-signature` crate doesn't support these (nor should it really), or
+            // rustls itself doesn't.
+            return Err(TLSError::PeerIncompatible(
+                rustls::PeerIncompatible::NoSignatureSchemesInCommon,
+            ));
         }
     })
 }
