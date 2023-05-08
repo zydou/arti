@@ -217,12 +217,12 @@ impl PublicKey {
     /// Return true iff the exponent for this key is the same
     /// number as 'e'.
     pub fn exponent_is(&self, e: u32) -> bool {
-        use rsa::PublicKeyParts;
+        use rsa::traits::PublicKeyParts;
         *self.0.e() == rsa::BigUint::new(vec![e])
     }
     /// Return the number of bits in the modulus for this key.
     pub fn bits(&self) -> usize {
-        use rsa::PublicKeyParts;
+        use rsa::traits::PublicKeyParts;
         self.0.n().bits()
     }
     /// Try to check a signature (as used in Tor.)  The signed hash
@@ -231,8 +231,7 @@ impl PublicKey {
     /// Tor uses RSA-PKCSv1 signatures, with hash algorithm OIDs
     /// omitted.
     pub fn verify(&self, hashed: &[u8], sig: &[u8]) -> Result<(), signature::Error> {
-        use rsa::PublicKey;
-        let padding = rsa::pkcs1v15::Pkcs1v15Sign::new_raw();
+        let padding = rsa::pkcs1v15::Pkcs1v15Sign::new_unprefixed();
         self.0
             .verify(padding, hashed, sig)
             .map_err(|_| signature::Error::new())
@@ -252,8 +251,8 @@ impl PublicKey {
     pub fn to_der(&self) -> Vec<u8> {
         // There seem to be version issues with these two
         // versions of bigint: yuck!
+        use rsa::traits::PublicKeyParts;
         use rsa::BigUint; // not the same as the one in simple_asn1.
-        use rsa::PublicKeyParts;
         use simple_asn1::{ASN1Block, BigInt};
         /// Helper: convert a BigUInt to signed asn1.
         fn to_asn1_int(x: &BigUint) -> ASN1Block {
