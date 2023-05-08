@@ -37,6 +37,7 @@ NO_LICENSE=(
     ring
     # License appears to be ISC.
     webpki
+    rustls-webpki
 )
 
 containsElement () {
