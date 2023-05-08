@@ -243,7 +243,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
                 .runtime
                 .timeout(EACH_TIMEOUT, self.descriptor_fetch_attempt(relay))
                 .await
-                .unwrap_or_else(|_timeout| Err(DescriptorErrorDetail::Timeout))
+                .unwrap_or(Err(DescriptorErrorDetail::Timeout))
             {
                 Ok(desc) => break desc,
                 Err(error) => {

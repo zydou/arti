@@ -301,9 +301,9 @@ impl Readable for CertExt {
 
         Ok(match ext_type {
             ExtType::SIGNED_WITH_ED25519_KEY => CertExt::SignedWithEd25519(SignedWithEd25519Ext {
-                pk: ed25519::Ed25519Identity::from_bytes(body).ok_or(
-                    BytesError::InvalidMessage("wrong length on Ed25519 key".into()),
-                )?,
+                pk: ed25519::Ed25519Identity::from_bytes(body).ok_or_else(|| {
+                    BytesError::InvalidMessage("wrong length on Ed25519 key".into())
+                })?,
             }),
             _ => {
                 if (flags & 1) != 0 {
