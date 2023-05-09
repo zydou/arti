@@ -387,15 +387,8 @@ mod test {
 
         use crate::ls::LinkSpec;
         assert_eq!(
-            specs[2],
-            LinkSpec::Ed25519Id(
-                pk::ed25519::PublicKey::from_bytes(&hex!(
-                    "fc51cd8e6218a1a38da47ed00230f058
-                     0816ed13ba3303ac5deb911548908025"
-                ))
-                .unwrap()
-                .into()
-            )
+            specs[0],
+            LinkSpec::OrPort("127.0.0.1".parse::<IpAddr>().unwrap(), 99)
         );
         assert_eq!(
             specs[1],
@@ -405,8 +398,15 @@ mod test {
             )
         );
         assert_eq!(
-            specs[0],
-            LinkSpec::OrPort("127.0.0.1".parse::<IpAddr>().unwrap(), 99)
+            specs[2],
+            LinkSpec::Ed25519Id(
+                pk::ed25519::PublicKey::from_bytes(&hex!(
+                    "fc51cd8e6218a1a38da47ed00230f058
+                     0816ed13ba3303ac5deb911548908025"
+                ))
+                .unwrap()
+                .into()
+            )
         );
         assert_eq!(
             specs[3],
