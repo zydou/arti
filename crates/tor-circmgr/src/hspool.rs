@@ -12,7 +12,7 @@ use crate::{CircMgr, Error, Result};
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::{bad_api_usage, internal, ErrorReport};
-use tor_linkspec::{OwnedChanTarget, OwnedCircTarget};
+use tor_linkspec::{CircTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::{NetDir, NetDirProvider, Relay, SubnetConfig};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{
@@ -113,7 +113,9 @@ impl<R: Runtime> HsCircPool<R> {
         netdir: &'a NetDir,
     ) -> Result<(ClientCirc, Relay<'a>)> {
         // For rendezvous points, clients use 3-hop circuits.
-        let circ = self.take_or_launch_stub_circuit(netdir, None).await?;
+        let circ = self
+            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None)
+            .await?;
         let path = circ.path();
         match path.last() {
             Some(ct) => match netdir.by_ids(ct) {
@@ -135,12 +137,15 @@ impl<R: Runtime> HsCircPool<R> {
     /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
-    pub async fn get_or_launch_specific(
+    pub async fn get_or_launch_specific<T>(
         &self,
         netdir: &NetDir,
         kind: HsCircKind,
-        target: OwnedCircTarget,
-    ) -> Result<ClientCirc> {
+        target: T,
+    ) -> Result<ClientCirc>
+    where
+        T: CircTarget,
+    {
         // The kind makes no difference yet, but it will at some point in the future.
         match kind {
             HsCircKind::ClientRend => {
@@ -209,14 +214,18 @@ impl<R: Runtime> HsCircPool<R> {
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
     ///
     /// If there is no such circuit, build and return a new one.
-    async fn take_or_launch_stub_circuit(
+    async fn take_or_launch_stub_circuit<T>(
         &self,
         netdir: &NetDir,
-        avoid_target: Option<&OwnedCircTarget>,
-    ) -> Result<ClientCirc> {
+        avoid_target: Option<&T>,
+    ) -> Result<ClientCirc>
+    where
+        T: CircTarget,
+    {
         // First, look for a circuit that is already built, if any is suitable.
         let subnet_config = self.circmgr.builder().path_config().subnet_config();
-        let target = avoid_target.map(|target| TargetInfo {
+        let owned_avoid_target = avoid_target.map(OwnedCircTarget::from_circ_target);
+        let target = owned_avoid_target.as_ref().map(|target| TargetInfo {
             target,
             relay: netdir.by_ids(target),
         });
@@ -267,11 +276,19 @@ impl<R: Runtime> HsCircPool<R> {
 /// Wrapper around a target final hop, and any information about that target we
 /// were able to find from the directory.
 ///
+/// We don't use this for _extending_ to the final hop, since it contains an
+/// OwnedCircTarget, which may not preserve all the
+/// [`LinkSpec`](tor_linkspec::LinkSpec)s in the right order.  We only use it
+/// for assessing circuit compatibility.
+///
 /// TODO: This is possibly a bit redundant with path::MaybeOwnedRelay.  We
 /// should consider merging them someday, once we have a better sense of what we
 /// truly want here.
 struct TargetInfo<'a> {
     /// The target to be used as a final hop.
+    //
+    // TODO: Perhaps this should be a generic &dyn CircTarget? I'm not sure we
+    // win anything there, though.
     target: &'a OwnedCircTarget,
     /// A Relay reference for the targe, if we found one.
     relay: Option<Relay<'a>>,
