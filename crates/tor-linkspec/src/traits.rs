@@ -219,6 +219,16 @@ pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {
 /// identity of a relay for the purposes of extending a circuit.
 pub trait CircTarget: ChanTarget {
     /// Return a new vector of link specifiers for this relay.
+    ///
+    /// Note that, outside of this method, nothing in Arti should be re-ordering
+    /// the the link specifiers returned by this method.  It is this method's
+    /// responsibility to return them in the correct order.
+    ///
+    /// The default implementation for this method builds a list of link
+    /// specifiers from this object's identities and IP addresses, and sorts
+    /// them into the order specified in tor-spec to avoid implementation
+    /// fingerprinting attacks.
+    //
     // TODO: This is a questionable API. I'd rather return an iterator
     // of link specifiers, but that's not so easy to do, since it seems
     // doing so correctly would require default associated types.
@@ -228,6 +238,7 @@ pub trait CircTarget: ChanTarget {
         if let ChannelMethod::Direct(addrs) = self.chan_method() {
             result.extend(addrs.into_iter().map(crate::LinkSpec::from));
         }
+        crate::LinkSpec::sort_by_type(&mut result[..]);
         result
     }
     /// Return the ntor onion key for this relay
@@ -376,7 +387,7 @@ mod test {
 
         use crate::ls::LinkSpec;
         assert_eq!(
-            specs[0],
+            specs[2],
             LinkSpec::Ed25519Id(
                 pk::ed25519::PublicKey::from_bytes(&hex!(
                     "fc51cd8e6218a1a38da47ed00230f058
@@ -394,7 +405,7 @@ mod test {
             )
         );
         assert_eq!(
-            specs[2],
+            specs[0],
             LinkSpec::OrPort("127.0.0.1".parse::<IpAddr>().unwrap(), 99)
         );
         assert_eq!(
