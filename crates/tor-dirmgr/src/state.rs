@@ -21,7 +21,7 @@ use tor_error::{internal, ErrorReport};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::authcert::UncheckedAuthCert;
 use tor_netdoc::doc::netstatus::Lifetime;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 use crate::event::DirProgress;
 
@@ -861,8 +861,17 @@ impl PendingNetDir {
             match mem::replace(self, PendingNetDir::Dummy) {
                 PendingNetDir::Partial(p) => match p.unwrap_if_sufficient() {
                     Ok(nd) => {
-                        let missing = nd.missing_microdescs().copied().collect();
+                        let missing: HashSet<_> = nd.missing_microdescs().copied().collect();
                         let replace_dir_time = pick_download_time(nd.lifetime());
+                        debug!(
+                            "Consensus now usable, with {} microdescriptors missing. \
+                                The current consensus is fresh until {}, and valid until {}. \
+                                I've picked {} as the earliest time to replace it.",
+                            missing.len(),
+                            OffsetDateTime::from(nd.lifetime().fresh_until()),
+                            OffsetDateTime::from(nd.lifetime().valid_until()),
+                            OffsetDateTime::from(replace_dir_time)
+                        );
                         *self = PendingNetDir::Yielding {
                             netdir: Some(nd),
                             collected_microdescs: vec![],
@@ -1147,12 +1156,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
 fn pick_download_time(lifetime: &Lifetime) -> SystemTime {
     let (lowbound, uncertainty) = client_download_range(lifetime);
     let zero = Duration::new(0, 0);
-    let t = lowbound + rand::thread_rng().gen_range(zero..uncertainty);
-    info!("The current consensus is fresh until {}, and valid until {}. I've picked {} as the earliest time to replace it.",
-          OffsetDateTime::from(lifetime.fresh_until()),
-          OffsetDateTime::from(lifetime.valid_until()),
-          OffsetDateTime::from(t));
-    t
+    lowbound + rand::thread_rng().gen_range(zero..uncertainty)
 }
 
 /// Based on the lifetime for a consensus, return the time range during which
