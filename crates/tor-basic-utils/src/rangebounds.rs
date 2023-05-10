@@ -109,7 +109,26 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use Bound::{Included as Incl, Excluded as Excl, Unbounded};
+    use std::fmt::Debug;
+    use Bound::{Excluded as Excl, Included as Incl, Unbounded};
+
+    /// A helper that computes the intersection of `range1` and `range2`.
+    ///
+    /// This function also asserts that the intersection operation is commutative.
+    fn intersect<'a, T, R: RangeBounds<T>>(
+        range1: &'a R,
+        range2: &'a R,
+    ) -> Option<(Bound<&'a T>, Bound<&'a T>)>
+    where
+        T: PartialEq + Ord + Debug,
+    {
+        let intersection1 = range1.intersect(range2);
+        let intersection2 = range2.intersect(range1);
+
+        assert_eq!(intersection1, intersection2);
+
+        intersection1
+    }
 
     #[test]
     fn no_overlap() {
@@ -129,11 +148,8 @@ mod test {
         ];
 
         for (range1, range2) in NON_OVERLAPPING_RANGES {
-            let intersection1 = range1.intersect(range2);
-            let intersection2 = range2.intersect(range1);
-
-            assert_eq!(intersection1, intersection2);
-            assert!(intersection1.is_none());
+            let intersection = intersect(range1, range2);
+            assert!(intersection.is_none());
         }
     }
 
@@ -144,14 +160,11 @@ mod test {
         // [2, 5]
         let range2 = (Incl(2), Incl(5));
 
-        let intersection1 = range1.intersect(&range2).unwrap();
-        let intersection2 = range2.intersect(&range1).unwrap();
-
-        assert_eq!(intersection1, intersection2);
+        let intersection = intersect(&range1, &range2).unwrap();
 
         // intersection = [2 3]
-        assert_eq!(intersection1.start_bound(), Bound::Included(&2));
-        assert_eq!(intersection1.end_bound(), Bound::Excluded(&3));
+        assert_eq!(intersection.start_bound(), Bound::Included(&2));
+        assert_eq!(intersection.end_bound(), Bound::Excluded(&3));
     }
 
     #[test]
@@ -161,14 +174,11 @@ mod test {
         // [8, 20]
         let range2 = (Incl(8), Incl(20));
 
-        let intersection1 = range1.intersect(&range2).unwrap();
-        let intersection2 = range2.intersect(&range1).unwrap();
-
-        assert_eq!(intersection1, intersection2);
+        let intersection = intersect(&range1, &range2).unwrap();
 
         // intersection = (8, 20]
-        assert_eq!(intersection1.start_bound(), Bound::Excluded(&8));
-        assert_eq!(intersection1.end_bound(), Bound::Included(&20));
+        assert_eq!(intersection.start_bound(), Bound::Excluded(&8));
+        assert_eq!(intersection.end_bound(), Bound::Included(&20));
     }
 
     #[test]
@@ -180,7 +190,7 @@ mod test {
                         let range1 = (Incl(i), Incl(j));
                         let range2 = (Incl(k), Incl(l));
 
-                        let intersection = range1.intersect(&range2);
+                        let intersection = intersect(&range1, &range2);
 
                         for witness in 0..10 {
                             let c1 = range1.contains(&witness);
