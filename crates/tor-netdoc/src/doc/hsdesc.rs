@@ -256,7 +256,6 @@ impl HsDesc {
     ///
     /// Returns an error if the descriptor cannot be parsed, or if one of the validation steps
     /// fails.
-    #[cfg(feature = "experimental-api")]
     pub fn parse_decrypt_validate(
         input: &str,
         blinded_onion_id: &HsBlindId,

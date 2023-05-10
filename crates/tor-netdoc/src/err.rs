@@ -243,7 +243,6 @@ pub enum NetdocErrorKind {
     /// There was some signature that we couldn't validate.
     #[display(fmt = "couldn't validate signature")]
     BadSignature, // TODO(nickm): say which kind of signature.
-    #[cfg(feature = "experimental-api")]
     /// The object is not valid at the required time.
     #[display(fmt = "couldn't validate time bound")]
     BadTimeBound,
@@ -301,7 +300,6 @@ pub(crate) enum NetdocErrorSource {
     /// An error when validating a signature on an embedded binary certificate.
     #[error("Invalid certificate")]
     CertSignature(#[from] tor_cert::CertError),
-    #[cfg(feature = "experimental-api")]
     /// An error caused by an expired or not-yet-valid descriptor.
     #[error("Descriptor expired or not yet valid")]
     UntimelyDescriptor(#[from] tor_checkable::TimeValidityError),
@@ -464,7 +462,6 @@ macro_rules! declare_into  {
 }
 
 declare_into! { signature::Error => BadSignature }
-#[cfg(feature = "experimental-api")]
 declare_into! { tor_checkable::TimeValidityError => BadTimeBound }
 declare_into! { tor_bytes::Error => Undecodable }
 declare_into! { std::num::ParseIntError => BadArgument }
