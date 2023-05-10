@@ -7,7 +7,7 @@
 use crate::parse::keyword::Keyword;
 use crate::types::misc::FromBytes;
 use crate::util::PeekableIterator;
-use crate::{Error, ParseErrorKind as EK, Pos, Result};
+use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 use base64ct::{Base64, Encoding};
 use itertools::Itertools;
 use std::cell::{Ref, RefCell};
@@ -594,7 +594,7 @@ impl<'a, K: Keyword> ItemResult<K> for Result<Item<'a, K>> {
     fn is_empty_line(&self) -> bool {
         matches!(
             self,
-            Err(e) if e.parse_error_kind() == crate::err::ParseErrorKind::EmptyLine
+            Err(e) if e.parse_error_kind() == crate::err::NetdocErrorKind::EmptyLine
         )
     }
 }
@@ -665,7 +665,7 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     /// but permit empty lines at the end of the document.
     #[cfg(feature = "routerdesc")]
     pub(crate) fn should_be_exhausted_but_for_empty_lines(&mut self) -> Result<()> {
-        use crate::err::ParseErrorKind as K;
+        use crate::err::NetdocErrorKind as K;
         while let Some(Err(e)) = self.peek() {
             if e.parse_error_kind() == K::EmptyLine {
                 let _ignore = self.next();
@@ -728,7 +728,7 @@ mod test {
     #![allow(clippy::cognitive_complexity)]
     use super::*;
     use crate::parse::macros::test::Fruit;
-    use crate::{ParseErrorKind as EK, Pos, Result};
+    use crate::{NetdocErrorKind as EK, Pos, Result};
 
     #[test]
     fn read_simple() {

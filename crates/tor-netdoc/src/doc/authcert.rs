@@ -12,7 +12,7 @@ use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublic};
 use crate::util::str::Extent;
-use crate::{ParseErrorKind as EK, Result};
+use crate::{NetdocErrorKind as EK, Result};
 
 use tor_checkable::{signed, timed};
 use tor_llcrypto::pk::rsa;

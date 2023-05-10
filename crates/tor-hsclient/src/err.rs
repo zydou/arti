@@ -136,7 +136,7 @@ impl HasKind for DescriptorError {
 impl HasKind for DescriptorErrorDetail {
     fn kind(&self) -> ErrorKind {
         use tor_dirclient::RequestError as RE;
-        use tor_netdoc::ParseErrorKind as PEK;
+        use tor_netdoc::NetdocErrorKind as PEK;
         use DescriptorErrorDetail as DED;
         use ErrorKind as EK;
         match self {

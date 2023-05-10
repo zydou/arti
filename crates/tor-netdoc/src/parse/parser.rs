@@ -16,7 +16,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::rules::*;
 use crate::parse::tokenize::*;
-use crate::{ParseErrorKind as EK, Result};
+use crate::{NetdocErrorKind as EK, Result};
 
 use educe::Educe;
 
@@ -320,7 +320,7 @@ mod test {
     use crate::parse::keyword::Keyword;
     use crate::parse::macros::test::Fruit;
     use crate::parse::tokenize::{Item, NetDocReader};
-    use crate::{Error, ParseErrorKind as EK, Result};
+    use crate::{Error, NetdocErrorKind as EK, Result};
     use once_cell::sync::Lazy;
 
     /// Rules for parsing a set of router annotations.

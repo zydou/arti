@@ -52,7 +52,7 @@ mod util;
 #[doc(hidden)]
 pub use util::batching_split_before;
 
-pub use err::{BuildError, Error, ParseErrorKind, Pos};
+pub use err::{BuildError, Error, NetdocErrorKind, Pos};
 
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]

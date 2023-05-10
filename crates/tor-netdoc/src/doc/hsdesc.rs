@@ -19,7 +19,7 @@ mod outer;
 
 pub use desc_enc::DecryptionError;
 
-use crate::{ParseErrorKind as EK, Result};
+use crate::{NetdocErrorKind as EK, Result};
 
 use tor_checkable::signed::{self, SignatureGated};
 use tor_checkable::timed::{self, TimerangeBound};

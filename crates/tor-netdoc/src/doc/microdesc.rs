@@ -21,7 +21,7 @@ use crate::types::policy::PortPolicy;
 use crate::util;
 use crate::util::str::Extent;
 use crate::util::PeekableIterator;
-use crate::{AllowAnnotations, Error, ParseErrorKind as EK, Result};
+use crate::{AllowAnnotations, Error, NetdocErrorKind as EK, Result};
 use tor_error::internal;
 use tor_llcrypto::d;
 use tor_llcrypto::pk::{curve25519, ed25519, rsa};

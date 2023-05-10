@@ -167,7 +167,7 @@ impl fmt::Display for Pos {
 /// A variety of parsing error.
 #[derive(Copy, Clone, Debug, derive_more::Display, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum ParseErrorKind {
+pub enum NetdocErrorKind {
     /// An internal error in the parser: these should never happen.
     #[display(fmt = "internal error")]
     Internal,
@@ -280,11 +280,9 @@ pub enum ParseErrorKind {
 }
 
 /// The underlying source for an [`Error`](crate::Error).
-// TODO hs: Signature, CertSignature, and UntimelyDescriptor are validation errors, not parse
-// errors. They need to be refactored out of ParseError into a new error type.
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
-pub(crate) enum ParseErrorSource {
+pub(crate) enum NetdocErrorSource {
     /// An error when parsing a binary object.
     #[error("Error parsing binary object")]
     Bytes(#[from] tor_bytes::Error),
@@ -315,7 +313,7 @@ pub(crate) enum ParseErrorSource {
     Bug(#[from] tor_error::Bug),
 }
 
-impl ParseErrorKind {
+impl NetdocErrorKind {
     /// Construct a new Error with this kind.
     #[must_use]
     pub(crate) fn err(self) -> Error {
@@ -343,9 +341,9 @@ impl ParseErrorKind {
     }
 }
 
-impl From<signature::Error> for ParseErrorSource {
+impl From<signature::Error> for NetdocErrorSource {
     fn from(err: signature::Error) -> Self {
-        ParseErrorSource::Signature(Arc::new(err))
+        NetdocErrorSource::Signature(Arc::new(err))
     }
 }
 
@@ -354,13 +352,13 @@ impl From<signature::Error> for ParseErrorSource {
 #[non_exhaustive]
 pub struct Error {
     /// What kind of error occurred?
-    kind: ParseErrorKind,
+    kind: NetdocErrorKind,
     /// Do we have more information about the error?>
     msg: Option<Cow<'static, str>>,
     /// Where did the error occur?
     pos: Pos,
     /// Was this caused by another error?
-    source: Option<ParseErrorSource>,
+    source: Option<NetdocErrorSource>,
 }
 
 impl PartialEq for Error {
@@ -420,14 +418,14 @@ impl Error {
     #[must_use]
     pub(crate) fn with_source<T>(mut self, source: T) -> Error
     where
-        T: Into<ParseErrorSource>,
+        T: Into<NetdocErrorSource>,
     {
         self.source = Some(source.into());
         self
     }
 
-    /// Return the [`ParseErrorKind`] of this error.
-    pub fn parse_error_kind(&self) -> ParseErrorKind {
+    /// Return the [`NetdocErrorKind`] of this error.
+    pub fn parse_error_kind(&self) -> NetdocErrorKind {
         self.kind
     }
 }
@@ -455,7 +453,7 @@ macro_rules! declare_into  {
         impl From<$source> for Error {
             fn from(source: $source) -> Error {
                 Error {
-                    kind: ParseErrorKind::$kind,
+                    kind: NetdocErrorKind::$kind,
                     msg: None,
                     pos: Pos::Unknown,
                     source: Some(source.into())
@@ -477,8 +475,8 @@ impl From<tor_error::Bug> for Error {
     fn from(err: tor_error::Bug) -> Self {
         use tor_error::HasKind;
         let kind = match err.kind() {
-            tor_error::ErrorKind::BadApiUsage => ParseErrorKind::BadApiUsage,
-            _ => ParseErrorKind::Internal,
+            tor_error::ErrorKind::BadApiUsage => NetdocErrorKind::BadApiUsage,
+            _ => NetdocErrorKind::Internal,
         };
 
         Error {

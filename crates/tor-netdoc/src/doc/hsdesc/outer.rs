@@ -146,7 +146,7 @@ impl HsDescOuter {
     ///
     /// The reader must contain a single HsDescOuter; we return an error if not.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsOuterKwd>) -> Result<UncheckedHsDescOuter> {
-        use crate::err::ParseErrorKind as EK;
+        use crate::err::NetdocErrorKind as EK;
         use HsOuterKwd::*;
 
         let s = reader.str();

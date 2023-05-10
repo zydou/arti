@@ -2,7 +2,7 @@
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::Item;
-use crate::{ParseErrorKind as EK, Result};
+use crate::{NetdocErrorKind as EK, Result};
 
 /// May an Item take an object?
 #[derive(Copy, Clone)]
