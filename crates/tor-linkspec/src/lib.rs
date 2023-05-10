@@ -38,6 +38,8 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#[cfg(feature = "decode")]
+pub mod decode;
 mod ids;
 mod ls;
 mod owned;
