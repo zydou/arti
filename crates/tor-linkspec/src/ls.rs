@@ -153,24 +153,24 @@ impl LinkSpec {
 ///
 /// Unlike [`LinkSpec`], this can't be used directly; we only pass it on.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnparsedLinkSpec {
+pub struct EncodedLinkSpec {
     /// The link specifier type.
     lstype: u8,
     /// The body of the link speciier.
     body: Vec<u8>,
 }
 
-impl UnparsedLinkSpec {
-    /// Create a new `UnparsedLinkSpec`.
+impl EncodedLinkSpec {
+    /// Create a new `EncodedLinkSpec`.
     pub fn new(lstype: u8, body: impl Into<Vec<u8>>) -> Self {
-        UnparsedLinkSpec {
+        EncodedLinkSpec {
             lstype,
             body: body.into(),
         }
     }
 }
 
-impl Readable for UnparsedLinkSpec {
+impl Readable for EncodedLinkSpec {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let lstype = r.take_u8()?;
         r.read_nested_u8len(|r| {
@@ -179,7 +179,7 @@ impl Readable for UnparsedLinkSpec {
         })
     }
 }
-impl Writeable for UnparsedLinkSpec {
+impl Writeable for EncodedLinkSpec {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         w.write_u8(self.lstype);
         let mut nested = w.write_nested_u8len();
@@ -265,9 +265,9 @@ mod test {
 
     #[test]
     fn test_unparsed() {
-        fn t(b: &[u8], val: &UnparsedLinkSpec) {
+        fn t(b: &[u8], val: &EncodedLinkSpec) {
             let mut r = Reader::from_slice(b);
-            let got: UnparsedLinkSpec = r.extract().unwrap();
+            let got: EncodedLinkSpec = r.extract().unwrap();
             assert_eq!(r.remaining(), 0);
             assert_eq!(&got, val);
             let mut v = Vec::new();
@@ -278,14 +278,14 @@ mod test {
         // Note that these are not valid linkspecs, but we accept them here.
         t(
             &hex!("00 00"),
-            &UnparsedLinkSpec {
+            &EncodedLinkSpec {
                 lstype: 0,
                 body: vec![],
             },
         );
         t(
             &hex!("00 03 010203"),
-            &UnparsedLinkSpec {
+            &EncodedLinkSpec {
                 lstype: 0,
                 body: vec![1, 2, 3],
             },
@@ -293,7 +293,7 @@ mod test {
 
         t(
             &hex!("99 10 000102030405060708090a0b0c0d0e0f"),
-            &UnparsedLinkSpec {
+            &EncodedLinkSpec {
                 lstype: 0x99,
                 body: (0..=15).collect(),
             },
@@ -305,7 +305,7 @@ mod test {
         use tor_bytes::Error;
         fn t(b: &[u8]) -> Error {
             let mut r = Reader::from_slice(b);
-            let got: Result<UnparsedLinkSpec> = r.extract();
+            let got: Result<EncodedLinkSpec> = r.extract();
             got.err().unwrap()
         }
 

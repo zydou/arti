@@ -49,7 +49,7 @@ pub use ids::{
     set::RelayIdSet,
     RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter,
 };
-pub use ls::{LinkSpec, UnparsedLinkSpec};
+pub use ls::{EncodedLinkSpec, LinkSpec};
 pub use owned::{
     IntoOwnedChanTarget, LoggedChanTarget, OwnedChanTarget, OwnedChanTargetBuilder,
     OwnedCircTarget, OwnedCircTargetBuilder, RelayIds, RelayIdsBuilder,

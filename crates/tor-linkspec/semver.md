@@ -1,0 +1,1 @@
+BREAKING: Rename UnparsedLinkSpec => EncodedLinkSpec
