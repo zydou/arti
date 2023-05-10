@@ -139,17 +139,29 @@ mod test {
         )] = &[
             // (1, 2) and (3, 4)
             ((Excl(1), Excl(2)), (Excl(3), Excl(4))),
+            // (1, 2) and (2, 3)
+            ((Excl(1), Excl(2)), (Excl(2), Excl(3))),
+            // (1, 2) and [2, 3)
+            ((Excl(1), Excl(2)), (Incl(2), Excl(3))),
             // (1, 2) and [2, 3]
             ((Excl(1), Excl(2)), (Incl(3), Incl(4))),
             // (-inf, 2) and [2, 3]
             ((Unbounded, Excl(2)), (Incl(2), Incl(3))),
+            // (-inf, 2) and (2, inf)
+            ((Unbounded, Excl(2)), (Excl(2), Unbounded)),
             // (-inf, 2) and [2, inf)
             ((Unbounded, Excl(2)), (Incl(2), Unbounded)),
         ];
 
         for (range1, range2) in NON_OVERLAPPING_RANGES {
             let intersection = intersect(range1, range2);
-            assert!(intersection.is_none());
+            assert!(
+                intersection.is_none(),
+                "{:?} and {:?} => {:?}",
+                range1,
+                range2,
+                intersection
+            );
         }
     }
 
