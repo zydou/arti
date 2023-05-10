@@ -207,6 +207,11 @@ impl EncodedLinkSpec {
         r.should_be_exhausted()?;
         Ok(ls)
     }
+
+    /// Return the link spec type for this `EncodedLinkSpec`.
+    pub fn lstype(&self) -> LinkSpecType {
+        self.lstype
+    }
 }
 
 impl Readable for EncodedLinkSpec {

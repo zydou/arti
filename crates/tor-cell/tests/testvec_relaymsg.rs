@@ -8,6 +8,7 @@ use tor_bytes::Error as BytesError;
 /// 0.4.5.0-alpha-dev to dump all of its cells to the logs, and
 /// running in a chutney network with "test-network-all".
 use tor_cell::relaycell::{msg, RelayCmd, RelayMsg};
+use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -217,7 +218,10 @@ fn test_extend2() {
             .unwrap();
     let addr = "127.0.0.1:5000".parse::<SocketAddr>().unwrap();
 
-    let ls = vec![addr.into(), rsa.into()];
+    let ls = vec![
+        LinkSpec::from(addr).encode().unwrap(),
+        LinkSpec::from(rsa).encode().unwrap(),
+    ];
     msg(
         cmd,
         body,

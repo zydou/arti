@@ -218,7 +218,7 @@ pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {
 /// Anything that implements 'CircTarget' can be used as the
 /// identity of a relay for the purposes of extending a circuit.
 pub trait CircTarget: ChanTarget {
-    /// Return a new vector of link specifiers for this relay.
+    /// Return a new vector of encoded link specifiers for this relay.
     ///
     /// Note that, outside of this method, nothing in Arti should be re-ordering
     /// the the link specifiers returned by this method.  It is this method's
@@ -232,14 +232,14 @@ pub trait CircTarget: ChanTarget {
     // TODO: This is a questionable API. I'd rather return an iterator
     // of link specifiers, but that's not so easy to do, since it seems
     // doing so correctly would require default associated types.
-    fn linkspecs(&self) -> Vec<crate::LinkSpec> {
+    fn linkspecs(&self) -> tor_bytes::EncodeResult<Vec<crate::EncodedLinkSpec>> {
         let mut result: Vec<_> = self.identities().map(|id| id.to_owned().into()).collect();
         #[allow(irrefutable_let_patterns)]
         if let ChannelMethod::Direct(addrs) = self.chan_method() {
             result.extend(addrs.into_iter().map(crate::LinkSpec::from));
         }
         crate::LinkSpec::sort_by_type(&mut result[..]);
-        result
+        result.into_iter().map(|ls| ls.encode()).collect()
     }
     /// Return the ntor onion key for this relay
     fn ntor_onion_key(&self) -> &pk::curve25519::PublicKey;
@@ -382,7 +382,13 @@ mod test {
     #[test]
     fn test_linkspecs() {
         let ex = example();
-        let specs = ex.linkspecs();
+        let specs = ex
+            .linkspecs()
+            .unwrap()
+            .into_iter()
+            .map(|ls| ls.parse())
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         assert_eq!(4, specs.len());
 
         use crate::ls::LinkSpec;
