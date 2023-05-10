@@ -14,9 +14,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 full = ["pt-client"]
-experimental = ["decode"]
+experimental = ["decode", "verbatim"]
 pt-client = []
 decode = []
+verbatim = []
 
 [dependencies]
 base64ct = "1.5.1"

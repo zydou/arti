@@ -45,6 +45,8 @@ mod ls;
 mod owned;
 mod traits;
 mod transport;
+#[cfg(feature = "verbatim")]
+pub mod verbatim;
 
 pub use ids::{
     by_id::{ByRelayIds, ByRelayIdsError},
