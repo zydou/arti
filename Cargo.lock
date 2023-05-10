@@ -4250,6 +4250,7 @@ version = "0.7.0"
 dependencies = [
  "base64ct",
  "by_address",
+ "caret",
  "cfg-if",
  "derive_builder_fork_arti",
  "derive_more",

@@ -5,6 +5,7 @@
 
 use std::net::{IpAddr, SocketAddr};
 
+use caret::caret_int;
 use tor_bytes::{EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -22,27 +23,32 @@ pub enum LinkSpec {
     /// The Ed25519 identity of the relay
     Ed25519Id(ed25519::Ed25519Identity),
     /// A link specifier that we didn't recognize
-    Unrecognized(u8, Vec<u8>),
+    Unrecognized(LinkSpecType, Vec<u8>),
 }
 
-/// Indicates an IPv4 ORPORT link specifier.
-const LSTYPE_ORPORT_V4: u8 = 0;
-/// Indicates an IPv6 ORPORT link specifier.
-const LSTYPE_ORPORT_V6: u8 = 1;
-/// Indicates an RSA ID fingerprint link specifier
-const LSTYPE_RSAID: u8 = 2;
-/// Indicates an Ed25519 link specifier
-const LSTYPE_ED25519ID: u8 = 3;
+caret_int! {
+    /// A numeric identifier for the type of a [`LinkSpec`].
+    pub struct LinkSpecType(u8) {
+        /// Indicates an IPv4 ORPORT link specifier.
+        ORPORT_V4 = 0,
+        /// Indicates an IPv6 ORPORT link specifier.
+        ORPORT_V6 = 1,
+        /// Indicates an RSA ID fingerprint link specifier
+        RSAID = 2,
+        /// Indicates an Ed25519 link specifier
+        ED25519ID = 3,
+    }
+}
 
 impl Readable for LinkSpec {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        let lstype = r.take_u8()?;
+        let lstype = r.take_u8()?.into();
         r.read_nested_u8len(|r| Self::from_type_and_body(lstype, r))
     }
 }
 impl Writeable for LinkSpec {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
-        w.write_u8(self.lstype());
+        w.write_u8(self.lstype().into());
         {
             let mut inner = w.write_nested_u8len();
             self.encode_body(&mut *inner)?;
@@ -96,7 +102,7 @@ impl LinkSpec {
             RsaId(_) => 1,
             Ed25519Id(_) => 2,
             OrPort(IpAddr::V6(_), _) => 3,
-            Unrecognized(n, _) => *n,
+            Unrecognized(n, _) => (*n).into(),
         }
     }
 
@@ -110,30 +116,32 @@ impl LinkSpec {
     /// given reader `r`.
     ///
     /// Does not check whether `r` is exhausted at the end of the operation or not.
-    fn from_type_and_body(lstype: u8, r: &mut Reader<'_>) -> Result<Self> {
+    fn from_type_and_body(lstype: LinkSpecType, r: &mut Reader<'_>) -> Result<Self> {
+        use LinkSpecType as LST;
         Ok(match lstype {
-            LSTYPE_ORPORT_V4 => {
+            LST::ORPORT_V4 => {
                 let addr = IpAddr::V4(r.extract()?);
                 LinkSpec::OrPort(addr, r.take_u16()?)
             }
-            LSTYPE_ORPORT_V6 => {
+            LST::ORPORT_V6 => {
                 let addr = IpAddr::V6(r.extract()?);
                 LinkSpec::OrPort(addr, r.take_u16()?)
             }
-            LSTYPE_RSAID => LinkSpec::RsaId(r.extract()?),
-            LSTYPE_ED25519ID => LinkSpec::Ed25519Id(r.extract()?),
+            LST::RSAID => LinkSpec::RsaId(r.extract()?),
+            LST::ED25519ID => LinkSpec::Ed25519Id(r.extract()?),
             _ => LinkSpec::Unrecognized(lstype, r.take_rest().into()),
         })
     }
 
     /// Return the command for this linkspec.
-    fn lstype(&self) -> u8 {
+    fn lstype(&self) -> LinkSpecType {
+        use LinkSpecType as LST;
         match self {
-            LinkSpec::OrPort(IpAddr::V4(_), _) => LSTYPE_ORPORT_V4,
-            LinkSpec::OrPort(IpAddr::V6(_), _) => LSTYPE_ORPORT_V6,
+            LinkSpec::OrPort(IpAddr::V4(_), _) => LST::ORPORT_V4,
+            LinkSpec::OrPort(IpAddr::V6(_), _) => LST::ORPORT_V6,
 
-            LinkSpec::RsaId(_) => LSTYPE_RSAID,
-            LinkSpec::Ed25519Id(_) => LSTYPE_ED25519ID,
+            LinkSpec::RsaId(_) => LST::RSAID,
+            LinkSpec::Ed25519Id(_) => LST::ED25519ID,
             LinkSpec::Unrecognized(lstype, _) => *lstype,
         }
     }
@@ -178,14 +186,14 @@ impl LinkSpec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedLinkSpec {
     /// The link specifier type.
-    lstype: u8,
+    lstype: LinkSpecType,
     /// The body of the link speciier.
     body: Vec<u8>,
 }
 
 impl EncodedLinkSpec {
     /// Create a new `EncodedLinkSpec`.
-    pub fn new(lstype: u8, body: impl Into<Vec<u8>>) -> Self {
+    pub fn new(lstype: LinkSpecType, body: impl Into<Vec<u8>>) -> Self {
         EncodedLinkSpec {
             lstype,
             body: body.into(),
@@ -203,7 +211,7 @@ impl EncodedLinkSpec {
 
 impl Readable for EncodedLinkSpec {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        let lstype = r.take_u8()?;
+        let lstype = r.take_u8()?.into();
         r.read_nested_u8len(|r| {
             let body = r.take_rest().to_vec();
             Ok(Self { lstype, body })
@@ -212,7 +220,7 @@ impl Readable for EncodedLinkSpec {
 }
 impl Writeable for EncodedLinkSpec {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
-        w.write_u8(self.lstype);
+        w.write_u8(self.lstype.into());
         let mut nested = w.write_nested_u8len();
         nested.write_all(&self.body[..]);
         nested.finish()
@@ -275,7 +283,7 @@ mod test {
 
         t(
             &[77, 7, 115, 116, 114, 97, 110, 103, 101],
-            &LinkSpec::Unrecognized(77, (&b"strange"[..]).into()),
+            &LinkSpec::Unrecognized(77.into(), (&b"strange"[..]).into()),
         );
     }
 
@@ -310,14 +318,14 @@ mod test {
         t(
             &hex!("00 00"),
             &EncodedLinkSpec {
-                lstype: 0,
+                lstype: 0.into(),
                 body: vec![],
             },
         );
         t(
             &hex!("00 03 010203"),
             &EncodedLinkSpec {
-                lstype: 0,
+                lstype: 0.into(),
                 body: vec![1, 2, 3],
             },
         );
@@ -325,7 +333,7 @@ mod test {
         t(
             &hex!("99 10 000102030405060708090a0b0c0d0e0f"),
             &EncodedLinkSpec {
-                lstype: 0x99,
+                lstype: 0x99.into(),
                 body: (0..=15).collect(),
             },
         );

@@ -863,7 +863,7 @@ fn test_intro_established() {
 fn testvec_intro_payload() {
     use tor_bytes::{Reader, Writer};
     use tor_cell::relaycell::hs::intro_payload::*;
-    use tor_linkspec::EncodedLinkSpec;
+    use tor_linkspec::{EncodedLinkSpec, LinkSpecType};
 
     let cookie = hex!("1EFFEACE9BE629B357ADA359071A7912DB828A5B").into();
     let onion_key = OnionKey::NtorOnionKey(
@@ -872,10 +872,13 @@ fn testvec_intro_payload() {
             .unwrap(),
     );
     let link_specifiers = vec![
-        EncodedLinkSpec::new(0, hex!("7F000001138A")),
-        EncodedLinkSpec::new(2, hex!("E48664DBCCEF9650B5D0E7B60E6DE9BCED2FB91E")),
+        EncodedLinkSpec::new(LinkSpecType::ORPORT_V4, hex!("7F000001138A")),
         EncodedLinkSpec::new(
-            3,
+            LinkSpecType::RSAID,
+            hex!("E48664DBCCEF9650B5D0E7B60E6DE9BCED2FB91E"),
+        ),
+        EncodedLinkSpec::new(
+            LinkSpecType::ED25519ID,
             hex!("3FF84AA4B21453D20106BD4EDDA919386BF67D541CAA78F38BE6A08C2B3D0C4F"),
         ),
     ];
