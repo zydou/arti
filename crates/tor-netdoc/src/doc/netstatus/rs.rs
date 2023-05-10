@@ -15,7 +15,7 @@ use crate::parse::parser::Section;
 use crate::types::misc::*;
 use crate::types::version::TorVersion;
 use crate::util::intern::InternCache;
-use crate::{Error, ParseErrorKind as EK, Result};
+use crate::{Error, NetdocErrorKind as EK, Result};
 use std::sync::Arc;
 use std::{net, time};
 

@@ -40,7 +40,7 @@ use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::util::PeekableIterator;
-use crate::{doc, AllowAnnotations, Error, ParseErrorKind as EK, Result};
+use crate::{doc, AllowAnnotations, Error, NetdocErrorKind as EK, Result};
 
 use ll::pk::ed25519::Ed25519Identity;
 use once_cell::sync::Lazy;

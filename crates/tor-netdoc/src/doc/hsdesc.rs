@@ -19,7 +19,7 @@ mod outer;
 
 pub use desc_enc::DecryptionError;
 
-use crate::{ParseErrorKind as EK, Result};
+use crate::{NetdocErrorKind as EK, Result};
 
 use tor_checkable::signed::{self, SignatureGated};
 use tor_checkable::timed::{self, TimerangeBound};
@@ -256,7 +256,6 @@ impl HsDesc {
     ///
     /// Returns an error if the descriptor cannot be parsed, or if one of the validation steps
     /// fails.
-    #[cfg(feature = "experimental-api")]
     pub fn parse_decrypt_validate(
         input: &str,
         blinded_onion_id: &HsBlindId,

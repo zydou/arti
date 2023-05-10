@@ -55,7 +55,7 @@ use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::private::Sealed;
 use crate::util::PeekableIterator;
-use crate::{Error, ParseErrorKind as EK, Pos, Result};
+use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
 use std::{net, result, time};
 use tor_error::internal;

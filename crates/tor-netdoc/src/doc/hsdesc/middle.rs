@@ -136,7 +136,7 @@ pub(super) struct AuthClient {
 impl AuthClient {
     /// Try to extract an AuthClient from a single AuthClient item.
     fn from_item(item: &Item<'_, HsMiddleKwd>) -> Result<Self> {
-        use crate::ParseErrorKind as EK;
+        use crate::NetdocErrorKind as EK;
 
         if item.kwd() != HsMiddleKwd::AUTH_CLIENT {
             return Err(EK::Internal.with_msg("called with invalid argument."));
@@ -190,7 +190,7 @@ impl HsDescMiddle {
     ///
     /// The reader must contain a single HsDescOuter; we return an error if not.
     fn take_from_reader(reader: &mut NetDocReader<'_, HsMiddleKwd>) -> Result<HsDescMiddle> {
-        use crate::ParseErrorKind as EK;
+        use crate::NetdocErrorKind as EK;
         use HsMiddleKwd::*;
 
         let body = HS_MIDDLE_RULES.parse(reader)?;

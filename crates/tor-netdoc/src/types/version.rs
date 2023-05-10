@@ -42,7 +42,7 @@
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use crate::{ParseErrorKind as EK, Pos};
+use crate::{NetdocErrorKind as EK, Pos};
 
 /// Represents the status tag on a Tor version number
 ///

@@ -7,7 +7,7 @@ use crate::batching_split_before::IteratorExt as _;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::{UnvalidatedEdCert, B64};
-use crate::{ParseErrorKind as EK, Result};
+use crate::{NetdocErrorKind as EK, Result};
 
 use itertools::Itertools as _;
 use once_cell::sync::Lazy;
