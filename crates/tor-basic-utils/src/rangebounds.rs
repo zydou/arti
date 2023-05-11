@@ -205,6 +205,37 @@ mod test {
     }
 
     #[test]
+    fn intersect_unbounded_range() {
+        #[allow(clippy::type_complexity)]
+        const RANGES: &[(Bound<usize>, Bound<usize>)] = &[
+            // (1, 2)
+            (Excl(1), Excl(2)),
+            // (1, 2]
+            (Excl(1), Incl(2)),
+            // [1, 2]
+            (Incl(1), Incl(2)),
+            // [1, 2)
+            (Incl(1), Excl(2)),
+            // (1, inf)
+            (Excl(1), Unbounded),
+            // [1, inf)
+            (Incl(1), Unbounded),
+            // (-inf, 2)
+            (Unbounded, Excl(2)),
+            // (-inf, 2]
+            (Unbounded, Incl(2)),
+        ];
+
+        // The intersection of any interval I with (Unbounded, Unbounded) will be I.
+        let range1 = (Unbounded, Unbounded);
+
+        for range2 in RANGES {
+            let range2 = (range2.0.as_ref(), range2.1.as_ref());
+            assert_eq!(intersect(&range1, &range2).unwrap(), range2);
+        }
+    }
+
+    #[test]
     fn intersect_time_bounds() {
         const MIN: Duration = Duration::from_secs(60);
 
