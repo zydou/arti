@@ -102,7 +102,7 @@ struct Crate {
     toml_file: PathBuf,
     /// Parsed and manipulated copy of Cargo.toml
     toml_doc: Document,
-    /// Pared and unmanipulated copy of Cargo.toml.
+    /// Parsed and un-manipulated copy of Cargo.toml.
     toml_doc_orig: Document,
 }
 
