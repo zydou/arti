@@ -147,7 +147,7 @@ impl HasKind for DescriptorErrorDetail {
             DED::Directory(RE::ResponseTooLong(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(RE::Utf8Encoding(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(other_re) => other_re.kind(),
-            DED::InvalidDescriptor(e) => match e.parse_error_kind() {
+            DED::InvalidDescriptor(e) => match e.netdoc_error_kind() {
                 PEK::BadTimeBound | PEK::BadSignature => EK::OnionServiceDescriptorValidationFailed,
                 _ => EK::OnionServiceDescriptorParsingFailed,
             },
