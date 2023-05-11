@@ -110,6 +110,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use std::fmt::Debug;
+    use std::time::{Duration, SystemTime};
     use Bound::{Excluded as Excl, Included as Incl, Unbounded};
 
     /// A helper that computes the intersection of `range1` and `range2`.
@@ -191,6 +192,40 @@ mod test {
         // intersection = (8, 20]
         assert_eq!(intersection.start_bound(), Bound::Excluded(&8));
         assert_eq!(intersection.end_bound(), Bound::Included(&20));
+    }
+
+    #[test]
+    fn intersect_time_bounds() {
+        const MIN: Duration = Duration::from_secs(60);
+
+        // time (relative to now):  0   1   2   3
+        //                          |   |   |   |
+        // [t1, t2]:                [.......]
+        // [t3, t4]:                    [.......]
+        // intersection:                [...]
+        let now = SystemTime::now();
+        let t1 = now;
+        let t2 = now + 2 * MIN;
+
+        let t3 = now + 1 * MIN;
+        let t4 = now + 3 * MIN;
+
+        let b1 = (Bound::Included(t1), Bound::Included(t2));
+        let b2 = (Bound::Included(t3), Bound::Included(t4));
+        let expected = (Bound::Included(&t3), Bound::Included(&t2));
+        assert_eq!(intersect(&b1, &b2).unwrap(), expected);
+
+        //  t1  -  -  t2  -  -
+        //                   t3  -  -  t4
+        //
+        // time (relative to now):  0   1   2   3   4   5   6   7
+        //                          |   |   |   |   |   |   |   |
+        // [t1, t2]:                [.......]
+        // [t3, t4]:                                [............]
+        let t3 = now + 4 * MIN;
+        let t4 = now + 7 * MIN;
+        let b2 = (Bound::Included(t3), Bound::Included(t4));
+        assert!(intersect(&b1, &b2).is_none());
     }
 
     #[test]
