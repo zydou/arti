@@ -45,38 +45,12 @@
 //!
 //! This is not very efficient, and is not trying to be.
 
+mod graph;
+
 use anyhow::{anyhow, Context, Result};
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use toml_edit::{Array, Document, Item, Table, Value};
-
-/// Given a hashmap representing a binary relationship, compute its transitive closure.
-fn transitive_closure<K: Hash + Eq + PartialEq + Clone>(
-    inp: &HashMap<K, HashSet<K>>,
-) -> HashMap<K, HashSet<K>> {
-    let mut out = inp.clone();
-    let max_iters = inp.len();
-    for _ in 0..max_iters {
-        let mut new_out = out.clone();
-        for (k, vs) in out.iter() {
-            let new_vs = new_out
-                .get_mut(k)
-                .expect("That key should have been there when I cloned it...");
-            for v in vs.iter() {
-                if let Some(vv) = out.get(v) {
-                    new_vs.extend(vv.iter().cloned());
-                }
-            }
-        }
-        if out == new_out {
-            break;
-        } else {
-            out = new_out;
-        }
-    }
-    out
-}
 
 /// A warning we return from our linter.
 ///
@@ -184,36 +158,19 @@ impl Crate {
             .entry("full")
             .or_insert_with(|| Item::Value(Value::Array(Array::new())));
 
-        let features_map: Result<HashMap<String, HashSet<String>>> = features
-            .iter()
-            .map(|(k, v)| {
-                Ok((
-                    k.to_string(),
-                    v.as_array()
-                        .ok_or_else(|| anyhow!("features.{} was not an array!", k))?
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| s.to_string())
-                        .collect(),
-                ))
-            })
-            .collect();
-        let features_map = features_map?;
+        let graph = graph::FeatureGraph::from_features_table(features)?;
 
-        let all_features: HashSet<String> = features_map.keys().cloned().collect();
-
-        let reachable = transitive_closure(&features_map);
         // Enforce rule 1.  (There is a "Full" feature.)
-        if !reachable.contains_key("full") {
+        if !graph.contains_feature("full") {
             w("full feature does not exist. Adding.".to_string());
             // Actually, we fixed it already, by adding it to `features` above.
         }
 
-        let empty = HashSet::new();
-        let full = reachable.get("full").unwrap_or(&empty);
-        let experimental = reachable.get("experimental").unwrap_or(&empty);
-        let nonadditive = reachable.get("__nonadditive").unwrap_or(&empty);
-        let reachable_from_toplevel: HashSet<_> = [full, experimental, nonadditive]
+        let all_features: HashSet<_> = graph.all_features().collect();
+        let full: HashSet<_> = graph.all_reachable_from("full").collect();
+        let experimental: HashSet<_> = graph.all_reachable_from("experimental").collect();
+        let nonadditive: HashSet<_> = graph.all_reachable_from("__nonadditive").collect();
+        let reachable_from_toplevel: HashSet<_> = [&full, &experimental, &nonadditive]
             .iter()
             .flat_map(|s| s.iter())
             .cloned()
@@ -221,13 +178,13 @@ impl Crate {
 
         // Enforce rule 4: No feature we declare may be reachable from two of full,
         // experimental, and __nonadditive.
-        for item in experimental.intersection(full) {
+        for item in experimental.intersection(&full) {
             w(format!("{item} reachable from both full and experimental"));
         }
-        for item in nonadditive.intersection(full) {
+        for item in nonadditive.intersection(&full) {
             w(format!("{item} reachable from both full and nonadditive"));
         }
-        for item in nonadditive.intersection(experimental) {
+        for item in nonadditive.intersection(&experimental) {
             w(format!(
                 "{item} reachable from both experimental and nonadditive"
             ));
@@ -237,16 +194,14 @@ impl Crate {
         // experimental, or __nonadditive, except for those
         // top-level features, and "default".
         for feat in all_features.difference(&reachable_from_toplevel) {
-            if ["full", "default", "experimental", "__nonaddtive"].contains(&feat.as_str()) {
+            if ["full", "default", "experimental", "__nonadditive"].contains(&feat.as_ref()) {
                 continue;
             }
             w(format!(
                 "{feat} not reachable from full, experimental, or __nonadditive. Marking."
             ));
 
-            let decor = features
-                .key_decor_mut(feat.as_str())
-                .expect("No decor on key!"); // (There should always be decor afaict.)
+            let decor = features.key_decor_mut(feat).expect("No decor on key!"); // (There should always be decor afaict.)
             let prefix = match decor.prefix() {
                 Some(r) => r.as_str().expect("prefix not a string"), // (We can't proceed if the prefix decor is not a string.)
                 None => "",

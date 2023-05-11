@@ -12,6 +12,7 @@ description = "Tool used by arti to enforce certain properties in our Cargo feat
 
 [dependencies]
 anyhow = "1.0.69"
+itertools = "0.10.1"
 toml_edit = "0.19.4"
 
 [workspace]
