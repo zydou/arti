@@ -12,7 +12,7 @@ use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
-use tor_linkspec::LinkSpec;
+use tor_linkspec::EncodedLinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use bitflags::bitflags;
@@ -729,7 +729,7 @@ pub struct Extend2 {
     /// These link specifiers describe where to find the target relay
     /// that the recipient should extend to.  They include things like
     /// IP addresses and identity keys.
-    linkspec: Vec<LinkSpec>,
+    linkspec: Vec<EncodedLinkSpec>,
     /// Type of handshake to be sent in a CREATE2 cell
     handshake_type: u16,
     /// Body of the handshake to be sent in a CREATE2 cell
@@ -737,9 +737,7 @@ pub struct Extend2 {
 }
 impl Extend2 {
     /// Create a new Extend2 cell.
-    pub fn new(mut linkspec: Vec<LinkSpec>, handshake_type: u16, handshake: Vec<u8>) -> Self {
-        LinkSpec::sort_by_type(linkspec.as_mut());
-
+    pub fn new(linkspec: Vec<EncodedLinkSpec>, handshake_type: u16, handshake: Vec<u8>) -> Self {
         Extend2 {
             linkspec,
             handshake_type,

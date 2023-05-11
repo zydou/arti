@@ -11,7 +11,7 @@ use super::ext::{decl_extension_group, ExtGroup, ExtList, UnrecognizedExt};
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
 use tor_hscrypto::RendCookie;
-use tor_linkspec::UnparsedLinkSpec;
+use tor_linkspec::EncodedLinkSpec;
 
 caret_int! {
     /// Type code for an extension in an [`IntroduceHandshakePayload`].
@@ -120,7 +120,7 @@ pub struct IntroduceHandshakePayload {
     /// A list of link specifiers to identify the rendezvous point.
     ///
     /// (`NSPEC`, `LSTYPE`, `LSLEN`, and `LSPEC` in the spec.)
-    link_specifiers: Vec<UnparsedLinkSpec>,
+    link_specifiers: Vec<EncodedLinkSpec>,
 }
 
 impl Readable for IntroduceHandshakePayload {
@@ -161,7 +161,7 @@ impl IntroduceHandshakePayload {
     pub fn new(
         cookie: RendCookie,
         onion_key: OnionKey,
-        link_specifiers: Vec<UnparsedLinkSpec>,
+        link_specifiers: Vec<EncodedLinkSpec>,
     ) -> Self {
         let extensions = ExtList::default();
         Self {

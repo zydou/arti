@@ -8,6 +8,7 @@ use tor_bytes::Error as BytesError;
 /// 0.4.5.0-alpha-dev to dump all of its cells to the logs, and
 /// running in a chutney network with "test-network-all".
 use tor_cell::relaycell::{msg, RelayCmd, RelayMsg};
+use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -217,7 +218,10 @@ fn test_extend2() {
             .unwrap();
     let addr = "127.0.0.1:5000".parse::<SocketAddr>().unwrap();
 
-    let ls = vec![addr.into(), rsa.into()];
+    let ls = vec![
+        LinkSpec::from(addr).encode().unwrap(),
+        LinkSpec::from(rsa).encode().unwrap(),
+    ];
     msg(
         cmd,
         body,
@@ -863,7 +867,7 @@ fn test_intro_established() {
 fn testvec_intro_payload() {
     use tor_bytes::{Reader, Writer};
     use tor_cell::relaycell::hs::intro_payload::*;
-    use tor_linkspec::UnparsedLinkSpec;
+    use tor_linkspec::{EncodedLinkSpec, LinkSpecType};
 
     let cookie = hex!("1EFFEACE9BE629B357ADA359071A7912DB828A5B").into();
     let onion_key = OnionKey::NtorOnionKey(
@@ -872,10 +876,13 @@ fn testvec_intro_payload() {
             .unwrap(),
     );
     let link_specifiers = vec![
-        UnparsedLinkSpec::new(0, hex!("7F000001138A")),
-        UnparsedLinkSpec::new(2, hex!("E48664DBCCEF9650B5D0E7B60E6DE9BCED2FB91E")),
-        UnparsedLinkSpec::new(
-            3,
+        EncodedLinkSpec::new(LinkSpecType::ORPORT_V4, hex!("7F000001138A")),
+        EncodedLinkSpec::new(
+            LinkSpecType::RSAID,
+            hex!("E48664DBCCEF9650B5D0E7B60E6DE9BCED2FB91E"),
+        ),
+        EncodedLinkSpec::new(
+            LinkSpecType::ED25519ID,
             hex!("3FF84AA4B21453D20106BD4EDDA919386BF67D541CAA78F38BE6A08C2B3D0C4F"),
         ),
     ];

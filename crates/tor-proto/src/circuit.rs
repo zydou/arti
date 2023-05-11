@@ -68,8 +68,8 @@ use tor_cell::{
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget, RelayIdType};
+use tor_error::{bad_api_usage, internal, into_internal};
+use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 
 use futures::channel::{mpsc, oneshot};
 
@@ -355,9 +355,11 @@ impl ClientCirc {
                 .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
             pk: *target.ntor_onion_key(),
         };
-        let mut linkspecs = target.linkspecs();
+        let mut linkspecs = target
+            .linkspecs()
+            .map_err(into_internal!("Could not encode linkspecs for extend_ntor"))?;
         if !params.extend_by_ed25519_id() {
-            linkspecs.retain(|ls| !matches!(ls, LinkSpec::Ed25519Id(_)));
+            linkspecs.retain(|ls| ls.lstype() != LinkSpecType::ED25519ID);
         }
         // FlowCtrl=1 means that this hop supports authenticated SENDMEs
         let require_sendme_auth = RequireSendmeAuth::from_protocols(target.protovers());

@@ -53,7 +53,7 @@ use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
 use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
-use tor_linkspec::{LinkSpec, OwnedChanTarget, RelayIds};
+use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
 use tracing::{debug, trace, warn};
 
@@ -113,7 +113,7 @@ pub(super) enum CtrlMsg {
         /// The handshake type to use for this hop.
         public_key: NtorPublicKey,
         /// Information about how to connect to the relay we're extending to.
-        linkspecs: Vec<LinkSpec>,
+        linkspecs: Vec<EncodedLinkSpec>,
         /// Whether the hop supports authenticated SENDME cells.
         /// (And therefore, whether we should require them.)
         require_sendme_auth: RequireSendmeAuth,
@@ -379,7 +379,7 @@ where
         peer_id: OwnedChanTarget,
         handshake_id: u16,
         key: &H::KeyType,
-        linkspecs: Vec<LinkSpec>,
+        linkspecs: Vec<EncodedLinkSpec>,
         require_sendme_auth: RequireSendmeAuth,
         params: CircParameters,
         reactor: &mut Reactor,

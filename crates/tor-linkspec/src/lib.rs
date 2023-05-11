@@ -38,18 +38,22 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#[cfg(feature = "decode")]
+pub mod decode;
 mod ids;
 mod ls;
 mod owned;
 mod traits;
 mod transport;
+#[cfg(feature = "verbatim")]
+pub mod verbatim;
 
 pub use ids::{
     by_id::{ByRelayIds, ByRelayIdsError},
     set::RelayIdSet,
     RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter,
 };
-pub use ls::{LinkSpec, UnparsedLinkSpec};
+pub use ls::{EncodedLinkSpec, LinkSpec, LinkSpecType};
 pub use owned::{
     IntoOwnedChanTarget, LoggedChanTarget, OwnedChanTarget, OwnedChanTargetBuilder,
     OwnedCircTarget, OwnedCircTargetBuilder, RelayIds, RelayIdsBuilder,
