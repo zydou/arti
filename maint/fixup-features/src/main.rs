@@ -1,18 +1,38 @@
 //! A quick and dirty command-line tool to enforce certain properties about
 //! Arti's Cargo.toml files.
 //!
+//!
+//! Definitions.
+//!    
+//! - An **experimental** feature is one for which we do not provide semver guarantees.
+//! - A **non-additive** feature is one whose behavior does something other than
+//!   add functionality to its crate.  (For example, building statically or
+//!   switching out a default is non-additive.)
+//! - The **meta** features are `default`, `full`, `experimental`,
+//!   `__is_nonadditive`, and `__is_experimental`.
+//! - The **toplevel** features are `default`, `full`, and `experimental`.
+//! - A feature A "is reachable from" some feature B if there is a nonempty path from A
+//!   to B in the feature graph.
+//! - A feature A "directly depends on" some feature B if there is an edge from
+//!   A to B in the feature graph.  We also say that feature B "is listed in"
+//!   feature A.
+//!
 //! The properties that we want to enforce are:
 //!
 //! 1. Every crate has a "full" feature.
 //! 2. For every crate within Arti, if we depend on that crate, our "full"
 //!    includes that crate's "full".
-//! 3. Every feature we declare is reachable from "full", "experimental", or
-//!    "__nonadditive"--except for "full", "experimental", "__nonadditive", and
-//!    "default". property automatically.)
-//! 4. No feature we declare is reachable from more than one of "full",
-//!    "experimental", or "__nonadditive".
+//! 3. Every feature listed in `experimental` depends on `__is_experimental`.
+//!    Every feature that depends on `__is_experimental` is reachable from `experimental`.
+//!    Call such features "experimental" features.
+//! 4. Call a feature "non-additive" if and only if it depends directly on `__is_nonadditive`.
+//!    Every non-meta feature we declare is reachable from "full" or "experimental",
+//!    or it is non-additive.
+//! 5. Every feature reachable from `default` is reachable from `full`.
+//! 6. No non-additive feature is reachable from `full` or `experimental`.
+//! 7. No experimental is reachable from `full`.
 //!
-//! This tool can edit Cargo.toml files to enforce the rules 1 and 2
+//!XXXX EDIT TO BECOME ACCURATE This tool can edit Cargo.toml files to enforce the rules 1 and 2
 //! automatically.  For rule 3, it can annotate any offending features with
 //! comments complaining about how they need to be included in one of the
 //! top-level features.
