@@ -17,19 +17,19 @@ See also: [#728]
 ## Usage example
 
 ```rust
-let client_id = HsClientIdentity::from_str("alice")?;
+let client_spec = HsClientSpecifier::from_str("alice")?;
 
-let intro_auth_key_id: HsClientSecretKeyIdentity =
-    (client_id, hs_id, HsClientKeyRole::IntroAuth).into();
+let intro_auth_key_spec: HsClientSecretKeySpecifier =
+    (client_spec, hs_id, HsClientKeyRole::IntroAuth).into();
 
 // Get KP_hsc_intro_auth
-let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_auth_key_id)?;
+let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_auth_key_spec)?;
 
 // Alternatively, instead of returning a type-erased value, KeyStore::get could return a `Key`
 // (TODO hs: come up with a better name), `Key` being an enum over all supported key types.
 // `Key` could then have a `Key::as` convenience function that returns the underlying key (or
 // an error if none of the variants have the requested type):
-// let sk: Option<ed25519::SecretKey> = keymgr.get(&key_id)?.as::<ed25519::SecretKey>().unwrap();
+// let sk: Option<ed25519::SecretKey> = keymgr.get(&key_spec)?.as::<ed25519::SecretKey>().unwrap();
 ```
 
 ## Key stores
@@ -129,11 +129,11 @@ client_dir = ""
 key_dir = ""
 ```
 
-## Key identities
+## Key specifiers
 
-We introduce the concept of a "key identity" (specified for each supported key
-type via the `KeyIdentity` trait). A "key identity" uniquely identifies an
-instance of a type of key. From an implementation standpoint, `KeyIdentity`
+We introduce the concept of a "key specifier" (specified for each supported key
+type via the `KeySpecifier` trait). A "key specifier" uniquely identifies an
+instance of a type of key. From an implementation standpoint, `KeySpecifier`
 implementers must specify:
 * `arti_path`: the location of the key in the Arti key store. This also serves
   as a unique identifier for a particular instance of a key.
@@ -145,7 +145,7 @@ is the `arti_path` of a particular key):
 ```
 <keys.arti_store.root_dir>
 ├── client
-│   ├── alice                               # HS client identity "alice"
+│   ├── alice                               # HS client specifier "alice"
 │   │   ├── foo.onion
 │   │   │   ├── hsc_desc_enc.arti_priv      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
 │   │   │   │                               # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
@@ -161,7 +161,7 @@ is the `arti_path` of a particular key):
 │   │       └── hsc_intro_auth.arti_priv    # arti_path = "client/alice/bar.onion/hsc_intro_auth"
 │   │                                       # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
 │   │                                       # signatures to prove to bar.onion she is authorized")
-│   └── bob                                 # HS client identity "bob"
+│   └── bob                                 # HS client specifier "bob"
 │       └── foo.onion
 │           ├── hsc_desc_enc.arti_priv      # arti_path = "client/bob/foo.onion/hsc_desc_enc"
 │           │                               # (HS client Bob's x25519 hsc_desc_enc keypair for decrypting the HS
@@ -189,14 +189,14 @@ is the `arti_path` of a particular key):
 ...
 ```
 
-### The `KeyIdentity` trait
+### The `KeySpecifier` trait
 
 ```rust
 /// The path of a key in the Arti key store.
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements
-/// `KeyIdentity` and its corresponding `ArtiPath`.
-/// A `KeyIdentity` can be converted to an `ArtiPath`,
+/// `KeySpecifier` and its corresponding `ArtiPath`.
+/// A `KeySpecifier` can be converted to an `ArtiPath`,
 /// but the reverse conversion is not supported.
 //
 // TODO hs: restrict the character set and syntax for values of this type
@@ -208,10 +208,10 @@ pub struct ArtiPath(PathBuf);
 /// The path of a key in the C Tor key store.
 pub struct CTorPath(PathBuf);
 
-/// The "identity" of a key.
+/// The "specifier" of a key.
 ///
-/// `KeyIdentity::arti_path()` uniquely identifies an instance of a key.
-pub trait KeyIdentity {
+/// `KeySpecifier::arti_path()` uniquely identifies an instance of a key.
+pub trait KeySpecifier {
     /// The location of the key in the Arti key store.
     ///
     /// This also acts as a unique identifier for a specific key instance.
@@ -223,9 +223,9 @@ pub trait KeyIdentity {
 
 /// An identifier for an HS client.
 #[derive(AsRef, Into, ...)]
-struct HsClientIdentity(String);
+struct HsClientSpecifier(String);
 
-impl FromStr for HsClientIdentity { /* check syntax rules */ }
+impl FromStr for HsClientSpecifier { /* check syntax rules */ }
 
 /// The role of a HS client key.
 enum HsClientKeyRole {
@@ -235,20 +235,20 @@ enum HsClientKeyRole {
     IntroAuth,
 }
 
-struct HsClientSecretKeyIdentity {
+struct HsClientSecretKeySpecifier {
     /// The client associated with this key.
-    client_id: HsClientIdentity,
+    client_spec: HsClientSpecifier,
     /// The hidden service this authorization key is for.
     hs_id: HsId,
     /// The role of the key.
     role: HsClientKeyRole,
 }
 
-impl KeyIdentity for HsClientSecretKeyIdentity {
+impl KeySpecifier for HsClientSecretKeySpecifier {
     fn arti_path(&self) -> ArtiPath {
         ArtiPath(
             Path::new("client")
-                .join(self.client_id.to_string())
+                .join(self.client_spec.to_string())
                 .join(self.hs_id.to_string())
                 .join(self.role.to_string()),
         )
@@ -289,10 +289,10 @@ struct KeyMgr {
 
 impl KeyMgr {
     /// Read a key from the key store, attempting to deserialize it as `K`.
-    pub fn get<K: Any + EncodableKey>(&self, key_id: &dyn KeyIdentity) -> Result<Option<K>> {
-        // Check if the requested key identity exists in any of the key stores:
+    pub fn get<K: Any + EncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
+        // Check if the requested key specifier exists in any of the key stores:
         for store in &self.key_store {
-            let key = store.get(key_id, K::key_type())?;
+            let key = store.get(key_spec, K::key_type())?;
 
             if key.is_some() {
                 // Found it! Now try to downcast it to the right type (the
@@ -319,19 +319,19 @@ impl KeyMgr {
     /// TODO hs: update the API to return a Result<Option<K>> here (i.e. the old key)
     pub fn insert<K: EncodableKey>(
         &self,
-        key_id: &dyn KeyIdentity,
+        key_spec: &dyn KeySpecifier,
         key: K,
     ) -> Result<()> {
         for store in &self.key_store {
-            if store.has_key_bundle(key_id) {
-                return store.insert(&key, key_id, K::key_type());
+            if store.has_key_bundle(key_spec) {
+                return store.insert(&key, key_spec, K::key_type());
             }
         }
 
-        // None of the stores has the key bundle of key_id, so we insert the key into the first key
+        // None of the stores has the key bundle of key_spec, so we insert the key into the first key
         // store.
         if let Some(store) = self.key_store.first() {
-            return store.insert(&key, key_id, K::key_type());
+            return store.insert(&key, key_spec, K::key_type());
         }
 
         // Bug: no key stores were configured
@@ -344,10 +344,10 @@ impl KeyMgr {
     /// error is returned if none of the key stores contain the specified key.
     pub fn remove<K: EncodableKey>(
         &self,
-        key_id: &dyn KeyIdentity,
+        key_spec: &dyn KeySpecifier,
     ) -> Result<()> {
         for store in &self.key_store {
-            match store.remove(key_id, K::key_type()) {
+            match store.remove(key_spec, K::key_type()) {
                 Ok(()) => return Ok(()),
                 Err(e) if e is NotFound => continue,
                 Err(e) => return Err(e),
@@ -367,14 +367,14 @@ stores all implement the `KeyStore` trait:
 ```rust
 /// A generic key store.
 pub trait KeyStore {
-    /// Retrieve the key identified by `key_id`.
-    fn get(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<Option<ErasedKey>>;
+    /// Retrieve the key identified by `key_spec`.
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
-    fn insert(&self, key: &dyn EncodableKey, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()>;
+    fn insert(&self, key: &dyn EncodableKey, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()>;
 
     /// Remove the specified key.
-    fn remove(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()>;
+    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()>;
 }
 ```
 
@@ -383,8 +383,8 @@ store, and another for the Arti store):
 ```rust
 
 impl KeyStore for ArtiNativeKeyStore {
-    fn get(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<Option<ErasedKey>> {
-        let key_path = self.key_path(key_id, key_type);
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
+        let key_path = self.key_path(key_spec, key_type);
 
         let input = match fs::read(key_path) {
             Ok(input) => input,
@@ -395,8 +395,8 @@ impl KeyStore for ArtiNativeKeyStore {
         key_type.read_ssh_format_erased(&input).map(Some)
     }
 
-    fn insert(&self, key: &dyn EncodableKey, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()> {
-        let key_path = self.key_path(key_id, key_type);
+    fn insert(&self, key: &dyn EncodableKey, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {
+        let key_path = self.key_path(key_spec, key_type);
 
         let ssh_format = key_type.write_ssh_format(key)?;
         fs::write(key_path, ssh_format).map_err(|_| ())?;
@@ -404,8 +404,8 @@ impl KeyStore for ArtiNativeKeyStore {
         Ok(())
     }
 
-    fn remove(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()> {
-        let key_path = self.key_path(key_id, key_type);
+    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {
+        let key_path = self.key_path(key_spec, key_type);
 
         fs::remove_file(key_path).map_err(|e| ...)?;
 
@@ -414,8 +414,8 @@ impl KeyStore for ArtiNativeKeyStore {
 }
 
 impl ArtiNativeKeyStore {
-    /// The path on disk of the key with the specified identity and type.
-    fn key_path(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> PathBuf {
+    /// The path on disk of the key with the specified specifier and type.
+    fn key_path(&self, key_id: &dyn KeySpecifier, key_type: KeyType) -> PathBuf {
         self.keystore_dir
             .join(key_id.arti_path().0)
             .join(key_type.extension())
