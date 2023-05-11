@@ -16,12 +16,12 @@ use tor_netdoc::{
 /// Return a new directory filter as configured by a specified string.
 pub(crate) fn new_filter(s: &str) -> Result<Arc<dyn DirFilter + 'static>> {
     Ok(match s {
-        "replace-onion-keys" => Arc::new(ReplaceOnionKeysFilter::default()),
+        "replace-onion-keys" => Arc::new(ReplaceOnionKeysFilter),
         "one-big-family" => Arc::new(OneBigFamilyFilter::default()),
         "no-exit-ports" => Arc::new(NoExitPortsFilter::default()),
-        "bad-signatures" => Arc::new(BadSignaturesFilter::default()),
-        "non-existent-signing-keys" => Arc::new(NonexistentSigningKeysFilter::default()),
-        "bad-microdesc-digests" => Arc::new(BadMicrodescDigestsFilter::default()),
+        "bad-signatures" => Arc::new(BadSignaturesFilter),
+        "non-existent-signing-keys" => Arc::new(NonexistentSigningKeysFilter),
+        "bad-microdesc-digests" => Arc::new(BadMicrodescDigestsFilter),
         _ => {
             return Err(anyhow!(
                 "Unrecognized filter. Options are: 
