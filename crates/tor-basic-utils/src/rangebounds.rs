@@ -131,6 +131,16 @@ mod test {
         intersection1
     }
 
+    /// A helper for randomly generating either an inclusive or an exclusive bound with a
+    /// particular value.
+    fn random_bound<T>(value: T) -> Bound<T> {
+        if rand::random() {
+            Bound::Included(value)
+        } else {
+            Bound::Excluded(value)
+        }
+    }
+
     #[test]
     fn no_overlap() {
         #[allow(clippy::type_complexity)]
@@ -234,8 +244,8 @@ mod test {
             for j in 0..10 {
                 for k in 0..10 {
                     for l in 0..10 {
-                        let range1 = (Incl(i), Incl(j));
-                        let range2 = (Incl(k), Incl(l));
+                        let range1 = (random_bound(i), random_bound(j));
+                        let range2 = (random_bound(k), random_bound(l));
 
                         let intersection = intersect(&range1, &range2);
 
