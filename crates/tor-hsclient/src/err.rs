@@ -136,7 +136,7 @@ impl HasKind for DescriptorError {
 impl HasKind for DescriptorErrorDetail {
     fn kind(&self) -> ErrorKind {
         use tor_dirclient::RequestError as RE;
-        use tor_netdoc::NetdocErrorKind as PEK;
+        use tor_netdoc::NetdocErrorKind as NEK;
         use DescriptorErrorDetail as DED;
         use ErrorKind as EK;
         match self {
@@ -148,7 +148,7 @@ impl HasKind for DescriptorErrorDetail {
             DED::Directory(RE::Utf8Encoding(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(other_re) => other_re.kind(),
             DED::InvalidDescriptor(e) => match e.netdoc_error_kind() {
-                PEK::BadTimeBound | PEK::BadSignature => EK::OnionServiceDescriptorValidationFailed,
+                NEK::BadTimeBound | NEK::BadSignature => EK::OnionServiceDescriptorValidationFailed,
                 _ => EK::OnionServiceDescriptorParsingFailed,
             },
             DED::Bug(e) => e.kind(),
