@@ -1,7 +1,7 @@
 //! Declare a general purpose "document ID type" for tracking which
 //! documents we want and which we have.
 
-use std::{borrow::Borrow, collections::HashMap};
+use std::collections::HashMap;
 use tracing::trace;
 
 use crate::storage::Store;
@@ -271,11 +271,10 @@ where
 {
     let mut result = HashMap::new();
     for item in collection.into_iter() {
-        let b = item.borrow();
-        let tp = b.doctype();
+        let tp = item.doctype();
         result
             .entry(tp)
-            .or_insert_with(|| DocQuery::empty_from_docid(b))
+            .or_insert_with(|| DocQuery::empty_from_docid(&item))
             .push(item);
     }
     result
