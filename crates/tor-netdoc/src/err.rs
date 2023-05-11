@@ -423,7 +423,7 @@ impl Error {
     }
 
     /// Return the [`NetdocErrorKind`] of this error.
-    pub fn parse_error_kind(&self) -> NetdocErrorKind {
+    pub fn netdoc_error_kind(&self) -> NetdocErrorKind {
         self.kind
     }
 }

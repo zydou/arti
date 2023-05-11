@@ -183,7 +183,7 @@ impl<T: Keyword> SectionRulesBuilder<T> {
     /// Explicitly reject any unrecognized tokens.
     ///
     /// To avoid errors, you must either explicitly reject unrecognized tokens,
-    /// or you must define how they are handled.  
+    /// or you must define how they are handled.
     pub(crate) fn reject_unrecognized(&mut self) {
         self.strict = true;
     }
@@ -381,7 +381,7 @@ lemon
                 .unwrap()
                 .obj("ORANGE MANIFESTO")
                 .unwrap_err()
-                .parse_error_kind(),
+                .netdoc_error_kind(),
             EK::MissingObject // orange you glad there isn't a manifesto?
         ));
 
