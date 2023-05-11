@@ -212,6 +212,10 @@ mod test {
                             if both_contain_witness {
                                 // If both ranges contain `witness` they definitely intersect.
                                 assert!(intersection.unwrap().contains(&witness));
+                            } else if let Some(intersection) = intersection {
+                                // If one of them doesn't contain `witness`, `witness` is
+                                // definitely not part of the intersection.
+                                assert!(!intersection.contains(&witness));
                             }
                         }
                     }
