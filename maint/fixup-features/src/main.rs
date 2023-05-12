@@ -3,7 +3,7 @@
 //!
 //!
 //! Definitions.
-//!    
+//!
 //! - An **experimental** feature is one for which we do not provide semver guarantees.
 //! - A **non-additive** feature is one whose behavior does something other than
 //!   add functionality to its crate.  (For example, building statically or
@@ -32,14 +32,14 @@
 //! 6. No non-additive feature is reachable from `full` or `experimental`.
 //! 7. No experimental is reachable from `full`.
 //!
-//!XXXX EDIT TO BECOME ACCURATE This tool can edit Cargo.toml files to enforce the rules 1 and 2
-//! automatically.  For rule 3, it can annotate any offending features with
-//! comments complaining about how they need to be included in one of the
-//! top-level features.
+//! This tool can edit Cargo.toml files to enforce the rules 1-3
+//! automatically.  For rules 4-7, it can annotate any offending features with
+//! comments complaining about how they need to be fixed.
 //!
 //! # To use:
 //!
 //! Run this tool with the top-level Cargo.toml as an argument.
+//! Run with `--no-annotate` if you don't want any comments added.
 //!
 //! # Limitations
 //!
