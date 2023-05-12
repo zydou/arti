@@ -180,6 +180,25 @@ impl Crate {
             }
         }
 
+        // Enforce rule 3 (relationship between "experimental" and "__is_experimental")
+        {
+            let in_experimental: HashSet<_> = graph.edges_from("experimental").collect();
+            let is_experimental: HashSet<_> = graph.edges_to("__is_experimental").collect();
+            let reachable_from_experimental: HashSet<_> =
+                graph.all_reachable_from("experimental").collect();
+
+            // Every feature listed in `experimental` depends on `__is_experimental`.
+            for f in in_experimental.difference(&is_experimental) {
+                w(format!("{f} should depend on __is_experimental. Fixing."));
+                changes.push(Change::AddEdge(f.clone(), "__is_experimenal".into()));
+            }
+            // Every feature that depends on `__is_experimental` is reachable from `experimental`.
+            for f in is_experimental.difference(&reachable_from_experimental) {
+                w(format!("{f} is marked as __is_experimental, but is not reachable from experimental. Fixing."));
+                changes.push(Change::AddEdge("experimental".into(), f.clone()))
+            }
+        };
+
         let all_features: HashSet<_> = graph.all_features().collect();
         let full: HashSet<_> = graph.all_reachable_from("full").collect();
         let experimental: HashSet<_> = graph.all_reachable_from("experimental").collect();
