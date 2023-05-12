@@ -45,13 +45,15 @@ onion-service-client = ["arti-client/onion-client"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
 # depends directly on arti-client/static so native-tls doesn't get automatically included
-static = ["arti-client/static"]
-static-sqlite = ["arti-client/static-sqlite"]
-static-native-tls = ["arti-client/static-native-tls", "native-tls"]
+static = ["arti-client/static", "__is_nonadditive"]
+static-sqlite = ["arti-client/static-sqlite", "__is_nonadditive"]
+static-native-tls = ["arti-client/static-native-tls", "native-tls", "__is_nonadditive"]
 journald = ["tracing-journald"]
 
-accel-sha1-asm = ["arti-client/accel-sha1-asm"]
-accel-openssl = ["arti-client/accel-openssl"]
+accel-sha1-asm = ["arti-client/accel-sha1-asm", "__is_nonadditive"]
+accel-openssl = ["arti-client/accel-openssl", "__is_nonadditive"]
+
+__is_nonadditive = []
 
 compression = ["arti-client/compression"]
 

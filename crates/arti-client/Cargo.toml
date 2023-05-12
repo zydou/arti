@@ -40,12 +40,14 @@ pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client",
 rustls = ["tor-rtcompat/rustls"]
 
 # depends directly on tor-rtcompat/static so native-tls doesn't get automatically included
-static = ["static-sqlite", "tor-rtcompat/static"]
-static-sqlite = ["tor-dirmgr/static"]
-static-native-tls = ["tor-rtcompat/static", "native-tls"]
+static = ["static-sqlite", "tor-rtcompat/static", "__is_nonadditive"]
+static-sqlite = ["tor-dirmgr/static", "__is_nonadditive"]
+static-native-tls = ["tor-rtcompat/static", "native-tls", "__is_nonadditive"]
 
-accel-sha1-asm = ["tor-llcrypto/with-sha1-asm"]
-accel-openssl = ["tor-llcrypto/with-openssl"]
+accel-sha1-asm = ["tor-llcrypto/with-sha1-asm", "__is_nonadditive"]
+accel-openssl = ["tor-llcrypto/with-openssl", "__is_nonadditive"]
+
+__is_nonadditive = []
 
 compression = ["tor-dirmgr/compression"]
 
