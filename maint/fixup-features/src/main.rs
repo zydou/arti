@@ -117,7 +117,7 @@ fn arti_dependencies(dependencies: &Table) -> Vec<Dependency> {
 
 /// A complaint that we add to features which are not reachable according to
 /// rule 3.
-const COMPLAINT: &str = "# XX\x58X Add this to a top-level feature!\n";
+const COMPLAINT: &str = "# XX\x58X Mark as full, experimental, or non-additive!\n";
 
 impl Crate {
     /// Try to read a crate's Cargo.toml from a given filename.
@@ -160,6 +160,12 @@ impl Crate {
         let graph = graph::FeatureGraph::from_features_table(features)?;
         let mut changes = Changes::default();
 
+        // Build a few sets that will be useful a few times below.
+        let reachable_from_experimental: HashSet<_> =
+            graph.all_reachable_from("experimental").collect();
+        let nonadditive: HashSet<_> = graph.edges_to("__is_nonadditive").collect();
+        let reachable_from_full: HashSet<_> = graph.all_reachable_from("full").collect();
+
         // Enforce rule 1.  (There is a "Full" feature.)
         if !graph.contains_feature("full") {
             w("full feature does not exist. Adding.".to_string());
@@ -180,12 +186,11 @@ impl Crate {
             }
         }
 
-        // Enforce rule 3 (relationship between "experimental" and "__is_experimental")
-        {
+        // Enforce rule 3 (relationship between "experimental" and
+        // "__is_experimental")
+        let defined_experimental: HashSet<_> = {
             let in_experimental: HashSet<_> = graph.edges_from("experimental").collect();
             let is_experimental: HashSet<_> = graph.edges_to("__is_experimental").collect();
-            let reachable_from_experimental: HashSet<_> =
-                graph.all_reachable_from("experimental").collect();
 
             // Every feature listed in `experimental` depends on `__is_experimental`.
             for f in in_experimental.difference(&is_experimental) {
@@ -197,44 +202,69 @@ impl Crate {
                 w(format!("{f} is marked as __is_experimental, but is not reachable from experimental. Fixing."));
                 changes.push(Change::AddEdge("experimental".into(), f.clone()))
             }
+
+            &in_experimental | &is_experimental
         };
 
-        let all_features: HashSet<_> = graph.all_features().collect();
-        let full: HashSet<_> = graph.all_reachable_from("full").collect();
-        let experimental: HashSet<_> = graph.all_reachable_from("experimental").collect();
-        let nonadditive: HashSet<_> = graph.all_reachable_from("__nonadditive").collect();
-        let reachable_from_toplevel: HashSet<_> = [&full, &experimental, &nonadditive]
-            .iter()
-            .flat_map(|s| s.iter())
-            .cloned()
+        // Enforce rule 4: Every non-meta feature is reachable from full, or
+        // from experimental, or is nonadditive.
+        {
+            let all_features: HashSet<_> = graph.all_features().collect();
+            let meta: HashSet<_> = [
+                "__is_nonadditive",
+                "__is_experimental",
+                "full",
+                "default",
+                "experimental",
+            ]
+            .into_iter()
+            .map(String::from)
             .collect();
 
-        // Enforce rule 4: No feature we declare may be reachable from two of full,
-        // experimental, and __nonadditive.
-        for item in experimental.intersection(&full) {
-            w(format!("{item} reachable from both full and experimental"));
-        }
-        for item in nonadditive.intersection(&full) {
-            w(format!("{item} reachable from both full and nonadditive"));
-        }
-        for item in nonadditive.intersection(&experimental) {
-            w(format!(
-                "{item} reachable from both experimental and nonadditive"
-            ));
-        }
-
-        // Enforce rule 3: Every feature we declare must be reachable from full,
-        // experimental, or __nonadditive, except for those
-        // top-level features, and "default".
-        for feat in all_features.difference(&reachable_from_toplevel) {
-            if ["full", "default", "experimental", "__nonadditive"].contains(&feat.as_ref()) {
-                continue;
+            let mut not_found = all_features;
+            for set in [
+                &reachable_from_full,
+                &meta,
+                &reachable_from_experimental,
+                &nonadditive,
+            ] {
+                not_found = &not_found - set;
             }
-            w(format!(
-                "{feat} not reachable from full, experimental, or __nonadditive. Marking."
-            ));
 
-            changes.push(Change::Annotate(feat.clone(), COMPLAINT.to_string()));
+            for f in not_found {
+                w(format!(
+                    "{f} is not experimental, reachable from full, or nonadditive. Annotating."
+                ));
+                changes.push(Change::Annotate(f.clone(), COMPLAINT.to_string()));
+            }
+        }
+
+        // 5. Every feature reachable from `default` is reachable from `full`.
+        {
+            let default: HashSet<_> = graph.edges_from("default").collect();
+            for f in default.difference(&reachable_from_full) {
+                w(format!("{f} is reachable from default, but not from full."))
+            }
+        }
+
+        // 6. No non-additive feature is reachable from `full` or
+        //    `experimental`.
+        {
+            for f in nonadditive.intersection(&reachable_from_full) {
+                w(format!("nonadditive feature {f} is reachable from full."));
+            }
+            for f in nonadditive.intersection(&reachable_from_experimental) {
+                w(format!(
+                    "nonadditive feature {f} is reachable from experimental."
+                ));
+            }
+        }
+
+        // 7. No experimental is reachable from `full`.
+        {
+            for f in reachable_from_full.intersection(&defined_experimental) {
+                w(format!("experimental feature {f} is reachable from full!"));
+            }
         }
 
         changes.apply(features)?;
