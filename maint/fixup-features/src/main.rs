@@ -304,7 +304,7 @@ fn list_crate_paths(toplevel: impl AsRef<Path>) -> Result<Vec<String>> {
 
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 1 {
+    if args.len() != 2 {
         println!("We expect a single argument: The top-level Cargo.toml file.");
         return Ok(());
     }
