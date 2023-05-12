@@ -135,7 +135,7 @@ impl Crate {
     }
 
     /// Try to fix all the issues we find with a Cargo.toml.  Return a list of warnings.
-    fn fix(&mut self) -> Result<Vec<Warning>> {
+    fn fix(&mut self, no_annotate: bool) -> Result<Vec<Warning>> {
         let mut warnings = Vec::new();
         let mut w = |s| warnings.push(Warning(s));
         let dependencies = self
@@ -273,6 +273,9 @@ impl Crate {
             }
         }
 
+        if no_annotate {
+            changes.drop_annotations();
+        }
         changes.apply(features)?;
 
         Ok(warnings)
@@ -309,12 +312,20 @@ fn list_crate_paths(toplevel: impl AsRef<Path>) -> Result<Vec<String>> {
 }
 
 fn main() -> Result<()> {
-    let args: Vec<_> = std::env::args().collect();
-    if args.len() != 2 {
-        println!("We expect a single argument: The top-level Cargo.toml file.");
+    let mut pargs = pico_args::Arguments::from_env();
+    const HELP: &str = "fixup-features [--no-annotate] <toplevel Cargo.toml>";
+
+    if pargs.contains(["-h", "--help"]) {
+        println!("{}", HELP);
         return Ok(());
     }
-    let toplevel_toml_file = PathBuf::from(&args[1]);
+    let no_annotate = pargs.contains("--no-annotate");
+    let toplevel_toml_file: PathBuf = pargs.free_from_str()?;
+    if !pargs.finish().is_empty() {
+        println!("{}", HELP);
+        return Ok(());
+    }
+
     let toplevel_dir = toplevel_toml_file
         .parent()
         .expect("How is your Cargo.toml file `/`?")
@@ -330,7 +341,10 @@ fn main() -> Result<()> {
     }
 
     for cr in crates.iter_mut() {
-        for w in cr.fix().with_context(|| format!("In {}", cr.name))? {
+        for w in cr
+            .fix(no_annotate)
+            .with_context(|| format!("In {}", cr.name))?
+        {
             println!("{}: {}", cr.name, w.0);
         }
         cr.save_if_changed()?;

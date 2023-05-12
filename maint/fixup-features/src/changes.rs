@@ -70,6 +70,10 @@ impl Changes {
     pub fn push(&mut self, change: Change) {
         self.changes.push(change);
     }
+    pub fn drop_annotations(&mut self) {
+        self.changes
+            .retain(|change| !matches!(change, Change::Annotate(_, _)));
+    }
     pub fn apply(&self, features: &mut Table) -> Result<()> {
         self.changes
             .iter()
