@@ -28,6 +28,7 @@ impl Change {
             Change::AddFeature(feature_name) => match features.get(feature_name) {
                 Some(_) => {} // nothing to do.
                 None => {
+                    assert!(!feature_name.contains('/'), "/ in {feature_name}");
                     features.insert(feature_name, Item::Value(Value::Array(Array::new())));
                 }
             },
@@ -39,6 +40,7 @@ impl Change {
             Change::AddExternalEdge(from, to) => {
                 // Make sure "from" is there.
                 Change::AddFeature(from.to_string()).apply(features)?;
+                assert!(!from.contains('/'), "/ in {from}");
                 let array = features
                     .get_mut(from)
                     .expect("but we just tried to add {from}!")

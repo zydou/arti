@@ -157,6 +157,7 @@ impl Crate {
         let mut changes = Changes::default();
 
         // Build a few sets that will be useful a few times below.
+        let all_features: HashSet<_> = graph.all_features().collect();
         let reachable_from_experimental: HashSet<_> =
             graph.all_reachable_from("experimental").collect();
         let nonadditive: HashSet<_> = graph.edges_to("__is_nonadditive").collect();
@@ -190,8 +191,10 @@ impl Crate {
 
             // Every feature listed in `experimental` depends on `__is_experimental`.
             for f in in_experimental.difference(&is_experimental) {
-                w(format!("{f} should depend on __is_experimental. Fixing."));
-                changes.push(Change::AddEdge(f.clone(), "__is_experimenal".into()));
+                if all_features.contains(f) {
+                    w(format!("{f} should depend on __is_experimental. Fixing."));
+                    changes.push(Change::AddEdge(f.clone(), "__is_experimental".into()));
+                }
             }
             // Every feature that depends on `__is_experimental` is reachable from `experimental`.
             for f in is_experimental.difference(&reachable_from_experimental) {
