@@ -245,8 +245,10 @@ impl Crate {
             let complaint = "# XX\x58X This is reachable from 'default', but from 'full'.\n";
             let default: HashSet<_> = graph.edges_from("default").collect();
             for f in default.difference(&reachable_from_full) {
-                w(format!("{f} is reachable from default, but not from full."));
-                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+                if all_features.contains(f) {
+                    w(format!("{f} is reachable from default, but not from full."));
+                    changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+                }
             }
         }
 

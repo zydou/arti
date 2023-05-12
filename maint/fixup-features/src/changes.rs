@@ -52,7 +52,9 @@ impl Change {
             }
             Change::Annotate(feature_name, annotation) => {
                 if features.get(feature_name).is_none() {
-                    return Err(anyhow!("no such feature as {feature_name}"));
+                    return Err(anyhow!(
+                        "no such feature as {feature_name} to annotate with {annotation}"
+                    ));
                 }
                 let decor = features
                     .key_decor_mut(feature_name)
