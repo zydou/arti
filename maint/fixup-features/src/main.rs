@@ -115,10 +115,6 @@ fn arti_dependencies(dependencies: &Table) -> Vec<Dependency> {
     deps
 }
 
-/// A complaint that we add to features which are not reachable according to
-/// rule 3.
-const COMPLAINT: &str = "# XX\x58X Mark as full, experimental, or non-additive!\n";
-
 impl Crate {
     /// Try to read a crate's Cargo.toml from a given filename.
     fn load(p: impl AsRef<Path>) -> Result<Self> {
@@ -209,6 +205,8 @@ impl Crate {
         // Enforce rule 4: Every non-meta feature is reachable from full, or
         // from experimental, or is nonadditive.
         {
+            let complaint: &str = "# XX\x58X Mark as full, experimental, or non-additive!\n";
+
             let all_features: HashSet<_> = graph.all_features().collect();
             let meta: HashSet<_> = [
                 "__is_nonadditive",
@@ -233,37 +231,45 @@ impl Crate {
 
             for f in not_found {
                 w(format!(
-                    "{f} is not experimental, reachable from full, or nonadditive. Annotating."
+                    "{f} is not experimental, reachable from full, or nonadditive."
                 ));
-                changes.push(Change::Annotate(f.clone(), COMPLAINT.to_string()));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
             }
         }
 
         // 5. Every feature reachable from `default` is reachable from `full`.
         {
+            let complaint = "# XX\x58X This is reachable from 'default', but from 'full'.\n";
             let default: HashSet<_> = graph.edges_from("default").collect();
             for f in default.difference(&reachable_from_full) {
-                w(format!("{f} is reachable from default, but not from full."))
+                w(format!("{f} is reachable from default, but not from full."));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
             }
         }
 
         // 6. No non-additive feature is reachable from `full` or
         //    `experimental`.
         {
+            let complaint = "# XX\x58X This is non-additive, but reachable from 'full'.\n";
             for f in nonadditive.intersection(&reachable_from_full) {
                 w(format!("nonadditive feature {f} is reachable from full."));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
             }
+            let complaint = "# XX\x58X This is non-additive, but reachable from 'experimental'.\n";
             for f in nonadditive.intersection(&reachable_from_experimental) {
                 w(format!(
                     "nonadditive feature {f} is reachable from experimental."
                 ));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
             }
         }
 
         // 7. No experimental is reachable from `full`.
         {
+            let complaint = "# XX\x58X This is experimental, but reachable from 'full'.\n";
             for f in reachable_from_full.intersection(&defined_experimental) {
                 w(format!("experimental feature {f} is reachable from full!"));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
             }
         }
 
