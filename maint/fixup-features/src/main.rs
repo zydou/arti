@@ -45,12 +45,15 @@
 //!
 //! This is not very efficient, and is not trying to be.
 
+mod changes;
 mod graph;
 
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use toml_edit::{Array, Document, Item, Table, Value};
+use toml_edit::{Document, Item, Table, Value};
+
+use changes::{Change, Changes};
 
 /// A warning we return from our linter.
 ///
@@ -154,16 +157,13 @@ impl Crate {
             .or_insert_with(|| Item::Table(Table::new()))
             .as_table_mut()
             .ok_or_else(|| anyhow!("Features was not table"))?;
-        let _ = features
-            .entry("full")
-            .or_insert_with(|| Item::Value(Value::Array(Array::new())));
-
         let graph = graph::FeatureGraph::from_features_table(features)?;
+        let mut changes = Changes::default();
 
         // Enforce rule 1.  (There is a "Full" feature.)
         if !graph.contains_feature("full") {
             w("full feature does not exist. Adding.".to_string());
-            // Actually, we fixed it already, by adding it to `features` above.
+            changes.push(Change::AddFeature("full".to_string()));
         }
 
         let all_features: HashSet<_> = graph.all_features().collect();
@@ -201,21 +201,10 @@ impl Crate {
                 "{feat} not reachable from full, experimental, or __nonadditive. Marking."
             ));
 
-            let decor = features.key_decor_mut(feat).expect("No decor on key!"); // (There should always be decor afaict.)
-            let prefix = match decor.prefix() {
-                Some(r) => r.as_str().expect("prefix not a string"), // (We can't proceed if the prefix decor is not a string.)
-                None => "",
-            };
-            if !prefix.contains(COMPLAINT) {
-                let mut new_prefix: String = prefix.to_string();
-                new_prefix.push('\n');
-                new_prefix.push_str(COMPLAINT);
-                decor.set_prefix(new_prefix);
-            }
+            changes.push(Change::Annotate(feat.clone(), COMPLAINT.to_string()));
         }
 
         // Enforce rule 3: for every arti crate that we depend on, our 'full' should include that crate's full.
-        let mut add_to_full = HashSet::new();
         for dep in dependencies.iter() {
             let wanted = if dep.optional {
                 format!("{}?/full", dep.name)
@@ -225,15 +214,11 @@ impl Crate {
 
             if !full.contains(wanted.as_str()) {
                 w(format!("full should contain {}. Fixing.", wanted));
-                add_to_full.insert(wanted);
+                changes.push(Change::AddEdge("full".to_string(), wanted));
             }
         }
-        features
-            .get_mut("full")
-            .expect("We checked for the `full` feature, but now it isn't there!")
-            .as_array_mut()
-            .expect("Somehow `full` is not an array any more!")
-            .extend(add_to_full);
+
+        changes.apply(features)?;
 
         Ok(warnings)
     }
