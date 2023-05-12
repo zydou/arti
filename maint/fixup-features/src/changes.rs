@@ -12,6 +12,7 @@ pub struct Changes {
 pub enum Change {
     AddFeature(String),
     AddEdge(String, String),
+    AddExternalEdge(String, String),
     Annotate(String, String),
 }
 
@@ -31,9 +32,13 @@ impl Change {
                 }
             },
             Change::AddEdge(from, to) => {
-                // Make sure "from" and "to" are there.
-                Change::AddFeature(from.to_string()).apply(features)?;
+                // Make sure "to" is there.
                 Change::AddFeature(to.to_string()).apply(features)?;
+                Change::AddExternalEdge(from.to_string(), to.to_string()).apply(features)?;
+            }
+            Change::AddExternalEdge(from, to) => {
+                // Make sure "from" is there.
+                Change::AddFeature(from.to_string()).apply(features)?;
                 let array = features
                     .get_mut(from)
                     .expect("but we just tried to add {from}!")

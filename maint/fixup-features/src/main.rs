@@ -178,7 +178,7 @@ impl Crate {
 
             if !graph.contains_edge("full", wanted.as_str()) {
                 w(format!("full should contain {}. Fixing.", wanted));
-                changes.push(Change::AddEdge("full".to_string(), wanted));
+                changes.push(Change::AddExternalEdge("full".to_string(), wanted));
             }
         }
 
