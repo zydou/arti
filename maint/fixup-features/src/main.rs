@@ -166,6 +166,20 @@ impl Crate {
             changes.push(Change::AddFeature("full".to_string()));
         }
 
+        // Enforce rule 2. (for every arti crate that we depend on, our 'full' should include that crate's full.
+        for dep in dependencies.iter() {
+            let wanted = if dep.optional {
+                format!("{}?/full", dep.name)
+            } else {
+                format!("{}/full", dep.name)
+            };
+
+            if !graph.contains_edge("full", wanted.as_str()) {
+                w(format!("full should contain {}. Fixing.", wanted));
+                changes.push(Change::AddEdge("full".to_string(), wanted));
+            }
+        }
+
         let all_features: HashSet<_> = graph.all_features().collect();
         let full: HashSet<_> = graph.all_reachable_from("full").collect();
         let experimental: HashSet<_> = graph.all_reachable_from("experimental").collect();
@@ -202,20 +216,6 @@ impl Crate {
             ));
 
             changes.push(Change::Annotate(feat.clone(), COMPLAINT.to_string()));
-        }
-
-        // Enforce rule 3: for every arti crate that we depend on, our 'full' should include that crate's full.
-        for dep in dependencies.iter() {
-            let wanted = if dep.optional {
-                format!("{}?/full", dep.name)
-            } else {
-                format!("{}/full", dep.name)
-            };
-
-            if !full.contains(wanted.as_str()) {
-                w(format!("full should contain {}. Fixing.", wanted));
-                changes.push(Change::AddEdge("full".to_string(), wanted));
-            }
         }
 
         changes.apply(features)?;
