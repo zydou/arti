@@ -18,6 +18,8 @@ mod middle;
 mod outer;
 
 pub use desc_enc::DecryptionError;
+use tor_basic_utils::rangebounds::RangeBoundsExt;
+use tor_error::internal;
 
 use crate::{NetdocErrorKind as EK, Result};
 
@@ -262,14 +264,35 @@ impl HsDesc {
         valid_at: SystemTime,
         subcredential: &Subcredential,
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
-    ) -> Result<Self> {
-        Self::parse(input, blinded_onion_id)?
-            .check_signature()?
-            .check_valid_at(&valid_at)?
-            .decrypt(subcredential, hsc_desc_enc)?
-            .check_valid_at(&valid_at)?
-            .check_signature()
-            .map_err(|e| e.into())
+    ) -> Result<TimerangeBound<Self>> {
+        let unchecked_desc = Self::parse(input, blinded_onion_id)?.check_signature()?;
+
+        let (inner_desc, new_bounds) = {
+            // We use is_valid_at and dangerously_into_parts instead of check_valid_at because we
+            // need the time bounds of the outer layer (for computing the intersection with the
+            // time bounds of the inner layer).
+            unchecked_desc.is_valid_at(&valid_at)?;
+            // It's safe to use dangerously_into_parts() as we've just checked if unchecked_desc is
+            // valid at the current time
+            let (unchecked_desc, bounds) = unchecked_desc.dangerously_into_parts();
+            let inner_timerangebound = unchecked_desc.decrypt(subcredential, hsc_desc_enc)?;
+
+            let new_bounds = bounds
+                .intersect(&inner_timerangebound)
+                .map(|(b1, b2)| (b1.cloned(), b2.cloned()));
+
+            (inner_timerangebound, new_bounds)
+        };
+
+        let hsdesc = inner_desc.check_valid_at(&valid_at)?.check_signature()?;
+
+        // If we've reached this point, it means the descriptor is valid at specified time. This
+        // means the time bounds of the two layers definitely intersect, so new_bounds **must** be
+        // Some. It is a bug if new_bounds is None.
+        let new_bounds = new_bounds
+            .ok_or_else(|| internal!("failed to compute TimerangeBounds for a valid descriptor"))?;
+
+        Ok(TimerangeBound::new(hsdesc, new_bounds))
     }
 }
 
@@ -288,7 +311,7 @@ impl EncryptedHsDesc {
     // TODO hs: I'm not sure that taking `hsc_desc_enc` as an argument is correct. Instead, maybe
     // we should take a set of keys?
     pub fn decrypt(
-        self,
+        &self,
         subcredential: &Subcredential,
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
     ) -> Result<TimerangeBound<SignatureGated<HsDesc>>> {

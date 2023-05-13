@@ -44,6 +44,7 @@ use std::mem;
 
 pub mod iter;
 pub mod n_key_set;
+pub mod rangebounds;
 pub mod retry;
 pub mod test_rng;
 

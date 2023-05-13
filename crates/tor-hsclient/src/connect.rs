@@ -3,9 +3,7 @@
 
 use std::time::Duration;
 
-use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use async_trait::async_trait;
 use educe::Educe;
@@ -227,7 +225,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
         let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
-        let (desc, bounds) = loop {
+        let desc = loop {
             let relay = match attempts.next() {
                 Some(relay) => relay,
                 None => {
@@ -264,10 +262,13 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         // Store the bounded value in the cache for reuse,
         // but return a reference to the unwrapped `HsDesc`.
         //
-        // Because the `HsDesc` must be owned by `data.desc`,
-        // we must first wrap it in the TimerangeBound,
+        // The `HsDesc` must be owned by `data.desc`,
+        // so first add it to `data.desc`,
         // and then dangerously_assume_timely to get a reference out again.
-        let ret = self.data.desc.insert(TimerangeBound::new(desc, bounds));
+        //
+        // It is safe to dangerously_assume_timely,
+        // as descriptor_fetch_attempt has already checked the timeliness of the descriptor.
+        let ret = self.data.desc.insert(desc);
         Ok(ret.as_ref().dangerously_assume_timely())
     }
 
@@ -277,12 +278,12 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
     ///
     /// On success, returns the descriptor.
     ///
-    /// Also returns a `RangeBounds<SystemTime>` which represents the descriptor's validity.
-    /// (This is separate, because the descriptor's validity at the current time *has* been checked,)
+    /// While the returned descriptor is `TimerangeBound`, its validity at the current time *has*
+    /// been checked.
     async fn descriptor_fetch_attempt(
         &self,
         hsdir: &Relay<'_>,
-    ) -> Result<(HsDesc, impl RangeBounds<SystemTime>), DescriptorErrorDetail> {
+    ) -> Result<TimerangeBound<HsDesc>, DescriptorErrorDetail> {
         let request = tor_dirclient::request::HsDescDownloadRequest::new(self.hs_blind_id);
         trace!(
             "hsdir for {}, trying {}/{}, request {:?} (http request {:?}",
@@ -330,19 +331,14 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
 
         let now = self.runtime.wallclock();
 
-        let hsdesc = HsDesc::parse_decrypt_validate(
+        HsDesc::parse_decrypt_validate(
             &desc_text,
             &self.hs_blind_id,
             now,
             &self.subcredential,
             hsc_desc_enc.as_ref().map(|(kp, ks)| (kp, *ks)),
         )
-        .map_err(DescriptorErrorDetail::from)?;
-
-        let unbounded_todo = Bound::Unbounded::<SystemTime>; // TODO HS remove
-        let bound = (unbounded_todo, unbounded_todo);
-
-        Ok((hsdesc, bound))
+        .map_err(DescriptorErrorDetail::from)
     }
 }
 
@@ -454,6 +450,7 @@ mod test {
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
+    use std::ops::{Bound, RangeBounds};
     use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
@@ -571,21 +568,20 @@ mod test {
         secret_keys_builder.ks_hsc_desc_enc(sk);
         let secret_keys = secret_keys_builder.build().unwrap();
 
-        let _got = AssertUnwindSafe(
-            Context::new(
-                &runtime,
-                &mocks,
-                netdir,
-                hsid,
-                &mut data,
-                secret_keys,
-                mocks.clone(),
-            )
-            .unwrap()
-            .connect(),
+        let mut ctx = Context::new(
+            &runtime,
+            &mocks,
+            netdir,
+            hsid,
+            &mut data,
+            secret_keys,
+            mocks.clone(),
         )
-        .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
-        .await;
+        .unwrap();
+
+        let _got = AssertUnwindSafe(ctx.connect())
+            .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
+            .await;
 
         let (hs_blind_id_key, subcredential) = HsIdKey::try_from(hsid)
             .unwrap()
@@ -602,7 +598,8 @@ mod test {
             &subcredential,
             Some((&pk, &sk)),
         )
-        .unwrap();
+        .unwrap()
+        .dangerously_assume_timely();
 
         let mglobal = mocks.mglobal.lock().unwrap();
         assert_eq!(mglobal.hsdirs_asked.len(), 1);
@@ -611,6 +608,16 @@ mod test {
         assert_eq!(
             format!("{:?}", mglobal.got_desc),
             format!("{:?}", Some(hsdesc))
+        );
+
+        // Check how long the descriptor is valid for
+        let bounds = ctx.data.desc.as_ref().unwrap().bounds();
+        assert_eq!(bounds.start_bound(), Bound::Unbounded);
+
+        let desc_valid_until = humantime::parse_rfc3339("2023-02-11T20:00:00Z").unwrap();
+        assert_eq!(
+            bounds.end_bound(),
+            Bound::Included(desc_valid_until).as_ref()
         );
 
         // TODO hs check the circuit in got is the one we gave out
