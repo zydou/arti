@@ -260,7 +260,7 @@ mod tests {
 
         let rng = testing_rng().rng_compat();
 
-        let curve_sk = curve25519::StaticSecret::new(rng);
+        let curve_sk = curve25519::StaticSecret::random_from_rng(rng);
         let curve_pk = curve25519::PublicKey::from(&curve_sk);
 
         let (ed_sk, signbit) = convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
