@@ -448,21 +448,15 @@ impl KeyUnknownCert {
     ///
     /// On success, we can check whether the certificate is well-signed;
     /// otherwise, we can't check the certificate.
+    #[deprecated(
+        since = "0.7.1",
+        note = "Use should_have_signing_key or should_be_signed_with instead."
+    )]
     pub fn check_key(self, pkey: Option<&ed25519::Ed25519Identity>) -> CertResult<UncheckedCert> {
-        let real_key = match (pkey, self.cert.cert.signed_with) {
-            (Some(a), Some(b)) if a == &b => b,
-            (Some(_), Some(_)) => return Err(CertError::KeyMismatch),
-            (Some(a), None) => *a,
-            (None, Some(b)) => b,
-            (None, None) => return Err(CertError::MissingPubKey),
-        };
-        Ok(UncheckedCert {
-            cert: Ed25519Cert {
-                signed_with: Some(real_key),
-                ..self.cert.cert
-            },
-            ..self.cert
-        })
+        match pkey {
+            Some(wanted) => self.should_be_signed_with(wanted),
+            None => self.should_have_signing_key(),
+        }
     }
 
     /// Declare that this should be a self-contained certificate that contains its own
@@ -472,7 +466,18 @@ impl KeyUnknownCert {
     /// we can validate it.
     /// On failure, this certificate was not self-contained.
     pub fn should_have_signing_key(self) -> CertResult<UncheckedCert> {
-        self.check_key(None)
+        let real_key = match &self.cert.cert.signed_with {
+            Some(a) => *a,
+            None => return Err(CertError::MissingPubKey),
+        };
+
+        Ok(UncheckedCert {
+            cert: Ed25519Cert {
+                signed_with: Some(real_key),
+                ..self.cert.cert
+            },
+            ..self.cert
+        })
     }
 
     /// Declare that this should be a certificate signed with a given key.
@@ -484,7 +489,19 @@ impl KeyUnknownCert {
         self,
         pkey: &ed25519::Ed25519Identity,
     ) -> CertResult<UncheckedCert> {
-        self.check_key(Some(pkey))
+        let real_key = match &self.cert.cert.signed_with {
+            Some(a) if a == pkey => *pkey,
+            None => *pkey,
+            Some(_) => return Err(CertError::KeyMismatch),
+        };
+
+        Ok(UncheckedCert {
+            cert: Ed25519Cert {
+                signed_with: Some(real_key),
+                ..self.cert.cert
+            },
+            ..self.cert
+        })
     }
 }
 
