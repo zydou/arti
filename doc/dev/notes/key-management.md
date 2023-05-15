@@ -45,12 +45,6 @@ Supported key stores:
 
 In the future we plan to also support HSM-based key stores.
 
-## Key passphrases
-
-OpenSSH keys can have passphrases. While the first version of the key manager
-won't be able to handle such keys, we will add passphrase support at some point
-in the future.
-
 ## Proposed configuration changes
 
 We introduce a new `[keys]` section for configuring the key stores. The
@@ -550,6 +544,12 @@ impl SshKeyType for KeyType {
 }
 
 ```
+
+#### Key passphrases
+
+OpenSSH keys can have passphrases. While the first version of the key manager
+won't be able to handle such keys, we will add passphrase support at some point
+in the future.
 
 ### The C Tor key store
 
