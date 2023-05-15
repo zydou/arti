@@ -814,10 +814,10 @@ The echo command will only work post-authentication.
 Here is an example session:
 
 ```
-C: { "id":3, "obj": "session", "method":"auth:authenticate", "params": {"method": "inherent:unix_path"} }
-S: {"id":3,"result":{}}
-C: { "id":7, "obj": "session", "method":"echo", "params": {"msg": "Hello World"} }
-S: {"id":7,"result":{"msg":"Hello World"}}
+>>> {"id": 3, "obj": "connection", "method": "auth:authenticate", "params": {"scheme": "inherent:unix_path"}}
+<<< {"id":3,"result":{"client":"dTewFIaZKQV1N7AUhpkpBIrIT-t5Ztb8"}}
+>>> {"id": 4, "obj": "dTewFIaZKQV1N7AUhpkpBIrIT-t5Ztb8", "method": "arti:x-echo", "params": {"msg": "Hello World"}}
+<<< {"id":4,"result":{"msg":"Hello World"}}
 ```
 
 Note that the server will currently close your connection
