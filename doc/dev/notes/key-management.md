@@ -77,6 +77,8 @@ configuring a key store (for example, when running Arti as a client).
 TODO hs: pick reasonable default values for the various top-level key store
 directories (`root_dir`, `client_dir`, `key_dir`).
 
+### Arti key store configuration
+
 ```toml
 # Key store options
 [keys]
@@ -110,7 +112,30 @@ directories (`root_dir`, `client_dir`, `key_dir`).
 # The root of the key store. All keys are stored somewhere in the `root_dir`
 # heirarchy
 root_dir = ""
+```
 
+### C Tor key store configuration
+
+The client and relay keys are stored in a different part of the config than the
+onion service keys: the client/relay key directories are read from the
+`[keys.ctor_store]` section, whereas the onion service ones are read from the
+`[onion_service.hs_service_dirs]` of each `[[onion_service]]` section (note
+there can be multiple `[[onion_service]]` sections, one for each hidden service
+configured). As a result, the C Tor key store is not rooted at a specific
+directory (unlike the Arti key store). Instead, it is configured with:
+  * (for each onion service configured) a `hs_service_dir`, for onion service keys
+  * a `client_dir`, for onion service client authorization keys.
+  * a `key_dir`, for relay and directory authority keys
+
+The exact structure of the `[[onion_service]]` config is not yet
+specified, see [#699].
+
+A downside of this approach is that there is no `CTorKeyStoreConfig` to speak
+of: the `CTorKeyStore` is created from various bits of information taken from
+different parts of the Arti config (`CTorKeyStore::new(client_dir, key_dir,
+hs_service_dirs)`).
+
+```toml
 # The C Tor key store.
 [keys.ctor_store]
 # The client authorization key directory (if running Arti as a client).
@@ -121,7 +146,29 @@ client_dir = ""
 #
 # This corresponds to C Tor's KeyDirectory option.
 key_dir = ""
-```
+
+# Hidden service options
+[[onion_service]]
+# This corresponds to C Tor's HiddenServiceDir option.
+hs_service_dir = "/home/bob/hs1"
+# The maximum number of syteams per rendezvous circuit.
+#
+# This corresponds to C Tor's HiddenServiceMaxStreams.
+max_streams = 0
+# TODO arti#699: figure out what the rest of the options are
+...
+
+# Hidden service options
+[[onion_service]]
+# This corresponds to C Tor's HiddenServiceDir option.
+hs_service_dir = "/home/bob/hs2"
+# The maximum number of syteams per rendezvous circuit.
+#
+# This corresponds to C Tor's HiddenServiceMaxStreams.
+max_streams = 9000
+# TODO arti#699: figure out what the rest of the options are
+...
+ ```
 
 ## Key specifiers
 
@@ -578,3 +625,4 @@ exists). As such, on Windows we will need some sort of synchronization mechanism
 (unless it exposes some other APIs we can use for atomic renaming).
 
 [#728]: https://gitlab.torproject.org/tpo/core/arti/-/issues/728
+[#699]: https://gitlab.torproject.org/tpo/core/arti/-/issues/699
