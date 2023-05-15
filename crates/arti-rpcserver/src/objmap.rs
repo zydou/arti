@@ -96,15 +96,15 @@ pub(crate) struct ObjMap {
     /// Generationally indexed arena of object references.
     ///
     /// Invariants:
-    /// * No object has more than one reference in this arena.
-    /// * Every `entry` in this arena at position `idx` has a corresponding
+    /// * No object has more than one weak reference in this arena.
+    /// * Every weak `entry` in this arena at position `idx` has a corresponding
     ///   entry in `reverse_map` entry such that
     ///   `reverse_map[entry.tagged_addr()] == idx`.
     arena: Arena<ArenaEntry>,
     /// Backwards reference to look up arena references by the underlying object identity.
     ///
     /// Invariants:
-    /// * For every `(addr,idx)` entry in this map, there is a corresponding
+    /// * For every weak `(addr,idx)` entry in this map, there is a corresponding
     ///   ArenaEntry in `arena` such that `arena[idx].tagged_addr() == addr`
     reverse_map: HashMap<TaggedAddr, GenIdx>,
     /// Testing only: How many times have we tidied this map?
@@ -198,11 +198,6 @@ struct TaggedAddr {
     addr: RawAddr,
     /// The type of the object.
     type_id: any::TypeId,
-    /// True if this is a strong reference.
-    ///
-    /// TODO: We could use one of the unused lower-order bits in raw-addr to
-    /// avoid bloating this type.
-    is_strong: bool,
 }
 
 /// A generational index for [`ObjMap`].
@@ -275,7 +270,6 @@ impl ArenaEntry {
         TaggedAddr {
             addr: self.obj.raw_addr(),
             type_id: self.id,
-            is_strong: matches!(self.obj, ObjRef::Strong(_)),
         }
     }
 }
@@ -283,14 +277,10 @@ impl ArenaEntry {
 impl TaggedAddr {
     /// Return the `TaggedAddr` to uniquely identify `obj` over the course of
     /// its existence.
-    fn for_object(obj: &Arc<dyn rpc::Object>, is_strong: bool) -> Self {
+    fn for_object(obj: &Arc<dyn rpc::Object>) -> Self {
         let type_id = (*obj).type_id();
         let addr = raw_addr_of(obj);
-        TaggedAddr {
-            addr,
-            type_id,
-            is_strong,
-        }
+        TaggedAddr { addr, type_id }
     }
 }
 
@@ -377,29 +367,19 @@ impl ObjMap {
         }
     }
 
-    /// Ensure that there is a strong entry for `value` in self (by inserting it
-    /// as needed), and return its index.
+    /// Unconditionally insert a strong entry for `value` in self, and return its index.
     pub(crate) fn insert_strong(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        let ptr = TaggedAddr::for_object(&value, true);
-        if let Some(idx) = self.reverse_map.get(&ptr) {
-            if let Some(entry) = self.arena.get_mut(idx.0) {
-                debug_assert!(entry.tagged_addr() == ptr);
-                return *idx;
-            }
-        }
-
         self.adjust_size();
 
-        let idx = GenIdx(self.arena.insert(ArenaEntry::new_strong(value)));
-        self.reverse_map.insert(ptr, idx);
-        idx
+        GenIdx(self.arena.insert(ArenaEntry::new_strong(value)))
     }
 
-    /// Ensure that there is an entry for `value` in self, and return its index.
+    /// Ensure that there is a weak entry for `value` in self, and return an
+    /// index for it.
     /// If there is no entry, create a weak entry.
     #[allow(clippy::needless_pass_by_value)] // TODO: Decide whether to make this take a reference.
     pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        let ptr = TaggedAddr::for_object(&value, false);
+        let ptr = TaggedAddr::for_object(&value);
         if let Some(idx) = self.reverse_map.get(&ptr) {
             #[cfg(debug_assertions)]
             match self.arena.get(idx.0) {
@@ -424,8 +404,10 @@ impl ObjMap {
     /// Remove the entry at `idx`, if any.
     pub(crate) fn remove(&mut self, idx: GenIdx) {
         if let Some(entry) = self.arena.remove(idx.0) {
-            let old_idx = self.reverse_map.remove(&entry.tagged_addr());
-            debug_assert_eq!(old_idx, Some(idx));
+            if entry.is_weak() {
+                let old_idx = self.reverse_map.remove(&entry.tagged_addr());
+                debug_assert_eq!(old_idx, Some(idx));
+            }
         }
     }
 
@@ -433,6 +415,9 @@ impl ObjMap {
     #[cfg(test)]
     fn assert_okay(&self) {
         for (index, entry) in self.arena.iter() {
+            if !entry.is_weak() {
+                continue;
+            };
             let ptr = entry.tagged_addr();
             assert_eq!(self.reverse_map.get(&ptr), Some(&GenIdx(index)));
             assert_eq!(ptr, entry.tagged_addr());
@@ -528,52 +513,52 @@ mod test {
         let wrapped_weak = Arc::downgrade(&wrapped_dyn);
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true),
-            TaggedAddr::for_object(&object_dyn2, true)
+            TaggedAddr::for_object(&object_dyn),
+            TaggedAddr::for_object(&object_dyn2)
         );
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn, true),
-            TaggedAddr::for_object(&object2, true)
+            TaggedAddr::for_object(&object_dyn),
+            TaggedAddr::for_object(&object2)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true),
-            TaggedAddr::for_object(&wrapped_dyn2, true)
+            TaggedAddr::for_object(&wrapped_dyn),
+            TaggedAddr::for_object(&wrapped_dyn2)
         );
 
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn, true),
-            TaggedAddr::for_object(&wrapped_dyn, true)
+            TaggedAddr::for_object(&object_dyn),
+            TaggedAddr::for_object(&wrapped_dyn)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true).addr,
-            TaggedAddr::for_object(&wrapped_dyn, true).addr
+            TaggedAddr::for_object(&object_dyn).addr,
+            TaggedAddr::for_object(&wrapped_dyn).addr
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true).addr,
+            TaggedAddr::for_object(&wrapped_dyn).addr,
             raw_addr_of_weak(&wrapped_weak)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true).type_id,
+            TaggedAddr::for_object(&object_dyn).type_id,
             any::TypeId::of::<ExampleObject>()
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true).type_id,
+            TaggedAddr::for_object(&wrapped_dyn).type_id,
             any::TypeId::of::<Wrapper>()
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true).addr,
+            TaggedAddr::for_object(&object_dyn).addr,
             raw_addr_of(&object)
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true).addr,
+            TaggedAddr::for_object(&wrapped_dyn).addr,
             raw_addr_of(&wrapped)
         );
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn, true).addr,
+            TaggedAddr::for_object(&object_dyn).addr,
             raw_addr_of(&object2)
         );
     }
@@ -586,9 +571,11 @@ mod test {
         map.assert_okay();
         let id1 = map.insert_strong(obj1.clone());
         let id2 = map.insert_strong(obj1.clone());
-        assert_eq!(id1, id2);
-        let obj_out = map.lookup(id1).unwrap();
-        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out));
+        assert_ne!(id1, id2);
+        let obj_out1 = map.lookup(id1).unwrap();
+        let obj_out2 = map.lookup(id2).unwrap();
+        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out1));
+        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out2));
         map.assert_okay();
     }
 
@@ -664,7 +651,7 @@ mod test {
         }
 
         {
-            assert_eq!(id1, map.insert_strong(obj1.clone()));
+            assert_ne!(id1, map.insert_strong(obj1.clone()));
             assert_ne!(id2, map.insert_strong(obj2.clone()));
         }
     }
