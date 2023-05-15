@@ -103,7 +103,7 @@ impl Connection {
         } else {
             inner
                 .objects
-                .lookup(id.try_into()?)
+                .lookup(crate::objmap::GenIdx::try_decode(id)?)
                 .ok_or(rpc::LookupError::NoObject(id.clone()))
         }
     }
@@ -364,7 +364,7 @@ impl rpc::Context for RequestContext {
             .expect("Lock poisoned")
             .objects
             .insert_strong(object)
-            .into()
+            .encode()
     }
 
     fn register_weak(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
@@ -374,7 +374,7 @@ impl rpc::Context for RequestContext {
             .expect("Lock poisoned")
             .objects
             .insert_weak(object)
-            .into()
+            .encode()
     }
 }
 

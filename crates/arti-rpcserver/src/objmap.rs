@@ -290,17 +290,15 @@ const IDX_INDICATOR_CHAR: char = '%';
 /// encoding as a string.
 const IDX_SEPARATOR_CHAR: char = ':';
 
-impl From<GenIdx> for rpc::ObjectId {
-    fn from(idx: GenIdx) -> Self {
-        let (a, b) = idx.0.into_raw_parts();
+impl GenIdx {
+    /// Encode `self` into an rpc::ObjectId that we can give to a client.
+    pub(crate) fn encode(self) -> rpc::ObjectId {
+        let (a, b) = self.0.into_raw_parts();
         rpc::ObjectId::from(format!("{IDX_INDICATOR_CHAR}{a}{IDX_SEPARATOR_CHAR}{b}"))
     }
-}
 
-impl TryFrom<&rpc::ObjectId> for GenIdx {
-    type Error = rpc::LookupError;
-
-    fn try_from(id: &rpc::ObjectId) -> Result<Self, Self::Error> {
+    /// Attempt to decode `id` into a `GenIdx` than an ObjMap can use.
+    pub(crate) fn try_decode(id: &rpc::ObjectId) -> Result<Self, rpc::LookupError> {
         let s = id.as_ref();
         if let Some(s) = s.strip_prefix(IDX_INDICATOR_CHAR) {
             if let Some((a_str, b_str)) = s.split_once(IDX_SEPARATOR_CHAR) {
