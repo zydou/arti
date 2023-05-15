@@ -15,7 +15,21 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 experimental = ["experimental-api"]
 experimental-api = ["__is_experimental"]
-full = ["pt-client", "safelog/full", "tor-basic-utils/full", "tor-cell/full", "tor-config/full", "tor-error/full", "tor-linkspec/full", "tor-llcrypto/full", "tor-netdir/full", "tor-proto/full", "tor-rtcompat/full", "tor-socksproto/full", "tor-units/full"]
+full = [
+    "pt-client",
+    "safelog/full",
+    "tor-basic-utils/full",
+    "tor-cell/full",
+    "tor-config/full",
+    "tor-error/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdir/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+    "tor-socksproto/full",
+    "tor-units/full",
+]
 
 pt-client = ["tor-linkspec/pt-client"]
 testing = []

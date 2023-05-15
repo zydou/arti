@@ -13,7 +13,27 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["mmap", "compression"]
-full = ["routerdesc", "bridge-client", "default", "fs-mistrust/full", "retry-error/full", "safelog/full", "tor-basic-utils/full", "tor-checkable/full", "tor-circmgr/full", "tor-config/full", "tor-consdiff/full", "tor-dirclient/full", "tor-error/full", "tor-guardmgr/full", "tor-llcrypto/full", "tor-netdir/full", "tor-netdoc/full", "tor-proto/full", "tor-rtcompat/full"]
+full = [
+    "routerdesc",
+    "bridge-client",
+    "default",
+    "fs-mistrust/full",
+    "retry-error/full",
+    "safelog/full",
+    "tor-basic-utils/full",
+    "tor-checkable/full",
+    "tor-circmgr/full",
+    "tor-config/full",
+    "tor-consdiff/full",
+    "tor-dirclient/full",
+    "tor-error/full",
+    "tor-guardmgr/full",
+    "tor-llcrypto/full",
+    "tor-netdir/full",
+    "tor-netdoc/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+]
 experimental = ["experimental-api", "dirfilter"]
 bridge-client = ["tor-circmgr/specific-relay", "tor-guardmgr/bridge-client", "routerdesc"]
 

@@ -28,7 +28,18 @@ hs-common = ["digest", "hex", "time", "tor-hscrypto"]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["hex", "tor-netdoc/build_docs"]
-full = ["tor-basic-utils/full", "tor-checkable/full", "tor-config/full", "tor-error/full", "tor-hscrypto?/full", "tor-linkspec/full", "tor-llcrypto/full", "tor-netdoc/full", "tor-protover/full", "tor-units/full"]
+full = [
+    "tor-basic-utils/full",
+    "tor-checkable/full",
+    "tor-config/full",
+    "tor-error/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdoc/full",
+    "tor-protover/full",
+    "tor-units/full",
+]
 __is_experimental = []
 
 [dependencies]

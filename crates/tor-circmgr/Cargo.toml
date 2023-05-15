@@ -14,7 +14,23 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 default = []
-full = ["specific-relay", "retry-error/full", "safelog/full", "tor-basic-utils/full", "tor-chanmgr/full", "tor-config/full", "tor-error/full", "tor-guardmgr/full", "tor-hscrypto?/full", "tor-linkspec/full", "tor-netdir/full", "tor-netdoc/full", "tor-persist/full", "tor-proto/full", "tor-rtcompat/full"]
+full = [
+    "specific-relay",
+    "retry-error/full",
+    "safelog/full",
+    "tor-basic-utils/full",
+    "tor-chanmgr/full",
+    "tor-config/full",
+    "tor-error/full",
+    "tor-guardmgr/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec/full",
+    "tor-netdir/full",
+    "tor-netdoc/full",
+    "tor-persist/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+]
 specific-relay = []
 
 # Enable testing-only APIs.  APIs under this feature are not
@@ -69,20 +85,11 @@ weak-table = "0.3.0"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.9.0", features = [
-    "testing",
-] }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.9.0", features = ["testing"] }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.9.0", features = [
-    "testing",
-] }
-tor-persist = { path = "../tor-persist", version = "0.7.0", features = [
-    "testing",
-] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0", features = [
-    "tokio",
-    "native-tls",
-] }
+tor-netdir = { path = "../tor-netdir", version = "0.9.0", features = ["testing"] }
+tor-persist = { path = "../tor-persist", version = "0.7.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.8.0" }
 [package.metadata.docs.rs]
 all-features = true

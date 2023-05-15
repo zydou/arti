@@ -15,7 +15,14 @@ publish = false
 
 [features]
 default = []
-full = ["tor-circmgr/full", "tor-hscrypto/full", "tor-llcrypto/full", "tor-netdir/full", "tor-proto/full", "tor-rtcompat/full"]
+full = [
+    "tor-circmgr/full",
+    "tor-hscrypto/full",
+    "tor-llcrypto/full",
+    "tor-netdir/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+]
 
 [dependencies]
 async-trait = "0.1.2"

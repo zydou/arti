@@ -23,7 +23,17 @@ hs = ["tor-hscrypto", "__is_experimental"]
 
 # Enable testing only API
 testing = ["experimental-udp"]
-full = ["caret/full", "tor-basic-utils/full", "tor-bytes/full", "tor-cert/full", "tor-error/full", "tor-hscrypto?/full", "tor-linkspec/full", "tor-llcrypto/full", "tor-units/full"]
+full = [
+    "caret/full",
+    "tor-basic-utils/full",
+    "tor-bytes/full",
+    "tor-cert/full",
+    "tor-error/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-units/full",
+]
 __is_experimental = []
 
 [dependencies]

@@ -24,7 +24,14 @@ full = [
     "harden",
     "compression",
     "bridge-client",
-    "pt-client", "arti-rpcserver?/full", "fs-mistrust/full", "safelog/full", "tor-config/full", "tor-error/full", "tor-rtcompat/full", "tor-socksproto/full",
+    "pt-client",
+    "arti-rpcserver?/full",
+    "fs-mistrust/full",
+    "safelog/full",
+    "tor-config/full",
+    "tor-error/full",
+    "tor-rtcompat/full",
+    "tor-socksproto/full",
 ]
 
 async-std = [

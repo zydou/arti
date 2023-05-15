@@ -14,14 +14,21 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-full = ["routerdesc", "ns_consensus", "tor-basic-utils/full", "tor-bytes/full", "tor-cert/full", "tor-checkable/full", "tor-error/full", "tor-hscrypto?/full", "tor-linkspec?/full", "tor-llcrypto/full", "tor-protover/full", "tor-units?/full"]
-experimental = [
-    "build_docs",
-    "experimental-api",
-    "hs-client",
-    "hs-service",
-    "hsdesc-inner-docs",
+full = [
+    "routerdesc",
+    "ns_consensus",
+    "tor-basic-utils/full",
+    "tor-bytes/full",
+    "tor-cert/full",
+    "tor-checkable/full",
+    "tor-error/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec?/full",
+    "tor-llcrypto/full",
+    "tor-protover/full",
+    "tor-units?/full",
 ]
+experimental = ["build_docs", "experimental-api", "hs-client", "hs-service", "hsdesc-inner-docs"]
 
 # Enable code to build the objects that represent different network documents.
 build_docs = ["rand", "__is_experimental"]

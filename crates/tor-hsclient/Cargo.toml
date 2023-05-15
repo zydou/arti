@@ -13,7 +13,22 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = ["retry-error/full", "safelog/full", "tor-checkable/full", "tor-circmgr/full", "tor-config/full", "tor-dirclient/full", "tor-error/full", "tor-hscrypto/full", "tor-linkspec/full", "tor-llcrypto/full", "tor-netdir/full", "tor-netdoc/full", "tor-proto/full", "tor-rtcompat/full"]
+full = [
+    "retry-error/full",
+    "safelog/full",
+    "tor-checkable/full",
+    "tor-circmgr/full",
+    "tor-config/full",
+    "tor-dirclient/full",
+    "tor-error/full",
+    "tor-hscrypto/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdir/full",
+    "tor-netdoc/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+]
 
 [dependencies]
 async-trait = "0.1.2"
@@ -33,12 +48,12 @@ tor-checkable = { path = "../tor-checkable", version = "0.5.0" }
 tor-circmgr = { version = "0.8.0", path = "../tor-circmgr", features = ["hs-client"] }
 tor-config = { path = "../tor-config", version = "0.9.0" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.7.0", default-features = false, features = ["hs-client"] }
-tor-error = { path = "../tor-error", version = "0.5.0", features = ["experimental-api"] } # TODO HS
+tor-error = { path = "../tor-error", version = "0.5.0", features = ["experimental-api"] }                            # TODO HS
 tor-hscrypto = { version = "0.2.0", path = "../tor-hscrypto" }
 tor-linkspec = { version = "0.7.0", path = "../tor-linkspec" }
 tor-llcrypto = { version = "0.5.0", path = "../tor-llcrypto" }
-tor-netdir = { version = "0.9.0", path = "../tor-netdir", features = [ "hs-client" ] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.7.0", features = [ "hs-client" ] }
+tor-netdir = { version = "0.9.0", path = "../tor-netdir", features = ["hs-client"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.7.0", features = ["hs-client"] }
 tor-proto = { version = "0.10.0", path = "../tor-proto", features = ["send-control-msg"] }
 tor-rtcompat = { version = "0.9.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
