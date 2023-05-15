@@ -379,7 +379,11 @@ pub trait KeyStore {
 ```
 
 We will initially support 2 key store implementations (one for the C Tor key
-store, and another for the Arti store):
+store, and one for the Arti store).
+
+
+### The Arti key store
+
 ```rust
 
 impl KeyStore for ArtiNativeKeyStore {
@@ -420,10 +424,6 @@ impl ArtiNativeKeyStore {
             .join(key_id.arti_path().0)
             .join(key_type.extension())
     }
-}
-
-impl KeyStore for CTorKeyStore {
-    ...
 }
 
 #[derive(Copy, Clone, ...)]
@@ -547,6 +547,18 @@ impl SshKeyType for KeyType {
     fn write_ssh_format(&self, key: &dyn EncodableKey) -> Result<Vec<u8>> {
         /* Encode `key` in SSH key format. */
     }
+}
+
+```
+
+### The C Tor key store
+
+TODO
+
+```rust
+
+impl KeyStore for CTorKeyStore {
+    ...
 }
 
 ```
