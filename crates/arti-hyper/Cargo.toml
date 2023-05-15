@@ -22,6 +22,7 @@ static = ["arti-client/static"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental-api = []
+full = ["arti-client/full", "tor-error/full", "tor-rtcompat/full"]
 
 [dependencies]
 anyhow = "1.0.23"

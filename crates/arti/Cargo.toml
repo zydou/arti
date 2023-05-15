@@ -24,7 +24,7 @@ full = [
     "harden",
     "compression",
     "bridge-client",
-    "pt-client",
+    "pt-client", "arti-rpcserver?/full", "fs-mistrust/full", "safelog/full", "tor-config/full", "tor-error/full", "tor-rtcompat/full", "tor-socksproto/full",
 ]
 
 async-std = [
@@ -37,11 +37,11 @@ async-std = [
 ]
 bridge-client = ["arti-client/bridge-client"]
 dns-proxy = ["trust-dns-proto"]
-experimental-api = ["visibility"]
+experimental-api = ["visibility", "__is_experimental"]
 harden = ["secmem-proc"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio", "tokio-util"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
-onion-service-client = ["arti-client/onion-client"]
+onion-service-client = ["arti-client/onion-client", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
 # depends directly on arti-client/static so native-tls doesn't get automatically included
@@ -60,7 +60,8 @@ compression = ["arti-client/compression"]
 # This feature flag enables experimental features that are not supported. Turning it on may
 # void your API.
 experimental = ["arti-client/experimental", "experimental-api", "onion-service-client", "rpc"]
-rpc = ["arti-rpcserver"]
+rpc = ["arti-rpcserver", "__is_experimental"]
+__is_experimental = []
 
 [dependencies]
 arti-rpcserver = { path = "../arti-rpcserver", version = "0.1.0", optional = true }

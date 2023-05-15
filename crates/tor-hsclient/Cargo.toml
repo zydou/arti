@@ -13,6 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+full = ["retry-error/full", "safelog/full", "tor-checkable/full", "tor-circmgr/full", "tor-config/full", "tor-dirclient/full", "tor-error/full", "tor-hscrypto/full", "tor-linkspec/full", "tor-llcrypto/full", "tor-netdir/full", "tor-netdoc/full", "tor-proto/full", "tor-rtcompat/full"]
 
 [dependencies]
 async-trait = "0.1.2"

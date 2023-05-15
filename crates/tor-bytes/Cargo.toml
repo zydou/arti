@@ -28,6 +28,9 @@ hex-literal = "0.4"
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }
+
+[features]
+full = ["tor-error/full", "tor-llcrypto/full"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

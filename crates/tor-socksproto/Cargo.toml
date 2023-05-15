@@ -15,6 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = ["proxy-handshake"]
 client-handshake = []
 proxy-handshake = []
+full = ["caret/full", "tor-bytes/full", "tor-error/full"]
 
 [dependencies]
 arbitrary = { version = "1.0.1", optional = true, features = ["derive"] }

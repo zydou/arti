@@ -21,6 +21,9 @@ tracing = "0.1.36"
 
 [dev-dependencies]
 tokio = { version = "1.7", features = ["macros", "rt", "rt-multi-thread", "time"] }
+
+[features]
+full = []
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

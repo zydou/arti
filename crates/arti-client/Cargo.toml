@@ -29,7 +29,7 @@ full = [
     "tor-rtcompat/full",
     "tor-proto/full",
     "tor-netdoc/full",
-    "tor-dirmgr/full",
+    "tor-dirmgr/full", "fs-mistrust/full", "safelog/full", "tor-async-utils/full", "tor-basic-utils/full", "tor-cell/full", "tor-chanmgr/full", "tor-checkable/full", "tor-circmgr/full", "tor-config/full", "tor-error/full", "tor-guardmgr/full", "tor-hsclient?/full", "tor-hscrypto?/full", "tor-llcrypto/full", "tor-netdir/full", "tor-persist/full", "tor-ptmgr?/full", "tor-rpcbase?/full",
 ]
 
 async-std = ["tor-rtcompat/async-std"]
@@ -67,11 +67,12 @@ experimental = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental-api = []
-dirfilter = ["tor-dirmgr/dirfilter"]
-error_detail = []
-onion-client = ["tor-hsclient", "tor-hscrypto"]
-rpc = ["tor-rpcbase"]
+experimental-api = ["__is_experimental"]
+dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
+error_detail = ["__is_experimental"]
+onion-client = ["tor-hsclient", "tor-hscrypto", "__is_experimental"]
+rpc = ["tor-rpcbase", "__is_experimental"]
+__is_experimental = []
 
 [dependencies]
 cfg-if = "1.0.0"

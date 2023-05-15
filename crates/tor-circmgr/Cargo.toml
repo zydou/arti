@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 default = []
-full = ["specific-relay"]
+full = ["specific-relay", "retry-error/full", "safelog/full", "tor-basic-utils/full", "tor-chanmgr/full", "tor-config/full", "tor-error/full", "tor-guardmgr/full", "tor-hscrypto?/full", "tor-linkspec/full", "tor-netdir/full", "tor-netdoc/full", "tor-persist/full", "tor-proto/full", "tor-rtcompat/full"]
 specific-relay = []
 
 # Enable testing-only APIs.  APIs under this feature are not
@@ -26,10 +26,11 @@ testing = ["tor-guardmgr/testing"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental = ["experimental-api", "hs-client", "hs-service"]
-experimental-api = ["visibility"]
-hs-client = ["hs-common"]
-hs-service = ["hs-common"]
+experimental-api = ["visibility", "__is_experimental"]
+hs-client = ["hs-common", "__is_experimental"]
+hs-service = ["hs-common", "__is_experimental"]
 hs-common = ["tor-hscrypto"]
+__is_experimental = []
 
 [dependencies]
 async-trait = "0.1.2"

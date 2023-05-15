@@ -23,3 +23,6 @@ void = "1"
 futures-await-test = "0.3.0"
 tokio = { version = "1.7", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
 
+[features]
+full = []
+

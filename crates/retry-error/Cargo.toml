@@ -14,6 +14,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dev-dependencies]
 
 anyhow = "1.0.23"
+
+[dependencies]
+
+[features]
+full = []
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

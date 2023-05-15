@@ -14,6 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["expand-paths"]
 expand-paths = ["shellexpand", "directories"]
+full = ["fs-mistrust/full", "tor-basic-utils/full", "tor-error/full"]
 
 [dependencies]
 config = { version = "0.13", default-features = false, features = ["toml"] }

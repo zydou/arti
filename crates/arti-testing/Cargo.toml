@@ -13,6 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 publish = false
 
 [features]
+full = ["arti/full", "arti-client/full", "tor-checkable/full", "tor-config/full", "tor-dirmgr/full", "tor-error/full", "tor-netdoc/full", "tor-rtcompat/full"]
 
 [dependencies]
 anyhow = "1.0.23"

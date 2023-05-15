@@ -25,6 +25,7 @@ hsv3-client = []
 hsv3-service = []
 
 __is_nonadditive = []
+full = ["safelog/full"]
 
 [dependencies]
 aes = { version = "0.8", features = ["zeroize"] }
