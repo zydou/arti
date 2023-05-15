@@ -592,6 +592,15 @@ impl SshKeyType for KeyType {
 
 ```
 
+#### Versioning
+
+As Arti evolves, it is likely we will eventually need to make changes to the
+structure of its key store (for example, to support new key specifiers, or to
+change something about the existing ones). This means we'll need to be able to
+distinguish between the different supported key store versions. To achieve this,
+the root of the Arti key store will have a `.VERSION` file that contains the
+version of the key store. Initially, we're only going to support version `1`.
+
 #### Key passphrases
 
 OpenSSH keys can have passphrases. While the first version of the key manager
