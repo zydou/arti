@@ -222,7 +222,7 @@ impl HsDescOuter {
                 .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
                 .check_cert_type(tor_cert::CertType::HS_BLINDED_ID_V_SIGNING)?
                 .into_unchecked()
-                .check_key(None) // require that the cert contains its signing key.
+                .should_have_signing_key()
                 .map_err(|err| {
                     EK::BadObjectVal
                         .err()

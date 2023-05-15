@@ -69,7 +69,7 @@ fn mismatched_signing_key() {
     // We give the wrong key to check_key, so it will tell us that
     // wasn't what the cert contained.
     assert_eq!(
-        cert.check_key(Some(&not_that_key)).err().unwrap(),
+        cert.should_be_signed_with(&not_that_key).err().unwrap(),
         CertError::KeyMismatch
     );
 
@@ -86,7 +86,7 @@ fn mismatched_signing_key() {
     // We give no key to check_key, which will tell us that there wasn't
     // a signing-key extension in the cert.
     assert_eq!(
-        cert.check_key(None).err().unwrap(),
+        cert.should_have_signing_key().err().unwrap(),
         CertError::MissingPubKey
     );
 }
