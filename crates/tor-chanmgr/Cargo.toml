@@ -32,6 +32,8 @@ full = [
 ]
 
 pt-client = ["tor-linkspec/pt-client"]
+
+# XXXX Mark as full, experimental, or non-additive!
 testing = []
 __is_experimental = []
 

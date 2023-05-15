@@ -13,6 +13,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["expand-paths"]
+
+# XXXX Mark as full, experimental, or non-additive!
+
+# XXXX This is reachable from 'default', but from 'full'.
 expand-paths = ["shellexpand", "directories"]
 full = ["fs-mistrust/full", "tor-basic-utils/full", "tor-error/full"]
 

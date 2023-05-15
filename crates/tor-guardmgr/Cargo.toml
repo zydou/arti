@@ -41,6 +41,8 @@ pt-client = ["bridge-client", "tor-linkspec/pt-client"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
+
+# XXXX Mark as full, experimental, or non-additive!
 testing = ["tor-netdir/testing"]
 
 [dependencies]

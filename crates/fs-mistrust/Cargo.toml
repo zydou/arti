@@ -14,6 +14,10 @@ rust-version = "1.65"
 [features]
 default = ["walkdir", "anon_home"]
 
+
+# XXXX Mark as full, experimental, or non-additive!
+
+# XXXX This is reachable from 'default', but from 'full'.
 anon_home = ["once_cell", "dirs"]
 full = []
 

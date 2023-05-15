@@ -55,6 +55,8 @@ bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
+
+# XXXX Mark as full, experimental, or non-additive!
 rustls = ["tor-rtcompat/rustls"]
 
 # depends directly on tor-rtcompat/static so native-tls doesn't get automatically included

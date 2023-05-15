@@ -67,6 +67,8 @@ experimental-api = ["testing", "__is_experimental"]
 # In fact, using this feature will give you the opposite of a "semver
 # guarantee": you should be mildly surprised when your code _doesn't_ break from
 # version to version.
+
+# XXXX Mark as full, experimental, or non-additive!
 dangerous-expose-struct-fields = ["visible", "visibility"]
 __is_experimental = []
 

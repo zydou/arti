@@ -22,6 +22,8 @@ experimental-udp = ["__is_experimental"]
 hs = ["tor-hscrypto", "__is_experimental"]
 
 # Enable testing only API
+
+# XXXX Mark as full, experimental, or non-additive!
 testing = ["experimental-udp"]
 full = [
     "caret/full",

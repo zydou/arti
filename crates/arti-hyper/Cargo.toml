@@ -13,14 +13,24 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["native-tls"]
+
+# XXXX Mark as full, experimental, or non-additive!
+
+# XXXX This is reachable from 'default', but from 'full'.
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
+
+# XXXX Mark as full, experimental, or non-additive!
 rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
+
+# XXXX Mark as full, experimental, or non-additive!
 static = ["arti-client/static"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
+
+# XXXX Mark as full, experimental, or non-additive!
 experimental-api = []
 full = ["arti-client/full", "tor-error/full", "tor-rtcompat/full"]
 
