@@ -233,7 +233,9 @@ is the `arti_path` of a particular key):
 ### The `KeySpecifier` trait
 
 ```rust
-/// The path of a key in the Arti key store.
+/// The path of a key in the Arti key store,
+/// relative to the root of the store.
+/// This path does not contain double-dot (..) elements.
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements
 /// `KeySpecifier` and its corresponding `ArtiPath`.
@@ -247,6 +249,12 @@ is the `arti_path` of a particular key):
 pub struct ArtiPath(PathBuf);
 
 /// The path of a key in the C Tor key store.
+///
+/// To construct the path of the key on disk, the `CTorPath` is appended to the
+/// `hs_service_dir`/`client_dir`/`key_dir` (depending on the role of the
+/// requested key) followed by the extension.
+///
+/// This path does not contain double-dot (..) elements.
 pub struct CTorPath(PathBuf);
 
 /// The "specifier" of a key.
