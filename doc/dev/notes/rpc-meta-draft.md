@@ -500,17 +500,12 @@ while concurrently reading arti's replies.
 ## Authentication
 
 When a connection is first opened,
-only authentication requests may be use
-until authentication is successful.
+only a single "connection" object is available.
+Its object ID is "`connection`".
+The client must authenticate to the connection
+in order to receive any other object IDs.
 
-> TODO: Perhaps it would be a good idea to say
-> that when a connection is opened,
-> there is an authentication Object (not a session Object)
-> and only _that Object_ can be used
-> until one of its responses eventually gives the application
-> a session Object?
-
-The authentication schemes are:
+The pre-authentication methods available on a connection are:
 
 auth:get_proto
 : Ask Arti which version of the protocol is in use.
