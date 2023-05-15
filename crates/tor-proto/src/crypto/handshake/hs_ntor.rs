@@ -175,7 +175,7 @@ where
     R: RngCore + CryptoRng,
 {
     // Create client's ephemeral keys to be used for this handshake
-    let x = curve25519::StaticSecret::new(rng.rng_compat());
+    let x = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
     let X = curve25519::PublicKey::from(&x);
 
     // Get EXP(B,x)
@@ -353,7 +353,7 @@ where
     let plaintext = ciphertext; // it's now decrypted
 
     // Generate ephemeral keys for this handshake
-    let y = curve25519::EphemeralSecret::new(rng.rng_compat());
+    let y = curve25519::EphemeralSecret::random_from_rng(rng.rng_compat());
     let Y = curve25519::PublicKey::from(&y);
 
     // Compute EXP(X,y) and EXP(X,b)
@@ -545,7 +545,7 @@ mod test {
         let mut rng = testing_rng().rng_compat();
 
         // Let's initialize keys for the client (and the intro point)
-        let intro_b_privkey = curve25519::StaticSecret::new(&mut rng);
+        let intro_b_privkey = curve25519::StaticSecret::random_from_rng(&mut rng);
         let intro_b_pubkey = curve25519::PublicKey::from(&intro_b_privkey);
         let intro_auth_key_privkey = ed25519::SecretKey::generate(&mut rng);
         let intro_auth_key_pubkey = ed25519::PublicKey::from(&intro_auth_key_privkey);
