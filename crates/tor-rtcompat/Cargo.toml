@@ -21,8 +21,10 @@ tokio = ["tokio-crate", "tokio-util", "async_executors/tokio_tp"]
 static = ["native-tls-crate?/vendored", "__is_nonadditive"]
 native-tls = ["native-tls-crate", "async-native-tls"]
 
-# XXXX Mark as full, experimental, or non-additive!
-rustls = ["rustls-crate", "async-rustls", "x509-signature"]
+# This is not nonadditive from a software POV, but we mark it as such because it
+# includes code licensed under the old OpenSSL license (which was 4-clause BSD),
+# which in turn introduces a GPL-incompatibility.
+rustls = ["rustls-crate", "async-rustls", "x509-signature", "__is_nonadditive"]
 
 __is_nonadditive = []
 

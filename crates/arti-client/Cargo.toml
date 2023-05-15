@@ -56,8 +56,10 @@ tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
 
-# XXXX Mark as full, experimental, or non-additive!
-rustls = ["tor-rtcompat/rustls"]
+# This is not nonadditive from a software POV, but we mark it as such because it
+# includes code licensed under the old OpenSSL license (which was 4-clause BSD),
+# which in turn introduces a GPL-incompatibility.
+rustls = ["tor-rtcompat/rustls", "__is_nonadditive"]
 
 # depends directly on tor-rtcompat/static so native-tls doesn't get automatically included
 static = ["static-sqlite", "tor-rtcompat/static", "__is_nonadditive"]
@@ -83,7 +85,9 @@ experimental = [
     "tor-netdoc/experimental",
     "tor-dirmgr/experimental",
     "tor-circmgr/experimental",
-] # Enable experimental APIs that are not yet officially supported.
+]
+
+# Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".

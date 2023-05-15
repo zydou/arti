@@ -13,13 +13,9 @@ rust-version = "1.65"
 
 [features]
 default = ["walkdir", "anon_home"]
+full = ["walkdir", "anon_home"]
 
-
-# XXXX Mark as full, experimental, or non-additive!
-
-# XXXX This is reachable from 'default', but from 'full'.
 anon_home = ["once_cell", "dirs"]
-full = []
 
 [dependencies]
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }

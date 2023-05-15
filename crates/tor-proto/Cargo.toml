@@ -32,18 +32,16 @@ full = [
     "tor-units/full",
 ]
 
-experimental = ["experimental-api", "hs-client", "hs-service", "ntor_v3"]
+experimental = ["experimental-api", "hs-client", "hs-service", "ntor_v3", "testing"]
 ntor_v3 = ["__is_experimental"]
 hs-client = ["hs-common", "__is_experimental"]
 hs-service = ["hs-common", "__is_experimental"]
 hs-common = []
 experimental-api = ["send-control-msg", "__is_experimental"]
-send-control-msg = ["visibility"]                                         # send_control_message etc.; TODO HS should this be in hs-client?
+send-control-msg = ["visibility"]                                                    # send_control_message etc.; TODO HS should this be in hs-client?
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-
-# XXXX Mark as full, experimental, or non-additive!
-testing = []
+testing = ["__is_experimental"]
 tokio = ["tokio-crate", "tokio-util"]
 __is_experimental = []
 

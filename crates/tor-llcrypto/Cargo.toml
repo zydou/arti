@@ -13,25 +13,22 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+full = ["safelog/full"]
+
 with-openssl = ["openssl", "typenum", "cipher", "__is_nonadditive"]
 with-sha1-asm = ["sha1/asm", "__is_nonadditive"]
 
+experimental = ["relay", "hsv3-client", "hsv3-service"]
+
 # Enable support for cryptography needed to be a Tor relay.
-
-# XXXX Mark as full, experimental, or non-additive!
-relay = []
-
+relay = ["__is_experimental"]
 # Enable support for cryptography needed to be an onion service v3 client.
-
-# XXXX Mark as full, experimental, or non-additive!
-hsv3-client = []
+hsv3-client = ["__is_experimental"]
 # Enable support for cryptography needed to be an onion service v3 service.
-
-# XXXX Mark as full, experimental, or non-additive!
-hsv3-service = []
+hsv3-service = ["__is_experimental"]
 
 __is_nonadditive = []
-full = ["safelog/full"]
+__is_experimental = []
 
 [dependencies]
 aes = { version = "0.8", features = ["zeroize"] }

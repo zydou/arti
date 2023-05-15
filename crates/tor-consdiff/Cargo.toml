@@ -13,10 +13,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-
-# XXXX Mark as full, experimental, or non-additive!
-slow-diff-apply = []
 full = ["tor-llcrypto/full"]
+
+experimental = ["slow-diff-apply"]
+slow-diff-apply = ["__is_experimental"]
+__is_experimental = []
 
 [dependencies]
 digest = "0.10.0"

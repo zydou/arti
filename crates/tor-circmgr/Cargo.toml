@@ -35,15 +35,13 @@ specific-relay = []
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-
-# XXXX Mark as full, experimental, or non-additive!
-testing = ["tor-guardmgr/testing"]
+testing = ["tor-guardmgr/testing", "__is_experimental"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "hs-client", "hs-service"]
+experimental = ["experimental-api", "hs-client", "hs-service", "testing"]
 experimental-api = ["visibility", "__is_experimental"]
 hs-client = ["hs-common", "__is_experimental"]
 hs-service = ["hs-common", "__is_experimental"]

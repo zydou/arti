@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-experimental = ["experimental-api"]
+experimental = ["experimental-api", "testing"]
 experimental-api = ["__is_experimental"]
 full = [
     "pt-client",
@@ -33,8 +33,7 @@ full = [
 
 pt-client = ["tor-linkspec/pt-client"]
 
-# XXXX Mark as full, experimental, or non-additive!
-testing = []
+testing = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]

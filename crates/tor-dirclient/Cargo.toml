@@ -14,24 +14,16 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["xz", "zstd"]
 # Enable support for hidden service descriptor downloads.
-
-# XXXX Mark as full, experimental, or non-additive!
 hs-client = ["tor-hscrypto"]
-
-# XXXX Mark as full, experimental, or non-additive!
-
-# XXXX This is reachable from 'default', but from 'full'.
 xz = ["async-compression/xz"]
-
-# XXXX Mark as full, experimental, or non-additive!
-
-# XXXX This is reachable from 'default', but from 'full'.
 zstd = ["async-compression/zstd"]
 # Enable support for router descriptor downloads.
-
-# XXXX Mark as full, experimental, or non-additive!
 routerdesc = []
+
 full = [
+    "xz",
+    "zstd",
+    "routerdesc",
     "tor-circmgr/full",
     "tor-error/full",
     "tor-hscrypto?/full",

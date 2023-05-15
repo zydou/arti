@@ -14,10 +14,12 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
+testing = ["__is_experimental"]
 
-# XXXX Mark as full, experimental, or non-additive!
-testing = []
 full = ["fs-mistrust/full", "tor-error/full"]
+
+experimental = ["testing"]
+__is_experimental = []
 
 [dependencies]
 derive_more = "0.99.3"

@@ -51,8 +51,11 @@ native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-client", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 
-# XXXX Mark as full, experimental, or non-additive!
-rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
+# This is not nonadditive from a software POV, but we mark it as such because it
+# includes code licensed under the old OpenSSL license (which was 4-clause BSD),
+# which in turn introduces a GPL-incompatibility.
+rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "__is_nonadditive"]
+
 # depends directly on arti-client/static so native-tls doesn't get automatically included
 static = ["arti-client/static", "__is_nonadditive"]
 static-sqlite = ["arti-client/static-sqlite", "__is_nonadditive"]

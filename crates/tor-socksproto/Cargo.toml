@@ -14,14 +14,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["proxy-handshake"]
 
-# XXXX Mark as full, experimental, or non-additive!
 client-handshake = []
-
-# XXXX Mark as full, experimental, or non-additive!
-
-# XXXX This is reachable from 'default', but from 'full'.
 proxy-handshake = []
-full = ["caret/full", "tor-bytes/full", "tor-error/full"]
+
+full = ["proxy-handshake", "client-handshake", "caret/full", "tor-bytes/full", "tor-error/full"]
 
 [dependencies]
 arbitrary = { version = "1.0.1", optional = true, features = ["derive"] }
