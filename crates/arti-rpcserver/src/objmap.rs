@@ -235,7 +235,7 @@ impl ArenaEntry {
         }
     }
 
-    /// Return true if this `ArenaEntry` is really present.  
+    /// Return true if this `ArenaEntry` is really present.
     ///
     /// Note that this function can produce false positives (if the entry is Weak
     /// and its last strong reference is dropped in another thread), but it can
@@ -284,35 +284,61 @@ impl TaggedAddr {
     }
 }
 
-/// The character we use to start all generational indices when encoded as a string.
-const IDX_INDICATOR_CHAR: char = '%';
-/// The character we use to separate the two parts of a generational index when
-/// encoding as a string.
-const IDX_SEPARATOR_CHAR: char = ':';
-
+/// Encoding functions for GenIdx.
+///
+/// The encoding is deliberately nondeterministic: we want to avoid situations
+/// where applications depend on the details of our ObjectIds, or hardcode the
+/// ObjectIds they expect, or rely on the same  weak generational index getting
+/// encoded the same way every time they see it.
+///
+/// The encoding is deliberately non-cryptographic: we do not want to imply
+/// that this gives any security. It is just a mild deterrent to misuse.
+///
+/// If you find yourself wanting to reverse-engineer this code so that you can
+/// analyze these object IDs, please contact the Arti developers instead and let
+/// us give you a better way to do whatever you want.
 impl GenIdx {
     /// Encode `self` into an rpc::ObjectId that we can give to a client.
     pub(crate) fn encode(self) -> rpc::ObjectId {
+        self.encode_with_rng(&mut rand::thread_rng())
+    }
+
+    /// As `encode`, but take a Rng as an argument. For testing.
+    fn encode_with_rng<R: rand::RngCore>(self, rng: &mut R) -> rpc::ObjectId {
+        use base64ct::Encoding;
+        use rand::Rng;
+        use tor_bytes::Writer;
         let (a, b) = self.0.into_raw_parts();
-        rpc::ObjectId::from(format!("{IDX_INDICATOR_CHAR}{a}{IDX_SEPARATOR_CHAR}{b}"))
+        let x = rng.gen::<u64>();
+        let mut bytes = Vec::new();
+        bytes.write_u64(x);
+        bytes.write_u64((a as u64).wrapping_add(x));
+        bytes.write_u64(b.wrapping_sub(x));
+        rpc::ObjectId::from(base64ct::Base64UrlUnpadded::encode_string(&bytes[..]))
     }
 
     /// Attempt to decode `id` into a `GenIdx` than an ObjMap can use.
     pub(crate) fn try_decode(id: &rpc::ObjectId) -> Result<Self, rpc::LookupError> {
-        let s = id.as_ref();
-        if let Some(s) = s.strip_prefix(IDX_INDICATOR_CHAR) {
-            if let Some((a_str, b_str)) = s.split_once(IDX_SEPARATOR_CHAR) {
-                let a = a_str
-                    .parse()
-                    .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
-                let b = b_str
-                    .parse()
-                    .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
-                return Ok(GenIdx(generational_arena::Index::from_raw_parts(a, b)));
-            }
-        }
+        use base64ct::Encoding;
+        use tor_bytes::Reader;
 
-        Err(rpc::LookupError::NoObject(id.clone()))
+        let bytes = base64ct::Base64UrlUnpadded::decode_vec(id.as_ref())
+            .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
+        let mut r = Reader::from_slice(&bytes);
+        let mut get_u64 = || {
+            r.take_u64()
+                .map_err(|_| rpc::LookupError::NoObject(id.clone()))
+        };
+        let x = get_u64()?;
+        let a = get_u64()?;
+        let b = get_u64()?;
+        r.should_be_exhausted()
+            .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
+
+        let a = a.wrapping_sub(x) as usize;
+        let b = b.wrapping_add(x);
+
+        Ok(GenIdx(generational_arena::Index::from_raw_parts(a, b)))
     }
 }
 
@@ -721,5 +747,28 @@ mod test {
         map.insert_strong(obj);
         map.insert_strong(wrap);
         assert_eq!(map.arena.len(), 2);
+    }
+
+    #[test]
+    fn objid_encoding() {
+        use rand::Rng;
+        fn test_roundtrip(a: usize, b: u64, rng: &mut tor_basic_utils::test_rng::TestingRng) {
+            let idx = GenIdx(generational_arena::Index::from_raw_parts(a, b));
+            let s1 = dbg!(idx.encode_with_rng(rng));
+            let s2 = dbg!(idx.encode_with_rng(rng));
+            assert_ne!(s1, s2);
+            assert_eq!(idx, GenIdx::try_decode(&s1).unwrap());
+            assert_eq!(idx, GenIdx::try_decode(&s2).unwrap());
+        }
+        let mut rng = tor_basic_utils::test_rng::testing_rng();
+
+        test_roundtrip(0, 0, &mut rng);
+        test_roundtrip(0, 1, &mut rng);
+        test_roundtrip(1, 0, &mut rng);
+        test_roundtrip(0xffffffff, 0xffffffffffffffff, &mut rng);
+
+        for _ in 0..256 {
+            test_roundtrip(rng.gen(), rng.gen(), &mut rng);
+        }
     }
 }
