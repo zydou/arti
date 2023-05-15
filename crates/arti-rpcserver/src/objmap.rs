@@ -303,7 +303,7 @@ const IDX_SEPARATOR_CHAR: char = ':';
 impl From<GenIdx> for rpc::ObjectId {
     fn from(idx: GenIdx) -> Self {
         let (a, b) = idx.0.into_raw_parts();
-        rpc::ObjectId::from(format!("{IDX_SEPARATOR_CHAR}{a}{IDX_SEPARATOR_CHAR}{b}"))
+        rpc::ObjectId::from(format!("{IDX_INDICATOR_CHAR}{a}{IDX_SEPARATOR_CHAR}{b}"))
     }
 }
 
