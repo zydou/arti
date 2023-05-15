@@ -486,20 +486,25 @@ pub enum KeyType {
 }
 
 impl KeyType {
-    /// The file extension for a key of this type.
+    /// The file extension for a key of this type in an Arti key store.
     ///
     /// We use nonstandard extensions to prevent keys from being used in unexpected ways (e.g. if
     /// the user renames a key from KP_hsc_intro_auth.arti_priv to KP_hsc_intro_auth.arti_priv.old,
     /// the arti key store should disregard the backup file).
     ///
     /// The key stores will ignore any files that don't have a recognized extension.
-    pub fn extension(&self) -> &'static str {
+    pub fn arti_extension(&self) -> &'static str {
         // TODO hs: come up with a better convention for extensions.
         if self.is_private() {
             ".arti_priv"
         } else {
             ".arti_pub"
         }
+    }
+
+    /// The file extension for a key of this type in a C Tor key store.
+    pub fn ctor_extension(&self) -> &'static str {
+        todo!()
     }
 
     /// Whether the key is public or private.
