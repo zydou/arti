@@ -419,6 +419,12 @@ impl Ed25519Cert {
 
 /// A parsed Ed25519 certificate. Maybe it includes its signing key;
 /// maybe it doesn't.
+///
+/// To validate this cert, either it must contain its signing key,
+/// or the caller must know the signing key.  In the first case, call
+/// [`should_have_signing_key`](KeyUnknownCert::should_have_signing_key);
+/// in the latter, call
+/// [`should_be_signed_with`](KeyUnknownCert::should_be_signed_with).
 #[derive(Clone, Debug)]
 pub struct KeyUnknownCert {
     /// The certificate whose signing key might not be known.
@@ -438,6 +444,8 @@ impl KeyUnknownCert {
     /// Check whether a given pkey is (or might be) a key that has correctly
     /// signed this certificate.
     ///
+    /// If pkey is None, this certificate must contain its signing key.
+    ///
     /// On success, we can check whether the certificate is well-signed;
     /// otherwise, we can't check the certificate.
     pub fn check_key(self, pkey: Option<&ed25519::Ed25519Identity>) -> CertResult<UncheckedCert> {
@@ -455,6 +463,28 @@ impl KeyUnknownCert {
             },
             ..self.cert
         })
+    }
+
+    /// Declare that this should be a self-contained certificate that contains its own
+    /// signing key.
+    ///
+    /// On success, this certificate did indeed turn out to be self-contained, and so
+    /// we can validate it.
+    /// On failure, this certificate was not self-contained.
+    pub fn should_have_signing_key(self) -> CertResult<UncheckedCert> {
+        self.check_key(None)
+    }
+
+    /// Declare that this should be a certificate signed with a given key.
+    ///
+    /// On success, this certificate either listed the provided key, or did not
+    /// list any key: in either case, we can validate it.
+    /// On failure, this certificate claims to be signed with a different key.
+    pub fn should_be_signed_with(
+        self,
+        pkey: &ed25519::Ed25519Identity,
+    ) -> CertResult<UncheckedCert> {
+        self.check_key(Some(pkey))
     }
 }
 
