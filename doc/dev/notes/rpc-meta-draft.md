@@ -130,7 +130,7 @@ If an Object is not visible in a session,
 that session cannot access it.
 
 Clients identify each Object within a session
-by an opaque "Object Identifier".
+by an opaque string, called an "Object Identifier".
 Each identifier may be a "handle" or a "reference".
 If a session has a _handle_ to an Object,
 Arti won't deliberately discard that Object
@@ -140,8 +140,9 @@ If a session only has a _reference_ to an Object, however,
 that Object might be closed or discarded in the background,
 and there is no need to release it.
 
-> For more on how this is implemented,
-> see "Representing Object Identifiers" below.
+The format of an Object Identifier string is not stable,
+and clients must not rely on it.
+
 
 ## Request and response types
 
@@ -495,40 +496,6 @@ There is no minimum must-be-supported number or size of concurrent requests.
 Therefore a client which sends more than one request at a time
 must be prepared to buffer requests at its end,
 while concurrently reading arti's replies.
-
-
-## Representing Object Identifiers.
-
-> This section describes implementation techniques.
-> Applications should not need to care about it.
-
-Here are two ways to provide our Object visibility semantics.
-Applications should not care which one Arti uses.
-Arti may use both methods for different Objects
-in the same session.
-
-In one method,
-we use a generational index for each live session
-to hold reference-counted pointers
-to the Objects visible in the session.
-The generational index is the identifier for the Object.
-(This method is suitable for representing _handles_
-as described above.)
-
-In another method,
-when it is more convenient for Arti to access an Object
-by a global identifier `GID`,
-we use a string `GID:MAC(N_s,GID)` for the Object's Identifier,
-where `N_s` is a per-session secret nonce
-that Arti generates and does not share with the application.
-Arti verifies that the MAC is correct
-before looking up the Object by its GID.
-(This method is suitable for representing _references_ as
-described above.)
-
-Finally, in either method, we use a single fixed identifier
-(e.g. `session`)
-for the current session.
 
 ## Authentication
 
