@@ -18,7 +18,7 @@ experimental = ["experimental-api", "dirfilter"]
 bridge-client = ["tor-circmgr/specific-relay", "tor-guardmgr/bridge-client", "routerdesc"]
 
 mmap = ["memmap2"]
-static = ["rusqlite/bundled"]
+static = ["rusqlite/bundled", "__is_nonadditive"]
 compression = ["tor-dirclient/xz", "tor-dirclient/zstd"]
 # (Incomplete) support for downloading and storing router descriptors
 routerdesc = ["tor-dirclient/routerdesc"]
@@ -29,6 +29,8 @@ dirfilter = []
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental-api = []
+
+__is_nonadditive = []
 
 [dependencies]
 async-trait = "0.1.2"

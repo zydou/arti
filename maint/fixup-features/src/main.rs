@@ -1,62 +1,59 @@
 //! A quick and dirty command-line tool to enforce certain properties about
 //! Arti's Cargo.toml files.
 //!
+//!
+//! Definitions.
+//!
+//! - An **experimental** feature is one for which we do not provide semver guarantees.
+//! - A **non-additive** feature is one whose behavior does something other than
+//!   add functionality to its crate.  (For example, building statically or
+//!   switching out a default is non-additive.)
+//! - The **meta** features are `default`, `full`, `experimental`,
+//!   `__is_nonadditive`, and `__is_experimental`.
+//! - The **toplevel** features are `default`, `full`, and `experimental`.
+//! - A feature A "is reachable from" some feature B if there is a nonempty path from A
+//!   to B in the feature graph.
+//! - A feature A "directly depends on" some feature B if there is an edge from
+//!   A to B in the feature graph.  We also say that feature B "is listed in"
+//!   feature A.
+//!
 //! The properties that we want to enforce are:
 //!
 //! 1. Every crate has a "full" feature.
 //! 2. For every crate within Arti, if we depend on that crate, our "full"
 //!    includes that crate's "full".
-//! 3. Every feature we declare is reachable from "full", "experimental", or
-//!    "__nonadditive"--except for "full", "experimental", "__nonadditive", and
-//!    "default". property automatically.)
-//! 4. No feature we declare is reachable from more than one of "full",
-//!    "experimental", or "__nonadditive".
+//! 3. Every feature listed in `experimental` depends on `__is_experimental`.
+//!    Every feature that depends on `__is_experimental` is reachable from `experimental`.
+//!    Call such features "experimental" features.
+//! 4. Call a feature "non-additive" if and only if it depends directly on `__is_nonadditive`.
+//!    Every non-meta feature we declare is reachable from "full" or "experimental",
+//!    or it is non-additive.
+//! 5. Every feature reachable from `default` is reachable from `full`.
+//! 6. No non-additive feature is reachable from `full` or `experimental`.
+//! 7. No experimental is reachable from `full`.
 //!
-//! This tool can edit Cargo.toml files to enforce the rules 1 and 2
-//! automatically.  For rule 3, it can annotate any offending features with
-//! comments complaining about how they need to be included in one of the
-//! top-level features.
+//! This tool can edit Cargo.toml files to enforce the rules 1-3
+//! automatically.  For rules 4-7, it can annotate any offending features with
+//! comments complaining about how they need to be fixed.
 //!
 //! # To use:
 //!
 //! Run this tool with the top-level Cargo.toml as an argument.
+//! Run with `--no-annotate` if you don't want any comments added.
 //!
 //! # Limitations
 //!
 //! This is not very efficient, and is not trying to be.
 
-use anyhow::{anyhow, Context, Result};
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
-use std::path::{Path, PathBuf};
-use toml_edit::{Array, Document, Item, Table, Value};
+mod changes;
+mod graph;
 
-/// Given a hashmap representing a binary relationship, compute its transitive closure.
-fn transitive_closure<K: Hash + Eq + PartialEq + Clone>(
-    inp: &HashMap<K, HashSet<K>>,
-) -> HashMap<K, HashSet<K>> {
-    let mut out = inp.clone();
-    let max_iters = inp.len();
-    for _ in 0..max_iters {
-        let mut new_out = out.clone();
-        for (k, vs) in out.iter() {
-            let new_vs = new_out
-                .get_mut(k)
-                .expect("That key should have been there when I cloned it...");
-            for v in vs.iter() {
-                if let Some(vv) = out.get(v) {
-                    new_vs.extend(vv.iter().cloned());
-                }
-            }
-        }
-        if out == new_out {
-            break;
-        } else {
-            out = new_out;
-        }
-    }
-    out
-}
+use anyhow::{anyhow, Context, Result};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use toml_edit::{Document, Item, Table, Value};
+
+use changes::{Change, Changes};
 
 /// A warning we return from our linter.
 ///
@@ -82,7 +79,7 @@ struct Crate {
     toml_file: PathBuf,
     /// Parsed and manipulated copy of Cargo.toml
     toml_doc: Document,
-    /// Pared and unmanipulated copy of Cargo.toml.
+    /// Parsed and un-manipulated copy of Cargo.toml.
     toml_doc_orig: Document,
 }
 
@@ -118,10 +115,6 @@ fn arti_dependencies(dependencies: &Table) -> Vec<Dependency> {
     deps
 }
 
-/// A complaint that we add to features which are not reachable according to
-/// rule 3.
-const COMPLAINT: &str = "# XX\x58X Add this to a top-level feature!\n";
-
 impl Crate {
     /// Try to read a crate's Cargo.toml from a given filename.
     fn load(p: impl AsRef<Path>) -> Result<Self> {
@@ -142,7 +135,7 @@ impl Crate {
     }
 
     /// Try to fix all the issues we find with a Cargo.toml.  Return a list of warnings.
-    fn fix(&mut self) -> Result<Vec<Warning>> {
+    fn fix(&mut self, no_annotate: bool) -> Result<Vec<Warning>> {
         let mut warnings = Vec::new();
         let mut w = |s| warnings.push(Warning(s));
         let dependencies = self
@@ -160,87 +153,23 @@ impl Crate {
             .or_insert_with(|| Item::Table(Table::new()))
             .as_table_mut()
             .ok_or_else(|| anyhow!("Features was not table"))?;
-        let _ = features
-            .entry("full")
-            .or_insert_with(|| Item::Value(Value::Array(Array::new())));
+        let graph = graph::FeatureGraph::from_features_table(features)?;
+        let mut changes = Changes::default();
 
-        let features_map: Result<HashMap<String, HashSet<String>>> = features
-            .iter()
-            .map(|(k, v)| {
-                Ok((
-                    k.to_string(),
-                    v.as_array()
-                        .ok_or_else(|| anyhow!("features.{} was not an array!", k))?
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| s.to_string())
-                        .collect(),
-                ))
-            })
-            .collect();
-        let features_map = features_map?;
+        // Build a few sets that will be useful a few times below.
+        let all_features: HashSet<_> = graph.all_features().collect();
+        let reachable_from_experimental: HashSet<_> =
+            graph.all_reachable_from("experimental").collect();
+        let nonadditive: HashSet<_> = graph.edges_to("__is_nonadditive").collect();
+        let reachable_from_full: HashSet<_> = graph.all_reachable_from("full").collect();
 
-        let all_features: HashSet<String> = features_map.keys().cloned().collect();
-
-        let reachable = transitive_closure(&features_map);
         // Enforce rule 1.  (There is a "Full" feature.)
-        if !reachable.contains_key("full") {
+        if !graph.contains_feature("full") {
             w("full feature does not exist. Adding.".to_string());
-            // Actually, we fixed it already, by adding it to `features` above.
+            changes.push(Change::AddFeature("full".to_string()));
         }
 
-        let empty = HashSet::new();
-        let full = reachable.get("full").unwrap_or(&empty);
-        let experimental = reachable.get("experimental").unwrap_or(&empty);
-        let nonadditive = reachable.get("__nonadditive").unwrap_or(&empty);
-        let reachable_from_toplevel: HashSet<_> = [full, experimental, nonadditive]
-            .iter()
-            .flat_map(|s| s.iter())
-            .cloned()
-            .collect();
-
-        // Enforce rule 4: No feature we declare may be reachable from two of full,
-        // experimental, and __nonadditive.
-        for item in experimental.intersection(full) {
-            w(format!("{item} reachable from both full and experimental"));
-        }
-        for item in nonadditive.intersection(full) {
-            w(format!("{item} reachable from both full and nonadditive"));
-        }
-        for item in nonadditive.intersection(experimental) {
-            w(format!(
-                "{item} reachable from both experimental and nonadditive"
-            ));
-        }
-
-        // Enforce rule 3: Every feature we declare must be reachable from full,
-        // experimental, or __nonadditive, except for those
-        // top-level features, and "default".
-        for feat in all_features.difference(&reachable_from_toplevel) {
-            if ["full", "default", "experimental", "__nonaddtive"].contains(&feat.as_str()) {
-                continue;
-            }
-            w(format!(
-                "{feat} not reachable from full, experimental, or __nonadditive. Marking."
-            ));
-
-            let decor = features
-                .key_decor_mut(feat.as_str())
-                .expect("No decor on key!"); // (There should always be decor afaict.)
-            let prefix = match decor.prefix() {
-                Some(r) => r.as_str().expect("prefix not a string"), // (We can't proceed if the prefix decor is not a string.)
-                None => "",
-            };
-            if !prefix.contains(COMPLAINT) {
-                let mut new_prefix: String = prefix.to_string();
-                new_prefix.push('\n');
-                new_prefix.push_str(COMPLAINT);
-                decor.set_prefix(new_prefix);
-            }
-        }
-
-        // Enforce rule 3: for every arti crate that we depend on, our 'full' should include that crate's full.
-        let mut add_to_full = HashSet::new();
+        // Enforce rule 2. (for every arti crate that we depend on, our 'full' should include that crate's full.
         for dep in dependencies.iter() {
             let wanted = if dep.optional {
                 format!("{}?/full", dep.name)
@@ -248,17 +177,111 @@ impl Crate {
                 format!("{}/full", dep.name)
             };
 
-            if !full.contains(wanted.as_str()) {
+            if !graph.contains_edge("full", wanted.as_str()) {
                 w(format!("full should contain {}. Fixing.", wanted));
-                add_to_full.insert(wanted);
+                changes.push(Change::AddExternalEdge("full".to_string(), wanted));
             }
         }
-        features
-            .get_mut("full")
-            .expect("We checked for the `full` feature, but now it isn't there!")
-            .as_array_mut()
-            .expect("Somehow `full` is not an array any more!")
-            .extend(add_to_full);
+
+        // Enforce rule 3 (relationship between "experimental" and
+        // "__is_experimental")
+        let defined_experimental: HashSet<_> = {
+            let in_experimental: HashSet<_> = graph.edges_from("experimental").collect();
+            let is_experimental: HashSet<_> = graph.edges_to("__is_experimental").collect();
+
+            // Every feature listed in `experimental` depends on `__is_experimental`.
+            for f in in_experimental.difference(&is_experimental) {
+                if all_features.contains(f) {
+                    w(format!("{f} should depend on __is_experimental. Fixing."));
+                    changes.push(Change::AddEdge(f.clone(), "__is_experimental".into()));
+                }
+            }
+            // Every feature that depends on `__is_experimental` is reachable from `experimental`.
+            for f in is_experimental.difference(&reachable_from_experimental) {
+                w(format!("{f} is marked as __is_experimental, but is not reachable from experimental. Fixing."));
+                changes.push(Change::AddEdge("experimental".into(), f.clone()))
+            }
+
+            &in_experimental | &is_experimental
+        };
+
+        // Enforce rule 4: Every non-meta feature is reachable from full, or
+        // from experimental, or is nonadditive.
+        {
+            let complaint: &str = "# XX\x58X Mark as full, experimental, or non-additive!\n";
+
+            let all_features: HashSet<_> = graph.all_features().collect();
+            let meta: HashSet<_> = [
+                "__is_nonadditive",
+                "__is_experimental",
+                "full",
+                "default",
+                "experimental",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect();
+
+            let mut not_found = all_features;
+            for set in [
+                &reachable_from_full,
+                &meta,
+                &reachable_from_experimental,
+                &nonadditive,
+            ] {
+                not_found = &not_found - set;
+            }
+
+            for f in not_found {
+                w(format!(
+                    "{f} is not experimental, reachable from full, or nonadditive."
+                ));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+            }
+        }
+
+        // 5. Every feature reachable from `default` is reachable from `full`.
+        {
+            let complaint = "# XX\x58X This is reachable from 'default', but from 'full'.\n";
+            let default: HashSet<_> = graph.edges_from("default").collect();
+            for f in default.difference(&reachable_from_full) {
+                if all_features.contains(f) {
+                    w(format!("{f} is reachable from default, but not from full."));
+                    changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+                }
+            }
+        }
+
+        // 6. No non-additive feature is reachable from `full` or
+        //    `experimental`.
+        {
+            let complaint = "# XX\x58X This is non-additive, but reachable from 'full'.\n";
+            for f in nonadditive.intersection(&reachable_from_full) {
+                w(format!("nonadditive feature {f} is reachable from full."));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+            }
+            let complaint = "# XX\x58X This is non-additive, but reachable from 'experimental'.\n";
+            for f in nonadditive.intersection(&reachable_from_experimental) {
+                w(format!(
+                    "nonadditive feature {f} is reachable from experimental."
+                ));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+            }
+        }
+
+        // 7. No experimental is reachable from `full`.
+        {
+            let complaint = "# XX\x58X This is experimental, but reachable from 'full'.\n";
+            for f in reachable_from_full.intersection(&defined_experimental) {
+                w(format!("experimental feature {f} is reachable from full!"));
+                changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+            }
+        }
+
+        if no_annotate {
+            changes.drop_annotations();
+        }
+        changes.apply(features)?;
 
         Ok(warnings)
     }
@@ -294,12 +317,20 @@ fn list_crate_paths(toplevel: impl AsRef<Path>) -> Result<Vec<String>> {
 }
 
 fn main() -> Result<()> {
-    let args: Vec<_> = std::env::args().collect();
-    if args.len() != 1 {
-        println!("We expect a single argument: The top-level Cargo.toml file.");
+    let mut pargs = pico_args::Arguments::from_env();
+    const HELP: &str = "fixup-features [--no-annotate] <toplevel Cargo.toml>";
+
+    if pargs.contains(["-h", "--help"]) {
+        println!("{}", HELP);
         return Ok(());
     }
-    let toplevel_toml_file = PathBuf::from(&args[1]);
+    let no_annotate = pargs.contains("--no-annotate");
+    let toplevel_toml_file: PathBuf = pargs.free_from_str()?;
+    if !pargs.finish().is_empty() {
+        println!("{}", HELP);
+        return Ok(());
+    }
+
     let toplevel_dir = toplevel_toml_file
         .parent()
         .expect("How is your Cargo.toml file `/`?")
@@ -315,7 +346,10 @@ fn main() -> Result<()> {
     }
 
     for cr in crates.iter_mut() {
-        for w in cr.fix().with_context(|| format!("In {}", cr.name))? {
+        for w in cr
+            .fix(no_annotate)
+            .with_context(|| format!("In {}", cr.name))?
+        {
             println!("{}: {}", cr.name, w.0);
         }
         cr.save_if_changed()?;
