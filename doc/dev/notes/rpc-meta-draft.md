@@ -130,7 +130,7 @@ If an Object is not visible in a session,
 that session cannot access it.
 
 Clients identify each Object within a session
-by an opaque "Object Identifier".
+by an opaque string, called an "Object Identifier".
 Each identifier may be a "handle" or a "reference".
 If a session has a _handle_ to an Object,
 Arti won't deliberately discard that Object
@@ -140,8 +140,9 @@ If a session only has a _reference_ to an Object, however,
 that Object might be closed or discarded in the background,
 and there is no need to release it.
 
-> For more on how this is implemented,
-> see "Representing Object Identifiers" below.
+The format of an Object Identifier string is not stable,
+and clients must not rely on it.
+
 
 ## Request and response types
 
@@ -496,54 +497,15 @@ Therefore a client which sends more than one request at a time
 must be prepared to buffer requests at its end,
 while concurrently reading arti's replies.
 
-
-## Representing Object Identifiers.
-
-> This section describes implementation techniques.
-> Applications should not need to care about it.
-
-Here are two ways to provide our Object visibility semantics.
-Applications should not care which one Arti uses.
-Arti may use both methods for different Objects
-in the same session.
-
-In one method,
-we use a generational index for each live session
-to hold reference-counted pointers
-to the Objects visible in the session.
-The generational index is the identifier for the Object.
-(This method is suitable for representing _handles_
-as described above.)
-
-In another method,
-when it is more convenient for Arti to access an Object
-by a global identifier `GID`,
-we use a string `GID:MAC(N_s,GID)` for the Object's Identifier,
-where `N_s` is a per-session secret nonce
-that Arti generates and does not share with the application.
-Arti verifies that the MAC is correct
-before looking up the Object by its GID.
-(This method is suitable for representing _references_ as
-described above.)
-
-Finally, in either method, we use a single fixed identifier
-(e.g. `session`)
-for the current session.
-
 ## Authentication
 
 When a connection is first opened,
-only authentication requests may be use
-until authentication is successful.
+only a single "connection" object is available.
+Its object ID is "`connection`".
+The client must authenticate to the connection
+in order to receive any other object IDs.
 
-> TODO: Perhaps it would be a good idea to say
-> that when a connection is opened,
-> there is an authentication Object (not a session Object)
-> and only _that Object_ can be used
-> until one of its responses eventually gives the application
-> a session Object?
-
-The authentication schemes are:
+The pre-authentication methods available on a connection are:
 
 auth:get_proto
 : Ask Arti which version of the protocol is in use.
@@ -814,10 +776,10 @@ The echo command will only work post-authentication.
 Here is an example session:
 
 ```
-C: { "id":3, "obj": "session", "method":"auth:authenticate", "params": {"method": "inherent:unix_path"} }
-S: {"id":3,"result":{}}
-C: { "id":7, "obj": "session", "method":"echo", "params": {"msg": "Hello World"} }
-S: {"id":7,"result":{"msg":"Hello World"}}
+>>> {"id": 3, "obj": "connection", "method": "auth:authenticate", "params": {"scheme": "inherent:unix_path"}}
+<<< {"id":3,"result":{"client":"dTewFIaZKQV1N7AUhpkpBIrIT-t5Ztb8"}}
+>>> {"id": 4, "obj": "dTewFIaZKQV1N7AUhpkpBIrIT-t5Ztb8", "method": "arti:x-echo", "params": {"msg": "Hello World"}}
+<<< {"id":4,"result":{"msg":"Hello World"}}
 ```
 
 Note that the server will currently close your connection

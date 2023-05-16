@@ -93,64 +93,39 @@ mod fake_generational_arena {
 /// A mechanism to look up RPC `Objects` by their `ObjectId`.
 #[derive(Default)]
 pub(crate) struct ObjMap {
-    /// Generationally indexed arena of object references.
+    /// Generationally indexed arena of strong object references.
+    strong_arena: Arena<Arc<dyn rpc::Object>>,
+    /// Generationally indexed arena of weak object references.
     ///
     /// Invariants:
     /// * No object has more than one reference in this arena.
     /// * Every `entry` in this arena at position `idx` has a corresponding
     ///   entry in `reverse_map` entry such that
     ///   `reverse_map[entry.tagged_addr()] == idx`.
-    arena: Arena<ArenaEntry>,
-    /// Backwards reference to look up arena references by the underlying object identity.
+    weak_arena: Arena<WeakArenaEntry>,
+    /// Backwards reference to look up weak arena references by the underlying
+    /// object identity.
     ///
     /// Invariants:
-    /// * For every `(addr,idx)` entry in this map, there is a corresponding
-    ///   ArenaEntry in `arena` such that `arena[idx].tagged_addr() == addr`
-    reverse_map: HashMap<TaggedAddr, GenIdx>,
+    /// * For every weak `(addr,idx)` entry in this map, there is a
+    ///   corresponding ArenaEntry in `arena` such that
+    ///   `arena[idx].tagged_addr() == addr`
+    reverse_map: HashMap<TaggedAddr, generational_arena::Index>,
     /// Testing only: How many times have we tidied this map?
     #[cfg(test)]
     n_tidies: usize,
 }
 
-/// A single entry to an Object stored in the generational arena.
+/// A single entry to a weak Object stored in the generational arena.
 ///
-struct ArenaEntry {
+struct WeakArenaEntry {
     /// The actual Arc or Weak reference for the object that we're storing here.
-    obj: ObjRef,
+    obj: Weak<dyn rpc::Object>,
     ///
     /// This contains a strong or weak reference, along with the object's true TypeId.
     /// See the [`TaggedAddr`] for more info on
     /// why this is needed.
     id: any::TypeId,
-}
-
-/// Strong or weak reference to an Object.
-enum ObjRef {
-    /// A strong reference
-    Strong(Arc<dyn rpc::Object>),
-    /// A weak reference
-    Weak(Weak<dyn rpc::Object>),
-}
-
-impl ObjRef {
-    /// Try to return a strong reference to this object, upgrading a weak
-    /// reference if needed.
-    ///
-    /// A `None` return indicates a dangling weak reference.
-    fn strong(&self) -> Option<Arc<dyn rpc::Object>> {
-        match self {
-            ObjRef::Strong(s) => Some(s.clone()),
-            ObjRef::Weak(w) => Weak::upgrade(w),
-        }
-    }
-
-    /// Return the [`RawAddr`] associated with this object.
-    fn raw_addr(&self) -> RawAddr {
-        match self {
-            ObjRef::Strong(s) => raw_addr_of(s),
-            ObjRef::Weak(w) => raw_addr_of_weak(w),
-        }
-    }
 }
 
 /// The raw address of an object held in an Arc or Weak.
@@ -198,16 +173,16 @@ struct TaggedAddr {
     addr: RawAddr,
     /// The type of the object.
     type_id: any::TypeId,
-    /// True if this is a strong reference.
-    ///
-    /// TODO: We could use one of the unused lower-order bits in raw-addr to
-    /// avoid bloating this type.
-    is_strong: bool,
 }
 
 /// A generational index for [`ObjMap`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct GenIdx(generational_arena::Index);
+pub(crate) enum GenIdx {
+    /// An index into the arena of weak references.
+    Weak(generational_arena::Index),
+    /// An index into the arena of strong references
+    Strong(generational_arena::Index),
+}
 
 /// Return the [`RawAddr`] of an arbitrary `Arc<T>`.
 fn raw_addr_of<T: ?Sized>(arc: &Arc<T>) -> RawAddr {
@@ -221,61 +196,38 @@ fn raw_addr_of_weak<T: ?Sized>(arc: &Weak<T>) -> RawAddr {
     RawAddr(Weak::as_ptr(arc) as *const () as usize)
 }
 
-impl ArenaEntry {
-    /// Create a new `ArenaEntry` for a strong reference.
-    fn new_strong(object: Arc<dyn rpc::Object>) -> Self {
-        let id = (*object).type_id();
-        Self {
-            obj: ObjRef::Strong(object),
-            id,
-        }
-    }
-
-    /// Create a new `ArenaEntry` for a weak reference.
-    fn new_weak(object: &Arc<dyn rpc::Object>) -> Self {
+impl WeakArenaEntry {
+    /// Create a new `WeakArenaEntry` for a weak reference.
+    fn new(object: &Arc<dyn rpc::Object>) -> Self {
         let id = (**object).type_id();
         Self {
-            obj: ObjRef::Weak(Arc::downgrade(object)),
+            obj: Arc::downgrade(object),
             id,
         }
     }
 
-    /// Return true if this `ArenaEntry` is really present.  
+    /// Return true if this `ArenaEntry` is really present.
     ///
-    /// Note that this function can produce false positives (if the entry is Weak
-    /// and its last strong reference is dropped in another thread), but it can
+    /// Note that this function can produce false positives (if the entry's
+    /// last strong reference is dropped in another thread), but it can
     /// never produce false negatives.
     fn is_present(&self) -> bool {
-        match &self.obj {
-            ObjRef::Strong(_) => true,
-            ObjRef::Weak(w) => {
-                // This is safe from false negatives because: if we can ever
-                // observe strong_count == 0, then there is no way for anybody
-                // else to "resurrect" the object.
-                w.strong_count() > 0
-            }
-        }
+        // This is safe from false negatives because: if we can ever
+        // observe strong_count == 0, then there is no way for anybody
+        // else to "resurrect" the object.
+        self.obj.strong_count() > 0
     }
 
     /// Return a strong reference to the object in this entry, if possible.
     fn strong(&self) -> Option<Arc<dyn rpc::Object>> {
-        match &self.obj {
-            ObjRef::Strong(s) => Some(Arc::clone(s)),
-            ObjRef::Weak(w) => Weak::upgrade(w),
-        }
-    }
-
-    /// Return true if this is a weak reference.
-    fn is_weak(&self) -> bool {
-        matches!(&self.obj, ObjRef::Weak(_))
+        Weak::upgrade(&self.obj)
     }
 
     /// Return the [`TaggedAddr`] that can be used to identify this entry's object.
     fn tagged_addr(&self) -> TaggedAddr {
         TaggedAddr {
-            addr: self.obj.raw_addr(),
+            addr: raw_addr_of_weak(&self.obj),
             type_id: self.id,
-            is_strong: matches!(self.obj, ObjRef::Strong(_)),
         }
     }
 }
@@ -283,48 +235,79 @@ impl ArenaEntry {
 impl TaggedAddr {
     /// Return the `TaggedAddr` to uniquely identify `obj` over the course of
     /// its existence.
-    fn for_object(obj: &Arc<dyn rpc::Object>, is_strong: bool) -> Self {
+    fn for_object(obj: &Arc<dyn rpc::Object>) -> Self {
         let type_id = (*obj).type_id();
         let addr = raw_addr_of(obj);
-        TaggedAddr {
-            addr,
-            type_id,
-            is_strong,
-        }
+        TaggedAddr { addr, type_id }
     }
 }
 
-/// The character we use to start all generational indices when encoded as a string.
-const IDX_INDICATOR_CHAR: char = '%';
-/// The character we use to separate the two parts of a generational index when
-/// encoding as a string.
-const IDX_SEPARATOR_CHAR: char = ':';
-
-impl From<GenIdx> for rpc::ObjectId {
-    fn from(idx: GenIdx) -> Self {
-        let (a, b) = idx.0.into_raw_parts();
-        rpc::ObjectId::from(format!("{IDX_SEPARATOR_CHAR}{a}{IDX_SEPARATOR_CHAR}{b}"))
+/// Encoding functions for GenIdx.
+///
+/// The encoding is deliberately nondeterministic: we want to avoid situations
+/// where applications depend on the details of our ObjectIds, or hardcode the
+/// ObjectIds they expect, or rely on the same  weak generational index getting
+/// encoded the same way every time they see it.
+///
+/// The encoding is deliberately non-cryptographic: we do not want to imply
+/// that this gives any security. It is just a mild deterrent to misuse.
+///
+/// If you find yourself wanting to reverse-engineer this code so that you can
+/// analyze these object IDs, please contact the Arti developers instead and let
+/// us give you a better way to do whatever you want.
+impl GenIdx {
+    /// Encode `self` into an rpc::ObjectId that we can give to a client.
+    pub(crate) fn encode(self) -> rpc::ObjectId {
+        self.encode_with_rng(&mut rand::thread_rng())
     }
-}
 
-impl TryFrom<&rpc::ObjectId> for GenIdx {
-    type Error = rpc::LookupError;
+    /// As `encode`, but take a Rng as an argument. For testing.
+    fn encode_with_rng<R: rand::RngCore>(self, rng: &mut R) -> rpc::ObjectId {
+        use base64ct::Encoding;
+        use rand::Rng;
+        use tor_bytes::Writer;
+        let (weak_bit, idx) = match self {
+            GenIdx::Weak(idx) => (1, idx),
+            GenIdx::Strong(idx) => (0, idx),
+        };
+        let (a, b) = idx.into_raw_parts();
+        let x = rng.gen::<u64>() << 1;
+        let mut bytes = Vec::new();
+        bytes.write_u64(x | weak_bit);
+        bytes.write_u64((a as u64).wrapping_add(x));
+        bytes.write_u64(b.wrapping_sub(x));
+        rpc::ObjectId::from(base64ct::Base64UrlUnpadded::encode_string(&bytes[..]))
+    }
 
-    fn try_from(id: &rpc::ObjectId) -> Result<Self, Self::Error> {
-        let s = id.as_ref();
-        if let Some(s) = s.strip_prefix(IDX_INDICATOR_CHAR) {
-            if let Some((a_str, b_str)) = s.split_once(IDX_SEPARATOR_CHAR) {
-                let a = a_str
-                    .parse()
-                    .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
-                let b = b_str
-                    .parse()
-                    .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
-                return Ok(GenIdx(generational_arena::Index::from_raw_parts(a, b)));
-            }
+    /// Attempt to decode `id` into a `GenIdx` than an ObjMap can use.
+    pub(crate) fn try_decode(id: &rpc::ObjectId) -> Result<Self, rpc::LookupError> {
+        use base64ct::Encoding;
+        use tor_bytes::Reader;
+
+        let bytes = base64ct::Base64UrlUnpadded::decode_vec(id.as_ref())
+            .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
+        let mut r = Reader::from_slice(&bytes);
+        let mut get_u64 = || {
+            r.take_u64()
+                .map_err(|_| rpc::LookupError::NoObject(id.clone()))
+        };
+        let x = get_u64()?;
+        let is_weak = (x & 1) == 1;
+        let x = x & !1;
+        let a = get_u64()?;
+        let b = get_u64()?;
+        r.should_be_exhausted()
+            .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
+
+        let a = a.wrapping_sub(x) as usize;
+        let b = b.wrapping_add(x);
+
+        let idx = generational_arena::Index::from_raw_parts(a, b);
+        if is_weak {
+            Ok(GenIdx::Weak(idx))
+        } else {
+            Ok(GenIdx::Strong(idx))
         }
-
-        Err(rpc::LookupError::NoObject(id.clone()))
     }
 }
 
@@ -334,7 +317,7 @@ impl ObjMap {
         Self::default()
     }
 
-    /// Reclaim unused space in this map.
+    /// Reclaim unused space in this map's weak arena.
     ///
     /// This runs in `O(n)` time.
     fn tidy(&mut self) {
@@ -342,26 +325,26 @@ impl ObjMap {
         {
             self.n_tidies += 1;
         }
-        self.arena.retain(|index, entry| {
+        self.weak_arena.retain(|index, entry| {
             let present = entry.is_present();
             if !present {
                 // For everything we are removing from the `arena`, we must also
                 // remove it from `reverse_map`.
                 let ptr = entry.tagged_addr();
                 let found = self.reverse_map.remove(&ptr);
-                debug_assert_eq!(found, Some(GenIdx(index)));
+                debug_assert_eq!(found, Some(index));
             }
             present
         });
     }
 
-    /// If needed, clean this arena and resize it.
+    /// If needed, clean the weak arena and resize it.
     ///
     /// (We call this whenever we're about to add an entry.  This ensures that
     /// our insertion operations run in `O(1)` time.)
     fn adjust_size(&mut self) {
         // If we're about to fill the arena...
-        if self.arena.len() >= self.arena.capacity() {
+        if self.weak_arena.len() >= self.weak_arena.capacity() {
             // ... we delete any dead `Weak` entries.
             self.tidy();
             // Then, if the arena is still above half-full, we double the
@@ -371,77 +354,74 @@ impl ObjMap {
             // entries, or else we might re-run tidy() too soon.  But we don't
             // want to grow the arena if tidy() removed _most_ entries, or some
             // normal usage patterns will lead to unbounded growth.)
-            if self.arena.len() > self.arena.capacity() / 2 {
-                self.arena.reserve(self.arena.capacity());
+            if self.weak_arena.len() > self.weak_arena.capacity() / 2 {
+                self.weak_arena.reserve(self.weak_arena.capacity());
             }
         }
     }
 
-    /// Ensure that there is a strong entry for `value` in self (by inserting it
-    /// as needed), and return its index.
+    /// Unconditionally insert a strong entry for `value` in self, and return its index.
     pub(crate) fn insert_strong(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        let ptr = TaggedAddr::for_object(&value, true);
-        if let Some(idx) = self.reverse_map.get(&ptr) {
-            if let Some(entry) = self.arena.get_mut(idx.0) {
-                debug_assert!(entry.tagged_addr() == ptr);
-                return *idx;
-            }
-        }
-
-        self.adjust_size();
-
-        let idx = GenIdx(self.arena.insert(ArenaEntry::new_strong(value)));
-        self.reverse_map.insert(ptr, idx);
-        idx
+        GenIdx::Strong(self.strong_arena.insert(value))
     }
 
-    /// Ensure that there is an entry for `value` in self, and return its index.
+    /// Ensure that there is a weak entry for `value` in self, and return an
+    /// index for it.
     /// If there is no entry, create a weak entry.
     #[allow(clippy::needless_pass_by_value)] // TODO: Decide whether to make this take a reference.
     pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        let ptr = TaggedAddr::for_object(&value, false);
+        let ptr = TaggedAddr::for_object(&value);
         if let Some(idx) = self.reverse_map.get(&ptr) {
             #[cfg(debug_assertions)]
-            match self.arena.get(idx.0) {
+            match self.weak_arena.get(*idx) {
                 Some(entry) => debug_assert!(entry.tagged_addr() == ptr),
                 None => panic!("Found a dangling reference"),
             }
-            return *idx;
+            return GenIdx::Weak(*idx);
         }
 
         self.adjust_size();
-
-        let idx = GenIdx(self.arena.insert(ArenaEntry::new_weak(&value)));
+        let idx = self.weak_arena.insert(WeakArenaEntry::new(&value));
         self.reverse_map.insert(ptr, idx);
-        idx
+        GenIdx::Weak(idx)
     }
 
     /// Return the entry from this ObjMap for `idx`.
     pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        self.arena.get(idx.0).and_then(ArenaEntry::strong)
+        match idx {
+            GenIdx::Weak(idx) => self.weak_arena.get(idx).and_then(WeakArenaEntry::strong),
+            GenIdx::Strong(idx) => self.strong_arena.get(idx).map(Arc::clone),
+        }
     }
 
     /// Remove the entry at `idx`, if any.
     pub(crate) fn remove(&mut self, idx: GenIdx) {
-        if let Some(entry) = self.arena.remove(idx.0) {
-            let old_idx = self.reverse_map.remove(&entry.tagged_addr());
-            debug_assert_eq!(old_idx, Some(idx));
+        match idx {
+            GenIdx::Weak(idx) => {
+                if let Some(entry) = self.weak_arena.remove(idx) {
+                    let old_idx = self.reverse_map.remove(&entry.tagged_addr());
+                    debug_assert_eq!(old_idx, Some(idx));
+                }
+            }
+            GenIdx::Strong(idx) => {
+                self.strong_arena.remove(idx);
+            }
         }
     }
 
     /// Testing only: Assert that every invariant for this structure is met.
     #[cfg(test)]
     fn assert_okay(&self) {
-        for (index, entry) in self.arena.iter() {
+        for (index, entry) in self.weak_arena.iter() {
             let ptr = entry.tagged_addr();
-            assert_eq!(self.reverse_map.get(&ptr), Some(&GenIdx(index)));
+            assert_eq!(self.reverse_map.get(&ptr), Some(&index));
             assert_eq!(ptr, entry.tagged_addr());
         }
 
         for (ptr, idx) in self.reverse_map.iter() {
             let entry = self
-                .arena
-                .get(idx.0)
+                .weak_arena
+                .get(*idx)
                 .expect("Dangling pointer in reverse map");
 
             assert_eq!(&entry.tagged_addr(), ptr);
@@ -528,52 +508,52 @@ mod test {
         let wrapped_weak = Arc::downgrade(&wrapped_dyn);
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true),
-            TaggedAddr::for_object(&object_dyn2, true)
+            TaggedAddr::for_object(&object_dyn),
+            TaggedAddr::for_object(&object_dyn2)
         );
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn, true),
-            TaggedAddr::for_object(&object2, true)
+            TaggedAddr::for_object(&object_dyn),
+            TaggedAddr::for_object(&object2)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true),
-            TaggedAddr::for_object(&wrapped_dyn2, true)
+            TaggedAddr::for_object(&wrapped_dyn),
+            TaggedAddr::for_object(&wrapped_dyn2)
         );
 
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn, true),
-            TaggedAddr::for_object(&wrapped_dyn, true)
+            TaggedAddr::for_object(&object_dyn),
+            TaggedAddr::for_object(&wrapped_dyn)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true).addr,
-            TaggedAddr::for_object(&wrapped_dyn, true).addr
+            TaggedAddr::for_object(&object_dyn).addr,
+            TaggedAddr::for_object(&wrapped_dyn).addr
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true).addr,
+            TaggedAddr::for_object(&wrapped_dyn).addr,
             raw_addr_of_weak(&wrapped_weak)
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true).type_id,
+            TaggedAddr::for_object(&object_dyn).type_id,
             any::TypeId::of::<ExampleObject>()
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true).type_id,
+            TaggedAddr::for_object(&wrapped_dyn).type_id,
             any::TypeId::of::<Wrapper>()
         );
 
         assert_eq!(
-            TaggedAddr::for_object(&object_dyn, true).addr,
+            TaggedAddr::for_object(&object_dyn).addr,
             raw_addr_of(&object)
         );
         assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn, true).addr,
+            TaggedAddr::for_object(&wrapped_dyn).addr,
             raw_addr_of(&wrapped)
         );
         assert_ne!(
-            TaggedAddr::for_object(&object_dyn, true).addr,
+            TaggedAddr::for_object(&object_dyn).addr,
             raw_addr_of(&object2)
         );
     }
@@ -586,9 +566,11 @@ mod test {
         map.assert_okay();
         let id1 = map.insert_strong(obj1.clone());
         let id2 = map.insert_strong(obj1.clone());
-        assert_eq!(id1, id2);
-        let obj_out = map.lookup(id1).unwrap();
-        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out));
+        assert_ne!(id1, id2);
+        let obj_out1 = map.lookup(id1).unwrap();
+        let obj_out2 = map.lookup(id2).unwrap();
+        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out1));
+        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out2));
         map.assert_okay();
     }
 
@@ -664,7 +646,7 @@ mod test {
         }
 
         {
-            assert_eq!(id1, map.insert_strong(obj1.clone()));
+            assert_ne!(id1, map.insert_strong(obj1.clone()));
             assert_ne!(id2, map.insert_strong(obj2.clone()));
         }
     }
@@ -697,6 +679,7 @@ mod test {
     #[test]
     fn tidy() {
         let mut map = ObjMap::new();
+        let mut keep_these = vec![];
         let mut s = vec![];
         let mut w = vec![];
         for _ in 0..100 {
@@ -706,7 +689,9 @@ mod test {
                 w.push(map.insert_weak(o.clone()));
                 t.push(o);
             }
-            s.push(map.insert_strong(Arc::new(ExampleObject("cafe".into()))));
+            let obj = Arc::new(ExampleObject("cafe".into()));
+            keep_these.push(obj.clone());
+            s.push(map.insert_weak(obj));
             drop(t);
             map.assert_okay();
         }
@@ -716,11 +701,11 @@ mod test {
         assert!(w.iter().all(|id| map.lookup(*id).is_none()));
         assert!(s.iter().all(|id| map.lookup(*id).is_some()));
 
-        assert_ne!(dbg!(map.arena.len()), 1100);
+        assert_ne!(map.weak_arena.len() + map.strong_arena.len(), 1100);
         map.assert_okay();
         map.tidy();
         map.assert_okay();
-        assert_eq!(map.arena.len(), 100);
+        assert_eq!(map.weak_arena.len() + map.strong_arena.len(), 100);
 
         // This number is a bit arbitrary.
         assert!(dbg!(map.n_tidies) < 30);
@@ -735,6 +720,34 @@ mod test {
         let mut map = ObjMap::new();
         map.insert_strong(obj);
         map.insert_strong(wrap);
-        assert_eq!(map.arena.len(), 2);
+        assert_eq!(map.strong_arena.len(), 2);
+    }
+
+    #[test]
+    fn objid_encoding() {
+        use rand::Rng;
+        fn test_roundtrip(a: usize, b: u64, rng: &mut tor_basic_utils::test_rng::TestingRng) {
+            let idx = generational_arena::Index::from_raw_parts(a, b);
+            let idx = if rng.gen_bool(0.5) {
+                GenIdx::Strong(idx)
+            } else {
+                GenIdx::Weak(idx)
+            };
+            let s1 = idx.encode_with_rng(rng);
+            let s2 = idx.encode_with_rng(rng);
+            assert_ne!(s1, s2);
+            assert_eq!(idx, GenIdx::try_decode(&s1).unwrap());
+            assert_eq!(idx, GenIdx::try_decode(&s2).unwrap());
+        }
+        let mut rng = tor_basic_utils::test_rng::testing_rng();
+
+        test_roundtrip(0, 0, &mut rng);
+        test_roundtrip(0, 1, &mut rng);
+        test_roundtrip(1, 0, &mut rng);
+        test_roundtrip(0xffffffff, 0xffffffffffffffff, &mut rng);
+
+        for _ in 0..256 {
+            test_roundtrip(rng.gen(), rng.gen(), &mut rng);
+        }
     }
 }
