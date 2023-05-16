@@ -912,6 +912,77 @@ impl NetDir {
         }
     }
 
+    /// Check whether there is a relay that has at least one identity from
+    /// `target`, and which _could_ have every identity from `target`.
+    /// If so, return such a relay.
+    ///
+    /// Return `Ok(None)` if we did not find a relay with any identity from `target`.
+    ///
+    /// Return `RelayLookupError::Impossible` if we found a relay with at least
+    /// one identity from `target`, but that relay's other identities contradict
+    /// what we learned from `target`.
+    ///
+    /// Does not return unusable relays.
+    ///
+    /// (This function is only useful if you need to distinguish the
+    /// "impossible" case from the "no such relay known" case.)
+    ///
+    /// # Limitations
+    ///
+    /// This will be very slow if `target` does not have an Ed25519 or RSA
+    /// identity.
+    //
+    // TODO HS: We should use this to check whether a set of linkspecs is
+    // possible when we're about to use it to make an introduction or rendezvous
+    // circuit from an externally provided set of linkspecs.
+    //
+    // TODO HS: This function could use a better name.
+    //
+    // TODO: We could remove the feature restriction here once we think this API is
+    // stable.
+    #[cfg(feature = "hs-common")]
+    pub fn by_ids_detailed<T>(
+        &self,
+        target: &T,
+    ) -> std::result::Result<Option<Relay<'_>>, RelayLookupError>
+    where
+        T: HasRelayIds + ?Sized,
+    {
+        let candidate = target
+            .identities()
+            // Find all the relays that share any identity with this set of identities.
+            .filter_map(|id| self.by_id(id))
+            // We might find the same relay more than once under a different
+            // identity, so we remove the duplicates.
+            //
+            // Since there is at most one relay per rsa identity per consensus,
+            // this is a true uniqueness check under current construction rules.
+            .unique_by(|r| r.rs.rsa_identity())
+            // If we find two or more distinct relays, then have a contradiction.
+            .at_most_one()
+            .map_err(|_| RelayLookupError::Impossible)?;
+
+        // If we have no candidate, return None early.
+        let candidate = match candidate {
+            Some(relay) => relay,
+            None => return Ok(None),
+        };
+
+        // Now we know we have a single candidate.  Make sure that it does not have any
+        // identity that does not match the target.
+        if target
+            .identities()
+            .all(|wanted_id| match candidate.identity(wanted_id.id_type()) {
+                None => true,
+                Some(id) => id == wanted_id,
+            })
+        {
+            Ok(Some(candidate))
+        } else {
+            Err(RelayLookupError::Impossible)
+        }
+    }
+
     /// Return a boolean if this consensus definitely has (or does not have) a
     /// relay matching the listed identities.
     ///
@@ -1512,6 +1583,17 @@ impl<'a> Relay<'a> {
     }
 }
 
+/// An error value returned from [`NetDir::by_ids_detailed`].
+#[cfg(feature = "hs-common")]
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum RelayLookupError {
+    /// We found a relay whose presence indicates that the provided set of
+    /// identities is impossible to resolve.
+    #[error("Provided set of identities is impossible according to consensus.")]
+    Impossible,
+}
+
 impl<'a> HasAddrs for Relay<'a> {
     fn addrs(&self) -> &[std::net::SocketAddr] {
         self.rs.addrs()
@@ -2052,6 +2134,66 @@ mod test {
             netdir.id_pair_listed(&[15; 32].into(), &[99; 20].into()),
             Some(false)
         );
+    }
+
+    #[test]
+    #[cfg(feature = "hs-common")]
+    fn test_by_ids_detailed() {
+        // Make a netdir that omits the microdescriptor for 0xDDDDDD...
+        let netdir = construct_custom_netdir(|pos, mut nb| {
+            nb.omit_md = pos == 13;
+        })
+        .unwrap();
+
+        let netdir = netdir.unwrap_if_sufficient().unwrap();
+
+        let id13_13 = RelayIds::builder()
+            .ed_identity([13; 32].into())
+            .rsa_identity([13; 20].into())
+            .build()
+            .unwrap();
+        let id15_15 = RelayIds::builder()
+            .ed_identity([15; 32].into())
+            .rsa_identity([15; 20].into())
+            .build()
+            .unwrap();
+        let id15_99 = RelayIds::builder()
+            .ed_identity([15; 32].into())
+            .rsa_identity([99; 20].into())
+            .build()
+            .unwrap();
+        let id99_15 = RelayIds::builder()
+            .ed_identity([99; 32].into())
+            .rsa_identity([15; 20].into())
+            .build()
+            .unwrap();
+        let id99_99 = RelayIds::builder()
+            .ed_identity([99; 32].into())
+            .rsa_identity([99; 20].into())
+            .build()
+            .unwrap();
+        let id15_xx = RelayIds::builder()
+            .ed_identity([15; 32].into())
+            .build()
+            .unwrap();
+        let idxx_15 = RelayIds::builder()
+            .rsa_identity([15; 20].into())
+            .build()
+            .unwrap();
+
+        assert!(matches!(netdir.by_ids_detailed(&id13_13), Ok(None)));
+        assert!(matches!(netdir.by_ids_detailed(&id15_15), Ok(Some(_))));
+        assert!(matches!(
+            netdir.by_ids_detailed(&id15_99),
+            Err(RelayLookupError::Impossible)
+        ));
+        assert!(matches!(
+            netdir.by_ids_detailed(&id99_15),
+            Err(RelayLookupError::Impossible)
+        ));
+        assert!(matches!(netdir.by_ids_detailed(&id99_99), Ok(None)));
+        assert!(matches!(netdir.by_ids_detailed(&id15_xx), Ok(Some(_))));
+        assert!(matches!(netdir.by_ids_detailed(&idxx_15), Ok(Some(_))));
     }
 
     #[test]
