@@ -13,15 +13,26 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["native-tls"]
-native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
-rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
-static = ["arti-client/static"]
 
+native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
+
+# This is not nonadditive from a software POV, but we mark it as such because it
+# includes code licensed under the old OpenSSL license (which was 4-clause BSD),
+# which in turn introduces a GPL-incompatibility.
+rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "__is_nonadditive"]
+
+static = ["arti-client/static", "__is_nonadditive"]
+
+experimental = []
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental-api = []
+experimental-api = ["__is_experimental"]
+full = ["native-tls", "arti-client/full", "tor-error/full", "tor-rtcompat/full"]
+
+__is_experimental = []
+__is_nonadditive = []
 
 [dependencies]
 anyhow = "1.0.23"
@@ -32,14 +43,7 @@ pin-project = "1"
 thiserror = "1"
 tls-api = "0.9.0"
 tls-api-native-tls = "0.9.0"
-tokio = { package = "tokio", version = "1.7", features = [
-    "rt",
-    "rt-multi-thread",
-    "io-util",
-    "net",
-    "time",
-    "macros",
-] }
+tokio = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros"] }
 tor-error = { path = "../tor-error", version = "0.5.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0", features = ["tokio"] }
 

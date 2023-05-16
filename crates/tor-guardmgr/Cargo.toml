@@ -13,8 +13,24 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = ["bridge-client", "pt-client"]
-experimental = []
+full = [
+    "bridge-client",
+    "pt-client",
+    "safelog/full",
+    "tor-basic-utils/full",
+    "tor-config/full",
+    "tor-error/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdir/full",
+    "tor-netdoc/full",
+    "tor-persist/full",
+    "tor-proto/full",
+    "tor-protover?/full",
+    "tor-rtcompat/full",
+    "tor-units/full",
+]
+experimental = ["testing"]
 
 # Support for using bridges as a client. Note that this is not the same as
 # the pt-client feature, since here we are not concerned with
@@ -25,7 +41,9 @@ pt-client = ["bridge-client", "tor-linkspec/pt-client"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-testing = ["tor-netdir/testing"]
+testing = ["tor-netdir/testing", "__is_experimental"]
+
+__is_experimental = []
 
 [dependencies]
 base64ct = "1.5.1"

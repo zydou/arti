@@ -20,6 +20,20 @@ zstd = ["async-compression/zstd"]
 # Enable support for router descriptor downloads.
 routerdesc = []
 
+full = [
+    "xz",
+    "zstd",
+    "routerdesc",
+    "tor-circmgr/full",
+    "tor-error/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdoc/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+]
+
 [dependencies]
 async-compression = { version = "0.3.14", features = ["futures-io", "zlib"] }
 base64ct = "1.5.1"

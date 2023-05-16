@@ -13,6 +13,7 @@ rust-version = "1.65"
 
 [features]
 default = ["walkdir", "anon_home"]
+full = ["walkdir", "anon_home"]
 
 anon_home = ["once_cell", "dirs"]
 

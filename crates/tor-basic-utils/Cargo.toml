@@ -28,6 +28,9 @@ derive_more = "0.99.3"
 educe = "0.4.6"
 serde = { version = "1.0.103", features = ["derive"] }
 
+[features]
+full = []
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

@@ -20,7 +20,11 @@ async-std = ["async-std-crate", "async-io", "async_executors/async_std"]
 tokio = ["tokio-crate", "tokio-util", "async_executors/tokio_tp"]
 static = ["native-tls-crate?/vendored", "__is_nonadditive"]
 native-tls = ["native-tls-crate", "async-native-tls"]
-rustls = ["rustls-crate", "async-rustls", "x509-signature"]
+
+# This is not nonadditive from a software POV, but we mark it as such because it
+# includes code licensed under the old OpenSSL license (which was 4-clause BSD),
+# which in turn introduces a GPL-incompatibility.
+rustls = ["rustls-crate", "async-rustls", "x509-signature", "__is_nonadditive"]
 
 __is_nonadditive = []
 
@@ -35,9 +39,7 @@ educe = "0.4.6"
 futures = "0.3.14"
 native-tls-crate = { package = "native-tls", version = "0.2", optional = true }
 pin-project = "1"
-rustls-crate = { package = "rustls", version = "0.21.1", optional = true, features = [
-    "dangerous_configuration",
-] }
+rustls-crate = { package = "rustls", version = "0.21.1", optional = true, features = ["dangerous_configuration"] }
 thiserror = "1"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = [
     "rt",

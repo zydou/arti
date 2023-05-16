@@ -14,15 +14,28 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-experimental = ["experimental-udp", "hs"]
+experimental = ["experimental-udp", "hs", "testing"]
 # Enable experimental UDP support.
-experimental-udp = []
+experimental-udp = ["__is_experimental"]
 
 # "hs" = (all) hidden service support, either client or server
-hs = ["tor-hscrypto"]
+hs = ["tor-hscrypto", "__is_experimental"]
 
 # Enable testing only API
-testing = ["experimental-udp"]
+testing = ["experimental-udp", "__is_experimental"]
+
+full = [
+    "caret/full",
+    "tor-basic-utils/full",
+    "tor-bytes/full",
+    "tor-cert/full",
+    "tor-error/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-units/full",
+]
+__is_experimental = []
 
 [dependencies]
 arrayref = "0.3"

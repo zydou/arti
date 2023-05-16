@@ -13,9 +13,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+full = ["safelog/full", "tor-basic-utils/full", "tor-bytes/full", "tor-llcrypto/full", "tor-units/full"]
 
 [dependencies]
-data-encoding = "2.3.1" # want MSVC i686 build fix, data-encoding/issues/33
+data-encoding = "2.3.1"                                                                                    # want MSVC i686 build fix, data-encoding/issues/33
 derive_more = "0.99.3"
 digest = "0.10.0"
 itertools = "0.10.1"
@@ -27,10 +28,7 @@ signature = "1"
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.0" }
 tor-bytes = { version = "0.7.0", path = "../tor-bytes" }
-tor-llcrypto = { version = "0.5.0", path = "../tor-llcrypto", features = [
-    "hsv3-client",
-    "hsv3-service",
-] }
+tor-llcrypto = { version = "0.5.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
 tor-units = { path = "../tor-units", version = "0.6.0" }
 
 [dev-dependencies]

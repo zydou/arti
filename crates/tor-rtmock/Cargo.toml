@@ -25,6 +25,9 @@ futures-await-test = "0.3.0"
 rand = "0.8"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0", features = ["tokio", "native-tls"] }
+
+[features]
+full = ["tor-rtcompat/full"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

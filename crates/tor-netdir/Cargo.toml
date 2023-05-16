@@ -14,20 +14,34 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-experimental = ["experimental-api", "hs-service", "hs-client"]
+experimental = ["experimental-api", "hs-service", "hs-client", "testing"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental-api = []
-hs-client = ["hs-common"]
-hs-service = ["hs-common"]
+experimental-api = ["__is_experimental"]
+hs-client = ["hs-common", "__is_experimental"]
+hs-service = ["hs-common", "__is_experimental"]
 hs-common = ["digest", "hex", "time", "tor-hscrypto"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-testing = ["hex", "tor-netdoc/build_docs"]
+testing = ["hex", "tor-netdoc/build_docs", "__is_experimental"]
+
+full = [
+    "tor-basic-utils/full",
+    "tor-checkable/full",
+    "tor-config/full",
+    "tor-error/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdoc/full",
+    "tor-protover/full",
+    "tor-units/full",
+]
+__is_experimental = []
 
 [dependencies]
 bitflags = "2"

@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = []
+full = ["arti-client/full", "tor-async-utils/full", "tor-error/full", "tor-rpcbase/full", "tor-rtcompat/full"]
 
 [dependencies]
 arti-client = { path = "../arti-client", version = "0.9.0", features = ["rpc"] }

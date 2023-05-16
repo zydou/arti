@@ -13,8 +13,14 @@ categories = ["rust-patterns"]
 
 [features]
 default = ["backtrace"]
-experimental-api = ["rpc"]
-rpc = []
+full = ["backtrace"]
+
+experimental = ["experimental-api", "rpc"]
+experimental-api = ["rpc", "__is_experimental"]
+
+rpc = ["__is_experimental"]
+
+__is_experimental = []
 
 [dependencies]
 backtrace = { version = "0.3.39", optional = true }

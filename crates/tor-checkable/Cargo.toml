@@ -13,7 +13,9 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 experimental = ["experimental-api"]
-experimental-api = []
+experimental-api = ["__is_experimental"]
+full = ["tor-llcrypto/full"]
+__is_experimental = []
 
 [dependencies]
 humantime = "2"

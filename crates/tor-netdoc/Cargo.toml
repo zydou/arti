@@ -14,17 +14,31 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-full = ["routerdesc", "ns_consensus"]
+full = [
+    "routerdesc",
+    "ns_consensus",
+    "tor-basic-utils/full",
+    "tor-bytes/full",
+    "tor-cert/full",
+    "tor-checkable/full",
+    "tor-error/full",
+    "tor-hscrypto?/full",
+    "tor-linkspec?/full",
+    "tor-llcrypto/full",
+    "tor-protover/full",
+    "tor-units?/full",
+]
 experimental = [
     "build_docs",
     "experimental-api",
     "hs-client",
     "hs-service",
     "hsdesc-inner-docs",
+    "dangerous-expose-struct-fields",
 ]
 
 # Enable code to build the objects that represent different network documents.
-build_docs = ["rand"]
+build_docs = ["rand", "__is_experimental"]
 
 # Enable the "router descriptor" document type, which is needed by relays and
 # bridge clients.
@@ -39,17 +53,17 @@ ns_consensus = []
 # Client-side and service-side support for onion services.
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
-hs-client = ["hs-common"]
-hs-service = ["hs-common", "tor-cert/encode"]
+hs-client = ["hs-common", "__is_experimental"]
+hs-service = ["hs-common", "tor-cert/encode", "__is_experimental"]
 hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
-hsdesc-inner-docs = ["visibility"] # TODO maybe fold this feature into `testing`
+hsdesc-inner-docs = ["visibility", "__is_experimental"] # TODO maybe fold this feature into `testing`
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental-api = ["testing"]
+experimental-api = ["testing", "__is_experimental"]
 
 # Expose various struct fields as "pub", for testing.
 #
@@ -60,7 +74,8 @@ experimental-api = ["testing"]
 # In fact, using this feature will give you the opposite of a "semver
 # guarantee": you should be mildly surprised when your code _doesn't_ break from
 # version to version.
-dangerous-expose-struct-fields = ["visible", "visibility"]
+dangerous-expose-struct-fields = ["visible", "visibility", "__is_experimental"]
+__is_experimental = []
 
 [dependencies]
 arrayref = "0.3"
