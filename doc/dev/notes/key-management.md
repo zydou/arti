@@ -266,8 +266,31 @@ pub trait KeySpecifier {
     /// This also acts as a unique identifier for a specific key instance.
     fn arti_path(&self) -> ArtiPath;
 
+    /// The file extension for a key of this type in an Arti key store.
+    ///
+    /// The Arti key store will ignore any files that don't have a recognized extension.
+    fn arti_extension(&self) -> &'static str;
+
     /// The location of the key in the C Tor key store (if supported).
     fn ctor_path(&self) -> Option<CTorPath>;
+
+    /// The file extension for a key of this type in a C Tor key store.
+    ///
+    /// The C Tor key store will ignore any files that don't have a recognized extension.
+    fn ctor_extension(&self) -> &'static str;
+
+    /// The type of user (client, service, relay, etc.) that uses this key.
+    fn user_kind(&self) -> UserKind;
+}
+
+/// The type of user (client, service, relay, etc.) that uses a key.
+#[non_exhaustive]
+pub enum UserKind {
+    Client,
+    Service(HsId),
+    Relay,
+    DirAuth,
+    ...
 }
 
 /// An identifier for an HS client.
@@ -303,8 +326,22 @@ impl KeySpecifier for HsClientSecretKeySpecifier {
         )
     }
 
+    fn arti_extension(&self) -> &'static str {
+        // We use nonstandard extensions to prevent keys from being used in
+        // unexpected ways (e.g. if the user renames a key from
+        // KP_hsc_intro_auth.arti_priv to KP_hsc_intro_auth.arti_priv.old, the
+        // arti key store should disregard the backup file).
+        "arti_priv"
+    }
+
     fn ctor_path(&self) -> Option<CTorPath> {
-        ...
+        Some(CTorPath(
+            Path::new("client").join(self.client_spec.to_string()),
+        ))
+    }
+
+    fn ctor_extension(&self) -> &'static str {
+        "auth_private"
     }
 }
 
@@ -468,10 +505,11 @@ impl KeyStore for ArtiNativeKeyStore {
 
 impl ArtiNativeKeyStore {
     /// The path on disk of the key with the specified specifier and type.
-    fn key_path(&self, key_id: &dyn KeySpecifier, key_type: KeyType) -> PathBuf {
-        self.keystore_dir
-            .join(key_id.arti_path().0)
-            .join(key_type.extension())
+    fn key_path(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> PathBuf {
+        let mut arti_path = self.keystore_dir.join(key_spec.arti_path().0);
+        arti_path.set_extension(key_spec.arti_extension());
+
+        arti_path
     }
 }
 
@@ -486,27 +524,6 @@ pub enum KeyType {
 }
 
 impl KeyType {
-    /// The file extension for a key of this type in an Arti key store.
-    ///
-    /// We use nonstandard extensions to prevent keys from being used in unexpected ways (e.g. if
-    /// the user renames a key from KP_hsc_intro_auth.arti_priv to KP_hsc_intro_auth.arti_priv.old,
-    /// the arti key store should disregard the backup file).
-    ///
-    /// The key stores will ignore any files that don't have a recognized extension.
-    pub fn arti_extension(&self) -> &'static str {
-        // TODO hs: come up with a better convention for extensions.
-        if self.is_private() {
-            ".arti_priv"
-        } else {
-            ".arti_pub"
-        }
-    }
-
-    /// The file extension for a key of this type in a C Tor key store.
-    pub fn ctor_extension(&self) -> &'static str {
-        todo!()
-    }
-
     /// Whether the key is public or private.
     fn is_private(&self) -> bool {
         match self {
@@ -628,6 +645,29 @@ TODO
 
 impl KeyStore for CTorKeyStore {
     ...
+}
+
+impl CTorKeyStore {
+    /// The path on disk of the key with the specified specifier and type.
+    fn key_path(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Option<PathBuf> {
+        let ext = key_spec.ctor_extension();
+        let root_dir = match key_spec.user_kind() {
+            UserKind::Client => self.client_dir,
+            UserKind::Relay => self.key_dir,
+            UserKind::Service(hs_id) => {
+                // CTorKeyStore contains a mapping from hs_id to
+                // `HiddenServiceDir`. We work out which HiddenServiceDir to
+                // load keys from based on the hs_id of the KeySpecifier.
+                self.hs_service_dirs.get(hs_id)?
+            }
+            ...
+        };
+
+        let mut ctor_path = root_dir.join(key_spec.ctor_path().0);
+        ctor_path.set_extension(ext);
+
+        Some(ctor_path)
+    }
 }
 
 ```
