@@ -118,7 +118,7 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         hs_id: HsId,
         secret_keys: HsClientSecretKeys,
         isolation: StreamIsolation,
-    ) -> impl Future<Output = Result<ClientCirc, ConnError>> + Send + Sync + 'r {
+    ) -> impl Future<Output = Result<Arc<ClientCirc>, ConnError>> + Send + Sync + 'r {
         // As in tor-circmgr,  we take `StreamIsolation`, to ensure that callers in
         // arti-client pass us the final overall isolation,
         // including the per-TorClient isolation.

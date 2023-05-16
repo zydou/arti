@@ -102,7 +102,7 @@ enum ServiceState<D: MockableConnectorData> {
         data: D,
         /// The circuit
         #[educe(Debug(ignore))]
-        circuit: D::ClientCirc,
+        circuit: Arc<D::ClientCirc>,
         /// Last time we touched this, including reuse
         last_used: Instant,
     },
@@ -202,7 +202,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     table_index: TableIndex,
     rechecks: &mut impl Iterator,
     mut guard: MutexGuard<'_, Services<D>>,
-) -> Result<Either<Continuation, D::ClientCirc>, ConnError> {
+) -> Result<Either<Continuation, Arc<D::ClientCirc>>, ConnError> {
     let blank_state = || ServiceState::blank(&connector.runtime);
 
     for _recheck in rechecks {
@@ -383,7 +383,7 @@ impl<D: MockableConnectorData> Services<D> {
         hs_id: HsId,
         isolation: Box<dyn Isolation>,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<D::ClientCirc, ConnError> {
+    ) -> Result<Arc<D::ClientCirc>, ConnError> {
         let blank_state = || ServiceState::blank(&connector.runtime);
 
         let mut rechecks = 0..MAX_RECHECKS;
@@ -466,7 +466,7 @@ impl<D: MockableConnectorData> Services<D> {
 #[async_trait]
 pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
     /// Client circuit
-    type ClientCirc: Clone + Sync + Send + 'static;
+    type ClientCirc: Sync + Send + 'static;
 
     /// Mock state
     type MockGlobalState: Clone + Sync + Send + 'static;
@@ -478,7 +478,7 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<Self::ClientCirc, ConnError>;
+    ) -> Result<Arc<Self::ClientCirc>, ConnError>;
 
     /// Is circuit OK?  Ie, not `.is_closing()`.
     fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool;
@@ -550,8 +550,8 @@ pub(crate) mod test {
             _hsid: HsId,
             _data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
-        ) -> Result<Self::ClientCirc, E> {
-            let make = |()| MockCirc::new();
+        ) -> Result<Arc<Self::ClientCirc>, E> {
+            let make = |()| Arc::new(MockCirc::new());
             let mut give = connector.mock_for_state.give.clone();
             if let Ready(ret) = &*give.borrow() {
                 return ret.clone().map(make);
@@ -630,7 +630,7 @@ pub(crate) mod test {
         id: u8,
         secret_keys: &HsClientSecretKeys,
         isolation: Option<NarrowableIsolation>,
-    ) -> Result<MockCirc, ConnError> {
+    ) -> Result<Arc<MockCirc>, ConnError> {
         let netdir = tor_netdir::testnet::construct_netdir()
             .unwrap_if_sufficient()
             .unwrap();

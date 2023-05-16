@@ -1106,7 +1106,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         exit_ports: &[TargetPort],
         prefs: &StreamPrefs,
-    ) -> StdResult<ClientCirc, ErrorDetail> {
+    ) -> StdResult<Arc<ClientCirc>, ErrorDetail> {
         // TODO HS probably this netdir ought to be made in connect_with_prefs
         // like for StreamInstructions::Hs.
         self.wait_for_bootstrap().await?;

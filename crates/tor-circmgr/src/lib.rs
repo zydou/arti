@@ -382,7 +382,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
-    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<ClientCirc> {
+    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
         let usage = TargetCircUsage::Dir;
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
@@ -398,7 +398,7 @@ impl<R: Runtime> CircMgr<R> {
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
         ports: &[TargetPort],
         isolation: StreamIsolation,
-    ) -> Result<ClientCirc> {
+    ) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
         let time = Instant::now();
         {
@@ -425,7 +425,7 @@ impl<R: Runtime> CircMgr<R> {
     pub async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
         &self,
         target: T,
-    ) -> Result<ClientCirc> {
+    ) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
         let usage = TargetCircUsage::DirSpecificTarget(target.to_owned());
         self.mgr
@@ -452,7 +452,7 @@ impl<R: Runtime> CircMgr<R> {
         &self,
         planned_target: Option<T>,
         dir: &NetDir,
-    ) -> Result<ClientCirc>
+    ) -> Result<Arc<ClientCirc>>
     where
         T: IntoOwnedChanTarget,
     {

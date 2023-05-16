@@ -66,7 +66,7 @@ pub(crate) async fn connect<R: Runtime>(
     hsid: HsId,
     data: &mut Data,
     secret_keys: HsClientSecretKeys,
-) -> Result<ClientCirc, ConnError> {
+) -> Result<Arc<ClientCirc>, ConnError> {
     Context::new(
         &connector.runtime,
         &*connector.circpool,
@@ -151,7 +151,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
     ///
     /// This function handles all necessary retrying of fallible operations,
     /// (and, therefore, must also limit the total work done for a particular call).
-    async fn connect(&mut self) -> Result<ClientCirc, ConnError> {
+    async fn connect(&mut self) -> Result<Arc<ClientCirc>, ConnError> {
         // This function must do the following, retrying as appropriate.
         //  - Look up the onion descriptor in the state.
         //  - Download the onion descriptor if one isn't there.
@@ -376,7 +376,7 @@ trait MockableCircPool<R> {
         netdir: &NetDir,
         kind: HsCircKind,
         target: OwnedCircTarget,
-    ) -> tor_circmgr::Result<Self::ClientCirc>;
+    ) -> tor_circmgr::Result<Arc<Self::ClientCirc>>;
 }
 /// Mock for `ClientCirc`
 #[async_trait]
@@ -402,7 +402,7 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
         netdir: &NetDir,
         kind: HsCircKind,
         target: OwnedCircTarget,
-    ) -> tor_circmgr::Result<ClientCirc> {
+    ) -> tor_circmgr::Result<Arc<ClientCirc>> {
         self.get_or_launch_specific(netdir, kind, target).await
     }
 }
@@ -426,7 +426,7 @@ impl MockableConnectorData for Data {
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<Self::ClientCirc, ConnError> {
+    ) -> Result<Arc<Self::ClientCirc>, ConnError> {
         connect(connector, netdir, hsid, data, secret_keys).await
     }
 
@@ -502,10 +502,12 @@ mod test {
             _netdir: &NetDir,
             kind: HsCircKind,
             target: OwnedCircTarget,
-        ) -> tor_circmgr::Result<Self::ClientCirc> {
+        ) -> tor_circmgr::Result<Arc<Self::ClientCirc>> {
             assert_eq!(kind, HsCircKind::ClientHsDir);
             self.mglobal.lock().unwrap().hsdirs_asked.push(target);
-            Ok(self.clone())
+            // Adding the `Arc` here is a little ugly, but that's what we get
+            // for using the same Mocks for everything.
+            Ok(Arc::new(self.clone()))
         }
     }
     #[async_trait]

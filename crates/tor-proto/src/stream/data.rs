@@ -109,7 +109,7 @@ pub struct DataStream {
     /// DataWriterState, but for now we can't actually access that state all the time,
     /// since it might be inside a boxed future.
     #[cfg(feature = "experimental-api")]
-    circuit: ClientCirc,
+    circuit: std::sync::Arc<ClientCirc>,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
