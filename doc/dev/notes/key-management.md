@@ -428,12 +428,9 @@ impl KeyMgr {
     ///
     /// If the key exists in multiple key stores, this will only remove it from the first one. An
     /// error is returned if none of the key stores contain the specified key.
-    pub fn remove<K: EncodableKey>(
-        &self,
-        key_spec: &dyn KeySpecifier,
-    ) -> Result<()> {
+    pub fn remove(&self, key_spec: &dyn KeySpecifier) -> Result<()> {
         for store in &self.key_store {
-            match store.remove(key_spec, K::key_type()) {
+            match store.remove(key_spec) {
                 Ok(()) => return Ok(()),
                 Err(e) if e is NotFound => continue,
                 Err(e) => return Err(e),
@@ -460,7 +457,7 @@ pub trait KeyStore {
     fn insert(&self, key: &dyn EncodableKey, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()>;
 
     /// Remove the specified key.
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()>;
+    fn remove(&self, key_spec: &dyn KeySpecifier) -> Result<()>;
 }
 ```
 
@@ -474,7 +471,7 @@ store, and one for the Arti store).
 
 impl KeyStore for ArtiNativeKeyStore {
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
-        let key_path = self.key_path(key_spec, key_type);
+        let key_path = self.key_path(key_spec);
 
         let input = match fs::read(key_path) {
             Ok(input) => input,
@@ -486,7 +483,7 @@ impl KeyStore for ArtiNativeKeyStore {
     }
 
     fn insert(&self, key: &dyn EncodableKey, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {
-        let key_path = self.key_path(key_spec, key_type);
+        let key_path = self.key_path(key_spec);
 
         let ssh_format = key_type.write_ssh_format(key)?;
         fs::write(key_path, ssh_format).map_err(|_| ())?;
@@ -494,8 +491,8 @@ impl KeyStore for ArtiNativeKeyStore {
         Ok(())
     }
 
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {
-        let key_path = self.key_path(key_spec, key_type);
+    fn remove(&self, key_spec: &dyn KeySpecifier) -> Result<()> {
+        let key_path = self.key_path(key_spec);
 
         fs::remove_file(key_path).map_err(|e| ...)?;
 
@@ -505,7 +502,7 @@ impl KeyStore for ArtiNativeKeyStore {
 
 impl ArtiNativeKeyStore {
     /// The path on disk of the key with the specified specifier and type.
-    fn key_path(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> PathBuf {
+    fn key_path(&self, key_spec: &dyn KeySpecifier) -> PathBuf {
         let mut arti_path = self.keystore_dir.join(key_spec.arti_path().0);
         arti_path.set_extension(key_spec.arti_extension());
 
@@ -649,7 +646,7 @@ impl KeyStore for CTorKeyStore {
 
 impl CTorKeyStore {
     /// The path on disk of the key with the specified specifier and type.
-    fn key_path(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Option<PathBuf> {
+    fn key_path(&self, key_spec: &dyn KeySpecifier) -> Option<PathBuf> {
         let ext = key_spec.ctor_extension();
         let root_dir = match key_spec.user_kind() {
             UserKind::Client => self.client_dir,
