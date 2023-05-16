@@ -625,8 +625,16 @@ As Arti evolves, it is likely we will eventually need to make changes to the
 structure of its key store (for example, to support new key specifiers, or to
 change something about the existing ones). This means we'll need to be able to
 distinguish between the different supported key store versions. To achieve this,
-the root of the Arti key store will have a `.VERSION` file that contains the
-version of the key store. Initially, we're only going to support version `1`.
+the root of the Arti key store will have a `.VERSION` file that contains 2
+version numbers (the format of the `.VERSION` file is TBD):
+  * `version`: the version of the key store
+  * `min_version`: the minimum `ArtiKeyStore` version required to
+    read/manipulate the store
+
+The `ArtiKeyStore` won't be constructed if the `.VERSION` file of the configured
+store is malformed, or if `ArtiKeyStore::VERSION` is less than its
+`min_version`. This should likely be treated as a fatal error (i.e. Arti should
+refuse to start if the keystore exists but is inaccessible or malformed).
 
 #### Key passphrases
 
