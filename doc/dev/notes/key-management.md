@@ -17,19 +17,19 @@ See also: [#728]
 ## Usage example
 
 ```rust
-let client_id = HsClientIdentity::from_str("alice")?;
+let client_spec = HsClientSpecifier::from_str("alice")?;
 
-let intro_auth_key_id: HsClientSecretKeyIdentity =
-    (client_id, hs_id, HsClientKeyRole::IntroAuth).into();
+let intro_auth_key_spec: HsClientSecretKeySpecifier =
+    (client_spec, hs_id, HsClientKeyRole::IntroAuth).into();
 
 // Get KP_hsc_intro_auth
-let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_auth_key_id)?;
+let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_auth_key_spec)?;
 
 // Alternatively, instead of returning a type-erased value, KeyStore::get could return a `Key`
 // (TODO hs: come up with a better name), `Key` being an enum over all supported key types.
 // `Key` could then have a `Key::as` convenience function that returns the underlying key (or
 // an error if none of the variants have the requested type):
-// let sk: Option<ed25519::SecretKey> = keymgr.get(&key_id)?.as::<ed25519::SecretKey>().unwrap();
+// let sk: Option<ed25519::SecretKey> = keymgr.get(&key_spec)?.as::<ed25519::SecretKey>().unwrap();
 ```
 
 ## Key stores
@@ -44,12 +44,6 @@ Supported key stores:
   format.
 
 In the future we plan to also support HSM-based key stores.
-
-## Key passphrases
-
-OpenSSH keys can have passphrases. While the first version of the key manager
-won't be able to handle such keys, we will add passphrase support at some point
-in the future.
 
 ## Proposed configuration changes
 
@@ -82,6 +76,8 @@ configuring a key store (for example, when running Arti as a client).
 
 TODO hs: pick reasonable default values for the various top-level key store
 directories (`root_dir`, `client_dir`, `key_dir`).
+
+### Arti key store configuration
 
 ```toml
 # Key store options
@@ -116,7 +112,30 @@ directories (`root_dir`, `client_dir`, `key_dir`).
 # The root of the key store. All keys are stored somewhere in the `root_dir`
 # heirarchy
 root_dir = ""
+```
 
+### C Tor key store configuration
+
+The client and relay keys are stored in a different part of the config than the
+onion service keys: the client/relay key directories are read from the
+`[keys.ctor_store]` section, whereas the onion service ones are read from the
+`[onion_service.hs_service_dirs]` of each `[[onion_service]]` section (note
+there can be multiple `[[onion_service]]` sections, one for each hidden service
+configured). As a result, the C Tor key store is not rooted at a specific
+directory (unlike the Arti key store). Instead, it is configured with:
+  * (for each onion service configured) a `hs_service_dir`, for onion service keys
+  * a `client_dir`, for onion service client authorization keys.
+  * a `key_dir`, for relay and directory authority keys
+
+The exact structure of the `[[onion_service]]` config is not yet
+specified, see [#699].
+
+A downside of this approach is that there is no `CTorKeyStoreConfig` to speak
+of: the `CTorKeyStore` is created from various bits of information taken from
+different parts of the Arti config (`CTorKeyStore::new(client_dir, key_dir,
+hs_service_dirs)`).
+
+```toml
 # The C Tor key store.
 [keys.ctor_store]
 # The client authorization key directory (if running Arti as a client).
@@ -127,13 +146,35 @@ client_dir = ""
 #
 # This corresponds to C Tor's KeyDirectory option.
 key_dir = ""
-```
 
-## Key identities
+# Hidden service options
+[[onion_service]]
+# This corresponds to C Tor's HiddenServiceDir option.
+hs_service_dir = "/home/bob/hs1"
+# The maximum number of syteams per rendezvous circuit.
+#
+# This corresponds to C Tor's HiddenServiceMaxStreams.
+max_streams = 0
+# TODO arti#699: figure out what the rest of the options are
+...
 
-We introduce the concept of a "key identity" (specified for each supported key
-type via the `KeyIdentity` trait). A "key identity" uniquely identifies an
-instance of a type of key. From an implementation standpoint, `KeyIdentity`
+# Hidden service options
+[[onion_service]]
+# This corresponds to C Tor's HiddenServiceDir option.
+hs_service_dir = "/home/bob/hs2"
+# The maximum number of syteams per rendezvous circuit.
+#
+# This corresponds to C Tor's HiddenServiceMaxStreams.
+max_streams = 9000
+# TODO arti#699: figure out what the rest of the options are
+...
+ ```
+
+## Key specifiers
+
+We introduce the concept of a "key specifier" (specified for each supported key
+type via the `KeySpecifier` trait). A "key specifier" uniquely identifies an
+instance of a type of key. From an implementation standpoint, `KeySpecifier`
 implementers must specify:
 * `arti_path`: the location of the key in the Arti key store. This also serves
   as a unique identifier for a particular instance of a key.
@@ -145,7 +186,7 @@ is the `arti_path` of a particular key):
 ```
 <keys.arti_store.root_dir>
 ├── client
-│   ├── alice                               # HS client identity "alice"
+│   ├── alice                               # HS client specifier "alice"
 │   │   ├── foo.onion
 │   │   │   ├── hsc_desc_enc.arti_priv      # arti_path = "client/alice/foo.onion/hsc_desc_enc"
 │   │   │   │                               # (HS client Alice's x25519 hsc_desc_enc keypair for decrypting the HS
@@ -161,7 +202,7 @@ is the `arti_path` of a particular key):
 │   │       └── hsc_intro_auth.arti_priv    # arti_path = "client/alice/bar.onion/hsc_intro_auth"
 │   │                                       # (HS client Alice's ed25519 hsc_intro_auth keypair for computing
 │   │                                       # signatures to prove to bar.onion she is authorized")
-│   └── bob                                 # HS client identity "bob"
+│   └── bob                                 # HS client specifier "bob"
 │       └── foo.onion
 │           ├── hsc_desc_enc.arti_priv      # arti_path = "client/bob/foo.onion/hsc_desc_enc"
 │           │                               # (HS client Bob's x25519 hsc_desc_enc keypair for decrypting the HS
@@ -189,14 +230,16 @@ is the `arti_path` of a particular key):
 ...
 ```
 
-### The `KeyIdentity` trait
+### The `KeySpecifier` trait
 
 ```rust
-/// The path of a key in the Arti key store.
+/// The path of a key in the Arti key store,
+/// relative to the root of the store.
+/// This path does not contain double-dot (..) elements.
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements
-/// `KeyIdentity` and its corresponding `ArtiPath`.
-/// A `KeyIdentity` can be converted to an `ArtiPath`,
+/// `KeySpecifier` and its corresponding `ArtiPath`.
+/// A `KeySpecifier` can be converted to an `ArtiPath`,
 /// but the reverse conversion is not supported.
 //
 // TODO hs: restrict the character set and syntax for values of this type
@@ -206,26 +249,55 @@ is the `arti_path` of a particular key):
 pub struct ArtiPath(PathBuf);
 
 /// The path of a key in the C Tor key store.
+///
+/// To construct the path of the key on disk, the `CTorPath` is appended to the
+/// `hs_service_dir`/`client_dir`/`key_dir` (depending on the role of the
+/// requested key) followed by the extension.
+///
+/// This path does not contain double-dot (..) elements.
 pub struct CTorPath(PathBuf);
 
-/// The "identity" of a key.
+/// The "specifier" of a key.
 ///
-/// `KeyIdentity::arti_path()` uniquely identifies an instance of a key.
-pub trait KeyIdentity {
+/// `KeySpecifier::arti_path()` uniquely identifies an instance of a key.
+pub trait KeySpecifier {
     /// The location of the key in the Arti key store.
     ///
     /// This also acts as a unique identifier for a specific key instance.
     fn arti_path(&self) -> ArtiPath;
 
+    /// The file extension for a key of this type in an Arti key store.
+    ///
+    /// The Arti key store will ignore any files that don't have a recognized extension.
+    fn arti_extension(&self) -> &'static str;
+
     /// The location of the key in the C Tor key store (if supported).
     fn ctor_path(&self) -> Option<CTorPath>;
+
+    /// The file extension for a key of this type in a C Tor key store.
+    ///
+    /// The C Tor key store will ignore any files that don't have a recognized extension.
+    fn ctor_extension(&self) -> &'static str;
+
+    /// The type of user (client, service, relay, etc.) that uses this key.
+    fn user_kind(&self) -> UserKind;
+}
+
+/// The type of user (client, service, relay, etc.) that uses a key.
+#[non_exhaustive]
+pub enum UserKind {
+    Client,
+    Service(HsId),
+    Relay,
+    DirAuth,
+    ...
 }
 
 /// An identifier for an HS client.
 #[derive(AsRef, Into, ...)]
-struct HsClientIdentity(String);
+struct HsClientSpecifier(String);
 
-impl FromStr for HsClientIdentity { /* check syntax rules */ }
+impl FromStr for HsClientSpecifier { /* check syntax rules */ }
 
 /// The role of a HS client key.
 enum HsClientKeyRole {
@@ -235,27 +307,41 @@ enum HsClientKeyRole {
     IntroAuth,
 }
 
-struct HsClientSecretKeyIdentity {
+struct HsClientSecretKeySpecifier {
     /// The client associated with this key.
-    client_id: HsClientIdentity,
+    client_spec: HsClientSpecifier,
     /// The hidden service this authorization key is for.
     hs_id: HsId,
     /// The role of the key.
     role: HsClientKeyRole,
 }
 
-impl KeyIdentity for HsClientSecretKeyIdentity {
+impl KeySpecifier for HsClientSecretKeySpecifier {
     fn arti_path(&self) -> ArtiPath {
         ArtiPath(
             Path::new("client")
-                .join(self.client_id.to_string())
+                .join(self.client_spec.to_string())
                 .join(self.hs_id.to_string())
                 .join(self.role.to_string()),
         )
     }
 
+    fn arti_extension(&self) -> &'static str {
+        // We use nonstandard extensions to prevent keys from being used in
+        // unexpected ways (e.g. if the user renames a key from
+        // KP_hsc_intro_auth.arti_priv to KP_hsc_intro_auth.arti_priv.old, the
+        // arti key store should disregard the backup file).
+        "arti_priv"
+    }
+
     fn ctor_path(&self) -> Option<CTorPath> {
-        ...
+        Some(CTorPath(
+            Path::new("client").join(self.client_spec.to_string()),
+        ))
+    }
+
+    fn ctor_extension(&self) -> &'static str {
+        "auth_private"
     }
 }
 
@@ -289,10 +375,10 @@ struct KeyMgr {
 
 impl KeyMgr {
     /// Read a key from the key store, attempting to deserialize it as `K`.
-    pub fn get<K: Any + EncodableKey>(&self, key_id: &dyn KeyIdentity) -> Result<Option<K>> {
-        // Check if the requested key identity exists in any of the key stores:
+    pub fn get<K: Any + EncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
+        // Check if the requested key specifier exists in any of the key stores:
         for store in &self.key_store {
-            let key = store.get(key_id, K::key_type())?;
+            let key = store.get(key_spec, K::key_type())?;
 
             if key.is_some() {
                 // Found it! Now try to downcast it to the right type (the
@@ -319,19 +405,19 @@ impl KeyMgr {
     /// TODO hs: update the API to return a Result<Option<K>> here (i.e. the old key)
     pub fn insert<K: EncodableKey>(
         &self,
-        key_id: &dyn KeyIdentity,
+        key_spec: &dyn KeySpecifier,
         key: K,
     ) -> Result<()> {
         for store in &self.key_store {
-            if store.has_key_bundle(key_id) {
-                return store.insert(&key, key_id, K::key_type());
+            if store.has_key_bundle(key_spec) {
+                return store.insert(&key, key_spec, K::key_type());
             }
         }
 
-        // None of the stores has the key bundle of key_id, so we insert the key into the first key
+        // None of the stores has the key bundle of key_spec, so we insert the key into the first key
         // store.
         if let Some(store) = self.key_store.first() {
-            return store.insert(&key, key_id, K::key_type());
+            return store.insert(&key, key_spec, K::key_type());
         }
 
         // Bug: no key stores were configured
@@ -342,12 +428,9 @@ impl KeyMgr {
     ///
     /// If the key exists in multiple key stores, this will only remove it from the first one. An
     /// error is returned if none of the key stores contain the specified key.
-    pub fn remove<K: EncodableKey>(
-        &self,
-        key_id: &dyn KeyIdentity,
-    ) -> Result<()> {
+    pub fn remove(&self, key_spec: &dyn KeySpecifier) -> Result<()> {
         for store in &self.key_store {
-            match store.remove(key_id, K::key_type()) {
+            match store.remove(key_spec) {
                 Ok(()) => return Ok(()),
                 Err(e) if e is NotFound => continue,
                 Err(e) => return Err(e),
@@ -367,24 +450,28 @@ stores all implement the `KeyStore` trait:
 ```rust
 /// A generic key store.
 pub trait KeyStore {
-    /// Retrieve the key identified by `key_id`.
-    fn get(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<Option<ErasedKey>>;
+    /// Retrieve the key identified by `key_spec`.
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
-    fn insert(&self, key: &dyn EncodableKey, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()>;
+    fn insert(&self, key: &dyn EncodableKey, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()>;
 
     /// Remove the specified key.
-    fn remove(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()>;
+    fn remove(&self, key_spec: &dyn KeySpecifier) -> Result<()>;
 }
 ```
 
 We will initially support 2 key store implementations (one for the C Tor key
-store, and another for the Arti store):
+store, and one for the Arti store).
+
+
+### The Arti key store
+
 ```rust
 
 impl KeyStore for ArtiNativeKeyStore {
-    fn get(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<Option<ErasedKey>> {
-        let key_path = self.key_path(key_id, key_type);
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
+        let key_path = self.key_path(key_spec);
 
         let input = match fs::read(key_path) {
             Ok(input) => input,
@@ -395,8 +482,8 @@ impl KeyStore for ArtiNativeKeyStore {
         key_type.read_ssh_format_erased(&input).map(Some)
     }
 
-    fn insert(&self, key: &dyn EncodableKey, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()> {
-        let key_path = self.key_path(key_id, key_type);
+    fn insert(&self, key: &dyn EncodableKey, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {
+        let key_path = self.key_path(key_spec);
 
         let ssh_format = key_type.write_ssh_format(key)?;
         fs::write(key_path, ssh_format).map_err(|_| ())?;
@@ -404,8 +491,8 @@ impl KeyStore for ArtiNativeKeyStore {
         Ok(())
     }
 
-    fn remove(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> Result<()> {
-        let key_path = self.key_path(key_id, key_type);
+    fn remove(&self, key_spec: &dyn KeySpecifier) -> Result<()> {
+        let key_path = self.key_path(key_spec);
 
         fs::remove_file(key_path).map_err(|e| ...)?;
 
@@ -414,16 +501,13 @@ impl KeyStore for ArtiNativeKeyStore {
 }
 
 impl ArtiNativeKeyStore {
-    /// The path on disk of the key with the specified identity and type.
-    fn key_path(&self, key_id: &dyn KeyIdentity, key_type: KeyType) -> PathBuf {
-        self.keystore_dir
-            .join(key_id.arti_path().0)
-            .join(key_type.extension())
-    }
-}
+    /// The path on disk of the key with the specified specifier and type.
+    fn key_path(&self, key_spec: &dyn KeySpecifier) -> PathBuf {
+        let mut arti_path = self.keystore_dir.join(key_spec.arti_path().0);
+        arti_path.set_extension(key_spec.arti_extension());
 
-impl KeyStore for CTorKeyStore {
-    ...
+        arti_path
+    }
 }
 
 #[derive(Copy, Clone, ...)]
@@ -437,22 +521,6 @@ pub enum KeyType {
 }
 
 impl KeyType {
-    /// The file extension for a key of this type.
-    ///
-    /// We use nonstandard extensions to prevent keys from being used in unexpected ways (e.g. if
-    /// the user renames a key from KP_hsc_intro_auth.arti_priv to KP_hsc_intro_auth.arti_priv.old,
-    /// the arti key store should disregard the backup file).
-    ///
-    /// The key stores will ignore any files that don't have a recognized extension.
-    pub fn extension(&self) -> &'static str {
-        // TODO hs: come up with a better convention for extensions.
-        if self.is_private() {
-            ".arti_priv"
-        } else {
-            ".arti_pub"
-        }
-    }
-
     /// Whether the key is public or private.
     fn is_private(&self) -> bool {
         match self {
@@ -551,6 +619,64 @@ impl SshKeyType for KeyType {
 
 ```
 
+#### Versioning
+
+As Arti evolves, it is likely we will eventually need to make changes to the
+structure of its key store (for example, to support new key specifiers, or to
+change something about the existing ones). This means we'll need to be able to
+distinguish between the different supported key store versions. To achieve this,
+the root of the Arti key store will have a `.VERSION` file that contains 2
+version numbers (the format of the `.VERSION` file is TBD):
+  * `version`: the version of the key store
+  * `min_version`: the minimum `ArtiKeyStore` version required to
+    read/manipulate the store
+
+The `ArtiKeyStore` won't be constructed if the `.VERSION` file of the configured
+store is malformed, or if `ArtiKeyStore::VERSION` is less than its
+`min_version`. This should likely be treated as a fatal error (i.e. Arti should
+refuse to start if the keystore exists but is inaccessible or malformed).
+
+#### Key passphrases
+
+OpenSSH keys can have passphrases. While the first version of the key manager
+won't be able to handle such keys, we will add passphrase support at some point
+in the future.
+
+### The C Tor key store
+
+TODO
+
+```rust
+
+impl KeyStore for CTorKeyStore {
+    ...
+}
+
+impl CTorKeyStore {
+    /// The path on disk of the key with the specified specifier and type.
+    fn key_path(&self, key_spec: &dyn KeySpecifier) -> Option<PathBuf> {
+        let ext = key_spec.ctor_extension();
+        let root_dir = match key_spec.user_kind() {
+            UserKind::Client => self.client_dir,
+            UserKind::Relay => self.key_dir,
+            UserKind::Service(hs_id) => {
+                // CTorKeyStore contains a mapping from hs_id to
+                // `HiddenServiceDir`. We work out which HiddenServiceDir to
+                // load keys from based on the hs_id of the KeySpecifier.
+                self.hs_service_dirs.get(hs_id)?
+            }
+            ...
+        };
+
+        let mut ctor_path = root_dir.join(key_spec.ctor_path().0);
+        ctor_path.set_extension(ext);
+
+        Some(ctor_path)
+    }
+}
+
+```
+
 ## Concurrent access for disk-based key stores
 
 The key stores will allow concurrent modification by different processes. In
@@ -566,3 +692,4 @@ exists). As such, on Windows we will need some sort of synchronization mechanism
 (unless it exposes some other APIs we can use for atomic renaming).
 
 [#728]: https://gitlab.torproject.org/tpo/core/arti/-/issues/728
+[#699]: https://gitlab.torproject.org/tpo/core/arti/-/issues/699
