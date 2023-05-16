@@ -133,7 +133,7 @@ fn handle_inner_certificate(
 
     // These certs have to include a signing key.
     let cert = cert
-        .check_key(None) // TODO arti#759
+        .should_have_signing_key()
         .map_err(|e| make_err(e, "Certificate was not self-signed"))?;
 
     // Peel off the signature.

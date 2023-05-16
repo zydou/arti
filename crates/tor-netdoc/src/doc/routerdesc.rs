@@ -479,7 +479,7 @@ impl RouterDesc {
                 .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
                 .check_cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)?
                 .into_unchecked()
-                .check_key(None)
+                .should_have_signing_key()
                 .map_err(|err| {
                     EK::BadObjectVal
                         .err()
@@ -607,7 +607,7 @@ impl RouterDesc {
                 .check_cert_type(tor_cert::CertType::NTOR_CC_IDENTITY)?
                 .check_subject_key_is(identity_cert.peek_signing_key())?
                 .into_unchecked()
-                .check_key(Some(&ntor_as_ed.into()))
+                .should_be_signed_with(&ntor_as_ed.into())
                 .map_err(|err| EK::BadSignature.err().with_source(err))?
         };
 

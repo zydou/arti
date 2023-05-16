@@ -425,7 +425,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
 
         // Check the identity->signing cert
         let (id_sk, id_sk_sig) = id_sk
-            .check_key(None)
+            .should_have_signing_key()
             .map_err(Error::HandshakeCertErr)?
             .dangerously_split()
             .map_err(Error::HandshakeCertErr)?;
@@ -445,7 +445,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         // Now look at the signing->TLS cert and check it against the
         // peer certificate.
         let (sk_tls, sk_tls_sig) = sk_tls
-            .check_key(Some(signing_key))
+            .should_be_signed_with(signing_key)
             .map_err(Error::HandshakeCertErr)?
             .dangerously_split()
             .map_err(Error::HandshakeCertErr)?;

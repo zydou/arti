@@ -419,6 +419,12 @@ impl Ed25519Cert {
 
 /// A parsed Ed25519 certificate. Maybe it includes its signing key;
 /// maybe it doesn't.
+///
+/// To validate this cert, either it must contain its signing key,
+/// or the caller must know the signing key.  In the first case, call
+/// [`should_have_signing_key`](KeyUnknownCert::should_have_signing_key);
+/// in the latter, call
+/// [`should_be_signed_with`](KeyUnknownCert::should_be_signed_with).
 #[derive(Clone, Debug)]
 pub struct KeyUnknownCert {
     /// The certificate whose signing key might not be known.
@@ -438,16 +444,57 @@ impl KeyUnknownCert {
     /// Check whether a given pkey is (or might be) a key that has correctly
     /// signed this certificate.
     ///
+    /// If pkey is None, this certificate must contain its signing key.
+    ///
     /// On success, we can check whether the certificate is well-signed;
     /// otherwise, we can't check the certificate.
+    #[deprecated(
+        since = "0.7.1",
+        note = "Use should_have_signing_key or should_be_signed_with instead."
+    )]
     pub fn check_key(self, pkey: Option<&ed25519::Ed25519Identity>) -> CertResult<UncheckedCert> {
-        let real_key = match (pkey, self.cert.cert.signed_with) {
-            (Some(a), Some(b)) if a == &b => b,
-            (Some(_), Some(_)) => return Err(CertError::KeyMismatch),
-            (Some(a), None) => *a,
-            (None, Some(b)) => b,
-            (None, None) => return Err(CertError::MissingPubKey),
+        match pkey {
+            Some(wanted) => self.should_be_signed_with(wanted),
+            None => self.should_have_signing_key(),
+        }
+    }
+
+    /// Declare that this should be a self-contained certificate that contains its own
+    /// signing key.
+    ///
+    /// On success, this certificate did indeed turn out to be self-contained, and so
+    /// we can validate it.
+    /// On failure, this certificate was not self-contained.
+    pub fn should_have_signing_key(self) -> CertResult<UncheckedCert> {
+        let real_key = match &self.cert.cert.signed_with {
+            Some(a) => *a,
+            None => return Err(CertError::MissingPubKey),
         };
+
+        Ok(UncheckedCert {
+            cert: Ed25519Cert {
+                signed_with: Some(real_key),
+                ..self.cert.cert
+            },
+            ..self.cert
+        })
+    }
+
+    /// Declare that this should be a certificate signed with a given key.
+    ///
+    /// On success, this certificate either listed the provided key, or did not
+    /// list any key: in either case, we can validate it.
+    /// On failure, this certificate claims to be signed with a different key.
+    pub fn should_be_signed_with(
+        self,
+        pkey: &ed25519::Ed25519Identity,
+    ) -> CertResult<UncheckedCert> {
+        let real_key = match &self.cert.cert.signed_with {
+            Some(a) if a == pkey => *pkey,
+            None => *pkey,
+            Some(_) => return Err(CertError::KeyMismatch),
+        };
+
         Ok(UncheckedCert {
             cert: Ed25519Cert {
                 signed_with: Some(real_key),

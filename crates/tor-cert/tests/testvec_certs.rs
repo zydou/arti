@@ -29,7 +29,7 @@ fn test_valid_ed() {
     assert_eq!(cert.peek_cert_type(), 4.into());
     assert_eq!(cert.peek_subject_key().as_ed25519(), Some(&signing_key));
     let cert = cert
-        .check_key(None)
+        .should_have_signing_key()
         .unwrap()
         .check_signature()
         .unwrap()
@@ -58,7 +58,7 @@ fn test_valid_ed() {
     assert_eq!(cert.peek_cert_type(), 5.into());
     assert_eq!(cert.peek_subject_key().as_bytes(), &tls_cert_digest[..]);
     let cert = cert
-        .check_key(Some(&signing_key))
+        .should_be_signed_with(&signing_key)
         .unwrap()
         .check_signature()
         .unwrap()
