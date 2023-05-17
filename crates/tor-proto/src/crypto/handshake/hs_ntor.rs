@@ -122,11 +122,12 @@ pub struct HsNtorClientState {
 }
 
 /// Encrypt the 'plaintext' using 'enc_key'. Then compute the intro cell MAC
-/// using 'mac_key' and return (ciphertext, mac_tag).
+/// using 'mac_key' over the text `(other_text, public_key, plaintext)`
+/// and return (ciphertext, mac_tag).
 fn encrypt_and_mac(
     plaintext: &[u8],
     other_data: &[u8],
-    public_key: &[u8], // XXXX terrible design.
+    public_key: &curve25519::PublicKey,
     enc_key: &EncKey,
     mac_key: MacKey,
 ) -> (Vec<u8>, MacTag) {
@@ -140,7 +141,7 @@ fn encrypt_and_mac(
     // create the body of the MAC tag
     let mut mac_body: Vec<u8> = Vec::new();
     mac_body.extend(other_data);
-    mac_body.extend(public_key);
+    mac_body.extend(public_key.as_bytes());
     mac_body.extend(&ciphertext);
     let mac_tag = hs_mac(&mac_key, &mac_body);
 
@@ -200,13 +201,8 @@ fn client_send_intro_no_keygen(
         &service.subcredential,
     )?;
 
-    let (ciphertext, mac_tag) = encrypt_and_mac(
-        plaintext_body,
-        intro_header,
-        X.as_bytes(),
-        &enc_key,
-        mac_key,
-    );
+    let (ciphertext, mac_tag) =
+        encrypt_and_mac(plaintext_body, intro_header, &X, &enc_key, mac_key);
 
     // Create the relevant parts of INTRO1
     let mut response: Vec<u8> = Vec::new();
