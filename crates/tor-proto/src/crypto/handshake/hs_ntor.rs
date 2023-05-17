@@ -87,7 +87,7 @@ pub struct HsNtorServiceInfo {
     /// (found in the HS descriptor)
     B: HsSvcNtorKey,
 
-    /// Introduction point authentication key (aka `AUTH_KEY`, aka `` )
+    /// Introduction point authentication key (aka `AUTH_KEY`, aka `KP_hs_ipt_sid`)
     /// (found in the HS descriptor)
     auth_key: HsIntroPtSessionIdKey,
 
@@ -148,16 +148,19 @@ fn encrypt_and_mac(
     (ciphertext, mac_tag)
 }
 
-/// The client is about to make an INTRODUCE1 cell. Perform the first part of
+/// The client is about to make an INTRODUCE1 message. Perform the first part of
 /// the client handshake.
 ///
 /// Return a state object containing the current progress of the handshake, and
-/// the data that should be written in the INTRODUCE1 cell. The data that is
+/// the data that should be written as the encrypted part of the INTRODUCE1
+/// message. The data that is
 /// written is:
 ///
+/// ```text
 ///  CLIENT_PK                [PK_PUBKEY_LEN bytes]
 ///  ENCRYPTED_DATA           [Padded to length of plaintext]
 ///  MAC                      [MAC_LEN bytes]
+/// ```
 pub fn client_send_intro<R>(
     rng: &mut R,
     service: &HsNtorServiceInfo,
@@ -216,7 +219,7 @@ fn client_send_intro_no_keygen(
 }
 
 /// The introduction has been completed and the service has replied with a
-/// RENDEZVOUS1.
+/// RENDEZVOUS1 message, whose body is in `msg`.
 ///
 /// Handle it by computing and verifying the MAC, and if it's legit return a
 /// key generator based on the result of the key exchange.
@@ -257,13 +260,16 @@ pub fn client_receive_rend(
 /*********************** Server Side Code ************************************/
 
 /// The input required to enter the HS Ntor protocol as a service
+//
+// TODO HS: maybe these should be references, or should be arguments to
+// server_receive_intro function.
 pub struct HsNtorServiceInput {
     /// Introduction point encryption privkey
     b: HsSvcNtorSecretKey,
     /// Introduction point encryption pubkey
     B: HsSvcNtorKey,
 
-    /// Introduction point authentication key (aka AUTH_KEY)
+    /// Introduction point authentication key (aka AUTH_KEY, aka `KP_hs_ipt_sid`)
     auth_key: HsIntroPtSessionIdKey,
 
     /// Our subcredential
@@ -290,11 +296,13 @@ impl HsNtorServiceInput {
 /// Conduct the HS Ntor handshake as the service.
 ///
 /// Return a key generator which is the result of the key exchange, the
-/// RENDEZVOUS1 response to the client, and the introduction plaintext that we decrypted.
+/// RENDEZVOUS1 response to send to the client, and the introduction plaintext that we decrypted.
 ///
 /// The response to the client is:
+/// ```text
 ///    SERVER_PK   Y                         [PK_PUBKEY_LEN bytes]
 ///    AUTH        AUTH_INPUT_MAC            [MAC_LEN bytes]
+/// ```
 pub fn server_receive_intro<R>(
     rng: &mut R,
     proto_input: &HsNtorServiceInput,
