@@ -166,6 +166,17 @@ where
 {
     // Create client's ephemeral keys to be used for this handshake
     let x = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
+    client_send_intro_no_keygen(x, service, intro_header, plaintext_body)
+}
+
+/// Helper: Behaves like client_send_intro, but takes an ephemeral key x rather
+/// than an RNG.
+fn client_send_intro_no_keygen(
+    x: curve25519::StaticSecret,
+    service: &HsNtorServiceInfo,
+    intro_header: &[u8],
+    plaintext_body: &[u8],
+) -> Result<(HsNtorClientState, Vec<u8>)> {
     let X = curve25519::PublicKey::from(&x);
 
     // Get EXP(B,x)
@@ -289,6 +300,19 @@ pub fn server_receive_intro<R>(
 where
     R: RngCore + CryptoRng,
 {
+    let y = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
+    server_receive_intro_no_keygen(&y, proto_input, intro_header, msg)
+}
+
+/// Helper: Like server_receive_intro, but take an ephemeral key rather than a RNG.
+fn server_receive_intro_no_keygen(
+    // This should be an EphemeralSecret, but using a StaticSecret is necessary
+    // so that we can make one from raw bytes in our test.
+    y: &curve25519::StaticSecret,
+    proto_input: &HsNtorServiceInput,
+    intro_header: &[u8],
+    msg: &[u8],
+) -> Result<(HsNtorHkdfKeyGenerator, Vec<u8>, Vec<u8>)> {
     // Extract all the useful pieces from the message
     let mut cur = Reader::from_slice(msg);
     let X: curve25519::PublicKey = cur
@@ -331,8 +355,7 @@ where
     let plaintext = ciphertext; // it's now decrypted
 
     // Generate ephemeral keys for this handshake
-    let y = curve25519::EphemeralSecret::random_from_rng(rng.rng_compat());
-    let Y = curve25519::PublicKey::from(&y);
+    let Y = curve25519::PublicKey::from(y);
 
     // Compute EXP(X,y) and EXP(X,b)
     let xy = y.diffie_hellman(&X);
