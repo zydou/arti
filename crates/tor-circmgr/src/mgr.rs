@@ -490,7 +490,7 @@ struct CircList<B: AbstractCircBuilder> {
     /// open circuits.
     ///
     /// A circuit is added here from [`AbstractCircMgr::do_launch`] when we find
-    /// that it completes successfully, and has not been cancelled.  
+    /// that it completes successfully, and has not been cancelled.
     /// When we decide that such a circuit should no longer be handed out for
     /// any new requests, we "retire" the circuit by removing it from this map.
     #[allow(clippy::type_complexity)]
@@ -515,7 +515,7 @@ struct CircList<B: AbstractCircBuilder> {
     /// decide that a circuit needs to be launched.
     ///
     /// Later, in [`AbstractCircMgr::do_launch`], once the circuit has finished
-    /// (or failed), we remove the entry (by pointer identity).  
+    /// (or failed), we remove the entry (by pointer identity).
     /// If we cannot find the entry, we conclude that the request has been
     /// _cancelled_, and so we discard any circuit that was created.
     pending_circs: PtrWeakHashSet<Weak<PendingEntry<B>>>,
@@ -862,12 +862,13 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     match outcome {
                         Ok(Ok(circ)) => return Ok(circ),
                         Ok(Err(e)) => {
-                            info!("Circuit attempt {} failed.", attempt_num);
+                            debug!("Circuit attempt {} failed.", attempt_num);
                             Error::RequestFailed(e)
                         }
                         Err(_) => {
                             // We ran out of "remaining" time; there is nothing
                             // more to be done.
+                            warn!("All circuit attempts failed due to timeout");
                             retry_err.push(Error::RequestTimeout);
                             break;
                         }
@@ -875,7 +876,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 }
                 Err(e) => {
                     // We couldn't pick the action!
-                    info!(
+                    debug!(
                         "Couldn't pick action for circuit attempt {}: {}",
                         attempt_num,
                         e.report(),
@@ -903,6 +904,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             *count += 1;
             // If we have reached our limit of this kind of problem, we're done.
             if *count >= count_limit {
+                warn!("Reached circuit build retry limit, exiting...");
                 break;
             }
 
@@ -918,6 +920,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             }
         }
 
+        warn!("Request failed");
         Err(Error::RequestFailed(retry_err))
     }
 
@@ -1177,7 +1180,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 }
             }
 
-            info!(
+            debug!(
                 "While waiting on circuit: {:?} from {}",
                 id,
                 describe_source(building, src)
