@@ -111,7 +111,7 @@ impl<R: Runtime> HsCircPool<R> {
     pub async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> Result<(ClientCirc, Relay<'a>)> {
+    ) -> Result<(Arc<ClientCirc>, Relay<'a>)> {
         // For rendezvous points, clients use 3-hop circuits.
         let circ = self
             .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None)
@@ -142,7 +142,7 @@ impl<R: Runtime> HsCircPool<R> {
         netdir: &NetDir,
         kind: HsCircKind,
         target: T,
-    ) -> Result<ClientCirc>
+    ) -> Result<Arc<ClientCirc>>
     where
         T: CircTarget,
     {
@@ -218,7 +218,7 @@ impl<R: Runtime> HsCircPool<R> {
         &self,
         netdir: &NetDir,
         avoid_target: Option<&T>,
-    ) -> Result<ClientCirc>
+    ) -> Result<Arc<ClientCirc>>
     where
         T: CircTarget,
     {

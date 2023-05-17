@@ -78,7 +78,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         Ok((plan, final_spec))
     }
 
-    async fn build_circuit(&self, plan: Plan) -> Result<(SupportedCircUsage, ClientCirc)> {
+    async fn build_circuit(&self, plan: Plan) -> Result<(SupportedCircUsage, Arc<ClientCirc>)> {
         use crate::build::GuardStatusHandle;
         use tor_guardmgr::GuardStatus;
         let Plan {

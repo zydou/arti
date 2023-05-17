@@ -1,6 +1,6 @@
 //! An internal pool object that we use to implement HsCircPool.
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rand::{seq::IteratorRandom, Rng};
 use tor_proto::circuit::ClientCirc;
@@ -9,7 +9,7 @@ use tor_proto::circuit::ClientCirc;
 #[derive(Default)]
 pub(super) struct Pool {
     /// The collection of circuits themselves, in no particular order.
-    circuits: Mutex<Vec<ClientCirc>>,
+    circuits: Mutex<Vec<Arc<ClientCirc>>>,
 }
 
 impl Pool {
@@ -19,23 +19,23 @@ impl Pool {
     }
 
     /// Add `circ` to this pool
-    pub(super) fn insert(&self, circ: ClientCirc) {
+    pub(super) fn insert(&self, circ: Arc<ClientCirc>) {
         self.circuits.lock().expect("lock poisoned").push(circ);
     }
 
     /// Remove every circuit from this pool for which `f` returns false.
     pub(super) fn retain<F>(&self, f: F)
     where
-        F: FnMut(&ClientCirc) -> bool,
+        F: FnMut(&Arc<ClientCirc>) -> bool,
     {
         self.circuits.lock().expect("lock poisoned").retain(f);
     }
 
     /// If there is any circuit in this pool for which `f`  returns true, return one such circuit at random, and remove it from the pool.
-    pub(super) fn take_one_where<R, F>(&self, rng: &mut R, f: F) -> Option<ClientCirc>
+    pub(super) fn take_one_where<R, F>(&self, rng: &mut R, f: F) -> Option<Arc<ClientCirc>>
     where
         R: Rng,
-        F: Fn(&ClientCirc) -> bool,
+        F: Fn(&Arc<ClientCirc>) -> bool,
     {
         let mut circuits = self.circuits.lock().expect("lock poisoned");
         // TODO HS: This ensures that we take a circuit at random, but at the

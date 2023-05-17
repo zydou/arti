@@ -91,7 +91,7 @@ pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
 ///
 /// This struct is the interface used by the rest of the code, It is fairly
@@ -140,7 +140,7 @@ pub struct PendingClientCirc {
     /// or a DESTROY cell.
     recvcreated: oneshot::Receiver<CreateResponse>,
     /// The ClientCirc object that we can expose on success.
-    circ: ClientCirc,
+    circ: Arc<ClientCirc>,
 }
 
 /// Description of the network's current rules for building circuits.
@@ -208,7 +208,7 @@ pub(crate) struct StreamTarget {
     /// Channel to send cells down.
     tx: mpsc::Sender<AnyRelayMsg>,
     /// Reference to the circuit that this stream is on.
-    circ: ClientCirc,
+    circ: Arc<ClientCirc>,
 }
 
 impl ClientCirc {
@@ -421,7 +421,7 @@ impl ClientCirc {
     /// The caller will typically want to see the first cell in response,
     /// to see whether it is e.g. an END or a CONNECTED.
     async fn begin_stream_impl(
-        &self,
+        self: &Arc<ClientCirc>,
         begin_msg: AnyRelayMsg,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(StreamReader, StreamTarget)> {
@@ -469,7 +469,11 @@ impl ClientCirc {
 
     /// Start a DataStream (anonymized connection) to the given
     /// address and port, using a BEGIN cell.
-    async fn begin_data_stream(&self, msg: AnyRelayMsg, optimistic: bool) -> Result<DataStream> {
+    async fn begin_data_stream(
+        self: &Arc<ClientCirc>,
+        msg: AnyRelayMsg,
+        optimistic: bool,
+    ) -> Result<DataStream> {
         let (reader, target) = self
             .begin_stream_impl(msg, DataCmdChecker::new_any())
             .await?;
@@ -486,7 +490,7 @@ impl ClientCirc {
     /// The use of a string for the address is intentional: you should let
     /// the remote Tor relay do the hostname lookup for you.
     pub async fn begin_stream(
-        &self,
+        self: &Arc<ClientCirc>,
         target: &str,
         port: u16,
         parameters: Option<StreamParameters>,
@@ -501,7 +505,7 @@ impl ClientCirc {
 
     /// Start a new stream to the last relay in the circuit, using
     /// a BEGIN_DIR cell.
-    pub async fn begin_dir_stream(&self) -> Result<DataStream> {
+    pub async fn begin_dir_stream(self: Arc<ClientCirc>) -> Result<DataStream> {
         // Note that we always open begindir connections optimistically.
         // Since they are local to a relay that we've already authenticated
         // with and built a circuit to, there should be no additional checks
@@ -515,7 +519,7 @@ impl ClientCirc {
     ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.
-    pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
+    pub async fn resolve(self: &Arc<ClientCirc>, hostname: &str) -> Result<Vec<IpAddr>> {
         let resolve_msg = Resolve::new(hostname);
 
         let resolved_msg = self.try_resolve(resolve_msg).await?;
@@ -536,7 +540,7 @@ impl ClientCirc {
     ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.
-    pub async fn resolve_ptr(&self, addr: IpAddr) -> Result<Vec<String>> {
+    pub async fn resolve_ptr(self: &Arc<ClientCirc>, addr: IpAddr) -> Result<Vec<String>> {
         let resolve_ptr_msg = Resolve::new_reverse(&addr);
 
         let resolved_msg = self.try_resolve(resolve_ptr_msg).await?;
@@ -557,7 +561,7 @@ impl ClientCirc {
 
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
-    async fn try_resolve(&self, msg: Resolve) -> Result<Resolved> {
+    async fn try_resolve(self: &Arc<ClientCirc>, msg: Resolve) -> Result<Resolved> {
         let (reader, _) = self
             .begin_stream_impl(msg.into(), ResolveCmdChecker::new_any())
             .await?;
@@ -637,7 +641,7 @@ impl PendingClientCirc {
 
         let pending = PendingClientCirc {
             recvcreated: createdreceiver,
-            circ: circuit,
+            circ: Arc::new(circuit),
         };
         (pending, reactor)
     }
@@ -654,7 +658,7 @@ impl PendingClientCirc {
     /// There's no authentication in CRATE_FAST,
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
-    pub async fn create_firsthop_fast(self, params: &CircParameters) -> Result<ClientCirc> {
+    pub async fn create_firsthop_fast(self, params: &CircParameters) -> Result<Arc<ClientCirc>> {
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
@@ -680,7 +684,7 @@ impl PendingClientCirc {
         self,
         target: &Tg,
         params: CircParameters,
-    ) -> Result<ClientCirc>
+    ) -> Result<Arc<ClientCirc>>
     where
         Tg: tor_linkspec::CircTarget,
     {
@@ -799,7 +803,7 @@ impl StreamTarget {
 
     /// Return a reference to the circuit that this `StreamTarget` is using.
     #[cfg(feature = "experimental-api")]
-    pub(crate) fn circuit(&self) -> &ClientCirc {
+    pub(crate) fn circuit(&self) -> &Arc<ClientCirc> {
         &self.circ
     }
 }
@@ -1028,7 +1032,7 @@ mod test {
         rt: &R,
         chan: Channel,
         next_msg_from: HopNum,
-    ) -> (ClientCirc, mpsc::Sender<ClientCircChanMsg>) {
+    ) -> (Arc<ClientCirc>, mpsc::Sender<ClientCircChanMsg>) {
         let circid = 128.into();
         let (_created_send, created_recv) = oneshot::channel();
         let (circmsg_send, circmsg_recv) = mpsc::channel(64);
@@ -1070,7 +1074,7 @@ mod test {
     async fn newcirc<R: Runtime>(
         rt: &R,
         chan: Channel,
-    ) -> (ClientCirc, mpsc::Sender<ClientCircChanMsg>) {
+    ) -> (Arc<ClientCirc>, mpsc::Sender<ClientCircChanMsg>) {
         newcirc_ext(rt, chan, 2.into()).await
     }
 
@@ -1372,7 +1376,7 @@ mod test {
         rt: &R,
         n_to_send: usize,
     ) -> (
-        ClientCirc,
+        Arc<ClientCirc>,
         DataStream,
         mpsc::Sender<ClientCircChanMsg>,
         StreamId,
