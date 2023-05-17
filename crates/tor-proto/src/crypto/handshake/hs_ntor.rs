@@ -28,7 +28,10 @@ use crate::crypto::handshake::KeyGenerator;
 use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
 use crate::{Error, Result};
 use tor_bytes::{Reader, SecretBuf, Writer};
-use tor_hscrypto::Subcredential;
+use tor_hscrypto::{
+    pk::{HsIntroPtSessionIdKey, HsSvcNtorKey, HsSvcNtorSecretKey},
+    Subcredential,
+};
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519};
 use tor_llcrypto::util::rand_compat::RngCompatExt;
@@ -79,13 +82,13 @@ impl KeyGenerator for HsNtorHkdfKeyGenerator {
 /// The input to enter the HS Ntor protocol as a client
 #[derive(Clone)]
 pub struct HsNtorClientInput {
-    /// Introduction point encryption key (aka B)
+    /// Introduction point encryption key (aka `B`, aka `KP_hss_ntor`)
     /// (found in the HS descriptor)
-    B: curve25519::PublicKey,
+    B: HsSvcNtorKey,
 
-    /// Introduction point authentication key (aka AUTH_KEY)
+    /// Introduction point authentication key (aka `AUTH_KEY`, aka `` )
     /// (found in the HS descriptor)
-    auth_key: ed25519::PublicKey,
+    auth_key: HsIntroPtSessionIdKey,
 
     /// Service subcredential
     subcredential: Subcredential,
@@ -104,8 +107,8 @@ pub struct HsNtorClientInput {
 impl HsNtorClientInput {
     /// Create a new `HsNtorClientInput`
     pub fn new(
-        B: curve25519::PublicKey,
-        auth_key: ed25519::PublicKey,
+        B: HsSvcNtorKey,
+        auth_key: HsIntroPtSessionIdKey,
         subcredential: Subcredential,
         plaintext: Vec<u8>,
         intro_cell_data: Vec<u8>,
@@ -258,12 +261,12 @@ where
 /// The input required to enter the HS Ntor protocol as a service
 pub struct HsNtorServiceInput {
     /// Introduction point encryption privkey
-    b: curve25519::StaticSecret,
+    b: HsSvcNtorSecretKey,
     /// Introduction point encryption pubkey
-    B: curve25519::PublicKey,
+    B: HsSvcNtorKey,
 
     /// Introduction point authentication key (aka AUTH_KEY)
-    auth_key: ed25519::PublicKey,
+    auth_key: HsIntroPtSessionIdKey,
 
     /// Our subcredential
     subcredential: Subcredential,
@@ -277,9 +280,9 @@ pub struct HsNtorServiceInput {
 impl HsNtorServiceInput {
     /// Create a new `HsNtorServiceInput`
     pub fn new(
-        b: curve25519::StaticSecret,
-        B: curve25519::PublicKey,
-        auth_key: ed25519::PublicKey,
+        b: HsSvcNtorSecretKey,
+        B: HsSvcNtorKey,
+        auth_key: HsIntroPtSessionIdKey,
         subcredential: Subcredential,
         intro_cell_data: Vec<u8>,
     ) -> Self {
@@ -325,7 +328,7 @@ where
         .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?;
 
     // Now derive keys needed for handling the INTRO1 cell
-    let bx = proto_input.b.diffie_hellman(&X);
+    let bx = proto_input.b.as_ref().diffie_hellman(&X);
     let (enc_key, mac_key) = get_introduce1_key_material(
         &bx,
         &proto_input.auth_key,
@@ -357,7 +360,7 @@ where
 
     // Compute EXP(X,y) and EXP(X,b)
     let xy = y.diffie_hellman(&X);
-    let xb = proto_input.b.diffie_hellman(&X);
+    let xb = proto_input.b.as_ref().diffie_hellman(&X);
 
     let (keygen, auth_input_mac) =
         get_rendezvous1_key_material(&xy, &xb, &proto_input.auth_key, &proto_input.B, &X, &Y)?;
@@ -548,20 +551,21 @@ mod test {
         let intro_b_pubkey = curve25519::PublicKey::from(&intro_b_privkey);
         let intro_auth_key_privkey = ed25519::SecretKey::generate(&mut rng);
         let intro_auth_key_pubkey = ed25519::PublicKey::from(&intro_auth_key_privkey);
+        drop(intro_auth_key_privkey); // not actually used in this part of the protocol.
 
         // Create keys for client and service
         let client_keys = HsNtorClientInput::new(
-            intro_b_pubkey,
-            intro_auth_key_pubkey,
+            intro_b_pubkey.into(),
+            intro_auth_key_pubkey.into(),
             [5; 32].into(),
             vec![66; 10],
             vec![42; 60],
         );
 
         let service_keys = HsNtorServiceInput::new(
-            intro_b_privkey,
-            intro_b_pubkey,
-            intro_auth_key_pubkey,
+            intro_b_privkey.into(),
+            intro_b_pubkey.into(),
+            intro_auth_key_pubkey.into(),
             [5; 32].into(),
             vec![42; 60],
         );
