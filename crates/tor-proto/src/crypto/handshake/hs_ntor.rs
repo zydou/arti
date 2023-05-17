@@ -224,12 +224,12 @@ fn client_send_intro_no_keygen(
 ///
 /// Handle it by computing and verifying the MAC, and if it's legit return a
 /// key generator based on the result of the key exchange.
-pub fn client_receive_rend<T>(state: &HsNtorClientState, msg: T) -> Result<HsNtorHkdfKeyGenerator>
-where
-    T: AsRef<[u8]>,
-{
+pub fn client_receive_rend(
+    state: &HsNtorClientState,
+    msg: &[u8],
+) -> Result<HsNtorHkdfKeyGenerator> {
     // Extract the public key of the service from the message
-    let mut cur = Reader::from_slice(msg.as_ref());
+    let mut cur = Reader::from_slice(msg);
     let Y: curve25519::PublicKey = cur
         .extract()
         .map_err(|e| Error::from_bytes_err(e, "hs_ntor handshake"))?;
@@ -570,7 +570,7 @@ mod test {
         assert_eq!(s_plaintext, vec![42; 60]);
 
         // Client: Receive RENDEZVOUS1 and create key material
-        let ckeygen = client_receive_rend(&state, smsg)?;
+        let ckeygen = client_receive_rend(&state, &smsg)?;
 
         // Test that RENDEZVOUS1 key material match
         let skeys = skeygen.expand(128)?;
@@ -687,7 +687,7 @@ mod test {
         assert_eq!(&service_reply, &expected_reply);
 
         // Let's see if the client handles this reply!
-        let client_keygen = client_receive_rend(&client_state, service_reply).unwrap();
+        let client_keygen = client_receive_rend(&client_state, &service_reply).unwrap();
         let bytes_client = client_keygen.expand(128).unwrap();
         let bytes_service = service_keygen.expand(128).unwrap();
         let mut key_seed =
