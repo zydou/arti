@@ -60,7 +60,8 @@ pub struct Introduce1(Introduce);
 
 impl msg::Body for Introduce1 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        Ok(Self(Introduce::decode_from_reader(r)?))
+        let (intro, _) = Introduce::decode_from_reader(r)?;
+        Ok(Self(intro))
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         self.0.encode_onto(w)
@@ -76,21 +77,40 @@ impl Introduce1 {
 
 #[derive(Debug, Clone)]
 /// A message sent from introduction point to hidden service host.
-pub struct Introduce2(Introduce);
+pub struct Introduce2 {
+    /// A copy of the encoded header that we'll use to finish the hs_ntor handshake.
+    encoded_header: Vec<u8>,
+    /// The decoded message itself.
+    msg: Introduce,
+}
 
 impl msg::Body for Introduce2 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        Ok(Self(Introduce::decode_from_reader(r)?))
+        let (msg, header) = Introduce::decode_from_reader(r)?;
+        let encoded_header = header.to_vec();
+
+        Ok(Self {
+            encoded_header,
+            msg,
+        })
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        self.0.encode_onto(w)
+        self.msg.encode_onto(w)
     }
 }
 
 impl Introduce2 {
     /// All arguments constructor
     pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
-        Self(Introduce::new(auth_key_type, auth_key, encrypted))
+        let msg = Introduce::new(auth_key_type, auth_key, encrypted);
+        let mut encoded_header = Vec::new();
+        msg.header
+            .write_onto(&mut encoded_header)
+            .expect("Generated a header that we could not encode");
+        Self {
+            encoded_header,
+            msg,
+        }
     }
 }
 
@@ -110,7 +130,10 @@ decl_extension_group! {
     }
 }
 
-/// The unencrypted header portion of an Introduce1 or introduce2 message.
+/// The unencrypted header portion of an `Introduce1` or `Introduce2` message.
+///
+/// This is a separate type because the `hs_ntor` handshake requires access to the
+/// encoded format of the header, only.
 #[derive(Debug, Clone)]
 pub struct IntroduceHeader {
     /// Introduction point auth key type and the type of
@@ -174,11 +197,18 @@ impl Introduce {
             encrypted,
         }
     }
-    /// Decode an Introduce message body from the given reader
-    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+    /// Decode an Introduce message body from the given reader.
+    ///
+    /// Return the Introduce message body itself, and the text of the body's header.
+    fn decode_from_reader<'a>(r: &mut Reader<'a>) -> Result<(Self, &'a [u8])> {
+        let header_start = r.cursor();
         let header = r.extract()?;
+        let header_end = r.cursor();
         let encrypted = r.take_rest().into();
-        Ok(Self { header, encrypted })
+        Ok((
+            Self { header, encrypted },
+            r.range(header_start, header_end),
+        ))
     }
     /// Encode an Introduce message body onto the given writer
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
