@@ -100,7 +100,12 @@ impl msg::Body for Introduce2 {
 }
 
 impl Introduce2 {
-    /// All arguments constructor
+    /// All arguments constructor.
+    ///
+    /// This is only useful for testing, since in reality the only time this
+    /// message type is created is when an introduction point is forwarding an
+    /// INTRODUCE1 message.
+    #[cfg(test)] // Don't expose this generally without dealing somehow with the `expect` below
     pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
         let msg = Introduce::new(auth_key_type, auth_key, encrypted);
         let mut encoded_header = Vec::new();
