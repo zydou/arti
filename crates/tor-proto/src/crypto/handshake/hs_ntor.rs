@@ -29,16 +29,16 @@ use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
 use crate::{Error, Result};
 use tor_bytes::{Reader, SecretBuf, Writer};
 use tor_hscrypto::{
+    ops::{hs_mac, HS_MAC_LEN},
     pk::{HsIntroPtSessionIdKey, HsSvcNtorKey, HsSvcNtorSecretKey},
     Subcredential,
 };
-use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519};
+use tor_llcrypto::util::ct::CtByteArray;
 use tor_llcrypto::util::rand_compat::RngCompatExt;
 
 use cipher::{KeyIvInit, StreamCipher};
 
-use digest::Digest;
 use generic_array::GenericArray;
 use rand_core::{CryptoRng, RngCore};
 use tor_error::into_internal;
@@ -52,7 +52,7 @@ type EncKey = Zeroizing<[u8; 32]>;
 /// The MAC_KEY from the HS Ntor protocol
 type MacKey = [u8; 32];
 /// A generic 256-bit MAC tag
-type MacTag = [u8; 32];
+type MacTag = CtByteArray<HS_MAC_LEN>;
 /// The AUTH_INPUT_MAC from the HS Ntor protocol
 type AuthInputMac = MacTag;
 
@@ -142,7 +142,7 @@ fn encrypt_and_mac(
     other_data: &[u8],
     enc_key: &EncKey,
     mac_key: MacKey,
-) -> Result<(Vec<u8>, MacTag)> {
+) -> (Vec<u8>, MacTag) {
     // Encrypt the introduction data using 'enc_key'
     let zero_iv = GenericArray::default();
     let mut cipher = Aes256Ctr::new(enc_key.as_ref().into(), &zero_iv);
@@ -154,9 +154,9 @@ fn encrypt_and_mac(
     let mut mac_body: Vec<u8> = Vec::new();
     mac_body.extend(other_data);
     mac_body.extend(&ciphertext);
-    let mac_tag = hs_ntor_mac(&mac_body, &mac_key)?;
+    let mac_tag = hs_mac(&mac_body, &mac_key);
 
-    Ok((ciphertext, mac_tag))
+    (ciphertext, mac_tag)
 }
 
 /// The client is about to make an INTRODUCE1 cell. Perform the first part of
@@ -204,7 +204,7 @@ where
         &proto_input.intro_cell_data,
         &enc_key,
         mac_key,
-    )?;
+    );
 
     // Create the relevant parts of INTRO1
     let mut response: Vec<u8> = Vec::new();
@@ -342,7 +342,7 @@ where
     let mut mac_body: Vec<u8> = Vec::new();
     mac_body.extend(proto_input.intro_cell_data.clone());
     mac_body.extend(ciphertext.clone());
-    let my_mac_tag = hs_ntor_mac(&mac_body, &mac_key)?;
+    let my_mac_tag = hs_mac(&mac_body, &mac_key);
 
     if my_mac_tag != mac_tag {
         return Err(Error::BadCircHandshakeAuth);
@@ -376,23 +376,6 @@ where
 }
 
 /*********************** Helper functions ************************************/
-
-/// Implement the MAC function used as part of the HS ntor handshake:
-/// MAC(k, m) is H(k_len | k | m) where k_len is htonll(len(k)).
-fn hs_ntor_mac(key: &[u8], message: &[u8]) -> Result<MacTag> {
-    let k_len = key.len();
-
-    let mut d = Sha3_256::new();
-    d.update((k_len as u64).to_be_bytes());
-    d.update(key);
-    d.update(message);
-
-    let result = d.finalize();
-    result
-        .try_into()
-        .map_err(into_internal!("failed MAC computation"))
-        .map_err(Error::from)
-}
 
 /// Helper function: Compute the part of the HS ntor handshake that generates
 /// key material for creating and handling INTRODUCE1 cells. Function used
@@ -493,8 +476,8 @@ fn get_rendezvous1_key_material(
         ))?;
 
     // Build NTOR_KEY_SEED and verify
-    let ntor_key_seed = hs_ntor_mac(&secret_input, hs_ntor_key_constant)?;
-    let verify = hs_ntor_mac(&secret_input, hs_ntor_verify_constant)?;
+    let ntor_key_seed = hs_mac(&secret_input, hs_ntor_key_constant);
+    let verify = hs_mac(&secret_input, hs_ntor_verify_constant);
 
     // Start building 'auth_input'
     let mut auth_input = Vec::new();
@@ -509,7 +492,7 @@ fn get_rendezvous1_key_material(
         .map_err(into_internal!("Can't encode auth-input for hs-ntor."))?;
 
     // Get AUTH_INPUT_MAC
-    let auth_input_mac = hs_ntor_mac(&auth_input, hs_ntor_mac_constant)?;
+    let auth_input_mac = hs_mac(&auth_input, hs_ntor_mac_constant);
 
     // Now finish up with the KDF construction
     let mut kdf_seed = SecretBuf::new();
@@ -593,19 +576,17 @@ mod test {
 
     #[test]
     /// Test vectors generated with hs_ntor_ref.py from little-t-tor.
-    fn ntor_mac() -> Result<()> {
-        let result = hs_ntor_mac("who".as_bytes(), b"knows?")?;
+    fn ntor_mac() {
+        let result = hs_mac("who".as_bytes(), b"knows?");
         assert_eq!(
             &result,
-            &hex!("5e7da329630fdaa3eab7498bb1dc625bbb9ca968f10392b6af92d51d5db17473")
+            &hex!("5e7da329630fdaa3eab7498bb1dc625bbb9ca968f10392b6af92d51d5db17473").into()
         );
 
-        let result = hs_ntor_mac("gone".as_bytes(), b"by")?;
+        let result = hs_mac("gone".as_bytes(), b"by");
         assert_eq!(
             &result,
-            &hex!("90071aabb06d3f7c777db41542f4790c7dd9e2e7b2b842f54c9c42bbdb37e9a0")
+            &hex!("90071aabb06d3f7c777db41542f4790c7dd9e2e7b2b842f54c9c42bbdb37e9a0").into()
         );
-
-        Ok(())
     }
 }
