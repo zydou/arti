@@ -60,7 +60,8 @@ pub struct Introduce1(Introduce);
 
 impl msg::Body for Introduce1 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        Ok(Self(Introduce::decode_from_reader(r)?))
+        let (intro, _) = Introduce::decode_from_reader(r)?;
+        Ok(Self(intro))
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         self.0.encode_onto(w)
@@ -76,21 +77,45 @@ impl Introduce1 {
 
 #[derive(Debug, Clone)]
 /// A message sent from introduction point to hidden service host.
-pub struct Introduce2(Introduce);
+pub struct Introduce2 {
+    /// A copy of the encoded header that we'll use to finish the hs_ntor handshake.
+    encoded_header: Vec<u8>,
+    /// The decoded message itself.
+    msg: Introduce,
+}
 
 impl msg::Body for Introduce2 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        Ok(Self(Introduce::decode_from_reader(r)?))
+        let (msg, header) = Introduce::decode_from_reader(r)?;
+        let encoded_header = header.to_vec();
+
+        Ok(Self {
+            encoded_header,
+            msg,
+        })
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        self.0.encode_onto(w)
+        self.msg.encode_onto(w)
     }
 }
 
 impl Introduce2 {
-    /// All arguments constructor
+    /// All arguments constructor.
+    ///
+    /// This is only useful for testing, since in reality the only time this
+    /// message type is created is when an introduction point is forwarding an
+    /// INTRODUCE1 message.
+    #[cfg(test)] // Don't expose this generally without dealing somehow with the `expect` below
     pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
-        Self(Introduce::new(auth_key_type, auth_key, encrypted))
+        let msg = Introduce::new(auth_key_type, auth_key, encrypted);
+        let mut encoded_header = Vec::new();
+        msg.header
+            .write_onto(&mut encoded_header)
+            .expect("Generated a header that we could not encode");
+        Self {
+            encoded_header,
+            msg,
+        }
     }
 }
 
@@ -110,9 +135,12 @@ decl_extension_group! {
     }
 }
 
+/// The unencrypted header portion of an `Introduce1` or `Introduce2` message.
+///
+/// This is a separate type because the `hs_ntor` handshake requires access to the
+/// encoded format of the header, only.
 #[derive(Debug, Clone)]
-/// A message body shared by Introduce1 and Introduce2
-struct Introduce {
+pub struct IntroduceHeader {
     /// Introduction point auth key type and the type of
     /// the MAC used in `handshake_auth`.
     auth_key_type: AuthKeyType,
@@ -120,22 +148,10 @@ struct Introduce {
     auth_key: Vec<u8>,
     /// A list of extensions
     extensions: ExtList<IntroduceExt>,
-    /// Up to end of relay payload.
-    encrypted: Vec<u8>,
 }
 
-impl Introduce {
-    /// All arguments constructor
-    fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
-        Self {
-            auth_key_type,
-            auth_key,
-            extensions: Default::default(),
-            encrypted,
-        }
-    }
-    /// Decode an Introduce message body from the given reader
-    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+impl tor_bytes::Readable for IntroduceHeader {
+    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let legacy_key_id: RsaIdentity = r.extract()?;
         if !legacy_key_id.is_zero() {
             return Err(BytesError::InvalidMessage(
@@ -146,21 +162,62 @@ impl Introduce {
         let auth_key_len = r.take_u16()?;
         let auth_key = r.take(auth_key_len as usize)?.into();
         let extensions = r.extract()?;
-        let encrypted = r.take_rest().into();
         Ok(Self {
             auth_key_type,
             auth_key,
             extensions,
-            encrypted,
         })
     }
-    /// Encode an Introduce message body onto the given writer
-    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+}
+
+impl tor_bytes::Writeable for IntroduceHeader {
+    fn write_onto<W: Writer + ?Sized>(&self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&[0_u8; 20]);
         w.write_u8(self.auth_key_type.get());
         w.write_u16(u16::try_from(self.auth_key.len()).map_err(|_| EncodeError::BadLengthValue)?);
         w.write_all(&self.auth_key[..]);
         w.write(&self.extensions)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+/// A message body shared by Introduce1 and Introduce2
+struct Introduce {
+    /// The unencrypted header portion of the message.
+    header: IntroduceHeader,
+    /// Up to end of relay payload.
+    encrypted: Vec<u8>,
+}
+
+impl Introduce {
+    /// All arguments constructor
+    fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
+        Self {
+            header: IntroduceHeader {
+                auth_key_type,
+                auth_key,
+                extensions: Default::default(),
+            },
+            encrypted,
+        }
+    }
+    /// Decode an Introduce message body from the given reader.
+    ///
+    /// Return the Introduce message body itself, and the text of the body's header.
+    fn decode_from_reader<'a>(r: &mut Reader<'a>) -> Result<(Self, &'a [u8])> {
+        let header_start = r.cursor();
+        let header = r.extract()?;
+        let header_end = r.cursor();
+        let encrypted = r.take_rest().into();
+        Ok((
+            Self { header, encrypted },
+            r.range(header_start, header_end),
+        ))
+    }
+    /// Encode an Introduce message body onto the given writer
+    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        w.write(&self.header)?;
         w.write_all(&self.encrypted[..]);
         Ok(())
     }
