@@ -410,6 +410,8 @@ impl ClientCirc {
         role: handshake::HandshakeRole,
         seed: impl handshake::KeyGenerator,
     ) -> Result<()> {
+        let (outbound, inbound) = protocol.construct_layers(role, seed)?;
+
         todo!() // TODO hs implement
     }
 

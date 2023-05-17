@@ -211,6 +211,13 @@ impl InboundClientCrypt {
 pub(crate) type Tor1RelayCrypto =
     tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes128Ctr, tor_llcrypto::d::Sha1>;
 
+/// Standard Tor relay crypto, as instantiated for the HSv3 protocol.
+///
+/// (The use of SHA3 is ridiculously overkill.)
+#[cfg(feature = "hs-common")]
+pub(crate) type Tor1Hsv3RelayCrypto =
+    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes256Ctr, tor_llcrypto::d::Sha3_256>;
+
 /// Incomplete untested implementation of Tor's current cell crypto.
 pub(crate) mod tor1 {
     use super::*;
