@@ -28,6 +28,7 @@ use crate::crypto::handshake::KeyGenerator;
 use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
 use crate::{Error, Result};
 use tor_bytes::{Reader, SecretBuf, Writer};
+use tor_hscrypto::Subcredential;
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519};
 use tor_llcrypto::util::rand_compat::RngCompatExt;
@@ -51,8 +52,6 @@ type MacKey = [u8; 32];
 type MacTag = [u8; 32];
 /// The AUTH_INPUT_MAC from the HS Ntor protocol
 type AuthInputMac = MacTag;
-/// The Service's subcredential
-pub type Subcredential = [u8; 32]; // TODO hs: use tor-hscrypto version instead.
 
 /// The key generator used by the HS ntor handshake.  Implements the simple key
 /// expansion protocol specified in section "Key expansion" of rend-spec-v3.txt .
@@ -554,7 +553,7 @@ mod test {
         let client_keys = HsNtorClientInput::new(
             intro_b_pubkey,
             intro_auth_key_pubkey,
-            [5; 32],
+            [5; 32].into(),
             vec![66; 10],
             vec![42; 60],
         );
@@ -563,7 +562,7 @@ mod test {
             intro_b_privkey,
             intro_b_pubkey,
             intro_auth_key_pubkey,
-            [5; 32],
+            [5; 32].into(),
             vec![42; 60],
         );
 

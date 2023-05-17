@@ -4489,6 +4489,7 @@ dependencies = [
  "tor-checkable",
  "tor-config",
  "tor-error",
+ "tor-hscrypto",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-protover",
