@@ -24,6 +24,31 @@ pub const ED25519_ID_LEN: usize = 32;
 /// The length of an ED25519 signature, in bytes.
 pub const ED25519_SIGNATURE_LEN: usize = 64;
 
+/// A variant of [`Keypair`] containing an [`ExpandedSecretKey`].
+#[allow(clippy::exhaustive_structs)]
+pub struct ExpandedKeypair {
+    /// The secret part of the key.
+    pub secret: ExpandedSecretKey,
+    /// The public part of this key.
+    pub public: PublicKey,
+}
+
+impl ExpandedKeypair {
+    /// Compute a signature over a message using this keypair.
+    pub fn sign(&self, message: &[u8]) -> Signature {
+        self.secret.sign(message, &self.public)
+    }
+}
+
+impl<'a> From<&'a Keypair> for ExpandedKeypair {
+    fn from(kp: &'a Keypair) -> ExpandedKeypair {
+        ExpandedKeypair {
+            secret: (&kp.secret).into(),
+            public: kp.public,
+        }
+    }
+}
+
 /// An unchecked, unvalidated Ed25519 key.
 ///
 /// This key is an "identity" in the sense that it identifies (up to) one
