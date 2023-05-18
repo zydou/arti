@@ -122,6 +122,24 @@ pub(super) enum CtrlMsg {
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
+    /// Extend the circuit by one hop, in response to an out-of-band handshake.
+    ///
+    /// (This is used for onion services, where the negotiation takes place in
+    /// INTRODUCE and RENDEZVOUS messages.)
+    #[cfg(feature = "hs-common")]
+    ExtendVirtual {
+        /// The cryptographic algorithms and keys to use when communicating with
+        /// the newly added hop.
+        #[educe(Debug(ignore))]
+        cell_crypto: (
+            Box<dyn OutboundClientLayer + Send>,
+            Box<dyn InboundClientLayer + Send>,
+        ),
+        /// A set of parameters used to configure this hop.
+        params: CircParameters,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
+    },
     /// Begin a stream with the provided hop in this circuit.
     ///
     /// Allocates a stream ID, and sends the provided message to that hop.
@@ -471,7 +489,7 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back) = layer.split();
         reactor.add_hop(
-            self.peer_id.clone(),
+            path::PathEntry::Relay(self.peer_id.clone()),
             self.require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -857,7 +875,7 @@ impl Reactor {
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
-            peer_id,
+            path::PathEntry::Relay(peer_id),
             require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -925,7 +943,7 @@ impl Reactor {
     /// Add a hop to the end of this circuit.
     fn add_hop(
         &mut self,
-        peer_id: OwnedChanTarget,
+        peer_id: path::PathEntry,
         require_sendme_auth: RequireSendmeAuth,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
@@ -1227,6 +1245,30 @@ impl Reactor {
                 )?;
                 self.set_meta_handler(Box::new(extender))?;
             }
+            #[cfg(feature = "hs-common")]
+            #[allow(unreachable_code)]
+            CtrlMsg::ExtendVirtual {
+                cell_crypto,
+                params,
+                done,
+            } => {
+                let (outbound, inbound) = cell_crypto;
+
+                // TODO HS: Perhaps this should describe the onion service, or
+                // describe why the virtual hop was added, or something?
+                let peer_id = path::PathEntry::Virtual;
+
+                // TODO HS: This is not really correct! We probably should be
+                // looking at the sendme_auth_accept_min_version parameter.  See
+                // comments in RequireSendmeAuth::from_protocols.
+                //
+                // "Yes" should be safe, however, since Tor <=0.3.5 is
+                // emphatically unsupported.
+                let require_sendme_auth = RequireSendmeAuth::Yes;
+
+                self.add_hop(peer_id, require_sendme_auth, outbound, inbound, &params);
+                let _ = done.send(Ok(()));
+            }
             CtrlMsg::BeginStream {
                 hop_num,
                 message,
@@ -1282,7 +1324,13 @@ impl Reactor {
 
                 let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
                 let rev = Box::new(DummyCrypto::new(rev_lasthop));
-                self.add_hop(dummy_peer_id, require_sendme_auth, fwd, rev, &params);
+                self.add_hop(
+                    path::PathEntry::Relay(dummy_peer_id),
+                    require_sendme_auth,
+                    fwd,
+                    rev,
+                    &params,
+                );
                 let _ = done.send(Ok(()));
             }
             #[cfg(test)]

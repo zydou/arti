@@ -5,6 +5,25 @@ use tor_linkspec::OwnedChanTarget;
 
 use crate::crypto::cell::HopNum;
 
+/// A descriptor of a single hop in a circuit path.
+//
+// TODO HS: I think this will want to be a public type once we change the
+// return type of Circuit::path().
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub(super) enum PathEntry {
+    /// A hop built through a known relay or a set of externally provided
+    /// linkspecs.
+    ///
+    /// TODO hs: distinguish the two cases here?
+    Relay(OwnedChanTarget),
+    /// A hop built using
+    /// [`extend_virtual`](crate::circuit::ClientCirc::extend_virtual).
+    ///
+    /// TODO hs: remember anything about what the virtual hop represents?
+    Virtual,
+}
+
 /// Helper struct that shares information
 #[derive(Debug, Default)]
 pub(super) struct Path {
@@ -12,7 +31,7 @@ pub(super) struct Path {
     ///
     /// We only store ChanTarget information here, because it doesn't matter
     /// which ntor key we actually used with each hop.
-    hops: Mutex<Vec<OwnedChanTarget>>,
+    hops: Mutex<Vec<PathEntry>>,
 }
 
 impl Path {
@@ -22,12 +41,12 @@ impl Path {
     }
 
     /// Add a hop to this  this path.
-    pub(super) fn push_hop(&self, target: OwnedChanTarget) {
+    pub(super) fn push_hop(&self, target: PathEntry) {
         self.hops.lock().expect("poisoned lock").push(target);
     }
 
     /// Return an OwnedChanTarget representing the first hop of this path.
-    pub(super) fn first_hop(&self) -> Option<OwnedChanTarget> {
+    pub(super) fn first_hop(&self) -> Option<PathEntry> {
         self.hops
             .lock()
             .expect("poisoned lock")
@@ -36,7 +55,7 @@ impl Path {
     }
 
     /// Return a copy of all the hops in this path.
-    pub(super) fn all_hops(&self) -> Vec<OwnedChanTarget> {
+    pub(super) fn all_hops(&self) -> Vec<PathEntry> {
         self.hops.lock().expect("poisoned lock").clone()
     }
 

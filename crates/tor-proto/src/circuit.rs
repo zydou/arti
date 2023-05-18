@@ -220,9 +220,14 @@ impl ClientCirc {
     /// the tor-proto crate, but within the crate it's possible to have a
     /// circuit with no hops.)
     pub fn first_hop(&self) -> OwnedChanTarget {
-        self.path
+        let first_hop = self
+            .path
             .first_hop()
-            .expect("called first_hop on an un-constructed circuit")
+            .expect("called first_hop on an un-constructed circuit");
+        match first_hop {
+            path::PathEntry::Relay(r) => r,
+            path::PathEntry::Virtual => panic!("somehow made a circuit with a virtual first hop."),
+        }
     }
 
     /// Return a description of all the hops in this circuit.
@@ -230,8 +235,21 @@ impl ClientCirc {
     /// Note that this method performs a deep copy over the `OwnedCircTarget`
     /// values in the path.  This is undesirable for some applications; see
     /// [ticket #787](https://gitlab.torproject.org/tpo/core/arti/-/issues/787).
+    ///
+    /// Note also that this method ignores virtual hops.  This is likely to
+    /// change in the future, but it will require a backward-incompatible change
+    /// on the return type.
+    ///
+    /// TODO HS: Fix the virtual-hop issue.
     pub fn path(&self) -> Vec<OwnedChanTarget> {
-        self.path.all_hops()
+        self.path
+            .all_hops()
+            .into_iter()
+            .filter_map(|hop| match hop {
+                path::PathEntry::Relay(r) => Some(r),
+                path::PathEntry::Virtual => None,
+            })
+            .collect()
     }
 
     /// Return a reference to the channel that this circuit is connected to.
@@ -385,6 +403,10 @@ impl ClientCirc {
 
     /// Extend this circuit by a single, "virtual" hop.
     ///
+    /// A virtual hop is one for which we do not add an actual network connection
+    /// between separate hosts (such as Relays).  We only add a layer of
+    /// cryptography.
+    ///
     /// This is used to implement onion services: the client and the service
     /// both build a circuit to a single rendezvous point, and tell the
     /// rendezvous point to relay traffic between their two circuits.  Having
@@ -402,15 +424,32 @@ impl ClientCirc {
     // TODO hs: let's try to enforce the "you can't extend a circuit again once
     // it has been extended this way" property.  We could do that with internal
     // state, or some kind of a type state pattern.
+    //
+    // TODO hs: Possibly we should take a description of the hop.
+    //
+    // TODO hs: possibly we should take a set of Protovers, and not just `Params`.
     #[cfg(feature = "hs-common")]
-    #[allow(clippy::missing_panics_doc, unused_variables)]
     pub async fn extend_virtual(
         &self,
         protocol: handshake::RelayProtocol,
         role: handshake::HandshakeRole,
         seed: impl handshake::KeyGenerator,
+        params: CircParameters,
     ) -> Result<()> {
-        todo!() // TODO hs implement
+        let (outbound, inbound) = protocol.construct_layers(role, seed)?;
+
+        let (tx, rx) = oneshot::channel();
+        let message = CtrlMsg::ExtendVirtual {
+            cell_crypto: (outbound, inbound),
+            params,
+            done: tx,
+        };
+
+        self.control
+            .unbounded_send(message)
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
     /// Helper, used to begin a stream.
