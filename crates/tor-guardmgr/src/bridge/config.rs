@@ -236,6 +236,7 @@ impl BridgeConfigBuilder {
                         "Specified `settings` for a direct bridge connection",
                     ));
                 }
+                #[allow(clippy::unnecessary_filter_map)] // for consistency
                 let addrs = addrs.iter().filter_map(|ba| {
                     #[allow(clippy::redundant_pattern_matching)] // for consistency
                     if let Some(sa) = ba.as_socketaddr() {
