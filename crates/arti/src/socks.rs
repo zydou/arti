@@ -117,6 +117,16 @@ where
     let mut inbuf = [0_u8; 1024];
     let mut n_read = 0;
     let request = loop {
+        if n_read == inbuf.len() {
+            // We would like to read more of this SOCKS request, but there is no
+            // more space in the buffer.  If we try to keep reading into an
+            // empty buffer, we'll just read nothing, try to parse it, and learn
+            // that we still wish we had more to read.
+            //
+            // In theory we might want to resize the buffer.  Right now, though,
+            // we just reject handshakes that don't fit into 1k.
+            return Err(anyhow!("Socks handshake did not fit in 1KiB buffer"));
+        }
         // Read some more stuff.
         n_read += socks_r
             .read(&mut inbuf[n_read..])

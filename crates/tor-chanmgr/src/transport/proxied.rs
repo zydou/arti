@@ -147,6 +147,21 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
             break handshake.into_reply();
         }
 
+        if n_read == inbuf.len() {
+            // We would like to read more of this SOCKS request, but there is no
+            // more space in the buffer.  If we try to keep reading into an
+            // empty buffer, we'll just read nothing, try to parse it, and learn
+            // that we still wish we had more to read.
+            //
+            // In theory we might want to resize the buffer.  Right now, though,
+            // we just reject handshakes that don't fit into 1k.
+            return Err(ProxyError::SocksProto(
+                tor_socksproto::Error::NotImplemented(
+                    "Socks handshake did not fit in 1KiB buffer".into(),
+                ),
+            ));
+        }
+
         // Read some more stuff.
         n_read += stream.read(&mut inbuf[n_read..]).await?;
     };
