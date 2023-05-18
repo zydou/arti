@@ -32,6 +32,7 @@ use thiserror::Error;
 
 use curve25519_dalek::scalar::Scalar;
 pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature};
+pub use pk::ed25519::ExpandedKeypair;
 
 /// Convert a curve25519 public key (with sign bit) to an ed25519
 /// public key, for use in ntor key cross-certification.
@@ -80,7 +81,7 @@ pub fn convert_curve25519_to_ed25519_public(
 #[cfg(any(test, feature = "relay"))]
 pub fn convert_curve25519_to_ed25519_private(
     privkey: &pk::curve25519::StaticSecret,
-) -> Option<(pk::ed25519::ExpandedSecretKey, u8)> {
+) -> Option<(pk::ed25519::ExpandedKeypair, u8)> {
     use crate::d::Sha512;
     use zeroize::Zeroizing;
 
@@ -93,18 +94,18 @@ pub fn convert_curve25519_to_ed25519_private(
     bytes[0..32].clone_from_slice(&privkey.to_bytes());
     bytes[32..64].clone_from_slice(&h[0..32]);
 
-    let result = pk::ed25519::ExpandedSecretKey::from_bytes(&bytes[..]).ok()?;
-    let pubkey: pk::ed25519::PublicKey = (&result).into();
-    let signbit = pubkey.as_bytes()[31] >> 7;
+    let secret = pk::ed25519::ExpandedSecretKey::from_bytes(&bytes[..]).ok()?;
+    let public: pk::ed25519::PublicKey = (&secret).into();
+    let signbit = public.as_bytes()[31] >> 7;
 
     #[cfg(debug_assertions)]
     {
         let curve_pubkey1 = pk::curve25519::PublicKey::from(privkey);
         let ed_pubkey1 = convert_curve25519_to_ed25519_public(&curve_pubkey1, signbit)?;
-        assert_eq!(ed_pubkey1, pubkey);
+        assert_eq!(ed_pubkey1, public);
     }
 
-    Some((result, signbit))
+    Some((pk::ed25519::ExpandedKeypair { public, secret }, signbit))
 }
 
 /// An error occurred during a key-blinding operation.
@@ -204,18 +205,18 @@ pub fn blind_pubkey(pk: &PublicKey, h: [u8; 32]) -> Result<PublicKey, BlindingEr
 ///
 /// The secret keys produced by this will _not_ produce the correct public keys
 /// if you call "PublicKey::from_bytes()" on them.  To find the correct
-/// corresponding blinded public key, first convert `sk` to a public key, and
-/// then call [`blind_pubkey`] on that.
+/// corresponding blinded public key,
+/// call [`blind_pubkey`] on `keypair.public`.
 ///
 /// This unfortunate behavior occurs because `PublicKey::from` code always does
 /// the ceremonial x25519 bit-twiddling on its scalar inputs, whereas in this
 /// case a modular reduction would be the correct operation. (The input is known
 /// to be a scalar!)
 #[cfg(feature = "hsv3-service")]
-pub fn blind_seckey(
-    sk: &ExpandedSecretKey,
+pub fn blind_keypair(
+    keypair: &ExpandedKeypair,
     h: [u8; 32],
-) -> Result<ExpandedSecretKey, BlindingError> {
+) -> Result<ExpandedKeypair, BlindingError> {
     use arrayref::{array_mut_ref, array_ref};
     use zeroize::Zeroizing;
 
@@ -225,7 +226,7 @@ pub fn blind_seckey(
     const RH_BLIND_STRING: &[u8] = b"Derive temporary signing key hash input";
 
     let blinding_factor = clamp_blinding_factor(h);
-    let secret_key_bytes = Zeroizing::new(sk.to_bytes());
+    let secret_key_bytes = Zeroizing::new(keypair.secret.to_bytes());
     let mut blinded_key_bytes = Zeroizing::new([0_u8; 64]);
 
     {
@@ -243,7 +244,13 @@ pub fn blind_seckey(
         blinded_key_bytes[32..64].copy_from_slice(&d[0..32]);
     }
 
-    ExpandedSecretKey::from_bytes(&blinded_key_bytes[..]).map_err(|_| BlindingError::BlindingFailed)
+    // We cannot derive our blinded public key from `secret`; we must instead
+    // re-blind `public`. (See "Limitations" above for an explanation.)
+    let public = blind_pubkey(&keypair.public, h)?;
+
+    let secret = ExpandedSecretKey::from_bytes(&blinded_key_bytes[..])
+        .map_err(|_| BlindingError::BlindingFailed)?;
+    Ok(ExpandedKeypair { secret, public })
 }
 
 #[cfg(test)]
@@ -263,7 +270,9 @@ mod tests {
         let curve_sk = curve25519::StaticSecret::random_from_rng(rng);
         let curve_pk = curve25519::PublicKey::from(&curve_sk);
 
-        let (ed_sk, signbit) = convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
+        let (ed_kp, signbit) = convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
+        let ed_sk = ed_kp.secret;
+        let ed_pk0 = ed_kp.public;
         let ed_pk1: ed25519::PublicKey = (&ed_sk).into();
         let ed_pk2 = convert_curve25519_to_ed25519_public(&curve_pk, signbit).unwrap();
 
@@ -272,6 +281,7 @@ mod tests {
         assert!(ed_pk1.verify(&msg[..], &sig1).is_ok());
         assert!(ed_pk2.verify(&msg[..], &sig1).is_ok());
 
+        assert_eq!(ed_pk1, ed_pk0);
         assert_eq!(ed_pk1, ed_pk2);
     }
 
@@ -367,14 +377,22 @@ mod tests {
                 &esk.to_bytes()[..],
                 &hex::decode(expanded_seckeys[i]).unwrap()
             );
+            let public = (&esk).into();
+            let kp_in = ExpandedKeypair {
+                secret: esk,
+                public,
+            };
 
             let pk = PublicKey::from_bytes(&hex::decode(pubkeys[i]).unwrap()).unwrap();
             assert_eq!(pk, PublicKey::from(&sk));
 
             let param = hex::decode(params[i]).unwrap().try_into().unwrap();
             // Blind the secret key, and make sure that the result is expected.
-            let blinded_sk = blind_seckey(&esk, param).unwrap();
-            assert_eq!(hex::encode(blinded_sk.to_bytes()), blinded_seckeys[i]);
+            let blinded_kp = blind_keypair(&kp_in, param).unwrap();
+            assert_eq!(
+                hex::encode(blinded_kp.secret.to_bytes()),
+                blinded_seckeys[i]
+            );
 
             let blinded_pk = blind_pubkey(&pk, param).unwrap();
 
@@ -383,17 +401,17 @@ mod tests {
 
             // Make sure that signature made with blinded sk is validated by
             // blinded pk.
-            let sig = blinded_sk.sign(b"hello world", &blinded_pk);
+            let sig = blinded_kp.sign(b"hello world");
             blinded_pk.verify(b"hello world", &sig).unwrap();
 
             if false {
                 // This test does not pass: see "limitations" section in documentation for blind_seckey.
                 assert_eq!(
                     blinded_pk.to_bytes(),
-                    PublicKey::from(&blinded_sk).to_bytes()
+                    PublicKey::from(&blinded_kp.secret).to_bytes()
                 );
             } else {
-                let blinded_sk_bytes = blinded_sk.to_bytes();
+                let blinded_sk_bytes = blinded_kp.secret.to_bytes();
                 let blinded_sk_scalar =
                     Scalar::from_bits(*arrayref::array_ref!(blinded_sk_bytes, 0, 32));
                 let pk2 = blinded_sk_scalar * curve25519_dalek::constants::ED25519_BASEPOINT_POINT;

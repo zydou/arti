@@ -11,7 +11,7 @@ use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::into_bad_api_usage;
-use tor_hscrypto::pk::HsBlindKeypair;
+use tor_hscrypto::pk::HsBlindIdKeypair;
 use tor_hscrypto::RevisionCounter;
 use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 use tor_units::IntegerMinutes;
@@ -27,7 +27,7 @@ use std::time::SystemTime;
 pub(super) struct HsDescOuter<'a> {
     /// The blinded hidden service signing keys used to sign descriptor signing keys
     /// (KP_hs_blind_id, KS_hs_blind_id).
-    pub(super) blinded_id: &'a HsBlindKeypair,
+    pub(super) blinded_id: &'a HsBlindIdKeypair,
     /// The short-term descriptor signing key.
     pub(super) hs_desc_sign: &'a ed25519::Keypair,
     /// The expiration time of the descriptor signing key certificate.
@@ -119,9 +119,9 @@ mod test {
 
     use super::*;
     use tor_basic_utils::test_rng::Config;
-    use tor_hscrypto::pk::{HsBlindKeypair, HsIdSecretKey};
+    use tor_hscrypto::pk::HsIdKeypair;
     use tor_hscrypto::time::TimePeriod;
-    use tor_llcrypto::pk::keymanip::ExpandedSecretKey;
+    use tor_llcrypto::pk::keymanip::ExpandedKeypair;
     use tor_llcrypto::util::rand_compat::RngCompatExt;
     use tor_units::IntegerMinutes;
 
@@ -139,10 +139,9 @@ mod test {
             humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
-        let (public, secret, _) = HsIdSecretKey::from(ExpandedSecretKey::from(&hs_id.secret))
+        let (public, blinded_id, _) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
             .compute_blinded_key(period)
             .unwrap();
-        let blinded_id = HsBlindKeypair { public, secret };
 
         let hs_desc = HsDescOuter {
             blinded_id: &blinded_id,

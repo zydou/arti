@@ -573,9 +573,11 @@ pub(crate) mod test {
     fn mk_keys(kk: u8) -> HsClientSecretKeys {
         let mut ss = [0_u8; 32];
         ss[0] = kk;
-        let ss = tor_llcrypto::pk::ed25519::SecretKey::from_bytes(&ss).unwrap();
+        let secret = tor_llcrypto::pk::ed25519::SecretKey::from_bytes(&ss).unwrap();
+        let public = tor_llcrypto::pk::ed25519::PublicKey::from(&secret);
+        let kp = tor_llcrypto::pk::ed25519::Keypair { public, secret };
         let mut b = HsClientSecretKeysBuilder::default();
-        b.ks_hsc_intro_auth(ss.into());
+        b.ks_hsc_intro_auth(kp.into());
         b.build().unwrap()
     }
 

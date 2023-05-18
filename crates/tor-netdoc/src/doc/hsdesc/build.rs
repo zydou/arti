@@ -9,10 +9,10 @@ use crate::NetdocBuilder;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::into_bad_api_usage;
-use tor_hscrypto::pk::{HsBlindKeypair, HsSvcDescEncKeypair};
+use tor_hscrypto::pk::{HsBlindIdKeypair, HsSvcDescEncKeypair};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
-use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
+use tor_llcrypto::pk::ed25519::{self};
 use tor_units::IntegerMinutes;
 
 use derive_builder::Builder;
@@ -35,7 +35,7 @@ use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
 struct HsDesc<'a> {
     /// The blinded hidden service signing keys used to sign descriptor signing keys
     /// (KP_hs_blind_id, KS_hs_blind_id).
-    blinded_id: &'a HsBlindKeypair,
+    blinded_id: &'a HsBlindIdKeypair,
     /// The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
     hs_desc_sign: &'a ed25519::Keypair,
     /// The expiration time of the descriptor signing key certificate.
@@ -206,7 +206,7 @@ impl<'a> HsDesc<'a> {
         string_const: &[u8],
     ) -> Vec<u8> {
         let encrypt = HsDescEncryption {
-            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.public_key()).into(),
+            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.as_ref().public).into(),
             desc_enc_nonce,
             subcredential: &self.subcredential,
             revision: self.revision_counter,
@@ -255,11 +255,11 @@ mod test {
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as ParsedHsDesc};
     use tor_basic_utils::test_rng::Config;
     use tor_checkable::{SelfSigned, Timebound};
-    use tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncSecretKey, HsIdSecretKey};
+    use tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncSecretKey, HsIdKeypair};
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::curve25519;
-    use tor_llcrypto::pk::keymanip::ExpandedSecretKey;
+    use tor_llcrypto::pk::keymanip::ExpandedKeypair;
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     // TODO: move the test helpers to a separate module and make them more broadly available if
@@ -343,13 +343,11 @@ mod test {
             humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
-        let (public, secret, subcredential) =
-            HsIdSecretKey::from(ExpandedSecretKey::from(&hs_id.secret))
-                .compute_blinded_key(period)
-                .unwrap();
+        let (public, blinded_id, subcredential) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
+            .compute_blinded_key(period)
+            .unwrap();
 
-        let blinded_id = HsBlindKeypair { public, secret };
-        let id = ed25519::Ed25519Identity::from(blinded_id.public_key());
+        let id = ed25519::Ed25519Identity::from(blinded_id.as_ref().public);
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {
@@ -383,7 +381,7 @@ mod test {
         // Now decode it...
         let desc = parse_hsdesc(
             encoded_desc.as_str(),
-            *blinded_id.public,
+            blinded_id.as_ref().public,
             &subcredential,
             None, /* No client auth */
         );
@@ -425,7 +423,7 @@ mod test {
         // Now decode it...
         let desc = parse_hsdesc(
             encoded_desc.as_str(),
-            *blinded_id.public,
+            blinded_id.as_ref().public,
             &subcredential,
             Some((&client_pkey, &client_skey)), /* With client auth */
         );
