@@ -1,11 +1,34 @@
 //! Relay cell cryptography
 //!
-//! The Tor protocol centers around "RELAY cells", which are
-//! transmitted through the network along circuits.  The client that
-//! creates a circuit shares two different set of keys and state with
-//! each of the relays on the circuit: one for "outbound" traffic, and
-//! one for "inbound" traffic.
+//! The Tor protocol centers around "RELAY cells", which are transmitted through
+//! the network along circuits.  The client that creates a circuit shares two
+//! different sets of keys and state with each of the relays on the circuit: one
+//! for "outbound" traffic, and one for "inbound" traffic.
 //!
+//! So for example, if a client creates a 3-hop circuit with relays R1, R2, and
+//! R3, the client has:
+//!   * An "inbound" cryptographic state shared with R1.
+//!   * An "inbound" cryptographic state shared with R2.
+//!   * An "inbound" cryptographic state shared with R3.
+//!   * An "outbound" cryptographic state shared with R1.
+//!   * An "outbound" cryptographic state shared with R2.
+//!   * An "outbound" cryptographic state shared with R3.
+//!
+//! In this module at least, we'll call each of these state objects a "layer" of
+//! the circuit's encryption.
+//!
+//! The Tor specification does not describe these layer objects very explicitly.
+//! In the current relay cryptography protocol, each layer contains:
+//!    * A keyed AES-CTR state. (AES-128 or AES-256)  This cipher uses a key
+//!      called `Kf` or `Kb` in the spec, where `Kf` is a "forward" key used in
+//!      the outbound direction, and `Kb` is a "backward" key used in the
+//!      inbound direction.
+//!    * A running digest. (SHA1 or SHA3)  This digest is initialized with a
+//!      value called `Df` or `Db` in the spec.
+//!
+//! This `crypto::cell` module itself provides traits and implementations that
+//! should work for all current future versions of the relay cell crypto design.
+//! The current Tor protocols are instantiated in a `tor1` submodule.
 
 use crate::{Error, Result};
 use tor_cell::chancell::BoxedCellBody;
@@ -28,8 +51,8 @@ impl AsMut<[u8]> for RelayCellBody {
     }
 }
 
-/// Represents the ability for a circuit crypto state to be initialized
-/// from a given seed.
+/// Represents the ability for one hop of a circuit's cryptographic state to be
+/// initialized from a given seed.
 pub(crate) trait CryptInit: Sized {
     /// Return the number of bytes that this state will require.
     fn seed_len() -> usize;
@@ -42,8 +65,8 @@ pub(crate) trait CryptInit: Sized {
     }
 }
 
-/// A paired object containing an inbound client layer and an outbound
-/// client layer.
+/// A paired object containing the inbound and outbound cryptographic layers
+/// used by a client to communicate with a single hop on one of its circuits.
 ///
 /// TODO: Maybe we should fold this into CryptInit.
 pub(crate) trait ClientLayer<F, B>
@@ -68,8 +91,8 @@ pub(crate) trait RelayCrypt {
     fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool;
 }
 
-/// A client's view of the crypto state shared with a single relay, as
-/// used for outbound cells.
+/// A client's view of the cryptographic state shared with a single relay on a
+/// circuit, as used for outbound cells.
 pub(crate) trait OutboundClientLayer {
     /// Prepare a RelayCellBody to be sent to the relay at this layer, and
     /// encrypt it.
@@ -80,8 +103,8 @@ pub(crate) trait OutboundClientLayer {
     fn encrypt_outbound(&mut self, cell: &mut RelayCellBody);
 }
 
-/// A client's view of the crypto state shared with a single relay, as
-/// used for inbound cells.
+/// A client's view of the crypto state shared with a single relay on a circuit,
+/// as used for inbound cells.
 pub(crate) trait InboundClientLayer {
     /// Decrypt a CellBody that passed through this layer.
     ///
@@ -218,29 +241,50 @@ pub(crate) type Tor1RelayCrypto =
 pub(crate) type Tor1Hsv3RelayCrypto =
     tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes256Ctr, tor_llcrypto::d::Sha3_256>;
 
-/// Incomplete untested implementation of Tor's current cell crypto.
+/// An implementation of Tor's current relay cell cryptography.
+///
+/// These are not very good algorithms; they were the best we could come up with
+/// in ~2002.  They are somewhat inefficient, and vulnerable to tagging attacks.
+/// They should get replaced within the next several years.  For information on
+/// some older proposed alternatives so far, see proposals 261, 295, and 298.
+///
+/// I am calling this design `tor1`; it does not have a generally recognized
+/// name.
 pub(crate) mod tor1 {
     use super::*;
     use cipher::{KeyIvInit, StreamCipher};
     use digest::Digest;
     use typenum::Unsigned;
 
-    /// A CryptState is part of a RelayCrypt or a ClientLayer.
+    /// A CryptState represents one layer of shared cryptographic state between
+    /// a relay and a client for a single hop, in a single direction.
     ///
-    /// It is parameterized on a stream cipher and a digest type: most
-    /// circuits will use AES-128-CTR and SHA1, but v3 onion services
-    /// use AES-256-CTR and SHA-3.
+    /// For example, if a client makes a 3-hop circuit, then it will have 6
+    /// `CryptState`s, one for each relay, for each direction of communication.
+    ///
+    /// Note that although `CryptState` implements [`OutboundClientLayer`],
+    /// [`InboundClientLayer`], and [`RelayCrypt`], any single `CryptState`
+    /// instance will only be used for one of these roles.
+    ///
+    /// It is parameterized on a stream cipher and a digest type: most circuits
+    /// will use AES-128-CTR and SHA1, but v3 onion services use AES-256-CTR and
+    /// SHA-3.
     pub(crate) struct CryptState<SC: StreamCipher, D: Digest + Clone> {
         /// Stream cipher for en/decrypting cell bodies.
+        ///
+        /// This cipher is the one keyed with Kf or Kb in the spec.
         cipher: SC,
         /// Digest for authenticating cells to/from this hop.
+        ///
+        /// This digest is the one keyed with Df or Db in the spec.
         digest: D,
         /// Most recent digest value generated by this crypto.
         last_digest_val: GenericArray<u8, D::OutputSize>,
     }
 
-    /// A pair of CryptStates, one for the forward (away from client)
-    /// direction, and one for the reverse (towards client) direction.
+    /// A pair of CryptStates shared between a client and a relay, one for the
+    /// outbound (away from the client) direction, and one for the inbound
+    /// (towards the client) direction.
     pub(crate) struct CryptStatePair<SC: StreamCipher, D: Digest + Clone> {
         /// State for en/decrypting cells sent away from the client.
         fwd: CryptState<SC, D>,
@@ -253,6 +297,8 @@ pub(crate) mod tor1 {
             SC::KeySize::to_usize() * 2 + D::OutputSize::to_usize() * 2
         }
         fn initialize(seed: &[u8]) -> Result<Self> {
+            // This corresponds to the use of the KDF algorithm as described in
+            // tor-spec 5.2.2
             if seed.len() != Self::seed_len() {
                 return Err(Error::from(internal!(
                     "seed length {} was invalid",
@@ -261,10 +307,10 @@ pub(crate) mod tor1 {
             }
             let keylen = SC::KeySize::to_usize();
             let dlen = D::OutputSize::to_usize();
-            let fdinit = &seed[0..dlen];
-            let bdinit = &seed[dlen..dlen * 2];
-            let fckey = &seed[dlen * 2..dlen * 2 + keylen];
-            let bckey = &seed[dlen * 2 + keylen..dlen * 2 + keylen * 2];
+            let fdinit = &seed[0..dlen]; // This is Df in the spec.
+            let bdinit = &seed[dlen..dlen * 2]; // This is Db in the spec.
+            let fckey = &seed[dlen * 2..dlen * 2 + keylen]; // This is Kf in the spec.
+            let bckey = &seed[dlen * 2 + keylen..dlen * 2 + keylen * 2]; // this is Kb in the spec.
             let fwd = CryptState {
                 cipher: SC::new(fckey.try_into().expect("Wrong length"), &Default::default()),
                 digest: D::new().chain_update(fdinit),
@@ -295,9 +341,11 @@ pub(crate) mod tor1 {
             cell.set_digest(&mut self.back.digest, &mut d_ignored);
         }
         fn encrypt_inbound(&mut self, cell: &mut RelayCellBody) {
+            // This is describe in tor-spec 5.5.3.1, "Relaying Backward at Onion Routers"
             self.back.cipher.apply_keystream(cell.as_mut());
         }
         fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool {
+            // This is describe in tor-spec 5.5.2.2, "Relaying Forward at Onion Routers"
             self.fwd.cipher.apply_keystream(cell.as_mut());
             let mut d_ignored = GenericArray::default();
             cell.recognized(&mut self.fwd.digest, &mut d_ignored)
@@ -311,12 +359,16 @@ pub(crate) mod tor1 {
             &self.last_digest_val
         }
         fn encrypt_outbound(&mut self, cell: &mut RelayCellBody) {
+            // This is a single iteration of the loop described in tor-spec
+            // 5.5.2.1, "routing away from the origin."
             self.cipher.apply_keystream(&mut cell.0[..]);
         }
     }
 
     impl<SC: StreamCipher, D: Digest + Clone> InboundClientLayer for CryptState<SC, D> {
         fn decrypt_inbound(&mut self, cell: &mut RelayCellBody) -> Option<&[u8]> {
+            // This is a single iteration of the loop described in tor-spec
+            // 5.5.3, "routing to the origin."
             self.cipher.apply_keystream(&mut cell.0[..]);
             if cell.recognized(&mut self.digest, &mut self.last_digest_val) {
                 Some(&self.last_digest_val)
@@ -326,6 +378,16 @@ pub(crate) mod tor1 {
         }
     }
 
+    /// Functions on RelayCellBody that implement the digest/recognized
+    /// algorithm.
+    ///
+    /// The current relay crypto protocol uses two wholly inadequate fields to
+    /// see whether a cell is intended for its current recipient: a two-byte
+    /// "recognized" field that needs to be all-zero; and a four-byte "digest"
+    /// field containing a running digest of all cells (for this recipient) to
+    /// this one, seeded with an initial value (either Df or Db in the spec).
+    ///
+    /// These operations is described in tor-spec section 6.1 "Relay cells"
     impl RelayCellBody {
         /// Prepare a cell body by setting its digest and recognized field.
         fn set_digest<D: Digest + Clone>(
