@@ -403,6 +403,10 @@ impl ClientCirc {
 
     /// Extend this circuit by a single, "virtual" hop.
     ///
+    /// A virtual hop is one for which we do not add an actual network connection
+    /// between separate hosts (such as Relays).  We only add a layer of
+    /// cryptography.
+    ///
     /// This is used to implement onion services: the client and the service
     /// both build a circuit to a single rendezvous point, and tell the
     /// rendezvous point to relay traffic between their two circuits.  Having
