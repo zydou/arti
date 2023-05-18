@@ -31,11 +31,18 @@ PRETTY=$(join_by "%n" "${WE_CREDIT[@]}")
 trap 'rm -rf "$TEMPDIR"' 0
 
 echo "[*] Finding contributors since $LAST_REV..."
-git log --pretty="$PRETTY" HEAD "^$LAST_REV" | grep . | sed 's/ *<[^>]*>$//' | sort | uniq > "$TEMPDIR/contributors.txt"
+git log --pretty="$PRETTY" HEAD "^$LAST_REV" |
+    # Remove empty lines
+    grep . |
+    # Remove email addrs
+    sed 's/ *<[^>]*>$//' |
+    sort |
+    uniq > "$TEMPDIR/contributors.txt"
 echo "[*] Found $(wc -l < "$TEMPDIR/contributors.txt") contributors!"
 
 echo "[*] Removing contributors listed in $TO_EXCLUDE..."
-comm -13 "$TO_EXCLUDE" "$TEMPDIR/contributors.txt" | sed 's/^[[:space:]]*\|[[:space:]]*$//g' > "$TEMPDIR/final.txt"
+comm -13 "$TO_EXCLUDE" "$TEMPDIR/contributors.txt" |
+    sed 's/^[[:space:]]*\|[[:space:]]*$//g' > "$TEMPDIR/final.txt"
 echo "[*] Ended up with $(wc -l < "$TEMPDIR/final.txt") contributors remaining."
 
 readarray -t CONTRIBUTORS < "$TEMPDIR/final.txt"
