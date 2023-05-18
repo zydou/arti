@@ -460,11 +460,6 @@ define_pk_keypair! {
 pub struct HsSvcDescEncKey(curve25519::PublicKey) / HsSvcDescEncSecretKey(curve25519::StaticSecret);
 }
 
-// TODO #798: This will no longer be needed after we replace all "unescorted" secret keys uses with
-// keypair objects.
-//
-// TODO HS: I believe the above comment is incorrect; this is a curve25519
-// secret, and we are only treating ed25519 secrets as dangerous.
 impl From<&HsClientDescEncSecretKey> for HsClientDescEncKey {
     fn from(ks: &HsClientDescEncSecretKey) -> Self {
         Self(curve25519::PublicKey::from(&ks.0))
