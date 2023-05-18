@@ -9,7 +9,7 @@ use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthSecretKey};
+use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -107,7 +107,7 @@ pub struct HsClientSecretKeysBuilder {
     pub(crate) ks_hsc_desc_enc: Option<HsClientDescEncSecretKey>,
 
     /// Possibly, a key that is used to authenticate while introducing.
-    pub(crate) ks_hsc_intro_auth: Option<HsClientIntroAuthSecretKey>,
+    pub(crate) ks_hsc_intro_auth: Option<HsClientIntroAuthKeypair>,
 }
 
 // TODO derive these setters
@@ -122,7 +122,7 @@ impl HsClientSecretKeysBuilder {
         self
     }
     /// Provide an introduction authentication key
-    pub fn ks_hsc_intro_auth(&mut self, ks: HsClientIntroAuthSecretKey) -> &mut Self {
+    pub fn ks_hsc_intro_auth(&mut self, ks: HsClientIntroAuthKeypair) -> &mut Self {
         self.ks_hsc_intro_auth = Some(ks);
         self
     }
