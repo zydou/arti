@@ -122,6 +122,24 @@ pub(super) enum CtrlMsg {
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
+    /// Extend the circuit by one hop, in response to an out-of-band handshake.
+    ///
+    /// (This is used for onion services, where the negotiation takes place in
+    /// INTRODUCE and RENDEZVOUS messages.)
+    #[cfg(feature = "hs-common")]
+    ExtendVirtual {
+        /// The cryptographic algorithms and keys to use when communicating with
+        /// the newly added hop.
+        #[educe(Debug(ignore))]
+        cell_crypto: (
+            Box<dyn OutboundClientLayer + Send>,
+            Box<dyn InboundClientLayer + Send>,
+        ),
+        /// A set of parameters used to configure this hop.
+        params: CircParameters,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
+    },
     /// Begin a stream with the provided hop in this circuit.
     ///
     /// Allocates a stream ID, and sends the provided message to that hop.
@@ -1226,6 +1244,30 @@ impl Reactor {
                     done,
                 )?;
                 self.set_meta_handler(Box::new(extender))?;
+            }
+            #[cfg(feature = "hs-common")]
+            #[allow(unreachable_code)]
+            CtrlMsg::ExtendVirtual {
+                cell_crypto,
+                params,
+                done,
+            } => {
+                let (outbound, inbound) = cell_crypto;
+
+                // XXXX TODO HS: This is not correct! we should instead have an
+                // onion service variant we can use for the peer ID of a hop.
+                let peer_id = OwnedChanTarget::builder().build().expect("whoopsie");
+
+                // TODO HS: This is not really correct! We probably should be
+                // looking at the sendme_auth_accept_min_version parameter.  See
+                // comments in RequireSendmeAuth::from_protocols.
+                //
+                // "Yes" should be safe, however, since Tor <=0.3.5 is
+                // emphatically unsupported.
+                let require_sendme_auth = RequireSendmeAuth::Yes;
+
+                self.add_hop(peer_id, require_sendme_auth, outbound, inbound, &params);
+                let _ = done.send(Ok(()));
             }
             CtrlMsg::BeginStream {
                 hop_num,

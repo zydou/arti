@@ -402,17 +402,32 @@ impl ClientCirc {
     // TODO hs: let's try to enforce the "you can't extend a circuit again once
     // it has been extended this way" property.  We could do that with internal
     // state, or some kind of a type state pattern.
+    //
+    // TODO hs: Possibly we should take a description of the hop.
+    //
+    // TODO hs: possibly we should take a set of Protovers, and not just `Params`.
     #[cfg(feature = "hs-common")]
-    #[allow(clippy::missing_panics_doc, unused_variables)]
     pub async fn extend_virtual(
         &self,
         protocol: handshake::RelayProtocol,
         role: handshake::HandshakeRole,
         seed: impl handshake::KeyGenerator,
+        params: CircParameters,
     ) -> Result<()> {
         let (outbound, inbound) = protocol.construct_layers(role, seed)?;
 
-        todo!() // TODO hs implement
+        let (tx, rx) = oneshot::channel();
+        let message = CtrlMsg::ExtendVirtual {
+            cell_crypto: (outbound, inbound),
+            params,
+            done: tx,
+        };
+
+        self.control
+            .unbounded_send(message)
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
     /// Helper, used to begin a stream.
