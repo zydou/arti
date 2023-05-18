@@ -23,6 +23,7 @@ let intro_auth_key_spec: HsClientSecretKeySpecifier =
     (client_spec, hs_id, HsClientKeyRole::IntroAuth).into();
 
 // Get KP_hsc_intro_auth
+// TODO #798, TODO HS: We should not use "unescorted" ed25519 secrets.
 let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_auth_key_spec)?;
 
 // Alternatively, instead of returning a type-erased value, KeyStore::get could return a `Key`
