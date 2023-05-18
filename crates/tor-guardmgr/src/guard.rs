@@ -448,9 +448,9 @@ impl Guard {
         if self.reachable != r {
             // High-level logs, if change is interesting to user.
             match (self.reachable, r) {
-                (_, R::Reachable) => info!("We have found that {} is usable.", self),
+                (_, R::Reachable) => info!("We have found that guard {} is usable.", self),
                 (R::Untried | R::Reachable, R::Unreachable) => warn!(
-                    "Could not connect to {}. We'll retry later, and let you know if it succeeds.",
+                    "Could not connect to guard {}. We'll retry later, and let you know if it succeeds.",
                     self
                 ),
                 (_, _) => {} // not interesting.
