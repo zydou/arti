@@ -31,7 +31,7 @@ PRETTY=$(join_by "%n" "${WE_CREDIT[@]}")
 trap 'rm -rf "$TEMPDIR"' 0
 
 echo "[*] Finding contributors since $LAST_REV..."
-git log --pretty="$PRETTY" HEAD "^$LAST_REV" | grep . | sort | uniq > "$TEMPDIR/contributors.txt"
+git log --pretty="$PRETTY" HEAD "^$LAST_REV" | grep . | sed 's/ *<[^>]*>$//' | sort | uniq > "$TEMPDIR/contributors.txt"
 echo "[*] Found $(wc -l < "$TEMPDIR/contributors.txt") contributors!"
 
 echo "[*] Removing contributors listed in $TO_EXCLUDE..."
