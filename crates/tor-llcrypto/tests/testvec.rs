@@ -142,12 +142,15 @@ fn tv_ed25519_convert() {
 
         let curve_sk: curve25519::StaticSecret = curve_sk.into();
         let curve_pk = curve25519::PublicKey::from(&curve_sk);
-        let (got_sk, got_signbit) =
+        let (got_kp, got_signbit) =
             keymanip::convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
+        let got_sk = got_kp.secret;
+        let got_pk0 = got_kp.public;
         assert_eq!(&got_sk.to_bytes()[..], ed_sk);
         assert_eq!(got_signbit, signbit);
         let got_pk1: ed25519::PublicKey = (&got_sk).into();
         let got_pk2 = keymanip::convert_curve25519_to_ed25519_public(&curve_pk, signbit).unwrap();
+        assert_eq!(got_pk0.as_bytes(), ed_pk);
         assert_eq!(got_pk1.as_bytes(), ed_pk);
         assert_eq!(got_pk2.as_bytes(), ed_pk);
     }
