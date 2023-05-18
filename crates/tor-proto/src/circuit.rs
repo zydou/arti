@@ -220,9 +220,14 @@ impl ClientCirc {
     /// the tor-proto crate, but within the crate it's possible to have a
     /// circuit with no hops.)
     pub fn first_hop(&self) -> OwnedChanTarget {
-        self.path
+        let first_hop = self
+            .path
             .first_hop()
-            .expect("called first_hop on an un-constructed circuit")
+            .expect("called first_hop on an un-constructed circuit");
+        match first_hop {
+            path::PathEntry::Relay(r) => r,
+            path::PathEntry::Virtual => panic!("somehow made a circuit with a virtual first hop."),
+        }
     }
 
     /// Return a description of all the hops in this circuit.
@@ -230,8 +235,21 @@ impl ClientCirc {
     /// Note that this method performs a deep copy over the `OwnedCircTarget`
     /// values in the path.  This is undesirable for some applications; see
     /// [ticket #787](https://gitlab.torproject.org/tpo/core/arti/-/issues/787).
+    ///
+    /// Note also that this method ignores virtual hops.  This is likely to
+    /// change in the future, but it will require a backward-incompatible change
+    /// on the return type.
+    ///
+    /// TODO HS: Fix the virtual-hop issue.
     pub fn path(&self) -> Vec<OwnedChanTarget> {
-        self.path.all_hops()
+        self.path
+            .all_hops()
+            .into_iter()
+            .filter_map(|hop| match hop {
+                path::PathEntry::Relay(r) => Some(r),
+                path::PathEntry::Virtual => None,
+            })
+            .collect()
     }
 
     /// Return a reference to the channel that this circuit is connected to.

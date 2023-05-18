@@ -489,7 +489,7 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back) = layer.split();
         reactor.add_hop(
-            self.peer_id.clone(),
+            path::PathEntry::Relay(self.peer_id.clone()),
             self.require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -875,7 +875,7 @@ impl Reactor {
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
-            peer_id,
+            path::PathEntry::Relay(peer_id),
             require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -943,7 +943,7 @@ impl Reactor {
     /// Add a hop to the end of this circuit.
     fn add_hop(
         &mut self,
-        peer_id: OwnedChanTarget,
+        peer_id: path::PathEntry,
         require_sendme_auth: RequireSendmeAuth,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
@@ -1254,9 +1254,9 @@ impl Reactor {
             } => {
                 let (outbound, inbound) = cell_crypto;
 
-                // XXXX TODO HS: This is not correct! we should instead have an
-                // onion service variant we can use for the peer ID of a hop.
-                let peer_id = OwnedChanTarget::builder().build().expect("whoopsie");
+                // TODO HS: Perhaps this should describe the onion service, or
+                // describe why the virtual hop was added, or something?
+                let peer_id = path::PathEntry::Virtual;
 
                 // TODO HS: This is not really correct! We probably should be
                 // looking at the sendme_auth_accept_min_version parameter.  See
@@ -1324,7 +1324,13 @@ impl Reactor {
 
                 let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
                 let rev = Box::new(DummyCrypto::new(rev_lasthop));
-                self.add_hop(dummy_peer_id, require_sendme_auth, fwd, rev, &params);
+                self.add_hop(
+                    path::PathEntry::Relay(dummy_peer_id),
+                    require_sendme_auth,
+                    fwd,
+                    rev,
+                    &params,
+                );
                 let _ = done.send(Ok(()));
             }
             #[cfg(test)]
