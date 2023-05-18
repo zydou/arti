@@ -19,7 +19,7 @@ use rand::Rng;
 
 use crate::circuit::reactor::RECV_WINDOW_INIT;
 use crate::circuit::sendme::StreamRecvWindow;
-use tracing::info;
+use tracing::debug;
 
 /// The entry for a stream.
 pub(super) enum StreamEnt {
@@ -165,7 +165,7 @@ impl StreamMap {
                 "Received two END cells on same stream".into(),
             )),
             StreamEnt::EndSent(_) => {
-                info!("Actually got an end cell on a half-closed stream!");
+                debug!("Actually got an end cell on a half-closed stream!");
                 // We got an END, and we already sent an END. Great!
                 // we can forget about this stream.
                 stream_entry.remove_entry();
