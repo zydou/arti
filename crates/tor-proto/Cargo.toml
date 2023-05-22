@@ -38,7 +38,8 @@ hs-client = ["hs-common", "__is_experimental"]
 hs-service = ["hs-common", "__is_experimental"]
 hs-common = ["tor-hscrypto"]
 experimental-api = ["send-control-msg", "__is_experimental"]
-send-control-msg = ["visibility"]                                                    # send_control_message etc.; TODO HS should this be in hs-client?
+# send_control_message etc.; TODO HS should this be in hs-client?
+send-control-msg = ["visibility"]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["__is_experimental"]
