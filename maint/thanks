@@ -25,6 +25,8 @@ WE_CREDIT=(
     "%(trailers:valueonly=true,key=Co-Authored-by)"
     # Anybody in Thanks.
     "%(trailers:valueonly=true,key=Thanks)"
+    # Anybody in Suggested-by
+    "%(trailers:valueonly=true,key=Suggested-by)"
 )
 PRETTY=$(join_by "%n" "${WE_CREDIT[@]}")
 
