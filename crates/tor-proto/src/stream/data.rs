@@ -21,8 +21,7 @@ use std::fmt::Debug;
 use std::io::Result as IoResult;
 use std::pin::Pin;
 #[cfg(any(feature = "stream-ctrl", feature = "experimental-api"))]
-use std::sync::Arc;
-use std::sync::Weak;
+use std::sync::{Arc, Mutex, Weak};
 
 use educe::Educe;
 
@@ -142,6 +141,10 @@ pub struct DataStreamCtrl {
     /// We make this a Weak reference so that once the stream itself is closed,
     /// we can't leak circuits.
     circuit: Weak<ClientCirc>,
+
+    /// Shared user-visible information about the state of this stream.
+    #[cfg(feature = "stream-ctrl")]
+    status: Arc<Mutex<DataStreamStatus>>,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
@@ -205,6 +208,57 @@ pub struct DataReader {
     ctrl: std::sync::Arc<DataStreamCtrl>,
 }
 
+/// Shared status flags for tracking the status of as `DataStream`.
+///
+/// We expect to refactor this a bit, so it's not exposed at all.
+#[cfg(feature = "stream-ctrl")]
+#[derive(Clone, Debug, Default)]
+struct DataStreamStatus {
+    /// True if we've received a CONNECTED message.
+    //
+    // TODO: This is redundant with `connected` in DataReaderImpl and
+    // `connected_received` in DataCmdChecker.
+    received_connected: bool,
+    /// True if we have decided to send an END message.
+    //
+    // TODO RPC: There is not an easy way to set this from this module!  Really,
+    // the decision to send an "end" is made when the StreamTarget object is
+    // dropped, but we don't currently have any way to see when that happens.
+    // Perhaps we need a different shared StreamStatus object that the
+    // StreamTarget holds?
+    sent_end: bool,
+    /// True if we have received an END message telling us to close the stream.
+    received_end: bool,
+    /// True if we have received an error.  
+    ///
+    /// (This is not a subset or superset of received_end; some errors are END
+    /// messages but some aren't; some END messages are errors but some aren't.)
+    received_err: bool,
+}
+
+#[cfg(feature = "stream-ctrl")]
+impl DataStreamStatus {
+    /// Remember that we've received a connected message.
+    fn record_connected(&mut self) {
+        self.received_connected = true;
+    }
+
+    /// Remember that we've received an error of some kind.
+    fn record_error(&mut self, e: &Error) {
+        // TODO: Probably we should remember the actual error in a box or
+        // something.  But that means making a redundant copy of the error
+        // even if nobody will want it.  Do we care?
+        match e {
+            Error::EndReceived(EndReason::DONE) => self.received_end = true,
+            Error::EndReceived(_) => {
+                self.received_end = true;
+                self.received_err = true;
+            }
+            _ => self.received_err = true,
+        }
+    }
+}
+
 restricted_msg! {
     /// An allowable incoming message on a data stream.
     enum DataStreamMsg:RelayMsg {
@@ -222,6 +276,19 @@ impl super::ctrl::ClientStreamCtrl for DataStreamCtrl {
     }
 }
 
+#[cfg(feature = "stream-ctrl")]
+impl DataStreamCtrl {
+    /// Return true if the underlying stream is open. (That is, if it has
+    /// received a `CONNECTED` message, and has not been closed.)
+    pub fn is_open(&self) -> bool {
+        let s = self.status.lock().expect("poisoned lock");
+        s.received_connected && !(s.sent_end || s.received_end || s.received_err)
+    }
+
+    // TODO RPC: Add more functions once we have the desired API more nailed
+    // down.
+}
+
 impl DataStream {
     /// Wrap raw stream reader and target parts as a DataStream.
     ///
@@ -229,8 +296,11 @@ impl DataStream {
     /// must be called after to make sure CONNECTED is received.
     pub(crate) fn new(reader: StreamReader, target: StreamTarget) -> Self {
         #[cfg(feature = "stream-ctrl")]
+        let status = Arc::new(Mutex::new(DataStreamStatus::default()));
+        #[cfg(feature = "stream-ctrl")]
         let ctrl = Arc::new(DataStreamCtrl {
             circuit: Arc::downgrade(target.circuit()),
+            status: status.clone(),
         });
         #[cfg(feature = "experimental-api")]
         let circuit = target.circuit().clone();
@@ -240,6 +310,8 @@ impl DataStream {
                 pending: Vec::new(),
                 offset: 0,
                 connected: false,
+                #[cfg(feature = "stream-ctrl")]
+                status: status.clone(),
             })),
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
@@ -249,6 +321,8 @@ impl DataStream {
                 s: target,
                 buf: Box::new([0; Data::MAXLEN]),
                 n_pending: 0,
+                #[cfg(feature = "stream-ctrl")]
+                status,
             })),
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
@@ -407,6 +481,10 @@ struct DataWriterImpl {
 
     /// Number of unflushed bytes in buf.
     n_pending: usize,
+
+    /// Shared user-visible information about the state of this stream.
+    #[cfg(feature = "stream-ctrl")]
+    status: Arc<Mutex<DataStreamStatus>>,
 }
 
 impl DataWriter {
@@ -452,6 +530,13 @@ impl DataWriter {
             }
             Poll::Ready((imp, Ok(()))) => {
                 if should_close {
+                    #[cfg(feature = "stream-ctrl")]
+                    {
+                        // TODO RPC:  This is not sufficient to track every case
+                        // where we might have sent an End.  See note on the
+                        // `sent_end` field.
+                        imp.status.lock().expect("lock poisoned").sent_end = true;
+                    }
                     self.state = Some(DataWriterState::Closed);
                 } else {
                     self.state = Some(DataWriterState::Ready(imp));
@@ -497,6 +582,10 @@ impl AsyncWrite for DataWriter {
 
         match future.as_mut().poll(cx) {
             Poll::Ready((_imp, Err(e))) => {
+                #[cfg(feature = "stream-ctrl")]
+                {
+                    _imp.status.lock().expect("lock poisoned").record_error(&e);
+                }
                 self.state = Some(DataWriterState::Closed);
                 Poll::Ready(Err(e.into()))
             }
@@ -623,6 +712,10 @@ struct DataReaderImpl {
 
     /// If true, we have received a CONNECTED cell on this stream.
     connected: bool,
+
+    /// Shared user-visible information about the state of this stream.
+    #[cfg(feature = "stream-ctrl")]
+    status: Arc<Mutex<DataStreamStatus>>,
 }
 
 impl AsyncRead for DataReader {
@@ -663,6 +756,10 @@ impl AsyncRead for DataReader {
                     // There aren't any survivable errors in the current
                     // design.
                     self.state = Some(DataReaderState::Closed);
+                    #[cfg(feature = "stream-ctrl")]
+                    {
+                        _imp.status.lock().expect("lock poisoned").record_error(&e);
+                    }
                     let result = if matches!(e, Error::EndReceived(EndReason::DONE)) {
                         Ok(0)
                     } else {
@@ -736,6 +833,13 @@ impl DataReaderImpl {
         let result = match msg {
             Connected(_) if !self.connected => {
                 self.connected = true;
+                #[cfg(feature = "stream-ctrl")]
+                {
+                    self.status
+                        .lock()
+                        .expect("poisoned lock")
+                        .record_connected();
+                }
                 Ok(())
             }
             Connected(_) => {
