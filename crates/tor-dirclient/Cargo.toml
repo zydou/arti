@@ -35,7 +35,7 @@ full = [
 ]
 
 [dependencies]
-async-compression = { version = "0.3.14", features = ["futures-io", "zlib"] }
+async-compression = { version = "0.4.0", features = ["futures-io", "zlib"] }
 base64ct = "1.5.1"
 derive_more = "0.99.3"
 futures = "0.3.14"

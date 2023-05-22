@@ -41,7 +41,7 @@ hex = "0.4"
 itertools = "0.10.1"
 safelog = { path = "../safelog", version = "0.3.0" }
 serde = { version = "1.0.103", features = ["derive"] }
-serde_with = "2.0.1"
+serde_with = "3.0.0"
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.0" }
