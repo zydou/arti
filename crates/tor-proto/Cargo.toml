@@ -32,7 +32,7 @@ full = [
     "tor-units/full",
 ]
 
-experimental = ["experimental-api", "hs-client", "hs-service", "ntor_v3", "testing"]
+experimental = ["experimental-api", "hs-client", "hs-service", "ntor_v3", "stream-ctrl", "testing"]
 ntor_v3 = ["__is_experimental"]
 hs-client = ["hs-common", "__is_experimental"]
 hs-service = ["hs-common", "__is_experimental"]
@@ -40,6 +40,7 @@ hs-common = ["tor-hscrypto"]
 experimental-api = ["send-control-msg", "__is_experimental"]
 # send_control_message etc.; TODO HS should this be in hs-client?
 send-control-msg = ["visibility"]
+stream-ctrl = ["__is_experimental"]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["__is_experimental"]
