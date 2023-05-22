@@ -10,6 +10,8 @@
 //! There is no fairness, rate-limiting, or flow control.
 
 mod cmdcheck;
+#[cfg(feature = "stream-ctrl")]
+mod ctrl;
 mod data;
 #[cfg(feature = "hs-service")]
 mod incoming;
@@ -28,3 +30,7 @@ pub use resolve::ResolveStream;
 pub(crate) use {data::DataCmdChecker, resolve::ResolveCmdChecker};
 
 pub use tor_cell::relaycell::msg::IpVersionPreference;
+
+#[cfg(feature = "stream-ctrl")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream-ctrl")))]
+pub use {ctrl::ClientStreamCtrl, data::DataStreamCtrl};

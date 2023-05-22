@@ -20,6 +20,9 @@ use tor_cell::restricted_msg;
 use std::fmt::Debug;
 use std::io::Result as IoResult;
 use std::pin::Pin;
+#[cfg(any(feature = "stream-ctrl", feature = "experimental-api"))]
+use std::sync::Arc;
+use std::sync::Weak;
 
 use educe::Educe;
 
@@ -108,8 +111,37 @@ pub struct DataStream {
     /// TODO: This is redundant with the reference in `StreamTarget` inside
     /// DataWriterState, but for now we can't actually access that state all the time,
     /// since it might be inside a boxed future.
+    ///
+    /// TODO: This is also redundant with the reference in `DataStreamCtrl`.
     #[cfg(feature = "experimental-api")]
-    circuit: std::sync::Arc<ClientCirc>,
+    circuit: Arc<ClientCirc>,
+
+    /// A control object that can be used to monitor and control this stream
+    /// without needing to own it.
+    #[cfg(feature = "stream-ctrl")]
+    ctrl: std::sync::Arc<DataStreamCtrl>,
+}
+
+/// An object used to control and monitor a data stream.
+///
+/// # Notes
+///
+/// This is a separate type from [`DataStream`] because it's useful to have
+/// multiple references to this object, whereas a [`DataReader`] and [`DataWriter`]
+/// need to have a single owner for the `AsyncRead` and `AsyncWrite` APIs to
+/// work correctly.
+#[cfg(feature = "stream-ctrl")]
+#[derive(Debug)]
+pub struct DataStreamCtrl {
+    /// The circuit to which this stream is attached.
+    ///
+    /// Note that the stream's reader and writer halves each contain a `StreamTarget`,
+    /// which in turn has a strong reference to the `ClientCirc`.  So as long as any
+    /// one of those is alive, this reference will be present.
+    ///
+    /// We make this a Weak reference so that once the stream itself is closed,
+    /// we can't leak circuits.
+    circuit: Weak<ClientCirc>,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
@@ -136,6 +168,11 @@ pub struct DataWriter {
     /// AsyncWrite functions.  It might be possible to do better here,
     /// and we should refactor if so.
     state: Option<DataWriterState>,
+
+    /// A control object that can be used to monitor and control this stream
+    /// without needing to own it.
+    #[cfg(feature = "stream-ctrl")]
+    ctrl: std::sync::Arc<DataStreamCtrl>,
 }
 
 /// The read half of a [`DataStream`], implementing [`futures::io::AsyncRead`].
@@ -161,6 +198,11 @@ pub struct DataReader {
     /// poll_read().  It might be possible to do better here, and we
     /// should refactor if so.
     state: Option<DataReaderState>,
+
+    /// A control object that can be used to monitor and control this stream
+    /// without needing to own it.
+    #[cfg(feature = "stream-ctrl")]
+    ctrl: std::sync::Arc<DataStreamCtrl>,
 }
 
 restricted_msg! {
@@ -171,12 +213,25 @@ restricted_msg! {
     }
 }
 
+// TODO RPC: Should we also implement this trait for everything that holds a
+// DataStreamCtrl?
+#[cfg(feature = "stream-ctrl")]
+impl super::ctrl::ClientStreamCtrl for DataStreamCtrl {
+    fn circuit(&self) -> Option<Arc<ClientCirc>> {
+        self.circuit.upgrade()
+    }
+}
+
 impl DataStream {
     /// Wrap raw stream reader and target parts as a DataStream.
     ///
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
     pub(crate) fn new(reader: StreamReader, target: StreamTarget) -> Self {
+        #[cfg(feature = "stream-ctrl")]
+        let ctrl = Arc::new(DataStreamCtrl {
+            circuit: Arc::downgrade(target.circuit()),
+        });
         #[cfg(feature = "experimental-api")]
         let circuit = target.circuit().clone();
         let r = DataReader {
@@ -186,6 +241,8 @@ impl DataStream {
                 offset: 0,
                 connected: false,
             })),
+            #[cfg(feature = "stream-ctrl")]
+            ctrl: ctrl.clone(),
         };
         let w = DataWriter {
             state: Some(DataWriterState::Ready(DataWriterImpl {
@@ -193,12 +250,16 @@ impl DataStream {
                 buf: Box::new([0; Data::MAXLEN]),
                 n_pending: 0,
             })),
+            #[cfg(feature = "stream-ctrl")]
+            ctrl: ctrl.clone(),
         };
         DataStream {
             w,
             r,
             #[cfg(feature = "experimental-api")]
             circuit,
+            #[cfg(feature = "stream-ctrl")]
+            ctrl,
         }
     }
 
@@ -242,9 +303,18 @@ impl DataStream {
     ///
     /// TODO: Should there be an AttachedToCircuit trait that we use for all
     /// client stream types?  Should this return an Option<&ClientCirc>?
+    ///
+    /// TODO RPC: Perhaps we should deprecate this in favor of `stream.ctrl().circuit()`.
     #[cfg(feature = "experimental-api")]
     pub fn circuit(&self) -> &ClientCirc {
         &self.circuit
+    }
+
+    /// Return a [`DataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
+    #[cfg(feature = "stream-ctrl")]
+    pub fn ctrl(&self) -> &Arc<DataStreamCtrl> {
+        &self.ctrl
     }
 }
 
@@ -340,6 +410,13 @@ struct DataWriterImpl {
 }
 
 impl DataWriter {
+    /// Return a [`DataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
+    #[cfg(feature = "stream-ctrl")]
+    pub fn ctrl(&self) -> &Arc<DataStreamCtrl> {
+        &self.ctrl
+    }
+
     /// Helper for poll_flush() and poll_close(): Performs a flush, then
     /// closes the stream if should_close is true.
     fn poll_flush_impl(
@@ -491,6 +568,15 @@ impl DataWriterImpl {
         empty_space[..n_to_copy].copy_from_slice(&b[..n_to_copy]);
         self.n_pending += n_to_copy;
         n_to_copy
+    }
+}
+
+impl DataReader {
+    /// Return a [`DataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
+    #[cfg(feature = "stream-ctrl")]
+    pub fn ctrl(&self) -> &Arc<DataStreamCtrl> {
+        &self.ctrl
     }
 }
 
