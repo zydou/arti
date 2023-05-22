@@ -383,7 +383,7 @@ trait MockableCircPool<R> {
 trait MockableClientCirc {
     /// Client circuit
     type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
-    async fn begin_dir_stream(&self) -> tor_proto::Result<Self::DirStream>;
+    async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
 }
 
 impl<R: Runtime> MocksForConnect<R> for () {
@@ -410,7 +410,7 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
 impl MockableClientCirc for ClientCirc {
     /// Client circuit
     type DirStream = tor_proto::stream::DataStream;
-    async fn begin_dir_stream(&self) -> tor_proto::Result<Self::DirStream> {
+    async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
         self.begin_dir_stream().await
     }
 }
@@ -513,7 +513,7 @@ mod test {
     #[async_trait]
     impl MockableClientCirc for Mocks<()> {
         type DirStream = JoinReadWrite<futures::io::Cursor<Box<[u8]>>, futures::io::Sink>;
-        async fn begin_dir_stream(&self) -> tor_proto::Result<Self::DirStream> {
+        async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
             let response = format!(
                 r#"HTTP/1.1 200 OK
 
