@@ -403,7 +403,7 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
         kind: HsCircKind,
         target: OwnedCircTarget,
     ) -> tor_circmgr::Result<Arc<ClientCirc>> {
-        self.get_or_launch_specific(netdir, kind, target).await
+        MockableCircPool::get_or_launch_specific(self, netdir, kind, target).await
     }
 }
 #[async_trait]
@@ -411,7 +411,7 @@ impl MockableClientCirc for ClientCirc {
     /// Client circuit
     type DirStream = tor_proto::stream::DataStream;
     async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
-        self.begin_dir_stream().await
+        ClientCirc::begin_dir_stream(self).await
     }
 }
 
