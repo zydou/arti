@@ -1205,7 +1205,7 @@ mod test {
         use tor_netdir::testnet;
         let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         // Same as above but omit [22]
-        let netdir2 = testnet::construct_custom_netdir(|idx, mut node| {
+        let netdir2 = testnet::construct_custom_netdir(|idx, node| {
             if idx == 22 {
                 node.omit_rs = true;
             }
@@ -1214,7 +1214,7 @@ mod test {
         .unwrap_if_sufficient()
         .unwrap();
         // Same as above but omit [22] as well as MD for [23].
-        let netdir3 = testnet::construct_custom_netdir(|idx, mut node| {
+        let netdir3 = testnet::construct_custom_netdir(|idx, node| {
             if idx == 22 {
                 node.omit_rs = true;
             } else if idx == 23 {

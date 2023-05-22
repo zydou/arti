@@ -2070,7 +2070,7 @@ mod test {
     #[test]
     fn test_by_id() {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
-        let netdir = construct_custom_netdir(|pos, mut nb| {
+        let netdir = construct_custom_netdir(|pos, nb| {
             nb.omit_md = pos == 13;
         })
         .unwrap();
@@ -2140,7 +2140,7 @@ mod test {
     #[cfg(feature = "hs-common")]
     fn test_by_ids_detailed() {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
-        let netdir = construct_custom_netdir(|pos, mut nb| {
+        let netdir = construct_custom_netdir(|pos, nb| {
             nb.omit_md = pos == 13;
         })
         .unwrap();

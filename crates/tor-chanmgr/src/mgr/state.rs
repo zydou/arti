@@ -554,7 +554,7 @@ mod test {
     }
 
     #[derive(Clone, Debug, Default)]
-    struct FakeChannelFactory;
+    struct FakeChannelFactory {}
     #[async_trait]
     impl AbstractChannelFactory for FakeChannelFactory {
         type Channel = FakeChannel;
