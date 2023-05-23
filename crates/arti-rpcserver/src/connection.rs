@@ -8,7 +8,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use arti_client::TorClient;
 use asynchronous_codec::JsonCodecError;
 use futures::{
     channel::mpsc,
@@ -19,7 +18,6 @@ use pin_project::pin_project;
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
 use tor_async_utils::SinkExt as _;
-use tor_rtcompat::PreferredRuntime;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
@@ -34,7 +32,7 @@ use tor_rpcbase as rpc;
 ///
 /// Tracks information that persists from one request to another.
 pub struct Connection {
-    /// The mutable state of this connection
+    /// The mutable state of this connection.
     inner: Mutex<Inner>,
 
     /// Lookup table to find the implementations for methods
@@ -94,7 +92,7 @@ impl Connection {
     }
 
     /// Look up a given object by its object ID relative to this connection.
-    fn lookup_object(
+    pub(crate) fn lookup_object(
         self: &Arc<Self>,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
@@ -378,34 +376,6 @@ impl rpc::Context for RequestContext {
             .insert_weak(object)
             .encode()
     }
-}
-
-/// A simple temporary method to echo a reply.
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-struct Echo {
-    /// A message to echo.
-    msg: String,
-}
-rpc::decl_method! { "arti:x-echo" => Echo}
-impl rpc::Method for Echo {
-    type Output = Echo;
-    type Update = rpc::NoUpdates;
-}
-
-/// Implementation for calling "echo" on a TorClient.
-///
-/// TODO RPC: Remove this. It shouldn't exist.
-async fn echo_on_session(
-    _obj: Arc<TorClient<PreferredRuntime>>,
-    method: Box<Echo>,
-    _ctx: Box<dyn rpc::Context>,
-) -> Result<Echo, rpc::RpcError> {
-    Ok(*method)
-}
-
-rpc::rpc_invoke_fn! {
-    echo_on_session(TorClient<PreferredRuntime>,Echo);
-
 }
 
 /// An error given when an RPC request is cancelled.

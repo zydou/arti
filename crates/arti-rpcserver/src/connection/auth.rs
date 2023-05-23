@@ -122,8 +122,8 @@ struct Authenticate {
 /// A reply from the `Authenticate` method.
 #[derive(Debug, serde::Serialize)]
 struct AuthenticateReply {
-    /// An owned reference to a `TorClient` object.
-    client: Option<rpc::ObjectId>,
+    /// An owned reference to a `Session` object.
+    session: rpc::ObjectId,
 }
 
 rpc::decl_method! {"auth:authenticate" => Authenticate}
@@ -159,10 +159,16 @@ async fn authenticate_connection(
         AuthenticationScheme::InherentUnixPath => {}
     }
 
-    let client = Arc::clone(&unauth.inner.lock().expect("Poisoned lock").client);
-
-    let client = Some(ctx.register_weak(client));
-    Ok(AuthenticateReply { client })
+    // TODO RPC: I'm actually not totally sure about the semantics of creating a
+    // new session object here, since it will _look_ separate from other
+    // sessions, but in fact they will all share the same object map.
+    //
+    // Perhaps we need to think more about the semantics of authenticating more
+    // then once on the same connection.
+    let client = unauth.inner.lock().expect("lock poisoned").client.clone();
+    let session = crate::session::Session::new(client);
+    let session = ctx.register_owned(session);
+    Ok(AuthenticateReply { session })
 }
 rpc::rpc_invoke_fn! {
     authenticate_connection(Connection, Authenticate);

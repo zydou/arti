@@ -43,6 +43,7 @@ mod err;
 mod mgr;
 mod msgs;
 mod objmap;
+mod session;
 mod streams;
 
 pub use connection::{Connection, ConnectionError};
