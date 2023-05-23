@@ -507,7 +507,7 @@ in order to receive any other object IDs.
 
 The pre-authentication methods available on a connection are:
 
-auth:get_proto
+auth:get_rpc_protocol
 : Ask Arti which version of the protocol is in use.
 
 auth:query
@@ -776,9 +776,13 @@ The echo command will only work post-authentication.
 Here is an example session:
 
 ```
+>>> {"id": "abc", "obj": "connection", "method": "auth:get_rpc_protocol", "params": {}}
+<<< {"id":"abc","result":{"version":"alpha"}}
+>>> {"id": "abc", "obj": "connection", "method": "auth:query", "params": {}}
+<<< {"id":"abc","result":{"schemes":["inherent:unix_path"]}}
 >>> {"id": 3, "obj": "connection", "method": "auth:authenticate", "params": {"scheme": "inherent:unix_path"}}
-<<< {"id":3,"result":{"client":"dTewFIaZKQV1N7AUhpkpBIrIT-t5Ztb8"}}
->>> {"id": 4, "obj": "dTewFIaZKQV1N7AUhpkpBIrIT-t5Ztb8", "method": "arti:x-echo", "params": {"msg": "Hello World"}}
+<<< {"id":3,"result":{"session":"2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au"}}
+>>> {"id": 4, "obj": "2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au", "method": "arti:x-echo", "params": {"msg": "Hello World"}}
 <<< {"id":4,"result":{"msg":"Hello World"}}
 ```
 
