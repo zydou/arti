@@ -19,7 +19,6 @@ RECOGNIZED_LICENSES=(
     CC0-1.0
     ISC
     MIT
-    MPL-2.0
     Unicode-DFS-2016
     Unlicense
     Zlib
@@ -38,6 +37,20 @@ NO_LICENSE=(
     # License appears to be ISC.
     webpki
     rustls-webpki
+)
+
+# List of packages which we allow to use the MPL-2.0 license.
+#
+# We need to check these individually because, if the party says
+# "MPL-2.0" without actually including the text of exhibit A from the
+# MPL, it is not unambiguous that they have applied MPL-2.0 to their
+# code.
+#
+# (See https://gitlab.torproject.org/tpo/core/arti/-/issues/845)
+MPL_20_OK=(
+    # This one is pending: See https://github.com/soc/option-ext/pull/4
+    option-ext
+    generational-arena
 )
 
 containsElement () {
@@ -76,6 +89,14 @@ for line in $output; do
     if test -z "$licenses"; then
 	if ! containsElement "$package" "${NO_LICENSE[@]}"; then
 	    echo "$package has no license"
+	    problems=1
+	fi
+	continue
+    fi
+
+    if test "$licenses" = "MPL-2.0"; then
+	if ! containsElement "$package" "${MPL_20_OK[@]}"; then
+	    echo "$package uses MPL-2.0 but has not been allow-listed."
 	    problems=1
 	fi
 	continue
