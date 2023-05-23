@@ -64,11 +64,49 @@ mod get_rpc_protocol {
 /// Arti process know you have permissions to use or administer it?"
 ///
 /// TODO RPC: The only supported one for now is "inherent:unix_path"
-#[derive(Debug, Copy, Clone, serde::Deserialize)]
+#[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 enum AuthenticationScheme {
     /// Inherent authority based on the ability to access an AF_UNIX address.
     #[serde(rename = "inherent:unix_path")]
     InherentUnixPath,
+}
+
+/// Method to ask which authentication methods are supported.
+#[derive(Debug, serde::Deserialize)]
+struct AuthQuery {}
+
+/// A list of supported authentication schemes and their parameters.
+#[derive(Debug, serde::Serialize)]
+struct SupportedAuth {
+    /// A list of the supported authentication schemes.
+    ///
+    /// TODO RPC: Actually, this should be able to contain strings _or_ maps,
+    /// where the maps are additional information about the parameters needed
+    /// for a particular scheme.  But I think that's a change we can make later
+    /// once we have a scheme that takes parameters.
+    ///
+    /// TODO RPC: Should we indicate which schemes get you additional privileges?
+    schemes: Vec<AuthenticationScheme>,
+}
+
+rpc::decl_method! {"auth:query" => AuthQuery}
+impl rpc::Method for AuthQuery {
+    type Output = SupportedAuth;
+    type Update = rpc::NoUpdates;
+}
+/// Implement `auth:AuthQuery` on a connection.
+async fn conn_authquery(
+    _conn: Arc<Connection>,
+    _query: Box<AuthQuery>,
+    _ctx: Box<dyn rpc::Context>,
+) -> Result<SupportedAuth, rpc::RpcError> {
+    // Right now, every connection supports the same scheme.
+    Ok(SupportedAuth {
+        schemes: vec![AuthenticationScheme::InherentUnixPath],
+    })
+}
+rpc::rpc_invoke_fn! {
+    conn_authquery(Connection, AuthQuery);
 }
 
 /// Method to implement basic authentication.  Right now only "I connected to
