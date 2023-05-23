@@ -11,84 +11,9 @@ use std::any;
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
 
-use fake_generational_arena::{self as generational_arena, FakeArena as Arena};
+use generational_arena::Arena;
 // use generational_arena::Arena;
 use tor_rpcbase as rpc;
-
-/// Fake implementation of `generational_arena` while we sort out which MPL-2.0
-/// they meant.
-///
-/// (See issue #845)
-///
-/// TODO RPC: Replace this with `generational_arena` if they agree with us that
-/// they meant "no exhibit B", or with something else if they don't.
-mod fake_generational_arena {
-    #![allow(missing_docs, unreachable_pub)]
-    #![allow(clippy::missing_docs_in_private_items)]
-    use std::collections::HashMap;
-    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    pub(crate) struct Index(u64);
-    #[derive(Clone, Debug)]
-    pub(crate) struct FakeArena<T> {
-        nextkey: u64,
-        map: HashMap<u64, T>,
-    }
-
-    impl Index {
-        pub fn into_raw_parts(self) -> (usize, u64) {
-            (0, self.0)
-        }
-        pub fn from_raw_parts(_: usize, idx: u64) -> Self {
-            Self(idx)
-        }
-    }
-    impl<T> FakeArena<T> {
-        pub fn new() -> Self {
-            Self {
-                nextkey: 0,
-                map: HashMap::new(),
-            }
-        }
-        pub fn capacity(&self) -> usize {
-            self.map.capacity()
-        }
-        pub fn len(&self) -> usize {
-            self.map.len()
-        }
-        pub fn reserve(&mut self, additional: usize) {
-            self.map.reserve(additional);
-        }
-        pub fn get(&self, index: Index) -> Option<&T> {
-            self.map.get(&index.0)
-        }
-        pub fn get_mut(&mut self, index: Index) -> Option<&mut T> {
-            self.map.get_mut(&index.0)
-        }
-        pub fn insert(&mut self, value: T) -> Index {
-            let key = self.nextkey;
-            self.nextkey += 1;
-            self.map.insert(key, value);
-            Index(key)
-        }
-        pub fn remove(&mut self, index: Index) -> Option<T> {
-            self.map.remove(&index.0)
-        }
-        pub fn iter(&self) -> impl Iterator<Item = (Index, &T)> {
-            self.map.iter().map(|(idx, val)| (Index(*idx), val))
-        }
-        pub fn retain<F>(&mut self, mut func: F)
-        where
-            F: FnMut(Index, &T) -> bool,
-        {
-            self.map.retain(|k, v| func(Index(*k), v));
-        }
-    }
-    impl<T> Default for FakeArena<T> {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-}
 
 /// A mechanism to look up RPC `Objects` by their `ObjectId`.
 #[derive(Default)]
