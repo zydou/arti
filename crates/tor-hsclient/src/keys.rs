@@ -15,7 +15,7 @@ use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 ///
 /// Represents a possibly empty subset of the following keys:
 ///  * `KS_hsc_desc_enc`, [`HsClientDescEncSecretKey`]
-///  * `KS_hsc_intro_auth`, [`HsClientIntroAuthSecretKey`]
+///  * `KS_hsc_intro_auth`, [`HsClientIntroAuthKeypair`]
 ///
 /// `HsClientSecretKeys` is constructed with a `Builder`:
 /// use `ClientSecretKeysBuilder::default()`,
