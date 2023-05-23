@@ -376,6 +376,39 @@ impl rpc::Context for RequestContext {
             .insert_weak(object)
             .encode()
     }
+
+    fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
+        let idx = crate::objmap::GenIdx::try_decode(id)?;
+        if !idx.is_strong() {
+            return Err(rpc::LookupError::WrongType(id.clone()));
+        }
+
+        let removed = self
+            .conn
+            .inner
+            .lock()
+            .expect("Lock poisoned")
+            .objects
+            .remove(idx);
+
+        if removed.is_some() {
+            Ok(())
+        } else {
+            Err(rpc::LookupError::NoObject(id.clone()))
+        }
+    }
+
+    fn downgrade_owned(&self, id: &rpc::ObjectId) -> Result<rpc::ObjectId, rpc::LookupError> {
+        let idx = crate::objmap::GenIdx::try_decode(id)?;
+        if idx.is_strong() {
+            return Err(rpc::LookupError::WrongType(id.clone()));
+        }
+        let mut inner = self.conn.inner.lock().expect("Lock poisoned");
+        match inner.objects.remove(idx) {
+            Some(removed) => Ok(inner.objects.insert_weak(removed).encode()),
+            None => Err(rpc::LookupError::NoObject(id.clone())),
+        }
+    }
 }
 
 /// An error given when an RPC request is cancelled.

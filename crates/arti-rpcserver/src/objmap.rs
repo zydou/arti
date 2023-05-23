@@ -256,6 +256,11 @@ impl TaggedAddr {
 /// analyze these object IDs, please contact the Arti developers instead and let
 /// us give you a better way to do whatever you want.
 impl GenIdx {
+    /// Return true if this is a strong (owning) reference.
+    pub(crate) fn is_strong(&self) -> bool {
+        matches!(self, GenIdx::Strong(_))
+    }
+
     /// Encode `self` into an rpc::ObjectId that we can give to a client.
     pub(crate) fn encode(self) -> rpc::ObjectId {
         self.encode_with_rng(&mut rand::thread_rng())
@@ -394,18 +399,19 @@ impl ObjMap {
         }
     }
 
-    /// Remove the entry at `idx`, if any.
-    pub(crate) fn remove(&mut self, idx: GenIdx) {
+    /// Remove and return the entry at `idx`, if any.
+    pub(crate) fn remove(&mut self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
         match idx {
             GenIdx::Weak(idx) => {
                 if let Some(entry) = self.weak_arena.remove(idx) {
                     let old_idx = self.reverse_map.remove(&entry.tagged_addr());
                     debug_assert_eq!(old_idx, Some(idx));
+                    entry.obj.upgrade()
+                } else {
+                    None
                 }
             }
-            GenIdx::Strong(idx) => {
-                self.strong_arena.remove(idx);
-            }
+            GenIdx::Strong(idx) => self.strong_arena.remove(idx),
         }
     }
 

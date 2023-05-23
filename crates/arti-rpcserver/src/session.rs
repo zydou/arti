@@ -24,6 +24,61 @@ impl Session {
     }
 }
 
+/// RPC method to release a single strong reference.
+#[derive(Debug, serde::Deserialize)]
+struct RpcRelease {
+    /// The object to release. Must be a strong reference.
+    ///
+    /// TODO RPC: Releasing a weak reference is perilous and hard-to-define
+    /// based on how we have implemented our object ids.  If you tell the objmap
+    /// to "release" a single name for a weak reference, you are releasing every
+    /// name for that weak reference, which may have surprising results.
+    ///
+    /// This might be a sign of a design problem.
+    obj: rpc::ObjectId,
+}
+/// RPC method to release a single strong reference, creating a weak reference
+/// in its place.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct RpcDowngrade {
+    /// The object to downgrade
+    obj: rpc::ObjectId,
+}
+
+rpc::decl_method! { "rpc:release" => RpcRelease}
+impl rpc::Method for RpcRelease {
+    type Output = rpc::Nil;
+    type Update = rpc::NoUpdates;
+}
+rpc::decl_method! { "rpc:downgrade" => RpcDowngrade}
+impl rpc::Method for RpcDowngrade {
+    type Output = RpcDowngrade;
+    type Update = rpc::NoUpdates;
+}
+
+/// Implementation for calling "release" on a Session.
+async fn rpc_release(
+    _obj: Arc<Session>,
+    method: Box<RpcRelease>,
+    ctx: Box<dyn rpc::Context>,
+) -> Result<rpc::Nil, rpc::RpcError> {
+    ctx.release_owned(&method.obj)?;
+    Ok(rpc::Nil::default())
+}
+/// Implementation for calling "downgrade" on a Session.
+async fn rpc_downgrade(
+    _obj: Arc<Session>,
+    method: Box<RpcDowngrade>,
+    ctx: Box<dyn rpc::Context>,
+) -> Result<RpcDowngrade, rpc::RpcError> {
+    let obj = ctx.downgrade_owned(&method.obj)?;
+    Ok(RpcDowngrade { obj })
+}
+rpc::rpc_invoke_fn! {
+    rpc_release(Session,RpcRelease);
+    rpc_downgrade(Session,RpcDowngrade);
+}
+
 /// A simple temporary method to echo a reply.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct Echo {
