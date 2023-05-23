@@ -7,24 +7,48 @@ if [ -z "${1-}" ]; then
 	exit 1
 fi
 
+# from https://stackoverflow.com/a/17841619/4739163
+function join_by { local d=${1-} f=${2-}; if shift 2; then printf %s "$f" "${@/#/$d}"; fi; }
+
 TEMPDIR=$(mktemp -d)
 TO_EXCLUDE="$(dirname "$0")/exclude_contributors.txt"
 LAST_REV=$1
 
+WE_CREDIT=(
+    # Name of the author.
+    %an
+    # Name of the committer.
+    %cn
+    # Anybody in Reported-by. (These are case-insensitive, don't worry.)
+    "%(trailers:valueonly=true,key=Reported-by)"
+    # Anybody in Co-Authored-By.
+    "%(trailers:valueonly=true,key=Co-Authored-by)"
+    # Anybody in Thanks.
+    "%(trailers:valueonly=true,key=Thanks)"
+    # Anybody in Suggested-by
+    "%(trailers:valueonly=true,key=Suggested-by)"
+)
+PRETTY=$(join_by "%n" "${WE_CREDIT[@]}")
+
 trap 'rm -rf "$TEMPDIR"' 0
 
 echo "[*] Finding contributors since $LAST_REV..."
-git log --pretty="%an%n%cn" HEAD "^$LAST_REV" | sort | uniq > "$TEMPDIR/contributors.txt"
+git log --pretty="$PRETTY" HEAD "^$LAST_REV" |
+    # Remove empty lines
+    grep . |
+    # Remove email addrs
+    sed 's/ *<[^>]*>$//' |
+    sort |
+    uniq > "$TEMPDIR/contributors.txt"
 echo "[*] Found $(wc -l < "$TEMPDIR/contributors.txt") contributors!"
 
 echo "[*] Removing contributors listed in $TO_EXCLUDE..."
-comm -13 "$TO_EXCLUDE" "$TEMPDIR/contributors.txt" | sed 's/^[[:space:]]*\|[[:space:]]*$//g' > "$TEMPDIR/final.txt"
+comm -13 "$TO_EXCLUDE" "$TEMPDIR/contributors.txt" |
+    sed 's/^[[:space:]]*\|[[:space:]]*$//g' > "$TEMPDIR/final.txt"
 echo "[*] Ended up with $(wc -l < "$TEMPDIR/final.txt") contributors remaining."
 
 readarray -t CONTRIBUTORS < "$TEMPDIR/final.txt"
 
-# from https://stackoverflow.com/a/17841619/4739163
-function join_by { local d=${1-} f=${2-}; if shift 2; then printf %s "$f" "${@/#/$d}"; fi; }
 OUTPUT=$(join_by ", " "${CONTRIBUTORS[@]}")
 
 echo "Contributors: $OUTPUT"
