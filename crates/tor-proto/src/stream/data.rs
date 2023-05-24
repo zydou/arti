@@ -143,6 +143,9 @@ pub struct DataStreamCtrl {
     circuit: Weak<ClientCirc>,
 
     /// Shared user-visible information about the state of this stream.
+    ///
+    /// TODO RPC: This will probably want to be a `postage::Watch` or something
+    /// similar, if and when it stops moving around.
     #[cfg(feature = "stream-ctrl")]
     status: Arc<Mutex<DataStreamStatus>>,
 }
@@ -211,6 +214,12 @@ pub struct DataReader {
 /// Shared status flags for tracking the status of as `DataStream`.
 ///
 /// We expect to refactor this a bit, so it's not exposed at all.
+//
+// TODO RPC: Possibly instead of manipulating the fields of DataStreamStatus
+// from various points in this module, we should instead construct
+// DataStreamStatus as needed from information available elsewhere.  In any
+// case, we should really  eliminate as much duplicate state here as we can.
+// (See discussions at !1198 for some challenges with this.)
 #[cfg(feature = "stream-ctrl")]
 #[derive(Clone, Debug, Default)]
 struct DataStreamStatus {
@@ -280,6 +289,9 @@ impl super::ctrl::ClientStreamCtrl for DataStreamCtrl {
 impl DataStreamCtrl {
     /// Return true if the underlying stream is open. (That is, if it has
     /// received a `CONNECTED` message, and has not been closed.)
+    //
+    // TODO RPC: Maybe this method belongs in ClientStreamCtrl; maybe others do
+    // as well!  We need to talk about moving them around.
     pub fn is_open(&self) -> bool {
         let s = self.status.lock().expect("poisoned lock");
         s.received_connected && !(s.sent_end || s.received_end || s.received_err)
