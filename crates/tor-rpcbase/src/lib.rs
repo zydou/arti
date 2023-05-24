@@ -80,9 +80,7 @@ pub trait Context: Send {
     /// Look up an object by identity within this context.
     fn lookup_object(&self, id: &ObjectId) -> Result<Arc<dyn Object>, LookupError>;
 
-    /// Find an owning reference to `object` within this context.  If none can
-    /// be found, or if only a non-owning reference is found, make sure that
-    /// this context contains an owning reference to `object`.
+    /// Create an owning reference to `object` within this context.
     ///
     /// Return an ObjectId for this object.
     ///
@@ -90,9 +88,9 @@ pub trait Context: Send {
     /// function depending on how we decide to name and specify things.
     fn register_owned(&self, object: Arc<dyn Object>) -> ObjectId;
 
-    /// Find any owning reference to `object` within this context.  If none can
-    /// be found, make sure that
-    /// this context contains a non-owning reference to `object`.
+    /// Make sure that
+    /// this context contains a non-owning reference to `object`,
+    /// creating one if necessary.
     ///
     /// Return an ObjectId for this object.
     ///
@@ -102,6 +100,13 @@ pub trait Context: Send {
     /// TODO RPC: We may need to change the above semantics and the name of this
     /// function depending on how we decide to name and specify things.
     fn register_weak(&self, object: Arc<dyn Object>) -> ObjectId;
+
+    /// Drop an owning reference to the object called `object` within this context.
+    ///
+    /// This will return an error if `object` is not an owning reference.
+    ///
+    /// TODO RPC should this really return a LookupError?
+    fn release_owned(&self, object: &ObjectId) -> Result<(), LookupError>;
 }
 
 /// An error caused while trying to send an update to a method.
@@ -148,3 +153,13 @@ pub trait ContextExt: Context {
     }
 }
 impl<T: Context> ContextExt for T {}
+
+/// A serializable empty object.
+///
+/// Used when we need to declare that a method returns nothing.
+///
+/// TODO RPC: Perhaps we can get () to serialize as {} and make this an alias
+/// for ().
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Default)]
+#[non_exhaustive]
+pub struct Nil {}
