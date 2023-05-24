@@ -22,9 +22,7 @@ base64ct = "1.5.1"
 bytes = "1"
 erased-serde = "0.3.25"
 futures = "0.3.14"
-# I hope we can use this again, assuming our MPL-2.0 issues get straightened
-# out.
-# generational-arena = "0.2.8"
+generational-arena = "0.2.9"
 pin-project = "1"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
