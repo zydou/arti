@@ -438,13 +438,6 @@ mod test {
         fn release_owned(&self, _object: &crate::ObjectId) -> Result<(), crate::LookupError> {
             todo!()
         }
-
-        fn downgrade_owned(
-            &self,
-            _object: &crate::ObjectId,
-        ) -> Result<crate::ObjectId, crate::LookupError> {
-            todo!()
-        }
     }
 
     #[async_test]

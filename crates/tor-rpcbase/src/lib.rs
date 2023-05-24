@@ -107,14 +107,6 @@ pub trait Context: Send {
     ///
     /// TODO RPC should this really return a LookupError?
     fn release_owned(&self, object: &ObjectId) -> Result<(), LookupError>;
-
-    /// Drop an owning reference to the object called `object` within this context,
-    /// and create a non-owning reference in its place.
-    ///
-    /// This will return an error if `object` is not an owning reference.
-    ///
-    /// TODO RPC should this really return a LookupError?
-    fn downgrade_owned(&self, object: &ObjectId) -> Result<ObjectId, LookupError>;
 }
 
 /// An error caused while trying to send an update to a method.

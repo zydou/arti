@@ -50,11 +50,6 @@ impl rpc::Method for RpcRelease {
     type Output = rpc::Nil;
     type Update = rpc::NoUpdates;
 }
-rpc::decl_method! { "rpc:downgrade" => RpcDowngrade}
-impl rpc::Method for RpcDowngrade {
-    type Output = RpcDowngrade;
-    type Update = rpc::NoUpdates;
-}
 
 /// Implementation for calling "release" on a Session.
 async fn rpc_release(
@@ -65,18 +60,8 @@ async fn rpc_release(
     ctx.release_owned(&method.obj)?;
     Ok(rpc::Nil::default())
 }
-/// Implementation for calling "downgrade" on a Session.
-async fn rpc_downgrade(
-    _obj: Arc<Session>,
-    method: Box<RpcDowngrade>,
-    ctx: Box<dyn rpc::Context>,
-) -> Result<RpcDowngrade, rpc::RpcError> {
-    let obj = ctx.downgrade_owned(&method.obj)?;
-    Ok(RpcDowngrade { obj })
-}
 rpc::rpc_invoke_fn! {
     rpc_release(Session,RpcRelease);
-    rpc_downgrade(Session,RpcDowngrade);
 }
 
 /// A simple temporary method to echo a reply.
