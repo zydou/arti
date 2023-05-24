@@ -635,7 +635,7 @@ fn test_establish_rendezvous() {
         cmd,
         // 20 ones
         "0101010101010101010101010101010101010101",
-        &hs::EstablishRendezvous::new(cookie).into(),
+        &hs::EstablishRendezvous::new(cookie.into()).into(),
     );
 
     // Extra bytes are ignored

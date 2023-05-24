@@ -32,14 +32,11 @@ caret_int! {
 pub struct EstablishRendezvous {
     /// A rendezvous cookie is an arbitrary 20-byte value,
     /// chosen randomly by the client.
-    cookie: [u8; EstablishRendezvous::COOKIE_LEN], // TODO hs: Make this a RendCookie.
+    cookie: RendCookie,
 }
 impl EstablishRendezvous {
-    /// The only acceptable length of a rendezvous cookie.
-    pub const COOKIE_LEN: usize = 20;
-
     /// Construct a new establish rendezvous cell.
-    pub fn new(cookie: [u8; Self::COOKIE_LEN]) -> Self {
+    pub fn new(cookie: RendCookie) -> Self {
         Self { cookie }
     }
 }
