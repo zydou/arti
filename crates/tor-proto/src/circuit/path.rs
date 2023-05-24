@@ -21,6 +21,7 @@ pub(super) enum PathEntry {
     /// [`extend_virtual`](crate::circuit::ClientCirc::extend_virtual).
     ///
     /// TODO hs: remember anything about what the virtual hop represents?
+    #[cfg(feature = "hs-common")]
     Virtual,
 }
 

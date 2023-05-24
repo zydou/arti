@@ -226,6 +226,7 @@ impl ClientCirc {
             .expect("called first_hop on an un-constructed circuit");
         match first_hop {
             path::PathEntry::Relay(r) => r,
+            #[cfg(feature = "hs-common")]
             path::PathEntry::Virtual => panic!("somehow made a circuit with a virtual first hop."),
         }
     }
@@ -247,6 +248,7 @@ impl ClientCirc {
             .into_iter()
             .filter_map(|hop| match hop {
                 path::PathEntry::Relay(r) => Some(r),
+                #[cfg(feature = "hs-common")]
                 path::PathEntry::Virtual => None,
             })
             .collect()
