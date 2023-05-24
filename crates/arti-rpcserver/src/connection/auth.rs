@@ -9,6 +9,13 @@ use std::sync::Arc;
 use super::Connection;
 use tor_rpcbase as rpc;
 
+/*
+    TODO RPC: This is disabled because the design isn't really useful.
+    If we're going to provide something here, it should probably
+    contain a list of protocol elements/aspects, and it should be designed
+    to enable compatibility, with a clear view of what applications are
+    supposed to do about it.
+
 /// Declare the get_rpc_protocol method.
 mod get_rpc_protocol {
     use super::Connection;
@@ -57,6 +64,7 @@ mod get_rpc_protocol {
         conn_get_rpc_protocol(Connection, GetRpcProtocol);
     }
 }
+*/
 
 /// The authentication scheme as enumerated in the spec.
 ///
