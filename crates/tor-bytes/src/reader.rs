@@ -1,7 +1,6 @@
 //! Internal: Declare the Reader type for tor-bytes
 
 use crate::{Error, Readable, Result};
-use arrayref::array_ref;
 
 /// A type for reading messages from a slice of bytes.
 ///
@@ -182,26 +181,26 @@ impl<'a> Reader<'a> {
     }
     /// Try to consume and return a big-endian u16 from this reader.
     pub fn take_u16(&mut self) -> Result<u16> {
-        let b = self.take(2)?;
-        let r = u16::from_be_bytes(*array_ref![b, 0, 2]);
+        let b: [u8; 2] = self.extract()?;
+        let r = u16::from_be_bytes(b);
         Ok(r)
     }
     /// Try to consume and return a big-endian u32 from this reader.
     pub fn take_u32(&mut self) -> Result<u32> {
-        let b = self.take(4)?;
-        let r = u32::from_be_bytes(*array_ref![b, 0, 4]);
+        let b: [u8; 4] = self.extract()?;
+        let r = u32::from_be_bytes(b);
         Ok(r)
     }
     /// Try to consume and return a big-endian u64 from this reader.
     pub fn take_u64(&mut self) -> Result<u64> {
-        let b = self.take(8)?;
-        let r = u64::from_be_bytes(*array_ref![b, 0, 8]);
+        let b: [u8; 8] = self.extract()?;
+        let r = u64::from_be_bytes(b);
         Ok(r)
     }
     /// Try to consume and return a big-endian u128 from this reader.
     pub fn take_u128(&mut self) -> Result<u128> {
-        let b = self.take(16)?;
-        let r = u128::from_be_bytes(*array_ref![b, 0, 16]);
+        let b: [u8; 16] = self.extract()?;
+        let r = u128::from_be_bytes(b);
         Ok(r)
     }
     /// Try to consume and return bytes from this buffer until we

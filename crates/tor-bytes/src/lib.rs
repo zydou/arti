@@ -49,8 +49,6 @@ pub use reader::{Cursor, Reader};
 pub use secretbuf::SecretBuf;
 pub use writer::Writer;
 
-use arrayref::array_ref;
-
 /// Result type returned by this crate for [`Reader`]-related methods.
 pub type Result<T> = std::result::Result<T, Error>;
 /// Result type returned by this crate for [`Writer`]-related methods.

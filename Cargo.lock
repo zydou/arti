@@ -3793,7 +3793,6 @@ dependencies = [
 name = "tor-bytes"
 version = "0.7.0"
 dependencies = [
- "arrayref",
  "bytes",
  "digest 0.10.7",
  "educe",
