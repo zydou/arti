@@ -87,7 +87,7 @@ pub(crate) type BoxedResponseSink =
 
 /// A random value used to identify an connection.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::From, derive_more::Into)]
-pub(crate) struct ConnectionId(u128);
+pub(crate) struct ConnectionId([u8; 16]);
 
 impl Connection {
     /// Create a new connection.

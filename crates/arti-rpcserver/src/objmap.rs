@@ -181,6 +181,9 @@ impl TaggedAddr {
 /// analyze these object IDs, please contact the Arti developers instead and let
 /// us give you a better way to do whatever you want.
 impl GenIdx {
+    /// The length of a byte-encoded (but not base-64 encoded) GenIdx.
+    pub(crate) const BYTE_LEN: usize = 24;
+
     /// Return true if this is a strong (owning) reference.
     pub(crate) fn is_strong(&self) -> bool {
         matches!(self, GenIdx::Strong(_))
@@ -194,6 +197,12 @@ impl GenIdx {
     /// As `encode`, but take a Rng as an argument. For testing.
     fn encode_with_rng<R: rand::RngCore>(self, rng: &mut R) -> rpc::ObjectId {
         use base64ct::Encoding;
+        let bytes = self.to_bytes(rng);
+        rpc::ObjectId::from(base64ct::Base64UrlUnpadded::encode_string(&bytes[..]))
+    }
+
+    /// As `encode_with_rng`, but return an array of bytes.
+    pub(crate) fn to_bytes<R: rand::RngCore>(self, rng: &mut R) -> [u8; Self::BYTE_LEN] {
         use rand::Rng;
         use tor_bytes::Writer;
         let (weak_bit, idx) = match self {
@@ -202,41 +211,42 @@ impl GenIdx {
         };
         let (a, b) = idx.into_raw_parts();
         let x = rng.gen::<u64>() << 1;
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(Self::BYTE_LEN);
         bytes.write_u64(x | weak_bit);
         bytes.write_u64((a as u64).wrapping_add(x));
         bytes.write_u64(b.wrapping_sub(x));
-        rpc::ObjectId::from(base64ct::Base64UrlUnpadded::encode_string(&bytes[..]))
+
+        bytes.try_into().expect("Length was wrong!")
     }
 
     /// Attempt to decode `id` into a `GenIdx` than an ObjMap can use.
     pub(crate) fn try_decode(id: &rpc::ObjectId) -> Result<Self, rpc::LookupError> {
         use base64ct::Encoding;
-        use tor_bytes::Reader;
 
         let bytes = base64ct::Base64UrlUnpadded::decode_vec(id.as_ref())
             .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
-        let mut r = Reader::from_slice(&bytes);
-        let mut get_u64 = || {
-            r.take_u64()
-                .map_err(|_| rpc::LookupError::NoObject(id.clone()))
-        };
-        let x = get_u64()?;
+        Self::from_bytes(&bytes).ok_or_else(|| rpc::LookupError::NoObject(id.clone()))
+    }
+
+    /// As `try_decode`, but take a slice of bytes.
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        use tor_bytes::Reader;
+        let mut r = Reader::from_slice(bytes);
+        let x = r.take_u64().ok()?;
         let is_weak = (x & 1) == 1;
         let x = x & !1;
-        let a = get_u64()?;
-        let b = get_u64()?;
-        r.should_be_exhausted()
-            .map_err(|_| rpc::LookupError::NoObject(id.clone()))?;
+        let a = r.take_u64().ok()?;
+        let b = r.take_u64().ok()?;
+        r.should_be_exhausted().ok()?;
 
         let a = a.wrapping_sub(x) as usize;
         let b = b.wrapping_add(x);
 
         let idx = generational_arena::Index::from_raw_parts(a, b);
         if is_weak {
-            Ok(GenIdx::Weak(idx))
+            Some(GenIdx::Weak(idx))
         } else {
-            Ok(GenIdx::Strong(idx))
+            Some(GenIdx::Strong(idx))
         }
     }
 }

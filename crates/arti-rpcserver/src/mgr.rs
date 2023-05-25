@@ -62,7 +62,7 @@ impl RpcMgr {
     /// be possible to invoke any of its methods. See #837.
     #[allow(clippy::missing_panics_doc)]
     pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Arc<Connection> {
-        let connection_id = ConnectionId::from(rand::thread_rng().gen::<u128>());
+        let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
         let client_obj = Arc::new(client);
 
         let mut inner = self.inner.lock().expect("poisoned lock");
