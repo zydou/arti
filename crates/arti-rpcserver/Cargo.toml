@@ -20,6 +20,7 @@ arti-client = { path = "../arti-client", version = "0.9.1", features = ["rpc"] }
 asynchronous-codec = { version = "0.6.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
+derive_more = "0.99.3"
 erased-serde = "0.3.25"
 futures = "0.3.14"
 generational-arena = "0.2.9"
@@ -35,6 +36,7 @@ tor-rpcbase = { path = "../tor-rpcbase", version = "0.1.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1" }
 tracing = "0.1.36"
 typetag = "0.2.7"
+weak-table = "0.3.0"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"

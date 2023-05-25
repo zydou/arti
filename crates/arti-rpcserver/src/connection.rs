@@ -38,6 +38,16 @@ pub struct Connection {
     /// Lookup table to find the implementations for methods
     /// based on RPC object and method types.
     dispatch_table: Arc<rpc::DispatchTable>,
+
+    /// A unique identifier for this connection.
+    ///
+    /// This kind of ID is used to refer to the connection from _outside_ of the
+    /// context of an RPC connection: it can uniquely identify the connection
+    /// from e.g. a SOCKS session so that clients can attach streams to it.
+    ///
+    /// TODO RPC: Remove this if it turns out to be unneeded.
+    #[allow(unused)]
+    connection_id: ConnectionId,
 }
 impl rpc::Object for Connection {}
 rpc::decl_object! {Connection}
@@ -75,9 +85,14 @@ pub(crate) type BoxedRequestStream = Pin<
 pub(crate) type BoxedResponseSink =
     Pin<Box<dyn Sink<BoxedResponse, Error = asynchronous_codec::JsonCodecError> + Send>>;
 
+/// A random value used to identify an connection.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::From, derive_more::Into)]
+pub(crate) struct ConnectionId(u128);
+
 impl Connection {
     /// Create a new connection.
     pub(crate) fn new(
+        connection_id: ConnectionId,
         dispatch_table: Arc<rpc::DispatchTable>,
         client: Arc<dyn rpc::Object>,
     ) -> Self {
@@ -88,6 +103,7 @@ impl Connection {
                 client,
             }),
             dispatch_table,
+            connection_id,
         }
     }
 
