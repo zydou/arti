@@ -86,8 +86,26 @@ pub(crate) type BoxedResponseSink =
     Pin<Box<dyn Sink<BoxedResponse, Error = asynchronous_codec::JsonCodecError> + Send>>;
 
 /// A random value used to identify an connection.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::From, derive_more::Into)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    derive_more::From,
+    derive_more::Into,
+    derive_more::AsRef,
+)]
+
+// TODO RPC: Document this, and make it participate in the Reader/Writer API
+// enough that we can stop referring to its internals elsewhere.
 pub(crate) struct ConnectionId([u8; 16]);
+
+impl ConnectionId {
+    /// The length of a ConnectionId.
+    pub(crate) const LEN: usize = 16;
+}
 
 impl Connection {
     /// Create a new connection.
@@ -112,16 +130,21 @@ impl Connection {
         self: &Arc<Self>,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        let inner = self.inner.lock().expect("lock poisoned");
-
         if id.as_ref() == "connection" {
             Ok(self.clone())
         } else {
-            inner
-                .objects
-                .lookup(crate::objmap::GenIdx::try_decode(id)?)
+            self.lookup_by_idx(crate::objmap::GenIdx::try_decode(id)?)
                 .ok_or(rpc::LookupError::NoObject(id.clone()))
         }
+    }
+
+    /// As `lookup_object`, but expect a `GenIdx`.
+    pub(crate) fn lookup_by_idx(
+        self: &Arc<Self>,
+        idx: crate::objmap::GenIdx,
+    ) -> Option<Arc<dyn rpc::Object>> {
+        let inner = self.inner.lock().expect("lock poisoned");
+        inner.objects.lookup(idx)
     }
 
     /// Un-register the request `id` and stop tracking its information.

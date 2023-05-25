@@ -8,7 +8,10 @@ use tor_rpcbase as rpc;
 use tor_rtcompat::Runtime;
 use weak_table::WeakValueHashMap;
 
-use crate::connection::{Connection, ConnectionId};
+use crate::{
+    connection::{Connection, ConnectionId},
+    globalid::{GlobalId, MacKey},
+};
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///
@@ -16,6 +19,11 @@ use crate::connection::{Connection, ConnectionId};
 ///
 /// TODO RPC: Actually not all of the above functionality is implemented yet. But it should be.
 pub struct RpcMgr {
+    /// A key that we use to ensure that identifiers are unforgeable.
+    ///
+    /// When giving out a global identifier.
+    mac_key: MacKey,
+
     /// Lock-protected view of the manager's state.
     //
     // TODO RPC: We should probably move everything into Inner, and move an Arc
@@ -48,6 +56,7 @@ impl RpcMgr {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         RpcMgr {
+            mac_key: MacKey::new(&mut rand::thread_rng()),
             inner: Mutex::new(Inner {
                 dispatch_table: Arc::new(rpc::DispatchTable::from_inventory()),
                 connections: WeakValueHashMap::new(),
@@ -80,5 +89,27 @@ impl RpcMgr {
             "connection ID collision detected; this is phenomenally unlikely!",
         );
         connection
+    }
+
+    /// Look up an object in  the context of this `RpcMgr`.
+    ///
+    /// Some object identifiers exist in a manager-global context, so that they
+    /// can be used outside of a single RPC session.  This function looks up an
+    /// object by such an identifier string.  It returns an error if the
+    /// identifier is invalid or the object does not exist.
+    pub fn lookup_object(
+        &self,
+        id: &rpc::ObjectId,
+    ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
+        let global_id = GlobalId::try_decode(&self.mac_key, id)?;
+        self.lookup_by_global_id(&global_id)
+            .ok_or_else(|| rpc::LookupError::NoObject(id.clone()))
+    }
+
+    /// As `lookup_object`, but takes a parsed and validated [`GlobalId`].
+    pub(crate) fn lookup_by_global_id(&self, id: &GlobalId) -> Option<Arc<dyn rpc::Object>> {
+        let inner = self.inner.lock().expect("lock poisoned");
+        let connection = inner.connections.get(&id.connection)?;
+        connection.lookup_by_idx(id.local_id)
     }
 }

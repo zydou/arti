@@ -40,6 +40,7 @@
 mod cancel;
 mod connection;
 mod err;
+mod globalid;
 mod mgr;
 mod msgs;
 mod objmap;

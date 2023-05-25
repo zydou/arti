@@ -250,15 +250,18 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tiny-keccak",
  "tor-async-utils",
  "tor-basic-utils",
  "tor-bytes",
  "tor-error",
+ "tor-llcrypto",
  "tor-rpcbase",
  "tor-rtcompat",
  "tracing",
  "typetag",
  "weak-table",
+ "zeroize",
 ]
 
 [[package]]
@@ -843,6 +846,12 @@ checksum = "3c063cd8cc95f5c377ed0d4b49a4b21f632396ff690e8470c29b3359b346984b"
 dependencies = [
  "cfg-if",
 ]
+
+[[package]]
+name = "crunchy"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "crypto-common"
@@ -3570,6 +3579,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "372950940a5f07bf38dbe211d7283c9e6d7327df53794992d293e534c733d09b"
 dependencies = [
  "time-core",
+]
+
+[[package]]
+name = "tiny-keccak"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
+dependencies = [
+ "crunchy",
 ]
 
 [[package]]
