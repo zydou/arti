@@ -32,8 +32,8 @@ impl RpcMgr {
     ///
     /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
     /// be possible to invoke any of its methods. See #837.
-    pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Connection {
+    pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Arc<Connection> {
         let client_obj = Arc::new(client);
-        Connection::new(self.dispatch_table.clone(), client_obj)
+        Arc::new(Connection::new(self.dispatch_table.clone(), client_obj))
     }
 }

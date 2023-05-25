@@ -3,7 +3,7 @@
 use anyhow::Result;
 use arti_rpcserver::RpcMgr;
 use futures::task::SpawnExt;
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use arti_client::TorClient;
 use tor_rtcompat::Runtime;
@@ -39,7 +39,7 @@ pub(crate) async fn run_rpc_listener<R: Runtime>(
 
     loop {
         let (stream, _addr) = listener.accept().await?;
-        let session = Arc::new(mgr.new_session(client.isolated_client()));
+        let session = mgr.new_session(client.isolated_client());
         let (input, output) = stream.into_split();
 
         #[cfg(feature = "tokio")]
