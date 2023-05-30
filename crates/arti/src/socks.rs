@@ -10,6 +10,8 @@ use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::io::Result as IoResult;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+#[cfg(feature = "rpc")]
+use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
@@ -88,6 +90,17 @@ impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
     }
 }
 
+/// Information used to implement a SOCKS connection.
+struct SocksConnContext<R: Runtime> {
+    /// A TorClient to use (by default) to anonymize requests.
+    tor_client: TorClient<R>,
+    /// If present, an RpcMgr to use when for attaching requests to RPC
+    /// sessions.
+    #[cfg(feature = "rpc")]
+    #[allow(unused)] //XXXX
+    rpc_mgr: Option<Arc<arti_rpcserver::RpcMgr>>,
+}
+
 /// Given a just-received TCP connection `S` on a SOCKS port, handle the
 /// SOCKS handshake and relay the connection over the Tor network.
 ///
@@ -96,7 +109,7 @@ impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
 /// id and the source address for the socks request.
 async fn handle_socks_conn<R, S>(
     runtime: R,
-    tor_client: TorClient<R>,
+    context: SocksConnContext<R>,
     socks_stream: S,
     isolation_info: (usize, IpAddr),
 ) -> Result<()>
@@ -198,6 +211,7 @@ where
         SocksCmd::CONNECT => {
             // The SOCKS request wants us to connect to a given address.
             // So, launch a connection over Tor.
+            let tor_client = context.tor_client.clone();
             let tor_stream = tor_client
                 .connect_with_prefs((addr.clone(), port), &prefs)
                 .await;
@@ -230,6 +244,7 @@ where
                 // if this is a valid ip address, just parse it and reply.
                 Ok(addr)
             } else {
+                let tor_client = context.tor_client.clone();
                 tor_client
                     .resolve_with_prefs(&addr, &prefs)
                     .await
@@ -262,6 +277,7 @@ where
                     return Err(anyhow!(e));
                 }
             };
+            let tor_client = context.tor_client.clone();
             let hosts = match tor_client.resolve_ptr_with_prefs(addr, &prefs).await {
                 Ok(hosts) => hosts,
                 Err(e) => return reply_error(&mut socks_w, &request, e.kind()).await,
@@ -437,6 +453,9 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     socks_port: u16,
+    // TODO RPC: This is not a good way to make an API conditional. We MUST
+    // refactor this before the RPC feature becomes non-experimental.
+    #[cfg(feature = "rpc")] rpc_mgr: Option<Arc<arti_rpcserver::RpcMgr>>,
 ) -> Result<()> {
     let mut listeners = Vec::new();
 
@@ -488,11 +507,15 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                 }
             }
         };
-        let client_ref = tor_client.clone();
+        let socks_context = SocksConnContext {
+            tor_client: tor_client.clone(),
+            #[cfg(feature = "rpc")]
+            rpc_mgr: rpc_mgr.clone(),
+        };
         let runtime_copy = runtime.clone();
         runtime.spawn(async move {
             let res =
-                handle_socks_conn(runtime_copy, client_ref, stream, (sock_id, addr.ip())).await;
+                handle_socks_conn(runtime_copy, socks_context, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
                 warn!("connection exited with error: {}", tor_error::Report(e));
             }

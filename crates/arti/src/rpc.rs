@@ -3,7 +3,7 @@
 use anyhow::Result;
 use arti_rpcserver::RpcMgr;
 use futures::task::SpawnExt;
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use arti_client::TorClient;
 use tor_rtcompat::Runtime;
@@ -23,23 +23,45 @@ cfg_if::cfg_if! {
     }
 }
 
-/// Launch an RPC listener task to accept incoming connections at the Unix
+/// Run an RPC listener task to accept incoming connections at the Unix
 /// socket address of `path`.
-pub(crate) async fn run_rpc_listener<R: Runtime>(
-    runtime: R,
+pub(crate) fn launch_rpc_listener<R: Runtime>(
+    runtime: &R,
     path: impl AsRef<Path>,
     client: TorClient<R>,
-) -> Result<()> {
+) -> Result<Arc<RpcMgr>> {
     // TODO RPC: there should be an error return instead.
 
     // TODO RPC: Maybe the UnixListener functionality belongs in tor-rtcompat?
     // But I certainly don't want to make breaking changes there if we can help it.
     let listener = UnixListener::bind(path)?;
-    let mgr = RpcMgr::new();
+    let rpc_mgr = Arc::new(RpcMgr::new());
+    let rt_clone = runtime.clone();
+    let rpc_mgr_clone = rpc_mgr.clone();
 
+    // TODO: Using spawn in this way makes it hard to report whether we
+    // succeeded or not. This is something we should fix when we refactor
+    // our service-launching code.
+    runtime.spawn(async {
+        let result = run_rpc_listener(rt_clone, listener, rpc_mgr_clone, client).await;
+        if let Err(e) = result {
+            tracing::warn!("RPC manager quit with an error: {}", e);
+        }
+    })?;
+    Ok(rpc_mgr)
+}
+
+/// Backend function to implement an RPC listener: runs in a loop.
+async fn run_rpc_listener<R: Runtime>(
+    runtime: R,
+    listener: UnixListener,
+    rpc_mgr: Arc<RpcMgr>,
+    client: TorClient<R>,
+) -> Result<()> {
     loop {
         let (stream, _addr) = listener.accept().await?;
-        let session = mgr.new_session(client.isolated_client());
+        // TODO RPC: Perhaps we should have rpcmgr hold the client reference?
+        let session = rpc_mgr.new_session(client.isolated_client());
         let (input, output) = stream.into_split();
 
         #[cfg(feature = "tokio")]
