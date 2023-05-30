@@ -108,6 +108,29 @@ struct SocksConnContext<R: Runtime> {
 /// the address of the client that connected to the Socks port.
 type ConnIsolation = (usize, IpAddr);
 
+impl<R: Runtime> SocksConnContext<R> {
+    /// XXXX Document once this API settles down.
+    #[allow(clippy::unnecessary_wraps)] // XXXX
+    fn get_prefs_and_session(
+        &self,
+        request: &SocksRequest,
+        target_addr: &str,
+        conn_isolation: ConnIsolation,
+    ) -> Result<(StreamPrefs, (), TorClient<R>)> {
+        // Use the source address, SOCKS authentication, and listener ID
+        // to determine the stream's isolation properties.  (Our current
+        // rule is that two streams may only share a circuit if they have
+        // the same values for all of these properties.)
+        let auth = request.auth().clone();
+
+        // Determine whether we want to ask for IPv4/IPv6 addresses.
+        let mut prefs = stream_preference(request, target_addr);
+        prefs.set_isolation(SocksIsolationKey(conn_isolation, auth));
+
+        Ok((prefs, (), self.tor_client.clone()))
+    }
+}
+
 /// Given a just-received TCP connection `S` on a SOCKS port, handle the
 /// SOCKS handshake and relay the connection over the Tor network.
 ///
@@ -203,21 +226,13 @@ where
         port
     );
 
-    // Use the source address, SOCKS authentication, and listener ID
-    // to determine the stream's isolation properties.  (Our current
-    // rule is that two streams may only share a circuit if they have
-    // the same values for all of these properties.)
-    let auth = request.auth().clone();
-
-    // Determine whether we want to ask for IPv4/IPv6 addresses.
-    let mut prefs = stream_preference(&request, &addr);
-    prefs.set_isolation(SocksIsolationKey(isolation_info, auth));
+    let (prefs, _session, tor_client) =
+        context.get_prefs_and_session(&request, &addr, isolation_info)?;
 
     match request.command() {
         SocksCmd::CONNECT => {
             // The SOCKS request wants us to connect to a given address.
             // So, launch a connection over Tor.
-            let tor_client = context.tor_client.clone();
             let tor_stream = tor_client
                 .connect_with_prefs((addr.clone(), port), &prefs)
                 .await;
@@ -250,7 +265,6 @@ where
                 // if this is a valid ip address, just parse it and reply.
                 Ok(addr)
             } else {
-                let tor_client = context.tor_client.clone();
                 tor_client
                     .resolve_with_prefs(&addr, &prefs)
                     .await
@@ -283,7 +297,6 @@ where
                     return Err(anyhow!(e));
                 }
             };
-            let tor_client = context.tor_client.clone();
             let hosts = match tor_client.resolve_ptr_with_prefs(addr, &prefs).await {
                 Ok(hosts) => hosts,
                 Err(e) => return reply_error(&mut socks_w, &request, e.kind()).await,
