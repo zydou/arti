@@ -53,6 +53,10 @@ struct Inner {
 
 impl RpcMgr {
     /// Create a new RpcMgr.
+    ///
+    /// TODO RPC: Perhaps this should take a Client instead, and new_session
+    /// should take nothing.  Also perhaps instead of a Client, it should take
+    /// an `Arc<dyn Object>` that becomes the session.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         RpcMgr {
