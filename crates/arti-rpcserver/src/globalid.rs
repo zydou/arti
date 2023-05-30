@@ -5,8 +5,6 @@
 //! can be passed as the target of a SOCKS request.  Since the SOCKS request is
 //! not part of the RPC session, we need a way for it to refer to these objects.
 
-#![allow(dead_code)] // XXXXXXX
-
 use tor_bytes::Reader;
 use tor_llcrypto::util::ct::CtByteArray;
 use tor_rpcbase::{LookupError, ObjectId};
@@ -86,6 +84,17 @@ impl MacKey {
 impl GlobalId {
     /// The number of bytes used to encode a `GlobalId` in binary form.
     const ENCODED_LEN: usize = MAC_LEN + ConnectionId::LEN + GenIdx::BYTE_LEN;
+    /// The number of bytes used to encode a `GlobalId` in base-64 form.
+    // TODO: use div_ceil once it's stable.
+    pub(crate) const B64_ENCODED_LEN: usize = (Self::ENCODED_LEN * 8 + 5) / 6;
+
+    /// Create a new GlobalId from its parts.
+    pub(crate) fn new(connection: ConnectionId, local_id: GenIdx) -> GlobalId {
+        GlobalId {
+            connection,
+            local_id,
+        }
+    }
 
     /// Encode this ID in an unforgeable string that we can later use to
     /// uniquely identify an RPC object.
@@ -191,6 +200,9 @@ mod test {
         let gid2_decoded = GlobalId::try_decode(&mac_key, &enc2).unwrap();
         assert_eq!(gid2, gid2_decoded);
         assert_ne!(gid1_decoded, gid2_decoded);
+
+        assert_eq!(enc1.as_ref().len(), GlobalId::B64_ENCODED_LEN);
+        assert_eq!(enc2.as_ref().len(), GlobalId::B64_ENCODED_LEN);
     }
 
     #[test]

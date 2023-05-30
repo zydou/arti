@@ -78,6 +78,7 @@ impl RpcMgr {
         let connection = Arc::new(Connection::new(
             connection_id,
             inner.dispatch_table.clone(),
+            self.mac_key.clone(),
             client_obj,
         ));
         let old = inner.connections.insert(connection_id, connection.clone());
