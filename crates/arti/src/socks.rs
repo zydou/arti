@@ -74,7 +74,7 @@ fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
 /// the connection, the source IpAddr of the client, and the
 /// authentication string provided by the client).
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SocksIsolationKey(usize, IpAddr, SocksAuth);
+struct SocksIsolationKey(ConnIsolation, SocksAuth);
 
 impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
     fn compatible_same_type(&self, other: &Self) -> bool {
@@ -101,6 +101,13 @@ struct SocksConnContext<R: Runtime> {
     rpc_mgr: Option<Arc<arti_rpcserver::RpcMgr>>,
 }
 
+/// Type alias for the isolation information associated with a given SOCKS
+/// connection _before_ SOCKS is negotiated.
+///
+/// Currently this is an index for which listener accepted the connection, plus
+/// the address of the client that connected to the Socks port.
+type ConnIsolation = (usize, IpAddr);
+
 /// Given a just-received TCP connection `S` on a SOCKS port, handle the
 /// SOCKS handshake and relay the connection over the Tor network.
 ///
@@ -111,7 +118,7 @@ async fn handle_socks_conn<R, S>(
     runtime: R,
     context: SocksConnContext<R>,
     socks_stream: S,
-    isolation_info: (usize, IpAddr),
+    isolation_info: ConnIsolation,
 ) -> Result<()>
 where
     R: Runtime,
@@ -201,11 +208,10 @@ where
     // rule is that two streams may only share a circuit if they have
     // the same values for all of these properties.)
     let auth = request.auth().clone();
-    let (source_address, ip) = isolation_info;
 
     // Determine whether we want to ask for IPv4/IPv6 addresses.
     let mut prefs = stream_preference(&request, &addr);
-    prefs.set_isolation(SocksIsolationKey(source_address, ip, auth));
+    prefs.set_isolation(SocksIsolationKey(isolation_info, auth));
 
     match request.command() {
         SocksCmd::CONNECT => {
