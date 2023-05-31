@@ -3,6 +3,131 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.5 — 1 June 2023
+
+Arti 1.1.5 fixes a local-only denial-of-service attack, and continues
+our work towards support for providing a working RPC mechanism and an
+onion service client.
+
+### Major bugfixes (service)
+
+- Fix a local-only CPU denial-of-service bug. Previously, an attacker
+  with access to our SOCKS port (only open by default on localhost)
+  could cause Arti to loop forever, consuming CPU. This issue was
+  discovered by Jakob Lell. This is also tracked as
+  TROVE-2023-001. ([#861], [!1196])
+
+### Breaking changes in lower-level crates
+
+- In [`tor-netdoc`], the `ParseErrorKind` and `ParseErrorSource` types
+  have been renamed to `NetdocErrorKind` and `NetdocErrorSource`
+  respectively, to better reflect their meaning. ([!1176], [!1179])
+- In [`tor-linkspec`] and [`tor-cell`], we have renamed
+  `UnparsedLinkSpec` to `EncodedLinkSpec` to correctly reflect its
+  purpose. ([02785ca6505572bd])
+- In [`tor-cell`], the `Extend2` message now takes a list of `EncodedLinkSpec`.
+  ([7ce808b75bb500f2])
+- In [`tor-linkspec`], `CircTarget::linkspecs()` now returns an encoded
+  list instead of a `Vec` of unencoded link specifiers. This is needed
+  for passing linkspecs verbatim in the onion service
+  implementation. ([7ce808b75bb500f2])
+- `ClientCirc` no longer implements `Clone`.  In various crates,
+  functions that used to return `ClientCirc` now return
+  `Arc<ClientCirc>`.  This allow us to be more explicit about how
+  circuits are shared, and to make circuits visible to our RPC
+  code. ([#846], [!1187])
+
+### Onion service development
+
+- Improved API for parsing onion service descriptors. ([#809], [!1152])
+- More APIs for deriving onion service keys from one another.
+  ([18cb1671c4135b3d])
+- Parse onion service descriptors after receiving them. ([!1153])
+- When fetching an onion service descriptor, choose the HS
+  directory server at random. ([!1155])
+- Refactoring and improvements to our handling for sets of link
+  specifiers (components of a Tor relay's address) in order to support
+  lists of link specifiers that we receive as part of an INTRODUCE2
+  message or onion service descriptor. ([#794], [!1177])
+- Code to enforce rules about consistency of link specifier lists.
+  ([#855], [!1186])
+- Correctly handle onion service descriptor lifetimes, and introduce
+  necessary helper functions to handle overlapping sets of lifetime
+  bounds. ([!1154])
+- Additional design and specification about a key management system.
+  ([!1185])
+- Finish, refactor, debug, and test the hs-ntor handshake used to
+  negotiate keys with onion services ([#865], [!1189])
+- Export the unencrypted portion of an INTRODUCE1 message as needed
+  to implement the hs-ntor handshake. ([#866], [!1188])
+- Add support for adding the "virtual" hop for an onion service
+  rendezvous circuit based on a set of cryptographic material negotiated via
+  the `hs-ntor` handshake. ([#726], [!1191])
+
+### RPC development
+
+- Improved description of our work-in-progress RPC API design.
+  ([!1005])
+- Expose an initial TorClient object to our RPC sessions.
+  ([d7ab388faf96f53e])
+- Implement object-handle management backend for RPC sessions,
+  so that RPC commands can refer to objects by a capability-style
+  ID that doesn't make objects visible to other sessions.
+  This has required significant design refinement, and will likely
+  need more in the future.
+  ([#820], [#848], [!1160], [!1183], [!1200])
+- Add an experimental `StreamCtrl` mechanism to allow code (like the RPC
+  module) that does not own the read or write side of a data stream to
+  nonetheless monitor and control the stream. ([#847], [!1198])
+
+### Infrastructure
+
+- Our license checking code now allows the MPL-2.0 license on an
+  allow-list basis. ([#845], [e5fa42e1c7957db0])
+- Our [`fixup-features`] script now works correctly to enforce our rules
+  about the `full` feature (notably, that it must include all
+  features not labelled as experimental or non-additive).
+  ([!1180], [!1182])
+- The script that generates our Acknowledgments section now
+  looks at various Git trailers in order to better acknowledge bug reporters.
+  ([!1194])
+- Use the latest version of Shadow in our integration tests ([!1199])
+
+### Cleanups, minor features, and smaller bugfixes
+
+- Improved logging in directory manager code when deciding what to
+  download and when to download it. ([#803], [!1163])
+- Downgrade and clarify log messages about directory replacement time.
+  ([#839])
+- Revise and downgrade other directory-manager logs. ([#854], [!1172])
+- When listing the features that are enabled, list static features
+  correctly. ([!1169])
+- Refactor the `check_key` function in `tor-cert` to provide a more
+  reasonable API. ([#759], [!1184])
+
+- Improve or downgrade certain verbose log messages in `tor-guardmgr`
+  and `tor-proto`. ([!1190])
+
+- Throughout our codebase, avoid the use of ed25519 secret keys without
+  an accompanying public key. Instead, store the two as a
+  keypair. (Using ed25519 secret keys alone creates the risk of using
+  them with mismatched public keys, with [catastrophic cryptographic
+  results].)  ([#798], [!1192])
+
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Jakob Lell, Jim Newsome, Saksham Mittal, and Trinity
+Pointard.
+Also, our deep thanks to [Zcash Community Grants] for funding the
+development of Arti!
+
+TODO: GENERATE REMAINING LINKS.
+
+[catastrophic cryptographic results]: https://moderncrypto.org/mail-archive/curves/2020/001012.html
+
+
 # Arti 1.1.4 — 3 May 2023
 
 Arti 1.1.4 fixes a major bug in the directory downloading code that
