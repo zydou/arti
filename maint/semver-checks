@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+#
+# Run "cargo-semver-checks" on each of our crates, with the "full" features
+# set, comparing against a provided arti version.
+#
+# We can't just run "cargo-semver-checks" directly; it runs with
+# --all-features unconditionally, and therefore would complain about
+# breakage in our experimental features.
+#
+# Note that cargo-semver-checks has a fairly high false negative rate.
+# If it tells you that something is broken, you probably need to bump
+# a major or minor version; but if it _doesn't_ tell you something is
+# broken, you are not in the clear.
+
+set -euo pipefail
+
+if [ -z "${1-}" ]; then
+	echo "Usage: $0 [git-tag]"
+	echo "Script will run cargo-semver-checks on changes since [git-tag]."
+	exit 1
+fi
+LAST_VERSION="$1"
+
+if test "$(command -v cargo-semver-checks 2>/dev/null)" = ""; then
+    echo "cargo-semver-checks appears not to be installed."
+    echo "Try 'cargo install cargo-semver-checks.'"
+    exit 1
+fi
+
+TEMPDIR=$(mktemp -d -t arti_semver_checks."XX""XX""XX")
+trap 'rm -rf "$TEMPDIR"' 0
+
+MAINT_PATH="$(dirname "$0")"
+
+# Setting this envvar is extremely naughty, but it is what
+# cargo-semver-checks does.  It lets us use unstable options on stable
+# rust.
+#
+# Using nightly is not a reliable option; cargo-semver-checks does not
+# always accept the json rustdoc format that nightly produces.
+export RUSTC_BOOTSTRAP=1
+
+# These are the same flags that cargo-semver-checks uses.
+export RUSTDOCFLAGS="\
+  -Z unstable-options \
+  --document-private-items \
+  --document-hidden-items \
+  --output-format=json \
+  --cap-lints allow"
+
+# This is the crate that we document in order ot document all of our
+# other crates.
+#
+# Note that this won't give quite correct results with arti <=1.1.4;
+# "full" in one crate didn't imply "full" in all crates until 1.1.5
+# when fixup-features was merged and applied.
+TOPLEVEL_CRATE=arti
+
+run_rustdoc () {
+    # TODO: This is not a great way to do this.  It leaves the
+    # worktree around after the script is done.
+    if test ! -d sc_tmp; then
+	git worktree add sc_tmp "$LAST_VERSION"
+    fi
+
+    # Note: We document a top-level crate directly, whereas
+    # cargo-semver-checks instead creates a temporary crate and documents
+    # that crate instead.
+    #
+    # It says that it does so in order to work around issues like
+    # https://github.com/obi1kenobi/cargo-semver-checks/issues/167#issuecomment-1382367128
+    cargo doc --package "${TOPLEVEL_CRATE}" --features=full
+
+    cd sc_tmp
+    git checkout "$LAST_VERSION"
+    cargo doc --package "${TOPLEVEL_CRATE}" --features=full
+    cd ..
+}
+
+run_semver_checks () {
+    BREAKING=()
+
+    for package in $("$MAINT_PATH"/list_crates); do
+	echo "==== $package" 1>&2
+	if grep "^publish *= *false" "crates/$package/Cargo.toml" >/dev/null; then
+	    echo "...publish=false; skipping." 1>&2
+	    continue
+	fi
+	fname="${package//-/_}"
+	if ! test -f "target/doc/$fname.json" ; then
+	    echo "...no documentation found; skipping." 1>&2
+	    continue
+	fi
+	tmpfile="$TEMPDIR/output.txt"
+	rm -f "$tmpfile"
+	x=ok
+	# We use "script" here to capture the output without
+	# overriding the terminal settings, as would happen if we used
+	# tee.
+	script -efq "$tmpfile" -c "cargo semver-checks check-release \
+	     -p \"$package\" \
+	     --baseline-rustdoc \"sc_tmp/target/doc/$fname.json\" \
+	     --current-rustdoc \"target/doc/$fname.json\"" || x=failed
+	if test "$x" = "failed"; then
+	    ISSUE=$(grep "Final.*semver requires " "$tmpfile" || true)
+	    ISSUE=${ISSUE/*:/}
+	    BREAKING+=("$(printf "%-24s %s" "$package" "$ISSUE")")
+	fi
+    done
+
+    if test "${#BREAKING[@]}" -ne "0"; then
+	echo "semver-checks reported errors:"
+	for br in "${BREAKING[@]}"; do
+	    echo "    $br"
+	done
+    fi
+}
+
+# TODO: Add a flag to skip the run_rustdoc step: it can be kinda slow.
+run_rustdoc
+run_semver_checks
