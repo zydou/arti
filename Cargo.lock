@@ -191,6 +191,7 @@ dependencies = [
  "tor-guardmgr",
  "tor-hsclient",
  "tor-hscrypto",
+ "tor-keymgr",
  "tor-llcrypto",
  "tor-netdir",
  "tor-netdoc",

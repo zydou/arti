@@ -42,6 +42,7 @@ pub(crate) mod err;
 pub(crate) mod key_specifier;
 pub(crate) mod key_type;
 pub(crate) mod keystore;
+pub(crate) mod mgr;
 
 pub use err::Error;
 pub use key_specifier::hs::{HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSpecifier};
@@ -49,6 +50,7 @@ pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
 pub use key_type::KeyType;
 pub use keystore::arti::ArtiNativeKeyStore;
 pub use keystore::{EncodableKey, ErasedKey, KeyStore};
+pub use mgr::KeyMgr;
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;

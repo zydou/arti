@@ -94,7 +94,7 @@ experimental = [
 experimental-api = ["__is_experimental"]
 dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 error_detail = ["__is_experimental"]
-onion-client = ["tor-hsclient", "tor-hscrypto", "__is_experimental"]
+onion-client = ["tor-hsclient", "tor-hscrypto", "tor-keymgr", "__is_experimental"]
 rpc = ["tor-rpcbase", "__is_experimental"]
 __is_experimental = []
 
@@ -126,6 +126,7 @@ tor-error = { path = "../tor-error", version = "0.5.1" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.9.1" }
 tor-hsclient = { path = "../tor-hsclient", version = "0.2.1", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.2.1", optional = true }
+tor-keymgr = { path = "../tor-keymgr", version = "0.1.0", optional = true }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.1" }
 tor-netdir = { path = "../tor-netdir", version = "0.9.1" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.8.0" }
