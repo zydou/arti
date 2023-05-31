@@ -23,7 +23,7 @@ rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "__is_nonadditive"]
 
 static = ["arti-client/static", "__is_nonadditive"]
 
-experimental = []
+experimental = ["experimental-api"]
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
