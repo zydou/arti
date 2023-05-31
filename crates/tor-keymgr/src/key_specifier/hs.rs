@@ -31,6 +31,12 @@ impl HsClientSpecifier {
     }
 }
 
+impl Default for HsClientSpecifier {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
 /// An identifier for a particular instance of an HS client key.
 pub struct HsClientSecretKeySpecifier {
     /// The client associated with this key.

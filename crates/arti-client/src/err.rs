@@ -265,6 +265,11 @@ enum ErrorDetail {
         action: &'static str,
     },
 
+    /// A key store access failed.
+    #[cfg(feature = "onion-client")]
+    #[error("Error while trying to access a key store")]
+    KeyStore(#[from] tor_keymgr::Error),
+
     /// A programming problem, either in our code or the code calling it.
     #[error("Programming problem")]
     Bug(#[from] tor_error::Bug),
@@ -356,6 +361,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
+            #[cfg(feature = "onion-client")]
+            E::KeyStore(e) => e.kind(),
             E::FsMistrust(_) => EK::FsPermissions,
             E::Bug(e) => e.kind(),
         }
