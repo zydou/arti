@@ -29,7 +29,7 @@ full = [
     "tor-protover/full",
     "tor-rtcompat/full",
     "tor-rtmock/full",
-    "tor-units/full",
+    "tor-units/full", "tor-hscrypto?/full",
 ]
 
 experimental = ["experimental-api", "hs-client", "hs-service", "ntor_v3", "stream-ctrl", "testing"]

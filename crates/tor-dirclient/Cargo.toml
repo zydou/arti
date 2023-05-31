@@ -13,8 +13,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["xz", "zstd"]
+
 # Enable support for hidden service descriptor downloads.
-hs-client = ["tor-hscrypto"]
+hs-client = ["tor-hscrypto", "__is_experimental"]
+
 xz = ["async-compression/xz"]
 zstd = ["async-compression/zstd"]
 # Enable support for router descriptor downloads.
@@ -33,6 +35,9 @@ full = [
     "tor-proto/full",
     "tor-rtcompat/full",
 ]
+experimental = ["hs-client"]
+
+__is_experimental = []
 
 [dependencies]
 async-compression = { version = "0.4.0", features = ["futures-io", "zlib"] }
