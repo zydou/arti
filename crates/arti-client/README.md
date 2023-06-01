@@ -150,14 +150,14 @@ environments where you want lots of control over how it uses the network.
 [**View the `tor_rtcompat` crate documentation**](tor_rtcompat) for more
 about these features.
 
-## Debugging Arti errors
+## Reporting Arti errors
 
 Arti often outputs very long Debug messages that are hard to understand,
 even for developers. In order to have a better idea of what went wrong in your
 program, `match` every `Error` and have `err.report()` be logged, where `err`
 is the caught error.
 
-For example, the previous example can be modified to handle one of the errors:
+For example, the previous example can be modified to report one of the errors:
 
 ```rust,ignore
 // Initiate a connection over Tor to example.com, port 80.
