@@ -15,7 +15,6 @@
 //!
 //! This module should expose RustCrypto trait-based wrappers,
 //! but the [`rsa`] crate didn't support them as of initial writing.
-use arrayref::array_ref;
 use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
 use std::fmt;
 use subtle::{Choice, ConstantTimeEq};
@@ -151,13 +150,9 @@ impl RsaIdentity {
     /// assert_eq!(id, None);
     /// ```
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() == RSA_ID_LEN {
-            Some(RsaIdentity {
-                id: CtByteArray::from(*array_ref![bytes, 0, RSA_ID_LEN]),
-            })
-        } else {
-            None
-        }
+        Some(RsaIdentity {
+            id: CtByteArray::from(<[u8; RSA_ID_LEN]>::try_from(bytes).ok()?),
+        })
     }
     /// Decode an `RsaIdentity` from a hexadecimal string.
     ///

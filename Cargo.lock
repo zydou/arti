@@ -4245,7 +4245,6 @@ name = "tor-llcrypto"
 version = "0.5.0"
 dependencies = [
  "aes",
- "arrayref",
  "base64ct",
  "cipher",
  "ctr",
