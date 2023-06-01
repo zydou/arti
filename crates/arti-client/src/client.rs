@@ -37,7 +37,10 @@ use {
     tor_hsclient::HsClientConnector,
     tor_hsclient::HsClientSecretKeysBuilder,
     tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
-    tor_keymgr::{HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSpecifier, KeyMgr},
+    tor_keymgr::{
+        ArtiNativeKeyStore, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSpecifier, KeyMgr,
+        KeyStore,
+    },
 };
 
 use educe::Educe;
@@ -558,6 +561,17 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), circpool)?
         };
 
+        #[cfg(feature = "onion-client")]
+        let keymgr = {
+            // TODO hs: load the key store dir from the config.
+            let key_store_dir = Default::default();
+            let arti_store = ArtiNativeKeyStore::new(key_store_dir)?;
+            // TODO hs: add support for the C Tor key store
+            let stores = vec![Box::new(arti_store) as Box<dyn KeyStore>];
+
+            Arc::new(KeyMgr::new(stores))
+        };
+
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
@@ -598,7 +612,7 @@ impl<R: Runtime> TorClient<R> {
             #[cfg(feature = "onion-client")]
             hsclient,
             #[cfg(feature = "onion-client")]
-            keymgr: Arc::new(KeyMgr::new(vec![])),
+            keymgr,
             guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),
