@@ -3,7 +3,6 @@
 use super::{ChanCell, CELL_DATA_LEN};
 use crate::chancell::{ChanCmd, ChanMsg, CircId};
 use crate::Error;
-use arrayref::{array_mut_ref, array_ref};
 use tor_bytes::{self, Reader, Writer};
 use tor_error::internal;
 
@@ -70,7 +69,8 @@ impl ChannelCodec {
                 return Err(Error::Internal(internal!("ran out of space for varcell")));
             }
             // go back and set the length.
-            *(array_mut_ref![&mut dst[pos..pos + 2], 0, 2]) = (len as u16).to_be_bytes();
+            *(<&mut [u8; 2]>::try_from(&mut dst[pos..pos + 2])
+                .expect("two-byte slice was not two bytes!?")) = (len as u16).to_be_bytes();
         } else {
             msg.encode_onto(dst)?;
             let len = dst.len() - pos;
@@ -106,7 +106,11 @@ impl ChannelCodec {
         let cmd: ChanCmd = src[4].into();
         let varcell = cmd.is_var_cell();
         let cell_len: usize = if varcell {
-            let msg_len = u16::from_be_bytes(*array_ref![&src[5..7], 0, 2]);
+            let msg_len = u16::from_be_bytes(
+                src[5..7]
+                    .try_into()
+                    .expect("Two-byte slice was not two bytes long!?"),
+            );
             msg_len as usize + 7
         } else {
             514
