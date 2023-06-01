@@ -2,6 +2,7 @@
 
 pub(crate) mod arti;
 
+use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::key_type::KeyType;
@@ -72,5 +73,43 @@ impl EncodableKey for ed25519::Keypair {
         Self: Sized,
     {
         KeyType::Ed25519Keypair
+    }
+}
+
+/// A key that can be converted to an [`EncodableKey`].
+//
+// TODO hs: try to fold this trait into `EncodableKey`.
+pub trait ToEncodableKey {
+    /// The key type this can be converted to/from.
+    type Key: EncodableKey + 'static;
+
+    /// Convert this key to a type that implements [`EncodableKey`].
+    fn to_encodable_key(self) -> Self::Key;
+
+    /// Convert an [`EncodableKey`] to another key type.
+    fn from_encodable_key(key: Self::Key) -> Self;
+}
+
+impl ToEncodableKey for HsClientDescEncSecretKey {
+    type Key = curve25519::StaticSecret;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsClientDescEncSecretKey::from(key)
+    }
+}
+
+impl ToEncodableKey for HsClientIntroAuthKeypair {
+    type Key = ed25519::Keypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsClientIntroAuthKeypair::from(key)
     }
 }

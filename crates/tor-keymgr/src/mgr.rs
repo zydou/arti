@@ -3,9 +3,7 @@
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
 //! [`KeyStore`].
 
-use std::any::Any;
-
-use crate::{EncodableKey, Error, KeySpecifier, KeyStore, Result};
+use crate::{EncodableKey, Error, KeySpecifier, KeyStore, Result, ToEncodableKey};
 
 use tor_error::internal;
 
@@ -30,10 +28,10 @@ impl KeyMgr {
     /// specifier.
     ///
     /// Returns [`Error::NotFound`] if none of the key stores have the requested key.
-    pub fn get<K: Any + EncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<K> {
+    pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<K> {
         // Check if the requested key identity exists in any of the key stores:
         for store in &self.key_stores {
-            let key = match store.get(key_spec, K::key_type()) {
+            let key = match store.get(key_spec, K::Key::key_type()) {
                 Err(Error::NotFound { .. }) => {
                     // The key doesn't exist in this store, so we check the next one...
                     continue;
@@ -47,12 +45,12 @@ impl KeyMgr {
             };
 
             // Found it! Now try to downcast it to the right type (this should _not_ fail)...
-            let key: K = key
-                .downcast::<K>()
+            let key: K::Key = key
+                .downcast::<K::Key>()
                 .map(|k| *k)
                 .map_err(|_| Error::Bug(internal!("failed to downcast key to requested type")))?;
 
-            return Ok(key);
+            return Ok(K::from_encodable_key(key));
         }
 
         Err(Error::NotFound { /* TODO hs: add context */ })
@@ -67,13 +65,14 @@ impl KeyMgr {
     ///
     // TODO hs: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
     // TODO hs: define what "key bundle" means
-    pub fn insert<K: EncodableKey>(&self, key: K, key_spec: &dyn KeySpecifier) -> Result<()> {
+    pub fn insert<K: ToEncodableKey>(&self, key: K, key_spec: &dyn KeySpecifier) -> Result<()> {
         // TODO hs: maybe we should designate an explicit 'primary' store instead of implicitly
         // preferring the first one.
         let primary_store = match self.key_stores.first() {
             Some(store) => store,
             None => return Err(Error::Bug(internal!("no key stores configured"))),
         };
+        let key = key.to_encodable_key();
 
         let store = self
             .key_stores
@@ -88,16 +87,16 @@ impl KeyMgr {
             // store.
             .unwrap_or(primary_store);
 
-        store.insert(&key, key_spec, K::key_type())
+        store.insert(&key, key_spec, K::Key::key_type())
     }
 
     /// Remove the specified key.
     ///
     /// If the key exists in multiple key stores, this will only remove it from the first one.
     /// Returns [`Error::NotFound`] if none of the key stores have the specified key.
-    pub fn remove<K: EncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<()> {
+    pub fn remove<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<()> {
         for store in &self.key_stores {
-            match store.remove(key_spec, K::key_type()) {
+            match store.remove(key_spec, K::Key::key_type()) {
                 Ok(()) => return Ok(()),
                 Err(Error::NotFound { .. }) => continue,
                 Err(e) => {

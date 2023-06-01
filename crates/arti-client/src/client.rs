@@ -38,7 +38,6 @@ use {
     tor_hsclient::HsClientSecretKeysBuilder,
     tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
     tor_keymgr::{HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSpecifier, KeyMgr},
-    tor_llcrypto::pk::{curve25519, ed25519},
 };
 
 use educe::Educe;
@@ -950,9 +949,9 @@ impl<R: Runtime> TorClient<R> {
                     HsClientKeyRole::DescEnc,
                 );
 
-                let ks_hsc_desc_enc: Option<HsClientDescEncSecretKey> = self
+                let ks_hsc_desc_enc = self
                     .keymgr
-                    .get::<curve25519::StaticSecret>(&desc_enc_key_spec)
+                    .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)
                     // TODO hs: create a helper for ignoring NotFound errors to reduce code
                     // duplication
                     .map_or_else(
@@ -964,15 +963,15 @@ impl<R: Runtime> TorClient<R> {
                                 Err(ErrorDetail::KeyStore(error))
                             }
                         },
-                        |key| Ok(Some(HsClientDescEncSecretKey::from(key))),
+                        |key| Ok(Some(key)),
                     )?;
 
                 let intro_auth_key_spec =
                     HsClientSecretKeySpecifier::new(client_id, hsid, HsClientKeyRole::IntroAuth);
 
-                let ks_hsc_intro_auth: Option<HsClientIntroAuthKeypair> = self
+                let ks_hsc_intro_auth = self
                     .keymgr
-                    .get::<ed25519::Keypair>(&intro_auth_key_spec)
+                    .get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)
                     .map_or_else(
                         |error| {
                             if matches!(error, tor_keymgr::Error::NotFound { .. }) {
@@ -982,7 +981,7 @@ impl<R: Runtime> TorClient<R> {
                                 Err(ErrorDetail::KeyStore(error))
                             }
                         },
-                        |key| Ok(Some(HsClientIntroAuthKeypair::from(key))),
+                        |key| Ok(Some(key)),
                     )?;
 
                 let mut hs_client_secret_keys_builder = HsClientSecretKeysBuilder::default();

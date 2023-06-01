@@ -49,7 +49,7 @@ pub use key_specifier::hs::{HsClientKeyRole, HsClientSecretKeySpecifier, HsClien
 pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
 pub use key_type::KeyType;
 pub use keystore::arti::ArtiNativeKeyStore;
-pub use keystore::{EncodableKey, ErasedKey, KeyStore};
+pub use keystore::{EncodableKey, ErasedKey, KeyStore, ToEncodableKey};
 pub use mgr::KeyMgr;
 
 /// A Result type for this crate.
