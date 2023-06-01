@@ -33,7 +33,7 @@ onion service client.
   implementation. ([7ce808b75bb500f2])
 - `ClientCirc` no longer implements `Clone`.  In various crates,
   functions that used to return `ClientCirc` now return
-  `Arc<ClientCirc>`.  This allow us to be more explicit about how
+  `Arc<ClientCirc>`.  This allows us to be more explicit about how
   circuits are shared, and to make circuits visible to our RPC
   code. ([#846], [!1187])
 
@@ -104,10 +104,8 @@ onion service client.
   correctly. ([!1169])
 - Refactor the `check_key` function in `tor-cert` to provide a more
   reasonable API. ([#759], [!1184])
-
 - Improve or downgrade certain verbose log messages in `tor-guardmgr`
   and `tor-proto`. ([!1190])
-
 - Throughout our codebase, avoid the use of ed25519 secret keys without
   an accompanying public key. Instead, store the two as a
   keypair. (Using ed25519 secret keys alone creates the risk of using
