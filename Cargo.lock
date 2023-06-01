@@ -4318,7 +4318,6 @@ dependencies = [
 name = "tor-netdoc"
 version = "0.7.0"
 dependencies = [
- "arrayref",
  "base64ct",
  "bitflags 2.3.1",
  "cipher",
