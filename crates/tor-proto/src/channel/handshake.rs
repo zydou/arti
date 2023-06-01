@@ -1,6 +1,5 @@
 //! Implementations for the channel handshake
 
-use arrayref::array_ref;
 use asynchronous_codec as futures_codec;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures::sink::SinkExt;
@@ -209,7 +208,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
             if hdr[0..3] != [0, 0, ChanCmd::VERSIONS.into()] {
                 return not_relay();
             }
-            let msglen = u16::from_be_bytes(*array_ref![hdr, 3, 2]);
+            let msglen = u16::from_be_bytes(
+                hdr[3..5]
+                    .try_into()
+                    .expect("Two-byte field was not two bytes!?"),
+            );
             let mut msg = vec![0; msglen as usize];
             self.tls
                 .read_exact(&mut msg)
