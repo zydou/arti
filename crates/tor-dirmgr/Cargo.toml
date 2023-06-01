@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirmgr"
-version = "0.10.0"
+version = "0.10.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -61,7 +61,7 @@ derive_more = "0.99.3"
 digest = "0.10.0"
 educe = "0.4.6"
 event-listener = "2"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.1" }
 fslock = { version = "0.2.0" }
 futures = "0.3.14"
 hex = "0.4"
@@ -73,28 +73,28 @@ once_cell = "1"
 paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-retry-error = { path = "../retry-error", version = "0.4.0" }
+retry-error = { path = "../retry-error", version = "0.4.1" }
 rusqlite = { version = "0.29.0", features = ["time"] }
-safelog = { path = "../safelog", version = "0.3.0" }
+safelog = { path = "../safelog", version = "0.3.1" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 time = { version = "0.3", features = ["formatting", "parsing"] }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.5.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.8.0" }
-tor-config = { path = "../tor-config", version = "0.9.0" }
-tor-consdiff = { path = "../tor-consdiff", version = "0.5.0" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.7.0", default-features = false }
-tor-error = { path = "../tor-error", version = "0.5.0" }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.9.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.9.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.7.0" }
-tor-proto = { path = "../tor-proto", version = "0.10.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.1" }
+tor-checkable = { path = "../tor-checkable", version = "0.5.1" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.9.0" }
+tor-config = { path = "../tor-config", version = "0.9.1" }
+tor-consdiff = { path = "../tor-consdiff", version = "0.5.1" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.7.1", default-features = false }
+tor-error = { path = "../tor-error", version = "0.5.1" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.9.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.1" }
+tor-netdir = { path = "../tor-netdir", version = "0.9.1" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.8.0" }
+tor-proto = { path = "../tor-proto", version = "0.11.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1" }
 tracing = "0.1.36"
 
 [dev-dependencies]
@@ -103,9 +103,9 @@ float_eq = "1.0.0"
 hex-literal = "0.4"
 tempfile = "3"
 tokio = { version = "1.7", features = ["full"] }
-tor-linkspec = { path = "../tor-linkspec", version = "0.7.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.8.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.8.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.8.1" }
 tracing-test = "0.2"
 [package.metadata.docs.rs]
 all-features = true
