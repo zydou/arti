@@ -112,6 +112,9 @@ onion service client.
   them with mismatched public keys, with
   [catastrophic cryptographic results].)  ([#798], [!1192])
 
+### Network updates
+
+- Update to the latest list of Tor fallback directories. ([!1210])
 
 ### Acknowledgments
 
@@ -150,6 +153,7 @@ development of Arti!
 [!1198]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1198
 [!1199]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1199
 [!1200]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1200
+[!1210]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1210
 [#726]: https://gitlab.torproject.org/tpo/core/arti/-/issues/726
 [#759]: https://gitlab.torproject.org/tpo/core/arti/-/issues/759
 [#794]: https://gitlab.torproject.org/tpo/core/arti/-/issues/794
