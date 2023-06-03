@@ -248,12 +248,35 @@ impl StorageConfig {
 /// builder.bridges().bridges().push(bridge2_builder);
 ///
 /// // Now configure an obfs4 transport. (Requires the "pt-client" feature)
-/// let mut transport = ManagedTransportConfigBuilder::default();
-/// transport
+/// let mut obfs4_transport = ManagedTransportConfigBuilder::default();
+/// obfs4_transport
 ///     .protocols(vec!["obfs4".parse()?])
-///    .path(CfgPath::new("/usr/bin/obfs4proxy".into()))
+///     .path(CfgPath::new("/usr/bin/obfs4proxy".into()))
 ///     .run_on_startup(true);
-/// builder.bridges().transports().push(transport);
+/// builder.bridges().transports().push(obfs4_transport);
+///
+/// // Also configure snowflake
+/// let mut snowflake_bridge_builder = BridgeConfigBuilder::default();
+/// snowflake_bridge_builder.transport("snowflake");
+/// // address is a bit meaningless for snowflake
+/// snowflake_bridge_builder.set_addrs(vec!["192.0.2.3:80".parse()?]);
+/// snowflake_bridge_builder.set_ids(vec!["2B280B23E1107BB62ABFC40DDCC8824814F80A72".parse()?]);
+/// builder.bridges().bridges().push(snowflake_bridge_builder);
+///
+/// let mut snowflake_transport = ManagedTransportConfigBuilder::default();
+/// snowflake_transport
+///     .protocols(vec!["snowflake".parse()?])
+///     .path(CfgPath::new("/usr/bin/snowflake-client".into()))
+///     .arguments(vec![
+///         "-url".to_string(),
+///         "https://snowflake-broker.torproject.net.global.prod.fastly.net/".to_string(),
+///         "-front".to_string(),
+///         "cdn.sstatic.net".to_string(),
+///         "-ice".to_string(),
+///         "stun:stun.voip.blackberry.com:3478,stun:stun.antisip.com:3478,stun:stun.bluesip.net:3478,stun:stun.dus.net:3478,stun:stun.epygi.com:3478,stun:stun.sonetel.com:3478,stun:stun.sonetel.net:3478,stun:stun.uls.co.za:3478,stun:stun.voipgate.com:3478,stun:stun.voys.nl:3478".to_string(),
+///     ])
+///     .run_on_startup(true);
+/// builder.bridges().transports().push(snowflake_transport);
 ///
 /// let config = builder.build()?;
 /// // Now you can pass `config` to TorClient::create!
