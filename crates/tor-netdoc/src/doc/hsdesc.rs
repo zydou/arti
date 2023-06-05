@@ -108,7 +108,7 @@ pub struct HsDesc {
     // TODO hs: Add this if we actually need it.
     // create2_formats: Vec<u32>,
 
-    /// A list of authentication types that this onion service supports.
+    /// The list of authentication types that this onion service supports.
     auth_required: Option<SmallVec<[IntroAuthType; 2]>>,
 
     /// If true, this a "single onion service" and is not trying to keep its own location private.
@@ -132,7 +132,7 @@ pub enum IntroAuthType {
 /// introduction point.
 #[derive(Debug, Clone)]
 pub struct IntroPointDesc {
-    /// A list of link specifiers needed to extend a circuit to the introduction point.
+    /// The list of link specifiers needed to extend a circuit to the introduction point.
     ///
     /// These can include public keys and network addresses.
     //
@@ -144,7 +144,7 @@ pub struct IntroPointDesc {
     /// ntor or ntor3 handshakes.  (`KP_ntor`)
     ipt_ntor_key: curve25519::PublicKey,
 
-    /// A key used to identify the onion service at this introduction point.
+    /// The key to be used to identify the onion service at this introduction point.
     /// (`KP_hs_ipt_sid`)
     ipt_sid_key: HsIntroPtSessionIdKey,
 
