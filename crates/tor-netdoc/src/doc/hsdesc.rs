@@ -140,7 +140,7 @@ pub struct IntroPointDesc {
     // would make it possible for IntroPointDesc to implement CircTarget.
     link_specifiers: Vec<EncodedLinkSpec>,
 
-    /// The key used to extend a circuit _to the introduction point_, using the
+    /// The key to be used to extend a circuit _to the introduction point_, using the
     /// ntor or ntor3 handshakes.  (`KP_ntor`)
     ipt_ntor_key: curve25519::PublicKey,
 
