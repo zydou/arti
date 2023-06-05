@@ -336,7 +336,7 @@ pub(super) enum MetaCellDisposition {
     //
     // TODO since there are no "install handler" and "uninstall handler" calls,
     // only `send_control_message` which implicitly installs on entry and uninstalls
-    // on exit, this should be renamed to `Finished`.
+    // on exit, this should be renamed to `ConversationFinished` or something.
     UninstallHandler,
     /// The message was consumed; the circuit should be closed.
     #[cfg(feature = "send-control-msg")]

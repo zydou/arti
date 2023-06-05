@@ -326,6 +326,8 @@ impl ClientCirc {
     //         // in case it wants to call this
     //         fn send_msg(&self, msg: AnyRelayCell> -> Result<()> {...}
     //     }
+    // Further discussion here:
+    //    https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1218#note_2908120
     //
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
