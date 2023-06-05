@@ -72,11 +72,10 @@ pub(crate) async fn connect<R: Runtime>(
         &*connector.circpool,
         netdir,
         hsid,
-        data,
         secret_keys,
         (),
     )?
-    .connect()
+    .connect(data)
     .await
 }
 
@@ -85,15 +84,13 @@ pub(crate) async fn connect<R: Runtime>(
 /// TODO HS: this struct will grow a generic parameter, and mock state variable,
 /// for allowing its impls to be unit tested.
 #[allow(dead_code)] // TODO HS remove
-struct Context<'c, 'd, R: Runtime, M: MocksForConnect<R>> {
+struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     /// Runtime
     runtime: &'c R,
     /// Circpool
     circpool: &'c M::HsCircPool,
     /// Netdir
     netdir: Arc<NetDir>,
-    /// Per-HS-association long term mutable state
-    data: &'d mut Data,
     /// Secret keys to use
     secret_keys: HsClientSecretKeys,
     /// HS ID
@@ -108,14 +105,13 @@ struct Context<'c, 'd, R: Runtime, M: MocksForConnect<R>> {
     mocks: M,
 }
 
-impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
+impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Make a new `Context` from the input data
     fn new(
         runtime: &'c R,
         circpool: &'c M::HsCircPool,
         netdir: Arc<NetDir>,
         hsid: HsId,
-        data: &'d mut Data,
         secret_keys: HsClientSecretKeys,
         mocks: M,
     ) -> Result<Self, ConnError> {
@@ -139,7 +135,6 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
             subcredential,
             circpool,
             runtime,
-            data,
             secret_keys,
             mocks,
         })
@@ -151,7 +146,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
     ///
     /// This function handles all necessary retrying of fallible operations,
     /// (and, therefore, must also limit the total work done for a particular call).
-    async fn connect(&mut self) -> Result<Arc<ClientCirc>, ConnError> {
+    async fn connect(&self, data: &mut Data) -> Result<Arc<ClientCirc>, ConnError> {
         // This function must do the following, retrying as appropriate.
         //  - Look up the onion descriptor in the state.
         //  - Download the onion descriptor if one isn't there.
@@ -167,7 +162,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
 
         let mocks = self.mocks.clone();
 
-        let desc = self.descriptor_ensure().await?;
+        let desc = self.descriptor_ensure(data).await?;
 
         mocks.test_got_desc(desc);
 
@@ -184,7 +179,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
     ///
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
-    async fn descriptor_ensure(&mut self) -> Result<&HsDesc, CE> {
+    async fn descriptor_ensure<'d>(&self, data: &'d mut Data) -> Result<&'d HsDesc, CE> {
         // TODO HS are these right? make configurable?
         // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
@@ -192,13 +187,12 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
-        if let Some(previously) = &self.data.desc {
+        if let Some(previously) = &data.desc {
             let now = self.runtime.wallclock();
             if let Ok(_desc) = previously.as_ref().check_valid_at(&now) {
                 // Ideally we would just return desc but that confuses borrowck.
                 // https://github.com/rust-lang/rust/issues/51545
-                return Ok(self
-                    .data
+                return Ok(data
                     .desc
                     .as_ref()
                     .expect("Some but now None")
@@ -268,7 +262,7 @@ impl<'c, 'd, R: Runtime, M: MocksForConnect<R>> Context<'c, 'd, R, M> {
         //
         // It is safe to dangerously_assume_timely,
         // as descriptor_fetch_attempt has already checked the timeliness of the descriptor.
-        let ret = self.data.desc.insert(desc);
+        let ret = data.desc.insert(desc);
         Ok(ret.as_ref().dangerously_assume_timely())
     }
 
@@ -570,18 +564,17 @@ mod test {
         secret_keys_builder.ks_hsc_desc_enc(sk);
         let secret_keys = secret_keys_builder.build().unwrap();
 
-        let mut ctx = Context::new(
+        let ctx = Context::new(
             &runtime,
             &mocks,
             netdir,
             hsid,
-            &mut data,
             secret_keys,
             mocks.clone(),
         )
         .unwrap();
 
-        let _got = AssertUnwindSafe(ctx.connect())
+        let _got = AssertUnwindSafe(ctx.connect(&mut data))
             .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
             .await;
 
@@ -613,7 +606,7 @@ mod test {
         );
 
         // Check how long the descriptor is valid for
-        let bounds = ctx.data.desc.as_ref().unwrap().bounds();
+        let bounds = data.desc.as_ref().unwrap().bounds();
         assert_eq!(bounds.start_bound(), Bound::Unbounded);
 
         let desc_valid_until = humantime::parse_rfc3339("2023-02-11T20:00:00Z").unwrap();
