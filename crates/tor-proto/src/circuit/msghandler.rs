@@ -33,7 +33,7 @@ pub trait MsgHandler {
     /// In particular, the implementor should avoid any expensive computations
     /// or highly contended locks, to avoid blocking the circuit reactor.
     ///
-    /// If this function returns an error, the stream will be closed.
+    /// If this function returns an error, the circuit will be closed.
     fn handle_msg(&mut self, msg: UnparsedRelayCell) -> Result<MetaCellDisposition>;
 }
 
