@@ -500,7 +500,7 @@ pub enum ErrorKind {
     ///   by the hidden service for advertising itself.
     ///   * All the directories we spoke to are malfunctioning and accepted the descriptor despite
     ///   it being broken in a way they can see. This could indicate that some or all of the
-    ///   directories are hostile.
+    ///   directories are hostile (i.e. conducting an attack)
     #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service descriptor parsing failed")]
     OnionServiceDescriptorParsingFailed,
