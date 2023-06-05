@@ -294,6 +294,71 @@ impl HsDesc {
 
         Ok(TimerangeBound::new(hsdesc, new_bounds))
     }
+
+    /// One or more introduction points used to contact the onion service.
+    ///
+    /// Accessor function.
+    // TODO HS derive this accessor
+    //
+    // For this and others I considered the following crates:
+    //
+    //  * amplify_derive, derive-getters, accessors-rs:
+    //    No way to deref the Vec to [], which I think is desirable
+    //    (after all, eventually these might become Box<[]>.
+    //
+    //  * getset: Always generates methods called `get_` which isn't what we want.
+    //  * tia: Same problem.  Also strange API.
+    //  * field_accessor: Works with Strings.
+    //  * accessors: Always uses `get` prefix, underdocumented.
+    //  * structural: Seems to be something much more reflection-y.
+    //
+    // derive-adhoc would make short work of this problem.
+    pub fn intro_points(&self) -> &[IntroPointDesc] {
+        &self.intro_points
+    }
+}
+
+impl IntroPointDesc {
+    /// The list of link specifiers needed to extend a circuit to the introduction point.
+    ///
+    /// These can include public keys and network addresses.
+    ///
+    /// Accessor function.
+    // TODO HS derive this accessor (see above)
+    pub fn link_specifiers(&self) -> &[EncodedLinkSpec] {
+        &self.link_specifiers
+    }
+
+    /// The key to be used to extend a circuit _to the introduction point_, using the
+    /// ntor or ntor3 handshakes.  (`KP_ntor`)
+    ///
+    /// Accessor function.
+    // TODO HS derive this accessor (see above)
+    pub fn ipt_ntor_key(&self) -> &curve25519::PublicKey {
+        &self.ipt_ntor_key
+    }
+
+    /// The key to be used to identify the onion service at this introduction point.
+    /// (`KP_hs_ipt_sid`)
+    ///
+    /// Accessor function.
+    // TODO HS derive this accessor (see above)
+    pub fn ipt_sid_key(&self) -> &HsIntroPtSessionIdKey {
+        &self.ipt_sid_key
+    }
+
+    /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
+    /// service_ when using this introduction point.
+    ///
+    /// The onion service uses a separate key of this type with each
+    /// introduction point as part of its strategy for preventing replay
+    /// attacks.
+    ///
+    /// Accessor function.
+    // TODO HS derive this accessor (see above)
+    pub fn svc_ntor_key(&self) -> &HsSvcNtorKey {
+        &self.svc_ntor_key
+    }
 }
 
 impl EncryptedHsDesc {
