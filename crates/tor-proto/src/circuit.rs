@@ -305,6 +305,27 @@ impl ClientCirc {
     /// while continuously monitoring for relevant incoming cells:
     /// there will necessarily be a gap between `send_control_message` returning,
     /// and being called again.
+    // TODO hs (Diziet): IMO the above limitation ^ shows the API is not right.
+    // There should probably be a separate function for when you're having
+    // a conversation, that *doesn't* mess with the handler.
+    // Something like this maybe:
+    //     // This behaves like `send_control_message`, but the returned
+    //     // future is a named type.
+    //     //
+    //     // Having two `Conversations` at once is forbidden.
+    //     fn converse_directly(
+    //         &self,
+    //         msgs: impl Iterator<Item=AnyRelayCell>,
+    //         reply_handler: impl MsgHandler + Send + 'static,
+    //     ) -> Result<Conversation<'_>>;
+    //     impl Future for Conversation<'_> {
+    //         type Output = Result<()>; ....
+    //     }
+    //     impl Conversation {
+    //         // `MsgHandler::msg_handler` gets a `Conversation<'_>` too
+    //         // in case it wants to call this
+    //         fn send_msg(&self, msg: AnyRelayCell> -> Result<()> {...}
+    //     }
     //
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
