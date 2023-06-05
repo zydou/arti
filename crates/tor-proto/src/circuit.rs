@@ -266,8 +266,21 @@ impl ClientCirc {
     /// Send a control message to the final hop on this circuit, and wait for
     /// one or more messages in reply.
     ///
-    /// (These steps are performed atomically, so that incoming messages can be
-    /// accepted immediately after the outbound message is sent.)
+    /// In detail:
+    ///
+    ///  1. `msg` is sent on the circuit.
+    ///
+    ///  2. After that, each message on the circuit that
+    ///     isn't handled by the core machinery
+    ///     is passed to `reply_handler`.
+    ///     So any reply to `msg` will be seen by `reply_handler`.
+    ///
+    ///  3. When `reply_handler` returns `UninstallHandler`,
+    ///     `send_control_message` will return.
+    ///
+    /// `reply_handler` will probably want to have ownership of a
+    /// an inter-task sending channel,
+    /// so that it can communicate its results.
     ///
     /// Note that it is quite possible to use this function to violate the tor
     /// protocol; most users of this API will not need to call it.  It is used
@@ -275,11 +288,23 @@ impl ClientCirc {
     ///
     /// # Limitations
     ///
-    /// For now, only one `MsgHandler` may be installed on a circuit at a time.
-    /// If you try to install another `MsgHandler`, or if try to extend this
-    /// circuit, before the `MsgHandler` you provide here returns
-    /// [`MetaCellDisposition::UninstallHandler`], the circuit will close with
-    /// an error.
+    /// Only one call to `send_control_message` may be active at any one time,
+    /// for any one circuit.
+    /// This generally means that this function should not be called
+    /// on a circuit which might be shared with anyone else.
+    ///
+    /// Likewise, it is forbidden to try to extend the circuit,
+    /// while `send_control_message` is running.
+    ///
+    /// If these restrictions are violated, the circuit will be closed with an error.
+    ///
+    /// After `send_control_message` has returned, the circuit may be extended,
+    /// or `send_control_message` called again.
+    /// Note that it is not currently possible, with this API,
+    /// to send a followup control message,
+    /// while continuously monitoring for relevant incoming cells:
+    /// there will necessarily be a gap between `send_control_message` returning,
+    /// and being called again.
     //
     // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
     //   "control" for a lot of other things. We say "meta" elsewhere in the
