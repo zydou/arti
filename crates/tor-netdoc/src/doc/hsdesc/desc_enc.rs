@@ -7,7 +7,6 @@ use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
 use tor_llcrypto::d::Sha3_256 as Hash;
 use tor_llcrypto::d::Shake256 as KDF;
 
-use arrayref::array_ref;
 use cipher::{KeyIvInit, StreamCipher};
 use digest::{ExtendableOutput, FixedOutput, Update, XofReader};
 use rand::{CryptoRng, Rng};
@@ -102,10 +101,15 @@ impl<'a> HsDescEncryption<'a> {
         }
         let msg_len = data.len() - SALT_LEN - MAC_LEN;
 
-        let salt = *array_ref![data, 0, SALT_LEN];
+        let salt = data[0..SALT_LEN]
+            .try_into()
+            .expect("Failed try_into for 16-byte array.");
         let ciphertext = &data[SALT_LEN..(SALT_LEN + msg_len)];
 
-        let expected_mac = CtByteArray::from(*array_ref![data, SALT_LEN + msg_len, MAC_LEN]);
+        let expected_mac = CtByteArray::from(
+            <[u8; MAC_LEN]>::try_from(&data[SALT_LEN + msg_len..SALT_LEN + msg_len + MAC_LEN])
+                .expect("Failed try_into for 32-byte array."),
+        );
         let (mut cipher, mut mac) = self.init(&salt);
 
         // check mac.

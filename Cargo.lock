@@ -89,12 +89,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arrayref"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
-
-[[package]]
 name = "arti"
 version = "1.1.5"
 dependencies = [
@@ -3809,7 +3803,6 @@ dependencies = [
 name = "tor-bytes"
 version = "0.7.1"
 dependencies = [
- "arrayref",
  "bytes",
  "digest 0.10.7",
  "educe",
@@ -3827,7 +3820,6 @@ dependencies = [
 name = "tor-cell"
 version = "0.11.0"
 dependencies = [
- "arrayref",
  "bitflags 2.3.1",
  "bytes",
  "caret",
@@ -4262,7 +4254,6 @@ name = "tor-llcrypto"
 version = "0.5.1"
 dependencies = [
  "aes",
- "arrayref",
  "base64ct",
  "cipher",
  "ctr",
@@ -4335,7 +4326,6 @@ dependencies = [
 name = "tor-netdoc"
 version = "0.8.0"
 dependencies = [
- "arrayref",
  "base64ct",
  "bitflags 2.3.1",
  "cipher",
@@ -4394,7 +4384,6 @@ dependencies = [
 name = "tor-proto"
 version = "0.11.0"
 dependencies = [
- "arrayref",
  "asynchronous-codec",
  "bytes",
  "cipher",

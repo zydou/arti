@@ -180,8 +180,8 @@ mod ed25519_impls {
     }
     impl Readable for ed25519::PublicKey {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
-            let bytes = b.take(32)?;
-            Self::from_bytes(array_ref![bytes, 0, 32])
+            let bytes: [u8; 32] = b.extract()?;
+            Self::from_bytes(&bytes)
                 .map_err(|_| Error::InvalidMessage("Couldn't decode Ed25519 public key".into()))
         }
     }
@@ -194,8 +194,8 @@ mod ed25519_impls {
     }
     impl Readable for ed25519::Ed25519Identity {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
-            let bytes = b.take(32)?;
-            Ok(Self::new(*array_ref![bytes, 0, 32]))
+            let bytes: [u8; 32] = b.extract()?;
+            Ok(Self::new(bytes))
         }
     }
     impl Writeable for ed25519::Signature {
@@ -206,8 +206,8 @@ mod ed25519_impls {
     }
     impl Readable for ed25519::Signature {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
-            let bytes = b.take(64)?;
-            Self::from_bytes(array_ref![bytes, 0, 64])
+            let bytes: [u8; 64] = b.extract()?;
+            Self::from_bytes(&bytes)
                 .map_err(|_| Error::InvalidMessage("Couldn't decode Ed25519 signature.".into()))
         }
     }
@@ -226,8 +226,8 @@ mod curve25519_impls {
     }
     impl Readable for PublicKey {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
-            let bytes = b.take(32)?;
-            Ok((*array_ref![bytes, 0, 32]).into())
+            let bytes: [u8; 32] = b.extract()?;
+            Ok(bytes.into())
         }
     }
     impl Writeable for SharedSecret {

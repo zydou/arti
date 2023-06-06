@@ -217,7 +217,6 @@ pub fn blind_keypair(
     keypair: &ExpandedKeypair,
     h: [u8; 32],
 ) -> Result<ExpandedKeypair, BlindingError> {
-    use arrayref::{array_mut_ref, array_ref};
     use zeroize::Zeroizing;
 
     /// Fixed string specified in rend-spec-v3.txt, used for blinding the
@@ -230,7 +229,11 @@ pub fn blind_keypair(
     let mut blinded_key_bytes = Zeroizing::new([0_u8; 64]);
 
     {
-        let secret_key = Scalar::from_bits(*array_ref!(secret_key_bytes, 0, 32));
+        let secret_key = Scalar::from_bits(
+            secret_key_bytes[0..32]
+                .try_into()
+                .expect("32-byte array not 32 bytes long!?"),
+        );
         let blinded_key = secret_key * blinding_factor;
         blinded_key_bytes[0..32].copy_from_slice(blinded_key.as_bytes());
     }
@@ -240,7 +243,11 @@ pub fn blind_keypair(
         h.update(RH_BLIND_STRING);
         h.update(&secret_key_bytes[32..]);
         let mut d = Zeroizing::new([0_u8; 64]);
-        h.finalize_into(array_mut_ref!(d, 0, 64).into());
+        h.finalize_into(
+            d.as_mut()
+                .try_into()
+                .expect("64-byte array not 64 bytes long!?"),
+        );
         blinded_key_bytes[32..64].copy_from_slice(&d[0..32]);
     }
 
@@ -413,7 +420,7 @@ mod tests {
             } else {
                 let blinded_sk_bytes = blinded_kp.secret.to_bytes();
                 let blinded_sk_scalar =
-                    Scalar::from_bits(*arrayref::array_ref!(blinded_sk_bytes, 0, 32));
+                    Scalar::from_bits(blinded_sk_bytes[0..32].try_into().unwrap());
                 let pk2 = blinded_sk_scalar * curve25519_dalek::constants::ED25519_BASEPOINT_POINT;
                 let pk2 = pk2.compress();
                 assert_eq!(pk2.as_bytes(), blinded_pk.as_bytes());

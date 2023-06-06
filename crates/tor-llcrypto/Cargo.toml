@@ -32,7 +32,6 @@ __is_experimental = []
 
 [dependencies]
 aes = { version = "0.8", features = ["zeroize"] }
-arrayref = "0.3"
 base64ct = "1.5.1"
 cipher = { version = "0.4.3", optional = true, features = ["zeroize"] }
 ctr = { version = "0.9", features = ["zeroize"] }

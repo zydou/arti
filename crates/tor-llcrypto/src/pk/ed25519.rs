@@ -9,7 +9,6 @@
 //! unvalidated Ed25519 "identity keys" that we use throughout the Tor
 //! protocol to uniquely identify a relay.
 
-use arrayref::array_ref;
 use base64ct::{Base64Unpadded, Encoding as _};
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
@@ -90,11 +89,7 @@ impl Ed25519Identity {
     }
     /// If `id` is of the correct length, wrap it in an Ed25519Identity.
     pub fn from_bytes(id: &[u8]) -> Option<Self> {
-        if id.len() == 32 {
-            Some(Ed25519Identity::new(*array_ref!(id, 0, 32)))
-        } else {
-            None
-        }
+        Some(Ed25519Identity::new(id.try_into().ok()?))
     }
     /// Return a reference to the bytes in this key.
     pub fn as_bytes(&self) -> &[u8] {

@@ -78,7 +78,6 @@ dangerous-expose-struct-fields = ["visible", "visibility", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-arrayref = "0.3"
 base64ct = { version = "1.5.1", features = ["alloc"] }
 bitflags = "2"
 cipher = { version = "0.4.1", features = ["zeroize"] }

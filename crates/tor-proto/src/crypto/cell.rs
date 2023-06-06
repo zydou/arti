@@ -414,10 +414,13 @@ pub(crate) mod tor1 {
             rcvd: &mut GenericArray<u8, D::OutputSize>,
         ) -> bool {
             use crate::util::ct;
-            use arrayref::array_ref;
 
             // Validate 'Recognized' field
-            let recognized = u16::from_be_bytes(*array_ref![self.0, 1, 2]);
+            let recognized = u16::from_be_bytes(
+                self.0[1..3]
+                    .try_into()
+                    .expect("Two-byte field was not two bytes!?"),
+            );
             if recognized != 0 {
                 return false;
             }
