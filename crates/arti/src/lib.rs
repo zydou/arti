@@ -180,12 +180,34 @@ async fn run<R: Runtime>(
     let client = client_builder.create_unbootstrapped()?;
     reload_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
 
+    #[cfg(all(feature = "rpc", feature = "tokio"))]
+    let rpc_mgr = {
+        // TODO RPC This code doesn't really belong here; it's just an example.
+        if let Some(listen_path) = rpc_path {
+            // TODO Conceivably this listener belongs on a renamed "proxy" list.
+            Some(rpc::launch_rpc_listener(
+                &runtime,
+                listen_path,
+                client.clone(),
+            )?)
+        } else {
+            None
+        }
+    };
+
     let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
     if socks_port != 0 {
         let runtime = runtime.clone();
         let client = client.isolated_client();
         proxy.push(Box::pin(async move {
-            let res = socks::run_socks_proxy(runtime, client, socks_port).await;
+            let res = socks::run_socks_proxy(
+                runtime,
+                client,
+                socks_port,
+                #[cfg(all(feature = "rpc", feature = "tokio"))]
+                rpc_mgr,
+            )
+            .await;
             (res, "SOCKS")
         }));
     }
@@ -209,18 +231,6 @@ async fn run<R: Runtime>(
     if proxy.is_empty() {
         warn!("No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option.");
         return Ok(());
-    }
-
-    #[cfg(all(feature = "rpc", feature = "tokio"))]
-    {
-        use futures::task::SpawnExt;
-        // TODO RPC This code doesn't really belong here; it's just an example.
-        if let Some(listen_path) = rpc_path {
-            let rt_clone = runtime.clone();
-            // TODO Conceivably this listener belongs on a renamed "proxy" list.
-            runtime
-                .spawn(rpc::run_rpc_listener(rt_clone, listen_path, client.clone()).map(|_| ()))?;
-        }
     }
 
     let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);

@@ -22,8 +22,9 @@ use tor_async_utils::SinkExt as _;
 use crate::{
     cancel::{Cancel, CancelHandle},
     err::RequestParseError,
+    globalid::{GlobalId, MacKey},
     msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
-    objmap::ObjMap,
+    objmap::{GenIdx, ObjMap},
 };
 
 use tor_rpcbase as rpc;
@@ -38,6 +39,20 @@ pub struct Connection {
     /// Lookup table to find the implementations for methods
     /// based on RPC object and method types.
     dispatch_table: Arc<rpc::DispatchTable>,
+
+    /// A unique identifier for this connection.
+    ///
+    /// This kind of ID is used to refer to the connection from _outside_ of the
+    /// context of an RPC connection: it can uniquely identify the connection
+    /// from e.g. a SOCKS session so that clients can attach streams to it.
+    ///
+    /// TODO RPC: Remove this if it turns out to be unneeded.
+    #[allow(unused)]
+    connection_id: ConnectionId,
+
+    /// A `MacKey` used to create `GlobalIds` for the objects whose identifiers
+    /// need to exist outside this connection.
+    global_id_mac_key: MacKey,
 }
 impl rpc::Object for Connection {}
 rpc::decl_object! {Connection}
@@ -75,10 +90,34 @@ pub(crate) type BoxedRequestStream = Pin<
 pub(crate) type BoxedResponseSink =
     Pin<Box<dyn Sink<BoxedResponse, Error = asynchronous_codec::JsonCodecError> + Send>>;
 
+/// A random value used to identify an connection.
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    derive_more::From,
+    derive_more::Into,
+    derive_more::AsRef,
+)]
+
+// TODO RPC: Document this, and make it participate in the Reader/Writer API
+// enough that we can stop referring to its internals elsewhere.
+pub(crate) struct ConnectionId([u8; 16]);
+
+impl ConnectionId {
+    /// The length of a ConnectionId.
+    pub(crate) const LEN: usize = 16;
+}
+
 impl Connection {
     /// Create a new connection.
     pub(crate) fn new(
+        connection_id: ConnectionId,
         dispatch_table: Arc<rpc::DispatchTable>,
+        global_id_mac_key: MacKey,
         client: Arc<dyn rpc::Object>,
     ) -> Self {
         Self {
@@ -88,6 +127,43 @@ impl Connection {
                 client,
             }),
             dispatch_table,
+            connection_id,
+            global_id_mac_key,
+        }
+    }
+
+    /// If possible, convert an `ObjectId` into a `GenIdx` that can be used in
+    /// this connection's ObjMap.
+    fn id_into_local_idx(&self, id: &rpc::ObjectId) -> Result<GenIdx, rpc::LookupError> {
+        // TODO RPC: Use a tag byte instead of a magic length.
+
+        if id.as_ref().len() == GlobalId::B64_ENCODED_LEN {
+            // This is the right length to be a GlobalId; let's see if it really
+            // is one.
+            //
+            // Design note: It's not really necessary from a security POV to
+            // check the MAC here; any possible GenIdx we return will either
+            // refer to some object we're allowed to name in this session, or to
+            // no object at all.  Still, we check anyway, since it shouldn't
+            // hurt to do so.
+            let global_id = GlobalId::try_decode(&self.global_id_mac_key, id)?;
+            // We have a GlobalId with a valid MAC. Let's make sure it applies
+            // to this connection's ObjMap.  (We do not support referring to
+            // anyone else's objects.)
+            //
+            // Design note: As above, this check is a protection against
+            // accidental misuse, not a security feature: even if we removed
+            // this check, we would still only allow objects that this session
+            // is allowed to name.
+            if global_id.connection == self.connection_id {
+                Ok(global_id.local_id)
+            } else {
+                Err(rpc::LookupError::NoObject(id.clone()))
+            }
+        } else {
+            // It's not a GlobalId; let's see if we can make sense of it as an
+            // ObjMap index.
+            Ok(GenIdx::try_decode(id)?)
         }
     }
 
@@ -96,16 +172,23 @@ impl Connection {
         self: &Arc<Self>,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        let inner = self.inner.lock().expect("lock poisoned");
-
         if id.as_ref() == "connection" {
             Ok(self.clone())
         } else {
-            inner
-                .objects
-                .lookup(crate::objmap::GenIdx::try_decode(id)?)
+            let local_id = self.id_into_local_idx(id)?;
+
+            self.lookup_by_idx(local_id)
                 .ok_or(rpc::LookupError::NoObject(id.clone()))
         }
+    }
+
+    /// As `lookup_object`, but expect a `GenIdx`.
+    pub(crate) fn lookup_by_idx(
+        self: &Arc<Self>,
+        idx: crate::objmap::GenIdx,
+    ) -> Option<Arc<dyn rpc::Object>> {
+        let inner = self.inner.lock().expect("lock poisoned");
+        inner.objects.lookup(idx)
     }
 
     /// Un-register the request `id` and stop tracking its information.
@@ -358,27 +441,45 @@ impl rpc::Context for RequestContext {
     }
 
     fn register_owned(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        self.conn
+        let use_global_id = object.expose_outside_of_session();
+        let local_id = self
+            .conn
             .inner
             .lock()
             .expect("Lock poisoned")
             .objects
-            .insert_strong(object)
-            .encode()
+            .insert_strong(object);
+
+        // Design note: It is a deliberate decision to _always_ use GlobalId for
+        // objects whose IDs are _ever_ exported for use in SOCKS requests.  Some
+        // alternatives would be to use GlobalId conditionally, or to have a
+        // separate Method to create a new GlobalId given an existing LocalId.
+        if use_global_id {
+            GlobalId::new(self.conn.connection_id, local_id).encode(&self.conn.global_id_mac_key)
+        } else {
+            local_id.encode()
+        }
     }
 
     fn register_weak(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        self.conn
+        let use_global_id = object.expose_outside_of_session();
+        let local_id = self
+            .conn
             .inner
             .lock()
             .expect("Lock poisoned")
             .objects
-            .insert_weak(object)
-            .encode()
+            .insert_weak(object);
+        if use_global_id {
+            GlobalId::new(self.conn.connection_id, local_id).encode(&self.conn.global_id_mac_key)
+        } else {
+            local_id.encode()
+        }
     }
 
     fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
-        let idx = crate::objmap::GenIdx::try_decode(id)?;
+        let idx = self.conn.id_into_local_idx(id)?;
+
         if !idx.is_strong() {
             return Err(rpc::LookupError::WrongType(id.clone()));
         }

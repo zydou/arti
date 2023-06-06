@@ -4,7 +4,23 @@ use downcast_rs::DowncastSync;
 use serde::{Deserialize, Serialize};
 
 /// An object in our RPC system to which methods can be addressed.
-pub trait Object: DowncastSync {}
+pub trait Object: DowncastSync {
+    /// Return true if this object should be given an identifier that allows it
+    /// to be used outside of the session that generated it.
+    ///
+    /// Currently, the only use for such IDs in arti is identifying stream
+    /// contexts in when opening a SOCKS connection: When an application opens a
+    /// stream, it needs to declare what RPC context (like a `TorClient`) it's
+    /// using, which requires that some identifier for that context exist
+    /// outside of the RPC session that owns it.
+    //
+    // TODO RPC: It would be neat if this were automatically set to true if and
+    // only if there were any "out-of-session psuedomethods" defined on the
+    // object.
+    fn expose_outside_of_session(&self) -> bool {
+        false
+    }
+}
 downcast_rs::impl_downcast!(sync Object);
 
 /// An identifier for an Object within the context of a Session.
