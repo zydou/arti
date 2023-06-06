@@ -201,6 +201,8 @@ where
 }
 
 /// A list of subprotocol versions that implementors should/must provide.
+///
+/// Each consensus has two of these: one for relays, and one for clients.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct ProtoStatus {
@@ -679,6 +681,18 @@ impl<RS> Consensus<RS> {
     pub fn shared_rand_prev(&self) -> Option<&SharedRandStatus> {
         self.header.shared_rand_prev.as_ref()
     }
+
+    /// Return a [`ProtoStatus`] that lists the network's current requirements and
+    /// recommendations for the list of protocols that every relay must implement.  
+    pub fn relay_protocol_status(&self) -> &ProtoStatus {
+        &self.header.hdr.relay_protos
+    }
+
+    /// Return a [`ProtoStatus`] that lists the network's current requirements and
+    /// recommendations for the list of protocols that every client must implement.
+    pub fn client_protocol_status(&self) -> &ProtoStatus {
+        &self.header.hdr.client_protos
+    }
 }
 
 decl_keyword! {
@@ -894,6 +908,24 @@ impl ProtoStatus {
             recommended,
             required,
         })
+    }
+
+    /// Return the protocols that are listed as "required" in this `ProtoStatus`.
+    ///
+    /// Implementations may assume that relays on the network implement all the
+    /// protocols in the relays' required-protocols list.  Implementations should
+    /// refuse to start if they do not implement all the protocols on their own
+    /// (client or relay) required-protocols list.
+    pub fn required_protocols(&self) -> &Protocols {
+        &self.required
+    }
+
+    /// Return the protocols that are listed as "recommended" in this `ProtoStatus`.
+    ///
+    /// Implementations should warn if they do not implement all the protocols
+    /// on their own (client or relay) recommended-protocols list.
+    pub fn recommended_protocols(&self) -> &Protocols {
+        &self.recommended
     }
 }
 
