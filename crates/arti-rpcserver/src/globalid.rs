@@ -64,20 +64,10 @@ impl MacKey {
     ///
     /// The current construction allows `out` to be any length.
     fn mac(&self, inp: &[u8], out: &mut [u8]) {
-        use tiny_keccak::{Hasher as _, KangarooTwelve as K12};
-        // This is the HopMAC construction from draft-irtf-cfrg-kangarootwelve-10:
-        //
-        //     HopMAC(Key, M, C, L) = K12(Key, K12(M, C, 32), L)
-        //
-        // TODO RPC: Just use KMAC or something.
-        let mut inner = K12::new(b"artirpc globalid");
-        let mut hash = [0_u8; 32];
-        inner.update(inp);
-        inner.finalize(&mut hash);
-
-        let mut outer = K12::new(hash);
-        outer.update(&self.key[..]);
-        outer.finalize(out);
+        use tiny_keccak::{Hasher as _, Kmac};
+        let mut mac = Kmac::v128(&self.key[..], b"artirpc globalid");
+        mac.update(inp);
+        mac.finalize(out);
     }
 }
 
