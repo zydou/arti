@@ -42,6 +42,7 @@ mod connect;
 mod err;
 mod isol_map;
 mod keys;
+mod relay_info;
 mod state;
 
 use std::future::Future;

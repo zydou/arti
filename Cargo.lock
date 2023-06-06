@@ -4151,6 +4151,7 @@ dependencies = [
  "tokio",
  "tor-async-utils",
  "tor-basic-utils",
+ "tor-bytes",
  "tor-chanmgr",
  "tor-checkable",
  "tor-circmgr",
