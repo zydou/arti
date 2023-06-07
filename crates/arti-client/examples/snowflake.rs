@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
     // Add a second bridge, built by hand. We use the 2nd bridge line from above, but modify some
     // parameters to use AMP Cache instead of Fastly as a signaling channel. The difference in
     // configuration is detailed in
-    // https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/tree/main/client
+    // https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/tree/main/client#amp-cache
     let mut bridge2_builder = BridgeConfigBuilder::default();
     bridge2_builder
         .transport("snowflake")
