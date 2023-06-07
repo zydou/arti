@@ -1081,6 +1081,25 @@ impl NetDir {
     pub fn params(&self) -> &NetParameters {
         &self.params
     }
+
+    /// Return a [`ProtoStatus`](netstatus::ProtoStatus) that lists the
+    /// network's current requirements and recommendations for the list of
+    /// protocols that every relay must implement.
+    //
+    // TODO HS: I am not sure this is the right API; other alternatives would be:
+    //    * To expose the _required_ relay protocol list instead (since that's all that
+    //      onion service implementations need).
+    //    * To expose the client protocol list as well (for symmetry).
+    //    * To expose the MdConsensus instead (since that's more general, although
+    //      it restricts the future evolution of this API).
+    //
+    // I think that this is a reasonably good compromise for now, but I'm going
+    // to put it behind the `hs-common` feature to give us time to consider more.
+    #[cfg(feature = "hs-common")]
+    pub fn relay_protocol_status(&self) -> &netstatus::ProtoStatus {
+        self.consensus.relay_protocol_status()
+    }
+
     /// Return weighted the fraction of relays we can use.  We only
     /// consider relays that match the predicate `usable`.  We weight
     /// this bandwidth according to the provided `role`.

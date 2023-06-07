@@ -44,13 +44,14 @@ safelog = { path = "../safelog", version = "0.3.1" }
 slotmap = "1.0.6"
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
+tor-bytes = { path = "../tor-bytes", version = "0.7.1" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.1" }
 tor-circmgr = { version = "0.9.0", path = "../tor-circmgr", features = ["hs-client"] }
 tor-config = { path = "../tor-config", version = "0.9.1" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.7.1", default-features = false, features = ["hs-client"] }
 tor-error = { path = "../tor-error", version = "0.5.1", features = ["experimental-api"] }                            # TODO HS
 tor-hscrypto = { version = "0.2.1", path = "../tor-hscrypto" }
-tor-linkspec = { version = "0.8.0", path = "../tor-linkspec" }
+tor-linkspec = { version = "0.8.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
 tor-llcrypto = { version = "0.5.1", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.9.1", path = "../tor-netdir", features = ["hs-client"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.8.0", features = ["hs-client"] }
