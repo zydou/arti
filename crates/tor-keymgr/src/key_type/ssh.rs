@@ -3,15 +3,54 @@
 // TODO hs: OpenSSH keys can have passphrases. While the current implementation isn't able to
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
+use ssh_key::private::KeypairData;
 pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 
+use std::io::ErrorKind;
 use std::path::Path;
 
-use crate::{EncodableKey, ErasedKey, KeyType, Result};
+use crate::{EncodableKey, ErasedKey, Error, KeyType, Result};
+
+use tor_llcrypto::pk::ed25519;
+
+/// A helper for reading Ed25519 OpenSSH private keys from disk.
+fn read_ed25519_keypair(key_type: KeyType, path: &Path) -> Result<ErasedKey> {
+    let key = ssh_key::PrivateKey::read_openssh_file(path).map_err(|e| {
+        if matches!(e, ssh_key::Error::Io(ErrorKind::NotFound)) {
+            Error::NotFound { /* TODO hs */ }
+        } else {
+            Error::SshKeyRead {
+                path: path.into(),
+                key_type,
+                err: e.into(),
+            }
+        }
+    })?;
+
+    // Build the expected key type (i.e. convert ssh_key key types to the key types
+    // we're using internally).
+    let key = match key.key_data() {
+        KeypairData::Ed25519(key) => {
+            ed25519::Keypair::from_bytes(&key.to_bytes()).map_err(|_| {
+                Error::Bug(tor_error::internal!(
+                    "failed to build ed25519 key out of ed25519 OpenSSH key"
+                ))
+            })?;
+        }
+        _ => {
+            return Err(Error::UnexpectedSshKeyType {
+                path: path.into(),
+                wanted_key_algo: key_type.ssh_algorithm(),
+                found_key_algo: key.algorithm(),
+            });
+        }
+    };
+
+    Ok(Box::new(key))
+}
 
 impl KeyType {
     /// Get the algorithm of this key type.
-    #[allow(unused)] // TODO hs remove
     pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
         match self {
             KeyType::Ed25519Keypair => SshKeyAlgorithm::Ed25519,
@@ -32,8 +71,14 @@ impl KeyType {
     /// type-erased value.
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn read_ssh_format_erased(&self, _path: &Path) -> Result<ErasedKey> {
-        todo!() // TODO hs
+    pub(crate) fn read_ssh_format_erased(&self, path: &Path) -> Result<ErasedKey> {
+        match self {
+            KeyType::Ed25519Keypair => read_ed25519_keypair(*self, path),
+            KeyType::X25519StaticSecret => {
+                // TODO hs: implement
+                Err(Error::NotFound {})
+            }
+        }
     }
 
     /// Encode an OpenSSH-formatted key and write it to the specified file.
