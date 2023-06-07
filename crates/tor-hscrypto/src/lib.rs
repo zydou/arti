@@ -91,3 +91,9 @@ define_bytes! {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct RendCookie([u8; REND_COOKIE_LEN]);
 }
+
+impl rand::distributions::Distribution<RendCookie> for rand::distributions::Standard {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> RendCookie {
+        RendCookie(rng.gen::<[u8; REND_COOKIE_LEN]>().into())
+    }
+}
