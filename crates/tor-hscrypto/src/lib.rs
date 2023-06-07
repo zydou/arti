@@ -77,6 +77,9 @@ pub struct Subcredential([u8; 32]);
 )]
 pub struct RevisionCounter(u64);
 
+/// Length of a `RENDEZVOUS` cookie
+const REND_COOKIE_LEN: usize = 20;
+
 define_bytes! {
 /// An opaque value `RENDEZVOUS_COOKIE` used at a rendezvous point to match clients and services.
 ///
@@ -86,5 +89,5 @@ define_bytes! {
 /// `ESTABLISH_RENDEZVOUS` message; the service later provides the same value in its
 /// `RENDEZVOUS1` message.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct RendCookie([u8; 20]);
+pub struct RendCookie([u8; REND_COOKIE_LEN]);
 }
