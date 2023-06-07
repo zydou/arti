@@ -14,6 +14,7 @@ pub(crate) struct Session {
     #[allow(unused)]
     client: Arc<dyn rpc::Object>,
 }
+rpc::impl_const_type_id! { Session } // XXXX
 impl rpc::Object for Session {
     fn expose_outside_of_session(&self) -> bool {
         // A session object can bue used to open a connection to its underlying
@@ -21,7 +22,6 @@ impl rpc::Object for Session {
         true
     }
 }
-rpc::decl_object! {Session}
 
 impl Session {
     /// Create a new session object.

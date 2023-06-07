@@ -54,7 +54,6 @@ pub struct Connection {
     /// need to exist outside this connection.
     global_id_mac_key: MacKey,
 }
-impl rpc::Object for Connection {}
 rpc::decl_object! {Connection}
 
 /// The inner, lock-protected part of an RPC connection.

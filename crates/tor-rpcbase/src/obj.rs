@@ -72,6 +72,7 @@ macro_rules! decl_object {
     {
         $(
             $crate::impl_const_type_id!{$id}
+            impl $crate::Object for $id {}
         )*
     }
 }

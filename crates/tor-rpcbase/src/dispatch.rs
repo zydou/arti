@@ -315,10 +315,6 @@ mod test {
     #[derive(Clone)]
     struct Brick;
 
-    impl crate::Object for Swan {}
-    impl crate::Object for Wombat {}
-    impl crate::Object for Sheep {}
-    impl crate::Object for Brick {}
     crate::decl_object! {Swan Wombat Sheep Brick}
 
     // Define 2 methods.
