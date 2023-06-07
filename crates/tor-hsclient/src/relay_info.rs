@@ -76,6 +76,10 @@ pub(crate) fn ipt_to_circtarget(
 
 /// We were given unusable information about an introduction point or rendezvous
 /// point.
+//
+// TODO HS probably this should be in err.rs and maybe it should be renamed?
+// It's only used for introduction points; rendezvous points come from the directory.
+// Maybe it should be folded into IntroRendError ?
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum InvalidTarget {
