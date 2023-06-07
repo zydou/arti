@@ -117,6 +117,14 @@ println!("{}", String::from_utf8_lossy(&buf));
 #
 ```
 
+### Bridge usage
+
+Bridges and Pluggable Transports (PT) can be used as censorship circunvention tools
+to connect to Tor in places where it is otherwise blocked. In arti, they are
+configured through [`config::BridgesConfig`]. You will need to enable the feature
+`pt-client` for PT support. You can read more about PTs in
+[the glossary](https://support.torproject.org/glossary/pluggable-transports/)
+
 ### More advanced usage
 
 This version of Arti includes basic support for "stream isolation": the

@@ -228,12 +228,14 @@ impl StorageConfig {
 /// let mut builder = TorClientConfig::builder();
 ///
 /// // Add a single bridge to the list of bridges, from a bridge line.
+/// // This bridge line is made up for demonstration, and won't work.
 /// const BRIDGE1_LINE : &str = "Bridge obfs4 192.0.2.55:38114 316E643333645F6D79216558614D3931657A5F5F cert=YXJlIGZyZXF1ZW50bHkgZnVsbCBvZiBsaXR0bGUgbWVzc2FnZXMgeW91IGNhbiBmaW5kLg iat-mode=0";
 /// let bridge_1: BridgeConfigBuilder = BRIDGE1_LINE.parse()?;
 /// // This is where we pass `BRIDGE1_LINE` into the BridgeConfigBuilder.
 /// builder.bridges().bridges().push(bridge_1);
 ///
 /// // Add a second bridge, built by hand.  This way is harder.
+/// // This bridge is made up for demonstration, and won't work.
 /// let mut bridge2_builder = BridgeConfigBuilder::default();
 /// bridge2_builder
 ///     .transport("obfs4")
