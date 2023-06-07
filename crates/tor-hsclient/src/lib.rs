@@ -59,6 +59,7 @@ use tor_rtcompat::Runtime;
 
 pub use err::{ConnError, DescriptorError, DescriptorErrorDetail, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
+pub use relay_info::InvalidTarget;
 
 use state::Services;
 
