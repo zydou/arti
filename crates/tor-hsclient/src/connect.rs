@@ -373,6 +373,12 @@ trait MockableCircPool<R> {
         kind: HsCircKind,
         target: impl CircTarget + Send + Sync + 'async_trait,
     ) -> tor_circmgr::Result<Arc<Self::ClientCirc>>;
+
+    /// Client circuit
+    async fn get_or_launch_client_rend<'a>(
+        &self,
+        netdir: &'a NetDir,
+    ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)>;
 }
 /// Mock for `ClientCirc`
 #[async_trait]
@@ -400,6 +406,12 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
         target: impl CircTarget + Send + Sync + 'async_trait,
     ) -> tor_circmgr::Result<Arc<ClientCirc>> {
         HsCircPool::get_or_launch_specific(self, netdir, kind, target).await
+    }
+    async fn get_or_launch_client_rend<'a>(
+        &self,
+        netdir: &'a NetDir,
+    ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)> {
+        HsCircPool::get_or_launch_client_rend(self, netdir).await
     }
 }
 #[async_trait]
@@ -505,6 +517,13 @@ mod test {
             // Adding the `Arc` here is a little ugly, but that's what we get
             // for using the same Mocks for everything.
             Ok(Arc::new(self.clone()))
+        }
+        /// Client circuit
+        async fn get_or_launch_client_rend<'a>(
+            &self,
+            netdir: &'a NetDir,
+        ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)> {
+            todo!()
         }
     }
     #[async_trait]
