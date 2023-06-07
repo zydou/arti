@@ -8,6 +8,7 @@ use tracing::error;
 
 use retry_error::RetryError;
 use safelog::Redacted;
+use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
@@ -58,15 +59,7 @@ pub struct DescriptorError {
     #[source]
     pub error: DescriptorErrorDetail,
 }
-
-// This trivial AsRef impl enables use of `tor_error::Report`
-// TODO: It would nice if this could be generated more automatically;
-// it's basically `impl AsRef<dyn Trait> for T where T: Trait`.
-impl AsRef<dyn std::error::Error + 'static> for DescriptorError {
-    fn as_ref(&self) -> &(dyn std::error::Error + 'static) {
-        self as _
-    }
-}
+define_asref_dyn_std_error!(DescriptorError);
 
 /// Error that occurred attempting to download a descriptor
 #[derive(Error, Clone, Debug)]
