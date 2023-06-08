@@ -4,6 +4,7 @@
 use std::time::Duration;
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -759,7 +760,7 @@ trait MockableCircPool<R> {
 }
 /// Mock for `ClientCirc`
 #[async_trait]
-trait MockableClientCirc {
+trait MockableClientCirc: Debug {
     /// Client circuit
     type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
     async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
