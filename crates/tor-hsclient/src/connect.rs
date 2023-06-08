@@ -18,7 +18,7 @@ use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::Requestable as _;
 use tor_error::{into_internal, ErrorReport as _};
 use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsClientDescEncKey, HsId, HsIdKey};
-use tor_linkspec::OwnedCircTarget;
+use tor_linkspec::{CircTarget, OwnedCircTarget};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_netdoc::doc::hsdesc::HsDesc;
@@ -371,7 +371,7 @@ trait MockableCircPool<R> {
         &self,
         netdir: &NetDir,
         kind: HsCircKind,
-        target: OwnedCircTarget,
+        target: impl CircTarget + Send + Sync + 'async_trait,
     ) -> tor_circmgr::Result<Arc<Self::ClientCirc>>;
 }
 /// Mock for `ClientCirc`
@@ -397,9 +397,9 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
         &self,
         netdir: &NetDir,
         kind: HsCircKind,
-        target: OwnedCircTarget,
+        target: impl CircTarget + Send + Sync + 'async_trait,
     ) -> tor_circmgr::Result<Arc<ClientCirc>> {
-        MockableCircPool::get_or_launch_specific(self, netdir, kind, target).await
+        HsCircPool::get_or_launch_specific(self, netdir, kind, target).await
     }
 }
 #[async_trait]
@@ -497,9 +497,10 @@ mod test {
             &self,
             _netdir: &NetDir,
             kind: HsCircKind,
-            target: OwnedCircTarget,
+            target: impl CircTarget + Send + Sync + 'async_trait,
         ) -> tor_circmgr::Result<Arc<Self::ClientCirc>> {
             assert_eq!(kind, HsCircKind::ClientHsDir);
+            let target = OwnedCircTarget::from_circ_target(&target);
             self.mglobal.lock().unwrap().hsdirs_asked.push(target);
             // Adding the `Arc` here is a little ugly, but that's what we get
             // for using the same Mocks for everything.
