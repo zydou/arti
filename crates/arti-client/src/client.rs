@@ -182,7 +182,7 @@ pub struct StreamPrefs {
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
     /// Whether to try to make connections to onion services.
-    #[cfg(feature = "hs-client")]
+    #[cfg(feature = "onion-client")]
     #[allow(dead_code)]
     connect_to_onion_services: bool, // TODO hs: this should default to "true".
 }
