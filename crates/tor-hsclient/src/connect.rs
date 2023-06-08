@@ -40,12 +40,15 @@ use ConnError as CE;
 pub struct Data {
     /// The latest known onion service descriptor for this service.
     #[educe(Debug(ignore))] // TODO HS do better than this
-    desc: Option<TimerangeBound<HsDesc>>,
+    desc: DataHsDesc,
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
     ///
     ipts: (), // TODO hs: make this type real, use `RetryDelay`, etc.
 }
+
+/// Part of `Data` that relates to the HS descriptor
+type DataHsDesc = Option<TimerangeBound<HsDesc>>;
 
 /// Actually make a HS connection, updating our recorded state as necessary
 ///
@@ -162,7 +165,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let mocks = self.mocks.clone();
 
-        let desc = self.descriptor_ensure(data).await?;
+        let desc = self.descriptor_ensure(&mut data.desc).await?;
 
         mocks.test_got_desc(desc);
 
@@ -179,7 +182,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ///
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
-    async fn descriptor_ensure<'d>(&self, data: &'d mut Data) -> Result<&'d HsDesc, CE> {
+    async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         // TODO HS are these right? make configurable?
         // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
@@ -187,13 +190,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
-        if let Some(previously) = &data.desc {
+        if let Some(previously) = data {
             let now = self.runtime.wallclock();
             if let Ok(_desc) = previously.as_ref().check_valid_at(&now) {
                 // Ideally we would just return desc but that confuses borrowck.
                 // https://github.com/rust-lang/rust/issues/51545
                 return Ok(data
-                    .desc
                     .as_ref()
                     .expect("Some but now None")
                     .as_ref()
@@ -262,7 +264,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         //
         // It is safe to dangerously_assume_timely,
         // as descriptor_fetch_attempt has already checked the timeliness of the descriptor.
-        let ret = data.desc.insert(desc);
+        let ret = data.insert(desc);
         Ok(ret.as_ref().dangerously_assume_timely())
     }
 
