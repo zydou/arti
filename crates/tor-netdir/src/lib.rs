@@ -483,6 +483,13 @@ pub enum Timeliness {
 
 /// An object that can provide [`NetDir`]s, as well as inform consumers when
 /// they might have changed.
+///
+/// It is the responsibility of the implementor of `NetDirProvider`
+/// to try to obtain an up-to-date `NetDir`,
+/// and continuously to maintain and update it.
+///
+/// In usual configurations, Arti uses `tor_dirmgr::DirMgr`
+/// as its `NetDirProvider`.
 pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     /// Return a network directory that's live according to the provided
     /// `timeliness`.
