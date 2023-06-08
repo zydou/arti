@@ -763,6 +763,13 @@ trait MockableClientCirc {
     /// Client circuit
     type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
     async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
+
+    /// Send a control message
+    async fn send_control_message(
+        &self,
+        msg: AnyRelayCell,
+        reply_handler: impl MsgHandler + Send + 'static
+    ) -> tor_proto::Result<()>;
 }
 
 impl<R: Runtime> MocksForConnect<R> for () {
@@ -797,6 +804,13 @@ impl MockableClientCirc for ClientCirc {
     type DirStream = tor_proto::stream::DataStream;
     async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
         ClientCirc::begin_dir_stream(self).await
+    }
+    async fn send_control_message(
+        &self,
+        msg: AnyRelayCell,
+        reply_handler: impl MsgHandler + Send + 'static
+    ) -> tor_proto::Result<()> {
+        ClientCirc::send_control_message(self, msg, reply_handler).await
     }
 }
 
@@ -920,6 +934,13 @@ mod test {
                 futures::io::Cursor::new(response),
                 futures::io::sink(),
             ))
+        }
+        async fn send_control_message(
+            &self,
+            msg: AnyRelayCell,
+            reply_handler: impl MsgHandler + Send + 'static
+        ) -> tor_proto::Result<()> {
+            todo!()
         }
     }
 
