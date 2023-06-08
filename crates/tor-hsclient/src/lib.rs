@@ -50,6 +50,7 @@ mod state;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
+use derive_more::{From, Into};
 use educe::Educe;
 
 use tor_circmgr::hspool::HsCircPool;
@@ -59,6 +60,7 @@ use tor_netdir::NetDir;
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
+pub use err::FailedAttemptError;
 pub use err::{ConnError, DescriptorError, DescriptorErrorDetail, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 pub use relay_info::InvalidTarget;

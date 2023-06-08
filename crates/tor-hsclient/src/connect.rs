@@ -7,29 +7,38 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use educe::Educe;
+use futures::channel::oneshot;
 use futures::{AsyncRead, AsyncWrite};
+use itertools::Itertools;
+use rand::Rng;
 use tor_hscrypto::Subcredential;
 use tracing::{debug, trace};
 
 use retry_error::RetryError;
 use safelog::Redacted;
+use tor_cell::relaycell::hs::{EstablishRendezvous, RendezvousEstablished};
+use tor_cell::relaycell::{AnyRelayCell, UnparsedRelayCell};
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::Requestable as _;
-use tor_error::{into_internal, ErrorReport as _};
+use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsClientDescEncKey, HsId, HsIdKey};
+use tor_hscrypto::RendCookie;
 use tor_linkspec::{CircTarget, OwnedCircTarget};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
-use tor_netdoc::doc::hsdesc::HsDesc;
-use tor_proto::circuit::ClientCirc;
-use tor_rtcompat::{Runtime, SleepProviderExt as _};
+use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
+use tor_proto::circuit::{ClientCirc, MetaCellDisposition, MsgHandler};
+use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
+use crate::relay_info::ipt_to_circtarget;
 use crate::state::MockableConnectorData;
+use crate::{rend_pt_identity_for_error, FailedAttemptError, IntroPtIndex, RendPtIdentityForError};
 use crate::{ConnError, DescriptorError, DescriptorErrorDetail};
 use crate::{HsClientConnector, HsClientSecretKeys};
 
 use ConnError as CE;
+use FailedAttemptError as FAE;
 
 /// Information about a hidden service, including our connection history
 #[allow(dead_code, unused_variables)] // TODO hs remove.
@@ -108,6 +117,41 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     mocks: M,
 }
 
+/// Details of an established rendezvous point
+///
+/// Intermediate value for progress during a connection attempt.
+struct Rendezvous<'r> {
+    ///
+    rend_relay: Relay<'r>,
+    ///
+    rend_circ: Arc<ClientCirc>,
+    ///
+    rend_cookie: RendCookie,
+}
+
+/// Details of an apparently-useable introduction point
+///
+/// Intermediate value for progress during a connection attempt.
+struct UsableIntroPt<'i> {
+    ///
+    intro_index: IntroPtIndex,
+    ///
+    intro_desc: &'i IntroPointDesc,
+    ///
+    intro_target: OwnedCircTarget,
+}
+
+/// Details of an apparently-successful INTRODUCE exchange
+///
+/// Intermediate value for progress during a connection attempt.
+struct Introduced {
+    ///
+    intro_circ: Arc<ClientCirc>,
+    //
+    // TODO HS this will need to contain key exchange information
+    // for completing the handshake
+}
+
 impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Make a new `Context` from the input data
     fn new(
@@ -169,8 +213,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         mocks.test_got_desc(desc);
 
-        // TODO HS complete the implementation
-        todo!()
+        let circ = self.intro_rend_connect(desc, &mut data.ipts).await?;
+
+        Ok(circ)
     }
 
     /// Ensure that `Data.desc` contains the HS descriptor
@@ -335,6 +380,292 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             hsc_desc_enc.as_ref().map(|(kp, ks)| (kp, *ks)),
         )
         .map_err(DescriptorErrorDetail::from)
+    }
+
+    /// Given the descriptor, try to connect to service
+    ///
+    /// Does all necessary retries, timeouts, etc.
+    async fn intro_rend_connect(
+        &self,
+        desc: &HsDesc,
+        data: &mut (),
+    ) -> Result<Arc<ClientCirc>, CE> {
+        // TODO HS are these right? make configurable?
+        // TODO HS should we even have this or should we just try each one once?
+        /// Maxmimum number of rendezvous/introduction attempts we'll make
+        const MAX_TOTAL_ATTEMPTS: usize = 6;
+        /// Limit on the duration of each attempt to establishg a rendezvous point
+        const REND_TIMEOUT: Duration = Duration::from_secs(10);
+        /// Limit on the duration of each attempt to negotiate with an introduction point
+        const INTRO_TIMEOUT: Duration = Duration::from_secs(10);
+        /// Limit on the duration of each attempt for activities involving both RPT and IPT
+        const RPT_IPT_TIMEOUT: Duration = Duration::from_secs(10);
+
+        // We can't reliably distinguish IPT failure from RPT failure, so we iterate over IPTs
+        // (best first) and each time use a random RPT.
+
+        // We limit the number of rendezvous establishment attempts, separately, since we don't
+        // try to talk to the intro pt until we've established the rendezvous circuit.
+        let mut rend_attempts = 0..MAX_TOTAL_ATTEMPTS;
+
+        // But, we put all the errors into the same bucket, since we might have a mixture.
+        let mut errors = RetryError::in_attempt_to("make circuit to to hidden service");
+
+        // TODO HS desc.intro_points() ought not to be able to be empty
+        // however currently nothing in crates/tor-netdoc/src/doc/hsdesc/inner.rs
+        // seems to ensure this.  Until that's fixed, we might produce unhelpful errors here.
+        //
+        // Note that IntroPtIndex is *not* the index into this Vec.
+        // It is the index into the original list of introduction points in the descriptor.
+        let usable_intros: Vec<UsableIntroPt> = desc
+            .intro_points()
+            .iter()
+            .enumerate()
+            .map(|(intro_index, intro_desc)| {
+                let intro_index = intro_index.into();
+                let intro_target = ipt_to_circtarget(intro_desc, &self.netdir)
+                    .map_err(|error| FAE::UnusableIntro { error, intro_index })?;
+                // Lack of TAIT means this clone
+                let intro_target = OwnedCircTarget::from_circ_target(&intro_target);
+                Ok(UsableIntroPt {
+                    intro_index,
+                    intro_desc,
+                    intro_target,
+                })
+            })
+            .filter_map(|entry| match entry {
+                Ok(y) => Some(y),
+                Err(e) => {
+                    errors.push(tor_error::Report(e));
+                    None
+                }
+            })
+            .collect_vec();
+
+        // TODO HS join with existing state recording our experiences,
+        // and sort by descending goodness.
+        let mut intro_attempts = usable_intros.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
+
+        // We retain a rendezvous we managed to set up in here.  That way if we created it, and
+        // then failed before we actually needed it, we can reuse it.
+        // If we exit with an error, we will waste it - but because we isolate things we do
+        // for different services, it wouldn't be reuseable anway.
+        let mut saved_rendezvous = None;
+
+        loop {
+            // Error handling inner async block (analogous to an IEFE):
+            //  * Ok(Some()) means this attempt succeeded
+            //  * Ok(None) means all attempts exhausted
+            //  * Err(error) means this attempt failed
+            //
+            // Error handling is rather complex here.  It's the primary job of *this* code to
+            // make sure that it's done right for timeouts.  (The individual component
+            // functions handle non-timeout errors.)  The different timeout errors have
+            // different amounts of information about the identity of the RPT and IPT: in each
+            // case, the error only mentions the RPT or IPT if that node is implicated in the
+            // timeout.
+            match async {
+                if saved_rendezvous.is_none() {
+                    // Establish a rendezvous circuit.
+                    let Some(_): Option<usize> = rend_attempts.next() else { return Ok(None) };
+
+                    let mut using_rend_pt = None;
+                    saved_rendezvous = Some(
+                        self.runtime
+                            .timeout(REND_TIMEOUT, self.establish_rendezvous(&mut using_rend_pt))
+                            .await
+                            .map_err(|_: TimeoutError| match using_rend_pt {
+                                None => FAE::RendezvousObtainCircuit {
+                                    error: tor_circmgr::Error::CircTimeout,
+                                },
+                                Some(rend_pt) => FAE::RendezvousTimeout { rend_pt },
+                            })??,
+                    );
+                }
+
+                let Some(ipt) = intro_attempts.next() else { return Ok(None) };
+                let intro_index = ipt.intro_index;
+
+                // TODO HS record how long things take, starting from here, as
+                // as a statistic we'll use for the IPT in future.
+                // This will need to be stored in a variable outside this async block,
+                // so that the outcome handling can use it.
+
+                // No `Option::get_or_try_insert_with`, or we'd avoid this expect()
+                let rend_pt_for_error = rend_pt_identity_for_error(
+                    &saved_rendezvous
+                        .as_ref()
+                        .expect("just made Some")
+                        .rend_relay,
+                );
+
+                let (rendezvous, introduced) = self
+                    .runtime
+                    .timeout(
+                        INTRO_TIMEOUT,
+                        self.exchange_introduce(ipt, &mut saved_rendezvous),
+                    )
+                    .await
+                    .map_err(|_: TimeoutError| {
+                        // The intro point ought to give us a prompt ACK regardless of HS
+                        // behaviour or whatever is happening at the RPT, so blame the IPT.
+                        FAE::IntroductionTimeout { intro_index }
+                    })??;
+                let saved_rendezvous = (); // don't use `saved_rendezvous` any more, use rendezvous
+
+                let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
+                let circ = self
+                    .runtime
+                    .timeout(RPT_IPT_TIMEOUT, self.complete_rendezvous(ipt, rendezvous))
+                    .await
+                    .map_err(|_: TimeoutError| FAE::RendezvousCompletionTimeout {
+                        intro_index,
+                        rend_pt,
+                    })??;
+
+                Ok(Some((intro_index, circ)))
+            }
+            .await
+            {
+                Ok(Some((intro_index, y))) => {
+                    // TODO HS record successful outcome in Data
+                    return Ok(y);
+                }
+                Ok(None) => return Err(CE::Failed(errors)),
+                Err(error) => {
+                    // TODO HS record error outcome in Data, if in fact we involved the IPT
+                    // at all.  The IPT information ought to be retrieved from `error`;
+                    // this will have to be a new method on FailedAttemptError for that.
+                    // (Only some of the errors implicate the introduction point.)
+                    errors.push(tor_error::Report(error));
+                }
+            }
+        }
+    }
+
+    /// Make one attempt to establish a rendezvous circuit
+    ///
+    /// This doesn't really depend on anything,
+    /// other than (obviously) the isolation implied by our circuit pool.
+    /// In particular it doesn't depend on the introduction point.
+    ///
+    /// Does not apply a timeout.
+    ///
+    /// On entry `using_rend_pt` is `None`.
+    /// This function will store `Some` when it finds out which relay
+    /// it is talking to and starts to converse with it.
+    /// That way, if a timeout occurs, the caller can add that information to the error.
+    async fn establish_rendezvous(
+        &'c self,
+        using_rend_pt: &mut Option<RendPtIdentityForError>,
+    ) -> Result<Rendezvous, FAE> {
+        let (rend_circ, rend_relay) = self
+            .circpool
+            .get_or_launch_client_rend(&self.netdir)
+            .await
+            .map_err(|error| FAE::RendezvousObtainCircuit { error })?;
+
+        let rend_pt = rend_pt_identity_for_error(&rend_relay);
+        *using_rend_pt = Some(rend_pt.clone());
+
+        let rend_cookie: RendCookie = self.mocks.thread_rng().gen();
+        let message = EstablishRendezvous::new(rend_cookie).into();
+        let message = AnyRelayCell::new(0.into(), message);
+
+        let (reply_tx, mut reply) = oneshot::channel();
+
+        /// Handler which expects `RENDEZVOUS ESTABLISHED` and returns it via the `oneshot`
+        struct Handler(Option<oneshot::Sender<RendezvousEstablished>>);
+        impl MsgHandler for Handler {
+            fn handle_msg(
+                &mut self,
+                msg: UnparsedRelayCell,
+            ) -> Result<MetaCellDisposition, tor_proto::Error> {
+                let reply: RendezvousEstablished = msg
+                    .decode()
+                    .map_err(|err| tor_proto::Error::BytesErr {
+                        object: "cell that should have been RENDEZVOUS_ESTABLISHED",
+                        err,
+                    })?
+                    .into_msg();
+
+                #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
+                self.0
+                    .take()
+                    .ok_or_else(|| internal!("multiple RENDEZVOUS_ESTABLISHED all at once"))?
+                    .send(reply)
+                    .unwrap_or_else(|_: RendezvousEstablished| ());
+                Ok(MetaCellDisposition::UninstallHandler)
+            }
+        }
+
+        let _: RendezvousEstablished = reply
+            .try_recv()
+            .map_err(into_internal!("oneshot dropped"))?
+            .ok_or_else(|| internal!("RENDEZVOUS_ESTABLISHED not sent yet"))?;
+
+        rend_circ
+            .send_control_message(message, Handler(Some(reply_tx)))
+            .await
+            .map_err(|error| FAE::RendezvousEstablish { error, rend_pt })?;
+
+        Ok(Rendezvous {
+            rend_circ,
+            rend_cookie,
+            rend_relay,
+        })
+    }
+
+    /// Attempt (once) to send an INTRODUCE1 and wait for the INTRODUCE_ACK
+    ///
+    /// `take`s the input `rednezvous` (but only takes it if it gets that far)
+    /// and, if successful, returns it.
+    /// (This arranges that the rendezvous is "used up" precisely if
+    /// we sent its secret somewhere.)
+    ///
+    /// Although this function handles the `Rendezvous`,
+    /// nothing in it actually involves the rendezvous point.
+    /// So if there's a failure, it's purely to do with the introduction point.
+    ///
+    /// Does not apply a timeout.
+    async fn exchange_introduce(
+        &'c self,
+        ipt: &UsableIntroPt<'_>,
+        rendezvous: &mut Option<Rendezvous<'c>>,
+    ) -> Result<(Rendezvous, Introduced), FAE> {
+        let intro_index = ipt.intro_index;
+
+        let intro_circ = self
+            .circpool
+            .get_or_launch_specific(
+                &self.netdir,
+                HsCircKind::ClientIntro,
+                ipt.intro_target.clone(), // &OwnedCircTarget isn't CircTarget apparently
+            )
+            .await
+            .map_err(|error| FAE::IntroObtainCircuit { error, intro_index })?;
+
+        let rendezvous = rendezvous.take().ok_or_else(|| internal!("no rend"))?;
+
+        Err(internal!("sending INTRODUCE1 is not yet implemented!").into()) // TODO HS
+    }
+
+    /// Attempt (once) to connect a rendezvous circuit using the given intro pt
+    ///
+    /// Timeouts here might be due to the IPT, RPT, service,
+    /// or any of the intermediate relays.
+    ///
+    /// If, rather than a timeout, we actually encounter some kind of error,
+    /// we'll return the appropriate `FailedAttemptError`.
+    /// (Who is responsible may vary, so the `FailedAttemptError` variant will reflect that.)
+    ///
+    /// Does not apply a timeout
+    async fn complete_rendezvous(
+        &'c self,
+        ipt: &UsableIntroPt<'_>,
+        rendezvous: Rendezvous<'c>,
+    ) -> Result<Arc<ClientCirc>, FAE> {
+        todo!() // HS implement
     }
 }
 
@@ -630,6 +961,8 @@ mod test {
         );
 
         // TODO hs check the circuit in got is the one we gave out
+
+        // TODO hs continue with this
     }
 
     // TODO HS: test retries (of every retry loop we have here)
