@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -42,6 +43,13 @@ use crate::{HsClientConnector, HsClientSecretKeys};
 
 use ConnError as CE;
 use FailedAttemptError as FAE;
+
+/// Given `R, M` where `M: MocksForConnect<M>`, expand to the mockable `ClientCirc`
+// This is quite annoying.  But the alternative is to write out `<... as // ...>`
+// each time, since otherwise the compile complains about ambiguous associated types.
+macro_rules! ClientCirc { { $R:ty, $M:ty } => {
+    <<$M as MocksForConnect<$R>>::HsCircPool as MockableCircPool<$R>>::ClientCirc
+} }
 
 /// Information about a hidden service, including our connection history
 #[allow(dead_code, unused_variables)] // TODO hs remove.
@@ -162,13 +170,17 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
 /// Details of an established rendezvous point
 ///
 /// Intermediate value for progress during a connection attempt.
-struct Rendezvous<'r> {
+struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     ///
     rend_relay: Relay<'r>,
     ///
-    rend_circ: Arc<ClientCirc>,
+    rend_circ: Arc<ClientCirc!(R, M)>,
     ///
     rend_cookie: RendCookie,
+    /// Dummy, to placate compiler
+    ///
+    /// Covariant without dropck or interfering with Send/Sync will do fine.
+    marker: PhantomData<fn() -> (R, M)>,
 }
 
 /// Details of an apparently-useable introduction point
@@ -186,12 +198,17 @@ struct UsableIntroPt<'i> {
 /// Details of an apparently-successful INTRODUCE exchange
 ///
 /// Intermediate value for progress during a connection attempt.
-struct Introduced {
+struct Introduced<R: Runtime, M: MocksForConnect<R>> {
     ///
-    intro_circ: Arc<ClientCirc>,
-    //
+    intro_circ: Arc<ClientCirc!(R, M)>,
+
     // TODO HS this will need to contain key exchange information
     // for completing the handshake
+    /// Dummy, to placate compiler
+    ///
+    /// `R` and `M` only used for getting to mocks.
+    /// Covariant without dropck or interfering with Send/Sync will do fine.
+    marker: PhantomData<fn() -> (R, M)>,
 }
 
 impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
@@ -235,7 +252,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ///
     /// This function handles all necessary retrying of fallible operations,
     /// (and, therefore, must also limit the total work done for a particular call).
-    async fn connect(&self, data: &mut Data) -> Result<Arc<ClientCirc>, ConnError> {
+    async fn connect(&self, data: &mut Data) -> Result<Arc<ClientCirc!(R, M)>, ConnError> {
         // This function must do the following, retrying as appropriate.
         //  - Look up the onion descriptor in the state.
         //  - Download the onion descriptor if one isn't there.
@@ -432,7 +449,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &self,
         desc: &HsDesc,
         data: &mut DataIpts,
-    ) -> Result<Arc<ClientCirc>, CE> {
+    ) -> Result<Arc<ClientCirc!(R, M)>, CE> {
         // TODO HS are these right? make configurable?
         // TODO HS should we even have this or should we just try each one once?
         /// Maxmimum number of rendezvous/introduction attempts we'll make
@@ -601,7 +618,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     async fn establish_rendezvous(
         &'c self,
         using_rend_pt: &mut Option<RendPtIdentityForError>,
-    ) -> Result<Rendezvous, FAE> {
+    ) -> Result<Rendezvous<R, M>, FAE> {
         let (rend_circ, rend_relay) = self
             .circpool
             .get_or_launch_client_rend(&self.netdir)
@@ -656,6 +673,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_circ,
             rend_cookie,
             rend_relay,
+            marker: PhantomData,
         })
     }
 
@@ -674,8 +692,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     async fn exchange_introduce(
         &'c self,
         ipt: &UsableIntroPt<'_>,
-        rendezvous: &mut Option<Rendezvous<'c>>,
-    ) -> Result<(Rendezvous, Introduced), FAE> {
+        rendezvous: &mut Option<Rendezvous<'c, R, M>>,
+    ) -> Result<(Rendezvous<R, M>, Introduced<R, M>), FAE> {
         let intro_index = ipt.intro_index;
 
         let intro_circ = self
@@ -706,8 +724,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     async fn complete_rendezvous(
         &'c self,
         ipt: &UsableIntroPt<'_>,
-        rendezvous: Rendezvous<'c>,
-    ) -> Result<Arc<ClientCirc>, FAE> {
+        rendezvous: Rendezvous<'c, R, M>,
+    ) -> Result<Arc<ClientCirc!(R, M)>, FAE> {
         todo!() // HS implement
     }
 }
@@ -733,7 +751,7 @@ trait MocksForConnect<R>: Clone {
         eprintln!("HS DESC:\n{:?}\n", &desc); // TODO HS remove
     }
     /// Tell tests we got this circuit
-    fn test_got_circ(&self, circ: &Arc<ClientCirc>) {
+    fn test_got_circ(&self, circ: &Arc<ClientCirc!(R, Self)>) {
         eprintln!("HS CIRC:\n{:?}\n", &circ); // TODO HS remove
     }
 
@@ -756,7 +774,7 @@ trait MockableCircPool<R> {
     async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)>;
+    ) -> tor_circmgr::Result<(Arc<Self::ClientCirc>, Relay<'a>)>;
 }
 /// Mock for `ClientCirc`
 #[async_trait]
@@ -769,7 +787,7 @@ trait MockableClientCirc: Debug {
     async fn send_control_message(
         &self,
         msg: AnyRelayCell,
-        reply_handler: impl MsgHandler + Send + 'static
+        reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()>;
 }
 
@@ -809,7 +827,7 @@ impl MockableClientCirc for ClientCirc {
     async fn send_control_message(
         &self,
         msg: AnyRelayCell,
-        reply_handler: impl MsgHandler + Send + 'static
+        reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()> {
         ClientCirc::send_control_message(self, msg, reply_handler).await
     }
@@ -914,7 +932,7 @@ mod test {
         async fn get_or_launch_client_rend<'a>(
             &self,
             netdir: &'a NetDir,
-        ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)> {
+        ) -> tor_circmgr::Result<(Arc<ClientCirc!(R, Self)>, Relay<'a>)> {
             todo!()
         }
     }
@@ -939,7 +957,7 @@ mod test {
         async fn send_control_message(
             &self,
             msg: AnyRelayCell,
-            reply_handler: impl MsgHandler + Send + 'static
+            reply_handler: impl MsgHandler + Send + 'static,
         ) -> tor_proto::Result<()> {
             todo!()
         }
