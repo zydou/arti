@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -21,10 +22,11 @@ use tor_cell::relaycell::{AnyRelayCell, UnparsedRelayCell};
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::Requestable as _;
+use tor_error::RetryTime;
 use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsClientDescEncKey, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
-use tor_linkspec::{CircTarget, OwnedCircTarget};
+use tor_linkspec::{CircTarget, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
@@ -53,11 +55,50 @@ pub struct Data {
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
     ///
-    ipts: (), // TODO hs: make this type real, use `RetryDelay`, etc.
+    /// We store the information under an arbitrary one of the relay's identities,
+    /// as returned by HasRelayIds::identities().first().
+    /// When we do lookups, we check all the relay's identities to see if we find
+    /// anything relevant.
+    /// If relay identities permute in strange ways, whether we find our previous
+    /// knowledge about them is not particularly well defined, but that's fine.
+    // TODO HS we don't actually store or use this yet
+    ipts: DataIpts,
 }
 
 /// Part of `Data` that relates to the HS descriptor
 type DataHsDesc = Option<TimerangeBound<HsDesc>>;
+
+/// Part of `Data` that relates to our information about introduction points
+type DataIpts = HashMap<RelayId, IptExperience>;
+
+/// How things went last time we tried to use this introduction point
+///
+/// Neither this data structure, nor [`Data`], is responsible for arranging that we expire this
+/// information eventually.  If we keep reconnecting to the service, we'll retain information
+/// about each IPT indefinitely, at least so long as they remain listed in the descriptors we
+/// receive.
+///
+/// Expiry of unused data is handled by `state.rs`, according to `last_used` in `ServiceState`.
+#[derive(Debug)]
+// TODO HS implement Ord for this according to the specs here
+struct IptExperience {
+    /// How long it took us to get whatever outcome occurred
+    ///
+    /// We prefer fast successes to slow ones.
+    /// Then, we prefer failures with earlier `RetryTime`,
+    /// and, lastly, faster failures to slower ones.
+    duration: Duration,
+
+    /// What happened and when we might try again
+    ///
+    /// Note that we don't actually *enforce* the `RetryTime` here, just sort by it
+    /// using `RetryTime::loose_cmp`.
+    ///
+    /// We *do* return an error that is itself `HasRetryTime` and expect our callers
+    /// to honour that.
+    // TODO HS implement HasRetryTime for ConnError and its pieces, as appropriate
+    outcome: Result<(), RetryTime>,
+}
 
 /// Actually make a HS connection, updating our recorded state as necessary
 ///
@@ -388,7 +429,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     async fn intro_rend_connect(
         &self,
         desc: &HsDesc,
-        data: &mut (),
+        data: &mut DataIpts,
     ) -> Result<Arc<ClientCirc>, CE> {
         // TODO HS are these right? make configurable?
         // TODO HS should we even have this or should we just try each one once?
