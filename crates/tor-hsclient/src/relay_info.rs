@@ -5,7 +5,7 @@
 
 #![allow(dead_code, unreachable_pub)] // TODO HS remove these once this API is exposed.
 
-use tor_error::into_internal;
+use tor_error::{into_internal, ErrorKind};
 use tor_linkspec::{
     decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget, EncodedLinkSpec,
     OwnedChanTargetBuilder, OwnedCircTarget,
@@ -101,4 +101,10 @@ pub enum InvalidTarget {
     /// An internal error occurred.
     #[error("{0}")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl tor_error::HasKind for InvalidTarget {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::OnionServiceDescriptorValidationFailed
+    }
 }

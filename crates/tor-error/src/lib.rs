@@ -502,12 +502,14 @@ pub enum ErrorKind {
 
     /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
     ///
-    /// None of the hidden service descriptors we found for this service were valid (either because
-    /// of an invalid signature, or because of an untimely certificate).
+    /// None of the hidden service descriptors we found for this service were valid (because
+    /// of an invalid signature, an untimely certificate,
+    /// or connection instructions we could not handle).
     ///
     /// This error has several possible causes:
     ///   * Our clock is set incorrectly
     ///   * The clock of the hidden service is set incorrectly
+    ///   * The service's Tor version is not compatible with ours
     #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service descriptor validation failed")]
     OnionServiceDescriptorValidationFailed,
