@@ -255,6 +255,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         mocks.test_got_desc(desc);
 
         let circ = self.intro_rend_connect(desc, &mut data.ipts).await?;
+        mocks.test_got_circ(&circ);
 
         Ok(circ)
     }
@@ -729,6 +730,10 @@ trait MocksForConnect<R>: Clone {
     /// Tell tests we got this descriptor text
     fn test_got_desc(&self, desc: &HsDesc) {
         eprintln!("HS DESC:\n{:?}\n", &desc); // TODO HS remove
+    }
+    /// Tell tests we got this circuit
+    fn test_got_circ(&self, circ: &Arc<ClientCirc>) {
+        eprintln!("HS CIRC:\n{:?}\n", &circ); // TODO HS remove
     }
 
     /// Return a random number generator
