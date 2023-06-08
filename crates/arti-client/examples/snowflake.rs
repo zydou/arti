@@ -60,7 +60,8 @@ async fn main() -> Result<()> {
     let mut transport = ManagedTransportConfigBuilder::default();
     transport
         .protocols(vec!["snowflake".parse()?])
-        .path(CfgPath::new("/sbin/snowflake-pt-client".into()))
+        // this might be named differently on some systems, this should work on Debian, but Archlinux is known to use `snowflake-pt-client` instead for instance.
+        .path(CfgPath::new("snowflake-client".into()))
         .run_on_startup(true);
     builder.bridges().transports().push(transport);
 
