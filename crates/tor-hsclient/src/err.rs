@@ -1,6 +1,7 @@
 //! Errors relating to being a hidden service client
 use std::sync::Arc;
 
+use derive_more::{From, Into};
 use futures::task::SpawnError;
 
 use thiserror::Error;
@@ -21,6 +22,17 @@ pub(crate) type RendPtIdentityForError = Redacted<RsaIdentity>;
 pub(crate) fn rend_pt_identity_for_error(relay: &Relay<'_>) -> RendPtIdentityForError {
     (*relay.rsa_id()).into()
 }
+
+/// Index of an introduction point in the descriptor
+///
+/// Principally used in error reporting.
+///
+/// Formats as `#<n+1>`.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, From, Into)]
+#[allow(clippy::exhaustive_structs)]
+#[derive(derive_more::Display)]
+#[display(fmt = "#{}", self + 1)]
+pub struct IntroPtIndex(pub usize);
 
 /// Error that occurred attempting to reach a hidden service
 #[derive(Error, Clone, Debug)]
