@@ -564,15 +564,7 @@ mod test {
         secret_keys_builder.ks_hsc_desc_enc(sk);
         let secret_keys = secret_keys_builder.build().unwrap();
 
-        let ctx = Context::new(
-            &runtime,
-            &mocks,
-            netdir,
-            hsid,
-            secret_keys,
-            mocks.clone(),
-        )
-        .unwrap();
+        let ctx = Context::new(&runtime, &mocks, netdir, hsid, secret_keys, mocks.clone()).unwrap();
 
         let _got = AssertUnwindSafe(ctx.connect(&mut data))
             .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
