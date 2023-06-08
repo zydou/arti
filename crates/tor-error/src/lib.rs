@@ -224,8 +224,13 @@ pub enum ErrorKind {
     /// something.
     ///
     /// This error can happen if the host you're trying to connect to isn't
-    /// responding to traffic. It can also happen if an exit is overloaded, and
+    /// responding to traffic.
+    /// It can also happen if an exit, or hidden service, is overloaded, and
     /// unable to answer your replies in a timely manner.
+    ///
+    /// And it might simply mean that the Tor network itself
+    /// (including possibly relays, or hidden service introduction or rendezvous points)
+    /// is not working properly
     ///
     /// In either case, trying later, or on a different circuit, might help.
     //
