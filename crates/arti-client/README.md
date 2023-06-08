@@ -123,7 +123,7 @@ Bridges and Pluggable Transports (PT) can be used as censorship circunvention to
 to connect to Tor in places where it is otherwise blocked. In arti, they are
 configured through [`config::BridgesConfig`]. You will need to enable the feature
 `pt-client` for PT support. You can read more about PTs in
-[the glossary](https://support.torproject.org/glossary/pluggable-transports/)
+[TB manual](https://tb-manual.torproject.org/circumvention/).
 
 ### More advanced usage
 
