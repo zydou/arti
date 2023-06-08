@@ -63,6 +63,7 @@ pub use err::{ConnError, DescriptorError, DescriptorErrorDetail, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
 pub use relay_info::InvalidTarget;
 
+use err::{rend_pt_identity_for_error, RendPtIdentityForError};
 use state::Services;
 
 /// An object that negotiates connections with onion services

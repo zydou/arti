@@ -11,6 +11,16 @@ use safelog::Redacted;
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
+use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_netdir::Relay;
+
+/// Identity of a rendezvous point, for use in error reports
+pub(crate) type RendPtIdentityForError = Redacted<RsaIdentity>;
+
+/// Given a `Relay` for a rendezvous pt, provides its identify for use in error reports
+pub(crate) fn rend_pt_identity_for_error(relay: &Relay<'_>) -> RendPtIdentityForError {
+    (*relay.rsa_id()).into()
+}
 
 /// Error that occurred attempting to reach a hidden service
 #[derive(Error, Clone, Debug)]
