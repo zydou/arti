@@ -292,7 +292,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
-        // TODO HS are these right? make configurable?
+        // TODO HS are these right? make configurable? get from netdir?
         // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
         const MAX_TOTAL_ATTEMPTS: usize = 6;
@@ -454,7 +454,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         desc: &HsDesc,
         data: &mut DataIpts,
     ) -> Result<Arc<ClientCirc!(R, M)>, CE> {
-        // TODO HS are these right? make configurable?
+        // TODO HS are these right? make configurable? get from netdir?
         // TODO HS should we even have this or should we just try each one once?
         /// Maxmimum number of rendezvous/introduction attempts we'll make
         const MAX_TOTAL_ATTEMPTS: usize = 6;
