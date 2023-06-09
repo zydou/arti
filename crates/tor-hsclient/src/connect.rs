@@ -532,6 +532,18 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // case, the error only mentions the RPT or IPT if that node is implicated in the
             // timeout.
             match async {
+                // We establish a rendezvous point first.  Although it appears from reading
+                // this code that this means we serialise establishment of the rendezvous and
+                // introduction circuits, this isn't actually the case.  The circmgr maintains
+                // a pool of circuits.  What actually happens in the "standing start" case is
+                // that we obtain a circuit for rendezvous from the circmgr's pool, expecting
+                // one to be available immediately; the circmgr will then start to build a new
+                // one to replenish its pool, and that happens in parallel with the work we do
+                // here - but in arrears.
+                //
+                // TODO: We *do* serialise the ESTABLISH_RENDEZVOUS exchange, with the
+                // building of the introduction circuit.  That could be improved, at the cost
+                // of some additional complexity here.
                 if saved_rendezvous.is_none() {
                     // Establish a rendezvous circuit.
                     let Some(_): Option<usize> = rend_attempts.next() else { return Ok(None) };
