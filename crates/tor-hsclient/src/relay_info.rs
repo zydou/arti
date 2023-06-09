@@ -77,9 +77,10 @@ pub(crate) fn ipt_to_circtarget(
 /// We were given unusable information about an introduction point or rendezvous
 /// point.
 //
-// TODO HS probably this should be in err.rs and maybe it should be renamed?
-// It's only used for introduction points; rendezvous points come from the directory.
-// Maybe it should be folded into IntroRendError ?
+// This is returned by `ipt_to_circtarget`.  It will also be used for rendezvous
+// points when we implement the HS server side.
+// At that point, this module will need to move to a crate where it can be used
+// by the HS server code.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum InvalidTarget {
@@ -101,10 +102,4 @@ pub enum InvalidTarget {
     /// An internal error occurred.
     #[error("{0}")]
     Bug(#[from] tor_error::Bug),
-}
-
-impl tor_error::HasKind for InvalidTarget {
-    fn kind(&self) -> ErrorKind {
-        ErrorKind::OnionServiceDescriptorValidationFailed
-    }
 }

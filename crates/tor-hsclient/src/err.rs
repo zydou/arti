@@ -293,7 +293,7 @@ impl HasKind for FailedAttemptError {
         use ErrorKind as EK;
         use FailedAttemptError as FAE;
         match self {
-            FAE::UnusableIntro { error, .. } => error.kind(),
+            FAE::UnusableIntro { error, .. } => EK::OnionServiceDescriptorValidationFailed,
             FAE::RendezvousObtainCircuit { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
             FAE::RendezvousTimeout { .. } => EK::TorNetworkTimeout,
