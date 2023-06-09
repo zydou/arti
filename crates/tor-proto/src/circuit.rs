@@ -366,12 +366,10 @@ impl ClientCirc {
     #[cfg(feature = "send-control-msg")]
     pub async fn send_control_message(
         &self,
-        msg: tor_cell::relaycell::AnyRelayCell,
+        msg: tor_cell::relaycell::msg::AnyRelayMsg,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> Result<()> {
-        if msg.stream_id() != 0.into() {
-            return Err(bad_api_usage!("Not a control message.").into());
-        }
+        let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
         let last_hop = self
             .path
             .last_hop_num()

@@ -14,6 +14,7 @@ use futures::channel::oneshot;
 use futures::{AsyncRead, AsyncWrite};
 use itertools::Itertools;
 use rand::Rng;
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_hscrypto::Subcredential;
 use tracing::{debug, trace};
 
@@ -675,8 +676,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         *using_rend_pt = Some(rend_pt.clone());
 
         let rend_cookie: RendCookie = self.mocks.thread_rng().gen();
-        let message = EstablishRendezvous::new(rend_cookie).into();
-        let message = AnyRelayCell::new(0.into(), message);
+        let message = EstablishRendezvous::new(rend_cookie);
 
         let (reply_tx, reply) = oneshot::channel();
 
@@ -728,7 +728,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         };
 
         rend_circ
-            .send_control_message(message, Handler(Some(reply_tx)))
+            .send_control_message(message.into(), Handler(Some(reply_tx)))
             .await
             .map_err(handle_proto_error)?;
 
@@ -882,7 +882,7 @@ trait MockableClientCirc: Debug {
     /// Send a control message
     async fn send_control_message(
         &self,
-        msg: AnyRelayCell,
+        msg: AnyRelayMsg,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()>;
 }
@@ -922,7 +922,7 @@ impl MockableClientCirc for ClientCirc {
     }
     async fn send_control_message(
         &self,
-        msg: AnyRelayCell,
+        msg: AnyRelayMsg,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()> {
         ClientCirc::send_control_message(self, msg, reply_handler).await
@@ -1052,7 +1052,7 @@ mod test {
         }
         async fn send_control_message(
             &self,
-            msg: AnyRelayCell,
+            msg: AnyRelayMsg,
             reply_handler: impl MsgHandler + Send + 'static,
         ) -> tor_proto::Result<()> {
             todo!()
