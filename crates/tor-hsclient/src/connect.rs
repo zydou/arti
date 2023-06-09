@@ -704,7 +704,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         rend_circ
             .send_control_message(message, Handler(Some(reply_tx)))
             .await
-            .map_err(|error| FAE::RendezvousEstablish { error, rend_pt: rend_pt.clone() })?;
+            .map_err(|error| FAE::RendezvousEstablish {
+                error,
+                rend_pt: rend_pt.clone(),
+            })?;
 
         // `Handler` is supposed to have "returned" the `RENDEZVOUS_ESTABLISHED` reply
         // by sending it via the oneshot.  Obtain that return value.
