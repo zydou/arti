@@ -687,19 +687,19 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 &mut self,
                 msg: UnparsedRelayCell,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
-                let reply_tx = self.0
+                let reply_tx = self
+                    .0
                     .take()
                     .ok_or_else(|| internal!("multiple RENDEZVOUS_ESTABLISHED all at once"))?;
 
-                let outcome = (||{
-
-                let reply: RendezvousEstablished = msg
-                    .decode()
-                    .map_err(|err| tor_proto::Error::BytesErr {
-                        object: "cell that should have been RENDEZVOUS_ESTABLISHED",
-                        err,
-                    })?
-                    .into_msg();
+                let outcome = (|| {
+                    let reply: RendezvousEstablished = msg
+                        .decode()
+                        .map_err(|err| tor_proto::Error::BytesErr {
+                            object: "cell that should have been RENDEZVOUS_ESTABLISHED",
+                            err,
+                        })?
+                        .into_msg();
 
                     Ok(reply)
                 })();
