@@ -713,13 +713,15 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_pt.as_inner(),
         );
 
+        let handle_proto_error = |error| FAE::RendezvousEstablish {
+            error,
+            rend_pt: rend_pt.clone(),
+        };
+
         rend_circ
             .send_control_message(message, Handler(Some(reply_tx)))
             .await
-            .map_err(|error| FAE::RendezvousEstablish {
-                error,
-                rend_pt: rend_pt.clone(),
-            })?;
+            .map_err(handle_proto_error)?;
 
         trace!("SEND CONTROL MESSAGE RETURNED"); // TODO HS REMOVE RSN!
 
