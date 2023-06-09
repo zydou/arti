@@ -253,6 +253,8 @@ impl StorageConfig {
 /// let mut transport = ManagedTransportConfigBuilder::default();
 /// transport
 ///     .protocols(vec!["obfs4".parse()?])
+///     // Specify either the name or the absolute path of pluggable transport client binary, this
+///     // may differ from system to system.
 ///     .path(CfgPath::new("/usr/bin/obfs4proxy".into()))
 ///     .run_on_startup(true);
 /// builder.bridges().transports().push(transport);
