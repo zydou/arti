@@ -243,6 +243,7 @@ impl ClientCirc {
     ///
     /// TODO HS: Fix the virtual-hop issue.
     pub fn path(&self) -> Vec<OwnedChanTarget> {
+        #[allow(clippy::unnecessary_filter_map)] // clippy is blind to the cfg
         self.path
             .all_hops()
             .into_iter()
