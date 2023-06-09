@@ -141,10 +141,14 @@ pub(crate) async fn connect<R: Runtime>(
     .await
 }
 
-/// Common context for hidden service client connection operations
+/// Common context for a single request to connect to a hidden service
 ///
-/// TODO HS: this struct will grow a generic parameter, and mock state variable,
-/// for allowing its impls to be unit tested.
+/// This saves on passing this same set of (immuntable) values (or subsets thereof)
+/// to each method in the principal functional code, everywhere.
+/// It also provides a convenient type to be `Self`.
+///
+/// Its lifetime is one request to make a new client circuit to a hidden service,
+/// including all the retries and timeouts.
 #[allow(dead_code)] // TODO HS remove
 struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     /// Runtime
