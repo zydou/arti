@@ -678,10 +678,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let message = EstablishRendezvous::new(rend_cookie).into();
         let message = AnyRelayCell::new(0.into(), message);
 
-        let (reply_tx, mut reply) = oneshot::channel();
+        let (reply_tx, reply) = oneshot::channel();
 
         /// Handler which expects `RENDEZVOUS ESTABLISHED` and returns it via the `oneshot`
-        struct Handler(Option<oneshot::Sender<RendezvousEstablished>>);
+        struct Handler(Option<oneshot::Sender<Result<RendezvousEstablished, tor_proto::Error>>>);
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
@@ -691,6 +691,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     .take()
                     .ok_or_else(|| internal!("multiple RENDEZVOUS_ESTABLISHED all at once"))?;
 
+                let outcome = (||{
+
                 let reply: RendezvousEstablished = msg
                     .decode()
                     .map_err(|err| tor_proto::Error::BytesErr {
@@ -699,11 +701,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     })?
                     .into_msg();
 
+                    Ok(reply)
+                })();
+
                 trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
                 #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
                 reply_tx
-                    .send(reply)
-                    .unwrap_or_else(|_: RendezvousEstablished| ());
+                    .send(outcome)
+                    // If the caller went away, we just drop the outcome
+                    .unwrap_or_else(|_: Result<RendezvousEstablished, _>| ());
+
                 trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
                 Ok(MetaCellDisposition::UninstallHandler)
             }
@@ -727,17 +734,14 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         trace!("SEND CONTROL MESSAGE RETURNED"); // TODO HS REMOVE RSN!
 
-        // TODO HS this is all nonsense.  See #885.
-        // `Handler` is supposed to have "returned" the `RENDEZVOUS_ESTABLISHED` reply
-        // by sending it via the oneshot.  Obtain that return value.
-        // Right now, the reply doesn't have a payload and we don't actually need it.
-        // But returning and checking it seems more Proper, even if though we simply discard it.
-        // (The alternative would be for Handler to be a unit, and just rely on
-        // `Ok` from `send_control_message` meaning that everything is fine.)
+        // `send_control_message` returns as soon as the control message has been sent.
+        // We need to obtain the reply, which is "returned" via the oneshot.
         let _: RendezvousEstablished = reply
-            .try_recv()
-            .map_err(into_internal!("oneshot dropped"))?
-            .ok_or_else(|| internal!("RENDEZVOUS_ESTABLISHED not sent yet"))?;
+            .await
+            // If the circuit collapsed, we don't get an error from tor_proto; make one up
+            .map_err(|_: oneshot::Canceled| tor_proto::Error::CircuitClosed)
+            .map_err(handle_proto_error)?
+            .map_err(handle_proto_error)?;
 
         trace!("RENDEZVOUS"); // TODO HS REMOVE RSN!
 
