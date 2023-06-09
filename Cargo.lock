@@ -4197,6 +4197,7 @@ dependencies = [
  "humantime 2.1.0",
  "itertools",
  "paste",
+ "rand 0.8.5",
  "rand_core 0.6.4",
  "safelog",
  "serde",
