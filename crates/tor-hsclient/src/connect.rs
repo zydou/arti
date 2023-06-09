@@ -507,7 +507,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .collect_vec();
 
         // TODO HS join with existing state recording our experiences,
-        // and sort by descending goodness.
+        // sort by descending goodness, and then randomly
+        // (so clients without any experience don't all pile onto the same, first, IPT)
         let mut intro_attempts = usable_intros.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
 
         // We retain a rendezvous we managed to set up in here.  That way if we created it, and
