@@ -268,6 +268,19 @@ impl<T: Redactable> Redacted<T> {
     pub fn unwrap(self) -> T {
         self.0
     }
+
+    /// Converts `&Redacted<T>` to `Redacted<&T>`
+    pub fn as_ref(&self) -> Redacted<&T> {
+        Redacted(&self.0)
+    }
+
+    /// Return a reference to the inner value
+    //
+    // This isn't `AsRef` or `as_ref` because we don't want to offer "de-redaction"
+    // via what is usually a semantically-neutral interface.
+    pub fn as_inner(&self) -> &T {
+        &self.0
+    }
 }
 
 impl<T: Redactable> std::fmt::Display for Redacted<T> {
