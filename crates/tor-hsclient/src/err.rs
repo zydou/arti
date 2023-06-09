@@ -52,7 +52,7 @@ pub enum ConnError {
     /// Obtained descriptor but unable to connect to hidden service due to problem with IPT or RPT
     // TODO HS is this the right name for this variant?
     #[error("Unable to connect to hidden service using any Rendezvous Point / Introduction Point")]
-    Failed(RetryError<tor_error::Report<FailedAttemptError>>),
+    Failed(#[source] RetryError<tor_error::Report<FailedAttemptError>>),
 
     /// The consensus network contains no suitable hidden service directories!
     #[error("consensus contains no suitable hidden service directories")]
