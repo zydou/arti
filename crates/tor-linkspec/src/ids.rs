@@ -208,10 +208,9 @@ impl Redactable for RelayId {
 
 impl<'a> Redactable for RelayIdRef<'a> {
     fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::fmt::Display as _;
         match self {
-            RelayIdRef::Ed25519(k) => k.redacted().fmt(f),
-            RelayIdRef::Rsa(k) => k.redacted().fmt(f),
+            RelayIdRef::Ed25519(k) => write!(f, "ed25519:{}", k.redacted()),
+            RelayIdRef::Rsa(k) => write!(f, "${}", k.redacted()),
         }
     }
 
