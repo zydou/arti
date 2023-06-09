@@ -723,6 +723,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         trace!("SEND CONTROL MESSAGE RETURNED"); // TODO HS REMOVE RSN!
 
+        // TODO HS this is all nonsense.  See #885.
         // `Handler` is supposed to have "returned" the `RENDEZVOUS_ESTABLISHED` reply
         // by sending it via the oneshot.  Obtain that return value.
         // Right now, the reply doesn't have a payload and we don't actually need it.
