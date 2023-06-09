@@ -545,6 +545,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 // building of the introduction circuit.  That could be improved, at the cost
                 // of some additional complexity here.
                 if saved_rendezvous.is_none() {
+                    debug!("hs conn to {}: setting up rendezvous point", &self.hsid);
                     // Establish a rendezvous circuit.
                     let Some(_): Option<usize> = rend_attempts.next() else { return Ok(None) };
 
@@ -577,6 +578,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         .expect("just made Some")
                         .rend_relay,
                 );
+                debug!(
+                    "hs conn to {}: RPT {}",
+                    &self.hsid,
+                    rend_pt_for_error.as_inner()
+                );
 
                 let (rendezvous, introduced) = self
                     .runtime
@@ -599,10 +605,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     .await
                     .map_err(|_: TimeoutError| FAE::RendezvousCompletionTimeout {
                         intro_index,
-                        rend_pt,
+                        rend_pt: rend_pt.clone(),
                     })??;
 
-                Ok(Some((intro_index, circ)))
+                debug!(
+                    "hs conn to {}: RPT {} IPT {}: success",
+                    &self.hsid,
+                    rend_pt.as_inner(),
+                    intro_index,
+                );
+                Ok::<_, FAE>(Some((intro_index, circ)))
             }
             .await
             {
@@ -612,6 +624,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 }
                 Ok(None) => return Err(CE::Failed(errors)),
                 Err(error) => {
+                    debug!(
+                        "hs conn to {}: attempt failed: {}",
+                        &self.hsid,
+                        error.report(),
+                    );
                     // TODO HS record error outcome in Data, if in fact we involved the IPT
                     // at all.  The IPT information ought to be retrieved from `error`;
                     // this will have to be a new method on FailedAttemptError for that.
@@ -678,10 +695,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             }
         }
 
+        debug!(
+            "hs conn to {}: RPT {}: sending ESTABLISH_RENDEZVOUS",
+            &self.hsid,
+            rend_pt.as_inner(),
+        );
+
         rend_circ
             .send_control_message(message, Handler(Some(reply_tx)))
             .await
-            .map_err(|error| FAE::RendezvousEstablish { error, rend_pt })?;
+            .map_err(|error| FAE::RendezvousEstablish { error, rend_pt: rend_pt.clone() })?;
 
         // `Handler` is supposed to have "returned" the `RENDEZVOUS_ESTABLISHED` reply
         // by sending it via the oneshot.  Obtain that return value.
@@ -693,6 +716,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .try_recv()
             .map_err(into_internal!("oneshot dropped"))?
             .ok_or_else(|| internal!("RENDEZVOUS_ESTABLISHED not sent yet"))?;
+
+        debug!(
+            "hs conn to {}: RPT {}: got RENDEZVOUS_ESTABLISHED",
+            &self.hsid,
+            rend_pt.as_inner(),
+        );
 
         Ok(Rendezvous {
             rend_circ,
@@ -721,6 +750,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ) -> Result<(Rendezvous<R, M>, Introduced<R, M>), FAE> {
         let intro_index = ipt.intro_index;
 
+        debug!(
+            "hs conn to {}: IPT {}: obtaining intro circuit",
+            &self.hsid, intro_index,
+        );
+
         let intro_circ = self
             .circpool
             .get_or_launch_specific(
@@ -732,6 +766,15 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .map_err(|error| FAE::IntroObtainCircuit { error, intro_index })?;
 
         let rendezvous = rendezvous.take().ok_or_else(|| internal!("no rend"))?;
+
+        let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
+
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: making introduction",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
 
         Err(internal!("sending INTRODUCE1 is not yet implemented!").into()) // TODO HS
     }
