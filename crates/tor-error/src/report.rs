@@ -91,6 +91,23 @@ pub trait ErrorReport: StdError + Sized + 'static {
 }
 impl<E: StdError + Sized + 'static> ErrorReport for E {}
 
+/// Defines `AsRef<dyn StdError + 'static>` for a type implementing [`StdError`]
+///
+/// This trivial `AsRef` impl enables use of `tor_error::Report`.
+// Rust don't do this automatically, sadly, even though
+// it's basically `impl AsRef<dyn Trait> for T where T: Trait`.
+#[cfg(feature = "experimental-api")] // TODO HS make non-experimental, or rework
+#[macro_export]
+macro_rules! define_asref_dyn_std_error { { $ty:ty } => {
+// TODO: It would nice if this could be generated more automatically;
+// TODO wouldn't it be nice if this was a `derive` (eg using derive-adhoc)
+    impl AsRef<dyn std::error::Error + 'static> for $ty {
+        fn as_ref(&self) -> &(dyn std::error::Error + 'static) {
+            self as _
+        }
+    }
+} }
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

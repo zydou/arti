@@ -36,6 +36,7 @@ derive_more = "0.99.3"
 educe = "0.4.6"
 either = "1"
 futures = "0.3.14"
+itertools = "0.10.1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 rand_core = "0.6.2"
@@ -45,6 +46,7 @@ slotmap = "1.0.6"
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 tor-bytes = { path = "../tor-bytes", version = "0.7.1" }
+tor-cell = { path = "../tor-cell", version = "0.11.0", features = ["hs"] }
 tor-checkable = { path = "../tor-checkable", version = "0.5.1" }
 tor-circmgr = { version = "0.9.0", path = "../tor-circmgr", features = ["hs-client"] }
 tor-config = { path = "../tor-config", version = "0.9.1" }

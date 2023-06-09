@@ -38,6 +38,8 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#![allow(unused_imports, dead_code, unused_variables)] // TODO HS remove
+
 mod connect;
 mod err;
 mod isol_map;
@@ -48,6 +50,7 @@ mod state;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
+use derive_more::{From, Into};
 use educe::Educe;
 
 use tor_circmgr::hspool::HsCircPool;
@@ -57,9 +60,12 @@ use tor_netdir::NetDir;
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
+pub use err::FailedAttemptError;
 pub use err::{ConnError, DescriptorError, DescriptorErrorDetail, StartupError};
 pub use keys::{HsClientSecretKeys, HsClientSecretKeysBuilder};
+pub use relay_info::InvalidTarget;
 
+use err::{rend_pt_identity_for_error, IntroPtIndex, RendPtIdentityForError};
 use state::Services;
 
 /// An object that negotiates connections with onion services

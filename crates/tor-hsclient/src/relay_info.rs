@@ -5,7 +5,7 @@
 
 #![allow(dead_code, unreachable_pub)] // TODO HS remove these once this API is exposed.
 
-use tor_error::into_internal;
+use tor_error::{into_internal, ErrorKind};
 use tor_linkspec::{
     decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget, EncodedLinkSpec,
     OwnedChanTargetBuilder, OwnedCircTarget,
@@ -76,6 +76,11 @@ pub(crate) fn ipt_to_circtarget(
 
 /// We were given unusable information about an introduction point or rendezvous
 /// point.
+//
+// This is returned by `ipt_to_circtarget`.  It will also be used for rendezvous
+// points when we implement the HS server side.
+// At that point, this module will need to move to a crate where it can be used
+// by the HS server code.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum InvalidTarget {
