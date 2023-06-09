@@ -544,7 +544,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 // that we obtain a circuit for rendezvous from the circmgr's pool, expecting
                 // one to be available immediately; the circmgr will then start to build a new
                 // one to replenish its pool, and that happens in parallel with the work we do
-                // here - but in arrears.
+                // here - but in arrears.  If the circmgr pool is empty, then we must wait.
+                //
+                // TODO: Perhaps this should be parallelised here.  But in that case it's not
+                // 100% clear why the pool exists, since we expect building the rendezvous
+                // circuit and building the introduction circuit to take about the same
+                // length of time.
                 //
                 // TODO: We *do* serialise the ESTABLISH_RENDEZVOUS exchange, with the
                 // building of the introduction circuit.  That could be improved, at the cost
