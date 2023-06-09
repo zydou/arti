@@ -175,11 +175,11 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
 ///
 /// Intermediate value for progress during a connection attempt.
 struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
-    ///
+    /// RPT as a `Relay`
     rend_relay: Relay<'r>,
-    ///
+    /// Rendezvous circuit
     rend_circ: Arc<ClientCirc!(R, M)>,
-    ///
+    /// Rendezvous cookie
     rend_cookie: RendCookie,
     /// Dummy, to placate compiler
     ///
@@ -191,11 +191,11 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
 ///
 /// Intermediate value for progress during a connection attempt.
 struct UsableIntroPt<'i> {
-    ///
+    /// Index in HS descriptor
     intro_index: IntroPtIndex,
-    ///
+    /// IPT descriptor
     intro_desc: &'i IntroPointDesc,
-    ///
+    /// IPT `CircTarget`
     intro_target: OwnedCircTarget,
 }
 
