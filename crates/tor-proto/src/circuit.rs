@@ -277,11 +277,15 @@ impl ClientCirc {
     ///     So any reply to `msg` will be seen by `reply_handler`.
     ///
     ///  3. When `reply_handler` returns `UninstallHandler`,
-    ///     `send_control_message` will return.
+    ///     it will be torn down, and no more control messages
+    ///     will be accepted.
     ///
+    /// This function returns as soon as the message is sent
+    /// and `reply_handler` is installed.
     /// `reply_handler` will probably want to have ownership of a
     /// an inter-task sending channel,
-    /// so that it can communicate its results.
+    /// so that it can communicate its results,
+    /// and inform the caller when it is uninstalled.
     ///
     /// Note that it is quite possible to use this function to violate the tor
     /// protocol; most users of this API will not need to call it.  It is used
@@ -306,6 +310,7 @@ impl ClientCirc {
     /// while continuously monitoring for relevant incoming cells:
     /// there will necessarily be a gap between `send_control_message` returning,
     /// and being called again.
+    //
     // TODO hs (Diziet): IMO the above limitation ^ shows the API is not right.
     // There should probably be a separate function for when you're having
     // a conversation, that *doesn't* mess with the handler.
