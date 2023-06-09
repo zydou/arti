@@ -156,6 +156,11 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     /// Circpool
     circpool: &'c M::HsCircPool,
     /// Netdir
+    //
+    // TODO holding onto the netdir for the duration of our attempts is not ideal
+    // but doing better is fairly complicated.  See discussions here:
+    //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1228#note_2910545
+    //   https://gitlab.torproject.org/tpo/core/arti/-/issues/884
     netdir: Arc<NetDir>,
     /// Secret keys to use
     secret_keys: HsClientSecretKeys,
