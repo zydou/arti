@@ -16,6 +16,9 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdir::Relay;
 
 /// Identity of a rendezvous point, for use in error reports
+//
+// TODO HS this should be `Redacted<RelayIds>`, as per
+//   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1228#note_2910283
 pub(crate) type RendPtIdentityForError = Redacted<RsaIdentity>;
 
 /// Given a `Relay` for a rendezvous pt, provides its identify for use in error reports
