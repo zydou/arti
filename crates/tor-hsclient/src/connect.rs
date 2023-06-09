@@ -678,15 +678,15 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             }
         }
 
-        let _: RendezvousEstablished = reply
-            .try_recv()
-            .map_err(into_internal!("oneshot dropped"))?
-            .ok_or_else(|| internal!("RENDEZVOUS_ESTABLISHED not sent yet"))?;
-
         rend_circ
             .send_control_message(message, Handler(Some(reply_tx)))
             .await
             .map_err(|error| FAE::RendezvousEstablish { error, rend_pt })?;
+
+        let _: RendezvousEstablished = reply
+            .try_recv()
+            .map_err(into_internal!("oneshot dropped"))?
+            .ok_or_else(|| internal!("RENDEZVOUS_ESTABLISHED not sent yet"))?;
 
         Ok(Rendezvous {
             rend_circ,
