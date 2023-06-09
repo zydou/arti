@@ -150,6 +150,46 @@ environments where you want lots of control over how it uses the network.
 [**View the `tor_rtcompat` crate documentation**](tor_rtcompat) for more
 about these features.
 
+## Reporting Arti errors
+
+Arti often outputs very long Debug messages that are hard to understand,
+even for developers. In order to have a better idea of what went wrong in your
+program, `match` every `Error` and have `err.report()` be logged, where `err`
+is the caught error.
+
+For example, the previous example can be modified to report one of the errors:
+
+```rust,ignore
+// Initiate a connection over Tor to example.com, port 80.
+// Note: here we try to handle the potential error using match
+match tor_client.connect(("example.com", 80)).await {
+    Ok(mut stream) => {
+        eprintln!("sending request...");
+
+        stream
+            .write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
+            .await?;
+
+        // IMPORTANT: Make sure the request was written.
+        // Arti buffers data, so flushing the buffer is usually required.
+        stream.flush().await?;
+
+        eprintln!("reading response...");
+
+        // Read and print the result.
+        let mut buf = Vec::new();
+        stream.read_to_end(&mut buf).await?;
+
+        println!("{}", String::from_utf8_lossy(&buf));
+    }
+    Err(err) => {
+        // Use .report() on an error to get a nicer error message
+        // Raw Debug output will be much harder to decipher for all parties involved
+        eprintln!("{}", err.report());
+    }
+}
+```
+
 ## Feature flags
 
 ### Additive features
