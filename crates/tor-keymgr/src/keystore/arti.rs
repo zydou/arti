@@ -14,7 +14,7 @@ use fs_mistrust::{CheckedDir, Mistrust};
 
 /// The Arti key store.
 ///
-// TODO hs: `ArtiNativeKeyStore` (and `KeyType`) should not be dealing with filesystem operations.
+// TODO hs: `ArtiNativeKeyStore` should not be dealing with filesystem operations.
 //
 // Instead, we need to:
 //   * introduce a `FsMgr` trait that represents the filesystem operations we're interested in
@@ -67,14 +67,16 @@ impl ArtiNativeKeyStore {
 
 impl KeyStore for ArtiNativeKeyStore {
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<ErasedKey> {
-        let key_path = self.key_path(key_spec, key_type)?;
+        let path = self.key_path(key_spec, key_type)?;
 
-        // TODO: use CheckedDir::read to perform permission checks on the key file too.
-        let inner = fs::read(&key_path).map_err(|e| Error::Filesystem {
-            action: "get",
-            path: key_path.clone(),
-            err: e.into(),
-        })?;
+        let inner = self
+            .keystore_dir
+            .read(&path)
+            .map_err(|err| Error::Filesystem {
+                action: "read",
+                path: path.clone(),
+                err: err.into(),
+            })?;
 
         key_type.parse_ssh_format_erased(UnparsedOpenSshKey::new(inner))
     }
@@ -85,15 +87,16 @@ impl KeyStore for ArtiNativeKeyStore {
         key_spec: &dyn KeySpecifier,
         key_type: KeyType,
     ) -> Result<()> {
-        let key_path = self.key_path(key_spec, key_type)?;
+        let path = self.key_path(key_spec, key_type)?;
         let openssh_key = key_type.to_ssh_format(key)?;
 
-        // TODO: use CheckedDir::write_and_replace to perform permission checks on the key file too.
-        fs::write(&key_path, openssh_key).map_err(|e| Error::Filesystem {
-            action: "insert",
-            path: key_path,
-            err: e.into(),
-        })
+        self.keystore_dir
+            .write_and_replace(&path, openssh_key)
+            .map_err(|err| Error::Filesystem {
+                action: "write",
+                path,
+                err: err.into(),
+            })
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {
