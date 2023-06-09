@@ -517,6 +517,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // for different services, it wouldn't be reuseable anway.
         let mut saved_rendezvous = None;
 
+        // TODO HS make multiple attempts to different IPTs in in parallel, and somehow
+        // aggregate the errors and experiences.
         loop {
             // Error handling inner async block (analogous to an IEFE):
             //  * Ok(Some()) means this attempt succeeded
