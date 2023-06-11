@@ -228,12 +228,14 @@ impl StorageConfig {
 /// let mut builder = TorClientConfig::builder();
 ///
 /// // Add a single bridge to the list of bridges, from a bridge line.
+/// // This bridge line is made up for demonstration, and won't work.
 /// const BRIDGE1_LINE : &str = "Bridge obfs4 192.0.2.55:38114 316E643333645F6D79216558614D3931657A5F5F cert=YXJlIGZyZXF1ZW50bHkgZnVsbCBvZiBsaXR0bGUgbWVzc2FnZXMgeW91IGNhbiBmaW5kLg iat-mode=0";
 /// let bridge_1: BridgeConfigBuilder = BRIDGE1_LINE.parse()?;
 /// // This is where we pass `BRIDGE1_LINE` into the BridgeConfigBuilder.
 /// builder.bridges().bridges().push(bridge_1);
 ///
 /// // Add a second bridge, built by hand.  This way is harder.
+/// // This bridge is made up for demonstration, and won't work.
 /// let mut bridge2_builder = BridgeConfigBuilder::default();
 /// bridge2_builder
 ///     .transport("obfs4")
@@ -244,14 +246,16 @@ impl StorageConfig {
 ///     );
 /// bridge2_builder.set_addrs(vec!["198.51.100.25:443".parse()?]);
 /// bridge2_builder.set_ids(vec!["7DD62766BF2052432051D7B7E08A22F7E34A4543".parse()?]);
-/// // Now nsert the second bridge into our config builder.
+/// // Now insert the second bridge into our config builder.
 /// builder.bridges().bridges().push(bridge2_builder);
 ///
 /// // Now configure an obfs4 transport. (Requires the "pt-client" feature)
 /// let mut transport = ManagedTransportConfigBuilder::default();
 /// transport
 ///     .protocols(vec!["obfs4".parse()?])
-///    .path(CfgPath::new("/usr/bin/obfs4proxy".into()))
+///     // Specify either the name or the absolute path of pluggable transport client binary, this
+///     // may differ from system to system.
+///     .path(CfgPath::new("/usr/bin/obfs4proxy".into()))
 ///     .run_on_startup(true);
 /// builder.bridges().transports().push(transport);
 ///
@@ -259,6 +263,7 @@ impl StorageConfig {
 /// // Now you can pass `config` to TorClient::create!
 /// # Ok(())}
 /// ```
+/// You can also find an example based on snowflake in arti-client example folder.
 //
 // We leave this as an empty struct even when bridge support is disabled,
 // as otherwise the default config file would generate an unknown section warning.
