@@ -89,6 +89,10 @@ pub struct HsNtorServiceInfo {
 
     /// Introduction point authentication key (aka `AUTH_KEY`, aka `KP_hs_ipt_sid`)
     /// (found in the HS descriptor)
+    ///
+    /// TODO HS: This is needed to begin _and end_ the handshake, which makes
+    /// things a little trickier if someday we want to have several of these
+    /// handshakes in operation at once.  How does C tor handle the issue??
     auth_key: HsIntroPtSessionIdKey,
 
     /// Service subcredential
