@@ -4,10 +4,11 @@
 //! Although this is similar to `stream::cmdcheck`, I am deliberately leaving
 //! them separate. Conceivably they should be unified at some point down the
 //! road?
-use tor_cell::relaycell::UnparsedRelayCell;
+use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
 
 use crate::crypto::cell::HopNum;
-use crate::Result;
+use crate::{Error, Result};
 
 use super::MetaCellDisposition;
 
@@ -34,7 +35,7 @@ pub trait MsgHandler {
     /// or highly contended locks, to avoid blocking the circuit reactor.
     ///
     /// If this function returns an error, the circuit will be closed.
-    fn handle_msg(&mut self, msg: UnparsedRelayCell) -> Result<MetaCellDisposition>;
+    fn handle_msg(&mut self, msg: AnyRelayMsg) -> Result<MetaCellDisposition>;
 }
 
 /// Wrapper for `MsgHandler` to implement `MetaCellHandler`
@@ -63,6 +64,17 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
         msg: UnparsedRelayCell,
         _reactor: &mut super::reactor::Reactor,
     ) -> Result<MetaCellDisposition> {
+        let cell: AnyRelayCell = msg.decode().map_err(|err| Error::BytesErr {
+            object: "cell for message handler",
+            err,
+        })?;
+        let (stream_id, msg) = cell.into_streamid_and_msg();
+        if stream_id != 0.into() {
+            return Err(Error::CircProto(format!(
+                "Invalid message type {} received with stream ID",
+                msg.cmd()
+            )));
+        }
         self.handler.handle_msg(msg)
     }
 }
