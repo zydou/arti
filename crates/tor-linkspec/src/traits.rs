@@ -144,7 +144,7 @@ pub struct DisplayRelayIds<'a, T: HasRelayIds + ?Sized> {
     inner: &'a T,
 }
 // Redactable must implement Debug.
-impl<'a, T: HasRelayIds + ?Sized> std::fmt::Debug for DisplayRelayIds<'a, T> {
+impl<'a, T: HasRelayIds + ?Sized> fmt::Debug for DisplayRelayIds<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DisplayRelayIds").finish_non_exhaustive()
     }
@@ -166,13 +166,13 @@ impl<'a, T: HasRelayIds + ?Sized> DisplayRelayIds<'a, T> {
         Ok(())
     }
 }
-impl<'a, T: HasRelayIds + ?Sized> std::fmt::Display for DisplayRelayIds<'a, T> {
+impl<'a, T: HasRelayIds + ?Sized> fmt::Display for DisplayRelayIds<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fmt_impl(f, false)
     }
 }
 impl<'a, T: HasRelayIds + ?Sized> Redactable for DisplayRelayIds<'a, T> {
-    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn display_redacted(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fmt_impl(f, true)
     }
 }
@@ -340,11 +340,11 @@ impl<'a, T: ChanTarget> fmt::Display for DisplayChanTarget<'a, T> {
     }
 }
 
-impl<'a, T: ChanTarget + std::fmt::Debug> safelog::Redactable for DisplayChanTarget<'a, T> {
-    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a, T: ChanTarget + fmt::Debug> safelog::Redactable for DisplayChanTarget<'a, T> {
+    fn display_redacted(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fmt_impl(f, true)
     }
-    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn debug_redacted(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ChanTarget({:?})", self.redacted().to_string())
     }
 }
