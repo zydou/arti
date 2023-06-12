@@ -31,7 +31,7 @@ full = [
 ]
 
 [dependencies]
-async-trait = "0.1.2"
+async-trait = "0.1.54"
 derive_more = "0.99.3"
 educe = "0.4.6"
 either = "1"
