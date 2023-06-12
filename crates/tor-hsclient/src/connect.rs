@@ -695,7 +695,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let (rend2_tx, rend2_rx) = oneshot::channel();
 
         /// Handler which expects `RENDEZVOUS_ESTABLISHED` and then
-        /// `RENDEZVOUS2`.   Returns each  `oneshot`.and returns it via the `oneshot`.
+        /// `RENDEZVOUS2`.   Returns each message and returns it via the `oneshot`s.
         struct Handler {
             /// Sender for a RENDEZVOUS_ESTABLISHED message.
             rend_established_tx:
