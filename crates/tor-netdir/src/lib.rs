@@ -332,7 +332,7 @@ pub struct NetDir {
     // Ideally, a PartialNetDir would contain only an HsDirs<HsDirParams>,
     // or perhaps nothing at all, here.
     #[cfg(feature = "hs-common")]
-    hsdir_rings: HsDirs<HsDirRing>,
+    hsdir_rings: Arc<HsDirs<HsDirRing>>,
 
     /// Weight values to apply to a given relay when deciding how frequently
     /// to choose it for a given role.
@@ -663,14 +663,14 @@ impl PartialNetDir {
             .collect();
 
         #[cfg(feature = "hs-common")]
-        let hsdir_rings = {
+        let hsdir_rings = Arc::new({
             let params = HsDirParams::compute(&consensus, &params).expect("Invalid consensus!");
             // TODO HS: I dislike using expect above, but this function does not
             // return a Result. Perhaps we should change it so that it can?  Or as an alternative
             // we could let this object exist in a state without any HsDir rings.
 
             params.map(HsDirRing::empty_from_params)
-        };
+        });
 
         let netdir = NetDir {
             consensus: Arc::new(consensus),
@@ -722,8 +722,10 @@ impl PartialNetDir {
             .expect("Invalid consensus");
         // TODO hs: see TODO by similar expect in new()
 
-        self.netdir.hsdir_rings = params
-            .map(|params| HsDirRing::compute(params, &self.netdir, self.prev_netdir.as_deref()));
+        self.netdir.hsdir_rings =
+            Arc::new(params.map(|params| {
+                HsDirRing::compute(params, &self.netdir, self.prev_netdir.as_deref())
+            }));
     }
 
     /// Return true if this are enough information in this directory
