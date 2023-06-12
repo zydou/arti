@@ -277,7 +277,7 @@ impl ClientCirc {
     ///     So any reply to `msg` will be seen by `reply_handler`.
     ///
     ///  3. When `reply_handler` returns `UninstallHandler`,
-    ///     it will be torn down, and no more control messages
+    ///     the handler is dropped, and then no more control messages
     ///     will be accepted.
     ///
     /// This function returns as soon as the message is sent
