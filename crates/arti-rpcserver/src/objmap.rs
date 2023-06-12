@@ -387,7 +387,6 @@ mod test {
 
     #[derive(Clone, Debug)]
     struct ExampleObject(String);
-    impl rpc::Object for ExampleObject {}
     rpc::decl_object! {ExampleObject}
     impl ExampleObject {
         fn wrap_arc(self: Arc<Self>) -> Arc<Wrapper> {
@@ -406,7 +405,6 @@ mod test {
     #[derive(Clone, Debug)]
     #[repr(transparent)]
     struct Wrapper(ExampleObject);
-    impl rpc::Object for Wrapper {}
     rpc::decl_object! {Wrapper}
 
     #[test]

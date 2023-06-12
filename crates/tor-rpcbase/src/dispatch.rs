@@ -80,11 +80,9 @@ impl InvokeEntry_ {
 ///
 /// #[derive(Debug)]
 /// struct ExampleObject {}
-/// impl rpc::Object for ExampleObject {}
 /// #[derive(Debug)]
 /// struct ExampleObject2 {}
-/// impl rpc::Object for ExampleObject2 {}
-/// rpc::decl_object! {ExampleObject ExampleObject2}
+/// rpc::decl_object! {ExampleObject; ExampleObject2;}
 ///
 /// #[derive(Debug,serde::Deserialize)]
 /// struct ExampleMethod {}
@@ -315,11 +313,7 @@ mod test {
     #[derive(Clone)]
     struct Brick;
 
-    impl crate::Object for Swan {}
-    impl crate::Object for Wombat {}
-    impl crate::Object for Sheep {}
-    impl crate::Object for Brick {}
-    crate::decl_object! {Swan Wombat Sheep Brick}
+    crate::decl_object! {Swan; Wombat; Sheep; Brick; }
 
     // Define 2 methods.
     #[derive(Debug, serde::Deserialize)]
