@@ -119,6 +119,39 @@ pub struct HsNtorClientState {
     x: curve25519::StaticSecret,
     /// The corresponding private key
     X: curve25519::PublicKey,
+
+    /// A shared secret constructed from our secret key `x` and the service's
+    /// public ntor key `B`.  (The service has a separate public ntor key
+    /// associated with each intro point.)
+    Bx: curve25519::SharedSecret,
+}
+
+impl HsNtorClientState {
+    /// Construct a new `HsNtorClientState` for connecting to a given onion
+    /// service described in `service_info`.
+    ///
+    /// Once constructed, this `HsNtorClientState` can be used to construct
+    /// multiple INTROUDCE1 bodies that can be sent to multiple introduction
+    /// points. Each of these bodies will encode the same handshake.
+    pub fn new<R>(rng: &mut R, service_info: HsNtorServiceInfo) -> Self
+    where
+        R: rand::RngCore + rand::CryptoRng,
+    {
+        let x = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
+        Self::new_no_keygen(service_info, x)
+    }
+
+    /// As `new()`, but do not use an RNG to generate our ephemeral secret key x.
+    fn new_no_keygen(service_info: HsNtorServiceInfo, x: curve25519::StaticSecret) -> Self {
+        let X = curve25519::PublicKey::from(&x);
+        let Bx = x.diffie_hellman(&service_info.B);
+        Self {
+            service_info,
+            x,
+            X,
+            Bx,
+        }
+    }
 }
 
 /// Encrypt the 'plaintext' using 'enc_key'. Then compute the intro cell MAC
@@ -183,39 +216,41 @@ fn client_send_intro_no_keygen(
     intro_header: &[u8],
     plaintext_body: &[u8],
 ) -> Result<(HsNtorClientState, Vec<u8>)> {
-    let X = curve25519::PublicKey::from(&x);
+    let state = HsNtorClientState::new_no_keygen(service.clone(), x);
 
-    // Get EXP(B,x)
-    let bx = x.diffie_hellman(&service.B);
+    let response = client_send_intro_with_state(&state, intro_header, plaintext_body)?;
+    Ok((state, response))
+}
 
-    // Compile our state structure
-    let state = HsNtorClientState {
-        service_info: service.clone(),
-        x,
-        X,
-    };
+/// Like [`client_send_intro`], but use an existing state object.
+pub fn client_send_intro_with_state(
+    state: &HsNtorClientState,
+    intro_header: &[u8],
+    plaintext_body: &[u8],
+) -> Result<Vec<u8>> {
+    let service = &state.service_info;
 
     // Compute keys required to finish this part of the handshake
     let (enc_key, mac_key) = get_introduce1_key_material(
-        &bx,
+        &state.Bx,
         &service.auth_key,
-        &X,
+        &state.X,
         &service.B,
         &service.subcredential,
     )?;
 
     let (ciphertext, mac_tag) =
-        encrypt_and_mac(plaintext_body, intro_header, &X, &enc_key, mac_key);
+        encrypt_and_mac(plaintext_body, intro_header, &state.X, &enc_key, mac_key);
 
     // Create the relevant parts of INTRO1
     let mut response: Vec<u8> = Vec::new();
     response
-        .write(&X)
+        .write(&state.X)
         .and_then(|_| response.write(&ciphertext))
         .and_then(|_| response.write(&mac_tag))
         .map_err(into_internal!("Can't encode hs-ntor client handshake."))?;
 
-    Ok((state, response))
+    Ok(response)
 }
 
 /// The introduction has been completed and the service has replied with a
