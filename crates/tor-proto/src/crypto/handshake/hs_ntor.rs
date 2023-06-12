@@ -131,8 +131,8 @@ impl HsNtorClientState {
     /// service described in `service_info`.
     ///
     /// Once constructed, this `HsNtorClientState` can be used to construct
-    /// multiple INTROUDCE1 bodies that can be sent to multiple introduction
-    /// points. Each of these bodies will encode the same handshake.
+    /// an INTROUDCE1 bodies that can be sent to an introduction
+    /// point.
     pub fn new<R>(rng: &mut R, service_info: HsNtorServiceInfo) -> Self
     where
         R: rand::RngCore + rand::CryptoRng,
@@ -181,10 +181,10 @@ fn encrypt_and_mac(
     (ciphertext, mac_tag)
 }
 
-/// The client is about to make an INTRODUCE1 message. Perform the first part of
-/// the client handshake.
-///
-/// Return a state object containing the current progress of the handshake, and
+#[rustfmt::skip] // XXXX
+impl HsNtorClientState {
+
+/// Return the data that should be written as the encrypted part of and
 /// the data that should be written as the encrypted part of the INTRODUCE1
 /// message. The data that is
 /// written is:
@@ -194,40 +194,12 @@ fn encrypt_and_mac(
 ///  ENCRYPTED_DATA           [Padded to length of plaintext]
 ///  MAC                      [MAC_LEN bytes]
 /// ```
-pub fn client_send_intro<R>(
-    rng: &mut R,
-    service: &HsNtorServiceInfo,
-    intro_header: &[u8],
-    plaintext_body: &[u8],
-) -> Result<(HsNtorClientState, Vec<u8>)>
-where
-    R: RngCore + CryptoRng,
-{
-    // Create client's ephemeral keys to be used for this handshake
-    let x = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
-    client_send_intro_no_keygen(x, service, intro_header, plaintext_body)
-}
-
-/// Helper: Behaves like client_send_intro, but takes an ephemeral key x rather
-/// than an RNG.
-fn client_send_intro_no_keygen(
-    x: curve25519::StaticSecret,
-    service: &HsNtorServiceInfo,
-    intro_header: &[u8],
-    plaintext_body: &[u8],
-) -> Result<(HsNtorClientState, Vec<u8>)> {
-    let state = HsNtorClientState::new_no_keygen(service.clone(), x);
-
-    let response = client_send_intro_with_state(&state, intro_header, plaintext_body)?;
-    Ok((state, response))
-}
-
-/// Like [`client_send_intro`], but use an existing state object.
-pub fn client_send_intro_with_state(
-    state: &HsNtorClientState,
+pub fn client_send_intro(
+    &self,
     intro_header: &[u8],
     plaintext_body: &[u8],
 ) -> Result<Vec<u8>> {
+    let state = self;
     let service = &state.service_info;
 
     // Compute keys required to finish this part of the handshake
@@ -259,9 +231,11 @@ pub fn client_send_intro_with_state(
 /// Handle it by computing and verifying the MAC, and if it's legit return a
 /// key generator based on the result of the key exchange.
 pub fn client_receive_rend(
-    state: &HsNtorClientState,
+    &self,
     msg: &[u8],
 ) -> Result<HsNtorHkdfKeyGenerator> {
+let state = self;
+
     // Extract the public key of the service from the message
     let mut cur = Reader::from_slice(msg);
     let Y: curve25519::PublicKey = cur
@@ -290,6 +264,7 @@ pub fn client_receive_rend(
     }
 
     Ok(keygen)
+}
 }
 
 /*********************** Server Side Code ************************************/
@@ -598,7 +573,8 @@ mod test {
         );
 
         // Client: Sends an encrypted INTRODUCE1 cell
-        let (state, cmsg) = client_send_intro(&mut rng, &client_keys, &[66; 10], &[42; 60])?;
+        let state = HsNtorClientState::new(&mut rng, client_keys);
+        let cmsg = state.client_send_intro(&[66; 10], &[42; 60])?;
 
         // Service: Decrypt INTRODUCE1 cell, and reply with RENDEZVOUS1 cell
         let (skeygen, smsg, s_plaintext) =
@@ -609,7 +585,7 @@ mod test {
         assert_eq!(s_plaintext, vec![42; 60]);
 
         // Client: Receive RENDEZVOUS1 and create key material
-        let ckeygen = client_receive_rend(&state, &smsg)?;
+        let ckeygen = state.client_receive_rend(&smsg)?;
 
         // Test that RENDEZVOUS1 key material match
         let skeys = skeygen.expand(128)?;
@@ -678,8 +654,10 @@ mod test {
              000000000000000000000000000000000000000000000000000000000000"
         );
         // Now try to do the handshake...
-        let (client_state, encrypted_body) =
-            client_send_intro_no_keygen(key_x, &service_info, &intro_header, &intro_body).unwrap();
+        let client_state = HsNtorClientState::new_no_keygen(service_info, key_x);
+        let encrypted_body = client_state
+            .client_send_intro(&intro_header, &intro_body)
+            .unwrap();
 
         let mut cell_out = intro_header.to_vec();
         cell_out.extend(&encrypted_body);
@@ -726,7 +704,7 @@ mod test {
         assert_eq!(&service_reply, &expected_reply);
 
         // Let's see if the client handles this reply!
-        let client_keygen = client_receive_rend(&client_state, &service_reply).unwrap();
+        let client_keygen = client_state.client_receive_rend(&service_reply).unwrap();
         let bytes_client = client_keygen.expand(128).unwrap();
         let bytes_service = service_keygen.expand(128).unwrap();
         let mut key_seed =
