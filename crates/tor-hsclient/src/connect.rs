@@ -21,7 +21,7 @@ use tracing::{debug, trace};
 use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::{EstablishRendezvous, RendezvousEstablished};
-use tor_cell::relaycell::{AnyRelayCell, UnparsedRelayCell};
+use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::Requestable as _;
@@ -705,31 +705,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 // TODO HS: This should also accept a RENDEZVOUS2 message after
                 // the RENDEZVOUS_ESTABLISHED message.
 
-                let reply_tx = self
-                    .rend_established_tx
-                    .take()
-                    .ok_or_else(|| internal!("multiple RENDEZVOUS_ESTABLISHED all at once"))?;
-
-                let outcome = (|| {
-                    let reply: RendezvousEstablished = msg
-                        .decode()
-                        .map_err(|err| tor_proto::Error::BytesErr {
-                            object: "cell that should have been RENDEZVOUS_ESTABLISHED",
-                            err,
-                        })?
-                        .into_msg();
-
-                    Ok(reply)
-                })();
-
-                trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
-                #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
-                reply_tx
-                    .send(outcome)
-                    // If the caller went away, we just drop the outcome
-                    .unwrap_or_else(|_: Result<RendezvousEstablished, _>| ());
-
-                trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
+                deliver_expected_message::<RendezvousEstablished>(
+                    msg,
+                    &mut self.rend_established_tx,
+                )?;
 
                 // TODO HS: Don't return yet UninstallHandler yet!.
                 // We have to wait for a RENDEZVOUS2 message.
@@ -851,6 +830,42 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ) -> Result<Arc<ClientCirc!(R, M)>, FAE> {
         todo!() // HS implement
     }
+}
+
+/// Try to decode `msg` as message of type `M`, and to send the outcome on the
+/// oneshot taken from `reply_tx`.
+///
+/// Gives an error if `reply_tx` is None.
+fn deliver_expected_message<M: RelayMsg>(
+    msg: UnparsedRelayCell,
+    reply_tx: &mut Option<oneshot::Sender<Result<M, tor_proto::Error>>>,
+) -> Result<(), tor_proto::Error> {
+    let reply_tx = reply_tx
+        .take()
+        .ok_or_else(|| internal!("Tried to handle two messages of the same type"))?;
+
+    let outcome = (|| {
+        let reply: M = msg
+            .decode()
+            .map_err(|err| tor_proto::Error::BytesErr {
+                // I would have preferred to say M::cmd().to_string() :/
+                object: "expected message",
+                err,
+            })?
+            .into_msg();
+
+        Ok(reply)
+    })();
+
+    trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
+    #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
+    reply_tx
+        .send(outcome)
+        // If the caller went away, we just drop the outcome
+        .unwrap_or_else(|_: Result<M, _>| ());
+    trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
+
+    Ok(())
 }
 
 /// Mocks used for testing `connect.rs`
