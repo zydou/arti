@@ -14,7 +14,7 @@ use futures::channel::oneshot;
 use futures::{AsyncRead, AsyncWrite};
 use itertools::Itertools;
 use rand::Rng;
-use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_cell::relaycell::msg::{AnyRelayMsg, Rendezvous2};
 use tor_hscrypto::Subcredential;
 use tracing::{debug, trace};
 
@@ -187,6 +187,13 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     rend_circ: Arc<ClientCirc!(R, M)>,
     /// Rendezvous cookie
     rend_cookie: RendCookie,
+    /// Receiver that will give us the RENDEZVOUS2 message from the rendezvous point.
+    /// (This is the message containing the onion service's side of the handshake.)
+    //
+    // TODO HS: This may need to get wrapped in an `Option` so that we can
+    // `take()` it.
+    rend2_rx: oneshot::Receiver<Result<Rendezvous2, tor_proto::Error>>,
+
     /// Dummy, to placate compiler
     ///
     /// Covariant without dropck or interfering with Send/Sync will do fine.
@@ -678,17 +685,28 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let rend_cookie: RendCookie = self.mocks.thread_rng().gen();
         let message = EstablishRendezvous::new(rend_cookie);
 
-        let (reply_tx, reply) = oneshot::channel();
+        let (rend_established_tx, rend_established_rx) = oneshot::channel();
+        let (rend2_tx, rend2_rx) = oneshot::channel();
 
-        /// Handler which expects `RENDEZVOUS ESTABLISHED` and returns it via the `oneshot`
-        struct Handler(Option<oneshot::Sender<Result<RendezvousEstablished, tor_proto::Error>>>);
+        /// Handler which expects `RENDEZVOUS_ESTABLISHED` and then
+        /// `RENDEZVOUS2`.   Returns each  `oneshot`.and returns it via the `oneshot`.
+        struct Handler {
+            /// Sender for a RENDEZVOUS_ESTABLISHED message.
+            rend_established_tx:
+                Option<oneshot::Sender<Result<RendezvousEstablished, tor_proto::Error>>>,
+            /// Sender for a RENDEZVOUS2 message.
+            rend2_tx: Option<oneshot::Sender<Result<Rendezvous2, tor_proto::Error>>>,
+        }
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
                 msg: UnparsedRelayCell,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
+                // TODO HS: This should also accept a RENDEZVOUS2 message after
+                // the RENDEZVOUS_ESTABLISHED message.
+
                 let reply_tx = self
-                    .0
+                    .rend_established_tx
                     .take()
                     .ok_or_else(|| internal!("multiple RENDEZVOUS_ESTABLISHED all at once"))?;
 
@@ -712,6 +730,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     .unwrap_or_else(|_: Result<RendezvousEstablished, _>| ());
 
                 trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
+
+                // TODO HS: Don't return yet UninstallHandler yet!.
+                // We have to wait for a RENDEZVOUS2 message.
+
                 Ok(MetaCellDisposition::UninstallHandler)
             }
         }
@@ -726,17 +748,21 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             error,
             rend_pt: rend_pt.clone(),
         };
+        let handler = Handler {
+            rend_established_tx: Some(rend_established_tx),
+            rend2_tx: Some(rend2_tx),
+        };
 
         rend_circ
-            .send_control_message(message.into(), Handler(Some(reply_tx)))
+            .send_control_message(message.into(), handler)
             .await
             .map_err(handle_proto_error)?;
 
         trace!("SEND CONTROL MESSAGE RETURNED"); // TODO HS REMOVE RSN!
 
         // `send_control_message` returns as soon as the control message has been sent.
-        // We need to obtain the reply, which is "returned" via the oneshot.
-        let _: RendezvousEstablished = reply
+        // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
+        let _: RendezvousEstablished = rend_established_rx
             .await
             // If the circuit collapsed, we don't get an error from tor_proto; make one up
             .map_err(|_: oneshot::Canceled| tor_proto::Error::CircuitClosed)
@@ -755,6 +781,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_circ,
             rend_cookie,
             rend_relay,
+            rend2_rx,
             marker: PhantomData,
         })
     }
