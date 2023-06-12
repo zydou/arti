@@ -702,18 +702,20 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 &mut self,
                 msg: UnparsedRelayCell,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
-                // TODO HS: This should also accept a RENDEZVOUS2 message after
-                // the RENDEZVOUS_ESTABLISHED message.
-
-                deliver_expected_message::<RendezvousEstablished>(
-                    msg,
-                    &mut self.rend_established_tx,
-                )?;
-
-                // TODO HS: Don't return yet UninstallHandler yet!.
-                // We have to wait for a RENDEZVOUS2 message.
-
-                Ok(MetaCellDisposition::UninstallHandler)
+                // The first message we expect is a RENDEZVOUS_ESTABALISHED.
+                if self.rend_established_tx.is_some() {
+                    deliver_expected_message::<RendezvousEstablished>(
+                        msg,
+                        MetaCellDisposition::Consumed,
+                        &mut self.rend_established_tx,
+                    )
+                } else {
+                    deliver_expected_message::<Rendezvous2>(
+                        msg,
+                        MetaCellDisposition::UninstallHandler,
+                        &mut self.rend2_tx,
+                    )
+                }
             }
         }
 
@@ -835,16 +837,17 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 /// Try to decode `msg` as message of type `M`, and to send the outcome on the
 /// oneshot taken from `reply_tx`.
 ///
-/// Gives an error if `reply_tx` is None.
+/// Gives an error if `reply_tx` is None, or if an error occurs.
 fn deliver_expected_message<M: RelayMsg>(
     msg: UnparsedRelayCell,
+    disposition_on_success: MetaCellDisposition,
     reply_tx: &mut Option<oneshot::Sender<Result<M, tor_proto::Error>>>,
-) -> Result<(), tor_proto::Error> {
+) -> Result<MetaCellDisposition, tor_proto::Error> {
     let reply_tx = reply_tx
         .take()
         .ok_or_else(|| internal!("Tried to handle two messages of the same type"))?;
 
-    let outcome = (|| {
+    let send_outcome: Result<M, tor_proto::Error> = (|| {
         let reply: M = msg
             .decode()
             .map_err(|err| tor_proto::Error::BytesErr {
@@ -857,15 +860,20 @@ fn deliver_expected_message<M: RelayMsg>(
         Ok(reply)
     })();
 
+    let return_outcome = match &send_outcome {
+        Ok(_) => Ok(disposition_on_success),
+        Err(e) => Err(e.clone()),
+    };
+
     trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
     #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
     reply_tx
-        .send(outcome)
+        .send(send_outcome)
         // If the caller went away, we just drop the outcome
         .unwrap_or_else(|_: Result<M, _>| ());
     trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
 
-    Ok(())
+    return_outcome
 }
 
 /// Mocks used for testing `connect.rs`
