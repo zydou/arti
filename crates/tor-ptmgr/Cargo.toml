@@ -30,7 +30,7 @@ experimental-api = ["visibility", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-async-trait = "0.1.2"
+async-trait = "0.1.54"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 fs-mistrust = { version = "0.7.1", path = "../fs-mistrust" }
 futures = "0.3.14"

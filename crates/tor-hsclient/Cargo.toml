@@ -31,7 +31,7 @@ full = [
 ]
 
 [dependencies]
-async-trait = "0.1.2"
+async-trait = "0.1.54"
 derive_more = "0.99.3"
 educe = "0.4.6"
 either = "1"
@@ -57,7 +57,7 @@ tor-linkspec = { version = "0.8.0", path = "../tor-linkspec", features = ["decod
 tor-llcrypto = { version = "0.5.1", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.9.1", path = "../tor-netdir", features = ["hs-client"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.8.0", features = ["hs-client"] }
-tor-proto = { version = "0.11.0", path = "../tor-proto", features = ["send-control-msg"] }
+tor-proto = { version = "0.11.0", path = "../tor-proto", features = ["hs-client", "send-control-msg"] }
 tor-rtcompat = { version = "0.9.1", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 

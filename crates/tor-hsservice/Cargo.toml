@@ -25,7 +25,7 @@ full = [
 ]
 
 [dependencies]
-async-trait = "0.1.2"
+async-trait = "0.1.54"
 rand_core = "0.6.2"
 thiserror = "1"
 tor-circmgr = { version = "0.9.0", path = "../tor-circmgr", features = ["hs-service"] }

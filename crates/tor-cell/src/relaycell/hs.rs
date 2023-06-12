@@ -273,6 +273,12 @@ impl Rendezvous2 {
             handshake_info: handshake_info.into(),
         }
     }
+
+    /// Return the body of this Rendezvous2 cell. (That is, the handshake
+    /// message from the onion service.)
+    pub fn handshake_info(&self) -> &[u8] {
+        &self.handshake_info
+    }
 }
 
 impl From<Rendezvous1> for Rendezvous2 {

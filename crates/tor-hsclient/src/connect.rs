@@ -14,14 +14,19 @@ use futures::channel::oneshot;
 use futures::{AsyncRead, AsyncWrite};
 use itertools::Itertools;
 use rand::Rng;
-use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_bytes::Writeable;
+use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
+use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
 use tor_hscrypto::Subcredential;
+use tor_proto::circuit::handshake::{self, hs_ntor};
 use tracing::{debug, trace};
 
 use retry_error::RetryError;
 use safelog::Redacted;
-use tor_cell::relaycell::hs::{EstablishRendezvous, RendezvousEstablished};
-use tor_cell::relaycell::{AnyRelayCell, UnparsedRelayCell};
+use tor_cell::relaycell::hs::{
+    AuthKeyType, EstablishRendezvous, IntroduceHeader, RendezvousEstablished,
+};
+use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::Requestable as _;
@@ -33,7 +38,7 @@ use tor_linkspec::{CircTarget, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
-use tor_proto::circuit::{ClientCirc, MetaCellDisposition, MsgHandler};
+use tor_proto::circuit::{CircParameters, ClientCirc, MetaCellDisposition, MsgHandler};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
 use crate::relay_info::ipt_to_circtarget;
@@ -187,6 +192,13 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     rend_circ: Arc<ClientCirc!(R, M)>,
     /// Rendezvous cookie
     rend_cookie: RendCookie,
+    /// Receiver that will give us the RENDEZVOUS2 message from the rendezvous point.
+    /// (This is the message containing the onion service's side of the handshake.)
+    //
+    // TODO HS: This may need to get wrapped in an `Option` so that we can
+    // `take()` it.
+    rend2_rx: oneshot::Receiver<Result<Rendezvous2, tor_proto::Error>>,
+
     /// Dummy, to placate compiler
     ///
     /// Covariant without dropck or interfering with Send/Sync will do fine.
@@ -678,41 +690,37 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let rend_cookie: RendCookie = self.mocks.thread_rng().gen();
         let message = EstablishRendezvous::new(rend_cookie);
 
-        let (reply_tx, reply) = oneshot::channel();
+        let (rend_established_tx, rend_established_rx) = oneshot::channel();
+        let (rend2_tx, rend2_rx) = oneshot::channel();
 
-        /// Handler which expects `RENDEZVOUS ESTABLISHED` and returns it via the `oneshot`
-        struct Handler(Option<oneshot::Sender<Result<RendezvousEstablished, tor_proto::Error>>>);
+        /// Handler which expects `RENDEZVOUS_ESTABLISHED` and then
+        /// `RENDEZVOUS2`.   Returns each  `oneshot`.and returns it via the `oneshot`.
+        struct Handler {
+            /// Sender for a RENDEZVOUS_ESTABLISHED message.
+            rend_established_tx:
+                Option<oneshot::Sender<Result<RendezvousEstablished, tor_proto::Error>>>,
+            /// Sender for a RENDEZVOUS2 message.
+            rend2_tx: Option<oneshot::Sender<Result<Rendezvous2, tor_proto::Error>>>,
+        }
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
                 msg: UnparsedRelayCell,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
-                let reply_tx = self
-                    .0
-                    .take()
-                    .ok_or_else(|| internal!("multiple RENDEZVOUS_ESTABLISHED all at once"))?;
-
-                let outcome = (|| {
-                    let reply: RendezvousEstablished = msg
-                        .decode()
-                        .map_err(|err| tor_proto::Error::BytesErr {
-                            object: "cell that should have been RENDEZVOUS_ESTABLISHED",
-                            err,
-                        })?
-                        .into_msg();
-
-                    Ok(reply)
-                })();
-
-                trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
-                #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
-                reply_tx
-                    .send(outcome)
-                    // If the caller went away, we just drop the outcome
-                    .unwrap_or_else(|_: Result<RendezvousEstablished, _>| ());
-
-                trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
-                Ok(MetaCellDisposition::UninstallHandler)
+                // The first message we expect is a RENDEZVOUS_ESTABALISHED.
+                if self.rend_established_tx.is_some() {
+                    deliver_expected_message::<RendezvousEstablished>(
+                        msg,
+                        MetaCellDisposition::Consumed,
+                        &mut self.rend_established_tx,
+                    )
+                } else {
+                    deliver_expected_message::<Rendezvous2>(
+                        msg,
+                        MetaCellDisposition::UninstallHandler,
+                        &mut self.rend2_tx,
+                    )
+                }
             }
         }
 
@@ -726,17 +734,21 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             error,
             rend_pt: rend_pt.clone(),
         };
+        let handler = Handler {
+            rend_established_tx: Some(rend_established_tx),
+            rend2_tx: Some(rend2_tx),
+        };
 
         rend_circ
-            .send_control_message(message.into(), Handler(Some(reply_tx)))
+            .send_control_message(message.into(), handler)
             .await
             .map_err(handle_proto_error)?;
 
         trace!("SEND CONTROL MESSAGE RETURNED"); // TODO HS REMOVE RSN!
 
         // `send_control_message` returns as soon as the control message has been sent.
-        // We need to obtain the reply, which is "returned" via the oneshot.
-        let _: RendezvousEstablished = reply
+        // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
+        let _: RendezvousEstablished = rend_established_rx
             .await
             // If the circuit collapsed, we don't get an error from tor_proto; make one up
             .map_err(|_: oneshot::Canceled| tor_proto::Error::CircuitClosed)
@@ -755,6 +767,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_circ,
             rend_cookie,
             rend_relay,
+            rend2_rx,
             marker: PhantomData,
         })
     }
@@ -804,6 +817,72 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
+        // Now we construct an introduce1 message and perform the first part of the
+        // rendezvous handshake.
+        //
+        // This process is tricky because the header of the INTRODUCE1 message
+        // -- which depends on the IntroPt configuration -- is authenticated as
+        // part of the HsDesc handshake.
+
+        // Construct the header, since we need it as input to our encryption.
+        let intro_header = {
+            let ipt_sid_key = ipt.intro_desc.ipt_sid_key();
+            let intro1 = Introduce1::new(
+                AuthKeyType::ED25519_SHA3_256,
+                ipt_sid_key.as_bytes().to_vec(),
+                vec![],
+            );
+            let mut header = vec![];
+            intro1
+                .encode_onto(&mut header)
+                .map_err(into_internal!("couldn't encode intro1 header"))?;
+            header
+        };
+
+        // Construct the introduce payload, which tells the onion service how to find
+        // our rendezvous point.  (We could do this earlier if we wanted.)
+        let intro_payload = {
+            let onion_key =
+                intro_payload::OnionKey::NtorOnionKey(*rendezvous.rend_relay.ntor_onion_key());
+            let linkspecs = rendezvous
+                .rend_relay
+                .linkspecs()
+                .map_err(into_internal!("Couldn't encode link specifiers"))?;
+            let payload =
+                IntroduceHandshakePayload::new(rendezvous.rend_cookie, onion_key, linkspecs);
+            let mut encoded = vec![];
+            payload
+                .write_onto(&mut encoded)
+                .map_err(into_internal!("Couldn't encode introduce1 payload"))?;
+            encoded
+        };
+
+        // Perform the cryptographic handshake with the onion service.
+        let service_info = hs_ntor::HsNtorServiceInfo::new(
+            ipt.intro_desc.svc_ntor_key().clone(),
+            ipt.intro_desc.ipt_sid_key().clone(),
+            self.subcredential,
+        );
+        let handshake_state =
+            hs_ntor::HsNtorClientState::new(&mut self.mocks.thread_rng(), service_info);
+        let encrypted_body = handshake_state
+            .client_send_intro(&intro_header, &intro_payload)
+            .map_err(into_internal!("can't begin hs-ntor handshake"))?;
+
+        // Build our actual INTRODUCE1 message.
+        let intro1_real = Introduce1::new(
+            AuthKeyType::ED25519_SHA3_256,
+            ipt.intro_desc.ipt_sid_key().as_bytes().to_vec(),
+            encrypted_body,
+        );
+
+        // TODO HS: Send intro1_real on the introduce circuit and wait for
+        // either an error or an INTRO_ACK.
+        // intro_circ.send_control_message(intro1_real)...
+
+        // TODO HS: We need to remember handshake_state so we can later handle a
+        // RENDEZVOUS2 message!
+
         Err(internal!("sending INTRODUCE1 is not yet implemented!").into()) // TODO HS
     }
 
@@ -822,8 +901,92 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         ipt: &UsableIntroPt<'_>,
         rendezvous: Rendezvous<'c, R, M>,
     ) -> Result<Arc<ClientCirc!(R, M)>, FAE> {
+        #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
+        use tor_proto::circuit::handshake;
+
+        // TODO HS: Wait for our Rendezvous2 message on rend_tx
+        let rend2_msg: Rendezvous2 = todo!(); // TODO HS
+
+        // TODO HS: get handshake_state form wherever we stored it above.
+        //
+        // TODO: It would be great if we could have multiple of these existing
+        // in parallel with similar x,X values but different ipts. I believe C
+        // tor manages it somehow.
+        let handshake_state: &hs_ntor::HsNtorClientState = todo!(); // TODO HS
+
+        // Try to complete the cryptographic handshake.
+        let keygen = handshake_state
+            .client_receive_rend(rend2_msg.handshake_info())
+            .map_err(into_internal!(
+                "ACTUALLY this is a protocol violation, make a better error" // TODO HS
+            ))?;
+        // TODO HS: make sure that we do the correct error recovery from the
+        // above error.  Either the onion service has failed, or the rendezvous
+        // point has misbehaved, or we have used the wrong handshake_state.
+
+        // TODO HS: Generate this more sensibly!
+        let params = CircParameters::default();
+
+        rendezvous
+            .rend_circ
+            .extend_virtual(
+                handshake::RelayProtocol::HsV3,
+                handshake::HandshakeRole::Initiator,
+                keygen,
+                params,
+            )
+            .await
+            .map_err(into_internal!(
+                "actually this is probably a 'circuit closed' error" // TODO HS
+            ))?;
+
+        // TODO HS: Now we can return the rend_circ circuit to the calling code,
+        // which can start using it!  Isn't that great?  we're done!
+
         todo!() // HS implement
     }
+}
+
+/// Try to decode `msg` as message of type `M`, and to send the outcome on the
+/// oneshot taken from `reply_tx`.
+///
+/// Gives an error if `reply_tx` is None, or if an error occurs.
+fn deliver_expected_message<M: RelayMsg>(
+    msg: UnparsedRelayCell,
+    disposition_on_success: MetaCellDisposition,
+    reply_tx: &mut Option<oneshot::Sender<Result<M, tor_proto::Error>>>,
+) -> Result<MetaCellDisposition, tor_proto::Error> {
+    let reply_tx = reply_tx
+        .take()
+        .ok_or_else(|| internal!("Tried to handle two messages of the same type"))?;
+
+    let send_outcome: Result<M, tor_proto::Error> = (|| {
+        let reply: M = msg
+            .decode()
+            .map_err(|err| tor_proto::Error::BytesErr {
+                // I would have preferred to say M::cmd().to_string() :/
+                object: "expected message",
+                err,
+            })?
+            .into_msg();
+
+        Ok(reply)
+    })();
+
+    let return_outcome = match &send_outcome {
+        Ok(_) => Ok(disposition_on_success),
+        Err(e) => Err(e.clone()),
+    };
+
+    trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
+    #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
+    reply_tx
+        .send(send_outcome)
+        // If the caller went away, we just drop the outcome
+        .unwrap_or_else(|_: Result<M, _>| ());
+    trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
+
+    return_outcome
 }
 
 /// Mocks used for testing `connect.rs`
@@ -840,7 +1003,7 @@ trait MocksForConnect<R>: Clone {
     type HsCircPool: MockableCircPool<R>;
 
     /// A random number generator
-    type Rng: rand::Rng;
+    type Rng: rand::Rng + rand::CryptoRng;
 
     /// Tell tests we got this descriptor text
     fn test_got_desc(&self, desc: &HsDesc) {
@@ -885,6 +1048,15 @@ trait MockableClientCirc: Debug {
         msg: AnyRelayMsg,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()>;
+
+    /// Add a virtual hop to the circuit.
+    async fn extend_virtual(
+        &self,
+        protocol: tor_proto::circuit::handshake::RelayProtocol,
+        protocol: tor_proto::circuit::handshake::HandshakeRole,
+        handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
+        params: CircParameters,
+    ) -> tor_proto::Result<()>;
 }
 
 impl<R: Runtime> MocksForConnect<R> for () {
@@ -926,6 +1098,16 @@ impl MockableClientCirc for ClientCirc {
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()> {
         ClientCirc::send_control_message(self, msg, reply_handler).await
+    }
+
+    async fn extend_virtual(
+        &self,
+        protocol: tor_proto::circuit::handshake::RelayProtocol,
+        role: tor_proto::circuit::handshake::HandshakeRole,
+        handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
+        params: CircParameters,
+    ) -> tor_proto::Result<()> {
+        ClientCirc::extend_virtual(self, protocol, role, handshake, params).await
     }
 }
 
@@ -1054,6 +1236,16 @@ mod test {
             &self,
             msg: AnyRelayMsg,
             reply_handler: impl MsgHandler + Send + 'static,
+        ) -> tor_proto::Result<()> {
+            todo!()
+        }
+
+        async fn extend_virtual(
+            &self,
+            protocol: tor_proto::circuit::handshake::RelayProtocol,
+            role: tor_proto::circuit::handshake::HandshakeRole,
+            handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
+            params: CircParameters,
         ) -> tor_proto::Result<()> {
             todo!()
         }

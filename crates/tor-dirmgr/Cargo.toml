@@ -54,7 +54,7 @@ __is_nonadditive = []
 __is_experimental = []
 
 [dependencies]
-async-trait = "0.1.2"
+async-trait = "0.1.54"
 base64ct = "1.5.1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
