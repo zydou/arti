@@ -152,6 +152,81 @@ impl HsNtorClientState {
             Bx,
         }
     }
+
+    /// Return the data that should be written as the encrypted part of and
+    /// the data that should be written as the encrypted part of the INTRODUCE1
+    /// message. The data that is
+    /// written is:
+    ///
+    /// ```text
+    ///  CLIENT_PK                [PK_PUBKEY_LEN bytes]
+    ///  ENCRYPTED_DATA           [Padded to length of plaintext]
+    ///  MAC                      [MAC_LEN bytes]
+    /// ```
+    pub fn client_send_intro(&self, intro_header: &[u8], plaintext_body: &[u8]) -> Result<Vec<u8>> {
+        let state = self;
+        let service = &state.service_info;
+
+        // Compute keys required to finish this part of the handshake
+        let (enc_key, mac_key) = get_introduce1_key_material(
+            &state.Bx,
+            &service.auth_key,
+            &state.X,
+            &service.B,
+            &service.subcredential,
+        )?;
+
+        let (ciphertext, mac_tag) =
+            encrypt_and_mac(plaintext_body, intro_header, &state.X, &enc_key, mac_key);
+
+        // Create the relevant parts of INTRO1
+        let mut response: Vec<u8> = Vec::new();
+        response
+            .write(&state.X)
+            .and_then(|_| response.write(&ciphertext))
+            .and_then(|_| response.write(&mac_tag))
+            .map_err(into_internal!("Can't encode hs-ntor client handshake."))?;
+
+        Ok(response)
+    }
+
+    /// The introduction has been completed and the service has replied with a
+    /// RENDEZVOUS1 message, whose body is in `msg`.
+    ///
+    /// Handle it by computing and verifying the MAC, and if it's legit return a
+    /// key generator based on the result of the key exchange.
+    pub fn client_receive_rend(&self, msg: &[u8]) -> Result<HsNtorHkdfKeyGenerator> {
+        let state = self;
+
+        // Extract the public key of the service from the message
+        let mut cur = Reader::from_slice(msg);
+        let Y: curve25519::PublicKey = cur
+            .extract()
+            .map_err(|e| Error::from_bytes_err(e, "hs_ntor handshake"))?;
+        let mac_tag: MacTag = cur
+            .extract()
+            .map_err(|e| Error::from_bytes_err(e, "hs_ntor handshake"))?;
+
+        // Get EXP(Y,x) and EXP(B,x)
+        let xy = state.x.diffie_hellman(&Y);
+        let xb = state.x.diffie_hellman(&state.service_info.B);
+
+        let (keygen, my_mac_tag) = get_rendezvous1_key_material(
+            &xy,
+            &xb,
+            &state.service_info.auth_key,
+            &state.service_info.B,
+            &state.X,
+            &Y,
+        )?;
+
+        // Validate the MAC!
+        if my_mac_tag != mac_tag {
+            return Err(Error::BadCircHandshakeAuth);
+        }
+
+        Ok(keygen)
+    }
 }
 
 /// Encrypt the 'plaintext' using 'enc_key'. Then compute the intro cell MAC
@@ -179,92 +254,6 @@ fn encrypt_and_mac(
     let mac_tag = hs_mac(&mac_key, &mac_body);
 
     (ciphertext, mac_tag)
-}
-
-#[rustfmt::skip] // XXXX
-impl HsNtorClientState {
-
-/// Return the data that should be written as the encrypted part of and
-/// the data that should be written as the encrypted part of the INTRODUCE1
-/// message. The data that is
-/// written is:
-///
-/// ```text
-///  CLIENT_PK                [PK_PUBKEY_LEN bytes]
-///  ENCRYPTED_DATA           [Padded to length of plaintext]
-///  MAC                      [MAC_LEN bytes]
-/// ```
-pub fn client_send_intro(
-    &self,
-    intro_header: &[u8],
-    plaintext_body: &[u8],
-) -> Result<Vec<u8>> {
-    let state = self;
-    let service = &state.service_info;
-
-    // Compute keys required to finish this part of the handshake
-    let (enc_key, mac_key) = get_introduce1_key_material(
-        &state.Bx,
-        &service.auth_key,
-        &state.X,
-        &service.B,
-        &service.subcredential,
-    )?;
-
-    let (ciphertext, mac_tag) =
-        encrypt_and_mac(plaintext_body, intro_header, &state.X, &enc_key, mac_key);
-
-    // Create the relevant parts of INTRO1
-    let mut response: Vec<u8> = Vec::new();
-    response
-        .write(&state.X)
-        .and_then(|_| response.write(&ciphertext))
-        .and_then(|_| response.write(&mac_tag))
-        .map_err(into_internal!("Can't encode hs-ntor client handshake."))?;
-
-    Ok(response)
-}
-
-/// The introduction has been completed and the service has replied with a
-/// RENDEZVOUS1 message, whose body is in `msg`.
-///
-/// Handle it by computing and verifying the MAC, and if it's legit return a
-/// key generator based on the result of the key exchange.
-pub fn client_receive_rend(
-    &self,
-    msg: &[u8],
-) -> Result<HsNtorHkdfKeyGenerator> {
-let state = self;
-
-    // Extract the public key of the service from the message
-    let mut cur = Reader::from_slice(msg);
-    let Y: curve25519::PublicKey = cur
-        .extract()
-        .map_err(|e| Error::from_bytes_err(e, "hs_ntor handshake"))?;
-    let mac_tag: MacTag = cur
-        .extract()
-        .map_err(|e| Error::from_bytes_err(e, "hs_ntor handshake"))?;
-
-    // Get EXP(Y,x) and EXP(B,x)
-    let xy = state.x.diffie_hellman(&Y);
-    let xb = state.x.diffie_hellman(&state.service_info.B);
-
-    let (keygen, my_mac_tag) = get_rendezvous1_key_material(
-        &xy,
-        &xb,
-        &state.service_info.auth_key,
-        &state.service_info.B,
-        &state.X,
-        &Y,
-    )?;
-
-    // Validate the MAC!
-    if my_mac_tag != mac_tag {
-        return Err(Error::BadCircHandshakeAuth);
-    }
-
-    Ok(keygen)
-}
 }
 
 /*********************** Server Side Code ************************************/
