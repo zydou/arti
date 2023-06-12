@@ -500,7 +500,7 @@ pub enum ErrorKind {
     ///   by the hidden service for advertising itself.
     ///   * All the directories we spoke to are malfunctioning and accepted the descriptor despite
     ///   it being broken in a way they can see. This could indicate that some or all of the
-    ///   directories are hostile.
+    ///   directories are hostile (i.e. conducting an attack)
     #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service descriptor parsing failed")]
     OnionServiceDescriptorParsingFailed,
@@ -515,6 +515,10 @@ pub enum ErrorKind {
     ///   * Our clock is set incorrectly
     ///   * The clock of the hidden service is set incorrectly
     ///   * The service's Tor version is not compatible with ours
+    ///   * The service is malfunctioning
+    ///   * All the directories we spoke to are malfunctioning and accepted the descriptor despite
+    ///   it being broken in a way they can see. This could indicate that some or all of the
+    ///   directories are hostile (i.e. conducting an attack)
     #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service descriptor validation failed")]
     OnionServiceDescriptorValidationFailed,
