@@ -20,6 +20,13 @@ pub enum HsClientKeyRole {
 }
 
 /// An HS client identifier.
+///
+/// Distinguishes different "clients" or "users" of this Arti instance,
+/// so that they can have different sets of HS client authentication keys.
+///
+/// TODO hs: this could be turned into a more general `KeystoreClientUserSpecifier` (or even
+/// `KeystoreUserSpecifier`). Once we start adding new specifiers we should consider refactoring
+/// this (and making the client specifiers HS-agnostic).
 #[derive(Clone, derive_more::Display)]
 pub struct HsClientSpecifier(Arc<str>);
 
