@@ -119,6 +119,12 @@ pub trait HasRelayIds {
         }
         std::cmp::Ordering::Equal
     }
+
+    /// Return a reference to this object suitable for formatting its
+    /// [`HasRelayIds`] members.
+    fn display_relay_ids(&self) -> DisplayRelayIds<'_, Self> {
+        DisplayRelayIds { inner: self }
+    }
 }
 
 impl<T: HasRelayIdsLegacy> HasRelayIds for T {
@@ -127,6 +133,47 @@ impl<T: HasRelayIdsLegacy> HasRelayIds for T {
             RelayIdType::Rsa => Some(self.rsa_identity().into()),
             RelayIdType::Ed25519 => Some(self.ed_identity().into()),
         }
+    }
+}
+
+/// A helper type used to format the [`RelayId`](crate::RelayId)s in a
+/// [`HasRelayIds`].
+#[derive(Clone)]
+pub struct DisplayRelayIds<'a, T: HasRelayIds + ?Sized> {
+    /// The HasRelayIds that we're displaying.
+    inner: &'a T,
+}
+// Redactable must implement Debug.
+impl<'a, T: HasRelayIds + ?Sized> fmt::Debug for DisplayRelayIds<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DisplayRelayIds").finish_non_exhaustive()
+    }
+}
+
+impl<'a, T: HasRelayIds + ?Sized> DisplayRelayIds<'a, T> {
+    /// Helper: output `self` in a possibly redacted way.
+    fn fmt_impl(&self, f: &mut fmt::Formatter<'_>, redact: bool) -> fmt::Result {
+        let mut iter = self.inner.identities();
+        if let Some(ident) = iter.next() {
+            write!(f, "{}", ident.maybe_redacted(redact))?;
+        }
+        if redact {
+            return Ok(());
+        }
+        for ident in iter {
+            write!(f, " {}", ident.maybe_redacted(redact))?;
+        }
+        Ok(())
+    }
+}
+impl<'a, T: HasRelayIds + ?Sized> fmt::Display for DisplayRelayIds<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_impl(f, false)
+    }
+}
+impl<'a, T: HasRelayIds + ?Sized> Redactable for DisplayRelayIds<'a, T> {
+    fn display_redacted(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_impl(f, true)
     }
 }
 
@@ -280,12 +327,8 @@ impl<'a, T: ChanTarget> DisplayChanTarget<'a, T> {
             }
         }
 
-        for ident in self.inner.identities() {
-            write!(f, " {}", ident.maybe_redacted(redact))?;
-            if redact {
-                break;
-            }
-        }
+        write!(f, " ")?;
+        self.inner.display_relay_ids().fmt_impl(f, redact)?;
 
         write!(f, "]")
     }
@@ -297,11 +340,11 @@ impl<'a, T: ChanTarget> fmt::Display for DisplayChanTarget<'a, T> {
     }
 }
 
-impl<'a, T: ChanTarget + std::fmt::Debug> safelog::Redactable for DisplayChanTarget<'a, T> {
-    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a, T: ChanTarget + fmt::Debug> safelog::Redactable for DisplayChanTarget<'a, T> {
+    fn display_redacted(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fmt_impl(f, true)
     }
-    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn debug_redacted(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ChanTarget({:?})", self.redacted().to_string())
     }
 }

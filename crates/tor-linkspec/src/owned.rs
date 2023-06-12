@@ -78,6 +78,17 @@ impl RelayIds {
     }
 }
 
+impl std::fmt::Display for RelayIds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_relay_ids())
+    }
+}
+impl Redactable for RelayIds {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_relay_ids().redacted())
+    }
+}
+
 /// OwnedChanTarget is a summary of a [`ChanTarget`] that owns all of its
 /// members.
 #[derive(Debug, Clone, derive_builder::Builder)]
@@ -322,5 +333,16 @@ mod test {
         let ct2 = OwnedCircTarget::from_circ_target(&ct);
         assert_eq!(format!("{:?}", ct), format!("{:?}", ct2));
         assert_eq!(format!("{:?}", ct), format!("{:?}", ct.clone()));
+    }
+
+    #[test]
+    fn format_relay_ids() {
+        let mut builder = RelayIds::builder();
+        builder
+            .ed_identity([42; 32].into())
+            .rsa_identity([45; 20].into());
+        let ids = builder.build().unwrap();
+        assert_eq!(format!("{}", ids), "ed25519:KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio $2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d");
+        assert_eq!(format!("{}", ids.redacted()), "ed25519:Ki…");
     }
 }
