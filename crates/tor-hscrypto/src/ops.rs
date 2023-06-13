@@ -10,7 +10,10 @@ pub const HS_MAC_LEN: usize = 32;
 
 /// Compute the lightweight MAC function used in the onion service protocol.
 ///
-/// (rend-spec-v3 section 0.3 `MAC`)
+/// (See rend-spec-v3 section 0.3 `MAC`.)
+///
+/// This is not a great MAC; KMAC wasn't defined at the time that the HSv3
+/// design was written. Please don't use this MAC in new protocols.
 pub fn hs_mac(key: &[u8], msg: &[u8]) -> CtByteArray<HS_MAC_LEN> {
     // rend-spec-v3 says: "Instantiate H with SHA3-256... Instantiate MAC(key=k,
     // message=m) with H(k_len | k | m), where k_len is htonll(len(k))."
