@@ -196,7 +196,6 @@ impl FromStr for HsId {
 }
 
 /// Error that can occur parsing an `HsId` from a v3 `.onion` domain name
-// TODO HS this should probably implement ErrorKind
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 pub enum HsIdParseError {
