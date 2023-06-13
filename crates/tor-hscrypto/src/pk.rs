@@ -4,11 +4,6 @@
 //! key for another: without a system like this, it can get pretty hard making
 //! sure that each key is used only in the right way.)
 
-// TODO hs: Maybe we want to remove some of these types as we build the
-// implementation; for example, if we find that a single key type is visible
-// only in a single module somewhere else, it would make sense to just use the
-// underlying type.
-
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 
@@ -403,6 +398,7 @@ impl Ed25519PublicKey for HsBlindIdKeypair {
     }
 }
 
+/*
 define_pk_keypair! {
 /// A key used to sign onion service descriptors. (`KP_desc_sign`)
 ///
@@ -417,8 +413,13 @@ define_pk_keypair! {
 /// Note: we use a separate signing key here, rather than using the
 /// `HsBlindIdKey` directly, so that the [`HsBlindIdKeypair`]
 /// can be kept offline.
+//
+// TODO HS: This key type is currently unused!  We should reinstate it if we
+// decide to use it when implementing onion services; otherwise we should remove
+// it entirely.
 pub struct HsDescSigningKey(ed25519::PublicKey) / HsDescSigningKeypair(ed25519::Keypair);
 }
+*/
 
 define_pk_keypair! {
 /// A key used to identify and authenticate an onion service at a single
