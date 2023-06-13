@@ -49,33 +49,27 @@ impl TimePeriod {
     ///
     /// Return None if the Duration is too large or too small, or if `when`
     /// cannot be represented as a time period.
-    //
-    // TODO hs: Make this, and other functions in this module, return a Result
-    // instead of an Option. (I'll do that after we merge the pending code in
-    // !987, since otherwise the change would break that code. -nickm)
-    //
-    // TODO hs: perhaps we should take an IntegerSeconds or such rathe than a
-    // duration, since these values are restricted. Or perhaps we should give an
-    // error if the Duration doesn't divide evenly by seconds as
-    // appropriate.
-    //
-    // TODO hs: conceivably this should take a voting interval instead of an
-    // epoch offset.
-    pub fn new(length: Duration, when: SystemTime, epoch_offset: Duration) -> Option<Self> {
+    pub fn new(
+        length: Duration,
+        when: SystemTime,
+        epoch_offset: Duration,
+    ) -> Result<Self, TimePeriodError> {
         // The algorithm here is specified in rend-spec-v3 section 2.2.1
-        let length_in_sec = u32::try_from(length.as_secs()).ok()?;
-        if length_in_sec % 60 != 0 {
-            return None;
+        let length_in_sec =
+            u32::try_from(length.as_secs()).map_err(|_| TimePeriodError::IntervalInvalid)?;
+        if length_in_sec % 60 != 0 || length.subsec_nanos() != 0 {
+            return Err(TimePeriodError::IntervalInvalid);
         }
         let length_in_minutes = length_in_sec / 60;
         let length = IntegerMinutes::new(length_in_minutes);
-        let offset_in_sec = u32::try_from(epoch_offset.as_secs()).ok()?;
+        let offset_in_sec =
+            u32::try_from(epoch_offset.as_secs()).map_err(|_| TimePeriodError::OffsetInvalid)?;
         let interval_num = when
             .duration_since(SystemTime::UNIX_EPOCH + epoch_offset)
-            .ok()?
+            .map_err(|_| TimePeriodError::OutOfRange)?
             .as_secs()
             / u64::from(length_in_sec);
-        Some(TimePeriod {
+        Ok(TimePeriod {
             interval_num,
             length,
             offset_in_sec,
@@ -90,7 +84,7 @@ impl TimePeriod {
             ..*self
         })
     }
-    /// Return the time period after this one.
+    /// Return the time period before this one.
     ///
     /// Return None if this is the first representable time period.
     pub fn prev(&self) -> Option<Self> {
@@ -107,8 +101,8 @@ impl TimePeriod {
     /// that cannot be represented as a `SystemTime`.
     pub fn contains(&self, when: SystemTime) -> bool {
         match self.range() {
-            Some(r) => r.contains(&when),
-            None => false,
+            Ok(r) => r.contains(&when),
+            Err(_) => false,
         }
     }
     /// Return a range representing the [`SystemTime`] values contained within
@@ -116,16 +110,19 @@ impl TimePeriod {
     ///
     /// Return None if this time period contains any times that can be
     /// represented as a `SystemTime`.
-    pub fn range(&self) -> Option<std::ops::Range<SystemTime>> {
-        let length_in_sec = u64::from(self.length.as_minutes()) * 60;
-        let start_sec = length_in_sec.checked_mul(self.interval_num)?;
-        let end_sec = start_sec.checked_add(length_in_sec)?;
-        let epoch_offset = Duration::new(self.offset_in_sec.into(), 0);
-        let start =
-            (SystemTime::UNIX_EPOCH + epoch_offset).checked_add(Duration::from_secs(start_sec))?;
-        let end =
-            (SystemTime::UNIX_EPOCH + epoch_offset).checked_add(Duration::from_secs(end_sec))?;
-        Some(start..end)
+    pub fn range(&self) -> Result<std::ops::Range<SystemTime>, TimePeriodError> {
+        (|| {
+            let length_in_sec = u64::from(self.length.as_minutes()) * 60;
+            let start_sec = length_in_sec.checked_mul(self.interval_num)?;
+            let end_sec = start_sec.checked_add(length_in_sec)?;
+            let epoch_offset = Duration::new(self.offset_in_sec.into(), 0);
+            let start = (SystemTime::UNIX_EPOCH + epoch_offset)
+                .checked_add(Duration::from_secs(start_sec))?;
+            let end = (SystemTime::UNIX_EPOCH + epoch_offset)
+                .checked_add(Duration::from_secs(end_sec))?;
+            Some(start..end)
+        })()
+        .ok_or(TimePeriodError::OutOfRange)
     }
 
     /// Return the numeric index of this time period.
@@ -143,6 +140,30 @@ impl TimePeriod {
     pub fn length(&self) -> IntegerMinutes<u32> {
         self.length
     }
+}
+
+/// An error that occurs when creating or manipulating a [`TimePeriod`]
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum TimePeriodError {
+    /// We couldn't represent the time period in the way we were trying to
+    /// represent it, since it outside of the range supported by the data type.
+    #[error("Time period out was out of range")]
+    OutOfRange,
+
+    /// The time period couldn't be constructed because its interval was
+    /// invalid.
+    ///
+    /// (We require that intervals are a multiple of 60 seconds, and that they
+    /// can be represented in a `u32`.)
+    #[error("Invalid time period interval")]
+    IntervalInvalid,
+
+    /// The time period couldn't be constructed because its offset was invalid.
+    ///
+    /// (We require that offsets can be represented in a `u32`.)
+    #[error("Invalid time period offset")]
+    OffsetInvalid,
 }
 
 #[cfg(test)]

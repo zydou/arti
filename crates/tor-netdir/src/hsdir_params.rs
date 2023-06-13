@@ -89,9 +89,9 @@ impl HsDirParams {
         })?;
         let offset = voting_period(consensus.lifetime())? * VOTING_PERIODS_IN_OFFSET;
         let cur_period = TimePeriod::new(tp_length, consensus.lifetime().valid_after(), offset)
-            .ok_or(Error::InvalidConsensus(
-                "Consensus valid-after did not fall in a time period",
-            ))?;
+            .map_err(|_| {
+                Error::InvalidConsensus("Consensus valid-after did not fall in a time period")
+            })?;
 
         let current = find_params_for_time(&srvs[..], cur_period)?
             .unwrap_or_else(|| disaster_params(cur_period));
@@ -140,14 +140,16 @@ fn disaster_srv(period: TimePeriod) -> SharedRandVal {
 /// recent.
 type SrvInfo = (SharedRandVal, std::ops::Range<SystemTime>);
 
-/// Given a list of SrvInfo, return an HsRingParames instance for a given time
+/// Given a list of SrvInfo, return an HsRingParams instance for a given time
 /// period, if possible.
 fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<HsDirParams>> {
     let start = period
         .range()
-        .ok_or(Error::InvalidConsensus(
-            "HsDir time period in consensus could not be represented as a SystemTime range.",
-        ))?
+        .map_err(|_| {
+            Error::InvalidConsensus(
+                "HsDir time period in consensus could not be represented as a SystemTime range.",
+            )
+        })?
         .start;
 
     Ok(find_srv_for_time(info, start).map(|srv| HsDirParams {
