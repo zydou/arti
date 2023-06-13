@@ -713,15 +713,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 // The first message we expect is a RENDEZVOUS_ESTABALISHED.
                 if self.rend_established_tx.still_expected() {
-                    self.rend_established_tx.deliver_expected_message(
-                        msg,
-                        MetaCellDisposition::Consumed,
-                    )
+                    self.rend_established_tx
+                        .deliver_expected_message(msg, MetaCellDisposition::Consumed)
                 } else {
-                    self.rend2_tx.deliver_expected_message(
-                        msg,
-                        MetaCellDisposition::UninstallHandler,
-                    )
+                    self.rend2_tx
+                        .deliver_expected_message(msg, MetaCellDisposition::UninstallHandler)
                 }
             }
         }
@@ -907,10 +903,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_pt: rend_pt_identity_for_error(&rendezvous.rend_relay),
         };
 
-        let rend2_msg: Rendezvous2 = rendezvous
-            .rend2_rx
-            .recv(handle_proto_error)
-            .await?;
+        let rend2_msg: Rendezvous2 = rendezvous.rend2_rx.recv(handle_proto_error).await?;
 
         // TODO HS: get handshake_state form wherever we stored it above.
         //
