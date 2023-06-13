@@ -226,7 +226,7 @@ struct UsableIntroPt<'i> {
 ///
 /// Intermediate value for progress during a connection attempt.
 struct Introduced<R: Runtime, M: MocksForConnect<R>> {
-    ///
+    /// Circuit to the introduction point
     intro_circ: Arc<ClientCirc!(R, M)>,
 
     // TODO HS this will need to contain key exchange information
