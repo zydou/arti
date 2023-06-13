@@ -981,10 +981,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 "actually this is probably a 'circuit closed' error" // TODO HS
             ))?;
 
-        // TODO HS: Now we can return the rend_circ circuit to the calling code,
-        // which can start using it!  Isn't that great?  we're done!
-
-        todo!() // HS implement
+        Ok(rendezvous.rend_circ)
     }
 }
 
