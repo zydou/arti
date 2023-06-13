@@ -531,6 +531,16 @@ pub enum ErrorKind {
     #[display(fmt = "Onion Service protocol failed (apprently due to service behaviour)")]
     OnionServiceProtocolViolation,
 
+    /// The target hidden service (`.onion` service) is running but we couldn't connect to it,
+    /// and we aren't sure whose fault that is
+    ///
+    /// This might be due to malfunction on the part of the service,
+    /// or a relay being used as an introduction point or relay,
+    /// or failure of the underlying Tor network.
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = "Onion Service not reachable (due to service, or Tor network, behaviour)")]
+    OnionServiceConnectionFailed,
+
     /// An resolve operation finished with an error.
     ///
     /// Contrary to [`RemoteHostNotFound`](ErrorKind::RemoteHostNotFound),

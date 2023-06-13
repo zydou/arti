@@ -9,6 +9,7 @@ use tracing::error;
 
 use retry_error::RetryError;
 use safelog::Redacted;
+use tor_cell::relaycell::hs::IntroduceAckStatus;
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -158,10 +159,18 @@ pub enum FailedAttemptError {
 
     /// Failed to obtain any circuit to use as a rendezvous circuit
     #[error("Failed to obtain any circuit to use as a rendezvous circuit")]
-    RendezvousObtainCircuit {
+    RendezvousCircuitObtain {
         /// Why it's not use able
         #[source]
         error: tor_circmgr::Error,
+    },
+
+    /// Creating a rendezvous circuit and rendezvous point took too long
+    #[error("Creating a rendezvous circuit and rendezvous point took too long")]
+    RendezvousEstablishTimeout {
+        /// Which relay did we choose for rendezvous point
+        // TODO #813 this should be Redacted<RelayDescription> or something
+        rend_pt: Redacted<RsaIdentity>,
     },
 
     /// Failed to establish rendezvous point
@@ -176,20 +185,33 @@ pub enum FailedAttemptError {
         rend_pt: Redacted<RsaIdentity>,
     },
 
-    /// Creating a rendezvous circuit and rendezvous point took too long
-    #[error("Creating a rendezvous circuit and rendezvous point took too long")]
-    RendezvousTimeout {
-        /// Which relay did we choose for rendezvous point
-        // TODO #813 this should be Redacted<RelayDescription> or something
-        rend_pt: Redacted<RsaIdentity>,
-    },
-
     /// Failed to obtain circuit to introduction point
     #[error("Failed to obtain circuit to introduction point {intro_index}")]
-    IntroObtainCircuit {
+    IntroductionCircuitObtain {
         /// What happened
         #[source]
         error: tor_circmgr::Error,
+
+        /// The index of the IPT in the list of IPTs in the descriptor
+        intro_index: IntroPtIndex,
+    },
+
+    /// Introduction exchange (with the introduction point) failed
+    #[error("Introduction exchange (with the introduction point) failed")]
+    IntroductionExchange {
+        /// What happened
+        #[source]
+        error: tor_proto::Error,
+
+        /// The index of the IPT in the list of IPTs in the descriptor
+        intro_index: IntroPtIndex,
+    },
+
+    /// Introduction point reported error in its INTRODUCE_ACK
+    #[error("Introduction point reported error in its INTRODUCE_ACK: {status}")]
+    IntroductionFailed {
+        /// The status code provided by the introduction point
+        status: IntroduceAckStatus,
 
         /// The index of the IPT in the list of IPTs in the descriptor
         intro_index: IntroPtIndex,
@@ -205,13 +227,12 @@ pub enum FailedAttemptError {
         intro_index: IntroPtIndex,
     },
 
-    /// Error when expecting rendezvous completion on rendezvous circuit
-    #[error("Error when expecting rendezvous completion on rendezvous circuit")]
-    RendezvousCircuitCompletionExpected {
-        /// What happened
-        #[source]
-        error: tor_proto::Error,
-
+    /// It took too long for the rendezvous to be completed
+    ///
+    /// This might be the fault of almost anyone.  All we know is that we got
+    /// a successful `INTRODUCE_ACK` but the `RENDEZVOUS2` never arrived.
+    #[error("Rendezvous at {rend_pt} using introduction point {intro_index} took too long")]
+    RendezvousCompletionTimeout {
         /// The index of the IPT in the list of IPTs in the descriptor
         intro_index: IntroPtIndex,
 
@@ -220,12 +241,13 @@ pub enum FailedAttemptError {
         rend_pt: Redacted<RsaIdentity>,
     },
 
-    /// It took too long for the rendezvous to be completed
-    ///
-    /// This might be the fault of almost anyone.  All we know is that we got
-    /// a successful `INTRODUCE_ACK` but the `RENDEZVOUS2` never arrived.
-    #[error("Rendezvous at {rend_pt} using introduction point {intro_index} took too long")]
-    RendezvousCompletionTimeout {
+    /// Error on rendezvous circuit when expecting rendezvous completion
+    #[error("Error on rendezvous circuit when expecting rendezvous completion")]
+    RendezvousCompletion {
+        /// What happened
+        #[source]
+        error: tor_proto::Error,
+
         /// The index of the IPT in the list of IPTs in the descriptor
         intro_index: IntroPtIndex,
 
@@ -312,11 +334,13 @@ impl HasKind for FailedAttemptError {
         use FailedAttemptError as FAE;
         match self {
             FAE::UnusableIntro { error, .. } => EK::OnionServiceDescriptorValidationFailed,
-            FAE::RendezvousObtainCircuit { error, .. } => error.kind(),
+            FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
-            FAE::RendezvousCircuitCompletionExpected { error, .. } => error.kind(),
-            FAE::RendezvousTimeout { .. } => EK::TorNetworkTimeout,
-            FAE::IntroObtainCircuit { error, .. } => error.kind(),
+            FAE::RendezvousCompletion { error, .. } => error.kind(),
+            FAE::RendezvousEstablishTimeout { .. } => EK::TorNetworkTimeout,
+            FAE::IntroductionCircuitObtain { error, .. } => error.kind(),
+            FAE::IntroductionExchange { error, .. } => error.kind(),
+            FAE::IntroductionFailed { .. } => EK::OnionServiceConnectionFailed,
             FAE::IntroductionTimeout { .. } => EK::TorNetworkTimeout,
             FAE::RendezvousCompletionTimeout { .. } => EK::RemoteNetworkTimeout,
             FAE::Bug(e) => e.kind(),

@@ -25,7 +25,8 @@ use tracing::{debug, trace};
 use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::{
-    AuthKeyType, EstablishRendezvous, IntroduceHeader, RendezvousEstablished,
+    AuthKeyType, EstablishRendezvous, IntroduceAck, IntroduceAckStatus, IntroduceHeader,
+    RendezvousEstablished,
 };
 use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
 use tor_checkable::{timed::TimerangeBound, Timebound};
@@ -589,10 +590,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                             .timeout(REND_TIMEOUT, self.establish_rendezvous(&mut using_rend_pt))
                             .await
                             .map_err(|_: TimeoutError| match using_rend_pt {
-                                None => FAE::RendezvousObtainCircuit {
+                                None => FAE::RendezvousCircuitObtain {
                                     error: tor_circmgr::Error::CircTimeout,
                                 },
-                                Some(rend_pt) => FAE::RendezvousTimeout { rend_pt },
+                                Some(rend_pt) => FAE::RendezvousEstablishTimeout { rend_pt },
                             })??,
                     );
                 }
@@ -696,7 +697,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .circpool
             .get_or_launch_client_rend(&self.netdir)
             .await
-            .map_err(|error| FAE::RendezvousObtainCircuit { error })?;
+            .map_err(|error| FAE::RendezvousCircuitObtain { error })?;
 
         let rend_pt = rend_pt_identity_for_error(&rend_relay);
         *using_rend_pt = Some(rend_pt.clone());
@@ -806,7 +807,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 ipt.intro_target.clone(), // &OwnedCircTarget isn't CircTarget apparently
             )
             .await
-            .map_err(|error| FAE::IntroObtainCircuit { error, intro_index })?;
+            .map_err(|error| FAE::IntroductionCircuitObtain { error, intro_index })?;
 
         let rendezvous = rendezvous.take().ok_or_else(|| internal!("no rend"))?;
 
@@ -878,15 +879,54 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             encrypted_body,
         );
 
-        // TODO HS: Send intro1_real on the introduce circuit and wait for
-        // either an error or an INTRO_ACK.
-        // intro_circ.send_control_message(intro1_real)...
+        /// Handler which expects just `INTRODUCE_ACK`
+        struct Handler {
+            /// Sender for `INTRODUCE_ACK`
+            intro_ack_tx: proto_oneshot::Sender<IntroduceAck>,
+        }
+        impl MsgHandler for Handler {
+            fn handle_msg(
+                &mut self,
+                msg: AnyRelayMsg,
+            ) -> Result<MetaCellDisposition, tor_proto::Error> {
+                self.intro_ack_tx
+                    .deliver_expected_message(msg, MetaCellDisposition::UninstallHandler)
+            }
+        }
+        let handle_intro_proto_error = |error| FAE::IntroductionExchange { error, intro_index };
+        let (intro_ack_tx, intro_ack_rx) = proto_oneshot::channel();
+        let handler = Handler { intro_ack_tx };
 
-        // TODO HS: We need to remember handshake_state so we can later handle a
-        // RENDEZVOUS2 message!
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: making introduction - sending INTRODUCE1",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
 
-        return Err(internal!("sending INTRODUCE1 is not yet implemented!").into()); // TODO HS
-        #[allow(unreachable_code)] // TODO HS remove
+        intro_circ
+            .send_control_message(intro1_real.into(), handler)
+            .await
+            .map_err(handle_intro_proto_error)?;
+
+        // Status is checked by `.success()`, and we don't look at the extensions;
+        // just discard the known-successful `IntroduceAck`
+        let _: IntroduceAck = intro_ack_rx
+            .recv(handle_intro_proto_error)
+            .await?
+            .success()
+            .map_err(|status| FAE::IntroductionFailed {
+                status,
+                intro_index,
+            })?;
+
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: making introduction - success",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
+
         Ok((
             rendezvous,
             Introduced {
@@ -916,13 +956,29 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
         use tor_proto::circuit::handshake;
 
-        let handle_proto_error = |error| FAE::RendezvousCircuitCompletionExpected {
+        let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
+        let intro_index = ipt.intro_index;
+        let handle_proto_error = |error| FAE::RendezvousCompletion {
             error,
-            intro_index: ipt.intro_index,
-            rend_pt: rend_pt_identity_for_error(&rendezvous.rend_relay),
+            intro_index,
+            rend_pt: rend_pt.clone(),
         };
 
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: awaiting rendezvous completion",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
+
         let rend2_msg: Rendezvous2 = rendezvous.rend2_rx.recv(handle_proto_error).await?;
+
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: received RENDEZVOUS2",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
 
         // TODO: It would be great if we could have multiple of these existing
         // in parallel with similar x,X values but different ipts. I believe C
@@ -955,10 +1011,14 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 "actually this is probably a 'circuit closed' error" // TODO HS
             ))?;
 
-        // TODO HS: Now we can return the rend_circ circuit to the calling code,
-        // which can start using it!  Isn't that great?  we're done!
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: HS circuit established",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
 
-        todo!() // HS implement
+        Ok(rendezvous.rend_circ)
     }
 }
 
