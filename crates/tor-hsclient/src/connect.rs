@@ -42,6 +42,7 @@ use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
 use tor_proto::circuit::{CircParameters, ClientCirc, MetaCellDisposition, MsgHandler};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
+use crate::proto_oneshot;
 use crate::relay_info::ipt_to_circtarget;
 use crate::state::MockableConnectorData;
 use crate::{rend_pt_identity_for_error, FailedAttemptError, IntroPtIndex, RendPtIdentityForError};
@@ -201,7 +202,7 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     /// and which was installed when we sent `ESTABLISH_RENDEZVOUS`.
     ///
     /// (`RENDEZVOUS2` is the message containing the onion service's side of the handshake.)
-    rend2_rx: oneshot::Receiver<Result<Rendezvous2, tor_proto::Error>>,
+    rend2_rx: proto_oneshot::Receiver<Rendezvous2>,
 
     /// Dummy, to placate compiler
     ///
@@ -694,17 +695,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let rend_cookie: RendCookie = self.mocks.thread_rng().gen();
         let message = EstablishRendezvous::new(rend_cookie);
 
-        let (rend_established_tx, rend_established_rx) = oneshot::channel();
-        let (rend2_tx, rend2_rx) = oneshot::channel();
+        let (rend_established_tx, rend_established_rx) = proto_oneshot::channel();
+        let (rend2_tx, rend2_rx) = proto_oneshot::channel();
 
         /// Handler which expects `RENDEZVOUS_ESTABLISHED` and then
         /// `RENDEZVOUS2`.   Returns each message and returns it via the `oneshot`s.
         struct Handler {
             /// Sender for a RENDEZVOUS_ESTABLISHED message.
-            rend_established_tx:
-                Option<oneshot::Sender<Result<RendezvousEstablished, tor_proto::Error>>>,
+            rend_established_tx: proto_oneshot::Sender<RendezvousEstablished>,
             /// Sender for a RENDEZVOUS2 message.
-            rend2_tx: Option<oneshot::Sender<Result<Rendezvous2, tor_proto::Error>>>,
+            rend2_tx: proto_oneshot::Sender<Rendezvous2>,
         }
         impl MsgHandler for Handler {
             fn handle_msg(
@@ -712,17 +712,15 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 // The first message we expect is a RENDEZVOUS_ESTABALISHED.
-                if self.rend_established_tx.is_some() {
-                    deliver_expected_message::<RendezvousEstablished>(
+                if self.rend_established_tx.still_expected() {
+                    self.rend_established_tx.deliver_expected_message(
                         msg,
                         MetaCellDisposition::Consumed,
-                        &mut self.rend_established_tx,
                     )
                 } else {
-                    deliver_expected_message::<Rendezvous2>(
+                    self.rend2_tx.deliver_expected_message(
                         msg,
                         MetaCellDisposition::UninstallHandler,
-                        &mut self.rend2_tx,
                     )
                 }
             }
@@ -739,8 +737,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_pt: rend_pt.clone(),
         };
         let handler = Handler {
-            rend_established_tx: Some(rend_established_tx),
-            rend2_tx: Some(rend2_tx),
+            rend_established_tx,
+            rend2_tx,
         };
 
         rend_circ
@@ -752,12 +750,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         // `send_control_message` returns as soon as the control message has been sent.
         // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
-        let _: RendezvousEstablished = rend_established_rx
-            .await
-            // If the circuit collapsed, we don't get an error from tor_proto; make one up
-            .map_err(|_: oneshot::Canceled| tor_proto::Error::CircuitClosed)
-            .map_err(handle_proto_error)?
-            .map_err(handle_proto_error)?;
+        let _: RendezvousEstablished = rend_established_rx.recv(handle_proto_error).await?;
 
         trace!("RENDEZVOUS"); // TODO HS REMOVE RSN!
 
@@ -914,14 +907,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_pt: rend_pt_identity_for_error(&rendezvous.rend_relay),
         };
 
-        // TODO HS: Deduplicate this with the RendezvousEstablished handling
         let rend2_msg: Rendezvous2 = rendezvous
             .rend2_rx
-            .await
-            // If the circuit collapsed, we don't get an error from tor_proto; make one up
-            .map_err(|_: oneshot::Canceled| tor_proto::Error::CircuitClosed)
-            .map_err(handle_proto_error)?
-            .map_err(handle_proto_error)?;
+            .recv(handle_proto_error)
+            .await?;
 
         // TODO HS: get handshake_state form wherever we stored it above.
         //
@@ -961,38 +950,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         todo!() // HS implement
     }
-}
-
-/// Try to decode `msg` as message of type `M`, and to send the outcome on the
-/// oneshot taken from `reply_tx`.
-///
-/// Gives an error if `reply_tx` is None, or if an error occurs.
-fn deliver_expected_message<M>(
-    msg: AnyRelayMsg,
-    disposition_on_success: MetaCellDisposition,
-    reply_tx: &mut Option<oneshot::Sender<Result<M, tor_proto::Error>>>,
-) -> Result<MetaCellDisposition, tor_proto::Error>
-where
-    M: RelayMsg + Clone + TryFrom<AnyRelayMsg, Error = tor_cell::Error>,
-{
-    let reply_tx = reply_tx
-        .take()
-        .ok_or_else(|| internal!("Tried to handle two messages of the same type"))?;
-
-    let outcome = M::try_from(msg).map_err(|err| tor_proto::Error::CellDecodeErr {
-        object: "rendezvous-related cell",
-        err,
-    });
-
-    trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
-    #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
-    reply_tx
-        .send(outcome.clone())
-        // If the caller went away, we just drop the outcome
-        .unwrap_or_else(|_: Result<M, _>| ());
-    trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
-
-    outcome.map(|_| disposition_on_success)
 }
 
 /// Mocks used for testing `connect.rs`
