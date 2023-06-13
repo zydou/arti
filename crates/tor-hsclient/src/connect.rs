@@ -193,11 +193,14 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     rend_circ: Arc<ClientCirc!(R, M)>,
     /// Rendezvous cookie
     rend_cookie: RendCookie,
-    /// Receiver that will give us the RENDEZVOUS2 message from the rendezvous point.
-    /// (This is the message containing the onion service's side of the handshake.)
-    //
-    // TODO HS: This may need to get wrapped in an `Option` so that we can
-    // `take()` it.
+
+    /// Receiver that will give us the RENDEZVOUS2 message.
+    ///
+    /// The sending ended is owned by the handler
+    /// which receives control messages on the rednezvous circuit,
+    /// and which was installed when we sent `ESTABLISH_RENDEZVOUS`.
+    ///
+    /// (`RENDEZVOUS2` is the message containing the onion service's side of the handshake.)
     rend2_rx: oneshot::Receiver<Result<Rendezvous2, tor_proto::Error>>,
 
     /// Dummy, to placate compiler
@@ -905,8 +908,20 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
         use tor_proto::circuit::handshake;
 
-        // TODO HS: Wait for our Rendezvous2 message on rend_tx
-        let rend2_msg: Rendezvous2 = todo!(); // TODO HS
+        let handle_proto_error = |error| FAE::RendezvousCircuitCompletionExpected {
+            error,
+            intro_index: ipt.intro_index,
+            rend_pt: rend_pt_identity_for_error(&rendezvous.rend_relay),
+        };
+
+        // TODO HS: Deduplicate this with the RendezvousEstablished handling
+        let rend2_msg: Rendezvous2 = rendezvous
+            .rend2_rx
+            .await
+            // If the circuit collapsed, we don't get an error from tor_proto; make one up
+            .map_err(|_: oneshot::Canceled| tor_proto::Error::CircuitClosed)
+            .map_err(handle_proto_error)?
+            .map_err(handle_proto_error)?;
 
         // TODO HS: get handshake_state form wherever we stored it above.
         //
