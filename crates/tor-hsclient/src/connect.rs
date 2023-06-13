@@ -589,10 +589,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                             .timeout(REND_TIMEOUT, self.establish_rendezvous(&mut using_rend_pt))
                             .await
                             .map_err(|_: TimeoutError| match using_rend_pt {
-                                None => FAE::RendezvousObtainCircuit {
+                                None => FAE::RendezvousCircuitObtain {
                                     error: tor_circmgr::Error::CircTimeout,
                                 },
-                                Some(rend_pt) => FAE::RendezvousTimeout { rend_pt },
+                                Some(rend_pt) => FAE::RendezvousEstablishTimeout { rend_pt },
                             })??,
                     );
                 }
@@ -696,7 +696,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .circpool
             .get_or_launch_client_rend(&self.netdir)
             .await
-            .map_err(|error| FAE::RendezvousObtainCircuit { error })?;
+            .map_err(|error| FAE::RendezvousCircuitObtain { error })?;
 
         let rend_pt = rend_pt_identity_for_error(&rend_relay);
         *using_rend_pt = Some(rend_pt.clone());
@@ -806,7 +806,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 ipt.intro_target.clone(), // &OwnedCircTarget isn't CircTarget apparently
             )
             .await
-            .map_err(|error| FAE::IntroObtainCircuit { error, intro_index })?;
+            .map_err(|error| FAE::IntroductionCircuitObtain { error, intro_index })?;
 
         let rendezvous = rendezvous.take().ok_or_else(|| internal!("no rend"))?;
 
@@ -916,7 +916,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
         use tor_proto::circuit::handshake;
 
-        let handle_proto_error = |error| FAE::RendezvousCircuitCompletionExpected {
+        let handle_proto_error = |error| FAE::RendezvousCompletion {
             error,
             intro_index: ipt.intro_index,
             rend_pt: rend_pt_identity_for_error(&rendezvous.rend_relay),

@@ -158,7 +158,7 @@ pub enum FailedAttemptError {
 
     /// Failed to obtain any circuit to use as a rendezvous circuit
     #[error("Failed to obtain any circuit to use as a rendezvous circuit")]
-    RendezvousObtainCircuit {
+    RendezvousCircuitObtain {
         /// Why it's not use able
         #[source]
         error: tor_circmgr::Error,
@@ -166,7 +166,7 @@ pub enum FailedAttemptError {
 
     /// Creating a rendezvous circuit and rendezvous point took too long
     #[error("Creating a rendezvous circuit and rendezvous point took too long")]
-    RendezvousTimeout {
+    RendezvousEstablishTimeout {
         /// Which relay did we choose for rendezvous point
         // TODO #813 this should be Redacted<RelayDescription> or something
         rend_pt: Redacted<RsaIdentity>,
@@ -186,7 +186,7 @@ pub enum FailedAttemptError {
 
     /// Failed to obtain circuit to introduction point
     #[error("Failed to obtain circuit to introduction point {intro_index}")]
-    IntroObtainCircuit {
+    IntroductionCircuitObtain {
         /// What happened
         #[source]
         error: tor_circmgr::Error,
@@ -219,9 +219,9 @@ pub enum FailedAttemptError {
         rend_pt: Redacted<RsaIdentity>,
     },
 
-    /// Error when expecting rendezvous completion on rendezvous circuit
-    #[error("Error when expecting rendezvous completion on rendezvous circuit")]
-    RendezvousCircuitCompletionExpected {
+    /// Error on rendezvous circuit when expecting rendezvous completion
+    #[error("Error on rendezvous circuit when expecting rendezvous completion")]
+    RendezvousCompletion {
         /// What happened
         #[source]
         error: tor_proto::Error,
@@ -312,11 +312,11 @@ impl HasKind for FailedAttemptError {
         use FailedAttemptError as FAE;
         match self {
             FAE::UnusableIntro { error, .. } => EK::OnionServiceDescriptorValidationFailed,
-            FAE::RendezvousObtainCircuit { error, .. } => error.kind(),
+            FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
-            FAE::RendezvousCircuitCompletionExpected { error, .. } => error.kind(),
-            FAE::RendezvousTimeout { .. } => EK::TorNetworkTimeout,
-            FAE::IntroObtainCircuit { error, .. } => error.kind(),
+            FAE::RendezvousCompletion { error, .. } => error.kind(),
+            FAE::RendezvousEstablishTimeout { .. } => EK::TorNetworkTimeout,
+            FAE::IntroductionCircuitObtain { error, .. } => error.kind(),
             FAE::IntroductionTimeout { .. } => EK::TorNetworkTimeout,
             FAE::RendezvousCompletionTimeout { .. } => EK::RemoteNetworkTimeout,
             FAE::Bug(e) => e.kind(),
