@@ -14,15 +14,6 @@ use tor_units::IntegerMinutes;
 ///
 /// These time periods are used to derive a different `BlindedOnionIdKey` during
 /// each period from each `OnionIdKey`.
-///
-/// # Compatibility Note
-///
-/// Although `rend-spec-v3.txt` says that the offset is a constant "12 hours", C
-/// Tor doesn't behave that way.  Instead, the offset is set to twelve voting
-/// intervals.  Since this module doesn't (and shouldn't!) have access to the
-/// voting interval, we store the offset as part of the TimePeriod.
-///
-/// TODO hs: remove or revise this note once the spec is updated; see prop342.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TimePeriod {
     /// Index of the time periods that have passed since the unix epoch.
