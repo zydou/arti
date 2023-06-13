@@ -897,6 +897,13 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let (intro_ack_tx, intro_ack_rx) = proto_oneshot::channel();
         let handler = Handler { intro_ack_tx };
 
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: making introduction - sending INTRODUCE1",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
+
         intro_circ
             .send_control_message(intro1_real.into(), handler)
             .await
@@ -912,6 +919,13 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 status,
                 intro_index,
             })?;
+
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: making introduction - success",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
 
         Ok((
             rendezvous,
@@ -942,13 +956,29 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
         use tor_proto::circuit::handshake;
 
+        let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
+        let intro_index = ipt.intro_index;
         let handle_proto_error = |error| FAE::RendezvousCompletion {
             error,
-            intro_index: ipt.intro_index,
-            rend_pt: rend_pt_identity_for_error(&rendezvous.rend_relay),
+            intro_index,
+            rend_pt: rend_pt.clone(),
         };
 
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: awaiting rendezvous completion",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
+
         let rend2_msg: Rendezvous2 = rendezvous.rend2_rx.recv(handle_proto_error).await?;
+
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: received RENDEZVOUS2",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
 
         // TODO: It would be great if we could have multiple of these existing
         // in parallel with similar x,X values but different ipts. I believe C
@@ -980,6 +1010,13 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .map_err(into_internal!(
                 "actually this is probably a 'circuit closed' error" // TODO HS
             ))?;
+
+        debug!(
+            "hs conn to {}: RPT {} IPT {}: HS circuit established",
+            &self.hsid,
+            rend_pt.as_inner(),
+            intro_index,
+        );
 
         Ok(rendezvous.rend_circ)
     }
