@@ -246,7 +246,13 @@ impl HsIdKey {
         &self,
         cur_period: TimePeriod,
     ) -> Result<(HsBlindIdKey, crate::Subcredential), keymanip::BlindingError> {
-        // TODO hs: decide whether we want to support this kind of shared secret; C Tor does not.
+        // TODO: someday we might want to support this kinds of a shared secret
+        // in our protocol. (C tor does not.)  If we did, it would be an
+        // additional piece of information about an onion service that you would
+        // need to know in order to connect to it.
+        //
+        // This is the "optional secret s" mentioned in the key-blinding
+        // appendix to rend-spec.txt.
         let secret = b"";
         let h = self.blinding_factor(secret, cur_period);
 
@@ -315,7 +321,9 @@ impl HsIdKeypair {
         cur_period: TimePeriod,
     ) -> Result<(HsBlindIdKey, HsBlindIdKeypair, crate::Subcredential), keymanip::BlindingError>
     {
-        // TODO hs: as above, decide if we want this.
+        // TODO: as discussed above in `HsId::compute_blinded_key`, we might
+        // someday want to implement nonempty values for this secret, if we
+        // decide it would be good for something.
         let secret = b"";
 
         let public_key = HsIdKey(self.0.public);
