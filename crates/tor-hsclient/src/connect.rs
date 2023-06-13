@@ -211,6 +211,9 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     marker: PhantomData<fn() -> (R, M)>,
 }
 
+/// Random value used as part of IPT selection
+type IptSortRand = u32;
+
 /// Details of an apparently-useable introduction point
 ///
 /// Intermediate value for progress during a connection attempt.
@@ -221,6 +224,8 @@ struct UsableIntroPt<'i> {
     intro_desc: &'i IntroPointDesc,
     /// IPT `CircTarget`
     intro_target: OwnedCircTarget,
+    /// Random value used as part of IPT selection
+    sort_rand: IptSortRand,
 }
 
 /// Details of an apparently-successful INTRODUCE exchange
@@ -525,6 +530,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     intro_index,
                     intro_desc,
                     intro_target,
+                    sort_rand: self.mocks.thread_rng().gen(),
                 })
             })
             .filter_map(|entry| match entry {
