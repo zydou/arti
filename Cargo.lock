@@ -4399,6 +4399,7 @@ dependencies = [
  "tor-error",
  "tor-guardmgr",
  "tor-hscrypto",
+ "tor-keymgr",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",

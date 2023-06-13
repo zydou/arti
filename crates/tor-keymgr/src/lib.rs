@@ -45,7 +45,6 @@ pub(crate) mod keystore;
 pub(crate) mod mgr;
 
 pub use err::Error;
-pub use key_specifier::hs::{HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSpecifier};
 pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
 pub use key_type::KeyType;
 pub use keystore::arti::ArtiNativeKeyStore;

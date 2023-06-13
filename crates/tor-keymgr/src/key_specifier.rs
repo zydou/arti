@@ -1,7 +1,5 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
-pub(crate) mod hs;
-
 use crate::Result;
 
 /// The path of a key in the Arti key store.

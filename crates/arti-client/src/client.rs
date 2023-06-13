@@ -34,13 +34,12 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 #[cfg(feature = "onion-client")]
 use {
     tor_circmgr::hspool::HsCircPool,
-    tor_hsclient::HsClientConnector,
-    tor_hsclient::HsClientSecretKeysBuilder,
-    tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
-    tor_keymgr::{
-        ArtiNativeKeyStore, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSpecifier, KeyMgr,
-        KeyStore,
+    tor_hsclient::{
+        HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
+        HsClientSpecifier,
     },
+    tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
+    tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore},
 };
 
 use educe::Educe;
