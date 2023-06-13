@@ -1,11 +1,8 @@
 //! The encrypted portion of an INTRODUCE{1,2} message.
 //!
 //! (This is as described as the "decrypted plaintext" in section 3.3 of
-//! rend-spec-v3.txt; it is )
-//!
-//! TODO HS: maybe rename this module.
-//!
-//! TODO HS: Maybe this doesn't belong in tor-cell.
+//! rend-spec-v3.txt.  It tells the onion service how to find the rendezvous
+//! point, and how to handshake with the client there.)
 
 use super::ext::{decl_extension_group, ExtGroup, ExtList, UnrecognizedExt};
 use caret::caret_int;

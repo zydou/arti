@@ -279,8 +279,6 @@ impl EstablishIntroDetails {
     /// The MAC key is derived from the circuit handshake between the onion
     /// service and the introduction point.  The Ed25519 keypair must match the
     /// one given as the auth_key for this body.
-    //
-    // TODO hs: Is this the right return type?
     pub fn sign_and_encode(
         self,
         keypair: &ed25519::Keypair,
@@ -310,7 +308,6 @@ impl EstablishIntroDetails {
 
         Ok(output)
     }
-    // TODO hs: we'll need accessors.
 }
 
 impl EstablishIntro {

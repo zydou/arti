@@ -1,7 +1,5 @@
 //! Encoding and decoding for relay messages related to onion services.
 
-// TODO hs: we'll need accessors for the useful fields in all these types.
-
 use self::ext::{decl_extension_group, ExtGroup, ExtList};
 
 use super::msg::{self, Body};
