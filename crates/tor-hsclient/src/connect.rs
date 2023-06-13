@@ -227,10 +227,16 @@ struct UsableIntroPt<'i> {
 /// Intermediate value for progress during a connection attempt.
 struct Introduced<R: Runtime, M: MocksForConnect<R>> {
     /// Circuit to the introduction point
+    // TODO HS maybe this is not needed?  Maybe we just need to hold it to keep
+    // the circuit open so it doesn't collapse before the intro pt forwards our message?
     intro_circ: Arc<ClientCirc!(R, M)>,
 
-    // TODO HS this will need to contain key exchange information
-    // for completing the handshake
+    /// End-to-end crypto NTORv3 handshake with the service
+    ///
+    /// Created as part of generating our `INTRODUCE1`,
+    /// and then used when processing `RENDEZVOUS2`.
+    handshake_state: hs_ntor::HsNtorClientState,
+
     /// Dummy, to placate compiler
     ///
     /// `R` and `M` only used for getting to mocks.
@@ -629,7 +635,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
                 let circ = self
                     .runtime
-                    .timeout(RPT_IPT_TIMEOUT, self.complete_rendezvous(ipt, rendezvous))
+                    .timeout(RPT_IPT_TIMEOUT, self.complete_rendezvous(ipt, rendezvous, introduced))
                     .await
                     .map_err(|_: TimeoutError| FAE::RendezvousCompletionTimeout {
                         intro_index,
@@ -876,7 +882,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // TODO HS: We need to remember handshake_state so we can later handle a
         // RENDEZVOUS2 message!
 
-        Err(internal!("sending INTRODUCE1 is not yet implemented!").into()) // TODO HS
+        return Err(internal!("sending INTRODUCE1 is not yet implemented!").into()); // TODO HS
+        #[allow(unreachable_code)] // TODO HS remove
+        Ok((
+            rendezvous,
+            Introduced {
+                intro_circ,
+                handshake_state,
+                marker: PhantomData,
+            },
+        ))
     }
 
     /// Attempt (once) to connect a rendezvous circuit using the given intro pt
@@ -893,6 +908,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &'c self,
         ipt: &UsableIntroPt<'_>,
         rendezvous: Rendezvous<'c, R, M>,
+        introduced: Introduced<R, M>,
     ) -> Result<Arc<ClientCirc!(R, M)>, FAE> {
         #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
         use tor_proto::circuit::handshake;
@@ -905,12 +921,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let rend2_msg: Rendezvous2 = rendezvous.rend2_rx.recv(handle_proto_error).await?;
 
-        // TODO HS: get handshake_state form wherever we stored it above.
-        //
         // TODO: It would be great if we could have multiple of these existing
         // in parallel with similar x,X values but different ipts. I believe C
         // tor manages it somehow.
-        let handshake_state: &hs_ntor::HsNtorClientState = todo!(); // TODO HS
+        let handshake_state = introduced.handshake_state;
 
         // Try to complete the cryptographic handshake.
         let keygen = handshake_state
