@@ -11,6 +11,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 /// A key store error.
+//
+// TODO hs: refactor this error type.
+//
+// Here is a non-exhaustive list of potential improvements:
+//   * use dyn KeySpecifier instead of ArtiPath in the error context
+//   * use an enum for the FileSystem action instead of a static string
+//   * decide what NotFound is supposed to mean (it has a double meaning
+//   right now: "not found in any of the key stores" when returned by KeyMgr,
+//   and "not found in this key store" when
+//   returned by a KeyStore)
+//   * Create a KeystoreCorruption variant (UnexpectedSshKeyType would be one of the potential
+//   causes of this error)
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
@@ -18,6 +30,8 @@ pub enum Error {
     #[error("An error occurred while accessing the filesystem")]
     Filesystem {
         /// The action we were trying to perform.
+        //
+        // TODO hs: consider using an enum instead of a static string
         action: &'static str,
         /// The path of the key we were trying to fetch.
         path: PathBuf,
