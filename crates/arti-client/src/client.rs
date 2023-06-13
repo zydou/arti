@@ -962,6 +962,10 @@ impl<R: Runtime> TorClient<R> {
                     HsClientKeyRole::DescEnc,
                 );
 
+                // TODO hs: refactor to reduce code duplication.
+                //
+                // The code that reads ks_hsc_desc_enc and ks_hsc_intro_auth and builds the
+                // HsClientSecretKeys is very repetitive and should be refactored.
                 let ks_hsc_desc_enc = self
                     .keymgr
                     .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)
