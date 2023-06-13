@@ -1,6 +1,7 @@
 //! Main implementation of the connection functionality
 #![allow(clippy::print_stderr)] // Code here is not finished.  TODO hs remove.
 
+use std::any::Any;
 use std::time::Duration;
 
 use std::collections::HashMap;
@@ -705,7 +706,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
-                msg: UnparsedRelayCell,
+                msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 // The first message we expect is a RENDEZVOUS_ESTABALISHED.
                 if self.rend_established_tx.is_some() {
@@ -951,42 +952,32 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 /// oneshot taken from `reply_tx`.
 ///
 /// Gives an error if `reply_tx` is None, or if an error occurs.
-fn deliver_expected_message<M: RelayMsg>(
-    msg: UnparsedRelayCell,
+fn deliver_expected_message<M>(
+    msg: AnyRelayMsg,
     disposition_on_success: MetaCellDisposition,
     reply_tx: &mut Option<oneshot::Sender<Result<M, tor_proto::Error>>>,
-) -> Result<MetaCellDisposition, tor_proto::Error> {
+) -> Result<MetaCellDisposition, tor_proto::Error>
+where
+    M: RelayMsg + Clone + TryFrom<AnyRelayMsg, Error = tor_cell::Error>,
+{
     let reply_tx = reply_tx
         .take()
         .ok_or_else(|| internal!("Tried to handle two messages of the same type"))?;
 
-    let send_outcome: Result<M, tor_proto::Error> = (|| {
-        let reply: M = msg
-            .decode()
-            .map_err(|err| tor_proto::Error::BytesErr {
-                // I would have preferred to say M::cmd().to_string() :/
-                object: "expected message",
-                err,
-            })?
-            .into_msg();
-
-        Ok(reply)
-    })();
-
-    let return_outcome = match &send_outcome {
-        Ok(_) => Ok(disposition_on_success),
-        Err(e) => Err(e.clone()),
-    };
+    let outcome = M::try_from(msg).map_err(|err| tor_proto::Error::CellDecodeErr {
+        object: "rendezvous-related cell",
+        err,
+    });
 
     trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
     #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
     reply_tx
-        .send(send_outcome)
+        .send(outcome.clone())
         // If the caller went away, we just drop the outcome
         .unwrap_or_else(|_: Result<M, _>| ());
     trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
 
-    return_outcome
+    outcome.map(|_| disposition_on_success)
 }
 
 /// Mocks used for testing `connect.rs`

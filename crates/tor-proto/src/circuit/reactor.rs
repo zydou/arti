@@ -322,10 +322,7 @@ pub(super) trait MetaCellHandler: Send {
 }
 
 /// A possible successful outcome of giving a message to a [`MsgHandler`](super::msghandler::MsgHandler).
-///
-/// (This deliberately does _not_ implement `Clone`, in case we want it to include
-/// a the cell itself later on.)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "send-control-msg", visibility::make(pub))]
 #[non_exhaustive]
 pub(super) enum MetaCellDisposition {

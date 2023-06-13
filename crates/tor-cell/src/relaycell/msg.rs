@@ -1200,7 +1200,21 @@ macro_rules! msg_impl_relaymsg {
                 }
                 crate::relaycell::msg::Body::decode_from_reader(r)
             }
-        })*
+        }
+
+        impl TryFrom<AnyRelayMsg> for $body {
+            type Error = crate::Error;
+            fn try_from(msg: AnyRelayMsg) -> crate::Result<$body> {
+                use crate::relaycell::RelayMsg;
+                match msg {
+                    AnyRelayMsg::$body(b) => Ok(b),
+                    _ => Err(crate::Error::CircProto(format!("Expected {}; got {}" ,
+                                                     stringify!([<$body:snake:upper>]),
+                                                     msg.cmd())) ),
+                }
+            }
+        }
+        )*
     }}
 }
 

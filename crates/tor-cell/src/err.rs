@@ -32,6 +32,9 @@ pub enum Error {
     /// Protocol violation at the channel level
     #[error("Channel protocol violation: {0}")]
     ChanProto(String),
+    /// Protocol violation at the circuit level
+    #[error("Circuit protocol violation: {0}")]
+    CircProto(String),
     /// Tried to make or use a stream to an invalid destination address.
     #[error("Invalid stream target address")]
     BadStreamAddress,
@@ -54,6 +57,7 @@ impl HasKind for Error {
             E::BytesErr { .. } => EK::TorProtocolViolation,
             E::Internal(_) => EK::Internal,
             E::ChanProto(_) => EK::TorProtocolViolation,
+            E::CircProto(_) => EK::TorProtocolViolation,
             E::BadStreamAddress => EK::BadApiUsage,
             E::CantEncode(_) => EK::Internal,
         }
