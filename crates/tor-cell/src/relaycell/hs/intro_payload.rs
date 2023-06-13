@@ -45,10 +45,10 @@ caret_int! {
 ///
 /// Corresponds to `ONION_KEY` in the spec.
 //
-// TODO HS: Is there a logical type somewhere else to coalesce this with?
+// TODO: Is there a logical type somewhere else to coalesce this with?
 // Currently there is no wrapper around curve25519::PublicKey when it's used as
 // an Ntor key, nor is there (yet) a generic onion key enum.  tor-linkspec might be
-// the logical place for those.
+// the logical place for those.  See arti#893.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum OnionKey {

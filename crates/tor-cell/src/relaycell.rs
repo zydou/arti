@@ -178,7 +178,7 @@ impl StreamId {
 /// A relay cell that has not yet been fully parsed, but where we have access to
 /// the command and stream ID, for dispatching purposes.
 //
-// TODO HS: Settle on some names here. I would prefer "UnparsedRelayMsg" here so
+// TODO prop340: Settle on some names here. I would prefer "UnparsedRelayMsg" here so
 // it can eventually be compatible with proposal 340.  But that would make our
 // RelayCell and RelayMsg types below kind of illogical.  Perhaps we should rename...
 //     this -> UnparsedRelayMsg
