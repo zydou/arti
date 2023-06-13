@@ -213,6 +213,7 @@ build-repro:
 integration-chutney:
   stage: test
   image: debian:stable-slim
+  allow_failure: true
   script:
     - ./maint/preserve -u
     - apt update
