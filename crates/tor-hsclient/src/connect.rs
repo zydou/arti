@@ -25,7 +25,8 @@ use tracing::{debug, trace};
 use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::{
-    AuthKeyType, EstablishRendezvous, IntroduceHeader, RendezvousEstablished,
+    AuthKeyType, EstablishRendezvous, IntroduceAck, IntroduceAckStatus, IntroduceHeader,
+    RendezvousEstablished,
 };
 use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
 use tor_checkable::{timed::TimerangeBound, Timebound};
@@ -878,12 +879,40 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             encrypted_body,
         );
 
-        // TODO HS: Send intro1_real on the introduce circuit and wait for
-        // either an error or an INTRO_ACK.
-        // intro_circ.send_control_message(intro1_real)...
+        /// Handler which expects just `INTRODUCE_ACK`
+        struct Handler {
+            /// Sender for `INTRODUCE_ACK`
+            intro_ack_tx: proto_oneshot::Sender<IntroduceAck>,
+        }
+        impl MsgHandler for Handler {
+            fn handle_msg(
+                &mut self,
+                msg: AnyRelayMsg,
+            ) -> Result<MetaCellDisposition, tor_proto::Error> {
+                self.intro_ack_tx
+                    .deliver_expected_message(msg, MetaCellDisposition::UninstallHandler)
+            }
+        }
+        let handle_intro_proto_error = |error| FAE::IntroductionExchange { error, intro_index };
+        let (intro_ack_tx, intro_ack_rx) = proto_oneshot::channel();
+        let handler = Handler { intro_ack_tx };
 
-        return Err(internal!("sending INTRODUCE1 is not yet implemented!").into()); // TODO HS
-        #[allow(unreachable_code)] // TODO HS remove
+        intro_circ
+            .send_control_message(intro1_real.into(), handler)
+            .await
+            .map_err(handle_intro_proto_error)?;
+
+        // Status is checked by `.success()`, and we don't look at the extensions;
+        // just discard the known-successful `IntroduceAck`
+        let _: IntroduceAck = intro_ack_rx
+            .recv(handle_intro_proto_error)
+            .await?
+            .success()
+            .map_err(|status| FAE::IntroductionFailed {
+                status,
+                intro_index,
+            })?;
+
         Ok((
             rendezvous,
             Introduced {

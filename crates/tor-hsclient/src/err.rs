@@ -9,6 +9,7 @@ use tracing::error;
 
 use retry_error::RetryError;
 use safelog::Redacted;
+use tor_cell::relaycell::hs::IntroduceAckStatus;
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -195,6 +196,27 @@ pub enum FailedAttemptError {
         intro_index: IntroPtIndex,
     },
 
+    /// Introduction exchange (with the introduction point) failed
+    #[error("Introduction exchange (with the introduction point) failed")]
+    IntroductionExchange {
+        /// What happened
+        #[source]
+        error: tor_proto::Error,
+
+        /// The index of the IPT in the list of IPTs in the descriptor
+        intro_index: IntroPtIndex,
+    },
+
+    /// Introduction point reported error in its INTRODUCE_ACK
+    #[error("Introduction point reported error in its INTRODUCE_ACK: {status}")]
+    IntroductionFailed {
+        /// The status code provided by the introduction point
+        status: IntroduceAckStatus,
+
+        /// The index of the IPT in the list of IPTs in the descriptor
+        intro_index: IntroPtIndex,
+    },
+
     /// Communication with introduction point {intro_index} took too long
     ///
     /// This might mean it took too long to establish a circuit to the IPT,
@@ -317,6 +339,8 @@ impl HasKind for FailedAttemptError {
             FAE::RendezvousCompletion { error, .. } => error.kind(),
             FAE::RendezvousEstablishTimeout { .. } => EK::TorNetworkTimeout,
             FAE::IntroductionCircuitObtain { error, .. } => error.kind(),
+            FAE::IntroductionExchange { error, .. } => error.kind(),
+            FAE::IntroductionFailed { .. } => EK::OnionServiceConnectionFailed,
             FAE::IntroductionTimeout { .. } => EK::TorNetworkTimeout,
             FAE::RendezvousCompletionTimeout { .. } => EK::RemoteNetworkTimeout,
             FAE::Bug(e) => e.kind(),
