@@ -395,6 +395,22 @@ impl IntroduceAck {
     pub fn status(&self) -> IntroduceAckStatus {
         self.status_code
     }
+
+    /// Checks whether the introduction was a success
+    ///
+    /// If introduction was forwarded successfully,
+    /// returns an `Ok<IntroduceAck>`, whose `.status()` can safely be ignored.
+    /// (The extension list may still be of interest.)
+    ///
+    /// Otherwise, returns `Err<IntroduceAckStatus>`,
+    /// which is suitable for error reporting purposes.
+    pub fn success(self) -> std::result::Result<IntroduceAck, IntroduceAckStatus> {
+        if self.status() == IntroduceAckStatus::SUCCESS {
+            Ok(self)
+        } else {
+            Err(self.status())
+        }
+    }
 }
 
 impl Body for IntroduceAck {
