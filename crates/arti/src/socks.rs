@@ -133,6 +133,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
     const RPC_SESSION_CONST: &[u8] = b"<arti-rpc-session>";
 
     use AuthInterpretation::*;
+    #[allow(unused_variables)] // TODO RPC remove
     match auth {
         SocksAuth::Username(user, pass) if user == RPC_SESSION_CONST => {
             cfg_if::cfg_if! {
