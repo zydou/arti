@@ -882,9 +882,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // either an error or an INTRO_ACK.
         // intro_circ.send_control_message(intro1_real)...
 
-        // TODO HS: We need to remember handshake_state so we can later handle a
-        // RENDEZVOUS2 message!
-
         return Err(internal!("sending INTRODUCE1 is not yet implemented!").into()); // TODO HS
         #[allow(unreachable_code)] // TODO HS remove
         Ok((
