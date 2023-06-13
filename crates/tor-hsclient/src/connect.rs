@@ -635,7 +635,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
                 let circ = self
                     .runtime
-                    .timeout(RPT_IPT_TIMEOUT, self.complete_rendezvous(ipt, rendezvous, introduced))
+                    .timeout(
+                        RPT_IPT_TIMEOUT,
+                        self.complete_rendezvous(ipt, rendezvous, introduced),
+                    )
                     .await
                     .map_err(|_: TimeoutError| FAE::RendezvousCompletionTimeout {
                         intro_index,
