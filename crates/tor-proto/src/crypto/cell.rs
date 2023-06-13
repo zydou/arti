@@ -158,6 +158,10 @@ pub(crate) struct InboundClientCrypt {
     layers: Vec<Box<dyn InboundClientLayer + Send>>,
 }
 
+/// The length of the tag that we include (with this algorithm) in an
+/// authenticated SENDME message.
+const SENDME_TAG_LEN: usize = 20;
+
 impl OutboundClientCrypt {
     /// Return a new (empty) OutboundClientCrypt.
     pub(crate) fn new() -> Self {
@@ -170,7 +174,11 @@ impl OutboundClientCrypt {
     ///
     /// On success, returns a reference to tag that should be expected
     /// for an authenticated SENDME sent in response to this cell.
-    pub(crate) fn encrypt(&mut self, cell: &mut RelayCellBody, hop: HopNum) -> Result<&[u8; 20]> {
+    pub(crate) fn encrypt(
+        &mut self,
+        cell: &mut RelayCellBody,
+        hop: HopNum,
+    ) -> Result<&[u8; SENDME_TAG_LEN]> {
         let hop: usize = hop.into();
         if hop >= self.layers.len() {
             return Err(Error::NoSuchHop);
@@ -356,7 +364,9 @@ pub(crate) mod tor1 {
         fn originate_for(&mut self, cell: &mut RelayCellBody) -> &[u8] {
             cell.set_digest(&mut self.digest, &mut self.last_digest_val);
             self.encrypt_outbound(cell);
-            &self.last_digest_val
+            // Note that we truncate the authentication tag here if we are using
+            // a digest with a more-than-20-byte length.
+            &self.last_digest_val[..SENDME_TAG_LEN]
         }
         fn encrypt_outbound(&mut self, cell: &mut RelayCellBody) {
             // This is a single iteration of the loop described in tor-spec
@@ -371,7 +381,7 @@ pub(crate) mod tor1 {
             // 5.5.3, "routing to the origin."
             self.cipher.apply_keystream(&mut cell.0[..]);
             if cell.recognized(&mut self.digest, &mut self.last_digest_val) {
-                Some(&self.last_digest_val)
+                Some(&self.last_digest_val[..SENDME_TAG_LEN])
             } else {
                 None
             }
