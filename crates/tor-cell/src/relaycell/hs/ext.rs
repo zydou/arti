@@ -96,6 +96,7 @@ impl<T: ExtGroup> ExtList<T> {
     ///
     /// (We do not enforce uniqueness here, since the spec explicitly says that
     /// we should ignore all but the first extension of a given type.)
+    #[allow(unused)] // TODO HS remove.
     pub(super) fn by_type(&self, id: T::Id) -> Option<&T> {
         self.iter().find(|e| e.type_id() == id)
     }
@@ -158,7 +159,7 @@ macro_rules! decl_extension_group {
                             Self::$case( b.read_nested_u8len(|r| $case::take_body_from(r))? )
                         }
                     )*
-                    other => {
+                    _ => {
                         Self::Unrecognized(UnrecognizedExt {
                             type_id,
                             body: b.read_nested_u8len(|r| Ok(r.take_rest().into()))?,

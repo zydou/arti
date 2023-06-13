@@ -5,7 +5,7 @@ use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, 
 use tor_error::bad_api_usage;
 use tor_hscrypto::ops::{hs_mac, HS_MAC_LEN};
 use tor_llcrypto::{
-    pk::ed25519::{self, Ed25519Identity, ED25519_ID_LEN, ED25519_SIGNATURE_LEN},
+    pk::ed25519::{self, Ed25519Identity, ED25519_SIGNATURE_LEN},
     util::ct::CtByteArray,
 };
 use tor_units::BoundedInt32;
@@ -182,7 +182,6 @@ pub struct EstablishIntro {
 impl Writeable for EstablishIntroDetails {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         let auth_key_type = AuthKeyType::ED25519_SHA3_256;
-        let auth_key_len = ED25519_ID_LEN;
         w.write_u8(auth_key_type.get());
         {
             let mut w_nested = w.write_nested_u16len();
