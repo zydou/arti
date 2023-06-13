@@ -205,6 +205,21 @@ pub enum FailedAttemptError {
         intro_index: IntroPtIndex,
     },
 
+    /// Error when expecting rendezvous completion on rendezvous circuit
+    #[error("Error when expecting rendezvous completion on rendezvous circuit")]
+    RendezvousCircuitCompletionExpected {
+        /// What happened
+        #[source]
+        error: tor_proto::Error,
+
+        /// The index of the IPT in the list of IPTs in the descriptor
+        intro_index: IntroPtIndex,
+
+        /// Which relay did we choose for rendezvous point
+        // TODO #813 this should be Redacted<RelayDescription> or something
+        rend_pt: Redacted<RsaIdentity>,
+    },
+
     /// It took too long for the rendezvous to be completed
     ///
     /// This might be the fault of almost anyone.  All we know is that we got
@@ -299,6 +314,7 @@ impl HasKind for FailedAttemptError {
             FAE::UnusableIntro { error, .. } => EK::OnionServiceDescriptorValidationFailed,
             FAE::RendezvousObtainCircuit { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
+            FAE::RendezvousCircuitCompletionExpected { error, .. } => error.kind(),
             FAE::RendezvousTimeout { .. } => EK::TorNetworkTimeout,
             FAE::IntroObtainCircuit { error, .. } => error.kind(),
             FAE::IntroductionTimeout { .. } => EK::TorNetworkTimeout,
