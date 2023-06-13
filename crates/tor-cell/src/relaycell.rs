@@ -12,7 +12,6 @@ pub mod extend;
 #[cfg(feature = "hs")]
 pub mod hs;
 pub mod msg;
-pub mod restrict;
 #[cfg(feature = "experimental-udp")]
 pub mod udp;
 
