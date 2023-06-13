@@ -49,6 +49,8 @@ fn read_ed25519_keypair(key_type: KeyType, path: &Path) -> Result<ErasedKey> {
     Ok(Box::new(key))
 }
 
+// TODO hs: the methods of this type should not be dealing with filesystem operations. Refactor it
+// to operate on zeroize-on-drop byte strings instead.
 impl KeyType {
     /// Get the algorithm of this key type.
     pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
@@ -72,6 +74,7 @@ impl KeyType {
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
     pub(crate) fn read_ssh_format_erased(&self, path: &Path) -> Result<ErasedKey> {
+        // TODO hs: perhaps this needs to be a method on EncodableKey instead?
         match self {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, path),
             KeyType::X25519StaticSecret => {
