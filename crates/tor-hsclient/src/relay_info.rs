@@ -5,7 +5,7 @@
 
 #![allow(dead_code, unreachable_pub)] // TODO HS remove these once this API is exposed.
 
-use tor_error::{into_internal, ErrorKind};
+use tor_error::{into_internal, ErrorKind, HasRetryTime, RetryTime};
 use tor_linkspec::{
     decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget, EncodedLinkSpec,
     OwnedChanTargetBuilder, OwnedCircTarget,
@@ -102,4 +102,17 @@ pub enum InvalidTarget {
     /// An internal error occurred.
     #[error("{0}")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl HasRetryTime for InvalidTarget {
+    fn retry_time(&self) -> RetryTime {
+        use InvalidTarget as IT;
+        use RetryTime as RT;
+        match self {
+            IT::UnparseableChanTargetInfo(..) => RT::Never,
+            IT::InvalidChanTargetInfo(..) => RT::Never,
+            IT::ImpossibleRelayIds(..) => RT::AfterWaiting, // TODO HS is this right?
+            IT::Bug(..) => RT::Never,
+        }
+    }
 }
