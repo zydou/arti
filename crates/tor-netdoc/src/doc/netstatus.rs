@@ -306,7 +306,6 @@ pub struct SharedRandVal([u8; 32]);
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
 #[allow(dead_code)]
-// TODO hs: This should have real accessors, not this 'visible/visibility' hack.
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
     visible::StructFields(pub),
