@@ -375,6 +375,13 @@ impl From<TorAddrError> for Error {
     }
 }
 
+#[cfg(feature = "onion-client")]
+impl From<tor_keymgr::Error> for Error {
+    fn from(e: tor_keymgr::Error) -> Error {
+        e.into()
+    }
+}
+
 impl From<TorAddrError> for ErrorDetail {
     fn from(e: TorAddrError) -> ErrorDetail {
         use ErrorDetail as E;

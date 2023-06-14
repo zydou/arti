@@ -968,16 +968,14 @@ impl<R: Runtime> TorClient<R> {
                 // HsClientSecretKeys is very repetitive and should be refactored.
                 let ks_hsc_desc_enc = self
                     .keymgr
-                    .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)
-                    .map_err(ErrorDetail::KeyStore)?;
+                    .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)?;
 
                 let intro_auth_key_spec =
                     HsClientSecretKeySpecifier::new(client_id, hsid, HsClientKeyRole::IntroAuth);
 
                 let ks_hsc_intro_auth = self
                     .keymgr
-                    .get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)
-                    .map_err(ErrorDetail::KeyStore)?;
+                    .get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)?;
 
                 let mut hs_client_secret_keys_builder = HsClientSecretKeysBuilder::default();
                 if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
