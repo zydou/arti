@@ -46,9 +46,6 @@ pub struct Connection {
     /// This kind of ID is used to refer to the connection from _outside_ of the
     /// context of an RPC connection: it can uniquely identify the connection
     /// from e.g. a SOCKS session so that clients can attach streams to it.
-    ///
-    /// TODO RPC: Remove this if it turns out to be unneeded.
-    #[allow(unused)]
     connection_id: ConnectionId,
 
     /// A `MacKey` used to create `GlobalIds` for the objects whose identifiers
