@@ -346,11 +346,10 @@ mod test {
             humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
-        let (public, blinded_id, subcredential) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
+        let (_, blinded_id, subcredential) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
             .compute_blinded_key(period)
             .unwrap();
 
-        let id = ed25519::Ed25519Identity::from(blinded_id.as_ref().public);
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {

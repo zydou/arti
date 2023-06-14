@@ -263,7 +263,7 @@ mod test {
         // TODO hs: assert that the fields here are expected.
 
         // TODO hs: write a test for the case where we _do_ have an encryption key.
-        let inner_body = middle
+        let _inner_body = middle
             .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
 

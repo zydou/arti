@@ -85,7 +85,7 @@ impl<'a> HsDescEncryption<'a> {
         cipher.apply_keystream(&mut output[SALT_LEN..]);
         mac.update(&output[SALT_LEN..]);
         let mut mac_val = Default::default();
-        let mac = mac.finalize_into(&mut mac_val);
+        mac.finalize_into(&mut mac_val);
         output.extend_from_slice(&mac_val);
         debug_assert_eq!(output.len(), output_len);
 

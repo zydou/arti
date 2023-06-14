@@ -385,11 +385,11 @@ impl EncryptedHsDesc {
         let kp_desc_sign = self.outer_doc.desc_sign_key_id();
 
         // Decrypt the superencryption layer; parse the middle document.
-        let middle = self.outer_doc.decrypt_body(subcredential).map_err(|e| {
+        let middle = self.outer_doc.decrypt_body(subcredential).map_err(|_| {
             EK::BadObjectVal.with_msg("onion service descriptor superencryption failed.")
         })?;
         let middle = std::str::from_utf8(&middle[..])
-            .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in middle document"))?;
+            .map_err(|_| EK::BadObjectVal.with_msg("Bad utf-8 in middle document"))?;
         let middle = middle::HsDescMiddle::parse(middle)?;
 
         // Decrypt the encryption layer and parse the inner document.
@@ -400,11 +400,11 @@ impl EncryptedHsDesc {
                 subcredential,
                 hsc_desc_enc.map(|keys| keys.1),
             )
-            .map_err(|e| {
+            .map_err(|_| {
                 EK::BadObjectVal.with_msg("onion service descriptor encryption failed.")
             })?;
         let inner = std::str::from_utf8(&inner[..])
-            .map_err(|e| EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))?;
+            .map_err(|_| EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))?;
         let (cert_signing_key, time_bound) = inner::HsDescInner::parse(inner)?;
 
         if cert_signing_key.as_ref() != Some(kp_desc_sign) {
