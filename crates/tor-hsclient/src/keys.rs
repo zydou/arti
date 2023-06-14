@@ -128,7 +128,7 @@ impl HsClientSecretKeysBuilder {
     }
 
     /// Convert these
-    pub fn build(self) -> Result<HsClientSecretKeys, tor_config::ConfigError> {
+    pub fn build(self) -> Result<HsClientSecretKeys, tor_config::ConfigBuildError> {
         Ok(HsClientSecretKeys {
             keys: Arc::new(self),
         })
