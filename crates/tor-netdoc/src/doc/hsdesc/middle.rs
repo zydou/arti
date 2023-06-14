@@ -17,8 +17,9 @@ use super::desc_enc::{
 };
 use super::DecryptionError;
 
-/// TODO hs: This should be an enum.
 /// The only currently recognized `desc-auth-type`.
+//
+// TODO: In theory this should be an enum, if we ever add a second value here.
 pub(super) const HS_DESC_AUTH_TYPE: &str = "x25519";
 
 /// A more-or-less verbatim representation of the middle document of an onion
@@ -198,7 +199,7 @@ impl HsDescMiddle {
         // Check for the only currently recognized `desc-auth-type`
         {
             let auth_type = body.required(DESC_AUTH_TYPE)?.required_arg(0)?;
-            if auth_type != "x25519" {
+            if auth_type != HS_DESC_AUTH_TYPE {
                 return Err(EK::BadDocumentVersion
                     .at_pos(Pos::at(auth_type))
                     .with_msg(format!("Unrecognized desc-auth-type {auth_type:?}")));
