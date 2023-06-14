@@ -8,6 +8,7 @@ use tor_error::into_internal;
 use tor_llcrypto::d;
 use tor_llcrypto::pk::curve25519::*;
 use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_llcrypto::util::ct::ct_lookup;
 
 use digest::Mac;
 use rand_core::{CryptoRng, RngCore};
@@ -285,7 +286,7 @@ where
     let my_key: PublicKey = cur.extract()?;
     let their_pk: PublicKey = cur.extract()?;
 
-    let keypair = ct::lookup(keys, |key| key.matches_pk(&my_key));
+    let keypair = ct_lookup(keys, |key| key.matches_pk(&my_key));
     let keypair = match keypair {
         Some(k) => k,
         None => return Err(RelayHandshakeError::MissingKey),
