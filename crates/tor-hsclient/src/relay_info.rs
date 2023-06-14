@@ -109,7 +109,8 @@ pub enum InvalidTarget {
 /// When returned from `ipt_to_circtarget`, that means this is when to retry
 /// the *same introduction point* for the *same hidden service*.
 ///
-/// "The same introduction point" means one with precisely the same set of identities.
+/// "The same introduction point" means one with precisely the same set of identities
+/// and link specifiers.
 //
 // Note about correctness, and introduction point identity:
 //
