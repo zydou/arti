@@ -1,6 +1,4 @@
 //! Types and functions for onion service descriptor encryption.
-//!
-//! TODO hs: It's possible that this should move to tor-netdoc.
 
 use tor_hscrypto::{pk::HsBlindId, RevisionCounter, Subcredential};
 use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
