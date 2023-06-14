@@ -11,7 +11,7 @@ use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::IntroduceAckStatus;
 use tor_error::define_asref_dyn_std_error;
-use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind};
+use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind, HasRetryTime, RetryTime};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdir::Relay;
@@ -262,6 +262,29 @@ pub enum FailedAttemptError {
 }
 define_asref_dyn_std_error!(FailedAttemptError);
 
+impl HasRetryTime for FailedAttemptError {
+    fn retry_time(&self) -> RetryTime {
+        use FailedAttemptError as FAE;
+        use RetryTime as RT;
+        match self {
+            // Delegate to the cause
+            FAE::UnusableIntro { error, .. } => error.retry_time(),
+            FAE::RendezvousCircuitObtain { error } => error.retry_time(),
+            FAE::IntroductionCircuitObtain { error, .. } => error.retry_time(),
+            FAE::IntroductionFailed { status, .. } => status.retry_time(),
+            FAE::Bug(bug) => RT::Never,
+            // tor_proto::Error doesn't impl HasRetryTime, so we guess
+            FAE::RendezvousCompletion { error: _e, .. }
+            | FAE::IntroductionExchange { error: _e, .. }
+            | FAE::RendezvousEstablish { error: _e, .. } => RT::AfterWaiting,
+            // Timeouts
+            FAE::RendezvousEstablishTimeout { .. }
+            | FAE::RendezvousCompletionTimeout { .. }
+            | FAE::IntroductionTimeout { .. } => RT::AfterWaiting,
+        }
+    }
+}
+
 impl HasKind for ConnError {
     fn kind(&self) -> ErrorKind {
         use ConnError as CE;
@@ -325,6 +348,22 @@ impl HasKind for DescriptorErrorDetail {
     }
 }
 
+/// When *an attempt like this* should be retried.
+///
+/// For error variants with an introduction point index,
+/// that's when we might retry *with that introduction point*.
+///
+/// For error variants with a rendezvous point,
+/// that's when we might retry *with that rendezvous point*.
+///
+/// For variants with both, we don't know
+/// which of the introduction point or rendezvous point is implicated.
+/// Retrying earlier with *one* different relay out of the two relays would be reasonable,
+/// as would delaying retrying with *either* of the same relays.
+//
+// Our current code doesn't keep history about rendezvous points.
+// We use this to choose what order to try the service's introduction points.
+// See `IptSortKey` in connect.rs.
 impl HasKind for FailedAttemptError {
     fn kind(&self) -> ErrorKind {
         /*use tor_dirclient::RequestError as RE;
