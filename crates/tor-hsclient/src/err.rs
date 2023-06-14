@@ -348,6 +348,22 @@ impl HasKind for DescriptorErrorDetail {
     }
 }
 
+/// When *an attempt like this* should be retried.
+///
+/// For error variants with an introduction point index,
+/// that's when we might retry *with that introduction point*.
+///
+/// For error variants with a rendezvous point,
+/// that's when we might retry *with that rendezvous point*.
+///
+/// For variants with both, we don't know
+/// which of the introduction point or rendezvous point is implicated.
+/// Retrying earlier with *one* different relay out of the two relays would be reasonable,
+/// as would delaying retrying with *either* of the same relays.
+//
+// Our current code doesn't keep history about rendezvous points.
+// We use this to choose what order to try the service's introduction points.
+// See `IptSortKey` in connect.rs.
 impl HasKind for FailedAttemptError {
     fn kind(&self) -> ErrorKind {
         /*use tor_dirclient::RequestError as RE;
