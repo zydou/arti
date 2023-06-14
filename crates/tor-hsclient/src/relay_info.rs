@@ -130,7 +130,7 @@ impl HasRetryTime for InvalidTarget {
         match self {
             IT::UnparseableChanTargetInfo(..) => RT::Never,
             IT::InvalidChanTargetInfo(..) => RT::Never,
-            IT::ImpossibleRelayIds(..) => RT::AfterWaiting, // TODO HS is this right?
+            IT::ImpossibleRelayIds(..) => RT::Never,
             IT::Bug(..) => RT::Never,
         }
     }
