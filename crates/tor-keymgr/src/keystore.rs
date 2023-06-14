@@ -14,6 +14,10 @@ use std::any::Any;
 pub type ErasedKey = Box<dyn Any>;
 
 /// A generic key store.
+//
+// TODO hs: eventually this will be able to store items that aren't keys (such as certificates and
+// perhaps other types of sensitive data). We should consider renaming this (and other Key* types)
+// to something more generic (such as `SecretStore` or `Vault`).
 pub trait KeyStore: Send + Sync + 'static {
     /// Retrieve the key identified by `key_spec`.
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<ErasedKey>;
