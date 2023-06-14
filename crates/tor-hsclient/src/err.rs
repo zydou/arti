@@ -11,7 +11,7 @@ use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::IntroduceAckStatus;
 use tor_error::define_asref_dyn_std_error;
-use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind};
+use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind, HasRetryTime, RetryTime};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdir::Relay;
@@ -261,6 +261,29 @@ pub enum FailedAttemptError {
     Bug(#[from] Bug),
 }
 define_asref_dyn_std_error!(FailedAttemptError);
+
+impl HasRetryTime for FailedAttemptError {
+    fn retry_time(&self) -> RetryTime {
+        use FailedAttemptError as FAE;
+        use RetryTime as RT;
+        match self {
+            // Delegate to the cause
+            FAE::UnusableIntro { error, .. } => error.retry_time(),
+            FAE::RendezvousCircuitObtain { error } => error.retry_time(),
+            FAE::IntroductionCircuitObtain { error, .. } => error.retry_time(),
+            FAE::IntroductionFailed { status, .. } => status.retry_time(),
+            FAE::Bug(bug) => RT::Never,
+            // tor_proto::Error doesn't impl HasRetryTime, so we guess
+            FAE::RendezvousCompletion { error: _e, .. }
+            | FAE::IntroductionExchange { error: _e, .. }
+            | FAE::RendezvousEstablish { error: _e, .. } => RT::AfterWaiting,
+            // Timeouts
+            FAE::RendezvousEstablishTimeout { .. }
+            | FAE::RendezvousCompletionTimeout { .. }
+            | FAE::IntroductionTimeout { .. } => RT::AfterWaiting,
+        }
+    }
+}
 
 impl HasKind for ConnError {
     fn kind(&self) -> ErrorKind {
