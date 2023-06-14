@@ -427,6 +427,20 @@ impl Body for IntroduceAck {
     }
 }
 
+impl tor_error::HasRetryTime for IntroduceAckStatus {
+    fn retry_time(&self) -> tor_error::RetryTime {
+        use tor_error::RetryTime as RT;
+        use IntroduceAckStatus as S;
+        match *self {
+            S::SUCCESS => RT::Never, // this is a bug
+            S::NOT_RECOGNIZED => RT::AfterWaiting,
+            S::BAD_MESSAGE_FORMAT => RT::Never,
+            S::CANT_RELAY => RT::AfterWaiting, // TODO HS is this right?
+            _ => RT::AfterWaiting,             // who knows?
+        }
+    }
+}
+
 super::msg::empty_body! {
     /// Acknowledges an EstablishRendezvous message.
     pub struct RendezvousEstablished {}
