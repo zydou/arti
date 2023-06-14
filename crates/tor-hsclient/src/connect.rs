@@ -75,7 +75,6 @@ pub struct Data {
     desc: DataHsDesc,
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
-    // TODO HS we don't actually store or use this yet
     ipts: DataIpts,
 }
 
@@ -116,7 +115,6 @@ struct IptExperience {
     ///
     /// We *do* return an error that is itself `HasRetryTime` and expect our callers
     /// to honour that.
-    // TODO HS implement HasRetryTime for ConnError and its pieces, as appropriate
     outcome: Result<(), RetryTime>,
 }
 
