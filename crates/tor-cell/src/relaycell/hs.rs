@@ -439,7 +439,7 @@ impl tor_error::HasRetryTime for IntroduceAckStatus {
             S::SUCCESS => RT::Never, // this is a bug
             S::NOT_RECOGNIZED => RT::AfterWaiting,
             S::BAD_MESSAGE_FORMAT => RT::Never,
-            S::CANT_RELAY => RT::AfterWaiting, // TODO HS is this right?
+            S::CANT_RELAY => RT::AfterWaiting,
             _ => RT::AfterWaiting,             // who knows?
         }
     }
