@@ -18,6 +18,7 @@ use rand::Rng;
 use tor_bytes::Writeable;
 use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
+use tor_error::Bug;
 use tor_hscrypto::Subcredential;
 use tor_proto::circuit::handshake::{self, hs_ntor};
 use tracing::{debug, trace};
@@ -36,7 +37,7 @@ use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_error::{HasRetryTime as _, RetryTime};
 use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsClientDescEncKey, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
-use tor_linkspec::{CircTarget, OwnedCircTarget, RelayId};
+use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
@@ -72,13 +73,6 @@ pub struct Data {
     desc: DataHsDesc,
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
-    ///
-    /// We store the information under an arbitrary one of the relay's identities,
-    /// as returned by HasRelayIds::identities().first().
-    /// When we do lookups, we check all the relay's identities to see if we find
-    /// anything relevant.
-    /// If relay identities permute in strange ways, whether we find our previous
-    /// knowledge about them is not particularly well defined, but that's fine.
     // TODO HS we don't actually store or use this yet
     ipts: DataIpts,
 }
@@ -87,7 +81,7 @@ pub struct Data {
 type DataHsDesc = Option<TimerangeBound<HsDesc>>;
 
 /// Part of `Data` that relates to our information about introduction points
-type DataIpts = HashMap<RelayId, IptExperience>;
+type DataIpts = HashMap<RelayIdForExperience, IptExperience>;
 
 /// How things went last time we tried to use this introduction point
 ///
@@ -228,6 +222,22 @@ struct UsableIntroPt<'i> {
     sort_rand: IptSortRand,
 }
 
+/// Lookup key for for looking up and recording our IPT use experiencess
+///
+/// Used to identify a relay when looking to see what happened last time we used it,
+/// and storing that information after we tried it.
+///
+/// We store the experience information under an arbitrary one of the relay's identities,
+/// as returned by the `HasRelayIds::identities().next()`.
+/// When we do lookups, we check all the relay's identities to see if we find
+/// anything relevant.
+/// If relay identities permute in strange ways, whether we find our previous
+/// knowledge about them is not particularly well defined, but that's fine.
+///
+/// While this is, structurally, a relay identity, it is not suitable for other purposes.
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Debug)]
+struct RelayIdForExperience(RelayId);
+
 /// Details of an apparently-successful INTRODUCE exchange
 ///
 /// Intermediate value for progress during a connection attempt.
@@ -248,6 +258,24 @@ struct Introduced<R: Runtime, M: MocksForConnect<R>> {
     /// `R` and `M` only used for getting to mocks.
     /// Covariant without dropck or interfering with Send/Sync will do fine.
     marker: PhantomData<fn() -> (R, M)>,
+}
+
+impl RelayIdForExperience {
+    /// Identities to use to try to find previous experience information about this IPT
+    fn for_lookup(intro_target: &OwnedCircTarget) -> impl Iterator<Item = Self> + '_ {
+        intro_target
+            .identities()
+            .map(|id| RelayIdForExperience(id.to_owned()))
+    }
+    /// Identity to use to store previous experience information about this IPT
+    fn for_store(intro_target: &OwnedCircTarget) -> Result<Self, Bug> {
+        let id = intro_target
+            .identities()
+            .next()
+            .ok_or_else(|| internal!("introduction point relay with no identities"))?
+            .to_owned();
+        Ok(RelayIdForExperience(id))
+    }
 }
 
 impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
