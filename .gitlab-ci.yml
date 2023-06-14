@@ -318,11 +318,9 @@ integration-shadow:
     - amd64
     - tpa
 
-# TODO when this test passes on main, delete the allow_failures line
 every-crate:
   stage: test
   image: rust:latest
-  allow_failure: true
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/every-crate
