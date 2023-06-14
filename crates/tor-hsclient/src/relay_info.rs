@@ -104,6 +104,24 @@ pub enum InvalidTarget {
     Bug(#[from] tor_error::Bug),
 }
 
+/// When to maybe retry *with the same inputs* that generated this error.
+///
+/// When returned from `ipt_to_circtarget`, that means this is when to retry
+/// the *same introduction point* for the *same hidden service*.
+///
+/// "The same introduction point" means one with precisely the same set of identities.
+//
+// Note about correctness, and introduction point identity:
+//
+// We use this as part of HasRetryTime for FailedAttemptError.
+// HasRetryTime for FailedAttemptError is used for selecting which intro point to retry.
+// Our introduction point experiences are recorded according to *one* relay identity,
+// not the complete set.
+//
+// Nevertheless, this is correct, because: we only select from, and record experiences for,
+// *usable* introduction points.  An InvalidTarget error is detected early enough
+// to avoid regarding the introduction point as usable at all.  So we never use
+// this RetryTime impl, here, to choose between introduction points.
 impl HasRetryTime for InvalidTarget {
     fn retry_time(&self) -> RetryTime {
         use InvalidTarget as IT;
