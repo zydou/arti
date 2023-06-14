@@ -460,9 +460,44 @@ where
     W: AsyncWrite + Unpin,
 {
     use {tor_socksproto::SocksStatus as S, ErrorKind as EK};
+
+    // TODO: Currently we _always_ try to return extended SOCKS return values
+    // for onion service failures from proposal 304 when they are appropriate.
+    // But according to prop 304, this is something we should only do when it's
+    // requested, for compatibility with SOCKS implementations that can't handle
+    // unexpected REP codes.
+    //
+    // I suggest we make these extended error codes "always-on" for now, and
+    // later add a feature to disable them if it's needed. -nickm
+
+    // TODO: Perhaps we should map the extended SOCKS return values for onion
+    // service failures unconditionally, even if we haven't compiled in onion
+    // service client support.  We can make that change after the relevant
+    // ErrorKinds are no longer `experimental-api` in `tor-error`.
+
     // We need to send an error. See what kind it is.
     let status = match error {
         EK::RemoteNetworkFailed => S::TTL_EXPIRED,
+
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceNotFound => S::HS_DESC_NOT_FOUND,
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceDescriptorParsingFailed | EK::OnionServiceDescriptorValidationFailed => {
+            S::HS_DESC_INVALID
+        }
+        // TODO HS: This is not a perfect correspondence to the error we're
+        // returning here.
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceNotRunning | EK::OnionServiceConnectionFailed => S::HS_INTRO_FAILED,
+
+        // TODO HS: We have nothing corresponding to these EK values.  Perhaps
+        // that means we need to refactor them.
+        // OnionServiceProtocolViolation
+        // OnionServiceConnectFailed
+
+        // TODO HS: We have nothing corresponding to these S values.  Perhaps
+        // that means we need distinct ErrorKinds for them.
+        //     S::HS_MISSING_CLIENT_AUTH, S::HS_REND_FAILED, S::HS_WRONG_CLIENT_AUTH.
         _ => S::GENERAL_FAILURE,
     };
     let reply = request
