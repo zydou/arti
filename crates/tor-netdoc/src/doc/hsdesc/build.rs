@@ -27,9 +27,12 @@ use self::outer::HsDescOuter;
 
 use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
 
-/// A builder for encoding hidden service descriptors.
+/// An intermediary type for encoding hidden service descriptors.
 ///
-/// TODO hs: a comprehensive usage example.
+/// This object is constructed via [`HsDescBuilder`], and then turned into a
+/// signed document using [`HsDescBuilder::build_sign()`].
+///
+/// TODO HSS: Add an example for using this API.
 #[derive(Builder)]
 #[builder(public, derive(Debug, Clone), pattern = "owned", build_fn(vis = ""))]
 struct HsDesc<'a> {
@@ -41,7 +44,7 @@ struct HsDesc<'a> {
     /// The expiration time of the descriptor signing key certificate.
     hs_desc_sign_cert_expiry: SystemTime,
     /// A list of recognized CREATE handshakes that this onion service supports.
-    // TODO hs: this should probably be a caret enum, not an integer
+    // TODO HSS: this should probably be a caret enum, not an integer
     create2_formats: &'a [u32],
     /// A list of authentication types that this onion service supports.
     auth_required: Option<SmallVec<[IntroAuthType; 2]>>,

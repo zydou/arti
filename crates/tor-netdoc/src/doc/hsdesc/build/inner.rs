@@ -34,7 +34,7 @@ pub(super) struct HsDescInner<'a> {
     /// The descriptor signing key.
     pub(super) hs_desc_sign: &'a ed25519::Keypair,
     /// A list of recognized CREATE handshakes that this onion service supports.
-    // TODO hs: this should probably be a caret enum, not an integer
+    // TODO hss: this should probably be a caret enum, not an integer
     pub(super) create2_formats: &'a [u32],
     /// A list of authentication types that this onion service supports.
     pub(super) auth_required: Option<&'a SmallVec<[IntroAuthType; 2]>>,
@@ -50,7 +50,7 @@ pub(super) struct HsDescInner<'a> {
 
 /// Information in an onion service descriptor about a single introduction point.
 ///
-/// TODO hs: Move out of tor-netdoc: this is a general-purpose representation of an introduction
+/// TODO HSS: Move out of tor-netdoc: this is a general-purpose representation of an introduction
 /// point, not merely an intermediate representation for decoding/encoding. There may be other
 /// types that need to be factored out tor-netdoc for the same reason.
 #[derive(Debug, Clone)]
@@ -151,7 +151,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             // "The key is a base64 encoded curve25519 public key used to encrypt the introduction
             // request to service. (`KP_hss_ntor`)"
             //
-            // TODO hs: The spec allows for multiple enc-key lines, but we currently only ever encode
+            // TODO hss: The spec allows for multiple enc-key lines, but we currently only ever encode
             // a single one.
             encoder
                 .item(ENC_KEY)
@@ -163,7 +163,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             // The subject key is the the ed25519 equivalent of the svc_ntor_key curve25519 public
             // encryption key.
 
-            // TODO hs: should the sign bit be 0 or 1?
+            // TODO hss: should the sign bit be 0 or 1?
             let signbit = 0;
             let ed_svc_ntor_key =
                 convert_curve25519_to_ed25519_public(&intro_point.svc_ntor_key, signbit)
