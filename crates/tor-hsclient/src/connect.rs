@@ -669,7 +669,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     );
                     // TODO HS record error outcome in Data, if in fact we involved the IPT
                     // at all.  The IPT information ought to be retrieved from `error`;
-                    // this will have to be a new method on FailedAttemptError for that.
                     // (Only some of the errors implicate the introduction point.)
                     errors.push(tor_error::Report(error));
                 }
