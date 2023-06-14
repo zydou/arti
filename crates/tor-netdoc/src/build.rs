@@ -25,27 +25,10 @@ use tor_error::{internal, Bug};
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::tag_keywords_ok;
 
-/// Encoder, representing a partially-built document
+/// Encoder, representing a partially-built document.
 ///
-/// # Example
-///
-/// # TODO hs, actually fix and test this example
-/// ```rust,ignore
-/// use OnionServiceKeyword as K;
-///
-/// let mut document = NetDocEncoder::new();
-/// let beginning = document.marker();
-/// document.item(K::HsDescriptor).arg(3);
-/// document.item(K::DescriptorLifetime).arg(&self.lifetime);
-/// document.item(K::DescriptorSigningKeyCert).object("ED25519 CERT", &self.cert[..]);
-/// document.item(K::RevisionCounter).arg(&self.counter);
-/// document.item(K::Superencrypted).object("MESSAGE", inner_text);
-/// let end = document.marker();
-/// let signature = key.sign(document.slice(beginning, end));
-/// document.item(K::Signature).arg(B64(signature));
-///
-/// let text = document.finish()?;
-/// ```
+/// For example usage, see the tests in this module, or a descriptor building
+/// function in tor-netdoc (such as `hsdesc::build::inner::HsDescInner::build_sign`).
 #[derive(Debug, Clone)]
 pub(crate) struct NetdocEncoder {
     /// The being-built document, with everything accumulated so far
