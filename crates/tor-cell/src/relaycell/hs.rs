@@ -440,7 +440,7 @@ impl tor_error::HasRetryTime for IntroduceAckStatus {
             S::NOT_RECOGNIZED => RT::AfterWaiting,
             S::BAD_MESSAGE_FORMAT => RT::Never,
             S::CANT_RELAY => RT::AfterWaiting,
-            _ => RT::AfterWaiting,             // who knows?
+            _ => RT::AfterWaiting, // who knows?
         }
     }
 }
