@@ -667,7 +667,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // different amounts of information about the identity of the RPT and IPT: in each
             // case, the error only mentions the RPT or IPT if that node is implicated in the
             // timeout.
-            match async {
+            let outcome = async {
                 // We establish a rendezvous point first.  Although it appears from reading
                 // this code that this means we serialise establishment of the rendezvous and
                 // introduction circuits, this isn't actually the case.  The circmgr maintains
@@ -760,8 +760,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 );
                 Ok::<_, FAE>(Some((intro_index, circ)))
             }
-            .await
-            {
+            .await;
+            match outcome {
                 Ok(Some((intro_index, y))) => {
                     // TODO HS record successful outcome in Data
                     return Ok(y);
