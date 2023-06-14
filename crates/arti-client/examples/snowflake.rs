@@ -1,3 +1,4 @@
+#![allow(clippy::bool_assert_comparison)]
 // @@ begin test lint list maintained by maint/add_warning @@
 #![allow(clippy::bool_assert_comparison)]
 #![allow(clippy::clone_on_copy)]
@@ -10,15 +11,17 @@
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
 use anyhow::Result;
-use arti_client::config::pt::ManagedTransportConfigBuilder;
-use arti_client::config::{BridgeConfigBuilder, CfgPath};
-use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
 
-use futures::io::{AsyncReadExt, AsyncWriteExt};
-
+#[cfg(feature = "pt-client")]
 #[tokio::main]
 async fn main() -> Result<()> {
+    use arti_client::config::pt::ManagedTransportConfigBuilder;
+    use arti_client::config::{BridgeConfigBuilder, CfgPath};
+    use arti_client::{TorClient, TorClientConfig};
+
+    use futures::io::{AsyncReadExt, AsyncWriteExt};
+
     // Arti uses the `tracing` crate for logging. Install a handler for this, to print Arti's logs.
     tracing_subscriber::fmt::init();
 
@@ -97,4 +100,9 @@ async fn main() -> Result<()> {
     println!("{}", String::from_utf8_lossy(&buf));
 
     Ok(())
+}
+
+#[cfg(not(feature = "pt-client"))]
+pub fn main() {
+    panic!("this example can only run with feature `pt-client` enabled");
 }
