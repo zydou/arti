@@ -4,6 +4,7 @@
 use std::any::Any;
 use std::time::Duration;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -91,8 +92,14 @@ type DataIpts = HashMap<RelayIdForExperience, IptExperience>;
 /// receive.
 ///
 /// Expiry of unused data is handled by `state.rs`, according to `last_used` in `ServiceState`.
+///
+/// Choosing which IPT to prefer is done by obtaining an `IptSortKey`
+/// (from this and other information).
+//
+// Don't impl Ord for IptExperience.  We obtain `Option<&IptExperience>` from our
+// data structure, and if IptExperience were Ord then Option<&IptExperience> would be Ord
+// but it would be the wrong sort order: it would always prefer None, ie untried IPTs.
 #[derive(Debug)]
-// TODO HS implement Ord for this according to the specs here
 struct IptExperience {
     /// How long it took us to get whatever outcome occurred
     ///
@@ -275,6 +282,63 @@ impl RelayIdForExperience {
             .ok_or_else(|| internal!("introduction point relay with no identities"))?
             .to_owned();
         Ok(RelayIdForExperience(id))
+    }
+}
+
+/// Sort key for an introduction point, for selecting the best IPTs to try first
+///
+/// Ordering is most preferable first.
+///
+/// We use this to sort our `UsableIpt`s using `.sort_by_key`.
+/// (This implementation approach ensures that we obey all the usual ordering invariants.)
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+struct IptSortKey {
+    /// Sort by how prefereable the experience was
+    outcome: IptSortKeyOutcome,
+    /// Failing that, choose randomly
+    sort_rand: IptSortRand,
+}
+
+/// Component of the [`IptSortKey`] representing outcome of our last attempt, if any
+///
+/// This is the main thing we use to decide which IPTs to try first.
+/// It is calculated for each IPT
+/// (via `.sort_by_key`, so repeatedly - it should therefore be cheap to make.)
+///
+/// Ordering is most preferable first.
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+enum IptSortKeyOutcome {
+    /// Prefer successes
+    Success {
+        /// Prefer quick ones
+        duration: Duration,
+    },
+    /// Failing that, try one we don't know to have failed
+    Untried {},
+    /// Failing that, it'll have to be ones that didn't work last time
+    Failed {
+        /// Prefer failures with an earlier retry time
+        retry_time: tor_error::LooseCmpRetryTime,
+        /// Failing that, prefer quick failures (rather than slow ones eg timeouts)
+        duration: Duration,
+    },
+}
+
+impl From<Option<&IptExperience>> for IptSortKeyOutcome {
+    fn from(experience: Option<&IptExperience>) -> IptSortKeyOutcome {
+        use IptSortKeyOutcome as O;
+        match experience {
+            None => O::Untried {},
+            Some(IptExperience { duration, outcome }) => match outcome {
+                Ok(()) => O::Success {
+                    duration: *duration,
+                },
+                Err(retry_time) => O::Failed {
+                    retry_time: (*retry_time).into(),
+                    duration: *duration,
+                },
+            },
+        }
     }
 }
 
@@ -544,7 +608,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         //
         // Note that IntroPtIndex is *not* the index into this Vec.
         // It is the index into the original list of introduction points in the descriptor.
-        let usable_intros: Vec<UsableIntroPt> = desc
+        let mut usable_intros: Vec<UsableIntroPt> = desc
             .intro_points()
             .iter()
             .enumerate()
@@ -570,9 +634,17 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             })
             .collect_vec();
 
-        // TODO HS join with existing state recording our experiences,
+        // Join with existing state recording our experiences,
         // sort by descending goodness, and then randomly
         // (so clients without any experience don't all pile onto the same, first, IPT)
+        usable_intros.sort_by_key(|ipt: &UsableIntroPt| {
+            let experience =
+                RelayIdForExperience::for_lookup(&ipt.intro_target).find_map(|id| data.get(&id));
+            IptSortKey {
+                outcome: experience.into(),
+                sort_rand: ipt.sort_rand,
+            }
+        });
         let mut intro_attempts = usable_intros.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
 
         // We retain a rendezvous we managed to set up in here.  That way if we created it, and
