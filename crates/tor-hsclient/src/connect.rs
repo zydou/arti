@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use educe::Educe;
@@ -22,7 +23,7 @@ use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
 use tor_error::Bug;
 use tor_hscrypto::Subcredential;
 use tor_proto::circuit::handshake::{self, hs_ntor};
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 use retry_error::RetryError;
 use safelog::Redacted;
@@ -656,6 +657,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // TODO HS make multiple attempts to different IPTs in in parallel, and somehow
         // aggregate the errors and experiences.
         loop {
+            // When did we start doing things that depended on the IPT?
+            //
+            // Used for recording our experience with the selected IPT
+            let mut ipt_use_started = None::<Instant>;
+
             // Error handling inner async block (analogous to an IEFE):
             //  * Ok(Some()) means this attempt succeeded
             //  * Ok(None) means all attempts exhausted
@@ -707,10 +713,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let Some(ipt) = intro_attempts.next() else { return Ok(None) };
                 let intro_index = ipt.intro_index;
 
-                // TODO HS record how long things take, starting from here, as
+                // We record how long things take, starting from here, as
                 // as a statistic we'll use for the IPT in future.
-                // This will need to be stored in a variable outside this async block,
+                // This is stored in a variable outside this async block,
                 // so that the outcome handling can use it.
+                ipt_use_started = Some(self.runtime.now());
 
                 // No `Option::get_or_try_insert_with`, or we'd avoid this expect()
                 let rend_pt_for_error = rend_pt_identity_for_error(
@@ -761,9 +768,34 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 Ok::<_, FAE>(Some((intro_index, circ)))
             }
             .await;
+
+            // Store the experience `outcome` we had with IPT `intro_index`, in `data`
+            #[allow(clippy::unused_unit)] // -> () is here for error handling clarity
+            let mut store_experience = |intro_index, outcome| -> () {
+                (|| {
+                    let ipt = usable_intros
+                        .iter()
+                        .find(|ipt| ipt.intro_index == intro_index)
+                        .ok_or_else(|| internal!("IPT not found by index"))?;
+                    let id = RelayIdForExperience::for_store(&ipt.intro_target)?;
+                    let started = ipt_use_started.ok_or_else(|| {
+                        internal!("trying to record IPT use but no IPT start time noted")
+                    })?;
+                    let duration = self
+                        .runtime
+                        .now()
+                        .checked_duration_since(started)
+                        .ok_or_else(|| internal!("clock overflow calculating IPT use duration"))?;
+                    data.insert(id, IptExperience { duration, outcome });
+                    Ok::<_, Bug>(())
+                })()
+                .unwrap_or_else(|e| warn!("error recording HS IPT use experience: {}", e.report()));
+            };
+
             match outcome {
                 Ok(Some((intro_index, y))) => {
-                    // TODO HS record successful outcome in Data
+                    // Record successful outcome in Data
+                    store_experience(intro_index, Ok(()));
                     return Ok(y);
                 }
                 Ok(None) => return Err(CE::Failed(errors)),
@@ -773,9 +805,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         &self.hsid,
                         error.report(),
                     );
-                    // TODO HS record error outcome in Data, if in fact we involved the IPT
-                    // at all.  The IPT information ought to be retrieved from `error`;
-                    // (Only some of the errors implicate the introduction point.)
+                    // Record error outcome in Data, if in fact we involved the IPT
+                    // at all.  The IPT information is be retrieved from `error`,
+                    // since only some of the errors implicate the introduction point.
+                    if let Some(intro_index) = error.intro_index() {
+                        store_experience(intro_index, Err(error.retry_time()));
+                    }
                     errors.push(tor_error::Report(error));
                 }
             }
