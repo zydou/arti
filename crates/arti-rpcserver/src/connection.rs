@@ -5,7 +5,7 @@ mod auth;
 use std::{
     collections::HashMap,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 use asynchronous_codec::JsonCodecError;
@@ -25,6 +25,7 @@ use crate::{
     globalid::{GlobalId, MacKey},
     msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
     objmap::{GenIdx, ObjMap},
+    RpcMgr,
 };
 
 use tor_rpcbase as rpc;
@@ -38,7 +39,7 @@ pub struct Connection {
 
     /// Lookup table to find the implementations for methods
     /// based on RPC object and method types.
-    dispatch_table: Arc<rpc::DispatchTable>,
+    dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
 
     /// A unique identifier for this connection.
     ///
@@ -53,6 +54,10 @@ pub struct Connection {
     /// A `MacKey` used to create `GlobalIds` for the objects whose identifiers
     /// need to exist outside this connection.
     global_id_mac_key: MacKey,
+
+    /// A reference to the manager associated with this session.
+    #[allow(unused)] // TODO RPC
+    mgr: Weak<RpcMgr>,
 }
 rpc::decl_object! {Connection}
 
@@ -115,9 +120,10 @@ impl Connection {
     /// Create a new connection.
     pub(crate) fn new(
         connection_id: ConnectionId,
-        dispatch_table: Arc<rpc::DispatchTable>,
+        dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
         global_id_mac_key: MacKey,
         client: Arc<dyn rpc::Object>,
+        mgr: Weak<RpcMgr>,
     ) -> Self {
         Self {
             inner: Mutex::new(Inner {
@@ -128,6 +134,7 @@ impl Connection {
             dispatch_table,
             connection_id,
             global_id_mac_key,
+            mgr,
         }
     }
 
@@ -406,9 +413,14 @@ impl Connection {
         let context: Box<dyn rpc::Context> = Box::new(RequestContext {
             conn: Arc::clone(self),
         });
-        self.dispatch_table
-            .invoke(obj, method, context, tx_updates)?
-            .await
+        let invoke_future = self
+            .dispatch_table
+            .read()
+            .expect("lock poisoned")
+            .invoke(obj, method, context, tx_updates)?;
+
+        // Note that we drop the read lock before we await this future!
+        invoke_future.await
     }
 }
 

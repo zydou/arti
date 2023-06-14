@@ -35,7 +35,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // TODO RPC: Maybe the UnixListener functionality belongs in tor-rtcompat?
     // But I certainly don't want to make breaking changes there if we can help it.
     let listener = UnixListener::bind(path)?;
-    let rpc_mgr = Arc::new(RpcMgr::new());
+    let rpc_mgr = RpcMgr::new();
     let rt_clone = runtime.clone();
     let rpc_mgr_clone = rpc_mgr.clone();
 
