@@ -374,7 +374,8 @@ impl HasKind for DescriptorErrorDetail {
 
 /// When *an attempt like this* should be retried.
 ///
-/// For error variants with an introduction point index,
+/// For error variants with an introduction point index
+/// (`FailedAttemptError::intro_index` returns `Some`)
 /// that's when we might retry *with that introduction point*.
 ///
 /// For error variants with a rendezvous point,
