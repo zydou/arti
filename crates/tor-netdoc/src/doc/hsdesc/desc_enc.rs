@@ -139,7 +139,7 @@ impl<'a> HsDescEncryption<'a> {
 
         let mut key = Z::new([0_u8; Self::CIPHER_KEY_LEN]);
         let mut iv = Z::new([0_u8; Self::IV_LEN]);
-        let mut mac_key = Z::new([0_u8; Self::MAC_KEY_LEN]); // TODO HS conjectural!
+        let mut mac_key = Z::new([0_u8; Self::MAC_KEY_LEN]);
         key_stream.read(&mut key[..]);
         key_stream.read(&mut iv[..]);
         key_stream.read(&mut mac_key[..]);
