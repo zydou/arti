@@ -969,19 +969,7 @@ impl<R: Runtime> TorClient<R> {
                 let ks_hsc_desc_enc = self
                     .keymgr
                     .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)
-                    // TODO hs: create a helper for ignoring NotFound errors to reduce code
-                    // duplication
-                    .map_or_else(
-                        |error| {
-                            if matches!(error, tor_keymgr::Error::NotFound { .. }) {
-                                // Ignore NotFound errors
-                                Ok(None)
-                            } else {
-                                Err(ErrorDetail::KeyStore(error))
-                            }
-                        },
-                        |key| Ok(Some(key)),
-                    )?;
+                    .map_err(ErrorDetail::KeyStore)?;
 
                 let intro_auth_key_spec =
                     HsClientSecretKeySpecifier::new(client_id, hsid, HsClientKeyRole::IntroAuth);
@@ -989,17 +977,7 @@ impl<R: Runtime> TorClient<R> {
                 let ks_hsc_intro_auth = self
                     .keymgr
                     .get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)
-                    .map_or_else(
-                        |error| {
-                            if matches!(error, tor_keymgr::Error::NotFound { .. }) {
-                                // Ignore NotFound errors
-                                Ok(None)
-                            } else {
-                                Err(ErrorDetail::KeyStore(error))
-                            }
-                        },
-                        |key| Ok(Some(key)),
-                    )?;
+                    .map_err(ErrorDetail::KeyStore)?;
 
                 let mut hs_client_secret_keys_builder = HsClientSecretKeysBuilder::default();
                 if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {

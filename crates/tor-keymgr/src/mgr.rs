@@ -27,8 +27,8 @@ impl KeyMgr {
     /// The key returned is retrieved from the first key store that contains an entry for the given
     /// specifier.
     ///
-    /// Returns [`Error::NotFound`] if none of the key stores have the requested key.
-    pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<K> {
+    /// Returns Ok(None) if none of the key stores have the requested key.
+    pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
         // Check if the requested key identity exists in any of the key stores:
         for store in &self.key_stores {
             let key = match store.get(key_spec, K::Key::key_type()) {
@@ -50,10 +50,10 @@ impl KeyMgr {
                 .map(|k| *k)
                 .map_err(|_| Error::Bug(internal!("failed to downcast key to requested type")))?;
 
-            return Ok(K::from_encodable_key(key));
+            return Ok(Some(K::from_encodable_key(key)));
         }
 
-        Err(Error::NotFound { /* TODO hs: add context */ })
+        Ok(None)
     }
 
     /// Insert the specified key intro the appropriate key store.
