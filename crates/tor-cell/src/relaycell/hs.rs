@@ -427,6 +427,10 @@ impl Body for IntroduceAck {
     }
 }
 
+/// When to maybe retry introduction to the *same service* at the *same introduction point*.
+///
+/// (Using this on `IntroduceAckStatus::SUCCESS` is a mistake;
+/// if you do that you'll not get a meaningful retry time, but it won't panic.)
 impl tor_error::HasRetryTime for IntroduceAckStatus {
     fn retry_time(&self) -> tor_error::RetryTime {
         use tor_error::RetryTime as RT;
