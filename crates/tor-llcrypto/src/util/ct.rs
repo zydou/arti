@@ -97,10 +97,11 @@ impl<const N: usize> AsMut<[u8; N]> for CtByteArray<N> {
 /// Otherwise, this function returns none.
 ///
 /// We evaluate `matches` on every item of the array, and try not to
-/// leak by timing which element (if any) matched.
+/// leak by timing which element (if any) matched.  Note that if
+/// `matches` itself has side channels, this function can't hide them.
 ///
 /// Note that this doesn't necessarily do a constant-time comparison,
-/// and that it is not constant-time for found/not-found case.
+/// and that it is not constant-time for the found/not-found case.
 pub fn ct_lookup<T, F>(array: &[T], matches: F) -> Option<&T>
 where
     F: Fn(&T) -> Choice,
