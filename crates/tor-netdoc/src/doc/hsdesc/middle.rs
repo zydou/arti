@@ -1,6 +1,7 @@
 //! Handle the middle document of an onion service descriptor.
 
 use once_cell::sync::Lazy;
+use subtle::ConstantTimeEq;
 use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey, HsSvcDescEncKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
@@ -90,6 +91,7 @@ impl HsDescMiddle {
     ) -> Option<HsDescEncNonce> {
         use cipher::{KeyIvInit, StreamCipher};
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
+        use tor_llcrypto::util::ct::ct_lookup;
 
         let (client_id, cookie_key) = build_descriptor_cookie_key(
             ks_hsc_desc_enc.as_ref(),
@@ -97,12 +99,7 @@ impl HsDescMiddle {
             subcredential,
         );
         // See whether there is any matching client_id in self.auth_ids.
-        // TODO HS: Perhaps we should use `tor_proto::util::ct::lookup`.  We would
-        // have to put it in a lower level module.
-        let auth_client = self
-            .auth_clients
-            .iter()
-            .find(|c| c.client_id == client_id)?;
+        let auth_client = ct_lookup(&self.auth_clients, |c| c.client_id.ct_eq(&client_id))?;
 
         // We found an auth client entry: Take and decrypt the cookie `N_hs_desc_enc` at last.
         let mut cookie = auth_client.encrypted_cookie;
