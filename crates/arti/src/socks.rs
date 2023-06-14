@@ -459,14 +459,15 @@ async fn reply_error<W>(
 where
     W: AsyncWrite + Unpin,
 {
+    use {tor_socksproto::SocksStatus as S, ErrorKind as EK};
     // We need to send an error. See what kind it is.
-    let reply = match error {
-        ErrorKind::RemoteNetworkTimeout => {
-            request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None)
-        }
-        _ => request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None),
-    }
-    .context("Encoding socks reply")?;
+    let status = match error {
+        EK::RemoteNetworkFailed => S::TTL_EXPIRED,
+        _ => S::GENERAL_FAILURE,
+    };
+    let reply = request
+        .reply(status, None)
+        .context("Encoding socks reply")?;
     // if writing back the error fail, still return the original error
     let _ = write_all_and_close(writer, &reply[..]).await;
 
