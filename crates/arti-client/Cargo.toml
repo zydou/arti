@@ -94,8 +94,9 @@ experimental = [
 experimental-api = ["__is_experimental"]
 dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 error_detail = ["__is_experimental"]
-onion-client = ["tor-hsclient", "tor-hscrypto", "tor-keymgr", "__is_experimental"]
+onion-client = ["tor-hsclient", "tor-hscrypto", "__is_experimental"]
 rpc = ["tor-rpcbase", "__is_experimental"]
+keymgr = ["tor-keymgr", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]

@@ -39,8 +39,13 @@ use {
         HsClientSpecifier,
     },
     tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
-    tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore},
 };
+
+#[cfg(not(feature = "keymgr"))]
+// Use a dummy key manager if the `keymgr` feature is not enabled.
+use crate::keymgr::KeyMgr;
+#[cfg(feature = "keymgr")]
+use tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
@@ -116,9 +121,14 @@ pub struct TorClient<R: Runtime> {
     /// example, for retrieving the keys necessary for connecting to hidden services that require
     /// client authentication).
     ///
+    /// If this crate is compiled _with_ the `keymgr` feature, [`TorClient`] will use a functional
+    /// key manager implementation.
+    ///
+    /// If this crate is compiled _without_ the `keymgr` feature, then [`TorClient`] will use a
+    /// no-op key manager implementation instead.
+    ///
     /// See the [`KeyMgr`] documentation for more details.
     #[allow(dead_code)] // TODO HS remove
-    #[cfg(feature = "onion-client")]
     keymgr: Arc<KeyMgr>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
@@ -560,7 +570,11 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), circpool)?
         };
 
-        #[cfg(feature = "onion-client")]
+        #[cfg(all(not(feature = "keymgr")))]
+        // Use the no-op key manager
+        let keymgr = Arc::new(KeyMgr);
+
+        #[cfg(feature = "keymgr")]
         let keymgr = {
             // TODO hs: load the key store dir from the config.
             let key_store_dir = Default::default();
@@ -610,7 +624,6 @@ impl<R: Runtime> TorClient<R> {
             pt_mgr,
             #[cfg(feature = "onion-client")]
             hsclient,
-            #[cfg(feature = "onion-client")]
             keymgr,
             guardmgr,
             statemgr,

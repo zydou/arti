@@ -260,6 +260,8 @@ implementation with another.
 * `onion-client` -- build with non-working stub APIs to support connecting to
   onion services.  (These do not work yet, and will just cause your code to
   panic.)
+* `keymgr` -- build with non-working APIs for key management. (These do not work
+  yet, and will just cause your code to panic.)
 
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.
