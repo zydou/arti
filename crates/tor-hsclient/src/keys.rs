@@ -9,7 +9,8 @@ use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
+use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair, HsId};
+use tor_keymgr::{ArtiPath, CTorPath, KeySpecifier};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -128,9 +129,84 @@ impl HsClientSecretKeysBuilder {
     }
 
     /// Convert these
-    pub fn build(self) -> Result<HsClientSecretKeys, tor_config::ConfigError> {
+    pub fn build(self) -> Result<HsClientSecretKeys, tor_config::ConfigBuildError> {
         Ok(HsClientSecretKeys {
             keys: Arc::new(self),
         })
+    }
+}
+
+/// An HS client identifier.
+///
+/// Distinguishes different "clients" or "users" of this Arti instance,
+/// so that they can have different sets of HS client authentication keys.
+///
+/// TODO hs: this could be turned into a more general `KeystoreClientUserSpecifier` (or even
+/// `KeystoreUserSpecifier`). Once we start adding new specifiers we should consider refactoring
+/// this (and making the client specifiers HS-agnostic).
+#[derive(Clone, derive_more::Display)]
+pub struct HsClientSpecifier(String);
+
+impl HsClientSpecifier {
+    /// Create a new [`HsClientSpecifier`].
+    // TODO hs: restrict the charset allowed for the name.
+    pub fn new(client_name: String) -> Self {
+        Self(client_name)
+    }
+}
+
+// TODO hs: remove this default implementation (or decide what a correct default impl would look
+// like).
+//
+// This is meant to be a temporary measure, since we don't currently validate client specifiers
+impl Default for HsClientSpecifier {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
+/// An identifier for a particular instance of an HS client key.
+pub struct HsClientSecretKeySpecifier {
+    /// The client associated with this key.
+    client_id: HsClientSpecifier,
+    /// The hidden service this authorization key is for.
+    hs_id: HsId,
+    /// The role of the key.
+    role: HsClientKeyRole,
+}
+
+/// The role of an HS client key.
+#[derive(Debug, Clone, Copy, PartialEq, derive_more::Display)]
+#[non_exhaustive]
+pub enum HsClientKeyRole {
+    /// A key for deriving keys for decrypting HS descriptors (KP_hsc_desc_enc).
+    #[display(fmt = "KP_hsc_desc_enc")]
+    DescEnc,
+    /// A key for computing INTRODUCE1 signatures (KP_hsc_intro_auth).
+    #[display(fmt = "KP_hsc_intro_auth")]
+    IntroAuth,
+}
+
+impl HsClientSecretKeySpecifier {
+    /// Create a new [`HsClientSecretKeySpecifier`].
+    pub fn new(client_id: HsClientSpecifier, hs_id: HsId, role: HsClientKeyRole) -> Self {
+        Self {
+            client_id,
+            hs_id,
+            role,
+        }
+    }
+}
+
+impl KeySpecifier for HsClientSecretKeySpecifier {
+    fn arti_path(&self) -> tor_keymgr::Result<ArtiPath> {
+        ArtiPath::new(format!(
+            "client/{}/{}/{}",
+            self.client_id, self.hs_id, self.role
+        ))
+    }
+
+    fn ctor_path(&self) -> Option<CTorPath> {
+        todo!()
     }
 }

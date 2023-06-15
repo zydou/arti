@@ -34,8 +34,18 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 #[cfg(feature = "onion-client")]
 use {
     tor_circmgr::hspool::HsCircPool,
-    tor_hsclient::{HsClientConnector, HsClientSecretKeys},
+    tor_hsclient::{
+        HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
+        HsClientSpecifier,
+    },
+    tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
 };
+
+#[cfg(not(feature = "keymgr"))]
+// Use a dummy key manager if the `keymgr` feature is not enabled.
+use crate::keymgr::KeyMgr;
+#[cfg(feature = "keymgr")]
+use tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
@@ -105,6 +115,21 @@ pub struct TorClient<R: Runtime> {
     #[allow(dead_code)] // TODO HS remove
     #[cfg(feature = "onion-client")]
     hsclient: HsClientConnector<R>,
+    /// The key manager.
+    ///
+    /// This is used for retrieving private keys, certificates, and other sensitive data (for
+    /// example, for retrieving the keys necessary for connecting to hidden services that require
+    /// client authentication).
+    ///
+    /// If this crate is compiled _with_ the `keymgr` feature, [`TorClient`] will use a functional
+    /// key manager implementation.
+    ///
+    /// If this crate is compiled _without_ the `keymgr` feature, then [`TorClient`] will use a
+    /// no-op key manager implementation instead.
+    ///
+    /// See the [`KeyMgr`] documentation for more details.
+    #[allow(dead_code)] // TODO HS remove
+    keymgr: Arc<KeyMgr>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
@@ -545,6 +570,21 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), circpool)?
         };
 
+        #[cfg(all(not(feature = "keymgr")))]
+        // Use the no-op key manager
+        let keymgr = Arc::new(KeyMgr);
+
+        #[cfg(feature = "keymgr")]
+        let keymgr = {
+            // TODO hs: load the key store dir from the config.
+            let key_store_dir = Default::default();
+            let arti_store = ArtiNativeKeyStore::new(key_store_dir)?;
+            // TODO hs: add support for the C Tor key store
+            let stores = vec![Box::new(arti_store) as Box<dyn KeyStore>];
+
+            Arc::new(KeyMgr::new(stores))
+        };
+
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
@@ -584,6 +624,7 @@ impl<R: Runtime> TorClient<R> {
             pt_mgr,
             #[cfg(feature = "onion-client")]
             hsclient,
+            keymgr,
             guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),
@@ -832,7 +873,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Hostnames are _strongly_ preferred here: if this function allowed the
     /// caller here to provide an IPAddr or [`IpAddr`] or
-    /// [`SocketAddr`](std::net::SocketAddr) address, then  
+    /// [`SocketAddr`](std::net::SocketAddr) address, then
     ///
     /// ```no_run
     /// # use arti_client::*; use tor_rtcompat::Runtime;
@@ -926,12 +967,48 @@ impl<R: Runtime> TorClient<R> {
                 self.wait_for_bootstrap().await?;
                 let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
 
+                // TODO hs: use a real client id (loaded from the config)
+                let client_id = HsClientSpecifier::default();
+                let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
+                    client_id.clone(),
+                    hsid,
+                    HsClientKeyRole::DescEnc,
+                );
+
+                // TODO hs: refactor to reduce code duplication.
+                //
+                // The code that reads ks_hsc_desc_enc and ks_hsc_intro_auth and builds the
+                // HsClientSecretKeys is very repetitive and should be refactored.
+                let ks_hsc_desc_enc = self
+                    .keymgr
+                    .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)?;
+
+                let intro_auth_key_spec =
+                    HsClientSecretKeySpecifier::new(client_id, hsid, HsClientKeyRole::IntroAuth);
+
+                let ks_hsc_intro_auth = self
+                    .keymgr
+                    .get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)?;
+
+                let mut hs_client_secret_keys_builder = HsClientSecretKeysBuilder::default();
+                if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
+                    hs_client_secret_keys_builder.ks_hsc_desc_enc(ks_hsc_desc_enc);
+                }
+
+                if let Some(ks_hsc_intro_auth) = ks_hsc_intro_auth {
+                    hs_client_secret_keys_builder.ks_hsc_intro_auth(ks_hsc_intro_auth);
+                }
+
+                let hs_client_secret_keys = hs_client_secret_keys_builder
+                    .build()
+                    .map_err(ErrorDetail::Configuration)?;
+
                 let circ = self
                     .hsclient
                     .get_or_launch_connection(
                         &netdir,
                         hsid,
-                        HsClientSecretKeys::default(), // TODO HS support client auth somehow
+                        hs_client_secret_keys,
                         self.isolation(prefs),
                     )
                     .await

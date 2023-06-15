@@ -4,6 +4,7 @@
 #![allow(dead_code, unused_variables)] // TODO hs remove.
 
 mod err;
+mod keys;
 mod status;
 mod streamproxy;
 mod svc;

@@ -38,34 +38,18 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-mod address;
-mod builder;
-mod client;
-#[cfg(not(feature = "keymgr"))]
-mod keymgr;
-mod util;
+pub(crate) mod err;
+pub(crate) mod key_specifier;
+pub(crate) mod key_type;
+pub(crate) mod keystore;
+pub(crate) mod mgr;
 
-pub mod config;
-pub mod status;
+pub use err::Error;
+pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
+pub use key_type::KeyType;
+pub use keystore::arti::ArtiNativeKeyStore;
+pub use keystore::{EncodableKey, ErasedKey, KeyStore, ToEncodableKey};
+pub use mgr::KeyMgr;
 
-pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
-pub use builder::TorClientBuilder;
-pub use client::{BootstrapBehavior, DormantMode, StreamPrefs, TorClient};
-pub use config::TorClientConfig;
-
-pub use tor_circmgr::isolation;
-pub use tor_circmgr::IsolationToken;
-pub use tor_error::{ErrorKind, HasKind};
-pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
-
-mod err;
-pub use err::{Error, ErrorHint};
-
-#[cfg(feature = "error_detail")]
-pub use err::ErrorDetail;
-
-/// Alias for the [`Result`] type corresponding to the high-level [`Error`].
+/// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
-
-#[cfg(feature = "experimental-api")]
-pub use builder::DirProviderBuilder;
