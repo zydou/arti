@@ -48,18 +48,34 @@ impl CastTable {
     ///
     /// # Requirements
     ///
-    /// `type_id` must be the identity of `&'static dyn Tr` for some trait `Tr`.
+    /// `T` must be `dyn Tr` for some trait `Tr`.
+    /// (Not checked by the compiler.)
     ///
     /// `Tr` must be `'static`.
+    /// (Will be checked by the compiler.)
     ///
-    /// `func` must be a fn `fn(&dyn Object) -> &dyn Tr`.  The function SHOULD
+    /// `func` is a downcaster from `&dyn Object` to `&dyn Tr`.
+    /// `func` SHOULD
     /// panic if the concrete type of its argument is not the concrete type
     /// associated with this `CastTable`.
     ///
     /// # Panics
     ///
-    /// Panics if called twice on the same `CastTable` with the same `type_id`.
-    pub fn insert(&mut self, type_id: TypeId, func: Box<dyn Any + Send + Sync>) {
+    /// Panics if called twice on the same `CastTable` with the same `Tr`.
+    pub fn insert<T: 'static + ?Sized>(&mut self, func: Box<fn(&dyn Object) -> &T>) {
+        self.insert_erased(TypeId::of::<&'static T>(), func as _);
+    }
+
+    /// Implementation for adding an entry to the `CastTable`
+    ///
+    /// Broken out for clarity and to reduce monomorphisation.
+    ///
+    /// ### Requirements
+    ///
+    /// Like `insert`, but less compile-time checking.
+    /// `type_id` is the identity of `&'static dyn Tr`,
+    /// and `func` has been type-erased.
+    fn insert_erased(&mut self, type_id: TypeId, func: Box<dyn Any + Send + Sync>) {
         let old_val = self.table.insert(type_id, func);
         assert!(
             old_val.is_none(),
@@ -139,8 +155,7 @@ macro_rules! decl_make_cast_table {
                         let self_: &dyn $traitname = self_ as _;
                         self_
                     };
-                    table.insert(
-                        std::any::TypeId::of::<&'static dyn $traitname>(),
+                    table.insert::<dyn $traitname>(
                         Box::new(f)
                     );
                 })*
