@@ -314,7 +314,7 @@ enum IptSortKeyOutcome {
         duration: Duration,
     },
     /// Failing that, try one we don't know to have failed
-    Untried {},
+    Untried,
     /// Failing that, it'll have to be ones that didn't work last time
     Failed {
         /// Prefer failures with an earlier retry time
@@ -328,7 +328,7 @@ impl From<Option<&IptExperience>> for IptSortKeyOutcome {
     fn from(experience: Option<&IptExperience>) -> IptSortKeyOutcome {
         use IptSortKeyOutcome as O;
         match experience {
-            None => O::Untried {},
+            None => O::Untried,
             Some(IptExperience { duration, outcome }) => match outcome {
                 Ok(()) => O::Success {
                     duration: *duration,
