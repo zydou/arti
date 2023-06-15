@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tor_rpcbase as rpc;
 
 /// An authenticated RPC session.
-pub(crate) struct Session {
+pub struct Session {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
     #[allow(unused)]
@@ -17,9 +17,18 @@ pub(crate) struct Session {
 rpc::decl_object! { @expose Session }
 
 impl Session {
-    /// Create a new session object.
-    pub(crate) fn new(client: Arc<dyn rpc::Object>) -> Arc<Self> {
+    /// Create a new session (internal)
+    ///
+    /// TODO RPC: remove.
+    pub fn new(client: Arc<dyn rpc::Object>) -> Arc<Self> {
         Arc::new(Self { client })
+    }
+
+    /// Create a new session object containing a single client object.
+    pub fn new_with_client<R: tor_rtcompat::Runtime>(
+        client: Arc<arti_client::TorClient<R>>,
+    ) -> Arc<Self> {
+        Self::new(client)
     }
 }
 

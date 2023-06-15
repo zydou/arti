@@ -49,3 +49,4 @@ mod streams;
 
 pub use connection::{Connection, ConnectionError};
 pub use mgr::RpcMgr;
+pub use session::Session;
