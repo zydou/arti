@@ -42,6 +42,11 @@ pub struct RpcMgr {
     session_factory: SessionFactory,
 
     /// Lock-protected view of the manager's state.
+    ///
+    /// NOTE: In the lock hierarchy, this mutex is at a _lower_ level than the
+    /// per-Connection locks.  You must not take any per-connection lock if you
+    /// hold this lock.  Functions that take or hold this lock must be checked
+    /// to make sure that they follow this rule.
     inner: Mutex<Inner>,
 }
 
@@ -81,14 +86,14 @@ impl RpcMgr {
     #[allow(clippy::missing_panics_doc)]
     pub fn new_connection(self: &Arc<Self>) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
-
-        let mut inner = self.inner.lock().expect("poisoned lock");
         let connection = Arc::new(Connection::new(
             connection_id,
             self.dispatch_table.clone(),
             self.global_id_mac_key.clone(),
             Arc::downgrade(self),
         ));
+
+        let mut inner = self.inner.lock().expect("poisoned lock");
         let old = inner.connections.insert(connection_id, connection.clone());
         assert!(
             old.is_none(),
@@ -117,8 +122,12 @@ impl RpcMgr {
 
     /// As `lookup_object`, but takes a parsed and validated [`GlobalId`].
     pub(crate) fn lookup_by_global_id(&self, id: &GlobalId) -> Option<Arc<dyn rpc::Object>> {
-        let inner = self.inner.lock().expect("lock poisoned");
-        let connection = inner.connections.get(&id.connection)?;
+        let connection = {
+            let inner = self.inner.lock().expect("lock poisoned");
+            inner.connections.get(&id.connection)?
+            // Here we release the lock on self.inner, which makes it okay to
+            // invoke a method on `connection` that may take its lock.
+        };
         connection.lookup_by_idx(id.local_id)
     }
 
