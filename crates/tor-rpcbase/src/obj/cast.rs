@@ -178,10 +178,27 @@ mod test {
 
     use super::*;
 
-    struct Generic<T>(T);
-
     trait Tr1: 'static {}
     trait Tr2: 'static {}
+
+    struct Simple;
+    impl Tr1 for Simple {}
+    impl Object for Simple {}
+
+    decl_make_cast_table! {
+        Simple [Simple] [] [] [Tr1]
+    }
+
+    #[test]
+    fn check_simple() {
+        let concrete = Simple;
+        let tab = Simple::make_cast_table();
+        let obj: &dyn Object = &concrete;
+        let _cast: &(dyn Tr1) = tab.cast_object_to(obj).expect("cast failed");
+    }
+
+    struct Generic<T>(T);
+
     impl<T: 'static> Tr1 for Generic<T> {}
     impl<T: 'static> Tr2 for Generic<T> {}
     impl<T: Send + Sync + 'static> Object for Generic<T> {}
@@ -191,7 +208,7 @@ mod test {
     }
 
     #[test]
-    fn check_if_it_works() {
+    fn check_generic() {
         let gen: Generic<&'static str> = Generic("foo");
         let tab = Generic::<&'static str>::make_cast_table();
         let obj: &dyn Object = &gen;
