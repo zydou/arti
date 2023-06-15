@@ -14,25 +14,29 @@ use once_cell::sync::Lazy;
 use crate::Object;
 
 /// A collection of functions to downcast `&dyn Object` references for some
-/// particular concrete type into various `&dyn Trait` references.
+/// particular concrete object type `O` into various `&dyn Trait` references.
 ///
 /// You shouldn't construct this on your own: instead use
 /// [`crate::decl_object!`].
 ///
 /// You shouldn't use this directly; instead use
 /// [`ObjectRefExt`](super::ObjectRefExt).
+///
+/// Note that the concrete object type `O`
+/// is *not* represented in the type of `CastTable`;
+/// `CastTable`s are obtained and used at runtime, as part of dynamic despatch,
+/// so the type `O` is erased.  We work with `TypeId`s and various `&dyn ...`.
 #[derive(Default)]
 pub struct CastTable {
     /// A mapping from target TypeId for some trait to a function that can
     /// convert this table's type into a trait pointer to that trait.
     ///
-    /// Assuming that the concrete type associated with this `CastTable` is `S`,
-    /// every entry in this table must contain:
+    /// Every entry in this table must contain:
     ///
     ///   * A key that is `typeid::of::<&'static dyn Tr>()` for some trait `Tr`.
     ///   * A function of type `fn(&dyn Object) -> &dyn Tr` for the same trait
     ///     `Tr`. This function must accept a `&dyn Object` whose concrete type
-    ///     is actually `S`, and it SHOULD panic for other input types.
+    ///     is actually `O`, and it SHOULD panic for other input types.
     ///
     /// Note that we use `Box` here in order to support generic types: you can't
     /// get a `&'static` reference to a function that takes a generic type in
@@ -56,7 +60,7 @@ impl CastTable {
     ///
     /// `func` is a downcaster from `&dyn Object` to `&dyn Tr`.
     /// `func` SHOULD
-    /// panic if the concrete type of its argument is not the concrete type
+    /// panic if the concrete type of its argument is not the concrete type `O`
     /// associated with this `CastTable`.
     ///
     /// # Panics
@@ -84,15 +88,15 @@ impl CastTable {
     }
 
     /// Try to downcast a reference to an object whose concrete type is
-    /// associated with this `CastTable` to some target type `T`.
+    /// `O` (the type associated with this `CastTable`)
+    /// to some target type `T`.
     ///
     /// `T` should be `dyn Tr`.
     /// If `T` is not one of the `dyn Tr` for which `insert` was called,
     /// returns `None`.
     /// # Panics
     ///
-    /// Panics if the concrete type of `obj` does not match the type associated
-    /// with this `CastTable`.
+    /// Panics if the concrete type of `obj` does not match `O`.
     ///
     /// May panic if any of the Requirements for [`CastTable::insert`] were
     /// violated.
