@@ -2,16 +2,22 @@
 
 use std::sync::{Arc, Mutex, RwLock, Weak};
 
-use arti_client::TorClient;
 use rand::Rng;
 use tor_rpcbase as rpc;
-use tor_rtcompat::Runtime;
 use weak_table::WeakValueHashMap;
 
 use crate::{
     connection::{Connection, ConnectionId},
     globalid::{GlobalId, MacKey},
+    RpcSession,
 };
+
+/// A function we use to construct Session objects in response to authentication.
+//
+// TODO RPC: Perhaps this should return a Result?
+// TODO RPC: Perhaps this should take an argument describing what kind of
+// authentication there was?
+type SessionFactory = Box<dyn Fn() -> Arc<RpcSession> + Send + Sync>;
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///
@@ -32,6 +38,10 @@ pub struct RpcMgr {
     ///
     /// We keep this in an `Arc` so we can share it with sessions.
     dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
+
+    /// A function that we use to construct new Session objects when authentication
+    /// is successful.
+    session_factory: SessionFactory,
 
     /// Lock-protected view of the manager's state.
     inner: Mutex<Inner>,
@@ -55,14 +65,14 @@ struct Inner {
 impl RpcMgr {
     /// Create a new RpcMgr.
     ///
-    /// TODO RPC: Perhaps this should take a Client instead, and new_session
-    /// should take nothing.  Also perhaps instead of a Client, it should take
-    /// an `Arc<dyn Object>` that becomes the session.
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Arc<Self> {
+    pub fn new<F>(make_session: F) -> Arc<Self>
+    where
+        F: Fn() -> Arc<RpcSession> + Send + Sync + 'static,
+    {
         Arc::new(RpcMgr {
             global_id_mac_key: MacKey::new(&mut rand::thread_rng()),
             dispatch_table: Arc::new(RwLock::new(rpc::DispatchTable::from_inventory())),
+            session_factory: Box::new(make_session),
             inner: Mutex::new(Inner {
                 connections: WeakValueHashMap::new(),
             }),
@@ -70,21 +80,15 @@ impl RpcMgr {
     }
 
     /// Start a new session based on this RpcMgr, with a given TorClient.
-    ///
-    ///
-    /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
-    /// be possible to invoke any of its methods. See #837.
     #[allow(clippy::missing_panics_doc)]
-    pub fn new_connection<R: Runtime>(self: &Arc<Self>, client: TorClient<R>) -> Arc<Connection> {
+    pub fn new_connection(self: &Arc<Self>) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
-        let client_obj = Arc::new(client);
 
         let mut inner = self.inner.lock().expect("poisoned lock");
         let connection = Arc::new(Connection::new(
             connection_id,
             self.dispatch_table.clone(),
             self.global_id_mac_key.clone(),
-            client_obj,
             Arc::downgrade(self),
         ));
         let old = inner.connections.insert(connection_id, connection.clone());
@@ -118,5 +122,10 @@ impl RpcMgr {
         let inner = self.inner.lock().expect("lock poisoned");
         let connection = inner.connections.get(&id.connection)?;
         connection.lookup_by_idx(id.local_id)
+    }
+
+    /// Construct a new object to serve as the `session` for a connection.
+    pub(crate) fn create_session(&self) -> Arc<RpcSession> {
+        (self.session_factory)()
     }
 }

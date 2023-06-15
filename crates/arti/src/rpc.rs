@@ -1,7 +1,7 @@
 //! Experimental RPC support.
 
 use anyhow::Result;
-use arti_rpcserver::RpcMgr;
+use arti_rpcserver::{RpcMgr, RpcSession};
 use futures::task::SpawnExt;
 use std::{path::Path, sync::Arc};
 
@@ -33,9 +33,11 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // TODO RPC: there should be an error return instead.
 
     // TODO RPC: Maybe the UnixListener functionality belongs in tor-rtcompat?
-    // But I certainly don't want to make breaking changes there if we can help it.
+    // But I certainly don't want to make breaking changes there if we can help
+    // it.
     let listener = UnixListener::bind(path)?;
-    let rpc_mgr = RpcMgr::new();
+    let rpc_mgr =
+        RpcMgr::new(move || RpcSession::new_with_client(Arc::new(client.isolated_client())));
     let rt_clone = runtime.clone();
     let rpc_mgr_clone = rpc_mgr.clone();
 
@@ -43,7 +45,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // succeeded or not. This is something we should fix when we refactor
     // our service-launching code.
     runtime.spawn(async {
-        let result = run_rpc_listener(rt_clone, listener, rpc_mgr_clone, client).await;
+        let result = run_rpc_listener(rt_clone, listener, rpc_mgr_clone).await;
         if let Err(e) = result {
             tracing::warn!("RPC manager quit with an error: {}", e);
         }
@@ -56,19 +58,18 @@ async fn run_rpc_listener<R: Runtime>(
     runtime: R,
     listener: UnixListener,
     rpc_mgr: Arc<RpcMgr>,
-    client: TorClient<R>,
 ) -> Result<()> {
     loop {
         let (stream, _addr) = listener.accept().await?;
         // TODO RPC: Perhaps we should have rpcmgr hold the client reference?
-        let session = rpc_mgr.new_connection(client.isolated_client());
+        let connection = rpc_mgr.new_connection();
         let (input, output) = stream.into_split();
 
         #[cfg(feature = "tokio")]
         let (input, output) = (input.compat(), output.compat_write());
 
         runtime.spawn(async {
-            let result = session.run(input, output).await;
+            let result = connection.run(input, output).await;
             if let Err(e) = result {
                 tracing::warn!("RPC session ended with an error: {}", e);
             }

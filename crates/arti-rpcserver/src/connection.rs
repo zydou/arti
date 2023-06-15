@@ -53,7 +53,6 @@ pub struct Connection {
     global_id_mac_key: MacKey,
 
     /// A reference to the manager associated with this session.
-    #[allow(unused)] // TODO RPC
     mgr: Weak<RpcMgr>,
 }
 rpc::decl_object! {Connection}
@@ -70,10 +69,6 @@ struct Inner {
     /// An object map used to look up most objects by ID, and keep track of
     /// which objects are owned by this connection.
     objects: ObjMap,
-
-    /// A `TorClient` object that we will give out if the connection is successfully
-    /// authenticated, _and not otherwise_.
-    client: Arc<dyn rpc::Object>,
 }
 
 /// How many updates can be pending, per connection, before they start to block?
@@ -119,14 +114,12 @@ impl Connection {
         connection_id: ConnectionId,
         dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
         global_id_mac_key: MacKey,
-        client: Arc<dyn rpc::Object>,
         mgr: Weak<RpcMgr>,
     ) -> Self {
         Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
                 objects: ObjMap::new(),
-                client,
             }),
             dispatch_table,
             connection_id,
@@ -419,6 +412,14 @@ impl Connection {
         // Note that we drop the read lock before we await this future!
         invoke_future.await
     }
+
+    /// Try to get a strong reference to the RpcMgr for this connection, and
+    /// return an error if we can't.
+    pub(crate) fn mgr(&self) -> Result<Arc<RpcMgr>, MgrDisappearedError> {
+        self.mgr
+            .upgrade()
+            .ok_or(MgrDisappearedError::RpcMgrDisappeared)
+    }
 }
 
 /// A failure that results in closing a [`Connection`].
@@ -431,6 +432,19 @@ pub enum ConnectionError {
     /// Read error from connection.
     #[error("Problem reading from connection")]
     ReadFailed,
+}
+
+/// A failure from trying to upgrade a `Weak<RpcMgr>`.
+#[derive(Clone, Debug, thiserror::Error, serde::Serialize)]
+pub(crate) enum MgrDisappearedError {
+    /// We tried to upgrade our reference to the RpcMgr, and failed.
+    #[error("RPC manager disappeared; Arti is shutting down?")]
+    RpcMgrDisappeared,
+}
+impl tor_error::HasKind for MgrDisappearedError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::ArtiShuttingDown
+    }
 }
 
 /// A Context object that we pass to each method invocation.
