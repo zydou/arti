@@ -55,17 +55,25 @@ impl CastTable {
     /// `T` must be `dyn Tr` for some trait `Tr`.
     /// (Not checked by the compiler.)
     ///
-    /// `Tr` must be `'static`.
-    /// (Will be checked by the compiler.)
-    ///
     /// `func` is a downcaster from `&dyn Object` to `&dyn Tr`.
     /// `func` SHOULD
     /// panic if the concrete type of its argument is not the concrete type `O`
     /// associated with this `CastTable`.
     ///
+    /// `O` must be `'static`.
+    /// (Checked by the compiler.)
+    ///
     /// # Panics
     ///
     /// Panics if called twice on the same `CastTable` with the same `Tr`.
+    //
+    // `TypeId::of::<dyn SomeTrait + '_>` exists, but is not the same as
+    // `TypeId::of::<dyn SomeTrait + 'static>` (unless `SomeTrait: 'static`).
+    //
+    // We avoid a consequent bug with non-'static traits as follows:
+    // We insert and look up by `TypeId::of::<&'static dyn SomeTrait>`,
+    // which must mean `&'static (dyn SomeTrait + 'static)`
+    // since a 'static reference to anything non-'static is an ill-formed type.
     pub fn insert<T: 'static + ?Sized>(&mut self, func: fn(&dyn Object) -> &T) {
         self.insert_erased(TypeId::of::<&'static T>(), Box::new(func) as _);
     }
@@ -182,7 +190,7 @@ mod test {
 
     use super::*;
 
-    trait Tr1: 'static {}
+    trait Tr1 {}
     trait Tr2: 'static {}
 
     struct Simple;
@@ -198,12 +206,12 @@ mod test {
         let concrete = Simple;
         let tab = Simple::make_cast_table();
         let obj: &dyn Object = &concrete;
-        let _cast: &(dyn Tr1) = tab.cast_object_to(obj).expect("cast failed");
+        let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
     }
 
     struct Generic<T>(T);
 
-    impl<T: 'static> Tr1 for Generic<T> {}
+    impl<T> Tr1 for Generic<T> {}
     impl<T: 'static> Tr2 for Generic<T> {}
     impl<T: Send + Sync + 'static> Object for Generic<T> {}
 
@@ -216,6 +224,6 @@ mod test {
         let gen: Generic<&'static str> = Generic("foo");
         let tab = Generic::<&'static str>::make_cast_table();
         let obj: &dyn Object = &gen;
-        let _cast: &(dyn Tr1 + 'static) = tab.cast_object_to(obj).expect("cast failed");
+        let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
     }
 }
