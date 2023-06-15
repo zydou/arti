@@ -228,7 +228,7 @@ struct UsableIntroPt<'i> {
     sort_rand: IptSortRand,
 }
 
-/// Lookup key for for looking up and recording our IPT use experiencess
+/// Lookup key for looking up and recording our IPT use experiencess
 ///
 /// Used to identify a relay when looking to see what happened last time we used it,
 /// and storing that information after we tried it.
@@ -292,7 +292,7 @@ impl RelayIdForExperience {
 /// (This implementation approach ensures that we obey all the usual ordering invariants.)
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
 struct IptSortKey {
-    /// Sort by how prefereable the experience was
+    /// Sort by how preferable the experience was
     outcome: IptSortKeyOutcome,
     /// Failing that, choose randomly
     sort_rand: IptSortRand,
