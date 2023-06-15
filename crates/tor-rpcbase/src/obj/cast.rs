@@ -62,8 +62,8 @@ impl CastTable {
     /// # Panics
     ///
     /// Panics if called twice on the same `CastTable` with the same `Tr`.
-    pub fn insert<T: 'static + ?Sized>(&mut self, func: Box<fn(&dyn Object) -> &T>) {
-        self.insert_erased(TypeId::of::<&'static T>(), func as _);
+    pub fn insert<T: 'static + ?Sized>(&mut self, func: fn(&dyn Object) -> &T) {
+        self.insert_erased(TypeId::of::<&'static T>(), Box::new(func) as _);
     }
 
     /// Implementation for adding an entry to the `CastTable`
@@ -74,7 +74,7 @@ impl CastTable {
     ///
     /// Like `insert`, but less compile-time checking.
     /// `type_id` is the identity of `&'static dyn Tr`,
-    /// and `func` has been type-erased.
+    /// and `func` has been boxed and type-erased.
     fn insert_erased(&mut self, type_id: TypeId, func: Box<dyn Any + Send + Sync>) {
         let old_val = self.table.insert(type_id, func);
         assert!(
@@ -156,7 +156,7 @@ macro_rules! decl_make_cast_table {
                         self_
                     };
                     table.insert::<dyn $traitname>(
-                        Box::new(f)
+                        f
                     );
                 })*
                 table
