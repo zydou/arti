@@ -262,6 +262,30 @@ pub enum FailedAttemptError {
 }
 define_asref_dyn_std_error!(FailedAttemptError);
 
+impl FailedAttemptError {
+    /// Which introduction point did this error involve (or implicate), if any?
+    ///
+    /// This is an index into the table in the HS descriptor,
+    /// so it can be less-than-useful outside the context where this error was generated.
+    // TODO derive this, too much human error possibility
+    pub(crate) fn intro_index(&self) -> Option<IntroPtIndex> {
+        use FailedAttemptError as FAE;
+        match self {
+            FAE::UnusableIntro { intro_index, .. }
+            | FAE::RendezvousCompletion { intro_index, .. }
+            | FAE::RendezvousCompletionTimeout { intro_index, .. }
+            | FAE::IntroductionCircuitObtain { intro_index, .. }
+            | FAE::IntroductionExchange { intro_index, .. }
+            | FAE::IntroductionFailed { intro_index, .. }
+            | FAE::IntroductionTimeout { intro_index, .. } => Some(*intro_index),
+            FAE::RendezvousCircuitObtain { .. }
+            | FAE::RendezvousEstablish { .. }
+            | FAE::RendezvousEstablishTimeout { .. }
+            | FAE::Bug(_) => None,
+        }
+    }
+}
+
 impl HasRetryTime for FailedAttemptError {
     fn retry_time(&self) -> RetryTime {
         use FailedAttemptError as FAE;
@@ -350,7 +374,8 @@ impl HasKind for DescriptorErrorDetail {
 
 /// When *an attempt like this* should be retried.
 ///
-/// For error variants with an introduction point index,
+/// For error variants with an introduction point index
+/// (`FailedAttemptError::intro_index` returns `Some`)
 /// that's when we might retry *with that introduction point*.
 ///
 /// For error variants with a rendezvous point,

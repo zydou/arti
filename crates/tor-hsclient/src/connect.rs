@@ -4,10 +4,12 @@
 use std::any::Any;
 use std::time::Duration;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use educe::Educe;
@@ -18,9 +20,10 @@ use rand::Rng;
 use tor_bytes::Writeable;
 use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
+use tor_error::Bug;
 use tor_hscrypto::Subcredential;
 use tor_proto::circuit::handshake::{self, hs_ntor};
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 use retry_error::RetryError;
 use safelog::Redacted;
@@ -36,7 +39,7 @@ use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_error::{HasRetryTime as _, RetryTime};
 use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsClientDescEncKey, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
-use tor_linkspec::{CircTarget, OwnedCircTarget, RelayId};
+use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
@@ -72,14 +75,6 @@ pub struct Data {
     desc: DataHsDesc,
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
-    ///
-    /// We store the information under an arbitrary one of the relay's identities,
-    /// as returned by HasRelayIds::identities().first().
-    /// When we do lookups, we check all the relay's identities to see if we find
-    /// anything relevant.
-    /// If relay identities permute in strange ways, whether we find our previous
-    /// knowledge about them is not particularly well defined, but that's fine.
-    // TODO HS we don't actually store or use this yet
     ipts: DataIpts,
 }
 
@@ -87,7 +82,7 @@ pub struct Data {
 type DataHsDesc = Option<TimerangeBound<HsDesc>>;
 
 /// Part of `Data` that relates to our information about introduction points
-type DataIpts = HashMap<RelayId, IptExperience>;
+type DataIpts = HashMap<RelayIdForExperience, IptExperience>;
 
 /// How things went last time we tried to use this introduction point
 ///
@@ -97,8 +92,14 @@ type DataIpts = HashMap<RelayId, IptExperience>;
 /// receive.
 ///
 /// Expiry of unused data is handled by `state.rs`, according to `last_used` in `ServiceState`.
+///
+/// Choosing which IPT to prefer is done by obtaining an `IptSortKey`
+/// (from this and other information).
+//
+// Don't impl Ord for IptExperience.  We obtain `Option<&IptExperience>` from our
+// data structure, and if IptExperience were Ord then Option<&IptExperience> would be Ord
+// but it would be the wrong sort order: it would always prefer None, ie untried IPTs.
 #[derive(Debug)]
-// TODO HS implement Ord for this according to the specs here
 struct IptExperience {
     /// How long it took us to get whatever outcome occurred
     ///
@@ -114,7 +115,6 @@ struct IptExperience {
     ///
     /// We *do* return an error that is itself `HasRetryTime` and expect our callers
     /// to honour that.
-    // TODO HS implement HasRetryTime for ConnError and its pieces, as appropriate
     outcome: Result<(), RetryTime>,
 }
 
@@ -211,6 +211,9 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     marker: PhantomData<fn() -> (R, M)>,
 }
 
+/// Random value used as part of IPT selection
+type IptSortRand = u32;
+
 /// Details of an apparently-useable introduction point
 ///
 /// Intermediate value for progress during a connection attempt.
@@ -221,7 +224,25 @@ struct UsableIntroPt<'i> {
     intro_desc: &'i IntroPointDesc,
     /// IPT `CircTarget`
     intro_target: OwnedCircTarget,
+    /// Random value used as part of IPT selection
+    sort_rand: IptSortRand,
 }
+
+/// Lookup key for looking up and recording our IPT use experiencess
+///
+/// Used to identify a relay when looking to see what happened last time we used it,
+/// and storing that information after we tried it.
+///
+/// We store the experience information under an arbitrary one of the relay's identities,
+/// as returned by the `HasRelayIds::identities().next()`.
+/// When we do lookups, we check all the relay's identities to see if we find
+/// anything relevant.
+/// If relay identities permute in strange ways, whether we find our previous
+/// knowledge about them is not particularly well defined, but that's fine.
+///
+/// While this is, structurally, a relay identity, it is not suitable for other purposes.
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Debug)]
+struct RelayIdForExperience(RelayId);
 
 /// Details of an apparently-successful INTRODUCE exchange
 ///
@@ -243,6 +264,82 @@ struct Introduced<R: Runtime, M: MocksForConnect<R>> {
     /// `R` and `M` only used for getting to mocks.
     /// Covariant without dropck or interfering with Send/Sync will do fine.
     marker: PhantomData<fn() -> (R, M)>,
+}
+
+impl RelayIdForExperience {
+    /// Identities to use to try to find previous experience information about this IPT
+    fn for_lookup(intro_target: &OwnedCircTarget) -> impl Iterator<Item = Self> + '_ {
+        intro_target
+            .identities()
+            .map(|id| RelayIdForExperience(id.to_owned()))
+    }
+
+    /// Identity to use to store previous experience information about this IPT
+    fn for_store(intro_target: &OwnedCircTarget) -> Result<Self, Bug> {
+        let id = intro_target
+            .identities()
+            .next()
+            .ok_or_else(|| internal!("introduction point relay with no identities"))?
+            .to_owned();
+        Ok(RelayIdForExperience(id))
+    }
+}
+
+/// Sort key for an introduction point, for selecting the best IPTs to try first
+///
+/// Ordering is most preferable first.
+///
+/// We use this to sort our `UsableIpt`s using `.sort_by_key`.
+/// (This implementation approach ensures that we obey all the usual ordering invariants.)
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+struct IptSortKey {
+    /// Sort by how preferable the experience was
+    outcome: IptSortKeyOutcome,
+    /// Failing that, choose randomly
+    sort_rand: IptSortRand,
+}
+
+/// Component of the [`IptSortKey`] representing outcome of our last attempt, if any
+///
+/// This is the main thing we use to decide which IPTs to try first.
+/// It is calculated for each IPT
+/// (via `.sort_by_key`, so repeatedly - it should therefore be cheap to make.)
+///
+/// Ordering is most preferable first.
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+enum IptSortKeyOutcome {
+    /// Prefer successes
+    Success {
+        /// Prefer quick ones
+        duration: Duration,
+    },
+    /// Failing that, try one we don't know to have failed
+    Untried,
+    /// Failing that, it'll have to be ones that didn't work last time
+    Failed {
+        /// Prefer failures with an earlier retry time
+        retry_time: tor_error::LooseCmpRetryTime,
+        /// Failing that, prefer quick failures (rather than slow ones eg timeouts)
+        duration: Duration,
+    },
+}
+
+impl From<Option<&IptExperience>> for IptSortKeyOutcome {
+    fn from(experience: Option<&IptExperience>) -> IptSortKeyOutcome {
+        use IptSortKeyOutcome as O;
+        match experience {
+            None => O::Untried,
+            Some(IptExperience { duration, outcome }) => match outcome {
+                Ok(()) => O::Success {
+                    duration: *duration,
+                },
+                Err(retry_time) => O::Failed {
+                    retry_time: (*retry_time).into(),
+                    duration: *duration,
+                },
+            },
+        }
+    }
 }
 
 impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
@@ -511,7 +608,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         //
         // Note that IntroPtIndex is *not* the index into this Vec.
         // It is the index into the original list of introduction points in the descriptor.
-        let usable_intros: Vec<UsableIntroPt> = desc
+        let mut usable_intros: Vec<UsableIntroPt> = desc
             .intro_points()
             .iter()
             .enumerate()
@@ -525,6 +622,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     intro_index,
                     intro_desc,
                     intro_target,
+                    sort_rand: self.mocks.thread_rng().gen(),
                 })
             })
             .filter_map(|entry| match entry {
@@ -536,9 +634,17 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             })
             .collect_vec();
 
-        // TODO HS join with existing state recording our experiences,
+        // Join with existing state recording our experiences,
         // sort by descending goodness, and then randomly
         // (so clients without any experience don't all pile onto the same, first, IPT)
+        usable_intros.sort_by_key(|ipt: &UsableIntroPt| {
+            let experience =
+                RelayIdForExperience::for_lookup(&ipt.intro_target).find_map(|id| data.get(&id));
+            IptSortKey {
+                outcome: experience.into(),
+                sort_rand: ipt.sort_rand,
+            }
+        });
         let mut intro_attempts = usable_intros.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
 
         // We retain a rendezvous we managed to set up in here.  That way if we created it, and
@@ -550,6 +656,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // TODO HS make multiple attempts to different IPTs in in parallel, and somehow
         // aggregate the errors and experiences.
         loop {
+            // When did we start doing things that depended on the IPT?
+            //
+            // Used for recording our experience with the selected IPT
+            let mut ipt_use_started = None::<Instant>;
+
             // Error handling inner async block (analogous to an IEFE):
             //  * Ok(Some()) means this attempt succeeded
             //  * Ok(None) means all attempts exhausted
@@ -561,7 +672,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // different amounts of information about the identity of the RPT and IPT: in each
             // case, the error only mentions the RPT or IPT if that node is implicated in the
             // timeout.
-            match async {
+            let outcome = async {
                 // We establish a rendezvous point first.  Although it appears from reading
                 // this code that this means we serialise establishment of the rendezvous and
                 // introduction circuits, this isn't actually the case.  The circmgr maintains
@@ -601,10 +712,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let Some(ipt) = intro_attempts.next() else { return Ok(None) };
                 let intro_index = ipt.intro_index;
 
-                // TODO HS record how long things take, starting from here, as
+                // We record how long things take, starting from here, as
                 // as a statistic we'll use for the IPT in future.
-                // This will need to be stored in a variable outside this async block,
+                // This is stored in a variable outside this async block,
                 // so that the outcome handling can use it.
+                ipt_use_started = Some(self.runtime.now());
 
                 // No `Option::get_or_try_insert_with`, or we'd avoid this expect()
                 let rend_pt_for_error = rend_pt_identity_for_error(
@@ -654,10 +766,35 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 );
                 Ok::<_, FAE>(Some((intro_index, circ)))
             }
-            .await
-            {
+            .await;
+
+            // Store the experience `outcome` we had with IPT `intro_index`, in `data`
+            #[allow(clippy::unused_unit)] // -> () is here for error handling clarity
+            let mut store_experience = |intro_index, outcome| -> () {
+                (|| {
+                    let ipt = usable_intros
+                        .iter()
+                        .find(|ipt| ipt.intro_index == intro_index)
+                        .ok_or_else(|| internal!("IPT not found by index"))?;
+                    let id = RelayIdForExperience::for_store(&ipt.intro_target)?;
+                    let started = ipt_use_started.ok_or_else(|| {
+                        internal!("trying to record IPT use but no IPT start time noted")
+                    })?;
+                    let duration = self
+                        .runtime
+                        .now()
+                        .checked_duration_since(started)
+                        .ok_or_else(|| internal!("clock overflow calculating IPT use duration"))?;
+                    data.insert(id, IptExperience { duration, outcome });
+                    Ok::<_, Bug>(())
+                })()
+                .unwrap_or_else(|e| warn!("error recording HS IPT use experience: {}", e.report()));
+            };
+
+            match outcome {
                 Ok(Some((intro_index, y))) => {
-                    // TODO HS record successful outcome in Data
+                    // Record successful outcome in Data
+                    store_experience(intro_index, Ok(()));
                     return Ok(y);
                 }
                 Ok(None) => return Err(CE::Failed(errors)),
@@ -667,10 +804,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         &self.hsid,
                         error.report(),
                     );
-                    // TODO HS record error outcome in Data, if in fact we involved the IPT
-                    // at all.  The IPT information ought to be retrieved from `error`;
-                    // this will have to be a new method on FailedAttemptError for that.
-                    // (Only some of the errors implicate the introduction point.)
+                    // Record error outcome in Data, if in fact we involved the IPT
+                    // at all.  The IPT information is be retrieved from `error`,
+                    // since only some of the errors implicate the introduction point.
+                    if let Some(intro_index) = error.intro_index() {
+                        store_experience(intro_index, Err(error.retry_time()));
+                    }
                     errors.push(tor_error::Report(error));
                 }
             }

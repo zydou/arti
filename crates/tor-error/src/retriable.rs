@@ -1,5 +1,6 @@
 //! Declare the `RetryTime` enumeration and related code.
 
+use derive_more::{From, Into};
 use std::{
     cmp::Ordering,
     time::{Duration, Instant},
@@ -114,6 +115,10 @@ pub enum RetryTime {
     Never,
 }
 
+/// A `RetryTime` wrapped so that it compares according to [`RetryTime::loose_cmp`]
+#[derive(From, Into, Copy, Clone, Debug, Eq, PartialEq)]
+pub struct LooseCmpRetryTime(RetryTime);
+
 /// Trait for an error object that can tell us when the operation which
 /// generated it can be retried.
 pub trait HasRetryTime {
@@ -222,6 +227,9 @@ impl RetryTime {
     /// time when multiple attempts have failed.
     ///
     /// If you need an absolute comparison operator, convert to [`AbsRetryTime`] first.
+    ///
+    /// See also:
+    /// [`LooseCmpRetryTime`], a wrapper for `RetryTime` that uses this comparison.
     pub fn loose_cmp(&self, other: &Self) -> Ordering {
         use RetryTime as RT;
 
@@ -238,6 +246,17 @@ impl RetryTime {
             // total order.
             (a, b) => RetryTimeDiscriminants::from(a).cmp(&RetryTimeDiscriminants::from(b)),
         }
+    }
+}
+
+impl Ord for LooseCmpRetryTime {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.loose_cmp(&other.0)
+    }
+}
+impl PartialOrd for LooseCmpRetryTime {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
