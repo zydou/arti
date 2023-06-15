@@ -155,9 +155,7 @@ macro_rules! decl_make_cast_table {
                         let self_: &dyn $traitname = self_ as _;
                         self_
                     };
-                    table.insert::<dyn $traitname>(
-                        f
-                    );
+                    table.insert::<dyn $traitname>(f);
                 })*
                 table
             }
