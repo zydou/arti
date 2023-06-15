@@ -8,15 +8,15 @@ use std::sync::Arc;
 use tor_rpcbase as rpc;
 
 /// An authenticated RPC session.
-pub struct Session {
+pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
     #[allow(unused)]
     client: Arc<dyn rpc::Object>,
 }
-rpc::decl_object! { @expose Session }
+rpc::decl_object! { @expose RpcSession }
 
-impl Session {
+impl RpcSession {
     /// Create a new session (internal)
     ///
     /// TODO RPC: remove.
@@ -61,7 +61,7 @@ impl rpc::Method for RpcRelease {
 
 /// Implementation for calling "release" on a Session.
 async fn rpc_release(
-    _obj: Arc<Session>,
+    _obj: Arc<RpcSession>,
     method: Box<RpcRelease>,
     ctx: Box<dyn rpc::Context>,
 ) -> Result<rpc::Nil, rpc::RpcError> {
@@ -69,7 +69,7 @@ async fn rpc_release(
     Ok(rpc::Nil::default())
 }
 rpc::rpc_invoke_fn! {
-    rpc_release(Session,RpcRelease);
+    rpc_release(RpcSession,RpcRelease);
 }
 
 /// A simple temporary method to echo a reply.
@@ -88,7 +88,7 @@ impl rpc::Method for Echo {
 ///
 /// TODO RPC: Remove this. It shouldn't exist.
 async fn echo_on_session(
-    _obj: Arc<Session>,
+    _obj: Arc<RpcSession>,
     method: Box<Echo>,
     _ctx: Box<dyn rpc::Context>,
 ) -> Result<Echo, rpc::RpcError> {
@@ -96,5 +96,5 @@ async fn echo_on_session(
 }
 
 rpc::rpc_invoke_fn! {
-    echo_on_session(Session,Echo);
+    echo_on_session(RpcSession,Echo);
 }

@@ -174,7 +174,7 @@ async fn authenticate_connection(
     // Perhaps we need to think more about the semantics of authenticating more
     // then once on the same connection.
     let client = unauth.inner.lock().expect("lock poisoned").client.clone();
-    let session = crate::session::Session::new(client);
+    let session = crate::session::RpcSession::new(client);
     let session = ctx.register_owned(session);
     Ok(AuthenticateReply { session })
 }
