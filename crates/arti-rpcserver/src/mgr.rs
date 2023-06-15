@@ -75,7 +75,7 @@ impl RpcMgr {
     /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
     /// be possible to invoke any of its methods. See #837.
     #[allow(clippy::missing_panics_doc)]
-    pub fn new_session<R: Runtime>(self: &Arc<Self>, client: TorClient<R>) -> Arc<Connection> {
+    pub fn new_connection<R: Runtime>(self: &Arc<Self>, client: TorClient<R>) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
         let client_obj = Arc::new(client);
 

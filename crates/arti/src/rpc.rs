@@ -61,7 +61,7 @@ async fn run_rpc_listener<R: Runtime>(
     loop {
         let (stream, _addr) = listener.accept().await?;
         // TODO RPC: Perhaps we should have rpcmgr hold the client reference?
-        let session = rpc_mgr.new_session(client.isolated_client());
+        let session = rpc_mgr.new_connection(client.isolated_client());
         let (input, output) = stream.into_split();
 
         #[cfg(feature = "tokio")]
