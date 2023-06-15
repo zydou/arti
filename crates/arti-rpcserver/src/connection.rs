@@ -1,6 +1,6 @@
 //! RPC connection support, mainloop, and protocol implementation.
 
-mod auth;
+pub(crate) mod auth;
 
 use std::{
     collections::HashMap,

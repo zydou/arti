@@ -66,6 +66,15 @@ mod get_rpc_protocol {
 }
 */
 
+/// Information about how an RPC session has been authenticated.
+///
+/// Currently, this isn't actually used for anything, since there's only one way
+/// to authenticate a connection.  It exists so that later we can pass
+/// information to the session-creator function.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct RpcAuthentication {}
+
 /// The authentication scheme as enumerated in the spec.
 ///
 /// Conceptually, an authentication scheme answers the question "How can the
@@ -167,9 +176,10 @@ async fn authenticate_connection(
         AuthenticationScheme::InherentUnixPath => {}
     }
 
+    let auth = RpcAuthentication {};
     let session = {
         let mgr = unauth.mgr()?;
-        mgr.create_session()
+        mgr.create_session(&auth)
     };
     let session = ctx.register_owned(session);
     Ok(AuthenticateReply { session })

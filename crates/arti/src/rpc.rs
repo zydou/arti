@@ -37,7 +37,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // it.
     let listener = UnixListener::bind(path)?;
     let rpc_mgr =
-        RpcMgr::new(move || RpcSession::new_with_client(Arc::new(client.isolated_client())));
+        RpcMgr::new(move |_auth| RpcSession::new_with_client(Arc::new(client.isolated_client())));
     let rt_clone = runtime.clone();
     let rpc_mgr_clone = rpc_mgr.clone();
 
