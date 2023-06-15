@@ -273,6 +273,7 @@ impl RelayIdForExperience {
             .identities()
             .map(|id| RelayIdForExperience(id.to_owned()))
     }
+
     /// Identity to use to store previous experience information about this IPT
     fn for_store(intro_target: &OwnedCircTarget) -> Result<Self, Bug> {
         let id = intro_target
