@@ -338,9 +338,6 @@ eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
 
     #[test]
     fn inner_hsdesc_too_many_link_specifiers() {
-        let hs_desc_sign =
-            ed25519::Keypair::generate(&mut Config::Deterministic.into_rng().rng_compat());
-
         let link_spec = LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999);
         let link_specifiers = std::iter::repeat(link_spec)
             .take(u8::MAX as usize + 1)
@@ -367,7 +364,6 @@ eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
     #[test]
     fn inner_hsdesc_intro_auth() {
         let mut rng = Config::Deterministic.into_rng().rng_compat();
-        let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
         let link_specs = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
         let intros = &[create_intro_point_descriptor(&mut rng, link_specs)];
         let auth = SmallVec::from([IntroAuthType::Ed25519, IntroAuthType::Ed25519]);
@@ -387,19 +383,19 @@ eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
             r#"create2-formats 1234
 intro-auth-required ed25519 ed25519
 introduction-point AQAGfwAAAR+Q
-onion-key ntor pVDg7+MoXDE57TaedKLUKQ6OSUYduWcW/8eikjmR9RA=
+onion-key ntor HWIigEAdcOgqgHPDFmzhhkeqvYP/GcMT2fKb5JY6ey8=
 auth-key
 -----BEGIN ED25519 CERT-----
-AQkAAAAAAec/Z6WU0POJ2wsAAJD/erWpQWczFK7ouc8t2RWPD8OhAQAgBACQKRtN
-eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61Lte7Exhx6mxnXB+XmxoSqV2IQij
-UdgEfu8viEqFaAdC8b/ffdmeXrRf4OQXJYd562M8Vtxih6CVVp2Bmu9jpwo=
+AQkAAAAAAZZVJwNlzVw1ZQGO7MTzC5MsySASd+fswAcjdTJJOifXAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61IVW0XivcAKhvUvNUsU1CFznk3Mz
+KSsp/mBoKi2iY4f4eN2SXx8U6pmnxnXFxYP6obi+tc5QWj1Jbfl1Aci3TAA=
 -----END ED25519 CERT-----
-enc-key ntor x/stThC6cVWJJUR7WERZj5VYVPTAOA/UDjHdtprJkiE=
+enc-key ntor 9Upi9XNWyqx3ZwHeQ5r3+Dh116k+C4yHeE9BcM68HDc=
 enc-key-cert
 -----BEGIN ED25519 CERT-----
-AQsAAAAAASPKuL+ddCmgEToN22Ig0Ja1i3RAvLK2y20ragaqGTRMAQAgBACQKRtN
-eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61LOY8CatszBdKADp+/LBEHuC2QiE
-zkV7qcj2hWvbquRKigbpsXWa7atUoygiXJnrtVTbN9Q9O5VCEukdXkUEoQk=
+AQsAAAAAAcH+1K5m7pRnMc01mPp5AYVnJK1iZ/fKHwK0tVR/jtBvAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61Hectpha37ioha85fpNt+/yDfebh
+6BKUUQ0jf3SMXuNgX8SV9NSabn14WCSdKG/8RoYBCTR+yRJX0dy55mjg+go=
 -----END ED25519 CERT-----
 "#
         );

@@ -8,7 +8,7 @@
 //! An onion service descriptor is more complicated than most other
 //! documentation types, because it is partially encrypted.
 
-#![allow(dead_code, unused_variables, clippy::missing_panics_doc)] // TODO hs: remove.
+#![allow(dead_code)] // TODO hs: remove.
 mod desc_enc;
 
 #[cfg(feature = "hs-service")]
