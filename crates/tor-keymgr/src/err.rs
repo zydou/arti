@@ -21,8 +21,6 @@ use std::sync::Arc;
 //   right now: "not found in any of the key stores" when returned by KeyMgr,
 //   and "not found in this key store" when
 //   returned by a KeyStore)
-//   * Create a KeystoreCorruption variant (UnexpectedSshKeyType would be one of the potential
-//   causes of this error)
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
@@ -40,34 +38,13 @@ pub enum Error {
         err: FsErrorSource,
     },
 
+    /// Encountered a malformed key.
+    #[error("Malformed key: {0}")]
+    MalformedKey(#[from] MalformedKeyErrorSource),
+
     /// The requested key was not found.
     #[error("Key not found")]
     NotFound {/* TODO hs: add context */},
-
-    /// Failed to read an OpenSSH key
-    #[error("Failed to read OpenSSH from {path} with type {key_type:?}")]
-    SshKeyRead {
-        /// The path of the key we were trying to fetch.
-        path: PathBuf,
-        /// The type of key we were trying to fetch.
-        key_type: KeyType,
-        /// The underlying error.
-        #[source]
-        err: Arc<ssh_key::Error>,
-    },
-
-    /// The OpenSSH key we retrieved is of the wrong type.
-    #[error(
-        "Unexpected OpenSSH key type at {path:?}: wanted {wanted_key_algo}, found {found_key_algo}"
-    )]
-    UnexpectedSshKeyType {
-        /// The path of the key we were trying to fetch.
-        path: PathBuf,
-        /// The algorithm we expected the key to use.
-        wanted_key_algo: SshKeyAlgorithm,
-        /// The algorithm of the key we got.
-        found_key_algo: SshKeyAlgorithm,
-    },
 
     /// An internal error.
     #[error("Internal error")]
@@ -107,14 +84,40 @@ impl From<fs_mistrust::Error> for FsErrorSource {
     }
 }
 
+/// The underlying cause of an [`Error::MalformedKey`] error.
+//
+// TODO hs (#901): this introduces multiple levels of error `#[source]` nesting.
+//
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum MalformedKeyErrorSource {
+    /// Failed to parse an OpenSSH key
+    #[error("Failed to read OpenSSH with type {key_type:?}")]
+    SshKeyRead {
+        /// The type of key we were trying to fetch.
+        key_type: KeyType,
+        /// The underlying error.
+        #[source]
+        err: Arc<ssh_key::Error>,
+    },
+
+    /// The OpenSSH key we retrieved is of the wrong type.
+    #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
+    UnexpectedSshKeyType {
+        /// The algorithm we expected the key to use.
+        wanted_key_algo: SshKeyAlgorithm,
+        /// The algorithm of the key we got.
+        found_key_algo: SshKeyAlgorithm,
+    },
+}
+
 impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
         // TODO hs: create `ErrorKind` variants for `tor_keymgr::Error`s.
         match self {
             Error::Filesystem { .. } => todo!(),
             Error::NotFound { .. } => todo!(),
-            Error::SshKeyRead { .. } => todo!(),
-            Error::UnexpectedSshKeyType { .. } => todo!(),
+            Error::MalformedKey { .. } => todo!(),
             Error::Bug(e) => e.kind(),
         }
     }

@@ -9,6 +9,7 @@ pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 use std::io::ErrorKind;
 use std::path::Path;
 
+use crate::err::MalformedKeyErrorSource;
 use crate::{EncodableKey, ErasedKey, Error, KeyType, Result};
 
 use tor_llcrypto::pk::ed25519;
@@ -19,11 +20,10 @@ fn read_ed25519_keypair(key_type: KeyType, path: &Path) -> Result<ErasedKey> {
         if matches!(e, ssh_key::Error::Io(ErrorKind::NotFound)) {
             Error::NotFound { /* TODO hs */ }
         } else {
-            Error::SshKeyRead {
-                path: path.into(),
+            Error::MalformedKey(MalformedKeyErrorSource::SshKeyRead {
                 key_type,
                 err: e.into(),
-            }
+            })
         }
     })?;
 
@@ -38,11 +38,12 @@ fn read_ed25519_keypair(key_type: KeyType, path: &Path) -> Result<ErasedKey> {
             })?;
         }
         _ => {
-            return Err(Error::UnexpectedSshKeyType {
-                path: path.into(),
-                wanted_key_algo: key_type.ssh_algorithm(),
-                found_key_algo: key.algorithm(),
-            });
+            return Err(Error::MalformedKey(
+                MalformedKeyErrorSource::UnexpectedSshKeyType {
+                    wanted_key_algo: key_type.ssh_algorithm(),
+                    found_key_algo: key.algorithm(),
+                },
+            ));
         }
     };
 
