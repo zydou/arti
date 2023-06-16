@@ -96,7 +96,7 @@ impl<T: ExtGroup> ExtList<T> {
     ///
     /// (We do not enforce uniqueness here, since the spec explicitly says that
     /// we should ignore all but the first extension of a given type.)
-    #[allow(unused)] // TODO HS remove.
+    #[allow(unused)] // TODO HSS remove.
     pub(super) fn by_type(&self, id: T::Id) -> Option<&T> {
         self.iter().find(|e| e.type_id() == id)
     }
