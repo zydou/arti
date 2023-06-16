@@ -194,8 +194,8 @@ enum ErrorDetail {
     #[error("Timed out while waiting for answer from exit")]
     ExitTimeout,
 
-    /// Onion services are supported, but we were asked to connect to one.
-    #[error("Rejecting .onion address as unsupported")]
+    /// Onion services are not compiled in, but we were asked to connect to one.
+    #[error("Rejecting .onion address; feature onion-service-client not compiled in")]
     OnionAddressNotSupported,
 
     /// Error when trying to find the IP address of a hidden service
@@ -354,7 +354,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::Configuration(e) => e.kind(),
             E::Reconfigure(e) => e.kind(),
             E::Spawn { cause, .. } => cause.kind(),
-            E::OnionAddressNotSupported => EK::NotImplemented,
+            E::OnionAddressNotSupported => EK::FeatureDisabled,
             E::OnionAddressResolveRequest => EK::NotImplemented,
             // TODO Should delegate to TorAddrError EK
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
