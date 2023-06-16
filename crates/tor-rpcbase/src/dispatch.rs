@@ -215,6 +215,8 @@ struct FuncType {
 ///
 /// A DispatchTable is constructed at run-time from entries registered with
 /// [`rpc_invoke_fn!`].
+///
+/// There is one for each `arti-rpcserver::RpcMgr`, shared with each `arti-rpcserver::Connection`.
 #[derive(Debug, Clone)]
 pub struct DispatchTable {
     /// An internal HashMap used to look up the correct function for a given
