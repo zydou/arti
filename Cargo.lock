@@ -4457,6 +4457,7 @@ name = "tor-keymgr"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "fs-mistrust",
  "ssh-key",
  "thiserror",
  "tor-error",
