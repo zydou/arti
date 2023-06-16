@@ -308,7 +308,12 @@ impl StreamPrefs {
         self
     }
 
-    // TODO hs: make setters for the `connect_to_onion_services` field.
+    /// Indicate whether connection to a hidden service (`.onion` service) should be allowed
+    ///
+    /// If `false`, attempts to connect to Onion Services will be forced to fail with
+    /// an error of kind [`InvalidStreamTarget`](ErrorKind::InvalidStreamTarget).
+    ///
+    /// By default this is enabled.
     #[cfg(feature = "onion-service-client")]
     pub fn connect_to_onion_services(&mut self, connect_to_onion_services: bool) -> &mut Self {
         self.connect_to_onion_services = connect_to_onion_services;
