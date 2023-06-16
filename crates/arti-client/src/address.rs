@@ -230,7 +230,9 @@ impl TorAddr {
     }
 
     /// Get instructions for how to make a stream to this address
-    pub(crate) fn into_stream_instructions(self) -> Result<StreamInstructions, ErrorDetail> {
+    pub(crate) fn into_stream_instructions(
+        self,
+    ) -> Result<StreamInstructions, ErrorDetail> {
         // TODO enforcement of the config should go here, not separately
         let port = self.port;
         Ok(match self.host {
@@ -258,7 +260,9 @@ impl TorAddr {
     }
 
     /// Get instructions for how to make a stream to this address
-    pub(crate) fn into_resolve_instructions(self) -> Result<ResolveInstructions, ErrorDetail> {
+    pub(crate) fn into_resolve_instructions(
+        self,
+    ) -> Result<ResolveInstructions, ErrorDetail> {
         // TODO enforcement of the config should go here, not separately
         Ok(match self.host {
             Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
