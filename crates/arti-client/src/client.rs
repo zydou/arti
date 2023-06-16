@@ -575,11 +575,6 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), circpool)?
         };
 
-        #[cfg(all(not(feature = "keymgr")))]
-        // Use the no-op key manager
-        let keymgr = Arc::new(KeyMgr);
-
-        #[cfg(feature = "keymgr")]
         let keymgr = {
             // TODO hs: load the key store dir and permissions from the config.
             // Note: The Mistrust should be taken from StorageConfig (the keystore Mistrust needs
