@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rand::{seq::IteratorRandom, Rng};
+use rand::Rng;
 use tor_proto::circuit::ClientCirc;
 
 /// A collection of circuits used to fulfil onion-service-related requests.
@@ -80,18 +80,9 @@ impl Pool {
         R: Rng,
         F: Fn(&Arc<ClientCirc>) -> bool,
     {
-        // TODO HS: This ensures that we take a circuit at random, but at the
-        // expense of searching every circuit.  That could certainly be costly
-        // if `circuits` is large!  Perhaps we should instead stop at the first
-        // matching circuit we find.
-        let rv = match self
-            .circuits
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| f(c))
-            .choose(rng)
-        {
-            Some((idx, _)) => Some(self.circuits.remove(idx)),
+        // Select a circuit satisfying `f` at random.
+        let rv = match random_idx_where(rng, &self.circuits[..], f) {
+            Some(idx) => Some(self.circuits.swap_remove(idx)),
             None => None,
         };
 
@@ -137,5 +128,59 @@ impl Pool {
         self.target = self.target.clamp(DEFAULT_TARGET, MAX_TARGET);
         self.have_been_exhausted = false;
         self.have_been_under_highwater = false;
+    }
+}
+
+/// Helper: find a random item `elt` in `slice` such that `predicate(elt)` is
+/// true. Return the index of that item.
+///
+///
+/// We optimize for the assumption that most elements of `slice` will satisfy
+/// the  predicate, and so we won't usually need to look over the whole slice as
+/// we would do if we had used [`IteratorRandom`](rand::seq::IteratorRandom).
+fn random_idx_where<R, T, P>(rng: &mut R, slice: &[T], predicate: P) -> Option<usize>
+where
+    R: Rng,
+    P: Fn(&T) -> bool,
+{
+    let n_circuits = slice.len();
+    let shift = rng.gen_range(0..n_circuits);
+    (shift..n_circuits)
+        .chain(0..shift)
+        .find(|idx| predicate(&slice[*idx]))
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use tor_basic_utils::test_rng::testing_rng;
+
+    #[test]
+    fn random_idx() {
+        let mut rng = testing_rng();
+        let numbers: Vec<i32> = vec![1, 3, 4, 8, 11, 19, 12, 6, 27];
+
+        let mut found = vec![false; numbers.len()];
+
+        for _ in 0..1000 {
+            let idx = random_idx_where(&mut rng, &numbers[..], |n| n & 1 == 1).unwrap();
+            assert!(numbers[idx] & 1 == 1);
+            found[idx] = true;
+        }
+
+        for (idx, num) in numbers.iter().enumerate() {
+            assert!(found[idx] == (num & 1 == 1));
+        }
     }
 }
