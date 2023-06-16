@@ -2,6 +2,7 @@
 //! Tor can connect to.
 
 use crate::err::ErrorDetail;
+use crate::StreamPrefs;
 use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str::FromStr;
@@ -233,8 +234,9 @@ impl TorAddr {
     pub(crate) fn into_stream_instructions(
         self,
         cfg: &crate::config::ClientAddrConfig,
+        prefs: &StreamPrefs,
     ) -> Result<StreamInstructions, ErrorDetail> {
-        self.enforce_config(cfg)?;
+        self.enforce_config(cfg, prefs)?;
 
         let port = self.port;
         Ok(match self.host {
@@ -265,8 +267,9 @@ impl TorAddr {
     pub(crate) fn into_resolve_instructions(
         self,
         cfg: &crate::config::ClientAddrConfig,
+        prefs: &StreamPrefs,
     ) -> Result<ResolveInstructions, ErrorDetail> {
-        self.enforce_config(cfg)?;
+        self.enforce_config(cfg, prefs)?;
 
         Ok(match self.host {
             Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
@@ -285,6 +288,8 @@ impl TorAddr {
     fn enforce_config(
         &self,
         cfg: &crate::config::ClientAddrConfig,
+        #[allow(unused_variables)] // will only be used in certain configurations
+        prefs: &StreamPrefs,
     ) -> Result<(), ErrorDetail> {
         if !cfg.allow_local_addrs && self.is_local() {
             return Err(ErrorDetail::LocalAddress);
@@ -557,7 +562,7 @@ mod test {
         use crate::err::ErrorDetail;
         fn val<A: IntoTorAddr>(addr: A) -> Result<TorAddr, ErrorDetail> {
             let toraddr = addr.into_tor_addr()?;
-            toraddr.enforce_config(&Default::default())?;
+            toraddr.enforce_config(&Default::default(), &Default::default())?;
             Ok(toraddr)
         }
 
@@ -633,7 +638,7 @@ mod test {
         use StreamInstructions as SI;
 
         fn sap(s: &str) -> Result<StreamInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_stream_instructions(&Default::default())
+            TorAddr::from(s).unwrap().into_stream_instructions(&Default::default(), &Default::default())
         }
 
         assert_eq!(
@@ -676,7 +681,7 @@ mod test {
         use ResolveInstructions as RI;
 
         fn sap(s: &str) -> Result<ResolveInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_resolve_instructions(&Default::default())
+            TorAddr::from(s).unwrap().into_resolve_instructions(&Default::default(), &Default::default())
         }
 
         assert_eq!(

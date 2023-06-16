@@ -934,7 +934,7 @@ impl<R: Runtime> TorClient<R> {
     ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
 
-        let (circ, addr, port) = match addr.into_stream_instructions(&self.addrcfg.get())? {
+        let (circ, addr, port) = match addr.into_stream_instructions(&self.addrcfg.get(), prefs)? {
             StreamInstructions::Exit {
                 hostname: addr,
                 port,
@@ -1073,7 +1073,7 @@ impl<R: Runtime> TorClient<R> {
         // should be a method on `Host`, not `TorAddr`.  -Diziet.
         let addr = (hostname, 1).into_tor_addr().map_err(wrap_err)?;
 
-        match addr.into_resolve_instructions(&self.addrcfg.get())? {
+        match addr.into_resolve_instructions(&self.addrcfg.get(), prefs)? {
             ResolveInstructions::Exit(hostname) => {
                 let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
