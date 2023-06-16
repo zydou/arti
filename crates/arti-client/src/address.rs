@@ -269,13 +269,27 @@ impl TorAddr {
         cfg: &crate::config::ClientAddrConfig,
         prefs: &StreamPrefs,
     ) -> Result<ResolveInstructions, ErrorDetail> {
-        self.enforce_config(cfg, prefs)?;
+        // We defer enforcing the config until we see if this is a .onion,
+        // in which case it's always doomed and we want to return *our* error,
+        // not any problem with the configuration or preferences.
+        // But we must *calculate* the error now because instructions consumes self.
+        let enforce_config_result = self.enforce_config(cfg, prefs);
+
+        // This IEFE is so that any use of `return` doesn't bypass
+        // checking the the enforce_config result
+        let instructions = (move ||
 
         Ok(match self.host {
             Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
             Host::Ip(ip) => ResolveInstructions::Return(vec![ip]),
             Host::Onion(_) => return Err(ErrorDetail::OnionAddressResolveRequest),
         })
+
+        )()?;
+
+        let () = enforce_config_result?;
+
+        Ok(instructions)
     }
 
     /// Return true if the `host` in this address is local.
@@ -752,11 +766,13 @@ mod test {
                 .into_stream_instructions(&Default::default(), &prefs);
             assert_eq!(map(got), expected, "{prefs:?}");
         };
-        // TODO this should always say OnionAddressResolveRequest
-        let check_resolve = |prefs, expected| {
+        let check_resolve = |prefs| {
             let got = addr
                 .clone()
                 .into_resolve_instructions(&Default::default(), &prefs);
+            // This should be OnionAddressResolveRequest no matter if .onion is compiled in or enabled.
+            // Since compiling it in, or enabling it, won't help.
+            let expected = Err((EDD::OnionAddressResolveRequest, EK::NotImplemented));
             assert_eq!(map(got), expected, "{prefs:?}");
         };
 
@@ -771,13 +787,13 @@ mod test {
                 check_stream(prefs_of(true), Ok(()));
                 check_stream(prefs_of(false), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
 
-                check_resolve(prefs_def(), Err((EDD::OnionAddressResolveRequest, EK::NotImplemented)));
-                check_resolve(prefs_of(true), Err((EDD::OnionAddressResolveRequest, EK::NotImplemented)));
-                check_resolve(prefs_of(false), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
+                check_resolve(prefs_def());
+                check_resolve(prefs_of(true));
+                check_resolve(prefs_of(false));
             } else {
                 check_stream(prefs_def(), Err((EDD::OnionAddressNotSupported, EK::FeatureDisabled)));
 
-                check_resolve(prefs_def(), Err((EDD::OnionAddressResolveRequest, EK::NotImplemented)));
+                check_resolve(prefs_def());
             }
         }
     }
