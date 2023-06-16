@@ -19,7 +19,7 @@ use tor_bytes::{EncodeResult, Reader, SecretBuf, Writeable, Writer};
 use tor_error::into_internal;
 use tor_llcrypto::d::{Sha3_256, Shake256};
 use tor_llcrypto::pk::{curve25519, ed25519::Ed25519Identity};
-use tor_llcrypto::util::rand_compat::RngCompatExt;
+use tor_llcrypto::util::{ct::ct_lookup, rand_compat::RngCompatExt};
 
 use cipher::{KeyIvInit, StreamCipher};
 
@@ -444,7 +444,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     r.should_be_exhausted()?;
 
     // See if we recognize the provided (id,requested_pk) pair.
-    let keypair = ct::lookup(keys, |key| key.matches(id, requested_pk));
+    let keypair = ct_lookup(keys, |key| key.matches(id, requested_pk));
     let keypair = match keypair {
         Some(k) => k,
         None => return Err(RelayHandshakeError::MissingKey),

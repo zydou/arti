@@ -1,6 +1,7 @@
 //! Handle the middle document of an onion service descriptor.
 
 use once_cell::sync::Lazy;
+use subtle::ConstantTimeEq;
 use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey, HsSvcDescEncKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
@@ -17,8 +18,9 @@ use super::desc_enc::{
 };
 use super::DecryptionError;
 
-/// TODO hs: This should be an enum.
 /// The only currently recognized `desc-auth-type`.
+//
+// TODO: In theory this should be an enum, if we ever add a second value here.
 pub(super) const HS_DESC_AUTH_TYPE: &str = "x25519";
 
 /// A more-or-less verbatim representation of the middle document of an onion
@@ -89,6 +91,7 @@ impl HsDescMiddle {
     ) -> Option<HsDescEncNonce> {
         use cipher::{KeyIvInit, StreamCipher};
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
+        use tor_llcrypto::util::ct::ct_lookup;
 
         let (client_id, cookie_key) = build_descriptor_cookie_key(
             ks_hsc_desc_enc.as_ref(),
@@ -96,12 +99,7 @@ impl HsDescMiddle {
             subcredential,
         );
         // See whether there is any matching client_id in self.auth_ids.
-        // TODO HS: Perhaps we should use `tor_proto::util::ct::lookup`.  We would
-        // have to put it in a lower level module.
-        let auth_client = self
-            .auth_clients
-            .iter()
-            .find(|c| c.client_id == client_id)?;
+        let auth_client = ct_lookup(&self.auth_clients, |c| c.client_id.ct_eq(&client_id))?;
 
         // We found an auth client entry: Take and decrypt the cookie `N_hs_desc_enc` at last.
         let mut cookie = auth_client.encrypted_cookie;
@@ -198,7 +196,7 @@ impl HsDescMiddle {
         // Check for the only currently recognized `desc-auth-type`
         {
             let auth_type = body.required(DESC_AUTH_TYPE)?.required_arg(0)?;
-            if auth_type != "x25519" {
+            if auth_type != HS_DESC_AUTH_TYPE {
                 return Err(EK::BadDocumentVersion
                     .at_pos(Pos::at(auth_type))
                     .with_msg(format!("Unrecognized desc-auth-type {auth_type:?}")));
@@ -265,7 +263,7 @@ mod test {
         // TODO hs: assert that the fields here are expected.
 
         // TODO hs: write a test for the case where we _do_ have an encryption key.
-        let inner_body = middle
+        let _inner_body = middle
             .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
 

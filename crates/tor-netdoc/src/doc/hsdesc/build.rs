@@ -27,9 +27,12 @@ use self::outer::HsDescOuter;
 
 use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
 
-/// A builder for encoding hidden service descriptors.
+/// An intermediary type for encoding hidden service descriptors.
 ///
-/// TODO hs: a comprehensive usage example.
+/// This object is constructed via [`HsDescBuilder`], and then turned into a
+/// signed document using [`HsDescBuilder::build_sign()`].
+///
+/// TODO HSS: Add an example for using this API.
 #[derive(Builder)]
 #[builder(public, derive(Debug, Clone), pattern = "owned", build_fn(vis = ""))]
 struct HsDesc<'a> {
@@ -41,7 +44,7 @@ struct HsDesc<'a> {
     /// The expiration time of the descriptor signing key certificate.
     hs_desc_sign_cert_expiry: SystemTime,
     /// A list of recognized CREATE handshakes that this onion service supports.
-    // TODO hs: this should probably be a caret enum, not an integer
+    // TODO HSS: this should probably be a caret enum, not an integer
     create2_formats: &'a [u32],
     /// A list of authentication types that this onion service supports.
     auth_required: Option<SmallVec<[IntroAuthType; 2]>>,
@@ -343,11 +346,10 @@ mod test {
             humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
-        let (public, blinded_id, subcredential) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
+        let (_, blinded_id, subcredential) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
             .compute_blinded_key(period)
             .unwrap();
 
-        let id = ed25519::Ed25519Identity::from(blinded_id.as_ref().public);
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {

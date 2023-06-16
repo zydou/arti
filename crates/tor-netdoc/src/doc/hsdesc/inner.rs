@@ -432,7 +432,7 @@ mod test {
             .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
         let inner_body = std::str::from_utf8(&inner_body).unwrap();
-        let inner = HsDescInner::parse(inner_body)?;
+        let _inner = HsDescInner::parse(inner_body)?;
 
         // TODO hs: validate the expected contents of this part of the
         // descriptor.

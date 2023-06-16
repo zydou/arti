@@ -4586,6 +4586,7 @@ dependencies = [
  "serde_with",
  "signature 1.6.4",
  "smallvec",
+ "subtle",
  "thiserror",
  "time",
  "tinystr",

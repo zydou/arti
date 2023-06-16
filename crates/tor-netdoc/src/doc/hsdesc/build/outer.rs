@@ -139,7 +139,7 @@ mod test {
             humantime::parse_duration("12 hours").unwrap(),
         )
         .unwrap();
-        let (public, blinded_id, _) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
+        let (_public, blinded_id, _) = HsIdKeypair::from(ExpandedKeypair::from(&hs_id))
             .compute_blinded_key(period)
             .unwrap();
 

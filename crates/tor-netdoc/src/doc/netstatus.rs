@@ -299,14 +299,12 @@ pub struct SignatureGroup {
 #[derive(
     Debug, Clone, Copy, Eq, PartialEq, derive_more::From, derive_more::Into, derive_more::AsRef,
 )]
-// TODO hs: Use CtBytes for this.  I don't think it actually matters, but it
-// seems like a good idea.
+// (This doesn't need to use CtByteArray; we don't really need to compare these.)
 pub struct SharedRandVal([u8; 32]);
 
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
 #[allow(dead_code)]
-// TODO hs: This should have real accessors, not this 'visible/visibility' hack.
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
     visible::StructFields(pub),

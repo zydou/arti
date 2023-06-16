@@ -420,6 +420,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         // TODO HS are these right? make configurable? get from netdir?
+        // TODO HS: we should check the revision counter on the HSDesc before
+        // replacing it.
         // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
         const MAX_TOTAL_ATTEMPTS: usize = 6;

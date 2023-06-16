@@ -1,6 +1,4 @@
 //! Types and functions for onion service descriptor encryption.
-//!
-//! TODO hs: It's possible that this should move to tor-netdoc.
 
 use tor_hscrypto::{pk::HsBlindId, RevisionCounter, Subcredential};
 use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
@@ -87,7 +85,7 @@ impl<'a> HsDescEncryption<'a> {
         cipher.apply_keystream(&mut output[SALT_LEN..]);
         mac.update(&output[SALT_LEN..]);
         let mut mac_val = Default::default();
-        let mac = mac.finalize_into(&mut mac_val);
+        mac.finalize_into(&mut mac_val);
         output.extend_from_slice(&mac_val);
         debug_assert_eq!(output.len(), output_len);
 
@@ -141,7 +139,7 @@ impl<'a> HsDescEncryption<'a> {
 
         let mut key = Z::new([0_u8; Self::CIPHER_KEY_LEN]);
         let mut iv = Z::new([0_u8; Self::IV_LEN]);
-        let mut mac_key = Z::new([0_u8; Self::MAC_KEY_LEN]); // TODO HS conjectural!
+        let mut mac_key = Z::new([0_u8; Self::MAC_KEY_LEN]);
         key_stream.read(&mut key[..]);
         key_stream.read(&mut iv[..]);
         key_stream.read(&mut mac_key[..]);
