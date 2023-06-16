@@ -638,7 +638,9 @@ mod test {
         use StreamInstructions as SI;
 
         fn sap(s: &str) -> Result<StreamInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_stream_instructions(&Default::default(), &Default::default())
+            TorAddr::from(s)
+                .unwrap()
+                .into_stream_instructions(&Default::default(), &Default::default())
         }
 
         assert_eq!(
@@ -681,7 +683,9 @@ mod test {
         use ResolveInstructions as RI;
 
         fn sap(s: &str) -> Result<ResolveInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_resolve_instructions(&Default::default(), &Default::default())
+            TorAddr::from(s)
+                .unwrap()
+                .into_resolve_instructions(&Default::default(), &Default::default())
         }
 
         assert_eq!(
