@@ -586,7 +586,6 @@ mod test {
         assert!(val(("www.torproject.org", 443)).is_ok());
 
         // When HS disabled, tested elsewhere, see: stream_instructions, prefs_onion_services
-        // XXXX prefs_onion_services test doesn't exist yet, will come later in this branch
         #[cfg(feature = "onion-service-client")]
         {
             assert!(val("example.onion:80").is_ok());
@@ -724,6 +723,63 @@ mod test {
             TorAddr::from("www.example.com:0"),
             Err(TorAddrError::BadPort)
         );
+    }
+
+    #[test]
+    fn prefs_onion_services() {
+        use crate::err::ErrorDetailDiscriminants;
+        use tor_error::{ErrorKind, HasKind as _};
+        use ErrorDetailDiscriminants as EDD;
+        use ErrorKind as EK;
+
+        #[allow(clippy::redundant_closure)] // for symmetry with prefs_of, below, and clarity
+        let prefs_def = || StreamPrefs::default();
+
+        let addr: TorAddr = "eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443"
+            .parse()
+            .unwrap();
+
+        fn map(
+            got: Result<impl Sized, ErrorDetail>,
+        ) -> Result<(), (ErrorDetailDiscriminants, ErrorKind)> {
+            got.map(|_| ())
+                .map_err(|e| (ErrorDetailDiscriminants::from(&e), e.kind()))
+        }
+
+        let check_stream = |prefs, expected| {
+            let got = addr
+                .clone()
+                .into_stream_instructions(&Default::default(), &prefs);
+            assert_eq!(map(got), expected, "{prefs:?}");
+        };
+        // TODO this should always say OnionAddressResolveRequest
+        let check_resolve = |prefs, expected| {
+            let got = addr
+                .clone()
+                .into_resolve_instructions(&Default::default(), &prefs);
+            assert_eq!(map(got), expected, "{prefs:?}");
+        };
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "onion-service-client")] {
+                let prefs_of = |yn| {
+                    let mut prefs = StreamPrefs::default();
+                    prefs.connect_to_onion_services(yn);
+                    prefs
+                };
+                check_stream(prefs_def(), Ok(()));
+                check_stream(prefs_of(true), Ok(()));
+                check_stream(prefs_of(false), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
+
+                check_resolve(prefs_def(), Err((EDD::OnionAddressResolveRequest, EK::NotImplemented)));
+                check_resolve(prefs_of(true), Err((EDD::OnionAddressResolveRequest, EK::NotImplemented)));
+                check_resolve(prefs_of(false), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
+            } else {
+                check_stream(prefs_def(), Err((EDD::OnionAddressNotSupported, EK::FeatureDisabled)));
+
+                check_resolve(prefs_def(), Err((EDD::OnionAddressResolveRequest, EK::NotImplemented)));
+            }
+        }
     }
 
     #[test]
