@@ -19,3 +19,4 @@ thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.5.0" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.2.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.0" }
+zeroize = "1"
