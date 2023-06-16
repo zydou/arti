@@ -210,9 +210,8 @@ pub struct StreamPrefs {
     optimistic_stream: bool,
     /// Whether to try to make connections to onion services.
     #[cfg(feature = "onion-service-client")]
-    #[allow(dead_code)]
     #[educe(Default(true))]
-    connect_to_onion_services: bool,
+    pub(crate) connect_to_onion_services: bool,
 }
 
 /// Record of how we are isolating connections

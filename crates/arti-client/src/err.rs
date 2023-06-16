@@ -198,6 +198,11 @@ enum ErrorDetail {
     #[error("Rejecting .onion address; feature onion-service-client not compiled in")]
     OnionAddressNotSupported,
 
+    /// Onion services are supported, but we were asked to connect to one.
+    #[cfg(feature = "onion-service-client")]
+    #[error("Rejecting .onion address; connect_to_onion_services disabled in stream preferences")]
+    OnionAddressDisabled,
+
     /// Error when trying to find the IP address of a hidden service
     #[error("A .onion address cannot be resolved to an IP address")]
     OnionAddressResolveRequest,
@@ -356,6 +361,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::Spawn { cause, .. } => cause.kind(),
             E::OnionAddressNotSupported => EK::FeatureDisabled,
             E::OnionAddressResolveRequest => EK::NotImplemented,
+            #[cfg(feature = "onion-service-client")]
+            E::OnionAddressDisabled => EK::ForbiddenStreamTarget,
             // TODO Should delegate to TorAddrError EK
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,

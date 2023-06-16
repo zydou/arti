@@ -306,6 +306,18 @@ impl TorAddr {
             }
         }
 
+        if let Host::Onion(_name) = &self.host {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "onion-service-client")] {
+                    if !prefs.connect_to_onion_services {
+                        return Err(ErrorDetail::OnionAddressDisabled);
+                    }
+                } else {
+                    return Err(ErrorDetail::OnionAddressNotSupported);
+                }
+            }
+        }
+
         Ok(())
     }
 }
