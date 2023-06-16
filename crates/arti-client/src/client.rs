@@ -587,10 +587,17 @@ impl<R: Runtime> TorClient<R> {
         let keymgr = {
             // TODO hs: load the key store dir from the config.
             let key_store_dir = Default::default();
-            let arti_store = ArtiNativeKeyStore::new(key_store_dir)?;
-            // TODO hs: add support for the C Tor key store
-            let stores = vec![Box::new(arti_store) as Box<dyn KeyStore>];
 
+            let mut stores: Vec<Box<dyn KeyStore>> = vec![];
+
+            // TODO hs: For now, let's ignore any errors coming from the ArtiNativeKeyStore
+            // constructor. We should remove this when we implement the key store config and bail
+            // if the keystore dir fails the validation checks.
+            if let Ok(arti_store) = ArtiNativeKeyStore::new(key_store_dir) {
+                stores.push(Box::new(arti_store));
+            }
+
+            // TODO hs: add support for the C Tor key store
             Arc::new(KeyMgr::new(stores))
         };
 
