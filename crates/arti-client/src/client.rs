@@ -198,7 +198,9 @@ pub enum DormantMode {
 }
 
 /// Preferences for how to route a stream over the Tor network.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
+#[derive(Educe)]
+#[educe(Default)]
 pub struct StreamPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
@@ -209,7 +211,8 @@ pub struct StreamPrefs {
     /// Whether to try to make connections to onion services.
     #[cfg(feature = "onion-service-client")]
     #[allow(dead_code)]
-    connect_to_onion_services: bool, // TODO hs: this should default to "true".
+    #[educe(Default(true))]
+    connect_to_onion_services: bool,
 }
 
 /// Record of how we are isolating connections
