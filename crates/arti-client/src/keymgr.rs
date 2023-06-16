@@ -6,7 +6,9 @@
 //! If arti-client is compiled without the `keymgr` feature, then [`TorClient`](crate::TorClient)
 //! will use this no-op key manager implementation instead.
 
+use fs_mistrust::Mistrust;
 use std::any::Any;
+use std::path::Path;
 use tor_error::{ErrorKind, HasKind};
 
 /// A dummy key manager implementation.
@@ -33,7 +35,35 @@ impl HasKind for Error {
 /// A result type for this module.
 pub(crate) type Result<T> = std::result::Result<T, Error>;
 
+/// A dummy key store trait.
+pub(crate) trait KeyStore {}
+
+/// A dummy `ArtiNativeKeyStore`.
+pub(crate) struct ArtiNativeKeyStore;
+
+impl ArtiNativeKeyStore {
+    /// Create a new [`ArtiNativeKeyStore`].
+    ///
+    /// The arguments of this constructor are ignored. They only exist because we need this
+    /// constructor to have the same API as the constructor of `ArtiNativeKeyStore` from the
+    /// `tor-keymgr` crate.
+    #[allow(clippy::unnecessary_wraps)]
+    pub(crate) fn from_path_and_mistrust(_: impl AsRef<Path>, _: &Mistrust) -> Result<Self> {
+        Ok(Self)
+    }
+}
+
+impl KeyStore for ArtiNativeKeyStore {}
+
 impl KeyMgr {
+    /// Create a new [`KeyMgr`].
+    ///
+    /// The argument of this constructor is ignored. It only exists because we need [`KeyMgr::new`]
+    /// to have the same API as the constructor of the key manager from the `tor-keymgr` crate.
+    pub(crate) fn new(_: Vec<Box<dyn KeyStore>>) -> Self {
+        Self
+    }
+
     /// A dummy `get` implementation that always behaves like the requested key is not found.
     ///
     /// This function always returns `Ok(None)`.
