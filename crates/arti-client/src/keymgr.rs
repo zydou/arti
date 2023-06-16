@@ -30,6 +30,9 @@ impl HasKind for Error {
     }
 }
 
+/// A result type for this module.
+pub(crate) type Result<T> = std::result::Result<T, Error>;
+
 impl KeyMgr {
     /// A dummy `get` implementation that always behaves like the requested key is not found.
     ///
@@ -39,7 +42,7 @@ impl KeyMgr {
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
-    pub(crate) fn get<K>(&self, _: &dyn Any) -> Result<Option<K>, Error> {
+    pub(crate) fn get<K>(&self, _: &dyn Any) -> Result<Option<K>> {
         Ok(None)
     }
 
@@ -52,7 +55,7 @@ impl KeyMgr {
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn insert<K>(&self, _: K, _: &dyn Any) -> Result<(), Error> {
+    pub(crate) fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
         Ok(())
     }
 
@@ -65,7 +68,7 @@ impl KeyMgr {
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
-    pub(crate) fn remove<K>(&self, _: &dyn Any) -> Result<(), Error> {
+    pub(crate) fn remove<K>(&self, _: &dyn Any) -> Result<()> {
         Ok(())
     }
 }
