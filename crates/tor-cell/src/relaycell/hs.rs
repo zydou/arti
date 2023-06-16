@@ -72,7 +72,7 @@ impl Introduce1 {
 /// A message sent from introduction point to hidden service host.
 pub struct Introduce2 {
     /// A copy of the encoded header that we'll use to finish the hs_ntor handshake.
-    #[allow(unused)] // TODO HS remove.
+    #[allow(unused)] // TODO HSS remove.
     encoded_header: Vec<u8>,
     /// The decoded message itself.
     msg: Introduce,
