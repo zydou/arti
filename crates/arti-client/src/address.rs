@@ -277,15 +277,13 @@ impl TorAddr {
 
         // This IEFE is so that any use of `return` doesn't bypass
         // checking the the enforce_config result
-        let instructions = (move ||
-
-        Ok(match self.host {
-            Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
-            Host::Ip(ip) => ResolveInstructions::Return(vec![ip]),
-            Host::Onion(_) => return Err(ErrorDetail::OnionAddressResolveRequest),
-        })
-
-        )()?;
+        let instructions = (move || {
+            Ok(match self.host {
+                Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
+                Host::Ip(ip) => ResolveInstructions::Return(vec![ip]),
+                Host::Onion(_) => return Err(ErrorDetail::OnionAddressResolveRequest),
+            })
+        })()?;
 
         let () = enforce_config_result?;
 
