@@ -10,6 +10,14 @@ use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, KeyStore};
 use crate::{Error, KeyType, Result};
 
 /// The Arti key store.
+///
+// TODO hs: `ArtiNativeKeyStore` (and `KeyType`) should not be dealing with filesystem operations.
+//
+// Instead, we need to:
+//   * introduce a `FsMgr` trait that represents the filesystem operations we're interested in
+//   * have `ArtiNativeKeyStore` delegate any FS interactions to a `fs_mgr` implementing `FsMgr`
+//
+// This will also simplify testing as we can mock `FsMgr`.
 pub struct ArtiNativeKeyStore {
     /// The root of the key store.
     keystore_dir: PathBuf,
