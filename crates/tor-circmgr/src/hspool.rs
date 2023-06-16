@@ -130,8 +130,6 @@ impl<R: Runtime> HsCircPool<R> {
             },
             None => Err(internal!("Circuit with an empty path!?").into()),
         }
-        // TODO HS: We should retry attempts to build these circuits, either here or in
-        // a higher-level crate.
     }
 
     /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
@@ -206,9 +204,6 @@ impl<R: Runtime> HsCircPool<R> {
 
         // With any luck, return the circuit.
         Ok(circ)
-
-        // TODO HS: We should retry attempts to build these circuits, either here or in
-        // a higher-level crate.
     }
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
