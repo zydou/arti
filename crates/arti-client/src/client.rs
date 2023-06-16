@@ -310,7 +310,7 @@ impl StreamPrefs {
 
     // TODO hs: make setters for the `connect_to_onion_services` field.
     #[cfg(feature = "hs-client")]
-    pub fn connection_to_onion_service(&mut self, connect_to_onion_services: bool) -> &mut Self {
+    pub fn connect_to_onion_services(&mut self, connect_to_onion_services: bool) -> &mut Self {
         self.connect_to_onion_services = connect_to_onion_services;
         self
     }
