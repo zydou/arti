@@ -236,13 +236,9 @@ impl<R: Runtime> HsCircPool<R> {
                 circuit_compatible_with_target(netdir, subnet_config, circ, target.as_ref())
             });
 
-            /// Tell the background task to fire immediately if we have fewer than
-            /// this many circuits left, or if we found nothing. Chosen arbitrarily.
-            ///
-            /// TODO HS: This should change dynamically, and probably be a fixed
-            /// fraction of TARGET_N.
-            const LAUNCH_THRESHOLD: usize = 2;
-            if inner.pool.len() < LAUNCH_THRESHOLD || found_usable_circ.is_none() {
+            // Tell the background task to fire immediately if we have very few circuits
+            // circuits left, or if we found nothing.
+            if inner.pool.very_low() || found_usable_circ.is_none() {
                 let handle = self.launcher_handle.get().ok_or_else(|| {
                     Error::from(bad_api_usage!("The circuit launcher wasn't initialized"))
                 })?;
@@ -370,10 +366,6 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
     netdir_provider: Weak<dyn NetDirProvider + 'static>,
     mut schedule: TaskSchedule<R>,
 ) {
-    /// Number of circuits to keep in the pool.  Chosen arbitrarily.
-    //
-    // TODO HS: This should instead change dynamically based on observed needs.
-    const TARGET_N: usize = 8;
     /// Default delay when not told to fire explicitly. Chosen arbitrarily.
     const DELAY: Duration = Duration::from_secs(30);
 
@@ -384,15 +376,14 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 break;
             }
         };
+        let now = pool.circmgr.mgr.peek_runtime().now();
         pool.remove_closed();
-        let mut n_to_launch = pool
-            .inner
-            .lock()
-            .expect("poisoned lock")
-            .pool
-            .len()
-            .saturating_sub(TARGET_N);
-        let mut max_attempts = TARGET_N * 2;
+        let mut n_to_launch = {
+            let mut inner = pool.inner.lock().expect("poisioned_lock");
+            inner.pool.update_target_size(now);
+            inner.pool.n_to_launch()
+        };
+        let mut max_attempts = n_to_launch * 2;
         'inner: while n_to_launch > 1 {
             max_attempts -= 1;
             if max_attempts == 0 {
