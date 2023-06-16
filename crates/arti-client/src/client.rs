@@ -112,7 +112,6 @@ pub struct TorClient<R: Runtime> {
     #[cfg(feature = "pt-client")]
     pt_mgr: Arc<tor_ptmgr::PtMgr<R>>,
     /// HS client connector
-    #[allow(dead_code)] // TODO HS remove
     #[cfg(feature = "onion-service-client")]
     hsclient: HsClientConnector<R>,
     /// The key manager.
@@ -936,7 +935,6 @@ impl<R: Runtime> TorClient<R> {
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     /// (See [`TorClient::connect()`] for more information.)
-    #[allow(clippy::missing_panics_doc)] // TODO HS remove
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
@@ -967,7 +965,6 @@ impl<R: Runtime> TorClient<R> {
             } => void::unreachable(hsid.0),
 
             #[cfg(feature = "onion-service-client")]
-            #[allow(unused_variables)] // TODO HS remove
             StreamInstructions::Hs {
                 hsid,
                 hostname,
