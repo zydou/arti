@@ -45,6 +45,8 @@ pub struct Connection {
 
     /// Lookup table to find the implementations for methods
     /// based on RPC object and method types.
+    ///
+    /// **NOTE: observe the [Lock hierarchy](crate::mgr::Inner#lock-hierarchy)**
     dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
 
     /// A unique identifier for this connection.

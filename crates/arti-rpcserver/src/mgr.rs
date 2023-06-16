@@ -34,7 +34,9 @@ pub struct RpcMgr {
     /// Our reference to the dispatch table used to look up the functions that
     /// implement each object on each.
     ///
-    /// We keep this in an `Arc` so we can share it with sessions.
+    /// Shared with each [`Connection`].
+    ///
+    /// **NOTE: observe the [Lock hierarchy](crate::mgr::Inner#lock-hierarchy)**
     dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
 
     /// A function that we use to construct new Session objects when authentication
@@ -43,15 +45,39 @@ pub struct RpcMgr {
 
     /// Lock-protected view of the manager's state.
     ///
-    /// NOTE: In the lock hierarchy, this mutex is at a _lower_ level than the
-    /// per-Connection locks.  You must not take any per-connection lock if you
-    /// hold this lock.  Functions that take or hold this lock must be checked
-    /// to make sure that they follow this rule.
+    /// **NOTE: observe the [Lock hierarchy](crate::mgr::Inner#lock-hierarchy)**
+    ///
+    /// This mutex is at an _inner_ level
+    /// compared to the
+    /// per-Connection locks.
+    /// You must not take any per-connection lock if you
+    /// hold this lock.
+    /// Code that holds this lock must be checked
+    /// to make sure that it doesn't then acquire any `Connection` lock.
     inner: Mutex<Inner>,
 }
 
 /// The [`RpcMgr`]'s state. This is kept inside a lock for interior mutability.
-struct Inner {
+///
+/// # Lock hierarchy
+///
+/// This system has, relevantly to the RPC code, three locks.
+/// In order from outermost (acquire earlier) to innermost (acquire later):
+///
+///  1. [`Connection`]`.inner`
+///  2. [`RpcMgr`]`.inner`
+///  3. `RwLock<rpc::DispatchTable>`
+///     (found in [`RpcMgr`]`.dispatch_table` *and* [`Connection`]`.dispatch_table`)
+///
+/// To avoid deadlock, when more than one of these locks is acquired,
+/// they must be acquired in an order consistent with the order listed above.
+///
+/// (This ordering is slightly surprising:
+/// normally a lock covering more-global state would be
+/// "outside" (or "earlier")
+/// compared to one covering more-narrowly-relevant state.)
+// pub(crate) so we can link to the doc comment and its lock hierarchy
+pub(crate) struct Inner {
     /// A map from [`ConnectionId`] to weak [`Connection`] references.
     ///
     /// We use this map to give connections a manager-global identifier that can
