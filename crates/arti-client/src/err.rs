@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use futures::task::SpawnError;
 
-#[cfg(feature = "onion-client")]
+#[cfg(feature = "onion-service-client")]
 use safelog::Redacted;
 use safelog::Sensitive;
 use thiserror::Error;
@@ -13,7 +13,7 @@ use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
 
 use crate::TorAddrError;
-#[cfg(feature = "onion-client")]
+#[cfg(feature = "onion-service-client")]
 use tor_hscrypto::pk::HsId;
 
 /// Main high-level error type for the Arti Tor client
@@ -145,7 +145,7 @@ enum ErrorDetail {
 
     /// Error setting up the hidden service client connector.
     #[error("Error setting up the hidden service client connector")]
-    #[cfg(feature = "onion-client")]
+    #[cfg(feature = "onion-service-client")]
     HsClientConnectorSetup(#[from] tor_hsclient::StartupError),
 
     /// Failed to obtain exit circuit
@@ -160,7 +160,7 @@ enum ErrorDetail {
     },
 
     /// Failed to obtain hidden service circuit
-    #[cfg(feature = "onion-client")]
+    #[cfg(feature = "onion-service-client")]
     #[error("Failed to obtain hidden service circuit to {hsid}")]
     ObtainHsCircuit {
         /// The service we were trying to connect to
@@ -334,7 +334,7 @@ impl tor_error::HasKind for ErrorDetail {
         use ErrorKind as EK;
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
-            #[cfg(feature = "onion-client")]
+            #[cfg(feature = "onion-service-client")]
             E::ObtainHsCircuit { cause, .. } => cause.kind(),
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
@@ -344,7 +344,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::CircMgrSetup(e) => e.kind(),
             E::DirMgrSetup(e) => e.kind(),
             E::StateMgrSetup(e) => e.kind(),
-            #[cfg(feature = "onion-client")]
+            #[cfg(feature = "onion-service-client")]
             E::HsClientConnectorSetup(e) => e.kind(),
             E::DirMgrBootstrap(e) => e.kind(),
             #[cfg(feature = "pt-client")]
@@ -389,13 +389,13 @@ impl From<TorAddrError> for ErrorDetail {
         match e {
             TAE::InvalidHostname => E::InvalidHostname,
             TAE::NoPort | TAE::BadPort => E::Address(e),
-            #[cfg(feature = "onion-client")]
+            #[cfg(feature = "onion-service-client")]
             TAE::BadOnion => E::Address(e),
         }
     }
 }
 
-#[cfg(feature = "onion-client")]
+#[cfg(feature = "onion-service-client")]
 impl From<tor_hscrypto::pk::HsIdParseError> for ErrorDetail {
     // TODO HS throwing away the original error is not nice, see comment near BadOnion
     fn from(_e: tor_hscrypto::pk::HsIdParseError) -> ErrorDetail {

@@ -8,11 +8,11 @@ use std::str::FromStr;
 use thiserror::Error;
 use tor_basic_utils::StrExt;
 
-#[cfg(feature = "onion-client")]
+#[cfg(feature = "onion-service-client")]
 use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
 
 /// Fake plastic imitation of some of the `tor-hs*` functionality
-#[cfg(not(feature = "onion-client"))]
+#[cfg(not(feature = "onion-service-client"))]
 pub(crate) mod hs_dummy {
     use super::*;
     use tor_error::internal;
@@ -45,7 +45,7 @@ pub(crate) mod hs_dummy {
         }
     }
 }
-#[cfg(not(feature = "onion-client"))]
+#[cfg(not(feature = "onion-service-client"))]
 use hs_dummy::*;
 
 // ----------------------------------------------------------------------
@@ -321,7 +321,7 @@ pub enum TorAddrError {
     #[error("Could not parse port")]
     BadPort,
     /// Tried to parse a `.onion` domain that could not be decoded
-    #[cfg(feature = "onion-client")]
+    #[cfg(feature = "onion-service-client")]
     #[error("Invalid or corrupted `.onion` address")]
     // TODO HS should we include the original HsIdParseError?
     // However, this struct wants to be Eq and HsIdParseError contains a tor_bytes::Error
@@ -641,7 +641,7 @@ mod test {
             let onion = format!("sss1234.www.{}.onion", b32);
             let got = sap(&format!("{}:443", onion));
 
-            #[cfg(feature = "onion-client")]
+            #[cfg(feature = "onion-service-client")]
             assert_eq!(
                 got.unwrap(),
                 SI::Hs {
@@ -651,7 +651,7 @@ mod test {
                 }
             );
 
-            #[cfg(not(feature = "onion-client"))]
+            #[cfg(not(feature = "onion-service-client"))]
             assert!(matches!(got, Err(ErrorDetail::OnionAddressNotSupported)));
         }
     }

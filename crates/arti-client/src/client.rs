@@ -31,7 +31,7 @@ use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 ))]
 use tor_rtcompat::PreferredRuntime;
 use tor_rtcompat::{Runtime, SleepProviderExt};
-#[cfg(feature = "onion-client")]
+#[cfg(feature = "onion-service-client")]
 use {
     tor_circmgr::hspool::HsCircPool,
     tor_hsclient::{
@@ -113,7 +113,7 @@ pub struct TorClient<R: Runtime> {
     pt_mgr: Arc<tor_ptmgr::PtMgr<R>>,
     /// HS client connector
     #[allow(dead_code)] // TODO HS remove
-    #[cfg(feature = "onion-client")]
+    #[cfg(feature = "onion-service-client")]
     hsclient: HsClientConnector<R>,
     /// The key manager.
     ///
@@ -207,7 +207,7 @@ pub struct StreamPrefs {
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
     /// Whether to try to make connections to onion services.
-    #[cfg(feature = "onion-client")]
+    #[cfg(feature = "onion-service-client")]
     #[allow(dead_code)]
     connect_to_onion_services: bool, // TODO hs: this should default to "true".
 }
@@ -559,7 +559,7 @@ impl<R: Runtime> TorClient<R> {
         #[cfg(feature = "bridge-client")]
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
-        #[cfg(feature = "onion-client")]
+        #[cfg(feature = "onion-service-client")]
         let hsclient = {
             let circpool = HsCircPool::new(&circmgr);
 
@@ -622,7 +622,7 @@ impl<R: Runtime> TorClient<R> {
             bridge_desc_mgr,
             #[cfg(feature = "pt-client")]
             pt_mgr,
-            #[cfg(feature = "onion-client")]
+            #[cfg(feature = "onion-service-client")]
             hsclient,
             keymgr,
             guardmgr,
@@ -949,7 +949,7 @@ impl<R: Runtime> TorClient<R> {
                 (circ, addr, port)
             }
 
-            #[cfg(not(feature = "onion-client"))]
+            #[cfg(not(feature = "onion-service-client"))]
             #[allow(unused_variables)] // for hostname and port
             StreamInstructions::Hs {
                 hsid,
@@ -957,7 +957,7 @@ impl<R: Runtime> TorClient<R> {
                 port,
             } => void::unreachable(hsid.0),
 
-            #[cfg(feature = "onion-client")]
+            #[cfg(feature = "onion-service-client")]
             #[allow(unused_variables)] // TODO HS remove
             StreamInstructions::Hs {
                 hsid,
