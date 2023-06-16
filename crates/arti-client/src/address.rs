@@ -559,8 +559,22 @@ mod test {
         assert!(val("198.151.100.42:443").is_ok());
         assert!(val("www.torproject.org:443").is_ok());
         assert!(val(("www.torproject.org", 443)).is_ok());
-        assert!(val("example.onion:80").is_ok());
-        assert!(val(("example.onion", 80)).is_ok());
+
+        // When HS disabled, tested elsewhere, see: stream_instructions, prefs_onion_services
+        // XXXX prefs_onion_services test doesn't exist yet, will come later in this branch
+        #[cfg(feature = "onion-service-client")]
+        {
+            assert!(val("example.onion:80").is_ok());
+            assert!(val(("example.onion", 80)).is_ok());
+
+            match val("eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443") {
+                Ok(TorAddr {
+                    host: Host::Onion(_),
+                    ..
+                }) => {}
+                x => panic!("{x:?}"),
+            }
+        }
 
         assert!(matches!(
             val("-foobar.net:443"),
@@ -575,13 +589,6 @@ mod test {
             val("192.168.0.1:80"),
             Err(ErrorDetail::LocalAddress)
         ));
-        match val("eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443") {
-            Ok(TorAddr {
-                host: Host::Onion(_),
-                ..
-            }) => {}
-            x => panic!("{x:?}"),
-        }
     }
 
     #[test]
