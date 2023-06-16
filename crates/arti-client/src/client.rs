@@ -41,11 +41,7 @@ use {
     tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
 };
 
-#[cfg(not(feature = "keymgr"))]
-// Use a dummy key manager if the `keymgr` feature is not enabled.
-use crate::keymgr::KeyMgr;
-#[cfg(feature = "keymgr")]
-use tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
+use crate::keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;

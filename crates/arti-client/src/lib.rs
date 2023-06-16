@@ -41,7 +41,6 @@
 mod address;
 mod builder;
 mod client;
-#[cfg(not(feature = "keymgr"))]
 mod keymgr;
 mod util;
 
