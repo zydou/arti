@@ -80,7 +80,10 @@ impl KeyType {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, path),
             KeyType::X25519StaticSecret => {
                 // TODO hs: implement
-                Err(Error::NotFound {})
+                Err(Error::InvalidKey {
+                    path: key.path.into(),
+                    err: InvalidKeyErrorSource::Unsupported(*self),
+                })
             }
         }
     }
