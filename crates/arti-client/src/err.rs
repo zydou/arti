@@ -111,6 +111,8 @@ pub_if_error_detail! {
 /// different kinds of [`Error`](crate::Error).  If that doesn't provide enough information
 /// for your use case, please let us know.
 #[cfg_attr(docsrs, doc(cfg(feature = "error_detail")))]
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(test, strum_discriminants(vis(pub(crate))))]
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 enum ErrorDetail {

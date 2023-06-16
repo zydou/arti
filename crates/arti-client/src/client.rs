@@ -198,8 +198,7 @@ pub enum DormantMode {
 }
 
 /// Preferences for how to route a stream over the Tor network.
-#[derive(Debug, Clone)]
-#[derive(Educe)]
+#[derive(Debug, Clone, Educe)]
 #[educe(Default)]
 pub struct StreamPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
