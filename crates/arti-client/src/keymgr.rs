@@ -15,6 +15,9 @@ use tor_error::{ErrorKind, HasKind};
 ///
 /// This implementation has the same API as the key manager from the `tor-keymgr` crate, except all
 /// its operations are no-ops.
+///
+/// For operations that normally involve updating the state of the key manager and/or its
+/// underlying storage, such as `insert` or `remove`, this `KeyMgr` always returns an [`Error`].
 //
 // TODO hs: Make KeyMgr have the same constructor API as tor-keymgr::KeyMgr #897
 // TODO hs: Remove the generic param and inner error from KeyMgr and expose a KeyMgrError instead.
@@ -76,29 +79,27 @@ impl KeyMgr {
         Ok(None)
     }
 
-    /// A dummy `insert` implementation that always behaves as if the `insert` operation was
-    /// successful.
+    /// A dummy `insert` implementation that always fails.
     ///
-    /// This function always returns `Ok(())`.
+    /// This function always returns [`Error`].
     //
     // TODO hs: remove
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
-        Ok(())
+        Err(Error)
     }
 
-    /// A dummy `remove` implementation that always behaves as if the `remove` operation was
-    /// successful.
+    /// A dummy `remove` implementation that always fails.
     ///
-    /// This function always returns `Ok(())`.
+    /// This function always returns [`Error`].
     //
     // TODO hs: remove
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
     pub(crate) fn remove<K>(&self, _: &dyn Any) -> Result<()> {
-        Ok(())
+        Err(Error)
     }
 }
