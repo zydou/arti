@@ -933,9 +933,8 @@ impl<R: Runtime> TorClient<R> {
         prefs: &StreamPrefs,
     ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
-        addr.enforce_config(&self.addrcfg.get())?;
 
-        let (circ, addr, port) = match addr.into_stream_instructions()? {
+        let (circ, addr, port) = match addr.into_stream_instructions(&self.addrcfg.get())? {
             StreamInstructions::Exit {
                 hostname: addr,
                 port,
@@ -1073,9 +1072,8 @@ impl<R: Runtime> TorClient<R> {
         // but I see no reason why it shouldn't be?  Then `into_resolve_instructions`
         // should be a method on `Host`, not `TorAddr`.  -Diziet.
         let addr = (hostname, 1).into_tor_addr().map_err(wrap_err)?;
-        addr.enforce_config(&self.addrcfg.get()).map_err(wrap_err)?;
 
-        match addr.into_resolve_instructions()? {
+        match addr.into_resolve_instructions(&self.addrcfg.get())? {
             ResolveInstructions::Exit(hostname) => {
                 let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 

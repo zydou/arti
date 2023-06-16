@@ -232,8 +232,10 @@ impl TorAddr {
     /// Get instructions for how to make a stream to this address
     pub(crate) fn into_stream_instructions(
         self,
+        cfg: &crate::config::ClientAddrConfig,
     ) -> Result<StreamInstructions, ErrorDetail> {
-        // TODO enforcement of the config should go here, not separately
+        self.enforce_config(cfg)?;
+
         let port = self.port;
         Ok(match self.host {
             Host::Hostname(hostname) => StreamInstructions::Exit { hostname, port },
@@ -262,8 +264,10 @@ impl TorAddr {
     /// Get instructions for how to make a stream to this address
     pub(crate) fn into_resolve_instructions(
         self,
+        cfg: &crate::config::ClientAddrConfig,
     ) -> Result<ResolveInstructions, ErrorDetail> {
-        // TODO enforcement of the config should go here, not separately
+        self.enforce_config(cfg)?;
+
         Ok(match self.host {
             Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
             Host::Ip(ip) => ResolveInstructions::Return(vec![ip]),
@@ -278,7 +282,7 @@ impl TorAddr {
 
     /// Give an error if this address doesn't conform to the rules set in
     /// `cfg`.
-    pub(crate) fn enforce_config(
+    fn enforce_config(
         &self,
         cfg: &crate::config::ClientAddrConfig,
     ) -> Result<(), ErrorDetail> {
@@ -629,7 +633,7 @@ mod test {
         use StreamInstructions as SI;
 
         fn sap(s: &str) -> Result<StreamInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_stream_instructions()
+            TorAddr::from(s).unwrap().into_stream_instructions(&Default::default())
         }
 
         assert_eq!(
@@ -672,7 +676,7 @@ mod test {
         use ResolveInstructions as RI;
 
         fn sap(s: &str) -> Result<ResolveInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_resolve_instructions()
+            TorAddr::from(s).unwrap().into_resolve_instructions(&Default::default())
         }
 
         assert_eq!(
