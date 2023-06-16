@@ -124,10 +124,11 @@ impl RpcMgr {
     pub(crate) fn lookup_by_global_id(&self, id: &GlobalId) -> Option<Arc<dyn rpc::Object>> {
         let connection = {
             let inner = self.inner.lock().expect("lock poisoned");
-            inner.connections.get(&id.connection)?
+            let connection = inner.connections.get(&id.connection)?;
             // Here we release the lock on self.inner, which makes it okay to
             // invoke a method on `connection` that may take its lock.
             drop(inner);
+            connection
         };
         connection.lookup_by_idx(id.local_id)
     }
