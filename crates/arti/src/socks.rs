@@ -485,19 +485,25 @@ where
         EK::OnionServiceDescriptorParsingFailed | EK::OnionServiceDescriptorValidationFailed => {
             S::HS_DESC_INVALID
         }
+
+        // TODO HS: Nothing generates the following four errorkinds (yet).
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceMissingClientAuth => S::HS_MISSING_CLIENT_AUTH,
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceWrongClientAuth => S::HS_WRONG_CLIENT_AUTH,
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceIntroFailed => S::HS_INTRO_FAILED,
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceRendFailed => S::HS_REND_FAILED,
+
         // TODO HS: This is not a perfect correspondence to the error we're
         // returning here.
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceNotRunning | EK::OnionServiceConnectionFailed => S::HS_INTRO_FAILED,
 
         // TODO HS: We have nothing corresponding to these EK values.  Perhaps
-        // that means we need to refactor them.
+        // that means we need to refactor them?
         // OnionServiceProtocolViolation
-        // OnionServiceConnectFailed
-
-        // TODO HS: We have nothing corresponding to these S values.  Perhaps
-        // that means we need distinct ErrorKinds for them.
-        //     S::HS_MISSING_CLIENT_AUTH, S::HS_REND_FAILED, S::HS_WRONG_CLIENT_AUTH.
         _ => S::GENERAL_FAILURE,
     };
     let reply = request
