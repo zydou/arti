@@ -66,6 +66,15 @@ mod get_rpc_protocol {
 }
 */
 
+/// Information about how an RPC session has been authenticated.
+///
+/// Currently, this isn't actually used for anything, since there's only one way
+/// to authenticate a connection.  It exists so that later we can pass
+/// information to the session-creator function.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct RpcAuthentication {}
+
 /// The authentication scheme as enumerated in the spec.
 ///
 /// Conceptually, an authentication scheme answers the question "How can the
@@ -167,14 +176,11 @@ async fn authenticate_connection(
         AuthenticationScheme::InherentUnixPath => {}
     }
 
-    // TODO RPC: I'm actually not totally sure about the semantics of creating a
-    // new session object here, since it will _look_ separate from other
-    // sessions, but in fact they will all share the same object map.
-    //
-    // Perhaps we need to think more about the semantics of authenticating more
-    // then once on the same connection.
-    let client = unauth.inner.lock().expect("lock poisoned").client.clone();
-    let session = crate::session::Session::new(client);
+    let auth = RpcAuthentication {};
+    let session = {
+        let mgr = unauth.mgr()?;
+        mgr.create_session(&auth)
+    };
     let session = ctx.register_owned(session);
     Ok(AuthenticateReply { session })
 }

@@ -1,11 +1,11 @@
 //! RPC connection support, mainloop, and protocol implementation.
 
-mod auth;
+pub(crate) mod auth;
 
 use std::{
     collections::HashMap,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 use asynchronous_codec::JsonCodecError;
@@ -25,6 +25,7 @@ use crate::{
     globalid::{GlobalId, MacKey},
     msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
     objmap::{GenIdx, ObjMap},
+    RpcMgr,
 };
 
 use tor_rpcbase as rpc;
@@ -38,21 +39,21 @@ pub struct Connection {
 
     /// Lookup table to find the implementations for methods
     /// based on RPC object and method types.
-    dispatch_table: Arc<rpc::DispatchTable>,
+    dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
 
     /// A unique identifier for this connection.
     ///
     /// This kind of ID is used to refer to the connection from _outside_ of the
     /// context of an RPC connection: it can uniquely identify the connection
     /// from e.g. a SOCKS session so that clients can attach streams to it.
-    ///
-    /// TODO RPC: Remove this if it turns out to be unneeded.
-    #[allow(unused)]
     connection_id: ConnectionId,
 
     /// A `MacKey` used to create `GlobalIds` for the objects whose identifiers
     /// need to exist outside this connection.
     global_id_mac_key: MacKey,
+
+    /// A reference to the manager associated with this session.
+    mgr: Weak<RpcMgr>,
 }
 rpc::decl_object! {Connection}
 
@@ -68,10 +69,6 @@ struct Inner {
     /// An object map used to look up most objects by ID, and keep track of
     /// which objects are owned by this connection.
     objects: ObjMap,
-
-    /// A `TorClient` object that we will give out if the connection is successfully
-    /// authenticated, _and not otherwise_.
-    client: Arc<dyn rpc::Object>,
 }
 
 /// How many updates can be pending, per connection, before they start to block?
@@ -115,19 +112,19 @@ impl Connection {
     /// Create a new connection.
     pub(crate) fn new(
         connection_id: ConnectionId,
-        dispatch_table: Arc<rpc::DispatchTable>,
+        dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
         global_id_mac_key: MacKey,
-        client: Arc<dyn rpc::Object>,
+        mgr: Weak<RpcMgr>,
     ) -> Self {
         Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
                 objects: ObjMap::new(),
-                client,
             }),
             dispatch_table,
             connection_id,
             global_id_mac_key,
+            mgr,
         }
     }
 
@@ -406,9 +403,22 @@ impl Connection {
         let context: Box<dyn rpc::Context> = Box::new(RequestContext {
             conn: Arc::clone(self),
         });
-        self.dispatch_table
-            .invoke(obj, method, context, tx_updates)?
-            .await
+        let invoke_future = self
+            .dispatch_table
+            .read()
+            .expect("lock poisoned")
+            .invoke(obj, method, context, tx_updates)?;
+
+        // Note that we drop the read lock before we await this future!
+        invoke_future.await
+    }
+
+    /// Try to get a strong reference to the RpcMgr for this connection, and
+    /// return an error if we can't.
+    pub(crate) fn mgr(&self) -> Result<Arc<RpcMgr>, MgrDisappearedError> {
+        self.mgr
+            .upgrade()
+            .ok_or(MgrDisappearedError::RpcMgrDisappeared)
     }
 }
 
@@ -422,6 +432,19 @@ pub enum ConnectionError {
     /// Read error from connection.
     #[error("Problem reading from connection")]
     ReadFailed,
+}
+
+/// A failure from trying to upgrade a `Weak<RpcMgr>`.
+#[derive(Clone, Debug, thiserror::Error, serde::Serialize)]
+pub(crate) enum MgrDisappearedError {
+    /// We tried to upgrade our reference to the RpcMgr, and failed.
+    #[error("RPC manager disappeared; Arti is shutting down?")]
+    RpcMgrDisappeared,
+}
+impl tor_error::HasKind for MgrDisappearedError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::ArtiShuttingDown
+    }
 }
 
 /// A Context object that we pass to each method invocation.

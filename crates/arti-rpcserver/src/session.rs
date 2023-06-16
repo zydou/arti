@@ -8,17 +8,22 @@ use std::sync::Arc;
 use tor_rpcbase as rpc;
 
 /// An authenticated RPC session.
-pub(crate) struct Session {
+pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
     #[allow(unused)]
     client: Arc<dyn rpc::Object>,
 }
-rpc::decl_object! { @expose Session }
+rpc::decl_object! { @expose RpcSession }
 
-impl Session {
-    /// Create a new session object.
-    pub(crate) fn new(client: Arc<dyn rpc::Object>) -> Arc<Self> {
+impl RpcSession {
+    /// Create a new session object containing a single client object.
+    ///
+    /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
+    /// be possible to invoke any of its methods. See #837.
+    pub fn new_with_client<R: tor_rtcompat::Runtime>(
+        client: Arc<arti_client::TorClient<R>>,
+    ) -> Arc<Self> {
         Arc::new(Self { client })
     }
 }
@@ -52,7 +57,7 @@ impl rpc::Method for RpcRelease {
 
 /// Implementation for calling "release" on a Session.
 async fn rpc_release(
-    _obj: Arc<Session>,
+    _obj: Arc<RpcSession>,
     method: Box<RpcRelease>,
     ctx: Box<dyn rpc::Context>,
 ) -> Result<rpc::Nil, rpc::RpcError> {
@@ -60,7 +65,7 @@ async fn rpc_release(
     Ok(rpc::Nil::default())
 }
 rpc::rpc_invoke_fn! {
-    rpc_release(Session,RpcRelease);
+    rpc_release(RpcSession,RpcRelease);
 }
 
 /// A simple temporary method to echo a reply.
@@ -79,7 +84,7 @@ impl rpc::Method for Echo {
 ///
 /// TODO RPC: Remove this. It shouldn't exist.
 async fn echo_on_session(
-    _obj: Arc<Session>,
+    _obj: Arc<RpcSession>,
     method: Box<Echo>,
     _ctx: Box<dyn rpc::Context>,
 ) -> Result<Echo, rpc::RpcError> {
@@ -87,5 +92,5 @@ async fn echo_on_session(
 }
 
 rpc::rpc_invoke_fn! {
-    echo_on_session(Session,Echo);
+    echo_on_session(RpcSession,Echo);
 }

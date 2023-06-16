@@ -1,17 +1,21 @@
 //! Top-level `RpcMgr` to launch sessions.
 
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex, RwLock, Weak};
 
-use arti_client::TorClient;
 use rand::Rng;
 use tor_rpcbase as rpc;
-use tor_rtcompat::Runtime;
 use weak_table::WeakValueHashMap;
 
 use crate::{
     connection::{Connection, ConnectionId},
     globalid::{GlobalId, MacKey},
+    RpcAuthentication, RpcSession,
 };
+
+/// A function we use to construct Session objects in response to authentication.
+//
+// TODO RPC: Perhaps this should return a Result?
+type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<RpcSession> + Send + Sync>;
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///
@@ -21,23 +25,33 @@ use crate::{
 pub struct RpcMgr {
     /// A key that we use to ensure that identifiers are unforgeable.
     ///
-    /// When giving out a global identifier.
-    mac_key: MacKey,
+    /// When giving out a global (non-session-bound) identifier, we use this key
+    /// to authenticate the identifier when it's given back to us.
+    ///
+    /// We make copies of this key when constructing a session.
+    global_id_mac_key: MacKey,
+
+    /// Our reference to the dispatch table used to look up the functions that
+    /// implement each object on each.
+    ///
+    /// We keep this in an `Arc` so we can share it with sessions.
+    dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
+
+    /// A function that we use to construct new Session objects when authentication
+    /// is successful.
+    session_factory: SessionFactory,
 
     /// Lock-protected view of the manager's state.
-    //
-    // TODO RPC: We should probably move everything into Inner, and move an Arc
-    // around the Mutex. Conceivably we should change the Mutex to an RwLock.
+    ///
+    /// NOTE: In the lock hierarchy, this mutex is at a _lower_ level than the
+    /// per-Connection locks.  You must not take any per-connection lock if you
+    /// hold this lock.  Functions that take or hold this lock must be checked
+    /// to make sure that they follow this rule.
     inner: Mutex<Inner>,
 }
 
 /// The [`RpcMgr`]'s state. This is kept inside a lock for interior mutability.
 struct Inner {
-    /// Our reference to the dispatch table used to look up the functions that
-    /// implement each object on each.
-    ///
-    /// TODO RPC: This isn't mutable yet, but we probably want it to be.
-    dispatch_table: Arc<rpc::DispatchTable>,
     /// A map from [`ConnectionId`] to weak [`Connection`] references.
     ///
     /// We use this map to give connections a manager-global identifier that can
@@ -54,37 +68,32 @@ struct Inner {
 impl RpcMgr {
     /// Create a new RpcMgr.
     ///
-    /// TODO RPC: Perhaps this should take a Client instead, and new_session
-    /// should take nothing.  Also perhaps instead of a Client, it should take
-    /// an `Arc<dyn Object>` that becomes the session.
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        RpcMgr {
-            mac_key: MacKey::new(&mut rand::thread_rng()),
+    pub fn new<F>(make_session: F) -> Arc<Self>
+    where
+        F: Fn(&RpcAuthentication) -> Arc<RpcSession> + Send + Sync + 'static,
+    {
+        Arc::new(RpcMgr {
+            global_id_mac_key: MacKey::new(&mut rand::thread_rng()),
+            dispatch_table: Arc::new(RwLock::new(rpc::DispatchTable::from_inventory())),
+            session_factory: Box::new(make_session),
             inner: Mutex::new(Inner {
-                dispatch_table: Arc::new(rpc::DispatchTable::from_inventory()),
                 connections: WeakValueHashMap::new(),
             }),
-        }
+        })
     }
 
     /// Start a new session based on this RpcMgr, with a given TorClient.
-    ///
-    ///
-    /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
-    /// be possible to invoke any of its methods. See #837.
     #[allow(clippy::missing_panics_doc)]
-    pub fn new_session<R: Runtime>(&self, client: TorClient<R>) -> Arc<Connection> {
+    pub fn new_connection(self: &Arc<Self>) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
-        let client_obj = Arc::new(client);
-
-        let mut inner = self.inner.lock().expect("poisoned lock");
         let connection = Arc::new(Connection::new(
             connection_id,
-            inner.dispatch_table.clone(),
-            self.mac_key.clone(),
-            client_obj,
+            self.dispatch_table.clone(),
+            self.global_id_mac_key.clone(),
+            Arc::downgrade(self),
         ));
+
+        let mut inner = self.inner.lock().expect("poisoned lock");
         let old = inner.connections.insert(connection_id, connection.clone());
         assert!(
             old.is_none(),
@@ -106,15 +115,26 @@ impl RpcMgr {
         &self,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        let global_id = GlobalId::try_decode(&self.mac_key, id)?;
+        let global_id = GlobalId::try_decode(&self.global_id_mac_key, id)?;
         self.lookup_by_global_id(&global_id)
             .ok_or_else(|| rpc::LookupError::NoObject(id.clone()))
     }
 
     /// As `lookup_object`, but takes a parsed and validated [`GlobalId`].
     pub(crate) fn lookup_by_global_id(&self, id: &GlobalId) -> Option<Arc<dyn rpc::Object>> {
-        let inner = self.inner.lock().expect("lock poisoned");
-        let connection = inner.connections.get(&id.connection)?;
+        let connection = {
+            let inner = self.inner.lock().expect("lock poisoned");
+            let connection = inner.connections.get(&id.connection)?;
+            // Here we release the lock on self.inner, which makes it okay to
+            // invoke a method on `connection` that may take its lock.
+            drop(inner);
+            connection
+        };
         connection.lookup_by_idx(id.local_id)
+    }
+
+    /// Construct a new object to serve as the `session` for a connection.
+    pub(crate) fn create_session(&self, auth: &RpcAuthentication) -> Arc<RpcSession> {
+        (self.session_factory)(auth)
     }
 }

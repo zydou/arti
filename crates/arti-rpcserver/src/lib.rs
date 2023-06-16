@@ -47,5 +47,6 @@ mod objmap;
 mod session;
 mod streams;
 
-pub use connection::{Connection, ConnectionError};
+pub use connection::{auth::RpcAuthentication, Connection, ConnectionError};
 pub use mgr::RpcMgr;
+pub use session::RpcSession;

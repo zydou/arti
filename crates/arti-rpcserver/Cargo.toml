@@ -36,7 +36,7 @@ rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "1"
-tiny-keccak = { version = "2", features = ["k12"] }
+tiny-keccak = { version = "2", features = ["kmac"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.1" }
 tor-bytes = { path = "../tor-bytes", version = "0.7.1" }
 tor-error = { path = "../tor-error", version = "0.5.1" }
