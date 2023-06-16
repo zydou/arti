@@ -447,7 +447,6 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// Used to implement onion service clients and services.
     #[cfg(feature = "hs-common")]
-    #[allow(dead_code)] // TODO HS
     pub(crate) async fn launch_hs_unmanaged<T>(
         &self,
         planned_target: Option<T>,
