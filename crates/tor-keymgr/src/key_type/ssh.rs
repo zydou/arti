@@ -37,7 +37,7 @@ fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<Er
         if matches!(e, ssh_key::Error::Io(ErrorKind::NotFound)) {
             Error::NotFound { /* TODO hs */ }
         } else {
-            Error::MalformedKey(MalformedKeyErrorSource::SshKeyRead {
+            Error::MalformedKey(MalformedKeyErrorSource::SshKeyParse {
                 key_type,
                 err: e.into(),
             })
@@ -87,11 +87,11 @@ impl KeyType {
         }
     }
 
-    /// Read an OpenSSH key, parse the key material into a known key type, returning the
+    /// Parse an OpenSSH key, convert the key material into a known key type, and return the
     /// type-erased value.
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn read_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
+    pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO hs: perhaps this needs to be a method on EncodableKey instead?
         match self {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
@@ -102,8 +102,8 @@ impl KeyType {
         }
     }
 
-    /// Encode an OpenSSH-formatted key and write it to the specified file.
-    pub(crate) fn write_ssh_format(&self, _key: &dyn EncodableKey) -> Result<String> {
+    /// Encode an OpenSSH-formatted key.
+    pub(crate) fn to_ssh_format(&self, _key: &dyn EncodableKey) -> Result<String> {
         todo!() // TODO hs
     }
 }

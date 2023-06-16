@@ -92,8 +92,8 @@ impl From<fs_mistrust::Error> for FsErrorSource {
 #[non_exhaustive]
 pub enum MalformedKeyErrorSource {
     /// Failed to parse an OpenSSH key
-    #[error("Failed to read OpenSSH with type {key_type:?}")]
-    SshKeyRead {
+    #[error("Failed to parse OpenSSH with type {key_type:?}")]
+    SshKeyParse {
         /// The type of key we were trying to fetch.
         key_type: KeyType,
         /// The underlying error.

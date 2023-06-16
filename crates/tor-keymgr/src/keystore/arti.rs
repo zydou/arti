@@ -76,7 +76,7 @@ impl KeyStore for ArtiNativeKeyStore {
             err: e.into(),
         })?;
 
-        key_type.read_ssh_format_erased(UnparsedOpenSshKey::new(inner))
+        key_type.parse_ssh_format_erased(UnparsedOpenSshKey::new(inner))
     }
 
     fn insert(
@@ -86,7 +86,7 @@ impl KeyStore for ArtiNativeKeyStore {
         key_type: KeyType,
     ) -> Result<()> {
         let key_path = self.key_path(key_spec, key_type)?;
-        let openssh_key = key_type.write_ssh_format(key)?;
+        let openssh_key = key_type.to_ssh_format(key)?;
 
         // TODO: use CheckedDir::write_and_replace to perform permission checks on the key file too.
         fs::write(&key_path, openssh_key).map_err(|e| Error::Filesystem {
