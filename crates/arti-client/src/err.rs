@@ -273,9 +273,8 @@ enum ErrorDetail {
     },
 
     /// A key store access failed.
-    #[cfg(feature = "keymgr")]
     #[error("Error while trying to access a key store")]
-    KeyStore(#[from] tor_keymgr::Error),
+    KeyStore(#[from] crate::keymgr::Error),
 
     /// A programming problem, either in our code or the code calling it.
     #[error("Programming problem")]
@@ -370,7 +369,6 @@ impl tor_error::HasKind for ErrorDetail {
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
-            #[cfg(feature = "keymgr")]
             E::KeyStore(e) => e.kind(),
             E::FsMistrust(_) => EK::FsPermissions,
             E::Bug(e) => e.kind(),
@@ -384,9 +382,8 @@ impl From<TorAddrError> for Error {
     }
 }
 
-#[cfg(feature = "keymgr")]
-impl From<tor_keymgr::Error> for Error {
-    fn from(e: tor_keymgr::Error) -> Error {
+impl From<crate::keymgr::Error> for Error {
+    fn from(e: crate::keymgr::Error) -> Error {
         e.into()
     }
 }

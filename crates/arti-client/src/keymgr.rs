@@ -6,8 +6,8 @@
 //! If arti-client is compiled without the `keymgr` feature, then [`TorClient`](crate::TorClient)
 //! will use this no-op key manager implementation instead.
 
-use crate::Error;
 use std::any::Any;
+use tor_error::{ErrorKind, HasKind};
 
 /// A dummy key manager implementation.
 ///
@@ -18,6 +18,17 @@ use std::any::Any;
 // TODO hs: Remove the generic param and inner error from KeyMgr and expose a KeyMgrError instead.
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct KeyMgr;
+
+/// An error type for the dummy key manager.
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[error("Cannot access key store: `keymgr` feature is disabled")]
+pub struct Error;
+
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::Other
+    }
+}
 
 impl KeyMgr {
     /// A dummy `get` implementation that always behaves like the requested key is not found.
