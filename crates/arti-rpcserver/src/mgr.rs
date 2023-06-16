@@ -127,6 +127,7 @@ impl RpcMgr {
             inner.connections.get(&id.connection)?
             // Here we release the lock on self.inner, which makes it okay to
             // invoke a method on `connection` that may take its lock.
+            drop(inner);
         };
         connection.lookup_by_idx(id.local_id)
     }
