@@ -175,6 +175,7 @@ dependencies = [
  "postage",
  "safelog",
  "serde",
+ "strum",
  "tempfile",
  "thiserror",
  "tokio",

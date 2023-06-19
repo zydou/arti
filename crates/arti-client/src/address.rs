@@ -2,6 +2,7 @@
 //! Tor can connect to.
 
 use crate::err::ErrorDetail;
+use crate::StreamPrefs;
 use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str::FromStr;
@@ -230,8 +231,13 @@ impl TorAddr {
     }
 
     /// Get instructions for how to make a stream to this address
-    pub(crate) fn into_stream_instructions(self) -> Result<StreamInstructions, ErrorDetail> {
-        // TODO enforcement of the config should go here, not separately
+    pub(crate) fn into_stream_instructions(
+        self,
+        cfg: &crate::config::ClientAddrConfig,
+        prefs: &StreamPrefs,
+    ) -> Result<StreamInstructions, ErrorDetail> {
+        self.enforce_config(cfg, prefs)?;
+
         let port = self.port;
         Ok(match self.host {
             Host::Hostname(hostname) => StreamInstructions::Exit { hostname, port },
@@ -258,13 +264,30 @@ impl TorAddr {
     }
 
     /// Get instructions for how to make a stream to this address
-    pub(crate) fn into_resolve_instructions(self) -> Result<ResolveInstructions, ErrorDetail> {
-        // TODO enforcement of the config should go here, not separately
-        Ok(match self.host {
-            Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
-            Host::Ip(ip) => ResolveInstructions::Return(vec![ip]),
-            Host::Onion(_) => return Err(ErrorDetail::OnionAddressResolveRequest),
-        })
+    pub(crate) fn into_resolve_instructions(
+        self,
+        cfg: &crate::config::ClientAddrConfig,
+        prefs: &StreamPrefs,
+    ) -> Result<ResolveInstructions, ErrorDetail> {
+        // We defer enforcing the config until we see if this is a .onion,
+        // in which case it's always doomed and we want to return *our* error,
+        // not any problem with the configuration or preferences.
+        // But we must *calculate* the error now because instructions consumes self.
+        let enforce_config_result = self.enforce_config(cfg, prefs);
+
+        // This IEFE is so that any use of `return` doesn't bypass
+        // checking the the enforce_config result
+        let instructions = (move || {
+            Ok(match self.host {
+                Host::Hostname(hostname) => ResolveInstructions::Exit(hostname),
+                Host::Ip(ip) => ResolveInstructions::Return(vec![ip]),
+                Host::Onion(_) => return Err(ErrorDetail::OnionAddressResolveRequest),
+            })
+        })()?;
+
+        let () = enforce_config_result?;
+
+        Ok(instructions)
     }
 
     /// Return true if the `host` in this address is local.
@@ -274,9 +297,11 @@ impl TorAddr {
 
     /// Give an error if this address doesn't conform to the rules set in
     /// `cfg`.
-    pub(crate) fn enforce_config(
+    fn enforce_config(
         &self,
         cfg: &crate::config::ClientAddrConfig,
+        #[allow(unused_variables)] // will only be used in certain configurations
+        prefs: &StreamPrefs,
     ) -> Result<(), ErrorDetail> {
         if !cfg.allow_local_addrs && self.is_local() {
             return Err(ErrorDetail::LocalAddress);
@@ -290,6 +315,18 @@ impl TorAddr {
             if addr.ends_with_ignore_ascii_case(HSID_ONION_SUFFIX) {
                 // This ought not to occur, because it violates Host's invariant
                 return Err(ErrorDetail::OnionAddressNotSupported);
+            }
+        }
+
+        if let Host::Onion(_name) = &self.host {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "onion-service-client")] {
+                    if !prefs.connect_to_onion_services {
+                        return Err(ErrorDetail::OnionAddressDisabled);
+                    }
+                } else {
+                    return Err(ErrorDetail::OnionAddressNotSupported);
+                }
             }
         }
 
@@ -549,7 +586,7 @@ mod test {
         use crate::err::ErrorDetail;
         fn val<A: IntoTorAddr>(addr: A) -> Result<TorAddr, ErrorDetail> {
             let toraddr = addr.into_tor_addr()?;
-            toraddr.enforce_config(&Default::default())?;
+            toraddr.enforce_config(&Default::default(), &Default::default())?;
             Ok(toraddr)
         }
 
@@ -559,8 +596,21 @@ mod test {
         assert!(val("198.151.100.42:443").is_ok());
         assert!(val("www.torproject.org:443").is_ok());
         assert!(val(("www.torproject.org", 443)).is_ok());
-        assert!(val("example.onion:80").is_ok());
-        assert!(val(("example.onion", 80)).is_ok());
+
+        // When HS disabled, tested elsewhere, see: stream_instructions, prefs_onion_services
+        #[cfg(feature = "onion-service-client")]
+        {
+            assert!(val("example.onion:80").is_ok());
+            assert!(val(("example.onion", 80)).is_ok());
+
+            match val("eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443") {
+                Ok(TorAddr {
+                    host: Host::Onion(_),
+                    ..
+                }) => {}
+                x => panic!("{x:?}"),
+            }
+        }
 
         assert!(matches!(
             val("-foobar.net:443"),
@@ -575,13 +625,6 @@ mod test {
             val("192.168.0.1:80"),
             Err(ErrorDetail::LocalAddress)
         ));
-        match val("eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443") {
-            Ok(TorAddr {
-                host: Host::Onion(_),
-                ..
-            }) => {}
-            x => panic!("{x:?}"),
-        }
     }
 
     #[test]
@@ -618,7 +661,9 @@ mod test {
         use StreamInstructions as SI;
 
         fn sap(s: &str) -> Result<StreamInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_stream_instructions()
+            TorAddr::from(s)
+                .unwrap()
+                .into_stream_instructions(&Default::default(), &Default::default())
         }
 
         assert_eq!(
@@ -661,7 +706,9 @@ mod test {
         use ResolveInstructions as RI;
 
         fn sap(s: &str) -> Result<ResolveInstructions, ErrorDetail> {
-            TorAddr::from(s).unwrap().into_resolve_instructions()
+            TorAddr::from(s)
+                .unwrap()
+                .into_resolve_instructions(&Default::default(), &Default::default())
         }
 
         assert_eq!(
@@ -688,6 +735,65 @@ mod test {
             TorAddr::from("www.example.com:0"),
             Err(TorAddrError::BadPort)
         );
+    }
+
+    #[test]
+    fn prefs_onion_services() {
+        use crate::err::ErrorDetailDiscriminants;
+        use tor_error::{ErrorKind, HasKind as _};
+        use ErrorDetailDiscriminants as EDD;
+        use ErrorKind as EK;
+
+        #[allow(clippy::redundant_closure)] // for symmetry with prefs_of, below, and clarity
+        let prefs_def = || StreamPrefs::default();
+
+        let addr: TorAddr = "eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443"
+            .parse()
+            .unwrap();
+
+        fn map(
+            got: Result<impl Sized, ErrorDetail>,
+        ) -> Result<(), (ErrorDetailDiscriminants, ErrorKind)> {
+            got.map(|_| ())
+                .map_err(|e| (ErrorDetailDiscriminants::from(&e), e.kind()))
+        }
+
+        let check_stream = |prefs, expected| {
+            let got = addr
+                .clone()
+                .into_stream_instructions(&Default::default(), &prefs);
+            assert_eq!(map(got), expected, "{prefs:?}");
+        };
+        let check_resolve = |prefs| {
+            let got = addr
+                .clone()
+                .into_resolve_instructions(&Default::default(), &prefs);
+            // This should be OnionAddressResolveRequest no matter if .onion is compiled in or enabled.
+            // Since compiling it in, or enabling it, won't help.
+            let expected = Err((EDD::OnionAddressResolveRequest, EK::NotImplemented));
+            assert_eq!(map(got), expected, "{prefs:?}");
+        };
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "onion-service-client")] {
+                let prefs_of = |yn| {
+                    let mut prefs = StreamPrefs::default();
+                    prefs.connect_to_onion_services(yn);
+                    prefs
+                };
+                check_stream(prefs_def(), Ok(()));
+                check_stream(prefs_of(true), Ok(()));
+                check_stream(prefs_of(false), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
+
+                check_resolve(prefs_def());
+                check_resolve(prefs_of(true));
+                check_resolve(prefs_of(false));
+            } else {
+                check_stream(prefs_def(), Err((EDD::OnionAddressNotSupported, EK::FeatureDisabled)));
+
+                check_resolve(prefs_def());
+            }
+        }
     }
 
     #[test]

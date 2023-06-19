@@ -111,6 +111,8 @@ pub_if_error_detail! {
 /// different kinds of [`Error`](crate::Error).  If that doesn't provide enough information
 /// for your use case, please let us know.
 #[cfg_attr(docsrs, doc(cfg(feature = "error_detail")))]
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(test, strum_discriminants(vis(pub(crate))))]
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 enum ErrorDetail {
@@ -194,9 +196,14 @@ enum ErrorDetail {
     #[error("Timed out while waiting for answer from exit")]
     ExitTimeout,
 
-    /// Onion services are supported, but we were asked to connect to one.
-    #[error("Rejecting .onion address as unsupported")]
+    /// Onion services are not compiled in, but we were asked to connect to one.
+    #[error("Rejecting .onion address; feature onion-service-client not compiled in")]
     OnionAddressNotSupported,
+
+    /// Onion services are supported, but we were asked to connect to one.
+    #[cfg(feature = "onion-service-client")]
+    #[error("Rejecting .onion address; connect_to_onion_services disabled in stream preferences")]
+    OnionAddressDisabled,
 
     /// Error when trying to find the IP address of a hidden service
     #[error("A .onion address cannot be resolved to an IP address")]
@@ -354,8 +361,10 @@ impl tor_error::HasKind for ErrorDetail {
             E::Configuration(e) => e.kind(),
             E::Reconfigure(e) => e.kind(),
             E::Spawn { cause, .. } => cause.kind(),
-            E::OnionAddressNotSupported => EK::NotImplemented,
+            E::OnionAddressNotSupported => EK::FeatureDisabled,
             E::OnionAddressResolveRequest => EK::NotImplemented,
+            #[cfg(feature = "onion-service-client")]
+            E::OnionAddressDisabled => EK::ForbiddenStreamTarget,
             // TODO Should delegate to TorAddrError EK
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,

@@ -112,7 +112,6 @@ pub struct TorClient<R: Runtime> {
     #[cfg(feature = "pt-client")]
     pt_mgr: Arc<tor_ptmgr::PtMgr<R>>,
     /// HS client connector
-    #[allow(dead_code)] // TODO HS remove
     #[cfg(feature = "onion-service-client")]
     hsclient: HsClientConnector<R>,
     /// The key manager.
@@ -198,7 +197,8 @@ pub enum DormantMode {
 }
 
 /// Preferences for how to route a stream over the Tor network.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone, Educe)]
+#[educe(Default)]
 pub struct StreamPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
@@ -208,8 +208,8 @@ pub struct StreamPrefs {
     optimistic_stream: bool,
     /// Whether to try to make connections to onion services.
     #[cfg(feature = "onion-service-client")]
-    #[allow(dead_code)]
-    connect_to_onion_services: bool, // TODO hs: this should default to "true".
+    #[educe(Default(true))]
+    pub(crate) connect_to_onion_services: bool,
 }
 
 /// Record of how we are isolating connections
@@ -305,8 +305,17 @@ impl StreamPrefs {
         self
     }
 
-    // TODO hs: make setters for the `connect_to_onion_services` field.
-
+    /// Indicate whether connection to a hidden service (`.onion` service) should be allowed
+    ///
+    /// If `false`, attempts to connect to Onion Services will be forced to fail with
+    /// an error of kind [`InvalidStreamTarget`](ErrorKind::InvalidStreamTarget).
+    ///
+    /// By default this is enabled.
+    #[cfg(feature = "onion-service-client")]
+    pub fn connect_to_onion_services(&mut self, connect_to_onion_services: bool) -> &mut Self {
+        self.connect_to_onion_services = connect_to_onion_services;
+        self
+    }
     /// Return a TargetPort to describe what kind of exit policy our
     /// target circuit needs to support.
     fn wrap_target_port(&self, port: u16) -> TargetPort {
@@ -926,16 +935,14 @@ impl<R: Runtime> TorClient<R> {
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     /// (See [`TorClient::connect()`] for more information.)
-    #[allow(clippy::missing_panics_doc)] // TODO HS remove
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
         prefs: &StreamPrefs,
     ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
-        addr.enforce_config(&self.addrcfg.get())?;
 
-        let (circ, addr, port) = match addr.into_stream_instructions()? {
+        let (circ, addr, port) = match addr.into_stream_instructions(&self.addrcfg.get(), prefs)? {
             StreamInstructions::Exit {
                 hostname: addr,
                 port,
@@ -958,7 +965,6 @@ impl<R: Runtime> TorClient<R> {
             } => void::unreachable(hsid.0),
 
             #[cfg(feature = "onion-service-client")]
-            #[allow(unused_variables)] // TODO HS remove
             StreamInstructions::Hs {
                 hsid,
                 hostname,
@@ -1073,9 +1079,8 @@ impl<R: Runtime> TorClient<R> {
         // but I see no reason why it shouldn't be?  Then `into_resolve_instructions`
         // should be a method on `Host`, not `TorAddr`.  -Diziet.
         let addr = (hostname, 1).into_tor_addr().map_err(wrap_err)?;
-        addr.enforce_config(&self.addrcfg.get()).map_err(wrap_err)?;
 
-        match addr.into_resolve_instructions()? {
+        match addr.into_resolve_instructions(&self.addrcfg.get(), prefs)? {
             ResolveInstructions::Exit(hostname) => {
                 let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
