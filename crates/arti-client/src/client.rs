@@ -997,7 +997,18 @@ impl<R: Runtime> TorClient<R> {
                 let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
 
                 // TODO hs: use a real client id (loaded from the config)
-                let client_id = HsClientSpecifier::default();
+                let client_id = HsClientSpecifier::new("not_a_real_spec".into())
+                    .map_err(|e| {
+                        // TODO hs: make tor-keymgr an optional dependency in tor-hsclient and make
+                        // sure `HsClientSpecifier::new` returns `dummy::Error` rather than
+                        // `tor-keymgr::Error` if the `keymgr` feature is disabled. This will
+                        // enable us to get rid of these cfgs.
+                        #[cfg(feature = "keymgr")]
+                        { ErrorDetail::KeyStore(e) }
+
+                        #[cfg(not(feature = "keymgr"))]
+                        { ErrorDetail::KeyStore(crate::keymgr::Error) }
+                    })?;
                 let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
                     client_id.clone(),
                     hsid,
