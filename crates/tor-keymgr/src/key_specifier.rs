@@ -45,7 +45,9 @@ impl ArtiPath {
 /// A component of an [`ArtiPath`].
 ///
 /// This represents a substring of an [`ArtiPath`] between path separators (`/`).
-#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Display)]
+#[derive(
+    Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
+)]
 pub struct ArtiPathComponent(String);
 
 impl ArtiPathComponent {
