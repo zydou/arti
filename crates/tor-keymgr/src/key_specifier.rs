@@ -23,6 +23,27 @@ impl ArtiPath {
     }
 }
 
+/// A component of an [`ArtiPath`].
+///
+/// This represents a substring of an [`ArtiPath`] between path separators (`/`).
+//
+// TODO hs: replace HsClientSpecifier with ArtiPathComponent.
+pub struct ArtiPathComponent(String);
+
+impl ArtiPathComponent {
+    /// Create a new [`ArtiPathComponent`].
+    ///
+    /// This function returns an error if the specified string contains any disallowed characters.
+    ///
+    /// TODO hs: restrict the character set and syntax for values of this type (it should not be
+    /// possible to construct an ArtiPathComponent out of a String that uses disallowed chars, or
+    /// one that is in the wrong format (TBD exactly what this format is supposed to look like)
+    #[allow(clippy::unnecessary_wraps)] // TODO hs: remove
+    pub fn new(inner: String) -> Result<Self> {
+        Ok(Self(inner))
+    }
+}
+
 /// The path of a key in the C Tor key store.
 #[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut)]
 pub struct CTorPath(String);
