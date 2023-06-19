@@ -116,3 +116,93 @@ pub trait KeySpecifier {
     /// not by C Tor's key store (such as `HsClientIntroAuthKeypair`).
     fn ctor_path(&self) -> Option<CTorPath>;
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    fn is_invalid_arti_path_error(err: &Error, inner: &str) -> bool {
+        matches!(err, Error::InvalidArtiPath(c) if c == inner)
+    }
+
+    macro_rules! check_valid {
+        ($ty:ident, $inner:expr, $expect_valid:expr) => {{
+            let path = $ty::new($inner.to_string());
+
+            if $expect_valid {
+                assert!(path.is_ok(), "{} should be valid", $inner);
+                assert_eq!(path.unwrap().to_string(), *$inner);
+            } else {
+                assert!(path.is_err(), "{} should be invalid", $inner);
+                assert!(
+                    is_invalid_arti_path_error(path.as_ref().unwrap_err(), $inner),
+                    "wrong error type for {}: {path:?}",
+                    $inner
+                );
+            }
+        }};
+    }
+
+    #[test]
+    #[allow(clippy::cognitive_complexity)]
+    fn arti_path_validation() {
+        const VALID_ARTI_PATHS: &[&str] =
+            &["my-hs-client-2", "hs_client_", "_", "client٣¾", "clientß"];
+
+        const INVALID_ARTI_PATHS: &[&str] = &[
+            "alice/../bob",
+            "./bob",
+            "c++",
+            "client?",
+            "no spaces please",
+            "/",
+            "/////",
+        ];
+
+        for path in VALID_ARTI_PATHS {
+            check_valid!(ArtiPath, path, true);
+            check_valid!(ArtiPathComponent, path, true);
+        }
+
+        for path in INVALID_ARTI_PATHS {
+            check_valid!(ArtiPath, path, false);
+            check_valid!(ArtiPathComponent, path, false);
+        }
+
+        const SEP: char = path::MAIN_SEPARATOR;
+        // This is a valid ArtiPath, but not a valid ArtiPathComponent
+        let path = format!("{SEP}client{SEP}key");
+        check_valid!(ArtiPath, &path, true);
+        check_valid!(ArtiPathComponent, &path, false);
+    }
+
+    #[test]
+    fn arti_path_normalization() {
+        const SEP: char = path::MAIN_SEPARATOR;
+
+        let normalized_paths = vec![
+            (
+                format!("client{SEP}{SEP}{SEP}key"),
+                Some(format!("client{SEP}key")),
+            ),
+            ("ccccclient-----key".into(), None),
+            (format!("{SEP}hs-client{SEP}key-1-2-3{SEP}"), None),
+        ];
+
+        for (path, normalized) in normalized_paths {
+            let arti_path = ArtiPath::new(path.clone()).unwrap();
+            let normalized = normalized.unwrap_or_else(|| path.clone());
+            assert_eq!(arti_path.as_ref(), normalized);
+        }
+    }
+}
