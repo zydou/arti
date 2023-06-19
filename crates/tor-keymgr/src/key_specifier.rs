@@ -7,7 +7,9 @@ use crate::Result;
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
-#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into)]
+#[derive(
+    Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
+)]
 pub struct ArtiPath(String);
 
 impl ArtiPath {
@@ -26,8 +28,7 @@ impl ArtiPath {
 /// A component of an [`ArtiPath`].
 ///
 /// This represents a substring of an [`ArtiPath`] between path separators (`/`).
-//
-// TODO hs: replace HsClientSpecifier with ArtiPathComponent.
+#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Display)]
 pub struct ArtiPathComponent(String);
 
 impl ArtiPathComponent {
