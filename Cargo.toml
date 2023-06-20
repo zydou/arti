@@ -16,6 +16,7 @@ members = [
     "crates/tor-config",
     "crates/tor-events",
     "crates/tor-units",
+    "crates/tor-geoip",
     "crates/tor-rtcompat",
     "crates/tor-rtmock",
     "crates/tor-rpcbase",
