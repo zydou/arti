@@ -32,7 +32,7 @@ impl UnparsedOpenSshKey {
 }
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
-fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
+fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
     let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| {
         if matches!(e, ssh_key::Error::Io(ErrorKind::NotFound)) {
             Error::NotFound { /* TODO hs */ }
@@ -91,7 +91,7 @@ impl KeyType {
     /// type-erased value.
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
+    pub(crate) fn parse_ssh_format_erased(&self, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO hs: perhaps this needs to be a method on EncodableKey instead?
         match self {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),

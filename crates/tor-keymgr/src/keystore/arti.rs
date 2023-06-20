@@ -78,7 +78,7 @@ impl KeyStore for ArtiNativeKeyStore {
                 err: err.into(),
             })?;
 
-        key_type.parse_ssh_format_erased(UnparsedOpenSshKey::new(inner))
+        key_type.parse_ssh_format_erased(&UnparsedOpenSshKey::new(inner))
     }
 
     fn insert(
