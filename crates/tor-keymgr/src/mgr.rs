@@ -64,7 +64,7 @@ impl KeyMgr {
     /// If the key already exists, it is overwritten.
     ///
     // TODO hs: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
-    // TODO hs: define what "key bundle" means
+    // TODO HSS (#903): define what "key bundle" means
     pub fn insert<K: ToEncodableKey>(&self, key: K, key_spec: &dyn KeySpecifier) -> Result<()> {
         // TODO hs: maybe we should designate an explicit 'primary' store instead of implicitly
         // preferring the first one.
