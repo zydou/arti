@@ -4,7 +4,7 @@
 mod pool;
 
 use std::{
-    sync::{Arc, Weak},
+    sync::{Arc, Mutex, Weak},
     time::Duration,
 };
 
@@ -48,14 +48,20 @@ pub enum HsCircKind {
 pub struct HsCircPool<R: Runtime> {
     /// An underlying circuit manager, used for constructing circuits.
     circmgr: Arc<CircMgr<R>>,
-    /// A collection of pre-constructed circuits.
-    pool: pool::Pool,
     /// A task handle for making the background circuit launcher fire early.
     //
     // TODO: I think we may want to move this into the same Mutex as Pool
     // eventually.  But for now, this is fine, since it's just an implementation
     // detail.
     launcher_handle: OnceCell<TaskHandle>,
+    /// The mutable state of this pool.
+    inner: Mutex<Inner>,
+}
+
+/// The mutable state of an [`HsCircPool`]
+struct Inner {
+    /// A collection of pre-constructed circuits.
+    pool: pool::Pool,
 }
 
 impl<R: Runtime> HsCircPool<R> {
@@ -67,8 +73,8 @@ impl<R: Runtime> HsCircPool<R> {
         let pool = pool::Pool::default();
         Arc::new(Self {
             circmgr,
-            pool,
             launcher_handle: OnceCell::new(),
+            inner: Mutex::new(Inner { pool }),
         })
     }
 
@@ -130,8 +136,6 @@ impl<R: Runtime> HsCircPool<R> {
             },
             None => Err(internal!("Circuit with an empty path!?").into()),
         }
-        // TODO HS: We should retry attempts to build these circuits, either here or in
-        // a higher-level crate.
     }
 
     /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
@@ -206,9 +210,6 @@ impl<R: Runtime> HsCircPool<R> {
 
         // With any luck, return the circuit.
         Ok(circ)
-
-        // TODO HS: We should retry attempts to build these circuits, either here or in
-        // a higher-level crate.
     }
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
@@ -229,23 +230,22 @@ impl<R: Runtime> HsCircPool<R> {
             target,
             relay: netdir.by_ids(target),
         });
-        let found_usable_circ = self.pool.take_one_where(&mut rand::thread_rng(), |circ| {
-            circuit_compatible_with_target(netdir, subnet_config, circ, target.as_ref())
-        });
+        let found_usable_circ = {
+            let mut inner = self.inner.lock().expect("lock poisoned");
+            let found_usable_circ = inner.pool.take_one_where(&mut rand::thread_rng(), |circ| {
+                circuit_compatible_with_target(netdir, subnet_config, circ, target.as_ref())
+            });
 
-        /// Tell the background task to fire immediately if we have fewer than
-        /// this many circuits left, or if we found nothing. Chosen arbitrarily.
-        ///
-        /// TODO HS: This should change dynamically, and probably be a fixed
-        /// fraction of TARGET_N.
-        const LAUNCH_THRESHOLD: usize = 2;
-        if self.pool.len() < LAUNCH_THRESHOLD || found_usable_circ.is_none() {
-            let handle = self.launcher_handle.get().ok_or_else(|| {
-                Error::from(bad_api_usage!("The circuit launcher wasn't initialized"))
-            })?;
-            handle.fire();
-        }
-
+            // Tell the background task to fire immediately if we have very few circuits
+            // circuits left, or if we found nothing.
+            if inner.pool.very_low() || found_usable_circ.is_none() {
+                let handle = self.launcher_handle.get().ok_or_else(|| {
+                    Error::from(bad_api_usage!("The circuit launcher wasn't initialized"))
+                })?;
+                handle.fire();
+            }
+            found_usable_circ
+        };
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
             return Ok(circuit);
@@ -262,13 +262,16 @@ impl<R: Runtime> HsCircPool<R> {
 
     /// Internal: Remove every closed circuit from this pool.
     fn remove_closed(&self) {
-        self.pool.retain(|circ| !circ.is_closing());
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        inner.pool.retain(|circ| !circ.is_closing());
     }
 
     /// Internal: Remove every circuit form this pool for which any relay is not
     /// listed in `netdir`.
     fn remove_unlisted(&self, netdir: &NetDir) {
-        self.pool
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        inner
+            .pool
             .retain(|circ| all_circ_relays_are_listed_in(circ, netdir));
     }
 }
@@ -363,10 +366,6 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
     netdir_provider: Weak<dyn NetDirProvider + 'static>,
     mut schedule: TaskSchedule<R>,
 ) {
-    /// Number of circuits to keep in the pool.  Chosen arbitrarily.
-    //
-    // TODO HS: This should instead change dynamically based on observed needs.
-    const TARGET_N: usize = 8;
     /// Default delay when not told to fire explicitly. Chosen arbitrarily.
     const DELAY: Duration = Duration::from_secs(30);
 
@@ -377,9 +376,14 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 break;
             }
         };
+        let now = pool.circmgr.mgr.peek_runtime().now();
         pool.remove_closed();
-        let mut n_to_launch = pool.pool.len().saturating_sub(TARGET_N);
-        let mut max_attempts = TARGET_N * 2;
+        let mut n_to_launch = {
+            let mut inner = pool.inner.lock().expect("poisioned_lock");
+            inner.pool.update_target_size(now);
+            inner.pool.n_to_launch()
+        };
+        let mut max_attempts = n_to_launch * 2;
         'inner: while n_to_launch > 1 {
             max_attempts -= 1;
             if max_attempts == 0 {
@@ -399,7 +403,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
                 match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
                     Ok(circ) => {
-                        pool.pool.insert(circ);
+                        pool.inner.lock().expect("poisoned lock").pool.insert(circ);
                         n_to_launch -= 1;
                     }
                     Err(err) => {
