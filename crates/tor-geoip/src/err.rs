@@ -14,6 +14,10 @@ pub enum Error {
     /// We got a country code that isn't 2 ASCII letters.
     #[error("Unsupported country code in file: {0}")]
     BadCountryCode(String),
+
+    /// Tried to use ?? somewhere that expected a country code.
+    #[error("The 'nowhere' country code ('??') is not supported in this context.")]
+    NowhereNotSupported,
 }
 
 impl From<ParseIntError> for Error {

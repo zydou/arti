@@ -4338,6 +4338,7 @@ dependencies = [
 name = "tor-geoip"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "once_cell",
  "rangemap",
  "thiserror",

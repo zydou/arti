@@ -44,6 +44,7 @@ use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
 use std::num::NonZeroU32;
+use std::str::FromStr;
 use std::sync::Arc;
 
 mod err;
@@ -67,6 +68,9 @@ static EMBEDDED_DB_PARSED: OnceCell<Arc<GeoipDb>> = OnceCell::new();
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct CountryCode {
     /// The underlying value (two printable ASCII characters, stored uppercase).
+    ///
+    /// The special value `??` is excluded, since it is not a country; use
+    /// `OptionCc` instead if you need to represent that.
     inner: [u8; 2],
 }
 
@@ -79,6 +83,9 @@ impl CountryCode {
             .as_bytes()
             .try_into()
             .map_err(|_| Error::BadCountryCode(cc))?;
+        if &cc == b"??" {
+            return Err(Error::NowhereNotSupported);
+        }
 
         Ok(Self { inner: cc })
     }
@@ -110,6 +117,44 @@ impl AsRef<str> for CountryCode {
     }
 }
 
+impl FromStr for CountryCode {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        CountryCode::new(s)
+    }
+}
+
+/// Wrapper for an `Option<`[`CountryCode`]`>` that encodes `None` as `??`.
+///
+/// Used so that we can implement foreign traits.
+#[derive(
+    Copy, Clone, Debug, Eq, PartialEq, derive_more::Into, derive_more::From, derive_more::AsRef,
+)]
+#[allow(clippy::exhaustive_structs)]
+pub struct OptionCc(pub Option<CountryCode>);
+
+impl FromStr for OptionCc {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match CountryCode::new(s) {
+            Err(Error::NowhereNotSupported) => Ok(None.into()),
+            Err(e) => Err(e),
+            Ok(cc) => Ok(Some(cc).into()),
+        }
+    }
+}
+
+impl Display for OptionCc {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Some(cc) => write!(f, "{}", cc),
+            None => write!(f, "??"),
+        }
+    }
+}
+
 /// A country code / ASN definition.
 ///
 /// Type lifted from `geoip-db-tool` in the C-tor source.
@@ -131,11 +176,7 @@ impl NetDefn {
             .transpose()
             .map_err(|_| Error::BadFormat("got an ASN with value 0"))?;
 
-        let cc = if cc != "??" {
-            Some(CountryCode::new(cc)?)
-        } else {
-            None
-        };
+        let cc = cc.parse::<OptionCc>()?.into();
 
         Ok(Self { cc, asn })
     }
