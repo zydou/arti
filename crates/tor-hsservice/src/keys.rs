@@ -1,9 +1,9 @@
 //! HS service key specifiers.
 
 /// KP_hs_id, KS_hs_id.
-#[allow(unused)] // TODO hs: remove
+#[allow(unused)] // TODO hss: remove
 struct HsServiceIdentityKeySpecifier {
-    // TODO hs: fill out the implementation.
+    // TODO hss: fill out the implementation.
     //
     // NOTE: this is just a sketch and might not be the right way of representing HS service
     // specifiers (i.e. maybe we shouldn't have a separate *Specifier struct for each type of key).
@@ -12,9 +12,9 @@ struct HsServiceIdentityKeySpecifier {
 }
 
 /// KP_hs_blind_id, KS_hs_blind_id.
-#[allow(unused)] // TODO hs: remove
+#[allow(unused)] // TODO hss: remove
 struct HsServiceBlindedKeySpecifier {
-    // TODO hs: fill out the implementation.
+    // TODO hss: fill out the implementation.
     //
     // NOTE: this is just a sketch and might not be the right way of representing HS service
     // specifiers (i.e. maybe we shouldn't have a separate *Specifier struct for each type of key).
@@ -23,9 +23,9 @@ struct HsServiceBlindedKeySpecifier {
 }
 
 /// KP_hs_desc_sign, KS_hs_desc_sign.
-#[allow(unused)] // TODO hs: remove
+#[allow(unused)] // TODO hss: remove
 struct HsServiceDescriptorSigningKeySpecifier {
-    // TODO hs: fill out the implementation.
+    // TODO hss: fill out the implementation.
     //
     // NOTE: this is just a sketch and might not be the right way of representing HS service
     // specifiers (i.e. maybe we shouldn't have a separate *Specifier struct for each type of key).

@@ -14,7 +14,7 @@ pub(crate) struct StreamProxy {
 }
 
 impl StreamProxy {
-    // TODO hs need a new() function.  It should reject non-localhost addresses
+    // TODO hss need a new() function.  It should reject non-localhost addresses
     // by default, and have a way to override.  (Alternatively, that should be
     // done in the configuration code?)
 }
@@ -22,7 +22,7 @@ impl StreamProxy {
 #[async_trait]
 impl StreamHandler for StreamProxy {
     async fn handle_request(&self, circinfo: &(), stream: ()) {
-        todo!() // TODO hs: implement
+        todo!() // TODO hss: implement
 
         // - Look up the port for the incoming stream request.
         // - If no port is found, reject the request, and possibly increment a
