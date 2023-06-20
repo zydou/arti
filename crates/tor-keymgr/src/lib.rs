@@ -53,7 +53,7 @@ mod mgr;
 #[cfg(not(feature = "keymgr"))]
 mod dummy;
 
-pub use err::Error;
+pub use err::{Error, KeystoreError};
 pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
 
 #[cfg(feature = "keymgr")]
