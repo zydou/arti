@@ -64,12 +64,12 @@ impl Pool {
         self.circuits.retain(f);
     }
 
-    /// Return true if we ar very low on circuits and should build more immediately.
+    /// Return true if we are very low on circuits and should build more immediately.
     pub(super) fn very_low(&self) -> bool {
         self.circuits.len() <= self.target / 3
     }
 
-    /// Return the number of sircuits we would currently like to launch.
+    /// Return the number of circuits we would currently like to launch.
     pub(super) fn n_to_launch(&self) -> usize {
         self.target.saturating_sub(self.circuits.len())
     }
