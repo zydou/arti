@@ -67,6 +67,7 @@ impl KeyStore for ArtiNativeKeyStore {
     }
 
     fn has_key_bundle(&self, _key_spec: &dyn KeySpecifier) -> Result<bool> {
-        todo!()
+        // TODO HSS (#903): implement
+        Ok(true)
     }
 }
