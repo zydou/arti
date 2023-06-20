@@ -331,7 +331,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::GeoipDb;
+    use super::*;
     use std::net::Ipv4Addr;
 
     // NOTE(eta): this test takes a whole 1.6 seconds in *non-release* mode
@@ -388,5 +388,63 @@ mod test {
             db.lookup_country_code("dead:beef::1".parse().unwrap()),
             None
         );
+    }
+
+    #[test]
+    fn cc_parse() -> Result<(), Error> {
+        // real countries.
+        assert_eq!(CountryCode::from_str("us")?, CountryCode::from_str("US")?);
+        assert_eq!(CountryCode::from_str("UY")?, CountryCode::from_str("UY")?);
+
+        // not real as of this writing, but still representable.
+        assert_eq!(CountryCode::from_str("A7")?, CountryCode::from_str("a7")?);
+        assert_eq!(CountryCode::from_str("xz")?, CountryCode::from_str("xz")?);
+
+        // Can't convert to two bytes.
+        assert!(matches!(
+            CountryCode::from_str("z"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("🐻‍❄️"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("Sheboygan"),
+            Err(Error::BadCountryCode(_))
+        ));
+
+        // Can convert to two bytes, but still not printable ascii
+        assert!(matches!(
+            CountryCode::from_str("\r\n"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("\0\0"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("¡"),
+            Err(Error::BadCountryCode(_))
+        ));
+
+        // Not a country.
+        assert!(matches!(
+            CountryCode::from_str("??"),
+            Err(Error::NowhereNotSupported)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn opt_cc_parse() -> Result<(), Error> {
+        assert_eq!(
+            CountryCode::from_str("br")?,
+            OptionCc::from_str("BR")?.0.unwrap()
+        );
+        assert!(OptionCc::from_str("??")?.0.is_none());
+
+        Ok(())
     }
 }
