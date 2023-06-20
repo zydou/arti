@@ -2,6 +2,8 @@
 //!
 //! The Arti key store stores the keys on disk in OpenSSH format.
 
+mod err;
+
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
