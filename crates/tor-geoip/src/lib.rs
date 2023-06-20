@@ -76,13 +76,18 @@ pub struct CountryCode {
 
 impl CountryCode {
     /// Make a new `CountryCode`.
-    fn new(cc: &str) -> Result<Self, Error> {
-        let cc = cc.to_ascii_uppercase();
+    fn new(cc_orig: &str) -> Result<Self, Error> {
+        let cc = cc_orig.to_ascii_uppercase();
 
-        let cc = cc
+        let cc: [u8; 2] = cc
             .as_bytes()
             .try_into()
             .map_err(|_| Error::BadCountryCode(cc))?;
+
+        if !cc.iter().all(|b| b.is_ascii() && !b.is_ascii_control()) {
+            return Err(Error::BadCountryCode(cc_orig.to_owned()));
+        }
+
         if &cc == b"??" {
             return Err(Error::NowhereNotSupported);
         }
