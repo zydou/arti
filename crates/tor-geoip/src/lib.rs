@@ -64,7 +64,20 @@ static EMBEDDED_DB_V6: &str = include_str!("../data/geoip6");
 #[cfg(feature = "embedded-db")]
 static EMBEDDED_DB_PARSED: OnceCell<Arc<GeoipDb>> = OnceCell::new();
 
-/// An ISO 3166-1 alpha-2 country code.
+/// A two-letter country code.
+///
+/// Specifically, this type represents a purported "ISO 3166-1 alpha-2" country
+/// code, such as "IT" for Italy or "UY" for Uruguay.
+///
+/// It does not include the sentinel value `??` that we use to represent
+/// "country unknown"; if you need that, use [`OptionCc`]. Other than that, we
+/// do not check whether the country code represents a real country: we only
+/// ensure that it is a pair of printing ASCII characters.
+///
+/// Note that the geoip databases included with Arti will only include real
+/// countries; we do not include the pseudo-countries `A1` through `An` for
+/// "anonymous proxies", since doing so would mean putting nearly all Tor relays
+/// into one of those countries.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct CountryCode {
     /// The underlying value (two printable ASCII characters, stored uppercase).
