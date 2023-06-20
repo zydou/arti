@@ -16,7 +16,7 @@ use tor_rpcbase as rpc;
 ///
 ///  * The `RpcSession` is principally owned by the `Connection`'s object table.
 ///
-///  * Typically, after authnetication, there is one `RpcSession` for the `Connection`.
+///  * Typically, after authentication, there is one `RpcSession` for the `Connection`.
 ///    But a client may authenticate more than once; each time produces a new `RpcSession`.
 pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
