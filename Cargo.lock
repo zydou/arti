@@ -4479,6 +4479,7 @@ dependencies = [
  "tor-error",
  "tor-hscrypto",
  "tor-llcrypto",
+ "zeroize",
 ]
 
 [[package]]

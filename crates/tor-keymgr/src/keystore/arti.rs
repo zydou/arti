@@ -6,6 +6,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
+use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, KeyStore};
 use crate::{Error, KeyType, Result};
 
@@ -13,7 +14,7 @@ use fs_mistrust::{CheckedDir, Mistrust};
 
 /// The Arti key store.
 ///
-// TODO hs: `ArtiNativeKeyStore` (and `KeyType`) should not be dealing with filesystem operations.
+// TODO hs: `ArtiNativeKeyStore` should not be dealing with filesystem operations.
 //
 // Instead, we need to:
 //   * introduce a `FsMgr` trait that represents the filesystem operations we're interested in
@@ -66,11 +67,18 @@ impl ArtiNativeKeyStore {
 
 impl KeyStore for ArtiNativeKeyStore {
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<ErasedKey> {
-        let key_path = self.key_path(key_spec, key_type)?;
+        let path = self.key_path(key_spec, key_type)?;
 
-        // TODO: use CheckedDir::read_to_string to perform permission checks on the key file too.
-        // This will require some changes to the KeyType impl.
-        key_type.read_ssh_format_erased(&key_path)
+        let inner = self
+            .keystore_dir
+            .read(&path)
+            .map_err(|err| Error::Filesystem {
+                action: "read",
+                path: path.clone(),
+                err: err.into(),
+            })?;
+
+        key_type.parse_ssh_format_erased(&UnparsedOpenSshKey::new(inner))
     }
 
     fn insert(
@@ -79,11 +87,16 @@ impl KeyStore for ArtiNativeKeyStore {
         key_spec: &dyn KeySpecifier,
         key_type: KeyType,
     ) -> Result<()> {
-        let key_path = self.key_path(key_spec, key_type)?;
+        let path = self.key_path(key_spec, key_type)?;
+        let openssh_key = key_type.to_ssh_format(key)?;
 
-        // TODO: use CheckedDir::write_and_replace to perform permission checks on the key file too.
-        // This will require some changes to the KeyType impl.
-        key_type.write_ssh_format(key, &key_path)
+        self.keystore_dir
+            .write_and_replace(&path, openssh_key)
+            .map_err(|err| Error::Filesystem {
+                action: "write",
+                path,
+                err: err.into(),
+            })
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {

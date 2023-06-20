@@ -7,29 +7,46 @@ use ssh_key::private::KeypairData;
 pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 
 use std::io::ErrorKind;
-use std::path::Path;
 
+use crate::err::MalformedKeyErrorSource;
 use crate::{EncodableKey, ErasedKey, Error, KeyType, Result};
 
 use tor_llcrypto::pk::ed25519;
+use zeroize::Zeroizing;
+
+/// An unparsed OpenSSH key.
+///
+/// Note: This is a wrapper around the contents of a file we think is an OpenSSH key. The inner
+/// value is unchecked/unvalidated, and might not actually be a valid OpenSSH key.
+///
+/// The inner value is zeroed on drop.
+pub(crate) struct UnparsedOpenSshKey(Zeroizing<Vec<u8>>);
+
+impl UnparsedOpenSshKey {
+    /// Create a new [`UnparsedOpenSshKey`].
+    ///
+    /// The contents of `inner` are erased on drop.
+    pub(crate) fn new(inner: Vec<u8>) -> Self {
+        Self(Zeroizing::new(inner))
+    }
+}
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
-fn read_ed25519_keypair(key_type: KeyType, path: &Path) -> Result<ErasedKey> {
-    let key = ssh_key::PrivateKey::read_openssh_file(path).map_err(|e| {
+fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
+    let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| {
         if matches!(e, ssh_key::Error::Io(ErrorKind::NotFound)) {
             Error::NotFound { /* TODO hs */ }
         } else {
-            Error::SshKeyRead {
-                path: path.into(),
+            Error::MalformedKey(MalformedKeyErrorSource::SshKeyParse {
                 key_type,
                 err: e.into(),
-            }
+            })
         }
     })?;
 
     // Build the expected key type (i.e. convert ssh_key key types to the key types
     // we're using internally).
-    let key = match key.key_data() {
+    let key = match sk.key_data() {
         KeypairData::Ed25519(key) => {
             ed25519::Keypair::from_bytes(&key.to_bytes()).map_err(|_| {
                 Error::Bug(tor_error::internal!(
@@ -38,11 +55,12 @@ fn read_ed25519_keypair(key_type: KeyType, path: &Path) -> Result<ErasedKey> {
             })?;
         }
         _ => {
-            return Err(Error::UnexpectedSshKeyType {
-                path: path.into(),
-                wanted_key_algo: key_type.ssh_algorithm(),
-                found_key_algo: key.algorithm(),
-            });
+            return Err(Error::MalformedKey(
+                MalformedKeyErrorSource::UnexpectedSshKeyType {
+                    wanted_key_algo: key_type.ssh_algorithm(),
+                    found_key_algo: sk.algorithm(),
+                },
+            ));
         }
     };
 
@@ -69,23 +87,28 @@ impl KeyType {
         }
     }
 
-    /// Read an OpenSSH key, parse the key material into a known key type, returning the
+    /// Parse an OpenSSH key, convert the key material into a known key type, and return the
     /// type-erased value.
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn read_ssh_format_erased(&self, path: &Path) -> Result<ErasedKey> {
+    pub(crate) fn parse_ssh_format_erased(&self, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO hs: perhaps this needs to be a method on EncodableKey instead?
         match self {
-            KeyType::Ed25519Keypair => read_ed25519_keypair(*self, path),
+            KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
             KeyType::X25519StaticSecret => {
                 // TODO hs: implement
-                Err(Error::NotFound {})
+                Err(Error::MalformedKey(MalformedKeyErrorSource::Unsupported(
+                    *self,
+                )))
             }
         }
     }
 
-    /// Encode an OpenSSH-formatted key and write it to the specified file.
-    pub(crate) fn write_ssh_format(&self, _key: &dyn EncodableKey, _path: &Path) -> Result<()> {
+    /// Encode an OpenSSH-formatted key.
+    //
+    // TODO hs: remove "allow" and choose a better name for this function
+    #[allow(clippy::wrong_self_convention)]
+    pub(crate) fn to_ssh_format(&self, _key: &dyn EncodableKey) -> Result<String> {
         todo!() // TODO hs
     }
 }
