@@ -44,16 +44,14 @@ impl ArtiNativeKeyStore {
         Ok(Self { keystore_dir })
     }
 
-    /// The path on disk of the key with the specified identity and type.
+    /// The path on disk of the key with the specified identity and type, relative to
+    /// `keystore_dir`.
     fn key_path(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<PathBuf> {
-        // Note: it's safe to use the underlying `Path` of the `CheckedDir` because arti_path() and
-        // arti_extension() are guaranteed to not have any components that could take us outside
-        // the keystore_dir
-        let keystore_dir = self.keystore_dir.as_path();
-        let mut key_path = keystore_dir.join(&*key_spec.arti_path()?);
-        key_path.set_extension(key_type.arti_extension());
+        let arti_path: String = key_spec.arti_path()?.into();
+        let mut rel_path = PathBuf::from(arti_path);
+        rel_path.set_extension(key_type.arti_extension());
 
-        Ok(key_path)
+        Ok(rel_path)
     }
 }
 
@@ -98,15 +96,21 @@ impl KeyStore for ArtiNativeKeyStore {
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>> {
         let key_path = self.key_path(key_spec, key_type)?;
+        let to_fs_err = |err| Error::Filesystem {
+            action: "remove",
+            path: key_path.clone(),
+            err,
+        };
 
-        match fs::remove_file(&key_path) {
+        let abs_key_path = self
+            .keystore_dir
+            .join(&key_path)
+            .map_err(|e| to_fs_err(e.into()))?;
+
+        match fs::remove_file(&abs_key_path) {
             Ok(()) => Ok(Some(())),
             Err(e) if matches!(e.kind(), ErrorKind::NotFound) => Ok(None),
-            Err(e) => Err(Error::Filesystem {
-                action: "remove",
-                path: key_path,
-                err: e.into(),
-            }),
+            Err(e) => Err(to_fs_err(e.into())),
         }
     }
 
