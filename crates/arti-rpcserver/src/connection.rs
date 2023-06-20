@@ -33,12 +33,20 @@ use tor_rpcbase as rpc;
 /// An open connection from an RPC client.  
 ///
 /// Tracks information that persists from one request to another.
+///
+/// The client might not have authenticated;
+/// access and permissions control is handled via the capability system.
+/// Specifically, the `objects` table in `Inner` hold capabilities
+/// that the client will use to do things,
+/// including an `RpcSession`.
 pub struct Connection {
     /// The mutable state of this connection.
     inner: Mutex<Inner>,
 
     /// Lookup table to find the implementations for methods
     /// based on RPC object and method types.
+    ///
+    /// **NOTE: observe the [Lock hierarchy](crate::mgr::Inner#lock-hierarchy)**
     dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
 
     /// A unique identifier for this connection.

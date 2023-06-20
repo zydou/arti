@@ -7,7 +7,17 @@ use std::sync::Arc;
 
 use tor_rpcbase as rpc;
 
-/// An authenticated RPC session.
+/// An authenticated RPC session: a capability through which most other RPC functionality is available
+///
+/// This relates to [`Connection`](crate::Connection) as follows:
+///
+///  * A `Connection` exists prior to authentication;
+///    whereas an `RpcSession` comes into being as a result of authentication.
+///
+///  * The `RpcSession` is principally owned by the `Connection`'s object table.
+///
+///  * Typically, after authentication, there is one `RpcSession` for the `Connection`.
+///    But a client may authenticate more than once; each time produces a new `RpcSession`.
 pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
