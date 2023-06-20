@@ -41,11 +41,7 @@ use {
     tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
 };
 
-#[cfg(not(feature = "keymgr"))]
-// Use a dummy key manager if the `keymgr` feature is not enabled.
-use crate::keymgr::KeyMgr;
-#[cfg(feature = "keymgr")]
-use tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
+use crate::keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
@@ -579,11 +575,6 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), circpool)?
         };
 
-        #[cfg(all(not(feature = "keymgr")))]
-        // Use the no-op key manager
-        let keymgr = Arc::new(KeyMgr);
-
-        #[cfg(feature = "keymgr")]
         let keymgr = {
             // TODO hs: load the key store dir and permissions from the config.
             // Note: The Mistrust should be taken from StorageConfig (the keystore Mistrust needs

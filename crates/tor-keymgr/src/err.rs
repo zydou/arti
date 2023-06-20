@@ -74,7 +74,7 @@ pub enum Error {
     Bug(#[from] tor_error::Bug),
 }
 
-/// The underlying cause of an [`Error::KeyStoreFile`] error.
+/// The underlying cause of an [`Error::Filesystem`] error.
 //
 // TODO hs (#901): this introduces multiple levels of error `#[source]` nesting.
 //
