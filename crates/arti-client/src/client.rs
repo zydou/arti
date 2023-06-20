@@ -585,12 +585,25 @@ impl<R: Runtime> TorClient<R> {
 
         #[cfg(feature = "keymgr")]
         let keymgr = {
-            // TODO hs: load the key store dir from the config.
-            let key_store_dir = Default::default();
-            let arti_store = ArtiNativeKeyStore::new(key_store_dir)?;
-            // TODO hs: add support for the C Tor key store
-            let stores = vec![Box::new(arti_store) as Box<dyn KeyStore>];
+            // TODO hs: load the key store dir and permissions from the config.
+            // Note: The Mistrust should be taken from StorageConfig (the keystore Mistrust needs
+            // to be the same as elsewhere). Perhaps this means the keystore should be part of
+            // `storage`.
+            let key_store_dir = std::path::PathBuf::new();
+            let permissions = Default::default();
 
+            let mut stores: Vec<Box<dyn KeyStore>> = vec![];
+
+            // TODO hs: For now, let's ignore any errors coming from the ArtiNativeKeyStore
+            // constructor. We should remove this when we implement the key store config and bail
+            // if the keystore dir fails the validation checks.
+            if let Ok(arti_store) =
+                ArtiNativeKeyStore::from_path_and_mistrust(key_store_dir, &permissions)
+            {
+                stores.push(Box::new(arti_store));
+            }
+
+            // TODO hs: add support for the C Tor key store
             Arc::new(KeyMgr::new(stores))
         };
 

@@ -13,6 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 derive_more = "0.99.3"
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.1", features = ["serde", "walkdir"] }
 ssh-key = { version = "0.5.1", features = ["std"] }
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.5.0" }

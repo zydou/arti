@@ -37,7 +37,7 @@ pub enum Error {
         path: PathBuf,
         /// The underlying error.
         #[source]
-        err: Arc<io::Error>,
+        err: FsErrorSource,
     },
 
     /// The requested key was not found.
@@ -72,6 +72,39 @@ pub enum Error {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+/// The underlying cause of an [`Error::KeyStoreFile`] error.
+//
+// TODO hs (#901): this introduces multiple levels of error `#[source]` nesting.
+//
+// When addressing #901, turn `FsErrorSource::IoError` into a new variant of the outer `Error` type
+// rather than a variant of `Filesystem`.
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum FsErrorSource {
+    /// An IO error occurred.
+    #[error("IO error")]
+    IoError(#[source] Arc<std::io::Error>),
+
+    /// Permissions on a file or path were incorrect
+    #[error("Invalid permissions")]
+    Permissions(#[source] fs_mistrust::Error),
+}
+
+impl From<io::Error> for FsErrorSource {
+    fn from(e: io::Error) -> FsErrorSource {
+        FsErrorSource::IoError(Arc::new(e))
+    }
+}
+
+impl From<fs_mistrust::Error> for FsErrorSource {
+    fn from(e: fs_mistrust::Error) -> FsErrorSource {
+        match e {
+            fs_mistrust::Error::Io { err, .. } => FsErrorSource::IoError(err),
+            other => FsErrorSource::Permissions(other),
+        }
+    }
 }
 
 impl HasKind for Error {
