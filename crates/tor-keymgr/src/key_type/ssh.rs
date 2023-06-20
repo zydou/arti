@@ -97,12 +97,17 @@ impl KeyType {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
             KeyType::X25519StaticSecret => {
                 // TODO hs: implement
-                Err(Error::MalformedKey(MalformedKeyErrorSource::Unsupported(*self)))
+                Err(Error::MalformedKey(MalformedKeyErrorSource::Unsupported(
+                    *self,
+                )))
             }
         }
     }
 
     /// Encode an OpenSSH-formatted key.
+    //
+    // TODO hs: remove "allow" and choose a better name for this function
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn to_ssh_format(&self, _key: &dyn EncodableKey) -> Result<String> {
         todo!() // TODO hs
     }
