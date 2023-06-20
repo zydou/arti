@@ -78,6 +78,7 @@ dangerous-expose-struct-fields = ["visible", "visibility", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
 base64ct = { version = "1.5.1", features = ["alloc"] }
 bitflags = "2"
 cipher = { version = "0.4.1", features = ["zeroize"] }
