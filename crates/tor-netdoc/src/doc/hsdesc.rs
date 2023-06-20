@@ -168,7 +168,7 @@ pub struct EncryptedHsDesc {
 pub type UncheckedEncryptedHsDesc = signed::SignatureGated<timed::TimerangeBound<EncryptedHsDesc>>;
 
 impl StoredHsDescMeta {
-    // TODO hs: needs accessor functions too.  (Let's not use public fields; we
+    // TODO relay: needs accessor functions too.  (Let's not use public fields; we
     // are likely to want to mess with the repr of these types.)
 
     /// Parse the outermost layer of the descriptor in `input`, and return the
@@ -182,9 +182,6 @@ impl StoredHsDescMeta {
 }
 
 impl HsDesc {
-    // TODO hs: needs accessor functions too.  (Let's not use public fields; we
-    // are likely to want to mess with the repr of these types.)
-
     /// Parse the outermost document of the descriptor in `input`, and validate
     /// that its identity is consistent with `blinded_onion_id`.
     ///
