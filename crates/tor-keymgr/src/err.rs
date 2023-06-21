@@ -17,10 +17,6 @@ use std::sync::Arc;
 // Here is a non-exhaustive list of potential improvements:
 //   * use dyn KeySpecifier instead of ArtiPath in the error context
 //   * use an enum for the FileSystem action instead of a static string
-//   * decide what NotFound is supposed to mean (it has a double meaning
-//   right now: "not found in any of the key stores" when returned by KeyMgr,
-//   and "not found in this key store" when
-//   returned by a KeyStore)
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
@@ -41,10 +37,6 @@ pub enum Error {
     /// Encountered a malformed key.
     #[error("Malformed key: {0}")]
     MalformedKey(#[from] MalformedKeyErrorSource),
-
-    /// The requested key was not found.
-    #[error("Key not found")]
-    NotFound {/* TODO hs: add context */},
 
     /// An internal error.
     #[error("Internal error")]
@@ -121,7 +113,6 @@ impl HasKind for Error {
         // TODO hs: create `ErrorKind` variants for `tor_keymgr::Error`s.
         match self {
             Error::Filesystem { .. } => todo!(),
-            Error::NotFound { .. } => todo!(),
             Error::MalformedKey { .. } => todo!(),
             Error::Bug(e) => e.kind(),
         }

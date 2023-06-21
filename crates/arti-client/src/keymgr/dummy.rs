@@ -99,7 +99,7 @@ impl KeyMgr {
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
-    pub(crate) fn remove<K>(&self, _: &dyn Any) -> Result<()> {
+    pub(crate) fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
         Err(Error)
     }
 }
