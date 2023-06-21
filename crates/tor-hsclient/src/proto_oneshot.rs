@@ -74,13 +74,11 @@ impl<M> Sender<M> {
             err,
         });
 
-        trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
         #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
         reply_tx
             .send(outcome.clone())
             // If the caller went away, we just drop the outcome
             .unwrap_or_else(|_: Result<M, _>| ());
-        trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
 
         outcome.map(|_| disposition_on_success)
     }

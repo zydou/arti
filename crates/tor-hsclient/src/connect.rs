@@ -892,13 +892,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .await
             .map_err(handle_proto_error)?;
 
-        trace!("SEND CONTROL MESSAGE RETURNED"); // TODO HS REMOVE RSN!
-
         // `send_control_message` returns as soon as the control message has been sent.
         // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
         let _: RendezvousEstablished = rend_established_rx.recv(handle_proto_error).await?;
-
-        trace!("RENDEZVOUS"); // TODO HS REMOVE RSN!
 
         debug!(
             "hs conn to {}: RPT {}: got RENDEZVOUS_ESTABLISHED",
@@ -1179,10 +1175,10 @@ trait MocksForConnect<R>: Clone {
     type Rng: rand::Rng + rand::CryptoRng;
 
     /// Tell tests we got this descriptor text
-    fn test_got_desc(&self, desc: &HsDesc) {
+    fn test_got_desc(&self, _: &HsDesc) {
     }
     /// Tell tests we got this circuit
-    fn test_got_circ(&self, circ: &Arc<ClientCirc!(R, Self)>) {
+    fn test_got_circ(&self, _: &Arc<ClientCirc!(R, Self)>) {
     }
 
     /// Return a random number generator
