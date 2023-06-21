@@ -316,7 +316,6 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     }
 
     /// Return a reference to this Builder's timeout estimator.
-    #[cfg(feature = "hs-common")]
     pub(crate) fn estimator(&self) -> &timeouts::Estimator {
         &self.timeouts
     }
@@ -459,7 +458,6 @@ impl<R: Runtime> CircuitBuilder<R> {
     }
 
     /// Return a reference to this builder's timeout estimator.
-    #[cfg(feature = "hs-common")]
     pub(crate) fn estimator(&self) -> &timeouts::Estimator {
         self.builder.estimator()
     }

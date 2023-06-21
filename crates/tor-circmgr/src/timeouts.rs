@@ -66,7 +66,7 @@ pub(crate) trait TimeoutEstimator {
 /// A possible action for which we can try to estimate a timeout.
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Action {
+pub enum Action {
     /// Build a circuit of a given length.
     BuildCircuit {
         /// The length of the circuit to construct.

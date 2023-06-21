@@ -68,7 +68,7 @@ pub mod isolation;
 mod mgr;
 pub mod path;
 mod preemptive;
-mod timeouts;
+pub mod timeouts;
 mod usage;
 
 pub use err::Error;
@@ -546,6 +546,36 @@ impl<R: Runtime> CircMgr<R> {
     /// be very clear that you don't want to use it haphazardly.
     pub(crate) fn retire_all_circuits(&self) {
         self.mgr.retire_all_circuits();
+    }
+
+    /// Return an estimate-based delay for how long a given
+    /// [`Action`](timeouts::Action) should be allowed to complete.
+    ///
+    /// Note that **you do not need to use this function** in order to get
+    /// reasonable timeouts for the circuit-building operations provided by the
+    /// `tor-circmgr` crate: those, unless specifically noted, always use these
+    /// timeouts to cancel circuit operations that have taken too long.
+    ///
+    /// Instead, you should only use this function when you need to estimate how
+    /// long some _other_ operation should take to complete.  For example, if
+    /// you are sending a request over a 3-hop circuit and waiting for a reply,
+    /// you might choose to wait for `estimate_timeout(Action::RoundTrip {
+    /// length: 3 })`.
+    ///
+    /// Note also that this function returns a _timeout_ that the operation
+    /// should be permitted to complete, not an estimated Duration that the
+    /// operation _will_ take to complete. Timeouts are chosen to ensure that
+    /// most operations will complete, but very slow ones will not.  So even if
+    /// we expect that a circuit will complete in (say) 3 seconds, we might
+    /// still allow a timeout of 4.5 seconds, to ensure that most circuits can
+    /// complete.
+    ///
+    /// Estimate-based timeouts may change over time, given observations on the
+    /// actual amount of time needed for circuits to complete building.  If not
+    /// enough information has been gathered, a reasonable default will be used.
+    pub fn estimate_timeout(&self, timeout_action: &timeouts::Action) -> std::time::Duration {
+        let (timeout, _abandon) = self.mgr.peek_builder().estimator().timeouts(timeout_action);
+        timeout
     }
 
     /// Expire every circuit that has been dirty for too long.
