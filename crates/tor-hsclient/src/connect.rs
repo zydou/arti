@@ -177,8 +177,6 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     hsid: HsId,
     /// Blinded HS ID
     hs_blind_id: HsBlindId,
-    /// Blinded HS ID as a key
-    hs_blind_id_key: HsBlindIdKey,
     /// The subcredential to use during this time period
     subcredential: Subcredential,
     /// Mock data
@@ -368,7 +366,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             netdir,
             hsid,
             hs_blind_id,
-            hs_blind_id_key,
             subcredential,
             circpool,
             runtime,
