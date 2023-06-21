@@ -29,6 +29,8 @@ pub trait KeystoreError:
 // Generate a Clone impl for Box<dyn KeystoreError>
 dyn_clone::clone_trait_object!(KeystoreError);
 
+impl KeystoreError for tor_error::Bug {}
+
 impl<K: KeystoreError + Send + Sync> From<K> for BoxedError {
     fn from(k: K) -> Self {
         Box::new(k)
