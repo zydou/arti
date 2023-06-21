@@ -143,7 +143,7 @@ rust-nightly:
     # and similar, for when nightly clippy has false positives.  (There is no builtin
     # cfg flag for nightly, and a cargo "feature" would be bad with --all-features.)
     - (echo; cat clippy-nightly.toml) >>clippy.toml
-    - cargo clippy --all-features --tests -- --cfg ci_arti_nightly -D clippy::dbg_macro -D clippy::print_stdout -D clippy::print_stderr
+    - cargo clippy --all-features --tests -- --cfg ci_arti_nightly -D clippy::dbg_macro
     - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
   after_script:
     - cargo clean
