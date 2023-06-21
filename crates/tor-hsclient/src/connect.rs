@@ -71,7 +71,6 @@ macro_rules! ClientCirc { { $R:ty, $M:ty } => {
 // be `pub` because it appears as a default for a type parameter in HsClientConnector.
 pub struct Data {
     /// The latest known onion service descriptor for this service.
-    #[educe(Debug(ignore))] // TODO HS do better than this
     desc: DataHsDesc,
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
