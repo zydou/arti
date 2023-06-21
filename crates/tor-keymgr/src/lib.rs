@@ -40,11 +40,11 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-pub(crate) mod err;
-pub(crate) mod key_specifier;
-pub(crate) mod key_type;
-pub(crate) mod keystore;
-pub(crate) mod mgr;
+mod err;
+mod key_specifier;
+mod key_type;
+mod keystore;
+mod mgr;
 
 pub use err::Error;
 pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
