@@ -1316,6 +1316,9 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    #![allow(dead_code, unused_variables)] // TODO HS TESTS delete, after tests are completed
+
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
@@ -1341,7 +1344,6 @@ mod test {
         id: I,
     }
 
-    #[allow(dead_code)] // TODO HS delete this, and maybe id, if it ends up indeed unused
     impl<I> Mocks<I> {
         fn map_id<J>(&self, f: impl FnOnce(&I) -> J) -> Mocks<J> {
             Mocks {
