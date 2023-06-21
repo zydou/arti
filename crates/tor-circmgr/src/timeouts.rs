@@ -75,17 +75,16 @@ pub enum Action {
         length: usize,
     },
     /// Extend a given circuit from one length to another.
-    #[allow(dead_code)]
     ExtendCircuit {
         /// The current length of the circuit.
         initial_length: usize,
         /// The new length of the circuit.
         ///
-        /// (Must be greater than `initial_length`.)
+        /// (Should typically be greater than `initial_length`; otherwise we
+        /// estimate a zero timeout.)
         final_length: usize,
     },
     /// Send a message to the last hop of a circuit and receive a response
-    #[allow(dead_code)]
     RoundTrip {
         /// The length of the circuit.
         length: usize,
