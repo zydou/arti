@@ -9,7 +9,7 @@
 use fs_mistrust::Mistrust;
 use std::any::Any;
 use std::path::Path;
-use tor_error::{ErrorKind, HasKind};
+use crate::{Error, Result};
 
 /// A dummy key manager implementation.
 ///
@@ -23,20 +23,6 @@ use tor_error::{ErrorKind, HasKind};
 // TODO hs: Remove the generic param and inner error from KeyMgr and expose a KeyMgrError instead.
 #[derive(Copy, Clone, Debug)]
 pub struct KeyMgr;
-
-/// An error type for the dummy key manager.
-#[derive(Copy, Clone, Debug, thiserror::Error)]
-#[error("Cannot access key store: `keymgr` feature is disabled")]
-pub struct Error;
-
-impl HasKind for Error {
-    fn kind(&self) -> ErrorKind {
-        ErrorKind::Other
-    }
-}
-
-/// A result type for this module.
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// A dummy key store trait.
 pub trait KeyStore {}
@@ -91,7 +77,7 @@ impl KeyMgr {
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps)]
     pub fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
-        Err(Error)
+        Err(Error::KeyMgrNotSupported)
     }
 
     /// A dummy `remove` implementation that always fails.
@@ -103,6 +89,6 @@ impl KeyMgr {
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
     pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
-        Err(Error)
+        Err(Error::KeyMgrNotSupported)
     }
 }

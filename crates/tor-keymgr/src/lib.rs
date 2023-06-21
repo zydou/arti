@@ -5,8 +5,7 @@
 #![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
-// TODO hs: uncomment after removing unused types from dummy.rs
-// #![deny(unreachable_pub)]
+#![deny(unreachable_pub)]
 #![warn(clippy::all)]
 #![deny(clippy::await_holding_lock)]
 #![deny(clippy::cargo_common_metadata)]
