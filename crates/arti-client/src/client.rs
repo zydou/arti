@@ -304,7 +304,7 @@ impl StreamPrefs {
     /// Indicate whether connection to a hidden service (`.onion` service) should be allowed
     ///
     /// If `false`, attempts to connect to Onion Services will be forced to fail with
-    /// an error of kind [`InvalidStreamTarget`](ErrorKind::InvalidStreamTarget).
+    /// an error of kind [`InvalidStreamTarget`](crate::ErrorKind::InvalidStreamTarget).
     ///
     /// By default this is enabled.
     #[cfg(feature = "onion-service-client")]
