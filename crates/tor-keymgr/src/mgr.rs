@@ -32,15 +32,16 @@ impl KeyMgr {
         // Check if the requested key identity exists in any of the key stores:
         for store in &self.key_stores {
             let key = match store.get(key_spec, K::Key::key_type()) {
-                Err(Error::NotFound { .. }) => {
+                Ok(None) => {
                     // The key doesn't exist in this store, so we check the next one...
                     continue;
                 }
-                res => {
+                Ok(Some(k)) => k,
+                Err(e) => {
                     // TODO hs: we immediately return if one of the keystores is inaccessible.
                     // Perhaps we should ignore any errors and simply poll the next store in the
                     // list?
-                    res?
+                    return Err(e);
                 }
             };
 
@@ -93,19 +94,23 @@ impl KeyMgr {
     /// Remove the specified key.
     ///
     /// If the key exists in multiple key stores, this will only remove it from the first one.
-    /// Returns [`Error::NotFound`] if none of the key stores have the specified key.
-    pub fn remove<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<()> {
+    ///
+    /// A return vaue of `Ok(None)` indicates the key doesn't exist in any of the key stores,
+    /// whereas `Ok(Some(())` means the key was successfully removed.
+    ///
+    /// Returns `Err` if an error occurred while trying to remove the key.
+    pub fn remove<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<()>> {
         for store in &self.key_stores {
             match store.remove(key_spec, K::Key::key_type()) {
-                Ok(()) => return Ok(()),
-                Err(Error::NotFound { .. }) => continue,
-                Err(e) => {
-                    // Note: we immediately return if one of the keystores is inaccessible.
-                    return Err(e);
+                Ok(None) => {
+                    // This key store doesn't have the key we're trying to remove, so we search the
+                    // next key store...
+                    continue;
                 }
+                res => return res,
             }
         }
 
-        Err(Error::NotFound { /* TODO hs: add context */ })
+        Ok(None)
     }
 }

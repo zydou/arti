@@ -66,19 +66,24 @@ impl ArtiNativeKeyStore {
 }
 
 impl KeyStore for ArtiNativeKeyStore {
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<ErasedKey> {
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
         let path = self.key_path(key_spec, key_type)?;
 
-        let inner = self
-            .keystore_dir
-            .read(&path)
-            .map_err(|err| Error::Filesystem {
+        let inner = match self.keystore_dir.read(&path) {
+            Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
+            Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
+                return Ok(None);
+            }
+            res => res.map_err(|err| Error::Filesystem {
                 action: "read",
                 path: path.clone(),
                 err: err.into(),
-            })?;
+            })?,
+        };
 
-        key_type.parse_ssh_format_erased(&UnparsedOpenSshKey::new(inner))
+        key_type
+            .parse_ssh_format_erased(&UnparsedOpenSshKey::new(inner))
+            .map(Some)
     }
 
     fn insert(
@@ -99,22 +104,18 @@ impl KeyStore for ArtiNativeKeyStore {
             })
     }
 
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()> {
+    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>> {
         let key_path = self.key_path(key_spec, key_type)?;
 
-        fs::remove_file(&key_path).map_err(|e| {
-            if matches!(e.kind(), ErrorKind::NotFound) {
-                Error::NotFound { /* TODO hs: add context */ }
-            } else {
-                Error::Filesystem {
-                    action: "remove",
-                    path: key_path,
-                    err: e.into(),
-                }
-            }
-        })?;
-
-        Ok(())
+        match fs::remove_file(&key_path) {
+            Ok(()) => Ok(Some(())),
+            Err(e) if matches!(e.kind(), ErrorKind::NotFound) => Ok(None),
+            Err(e) => Err(Error::Filesystem {
+                action: "remove",
+                path: key_path,
+                err: e.into(),
+            }),
+        }
     }
 
     fn has_key_bundle(&self, _key_spec: &dyn KeySpecifier) -> Result<bool> {

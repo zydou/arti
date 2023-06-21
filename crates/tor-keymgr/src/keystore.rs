@@ -20,7 +20,10 @@ pub type ErasedKey = Box<dyn Any>;
 // to something more generic (such as `SecretStore` or `Vault`).
 pub trait KeyStore: Send + Sync + 'static {
     /// Retrieve the key identified by `key_spec`.
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<ErasedKey>;
+    ///
+    /// Returns `Ok(Some(key))` if the key was successfully retrieved. Returns `Ok(None)` if the
+    /// key does not exist in this key store.
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
     //
@@ -47,7 +50,12 @@ pub trait KeyStore: Send + Sync + 'static {
     ) -> Result<()>;
 
     /// Remove the specified key.
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<()>;
+    ///
+    /// A return vaue of `Ok(None)` indicates the key doesn't exist in this key store, whereas
+    /// `Ok(Some(())` means the key was successfully removed.
+    ///
+    /// Returns `Err` if an error occurred while trying to remove the key.
+    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>>;
 
     /// Check whether the key bundle associated with the specified identity is in the store.
     fn has_key_bundle(&self, key_spec: &dyn KeySpecifier) -> Result<bool>;
