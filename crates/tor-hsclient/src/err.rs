@@ -296,7 +296,7 @@ impl HasRetryTime for FailedAttemptError {
             FAE::RendezvousCircuitObtain { error } => error.retry_time(),
             FAE::IntroductionCircuitObtain { error, .. } => error.retry_time(),
             FAE::IntroductionFailed { status, .. } => status.retry_time(),
-            FAE::Bug(bug) => RT::Never,
+            FAE::Bug(_) => RT::Never,
             // tor_proto::Error doesn't impl HasRetryTime, so we guess
             FAE::RendezvousCompletion { error: _e, .. }
             | FAE::IntroductionExchange { error: _e, .. }
@@ -397,7 +397,7 @@ impl HasKind for FailedAttemptError {
         use ErrorKind as EK;
         use FailedAttemptError as FAE;
         match self {
-            FAE::UnusableIntro { error, .. } => EK::OnionServiceDescriptorValidationFailed,
+            FAE::UnusableIntro { .. } => EK::OnionServiceDescriptorValidationFailed,
             FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
             FAE::RendezvousCompletion { error, .. } => error.kind(),
