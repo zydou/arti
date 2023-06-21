@@ -24,8 +24,7 @@ use tracing::{debug, trace, warn};
 use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::{
-    AuthKeyType, EstablishRendezvous, IntroduceAck,
-    RendezvousEstablished,
+    AuthKeyType, EstablishRendezvous, IntroduceAck, RendezvousEstablished,
 };
 use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
@@ -1166,11 +1165,9 @@ trait MocksForConnect<R>: Clone {
     type Rng: rand::Rng + rand::CryptoRng;
 
     /// Tell tests we got this descriptor text
-    fn test_got_desc(&self, _: &HsDesc) {
-    }
+    fn test_got_desc(&self, _: &HsDesc) {}
     /// Tell tests we got this circuit
-    fn test_got_circ(&self, _: &Arc<ClientCirc!(R, Self)>) {
-    }
+    fn test_got_circ(&self, _: &Arc<ClientCirc!(R, Self)>) {}
 
     /// Return a random number generator
     fn thread_rng(&self) -> Self::Rng;
