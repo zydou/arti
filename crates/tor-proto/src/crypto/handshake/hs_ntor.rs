@@ -3,7 +3,7 @@
 //! The Ntor protocol of this section is specified in section
 //! [NTOR-WITH-EXTRA-DATA] of rend-spec-v3.txt.
 //!
-//! The main difference between this HS Ntor handshake and the standard Ntor
+//! The main difference between this HS Ntor handshake and the regular Ntor
 //! handshake in ./ntor.rs is that this one allows each party to encrypt data
 //! (without forward secrecy) after it sends the first message. This
 //! opportunistic encryption property is used by clients in the onion service
@@ -12,13 +12,7 @@
 //!
 //! # Status
 //!
-//! This module is a work in progress, and is not actually used anywhere yet
-//! or tested: please expect the API to change.
-//!
 //! This module is available only when the `hs-common` feature is enabled.
-//
-// TODO hs: go  through this code carefully and make sure that its APIs and
-// behavior are still what we want.
 
 // We want to use the exact variable names from the rend-spec-v3.txt proposal.
 // This means that we allow variables to be named x (privkey) and X (pubkey).
@@ -90,9 +84,12 @@ pub struct HsNtorServiceInfo {
     /// Introduction point authentication key (aka `AUTH_KEY`, aka `KP_hs_ipt_sid`)
     /// (found in the HS descriptor)
     ///
-    /// TODO HS: This is needed to begin _and end_ the handshake, which makes
+    /// TODO: This is needed to begin _and end_ the handshake, which makes
     /// things a little trickier if someday we want to have several of these
-    /// handshakes in operation at once.  How does C tor handle the issue??
+    /// handshakes in operation at once, so that we can make
+    /// multiple introduction attempts simultaneously
+    /// using the same renedezvous point.
+    /// That's not something that C Tor supports, though, so neither do we (yet).
     auth_key: HsIntroPtSessionIdKey,
 
     /// Service subcredential
@@ -264,7 +261,7 @@ fn encrypt_and_mac(
 
 /// The input required to enter the HS Ntor protocol as a service
 //
-// TODO HS: maybe these should be references, or should be arguments to
+// TODO HSS: maybe these should be references, or should be arguments to
 // server_receive_intro function.
 pub struct HsNtorServiceInput {
     /// Introduction point encryption privkey
