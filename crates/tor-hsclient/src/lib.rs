@@ -51,7 +51,6 @@ mod state;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use derive_more::{From, Into};
 use educe::Educe;
 
 use tor_circmgr::hspool::HsCircPool;

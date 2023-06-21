@@ -1,10 +1,8 @@
 //! Main implementation of the connection functionality
 #![allow(clippy::print_stderr)] // Code here is not finished.  TODO hs remove.
 
-use std::any::Any;
 use std::time::Duration;
 
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -13,7 +11,6 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use educe::Educe;
-use futures::channel::oneshot;
 use futures::{AsyncRead, AsyncWrite};
 use itertools::Itertools;
 use rand::Rng;
@@ -22,22 +19,22 @@ use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
 use tor_error::Bug;
 use tor_hscrypto::Subcredential;
-use tor_proto::circuit::handshake::{self, hs_ntor};
+use tor_proto::circuit::handshake::hs_ntor;
 use tracing::{debug, trace, warn};
 
 use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::{
-    AuthKeyType, EstablishRendezvous, IntroduceAck, IntroduceAckStatus, IntroduceHeader,
+    AuthKeyType, EstablishRendezvous, IntroduceAck,
     RendezvousEstablished,
 };
-use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
+use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::Requestable as _;
 use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_error::{HasRetryTime as _, RetryTime};
-use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsClientDescEncKey, HsId, HsIdKey};
+use tor_hscrypto::pk::{HsBlindId, HsClientDescEncKey, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
