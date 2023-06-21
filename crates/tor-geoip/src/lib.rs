@@ -44,6 +44,7 @@ use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
 use std::num::NonZeroU32;
+use std::str::FromStr;
 use std::sync::Arc;
 
 mod err;
@@ -63,22 +64,46 @@ static EMBEDDED_DB_V6: &str = include_str!("../data/geoip6");
 #[cfg(feature = "embedded-db")]
 static EMBEDDED_DB_PARSED: OnceCell<Arc<GeoipDb>> = OnceCell::new();
 
-/// An ISO 3166-1 alpha-2 country code.
+/// A two-letter country code.
+///
+/// Specifically, this type represents a purported "ISO 3166-1 alpha-2" country
+/// code, such as "IT" for Italy or "UY" for Uruguay.
+///
+/// It does not include the sentinel value `??` that we use to represent
+/// "country unknown"; if you need that, use [`OptionCc`]. Other than that, we
+/// do not check whether the country code represents a real country: we only
+/// ensure that it is a pair of printing ASCII characters.
+///
+/// Note that the geoip databases included with Arti will only include real
+/// countries; we do not include the pseudo-countries `A1` through `An` for
+/// "anonymous proxies", since doing so would mean putting nearly all Tor relays
+/// into one of those countries.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct CountryCode {
     /// The underlying value (two printable ASCII characters, stored uppercase).
+    ///
+    /// The special value `??` is excluded, since it is not a country; use
+    /// `OptionCc` instead if you need to represent that.
     inner: [u8; 2],
 }
 
 impl CountryCode {
     /// Make a new `CountryCode`.
-    fn new(cc: &str) -> Result<Self, Error> {
-        let cc = cc.to_ascii_uppercase();
+    fn new(cc_orig: &str) -> Result<Self, Error> {
+        let cc = cc_orig.to_ascii_uppercase();
 
-        let cc = cc
+        let cc: [u8; 2] = cc
             .as_bytes()
             .try_into()
             .map_err(|_| Error::BadCountryCode(cc))?;
+
+        if !cc.iter().all(|b| b.is_ascii() && !b.is_ascii_control()) {
+            return Err(Error::BadCountryCode(cc_orig.to_owned()));
+        }
+
+        if &cc == b"??" {
+            return Err(Error::NowhereNotSupported);
+        }
 
         Ok(Self { inner: cc })
     }
@@ -110,6 +135,44 @@ impl AsRef<str> for CountryCode {
     }
 }
 
+impl FromStr for CountryCode {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        CountryCode::new(s)
+    }
+}
+
+/// Wrapper for an `Option<`[`CountryCode`]`>` that encodes `None` as `??`.
+///
+/// Used so that we can implement foreign traits.
+#[derive(
+    Copy, Clone, Debug, Eq, PartialEq, derive_more::Into, derive_more::From, derive_more::AsRef,
+)]
+#[allow(clippy::exhaustive_structs)]
+pub struct OptionCc(pub Option<CountryCode>);
+
+impl FromStr for OptionCc {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match CountryCode::new(s) {
+            Err(Error::NowhereNotSupported) => Ok(None.into()),
+            Err(e) => Err(e),
+            Ok(cc) => Ok(Some(cc).into()),
+        }
+    }
+}
+
+impl Display for OptionCc {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Some(cc) => write!(f, "{}", cc),
+            None => write!(f, "??"),
+        }
+    }
+}
+
 /// A country code / ASN definition.
 ///
 /// Type lifted from `geoip-db-tool` in the C-tor source.
@@ -131,11 +194,7 @@ impl NetDefn {
             .transpose()
             .map_err(|_| Error::BadFormat("got an ASN with value 0"))?;
 
-        let cc = if cc != "??" {
-            Some(CountryCode::new(cc)?)
-        } else {
-            None
-        };
+        let cc = cc.parse::<OptionCc>()?.into();
 
         Ok(Self { cc, asn })
     }
@@ -272,7 +331,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::GeoipDb;
+    use super::*;
     use std::net::Ipv4Addr;
 
     // NOTE(eta): this test takes a whole 1.6 seconds in *non-release* mode
@@ -329,5 +388,63 @@ mod test {
             db.lookup_country_code("dead:beef::1".parse().unwrap()),
             None
         );
+    }
+
+    #[test]
+    fn cc_parse() -> Result<(), Error> {
+        // real countries.
+        assert_eq!(CountryCode::from_str("us")?, CountryCode::from_str("US")?);
+        assert_eq!(CountryCode::from_str("UY")?, CountryCode::from_str("UY")?);
+
+        // not real as of this writing, but still representable.
+        assert_eq!(CountryCode::from_str("A7")?, CountryCode::from_str("a7")?);
+        assert_eq!(CountryCode::from_str("xz")?, CountryCode::from_str("xz")?);
+
+        // Can't convert to two bytes.
+        assert!(matches!(
+            CountryCode::from_str("z"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("🐻‍❄️"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("Sheboygan"),
+            Err(Error::BadCountryCode(_))
+        ));
+
+        // Can convert to two bytes, but still not printable ascii
+        assert!(matches!(
+            CountryCode::from_str("\r\n"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("\0\0"),
+            Err(Error::BadCountryCode(_))
+        ));
+        assert!(matches!(
+            CountryCode::from_str("¡"),
+            Err(Error::BadCountryCode(_))
+        ));
+
+        // Not a country.
+        assert!(matches!(
+            CountryCode::from_str("??"),
+            Err(Error::NowhereNotSupported)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn opt_cc_parse() -> Result<(), Error> {
+        assert_eq!(
+            CountryCode::from_str("br")?,
+            OptionCc::from_str("BR")?.0.unwrap()
+        );
+        assert!(OptionCc::from_str("??")?.0.is_none());
+
+        Ok(())
     }
 }
