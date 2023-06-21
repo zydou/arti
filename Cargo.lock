@@ -50,6 +50,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "amplify"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f26966af46e0d200e8bf2b7f16230997c1c3f2d141bc27ccc091c012ed527b58"
+dependencies = [
+ "amplify_derive",
+ "amplify_num",
+ "ascii",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "amplify_derive"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c87df0f28e6eb1f2d355f29ba6793fa9ca643967528609608d5cbd70bd68f9d1"
+dependencies = [
+ "amplify_syn",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "amplify_num"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddce3bc63e807ea02065e8d8b702695f3d302ae4158baddff8b0ce5c73947251"
+
+[[package]]
+name = "amplify_syn"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7736fb8d473c0d83098b5bac44df6a561e20470375cd8bcae30516dc889fd62a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,6 +328,12 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "ascii"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
 
 [[package]]
 name = "assert-impl"
@@ -4587,6 +4634,7 @@ dependencies = [
 name = "tor-netdoc"
 version = "0.8.0"
 dependencies = [
+ "amplify",
  "base64ct",
  "bitflags 2.3.1",
  "cipher",

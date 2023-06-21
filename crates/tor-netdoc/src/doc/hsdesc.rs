@@ -130,7 +130,7 @@ pub enum IntroAuthType {
 
 /// Information in an onion service descriptor about a single
 /// introduction point.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, amplify::Getters)]
 pub struct IntroPointDesc {
     /// The list of link specifiers needed to extend a circuit to the introduction point.
     ///
@@ -138,6 +138,7 @@ pub struct IntroPointDesc {
     //
     // TODO hs: perhaps we should make certain link specifiers mandatory? That
     // would make it possible for IntroPointDesc to implement CircTarget.
+    #[getter(skip)]
     link_specifiers: Vec<EncodedLinkSpec>,
 
     /// The key to be used to extend a circuit _to the introduction point_, using the
@@ -167,7 +168,7 @@ pub struct EncryptedHsDesc {
 pub type UncheckedEncryptedHsDesc = signed::SignatureGated<timed::TimerangeBound<EncryptedHsDesc>>;
 
 impl StoredHsDescMeta {
-    // TODO hs: needs accessor functions too.  (Let's not use public fields; we
+    // TODO relay: needs accessor functions too.  (Let's not use public fields; we
     // are likely to want to mess with the repr of these types.)
 
     /// Parse the outermost layer of the descriptor in `input`, and return the
@@ -181,9 +182,6 @@ impl StoredHsDescMeta {
 }
 
 impl HsDesc {
-    // TODO hs: needs accessor functions too.  (Let's not use public fields; we
-    // are likely to want to mess with the repr of these types.)
-
     /// Parse the outermost document of the descriptor in `input`, and validate
     /// that its identity is consistent with `blinded_onion_id`.
     ///
@@ -298,21 +296,11 @@ impl HsDesc {
     /// One or more introduction points used to contact the onion service.
     ///
     /// Accessor function.
-    // TODO HS derive this accessor
     //
-    // For this and others I considered the following crates:
+    // TODO: We'd like to derive this, but amplify::Getters  would give us &Vec<>,
+    // not &[].
     //
-    //  * amplify_derive, derive-getters, accessors-rs:
-    //    No way to deref the Vec to [], which I think is desirable
-    //    (after all, eventually these might become Box<[]>.
-    //
-    //  * getset: Always generates methods called `get_` which isn't what we want.
-    //  * tia: Same problem.  Also strange API.
-    //  * field_accessor: Works with Strings.
-    //  * accessors: Always uses `get` prefix, underdocumented.
-    //  * structural: Seems to be something much more reflection-y.
-    //
-    // derive-adhoc would make short work of this problem.
+    // Perhaps someday we can use derive_adhoc, or add as_ref() support?
     pub fn intro_points(&self) -> &[IntroPointDesc] {
         &self.intro_points
     }
@@ -324,40 +312,11 @@ impl IntroPointDesc {
     /// These can include public keys and network addresses.
     ///
     /// Accessor function.
-    // TODO HS derive this accessor (see above)
+    //
+    // TODO: It would be better to derive this too, but this accessor needs to
+    // return a slice; Getters can only give us a &Vec<> in this case.
     pub fn link_specifiers(&self) -> &[EncodedLinkSpec] {
         &self.link_specifiers
-    }
-
-    /// The key to be used to extend a circuit _to the introduction point_, using the
-    /// ntor or ntor3 handshakes.  (`KP_ntor`)
-    ///
-    /// Accessor function.
-    // TODO HS derive this accessor (see above)
-    pub fn ipt_ntor_key(&self) -> &curve25519::PublicKey {
-        &self.ipt_ntor_key
-    }
-
-    /// The key to be used to identify the onion service at this introduction point.
-    /// (`KP_hs_ipt_sid`)
-    ///
-    /// Accessor function.
-    // TODO HS derive this accessor (see above)
-    pub fn ipt_sid_key(&self) -> &HsIntroPtSessionIdKey {
-        &self.ipt_sid_key
-    }
-
-    /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
-    /// service_ when using this introduction point.
-    ///
-    /// The onion service uses a separate key of this type with each
-    /// introduction point as part of its strategy for preventing replay
-    /// attacks.
-    ///
-    /// Accessor function.
-    // TODO HS derive this accessor (see above)
-    pub fn svc_ntor_key(&self) -> &HsSvcNtorKey {
-        &self.svc_ntor_key
     }
 }
 
