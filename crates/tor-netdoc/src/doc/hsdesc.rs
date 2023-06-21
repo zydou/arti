@@ -401,7 +401,7 @@ impl EncryptedHsDesc {
                 hsc_desc_enc.map(|keys| keys.1),
             )
             .map_err(|_| {
-                EK::BadObjectVal.with_msg("onion service descriptor encryption failed.")
+                EK::DecryptionFailed.with_msg("onion service descriptor encryption failed.")
             })?;
         let inner = std::str::from_utf8(&inner[..])
             .map_err(|_| EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))?;

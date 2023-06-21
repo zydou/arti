@@ -127,11 +127,32 @@ pub enum DescriptorErrorDetail {
 
     /// Failed to parse or validate descriptor
     #[error("invalid descriptor")]
-    InvalidDescriptor(#[from] tor_netdoc::Error),
+    InvalidDescriptor(#[source] tor_netdoc::Error),
+
+    /// Unable to decrypt a descriptor: we were missing a key.
+    #[error("missing decryption key")]
+    MissingDecryptionKey(#[source] tor_netdoc::Error),
+
+    /// Unable to decrypt a descriptor: we had the wrong key.
+    #[error("wrong decryption key")]
+    WrongDecryptionKey(#[source] tor_netdoc::Error),
 
     /// Internal error
     #[error("{0}")]
     Bug(#[from] Bug),
+}
+
+impl DescriptorErrorDetail {
+    /// Construct a [`DescriptorErrorDetail`] from a [`tor_netdoc::Error`], and a flag
+    /// telling us whether we were using any keys to decrypt it.
+    pub(crate) fn from_netdoc_err(err: tor_netdoc::Error, auth_provided: bool) -> Self {
+        use tor_netdoc::NetdocErrorKind as NEK;
+        match err.netdoc_error_kind() {
+            NEK::DecryptionFailed if auth_provided => Self::WrongDecryptionKey(err),
+            NEK::DecryptionFailed => Self::MissingDecryptionKey(err),
+            _ => Self::InvalidDescriptor(err),
+        }
+    }
 }
 
 /// Error that occurred making one attempt to connect to a hidden service using an IP and RP
@@ -367,6 +388,8 @@ impl HasKind for DescriptorErrorDetail {
                 NEK::BadTimeBound | NEK::BadSignature => EK::OnionServiceDescriptorValidationFailed,
                 _ => EK::OnionServiceDescriptorParsingFailed,
             },
+            DED::MissingDecryptionKey(_) => EK::OnionServiceMissingClientAuth,
+            DED::WrongDecryptionKey(_) => EK::OnionServiceWrongClientAuth,
             DED::Bug(e) => e.kind(),
         }
     }

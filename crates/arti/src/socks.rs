@@ -485,12 +485,12 @@ where
         EK::OnionServiceDescriptorParsingFailed | EK::OnionServiceDescriptorValidationFailed => {
             S::HS_DESC_INVALID
         }
-
-        // TODO HS: Nothing generates the following four errorkinds (yet).
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceMissingClientAuth => S::HS_MISSING_CLIENT_AUTH,
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceWrongClientAuth => S::HS_WRONG_CLIENT_AUTH,
+
+        // TODO HS: Nothing generates the following two errorkinds (yet).
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceIntroFailed => S::HS_INTRO_FAILED,
         #[cfg(feature = "onion-service-client")]

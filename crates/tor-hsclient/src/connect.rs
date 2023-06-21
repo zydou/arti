@@ -561,7 +561,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             &self.subcredential,
             hsc_desc_enc.as_ref().map(|(kp, ks)| (kp, *ks)),
         )
-        .map_err(DescriptorErrorDetail::from)
+        .map_err(|e| DescriptorErrorDetail::from_netdoc_err(e, hsc_desc_enc.is_some()))
     }
 
     /// Given the descriptor, try to connect to service
