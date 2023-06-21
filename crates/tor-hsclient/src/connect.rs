@@ -1180,11 +1180,9 @@ trait MocksForConnect<R>: Clone {
 
     /// Tell tests we got this descriptor text
     fn test_got_desc(&self, desc: &HsDesc) {
-        eprintln!("HS DESC:\n{:?}\n", &desc); // TODO HS remove
     }
     /// Tell tests we got this circuit
     fn test_got_circ(&self, circ: &Arc<ClientCirc!(R, Self)>) {
-        eprintln!("HS CIRC:\n{:?}\n", &circ); // TODO HS remove
     }
 
     /// Return a random number generator
