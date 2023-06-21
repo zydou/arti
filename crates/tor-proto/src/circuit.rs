@@ -81,9 +81,6 @@ use tor_cell::relaycell::StreamId;
 // use std::time::Duration;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
-
-use self::reactor::RequireSendmeAuth;
-
 pub use path::{Path, PathEntry};
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
@@ -463,8 +460,6 @@ impl ClientCirc {
         if !params.extend_by_ed25519_id() {
             linkspecs.retain(|ls| ls.lstype() != LinkSpecType::ED25519ID);
         }
-        // FlowCtrl=1 means that this hop supports authenticated SENDMEs
-        let require_sendme_auth = RequireSendmeAuth::from_protocols(target.protovers());
 
         let (tx, rx) = oneshot::channel();
 
@@ -474,7 +469,6 @@ impl ClientCirc {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                require_sendme_auth,
                 params: params.clone(),
                 done: tx,
             })
@@ -789,7 +783,6 @@ impl PendingClientCirc {
             .unbounded_send(CtrlMsg::Create {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::CreateFast,
-                require_sendme_auth: RequireSendmeAuth::No,
                 params: params.clone(),
                 done: tx,
             })
@@ -813,7 +806,6 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
-        let require_sendme_auth = RequireSendmeAuth::from_protocols(target.protovers());
 
         self.circ
             .control
@@ -830,7 +822,6 @@ impl PendingClientCirc {
                         .ed_identity()
                         .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
                 },
-                require_sendme_auth,
                 params: params.clone(),
                 done: tx,
             })
@@ -1180,7 +1171,6 @@ mod test {
             let (tx, rx) = oneshot::channel();
             circ.control
                 .unbounded_send(CtrlMsg::AddFakeHop {
-                    supports_flowctrl_1: true,
                     fwd_lasthop: idx == 2,
                     rev_lasthop: idx == u8::from(next_msg_from),
                     params,
