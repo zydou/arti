@@ -1139,7 +1139,7 @@ impl<R: Runtime> TorClient<R> {
         Ok(hostnames)
     }
 
-    /// Return a reference to this this client's directory manager.
+    /// Return a reference to this client's directory manager.
     ///
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
@@ -1148,7 +1148,7 @@ impl<R: Runtime> TorClient<R> {
         &self.dirmgr
     }
 
-    /// Return a reference to this this client's circuit manager.
+    /// Return a reference to this client's circuit manager.
     ///
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
@@ -1157,7 +1157,7 @@ impl<R: Runtime> TorClient<R> {
         &self.circmgr
     }
 
-    /// Return a reference to this this client's channel manager.
+    /// Return a reference to this client's channel manager.
     ///
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
