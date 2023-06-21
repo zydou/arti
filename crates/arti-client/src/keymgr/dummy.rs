@@ -6,6 +6,8 @@
 //! If arti-client is compiled without the `keymgr` feature, then [`TorClient`](crate::TorClient)
 //! will use this no-op key manager implementation instead.
 
+#![allow(unreachable_pub)] // TODO: remove
+
 use fs_mistrust::Mistrust;
 use std::any::Any;
 use std::path::Path;
@@ -22,7 +24,7 @@ use tor_error::{ErrorKind, HasKind};
 // TODO hs: Make KeyMgr have the same constructor API as tor-keymgr::KeyMgr #897
 // TODO hs: Remove the generic param and inner error from KeyMgr and expose a KeyMgrError instead.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct KeyMgr;
+pub struct KeyMgr;
 
 /// An error type for the dummy key manager.
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -36,16 +38,16 @@ impl HasKind for Error {
 }
 
 /// A result type for this module.
-pub(crate) type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// A dummy key store trait.
-pub(crate) trait KeyStore {}
+pub trait KeyStore {}
 
 /// A dummy `ArtiNativeKeyStore`.
-pub(crate) struct ArtiNativeKeyStore;
+pub struct ArtiNativeKeyStore;
 
 /// A dummy `KeyType`.
-pub(crate) struct KeyType;
+pub struct KeyType;
 
 impl ArtiNativeKeyStore {
     /// Create a new [`ArtiNativeKeyStore`].
@@ -54,7 +56,7 @@ impl ArtiNativeKeyStore {
     /// constructor to have the same API as the constructor of `ArtiNativeKeyStore` from the
     /// `tor-keymgr` crate.
     #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn from_path_and_mistrust(_: impl AsRef<Path>, _: &Mistrust) -> Result<Self> {
+    pub fn from_path_and_mistrust(_: impl AsRef<Path>, _: &Mistrust) -> Result<Self> {
         Ok(Self)
     }
 }
@@ -66,7 +68,7 @@ impl KeyMgr {
     ///
     /// The argument of this constructor is ignored. It only exists because we need [`KeyMgr::new`]
     /// to have the same API as the constructor of the key manager from the `tor-keymgr` crate.
-    pub(crate) fn new(_: Vec<Box<dyn KeyStore>>) -> Self {
+    pub fn new(_: Vec<Box<dyn KeyStore>>) -> Self {
         Self
     }
 
@@ -78,7 +80,7 @@ impl KeyMgr {
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
-    pub(crate) fn get<K>(&self, _: &dyn Any) -> Result<Option<K>> {
+    pub fn get<K>(&self, _: &dyn Any) -> Result<Option<K>> {
         Ok(None)
     }
 
@@ -90,7 +92,7 @@ impl KeyMgr {
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
+    pub fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
         Err(Error)
     }
 
@@ -102,7 +104,7 @@ impl KeyMgr {
     #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
-    pub(crate) fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
+    pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
         Err(Error)
     }
 }
