@@ -8,7 +8,7 @@ use crate::{OnionServiceStatus, Result};
 
 /// A handle to an instance of an onion service.
 //
-// TODO hs: We might want to wrap this in an Arc<Mutex<>>, and have an inner
+// TODO hss: We might want to wrap this in an Arc<Mutex<>>, and have an inner
 // structure that contains these elements.  Or we might want to refactor this in
 // some other way.
 pub struct OnionService<R: Runtime> {
@@ -24,15 +24,15 @@ pub struct OnionService<R: Runtime> {
     netdir_provider: Arc<dyn NetDirProvider>,
     /// A circuit manager to use in making circuits to our introduction points,
     /// HsDirs, and rendezvous points.
-    // TODO hs: Maybe we can make a trait that only gives a minimal "build a
+    // TODO hss: Maybe we can make a trait that only gives a minimal "build a
     // circuit" API from CircMgr, so that we can have this be a dyn reference
     // too?
     circmgr: Arc<CircMgr<R>>,
     /// Private keys in actual use for this onion service.
     ///
-    /// TODO hs: This will need heavy refactoring.
+    /// TODO hss: This will need heavy refactoring.
     ///
-    /// TODO hs: There's a separate blinded ID, certificate, and signing key
+    /// TODO hss: There's a separate blinded ID, certificate, and signing key
     /// for each active time period.
     keys: (),
     /// Status for each active introduction point for this onion service.
@@ -47,7 +47,7 @@ pub struct OnionService<R: Runtime> {
 impl<R: Runtime> OnionService<R> {
     /// Create (but do not launch) a new onion service.
     pub fn new(config: (), netdir_provider: (), circmgr: ()) -> Self {
-        todo!(); // TODO hs
+        todo!(); // TODO hss
     }
 
     /// Change the configuration of this onion service.
@@ -56,24 +56,24 @@ impl<R: Runtime> OnionService<R> {
     /// that the identity of a service is fixed. We might want to make the
     /// storage  backing this, and the anonymity status, unchangeable.)
     pub fn reconfigure(&self, new_config: ()) -> Result<()> {
-        todo!() // TODO hs
+        todo!() // TODO hss
     }
 
     /// Tell this onion service about some new short-term keys it can use.
     pub fn add_keys(&self, keys: ()) -> Result<()> {
-        todo!() // TODO hs
+        todo!() // TODO hss
     }
 
     /// Return the current status of this onion service.
     pub fn status(&self) -> OnionServiceStatus {
-        todo!() // TODO hs
+        todo!() // TODO hss
     }
-    // TODO hs let's also have a function that gives you a stream of Status
+    // TODO hss let's also have a function that gives you a stream of Status
     // changes?  Or use a publish-based watcher?
 
     /// Tell this onion service to begin running.
     pub fn launch(&self) -> Result<()> {
-        todo!() // TODO hs
+        todo!() // TODO hss
 
         // This needs to launch at least the following tasks:
         //
@@ -105,6 +105,6 @@ impl<R: Runtime> OnionService<R> {
     /// You can also shut down an onion service completely by dropping the last
     /// Clone of it.
     pub fn stop(&self) -> Result<()> {
-        todo!() // TODO hs
+        todo!() // TODO hss
     }
 }
