@@ -346,7 +346,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
             match (got_error, stored) {
                 (Ok::<(), ConnError>(()), Ok::<(), Bug>(())) => {}
                 (Err(got_error), Ok(())) => {
-                    debug!("HS connection failure: {}: {}", hsid, got_error.report(),)
+                    debug!("HS connection failure: {}: {}", hsid, got_error.report(),);
                 }
                 (Ok(()), Err(bug)) => error!(
                     "internal error storing built HS circuit for {}: {}",
