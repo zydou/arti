@@ -44,6 +44,9 @@ pub(crate) trait KeyStore {}
 /// A dummy `ArtiNativeKeyStore`.
 pub(crate) struct ArtiNativeKeyStore;
 
+/// A dummy `KeyType`.
+pub(crate) struct KeyType;
+
 impl ArtiNativeKeyStore {
     /// Create a new [`ArtiNativeKeyStore`].
     ///
