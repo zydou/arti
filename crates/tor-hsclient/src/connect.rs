@@ -745,6 +745,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         // behaviour or whatever is happening at the RPT, so blame the IPT.
                         FAE::IntroductionTimeout { intro_index }
                     })??;
+                #[allow(unused_variables)] // it's *supposed* to be unused
                 let saved_rendezvous = (); // don't use `saved_rendezvous` any more, use rendezvous
 
                 let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
