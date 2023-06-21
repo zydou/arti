@@ -249,6 +249,7 @@ struct Introduced<R: Runtime, M: MocksForConnect<R>> {
     /// Circuit to the introduction point
     // TODO HS maybe this is not needed?  Maybe we just need to hold it to keep
     // the circuit open so it doesn't collapse before the intro pt forwards our message?
+    #[allow(dead_code)]
     intro_circ: Arc<ClientCirc!(R, M)>,
 
     /// End-to-end crypto NTORv3 handshake with the service
