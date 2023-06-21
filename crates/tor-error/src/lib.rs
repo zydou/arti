@@ -541,6 +541,42 @@ pub enum ErrorKind {
     #[display(fmt = "Onion Service not reachable (due to service, or Tor network, behaviour)")]
     OnionServiceConnectionFailed,
 
+    /// We tried to connect to an onion service without authentication,
+    /// but it apparently requires authentication.
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = "Onion service required authentication, but none was provided.")]
+    OnionServiceMissingClientAuth,
+
+    /// We tried to connect to an onion service that requires authentication, and
+    /// ours is wrong.
+    ///
+    /// This likely means that we need to use a different key for talking to
+    /// this onion service, or that it has revoked our permissions to reach it.
+    #[cfg(feature = "experimental-api")]
+    #[display(
+        fmt = "Onion service required authentication, but provided authentication was incorrect."
+    )]
+    OnionServiceWrongClientAuth,
+
+    /// We tried to connect to an onion service, but could not send an INTRODUCE
+    /// message.
+    ///
+    /// This likely means that the onion service is at not at its introduction points
+    /// any longer; perhaps it is down, or under a DoS attack, or perhaps we do not
+    /// have up-to-date information about it.
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = "Unable to send introduction to onion service.")]
+    OnionServiceIntroFailed,
+
+    /// We tried to connect to an onion service, but could not successfully get
+    /// a RENDEZVOUS message from it.
+    ///
+    /// This likely means that the onion service is not running, or does not
+    /// want to talk to us, or all of its introduction points are subtly broken.
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = "Unable to rendezvous with onion service.")]
+    OnionServiceRendFailed,
+
     /// An resolve operation finished with an error.
     ///
     /// Contrary to [`RemoteHostNotFound`](ErrorKind::RemoteHostNotFound),
