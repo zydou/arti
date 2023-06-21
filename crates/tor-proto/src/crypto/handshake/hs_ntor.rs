@@ -12,7 +12,8 @@
 //!
 //! # Status
 //!
-//! This module is available only when the `hs-common` feature is enabled.
+//! This module is available only when the `hs-common` feature is enabled.  The
+//! specific handshakes are enabled by `hs-client` and `hs-service`.
 
 // We want to use the exact variable names from the rend-spec-v3.txt proposal.
 // This means that we allow variables to be named x (privkey) and X (pubkey).
@@ -24,7 +25,7 @@ use crate::{Error, Result};
 use tor_bytes::{Reader, SecretBuf, Writer};
 use tor_hscrypto::{
     ops::{hs_mac, HS_MAC_LEN},
-    pk::{HsIntroPtSessionIdKey, HsSvcNtorKey, HsSvcNtorSecretKey},
+    pk::{HsIntroPtSessionIdKey, HsSvcNtorKey},
     Subcredential,
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -34,10 +35,12 @@ use tor_llcrypto::util::rand_compat::RngCompatExt;
 use cipher::{KeyIvInit, StreamCipher};
 
 use generic_array::GenericArray;
-use rand_core::{CryptoRng, RngCore};
 use tor_error::into_internal;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;
+
+#[cfg(any(test, feature = "hs-service"))]
+use tor_hscrypto::pk::HsSvcNtorSecretKey;
 
 /// The ENC_KEY from the HS Ntor protocol
 //
@@ -76,6 +79,7 @@ impl KeyGenerator for HsNtorHkdfKeyGenerator {
 /// Information about an onion service that is needed for a client to perform an
 /// hs_ntor handshake with it.
 #[derive(Clone)]
+#[cfg(any(test, feature = "hs-client"))]
 pub struct HsNtorServiceInfo {
     /// Introduction point encryption key (aka `B`, aka `KP_hss_ntor`)
     /// (found in the HS descriptor)
@@ -96,8 +100,9 @@ pub struct HsNtorServiceInfo {
     subcredential: Subcredential,
 }
 
+#[cfg(any(test, feature = "hs-client"))]
 impl HsNtorServiceInfo {
-    /// Create a new `HsNtorClientInput`
+    /// Create a new `HsNtorServiceInfo`
     pub fn new(
         B: HsSvcNtorKey,
         auth_key: HsIntroPtSessionIdKey,
@@ -112,6 +117,7 @@ impl HsNtorServiceInfo {
 }
 
 /// Client state for an ntor handshake.
+#[cfg(any(test, feature = "hs-client"))]
 pub struct HsNtorClientState {
     /// Information about the service we are connecting to.
     service_info: HsNtorServiceInfo,
@@ -127,6 +133,7 @@ pub struct HsNtorClientState {
     Bx: curve25519::SharedSecret,
 }
 
+#[cfg(any(test, feature = "hs-client"))]
 impl HsNtorClientState {
     /// Construct a new `HsNtorClientState` for connecting to a given onion
     /// service described in `service_info`.
@@ -233,6 +240,7 @@ impl HsNtorClientState {
 /// Encrypt the 'plaintext' using 'enc_key'. Then compute the intro cell MAC
 /// using 'mac_key' over the text `(other_text, public_key, plaintext)`
 /// and return (ciphertext, mac_tag).
+#[cfg(any(test, feature = "hs-client"))]
 fn encrypt_and_mac(
     plaintext: &[u8],
     other_data: &[u8],
@@ -263,6 +271,7 @@ fn encrypt_and_mac(
 //
 // TODO HSS: maybe these should be references, or should be arguments to
 // server_receive_intro function.
+#[cfg(any(test, feature = "hs-service"))]
 pub struct HsNtorServiceInput {
     /// Introduction point encryption privkey
     b: HsSvcNtorSecretKey,
@@ -276,6 +285,7 @@ pub struct HsNtorServiceInput {
     subcredential: Subcredential,
 }
 
+#[cfg(any(test, feature = "hs-service"))]
 impl HsNtorServiceInput {
     /// Create a new `HsNtorServiceInput`
     pub fn new(
@@ -303,6 +313,7 @@ impl HsNtorServiceInput {
 ///    SERVER_PK   Y                         [PK_PUBKEY_LEN bytes]
 ///    AUTH        AUTH_INPUT_MAC            [MAC_LEN bytes]
 /// ```
+#[cfg(any(test, feature = "hs-service"))]
 pub fn server_receive_intro<R>(
     rng: &mut R,
     proto_input: &HsNtorServiceInput,
@@ -310,13 +321,14 @@ pub fn server_receive_intro<R>(
     msg: &[u8],
 ) -> Result<(HsNtorHkdfKeyGenerator, Vec<u8>, Vec<u8>)>
 where
-    R: RngCore + CryptoRng,
+    R: rand::RngCore + rand::CryptoRng,
 {
     let y = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
     server_receive_intro_no_keygen(&y, proto_input, intro_header, msg)
 }
 
 /// Helper: Like server_receive_intro, but take an ephemeral key rather than a RNG.
+#[cfg(any(test, feature = "hs-service"))]
 fn server_receive_intro_no_keygen(
     // This should be an EphemeralSecret, but using a StaticSecret is necessary
     // so that we can make one from raw bytes in our test.
