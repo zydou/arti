@@ -18,9 +18,6 @@ use crate::{Error, Result};
 ///
 /// For operations that normally involve updating the state of the key manager and/or its
 /// underlying storage, such as `insert` or `remove`, this `KeyMgr` always returns an [`Error`].
-//
-// TODO hs: Make KeyMgr have the same constructor API as tor-keymgr::KeyMgr #897
-// TODO hs: Remove the generic param and inner error from KeyMgr and expose a KeyMgrError instead.
 #[derive(Copy, Clone, Debug)]
 pub struct KeyMgr;
 
@@ -60,8 +57,6 @@ impl KeyMgr {
     ///
     /// This function always returns `Ok(None)`.
     //
-    // TODO hs: remove
-    #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
     pub fn get<K>(&self, _: &dyn Any) -> Result<Option<K>> {
@@ -72,8 +67,6 @@ impl KeyMgr {
     ///
     /// This function always returns [`Error`].
     //
-    // TODO hs: remove
-    #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps)]
     pub fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
@@ -84,8 +77,6 @@ impl KeyMgr {
     ///
     /// This function always returns [`Error`].
     //
-    // TODO hs: remove
-    #[allow(unused)]
     // We need to allow these lints because this impl needs to mirror that of `tor_keymgr::KeyMgr`.
     #[allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
     pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
