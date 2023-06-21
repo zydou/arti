@@ -8,10 +8,12 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{Error, Result};
+use crate::{KeystoreError, Result};
+use tor_error::HasKind;
 
 use fs_mistrust::Mistrust;
 use std::any::Any;
+use std::error::Error as StdError;
 use std::path::Path;
 
 /// A dummy key manager implementation.
@@ -37,6 +39,26 @@ pub struct ArtiNativeKeyStore;
 /// A dummy `KeyType`.
 #[non_exhaustive]
 pub struct KeyType;
+
+/// A dummy `Error` indicating that key manager support is disabled in cargo features.
+#[non_exhaustive]
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Key manager support disabled in cargo features")]
+struct Error;
+
+impl KeystoreError for Error {}
+
+impl HasKind for Error {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::Other
+    }
+}
+
+impl AsRef<dyn StdError + 'static> for Error {
+    fn as_ref(&self) -> &(dyn StdError + 'static) {
+        self
+    }
+}
 
 impl ArtiNativeKeyStore {
     /// Create a new [`ArtiNativeKeyStore`].
@@ -65,13 +87,13 @@ impl KeyMgr {
     ///
     /// This function always returns [`Error`].
     pub fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
-        Err(Error::KeyMgrNotSupported)
+        Err(Box::new(Error))
     }
 
     /// A dummy `remove` implementation that always fails.
     ///
     /// This function always returns [`Error`].
     pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
-        Err(Error::KeyMgrNotSupported)
+        Err(Box::new(Error))
     }
 }

@@ -10,8 +10,6 @@ use std::sync::Arc;
 
 /// An error returned by [`ArtiNativeKeyStore`](crate::ArtiNativeKeyStore)'s
 /// [`KeyStore`](crate::KeyStore) implementation.
-//
-// TODO hs: use this error type instead of crate::Error.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum ArtiNativeKeystoreError {
     /// An error that occurred while accessing the filesystem.

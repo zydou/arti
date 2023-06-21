@@ -6,8 +6,7 @@
 use ssh_key::private::KeypairData;
 pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 
-use crate::err::MalformedKeyErrorSource;
-use crate::{EncodableKey, ErasedKey, Error, KeyType, KeystoreError, Result};
+use crate::{EncodableKey, ErasedKey, KeyType, KeystoreError, Result};
 
 use tor_error::{ErrorKind, HasKind};
 use tor_llcrypto::pk::ed25519;
@@ -56,6 +55,11 @@ pub(crate) enum SshKeyError {
         /// The algorithm of the key we got.
         found_key_algo: SshKeyAlgorithm,
     },
+
+    // TODO hs: remove
+    /// Unsupported key type.
+    #[error("Found a key type we don't support yet: {0:?}")]
+    Unsupported(KeyType),
 }
 
 impl KeystoreError for SshKeyError {}
@@ -82,11 +86,9 @@ impl HasKind for SshKeyError {
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
 fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
-    let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| {
-        Error::MalformedKey(MalformedKeyErrorSource::SshKeyParse {
-            key_type,
-            err: e.into(),
-        })
+    let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| SshKeyError::SshKeyParse {
+        key_type,
+        err: e.into(),
     })?;
 
     // Build the expected key type (i.e. convert ssh_key key types to the key types
@@ -94,18 +96,15 @@ fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<E
     let key = match sk.key_data() {
         KeypairData::Ed25519(key) => {
             ed25519::Keypair::from_bytes(&key.to_bytes()).map_err(|_| {
-                Error::Bug(tor_error::internal!(
-                    "failed to build ed25519 key out of ed25519 OpenSSH key"
-                ))
+                tor_error::internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
             })?;
         }
         _ => {
-            return Err(Error::MalformedKey(
-                MalformedKeyErrorSource::UnexpectedSshKeyType {
-                    wanted_key_algo: key_type.ssh_algorithm(),
-                    found_key_algo: sk.algorithm(),
-                },
-            ));
+            return Err(SshKeyError::UnexpectedSshKeyType {
+                wanted_key_algo: key_type.ssh_algorithm(),
+                found_key_algo: sk.algorithm(),
+            }
+            .boxed());
         }
     };
 
@@ -140,9 +139,7 @@ impl KeyType {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
             KeyType::X25519StaticSecret => {
                 // TODO hs: implement
-                Err(Error::MalformedKey(MalformedKeyErrorSource::Unsupported(
-                    *self,
-                )))
+                Err(SshKeyError::Unsupported(*self).boxed())
             }
         }
     }
