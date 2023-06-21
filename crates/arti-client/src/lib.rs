@@ -43,7 +43,6 @@
 mod address;
 mod builder;
 mod client;
-mod keymgr;
 mod util;
 
 pub mod config;

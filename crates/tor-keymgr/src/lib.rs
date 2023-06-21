@@ -5,7 +5,8 @@
 #![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
-#![deny(unreachable_pub)]
+// TODO hs: uncomment after removing unused types from dummy.rs
+// #![deny(unreachable_pub)]
 #![warn(clippy::all)]
 #![deny(clippy::await_holding_lock)]
 #![deny(clippy::cargo_common_metadata)]
@@ -42,16 +43,32 @@
 
 mod err;
 mod key_specifier;
+
+#[cfg(feature = "keymgr")]
 mod key_type;
+#[cfg(feature = "keymgr")]
 mod keystore;
+#[cfg(feature = "keymgr")]
 mod mgr;
+
+#[cfg(not(feature = "keymgr"))]
+mod dummy;
 
 pub use err::Error;
 pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
-pub use key_type::KeyType;
-pub use keystore::arti::ArtiNativeKeyStore;
-pub use keystore::{EncodableKey, ErasedKey, KeyStore, ToEncodableKey};
-pub use mgr::KeyMgr;
+
+#[cfg(feature = "keymgr")]
+#[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
+pub use {
+    key_type::KeyType,
+    keystore::arti::ArtiNativeKeyStore,
+    keystore::{EncodableKey, ErasedKey, KeyStore, ToEncodableKey},
+    mgr::KeyMgr,
+};
+
+#[cfg(not(feature = "keymgr"))]
+#[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
+pub use dummy::*;
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;

@@ -41,7 +41,7 @@ use {
     tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
 };
 
-use crate::keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
+use tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;

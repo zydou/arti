@@ -6,8 +6,6 @@
 //! If arti-client is compiled without the `keymgr` feature, then [`TorClient`](crate::TorClient)
 //! will use this no-op key manager implementation instead.
 
-#![allow(unreachable_pub)] // TODO: remove
-
 use fs_mistrust::Mistrust;
 use std::any::Any;
 use std::path::Path;

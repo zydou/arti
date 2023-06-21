@@ -7,7 +7,8 @@ use ssh_key::private::KeypairData;
 pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 
 use crate::err::MalformedKeyErrorSource;
-use crate::{EncodableKey, ErasedKey, Error, KeyType, Result};
+use crate::key_type::KeyType;
+use crate::{EncodableKey, ErasedKey, Error, Result};
 
 use tor_llcrypto::pk::ed25519;
 use zeroize::Zeroizing;
