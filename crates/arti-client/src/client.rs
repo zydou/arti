@@ -1157,6 +1157,15 @@ impl<R: Runtime> TorClient<R> {
         &self.circmgr
     }
 
+    /// Return a reference to this this client's channel manager.
+    ///
+    /// This function is unstable. It is only enabled if the crate was
+    /// built with the `experimental-api` feature.
+    #[cfg(feature = "experimental-api")]
+    pub fn chanmgr(&self) -> &Arc<tor_chanmgr::ChanMgr<R>> {
+        &self.chanmgr
+    }
+
     /// Return a reference to the runtime being used by this client.
     //
     // This API is not a hostage to fortune since we already require that R: Clone,
