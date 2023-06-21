@@ -1,5 +1,4 @@
 //! Main implementation of the connection functionality
-#![allow(clippy::print_stderr)] // Code here is not finished.  TODO hs remove.
 
 use std::time::Duration;
 
@@ -61,7 +60,6 @@ macro_rules! ClientCirc { { $R:ty, $M:ty } => {
 } }
 
 /// Information about a hidden service, including our connection history
-#[allow(dead_code, unused_variables)] // TODO hs remove.
 #[derive(Default, Educe)]
 #[educe(Debug)]
 // This type is actually crate-private, since it isn't re-exported, but it must
@@ -126,7 +124,6 @@ struct IptExperience {
 /// between "mock connection, used for testing `state.rs`" and
 /// "mock circuit and netdir, used for testing `connnect.rs`",
 /// so it is not, itself, unit-testable.
-#[allow(dead_code, unused_variables)] // TODO hs remove.
 pub(crate) async fn connect<R: Runtime>(
     connector: &HsClientConnector<R>,
     netdir: Arc<NetDir>,
@@ -154,7 +151,6 @@ pub(crate) async fn connect<R: Runtime>(
 ///
 /// Its lifetime is one request to make a new client circuit to a hidden service,
 /// including all the retries and timeouts.
-#[allow(dead_code)] // TODO HS remove
 struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     /// Runtime
     runtime: &'c R,
@@ -1085,7 +1081,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         rendezvous: Rendezvous<'c, R, M>,
         introduced: Introduced<R, M>,
     ) -> Result<Arc<ClientCirc!(R, M)>, FAE> {
-        #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
         use tor_proto::circuit::handshake;
 
         let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);

@@ -38,8 +38,6 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(unused_imports, dead_code, unused_variables)] // TODO HS remove
-
 mod connect;
 mod err;
 mod isol_map;
