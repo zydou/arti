@@ -25,7 +25,9 @@ use std::path::Path;
 pub struct KeyMgr;
 
 /// A dummy key store trait.
-pub trait KeyStore {}
+pub trait KeyStore {
+    // TODO(gabi): Add the missing functions and impls
+}
 
 /// A dummy `ArtiNativeKeyStore`.
 pub struct ArtiNativeKeyStore;
