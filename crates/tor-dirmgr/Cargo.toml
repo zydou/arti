@@ -79,7 +79,7 @@ safelog = { path = "../safelog", version = "0.3.1" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
-strum = { version = "0.24", features = ["derive"] }
+strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.1" }
