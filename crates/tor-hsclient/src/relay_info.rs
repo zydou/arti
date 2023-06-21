@@ -3,9 +3,7 @@
 //!
 //! (Later this will include support for INTRODUCE2 messages too.)
 
-#![allow(dead_code, unreachable_pub)] // TODO HS remove these once this API is exposed.
-
-use tor_error::{into_internal, ErrorKind, HasRetryTime, RetryTime};
+use tor_error::{into_internal, HasRetryTime, RetryTime};
 use tor_linkspec::{
     decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget, EncodedLinkSpec,
     OwnedChanTargetBuilder, OwnedCircTarget,

@@ -5,19 +5,13 @@
 //! Used by [`connect`](crate::connect)
 
 use futures::channel::oneshot;
-use tracing::{debug, trace};
 
-use tor_cell::relaycell::hs::{
-    AuthKeyType, EstablishRendezvous, IntroduceHeader, RendezvousEstablished,
-};
-use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
-use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
+use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_cell::relaycell::RelayMsg;
 use tor_error::internal;
-use tor_proto::circuit::{CircParameters, ClientCirc, MetaCellDisposition, MsgHandler};
+use tor_proto::circuit::MetaCellDisposition;
 
-use crate::{rend_pt_identity_for_error, FailedAttemptError, IntroPtIndex, RendPtIdentityForError};
-
-use FailedAttemptError as FAE;
+use crate::FailedAttemptError;
 
 /// Sender, owned by the circuit message handler
 ///
@@ -74,13 +68,11 @@ impl<M> Sender<M> {
             err,
         });
 
-        trace!("SENDING VIA ONESHOT"); // TODO HS REMOVE RSN!
         #[allow(clippy::unnecessary_lazy_evaluations)] // want to state the Err type
         reply_tx
             .send(outcome.clone())
             // If the caller went away, we just drop the outcome
             .unwrap_or_else(|_: Result<M, _>| ());
-        trace!("SENDING VIA ONESHOT DONE"); // TODO HS REMOVE RSN!
 
         outcome.map(|_| disposition_on_success)
     }

@@ -1,10 +1,7 @@
 //! Main implementation of the connection functionality
-#![allow(clippy::print_stderr)] // Code here is not finished.  TODO hs remove.
 
-use std::any::Any;
 use std::time::Duration;
 
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -13,7 +10,6 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use educe::Educe;
-use futures::channel::oneshot;
 use futures::{AsyncRead, AsyncWrite};
 use itertools::Itertools;
 use rand::Rng;
@@ -22,22 +18,21 @@ use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
 use tor_error::Bug;
 use tor_hscrypto::Subcredential;
-use tor_proto::circuit::handshake::{self, hs_ntor};
+use tor_proto::circuit::handshake::hs_ntor;
 use tracing::{debug, trace, warn};
 
 use retry_error::RetryError;
 use safelog::Redacted;
 use tor_cell::relaycell::hs::{
-    AuthKeyType, EstablishRendezvous, IntroduceAck, IntroduceAckStatus, IntroduceHeader,
-    RendezvousEstablished,
+    AuthKeyType, EstablishRendezvous, IntroduceAck, RendezvousEstablished,
 };
-use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
+use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::Requestable as _;
 use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_error::{HasRetryTime as _, RetryTime};
-use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsClientDescEncKey, HsId, HsIdKey};
+use tor_hscrypto::pk::{HsBlindId, HsClientDescEncKey, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -64,14 +59,12 @@ macro_rules! ClientCirc { { $R:ty, $M:ty } => {
 } }
 
 /// Information about a hidden service, including our connection history
-#[allow(dead_code, unused_variables)] // TODO hs remove.
 #[derive(Default, Educe)]
 #[educe(Debug)]
 // This type is actually crate-private, since it isn't re-exported, but it must
 // be `pub` because it appears as a default for a type parameter in HsClientConnector.
 pub struct Data {
     /// The latest known onion service descriptor for this service.
-    #[educe(Debug(ignore))] // TODO HS do better than this
     desc: DataHsDesc,
     /// Information about the latest status of trying to connect to this service
     /// through each of its introduction points.
@@ -130,7 +123,6 @@ struct IptExperience {
 /// between "mock connection, used for testing `state.rs`" and
 /// "mock circuit and netdir, used for testing `connnect.rs`",
 /// so it is not, itself, unit-testable.
-#[allow(dead_code, unused_variables)] // TODO hs remove.
 pub(crate) async fn connect<R: Runtime>(
     connector: &HsClientConnector<R>,
     netdir: Arc<NetDir>,
@@ -158,7 +150,6 @@ pub(crate) async fn connect<R: Runtime>(
 ///
 /// Its lifetime is one request to make a new client circuit to a hidden service,
 /// including all the retries and timeouts.
-#[allow(dead_code)] // TODO HS remove
 struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     /// Runtime
     runtime: &'c R,
@@ -177,8 +168,6 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     hsid: HsId,
     /// Blinded HS ID
     hs_blind_id: HsBlindId,
-    /// Blinded HS ID as a key
-    hs_blind_id_key: HsBlindIdKey,
     /// The subcredential to use during this time period
     subcredential: Subcredential,
     /// Mock data
@@ -251,6 +240,7 @@ struct Introduced<R: Runtime, M: MocksForConnect<R>> {
     /// Circuit to the introduction point
     // TODO HS maybe this is not needed?  Maybe we just need to hold it to keep
     // the circuit open so it doesn't collapse before the intro pt forwards our message?
+    #[allow(dead_code)]
     intro_circ: Arc<ClientCirc!(R, M)>,
 
     /// End-to-end crypto NTORv3 handshake with the service
@@ -368,7 +358,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             netdir,
             hsid,
             hs_blind_id,
-            hs_blind_id_key,
             subcredential,
             circpool,
             runtime,
@@ -745,6 +734,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         // behaviour or whatever is happening at the RPT, so blame the IPT.
                         FAE::IntroductionTimeout { intro_index }
                     })??;
+                #[allow(unused_variables)] // it's *supposed* to be unused
                 let saved_rendezvous = (); // don't use `saved_rendezvous` any more, use rendezvous
 
                 let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
@@ -893,13 +883,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .await
             .map_err(handle_proto_error)?;
 
-        trace!("SEND CONTROL MESSAGE RETURNED"); // TODO HS REMOVE RSN!
-
         // `send_control_message` returns as soon as the control message has been sent.
         // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
         let _: RendezvousEstablished = rend_established_rx.recv(handle_proto_error).await?;
-
-        trace!("RENDEZVOUS"); // TODO HS REMOVE RSN!
 
         debug!(
             "hs conn to {}: RPT {}: got RENDEZVOUS_ESTABLISHED",
@@ -1094,7 +1080,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         rendezvous: Rendezvous<'c, R, M>,
         introduced: Introduced<R, M>,
     ) -> Result<Arc<ClientCirc!(R, M)>, FAE> {
-        #![allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HS remove.
         use tor_proto::circuit::handshake;
 
         let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
@@ -1180,13 +1165,9 @@ trait MocksForConnect<R>: Clone {
     type Rng: rand::Rng + rand::CryptoRng;
 
     /// Tell tests we got this descriptor text
-    fn test_got_desc(&self, desc: &HsDesc) {
-        eprintln!("HS DESC:\n{:?}\n", &desc); // TODO HS remove
-    }
+    fn test_got_desc(&self, _: &HsDesc) {}
     /// Tell tests we got this circuit
-    fn test_got_circ(&self, circ: &Arc<ClientCirc!(R, Self)>) {
-        eprintln!("HS CIRC:\n{:?}\n", &circ); // TODO HS remove
-    }
+    fn test_got_circ(&self, _: &Arc<ClientCirc!(R, Self)>) {}
 
     /// Return a random number generator
     fn thread_rng(&self) -> Self::Rng;
@@ -1317,6 +1298,9 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    #![allow(dead_code, unused_variables)] // TODO HS TESTS delete, after tests are completed
+
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
@@ -1342,7 +1326,6 @@ mod test {
         id: I,
     }
 
-    #[allow(dead_code)] // TODO HS delete this, and maybe id, if it ends up indeed unused
     impl<I> Mocks<I> {
         fn map_id<J>(&self, f: impl FnOnce(&I) -> J) -> Mocks<J> {
             Mocks {
@@ -1468,7 +1451,7 @@ mod test {
         let ctx = Context::new(&runtime, &mocks, netdir, hsid, secret_keys, mocks.clone()).unwrap();
 
         let _got = AssertUnwindSafe(ctx.connect(&mut data))
-            .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
+            .catch_unwind() // TODO HS TESTS: remove this and the AssertUnwindSafe
             .await;
 
         let (hs_blind_id_key, subcredential) = HsIdKey::try_from(hsid)
@@ -1508,11 +1491,11 @@ mod test {
             Bound::Included(desc_valid_until).as_ref()
         );
 
-        // TODO hs check the circuit in got is the one we gave out
+        // TODO HS TESTS: check the circuit in got is the one we gave out
 
-        // TODO hs continue with this
+        // TODO HS TESTS: continue with this
     }
 
-    // TODO HS: test retries (of every retry loop we have here)
-    // TODO HS: test error paths
+    // TODO HS TESTS: test retries (of every retry loop we have here)
+    // TODO HS TESTS: test error paths
 }

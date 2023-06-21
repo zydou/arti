@@ -15,6 +15,7 @@ use either::Either::{self, *};
 use postage::stream::Stream as _;
 use tracing::{debug, error, trace};
 
+use safelog::sensitive as sv;
 use tor_circmgr::isolation::Isolation;
 use tor_error::{internal, Bug, ErrorReport as _};
 use tor_hscrypto::pk::HsId;
@@ -344,19 +345,17 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
 
             match (got_error, stored) {
                 (Ok::<(), ConnError>(()), Ok::<(), Bug>(())) => {}
-                (Err(got_error), Ok(())) => debug!(
-                    "HS connection failure: {}",
-                    // TODO HS show hs_id,
-                    got_error.report(),
-                ),
+                (Err(got_error), Ok(())) => {
+                    debug!("HS connection failure: {}: {}", hsid, got_error.report(),);
+                }
                 (Ok(()), Err(bug)) => error!(
-                    "internal error storing built HS circuit: {}",
-                    // TODO HS show sv(hs_id),
+                    "internal error storing built HS circuit for {}: {}",
+                    sv(hsid),
                     bug.report(),
                 ),
                 (Err(got_error), Err(bug)) => error!(
-                    "internal error storing HS connection error: {}; {}",
-                    // TODO HS show sv(hs_id),
+                    "internal error storing HS connection error for {}: {}; {}",
+                    sv(hsid),
                     got_error.report(),
                     bug.report(),
                 ),
