@@ -404,15 +404,15 @@ impl ClientCirc {
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     #[cfg(feature = "hs-service")]
-    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
+    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hss remove
     pub fn allow_stream_requests(
         &self,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
     ) -> Result<impl futures::Stream<Item = crate::stream::IncomingStream>> {
         if false {
-            return Ok(futures::stream::empty()); // TODO hs remove; this is just here for type inference.
+            return Ok(futures::stream::empty()); // TODO hss remove; this is just here for type inference.
         }
-        todo!() // TODO hs implement.
+        todo!() // TODO hss implement.
     }
 
     /// Extend the circuit via the ntor handshake to a new target last
