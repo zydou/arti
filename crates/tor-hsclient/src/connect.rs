@@ -1467,7 +1467,7 @@ mod test {
         let ctx = Context::new(&runtime, &mocks, netdir, hsid, secret_keys, mocks.clone()).unwrap();
 
         let _got = AssertUnwindSafe(ctx.connect(&mut data))
-            .catch_unwind() // TODO HS remove this and the AssertUnwindSafe
+            .catch_unwind() // TODO HS TESTS: remove this and the AssertUnwindSafe
             .await;
 
         let (hs_blind_id_key, subcredential) = HsIdKey::try_from(hsid)
@@ -1507,11 +1507,11 @@ mod test {
             Bound::Included(desc_valid_until).as_ref()
         );
 
-        // TODO hs check the circuit in got is the one we gave out
+        // TODO HS TESTS: check the circuit in got is the one we gave out
 
-        // TODO hs continue with this
+        // TODO HS TESTS: continue with this
     }
 
-    // TODO HS: test retries (of every retry loop we have here)
-    // TODO HS: test error paths
+    // TODO HS TESTS: test retries (of every retry loop we have here)
+    // TODO HS TESTS: test error paths
 }
