@@ -1259,12 +1259,16 @@ impl Reactor {
                 // describe why the virtual hop was added, or something?
                 let peer_id = path::PathEntry::Virtual;
 
-                // TODO HS: This is not really correct! We probably should be
-                // looking at the sendme_auth_accept_min_version parameter.  See
-                // comments in RequireSendmeAuth::from_protocols.
+                // NOTE: This is not 100% correct! In theory we probably
+                // should be looking at the sendme_auth_accept_min_version
+                // parameter, to see whether we can count on the other party to
+                // send us authenticated SENDMEs.   See comments in
+                // RequireSendmeAuth::from_protocols.
                 //
-                // "Yes" should be safe, however, since Tor <=0.3.5 is
-                // emphatically unsupported.
+                // But "Yes" is completely safe, however, since Tor <=0.3.5 is
+                // emphatically unsupported.  We don't need to add any machinery
+                // here to support "No", since unauthenticated SENDMEs are never
+                // coming back.  See #914.
                 let require_sendme_auth = RequireSendmeAuth::Yes;
 
                 self.add_hop(peer_id, require_sendme_auth, outbound, inbound, &params);
