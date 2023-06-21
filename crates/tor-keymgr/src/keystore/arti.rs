@@ -107,7 +107,7 @@ impl KeyStore for ArtiNativeKeyStore {
             .join(&key_path)
             .map_err(|e| to_fs_err(e.into()))?;
 
-        match fs::remove_file(&abs_key_path) {
+        match fs::remove_file(abs_key_path) {
             Ok(()) => Ok(Some(())),
             Err(e) if matches!(e.kind(), ErrorKind::NotFound) => Ok(None),
             Err(e) => Err(to_fs_err(e.into())),
