@@ -22,6 +22,7 @@ use std::path::Path;
 /// For operations that normally involve updating the state of the key manager and/or its
 /// underlying storage, such as `insert` or `remove`, this `KeyMgr` always returns an [`Error`].
 #[derive(Copy, Clone, Debug)]
+#[non_exhaustive]
 pub struct KeyMgr;
 
 /// A dummy key store trait.
@@ -30,9 +31,11 @@ pub trait KeyStore {
 }
 
 /// A dummy `ArtiNativeKeyStore`.
+#[non_exhaustive]
 pub struct ArtiNativeKeyStore;
 
 /// A dummy `KeyType`.
+#[non_exhaustive]
 pub struct KeyType;
 
 impl ArtiNativeKeyStore {
