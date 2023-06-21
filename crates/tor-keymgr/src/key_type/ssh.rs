@@ -6,8 +6,6 @@
 use ssh_key::private::KeypairData;
 pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 
-use std::io::ErrorKind;
-
 use crate::err::MalformedKeyErrorSource;
 use crate::{EncodableKey, ErasedKey, Error, KeyType, Result};
 
@@ -34,14 +32,10 @@ impl UnparsedOpenSshKey {
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
 fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
     let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| {
-        if matches!(e, ssh_key::Error::Io(ErrorKind::NotFound)) {
-            Error::NotFound { /* TODO hs */ }
-        } else {
-            Error::MalformedKey(MalformedKeyErrorSource::SshKeyParse {
-                key_type,
-                err: e.into(),
-            })
-        }
+        Error::MalformedKey(MalformedKeyErrorSource::SshKeyParse {
+            key_type,
+            err: e.into(),
+        })
     })?;
 
     // Build the expected key type (i.e. convert ssh_key key types to the key types
