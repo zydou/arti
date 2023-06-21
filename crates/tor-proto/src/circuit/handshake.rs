@@ -6,10 +6,10 @@
 // Here we re-export some key types from our cryptographic code, for use when we
 // implement our onion handshake.
 //
-// TODO hs: it might be neat, someday,  to clean this all up so that the types
+// TODO: it might be neat, someday,  to clean this all up so that the types
 // and functions in hs_ntor are all methods on a set of related traits.  But
 // that can wait IMO until we have a second circuit creation mechanism for use
-// with ntor.
+// with onion services.
 
 use crate::crypto::cell::{
     ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, Tor1Hsv3RelayCrypto,
