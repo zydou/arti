@@ -60,6 +60,13 @@ pub(crate) enum SshKeyError {
 
 impl KeystoreError for SshKeyError {}
 
+impl SshKeyError {
+    /// A convenience method for boxing `self`.
+    pub(crate) fn boxed(self) -> Box<Self> {
+        Box::new(self)
+    }
+}
+
 impl AsRef<dyn StdError> for SshKeyError {
     fn as_ref(&self) -> &(dyn StdError + 'static) {
         self
