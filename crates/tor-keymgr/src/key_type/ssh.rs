@@ -105,11 +105,6 @@ pub(crate) enum SshKeyError {
         /// The algorithm of the key we got.
         found_key_algo: SshKeyAlgorithm,
     },
-
-    // TODO hs: remove
-    /// Unsupported key type.
-    #[error("Found a key type we don't support yet: {0:?}")]
-    Unsupported(KeyType),
 }
 
 impl KeystoreError for SshKeyError {}
