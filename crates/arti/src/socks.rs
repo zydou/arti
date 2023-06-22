@@ -486,6 +486,8 @@ where
             S::HS_DESC_INVALID
         }
         #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceAddressInvalid => S::HS_BAD_ADDRESS,
+        #[cfg(feature = "onion-service-client")]
         EK::OnionServiceMissingClientAuth => S::HS_MISSING_CLIENT_AUTH,
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceWrongClientAuth => S::HS_WRONG_CLIENT_AUTH,

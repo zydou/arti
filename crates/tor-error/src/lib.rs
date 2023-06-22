@@ -558,6 +558,15 @@ pub enum ErrorKind {
     )]
     OnionServiceWrongClientAuth,
 
+    /// We tried to parse a `.onion` address, and found that it was not valid.
+    ///
+    /// This likely means that it was corrupted somewhere along its way from its
+    /// origin to our API surface.  It may be the wrong length, have invalid
+    /// characters, have an invalid version number, or have an invalid checksum.
+    #[cfg(feature = "experimental-api")]
+    #[display(fmt = ".onion address was invalid.")]
+    OnionServiceAddressInvalid,
+
     /// An resolve operation finished with an error.
     ///
     /// Contrary to [`RemoteHostNotFound`](ErrorKind::RemoteHostNotFound),
