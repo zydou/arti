@@ -861,7 +861,10 @@ pub(crate) mod test {
         test_with_one_runtime!(|outer_runtime| async move {
             let runtime = MockSleepRuntime::new(outer_runtime.clone());
 
+            let (hsconn, keys, _give_send) = mk_hsconn(runtime.clone());
+
             let advance = |duration| {
+                let hsconn = hsconn.clone();
                 let runtime = &runtime;
                 let outer_runtime = &outer_runtime;
                 async move {
@@ -872,7 +875,6 @@ pub(crate) mod test {
             };
 
             // make circuit1
-            let (hsconn, keys, _give_send) = mk_hsconn(runtime.clone());
             let circuit1 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
 
             // expire it
