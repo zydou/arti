@@ -615,7 +615,8 @@ pub(crate) mod test {
     use std::task::Poll::{self, *};
     use tokio::pin;
     use tokio_crate as tokio;
-    use tor_rtcompat::test_with_one_runtime;
+    use tor_rtcompat::{test_with_one_runtime, SleepProvider};
+    use tor_rtmock::MockSleepRuntime;
     use tracing_test::traced_test;
 
     use ConnError as E;
@@ -788,6 +789,50 @@ pub(crate) mod test {
 
             let circuit = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             eprintln!("{:?}", circuit);
+        });
+    }
+
+    #[test]
+    #[traced_test]
+    fn expiry() {
+        test_with_one_runtime!(|outer_runtime| async move {
+            let runtime = MockSleepRuntime::new(outer_runtime.clone());
+
+            let advance = |duration| {
+                let runtime = &runtime;
+                let outer_runtime = &outer_runtime;
+                async move {
+                    runtime.advance(duration).await;
+                    // let expiry task run
+                    outer_runtime.sleep(Duration::from_millis(25)).await;
+                }
+            };
+
+            // make circuit1
+            let (hsconn, keys, _give_send) = mk_hsconn(runtime.clone());
+            let circuit1 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+
+            // expire it
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE + Duration::from_millis(10)).await;
+
+            // make circuit2 (a)
+            let circuit2a = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+            assert_ne!(circuit1, circuit2a);
+
+            // nearly expire it, then reuse it
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE - Duration::from_secs(10)).await;
+            let circuit2b = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+            assert_eq!(circuit2a, circuit2b);
+
+            // nearly expire it again, then reuse it
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE - Duration::from_secs(10)).await;
+            let circuit2c = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+            assert_eq!(circuit2a, circuit2c);
+
+            // actually expire it
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE + Duration::from_secs(10)).await;
+            let circuit3 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+            assert_ne!(circuit2c, circuit3);
         });
     }
 
