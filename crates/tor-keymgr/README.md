@@ -52,3 +52,10 @@ same `KeySpecifier::arti_path`), but different key types (i.e. different
 
 TODO hs: write more comprehensive documentation when the API is a bit more
 stable
+
+## Feature flags
+
+### Additive features
+
+* `keymgr` (default) -- build with full key manager support. Disabling this
+  feature causes `tor-keymgr` to export a no-op, placeholder implementation.

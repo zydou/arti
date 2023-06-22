@@ -274,7 +274,7 @@ enum ErrorDetail {
 
     /// A key store access failed.
     #[error("Error while trying to access a key store")]
-    KeyStore(#[from] crate::keymgr::Error),
+    KeyStore(#[from] tor_keymgr::Error),
 
     /// A programming problem, either in our code or the code calling it.
     #[error("Programming problem")]
@@ -382,8 +382,8 @@ impl From<TorAddrError> for Error {
     }
 }
 
-impl From<crate::keymgr::Error> for Error {
-    fn from(e: crate::keymgr::Error) -> Error {
+impl From<tor_keymgr::Error> for Error {
+    fn from(e: tor_keymgr::Error) -> Error {
         e.into()
     }
 }

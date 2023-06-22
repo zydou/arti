@@ -1,14 +1,13 @@
 //! An error type for the `tor-keymgr` crate.
 
-use crate::key_type::ssh::SshKeyAlgorithm;
-use crate::KeyType;
 use tor_error::{ErrorKind, HasKind};
+#[cfg(feature = "keymgr")]
+use {crate::key_type::ssh::SshKeyAlgorithm, crate::KeyType};
 
 use thiserror::Error;
 
-use std::io;
-use std::path::PathBuf;
-use std::sync::Arc;
+#[cfg(feature = "keymgr")]
+use {std::io, std::path::PathBuf, std::sync::Arc};
 
 /// A key store error.
 //
@@ -22,6 +21,8 @@ use std::sync::Arc;
 pub enum Error {
     /// An error that occurred while accessing the filesystem.
     #[error("An error occurred while accessing the filesystem")]
+    #[cfg(feature = "keymgr")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
     Filesystem {
         /// The action we were trying to perform.
         //
@@ -36,11 +37,21 @@ pub enum Error {
 
     /// Encountered a malformed key.
     #[error("Malformed key: {0}")]
+    #[cfg(feature = "keymgr")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
     MalformedKey(#[from] MalformedKeyErrorSource),
 
     /// An internal error.
     #[error("Internal error")]
+    #[cfg(feature = "keymgr")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
     Bug(#[from] tor_error::Bug),
+
+    /// Key manager support disabled in cargo features
+    #[error("Key manager support disabled in cargo features")]
+    #[cfg(not(feature = "keymgr"))]
+    #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
+    KeyMgrNotSupported,
 }
 
 /// The underlying cause of an [`Error::Filesystem`] error.
@@ -51,6 +62,7 @@ pub enum Error {
 // rather than a variant of `Filesystem`.
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
+#[cfg(feature = "keymgr")]
 pub enum FsErrorSource {
     /// An IO error occurred.
     #[error("IO error")]
@@ -61,12 +73,14 @@ pub enum FsErrorSource {
     Permissions(#[source] fs_mistrust::Error),
 }
 
+#[cfg(feature = "keymgr")]
 impl From<io::Error> for FsErrorSource {
     fn from(e: io::Error) -> FsErrorSource {
         FsErrorSource::IoError(Arc::new(e))
     }
 }
 
+#[cfg(feature = "keymgr")]
 impl From<fs_mistrust::Error> for FsErrorSource {
     fn from(e: fs_mistrust::Error) -> FsErrorSource {
         match e {
@@ -82,6 +96,7 @@ impl From<fs_mistrust::Error> for FsErrorSource {
 //
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
+#[cfg(feature = "keymgr")]
 pub enum MalformedKeyErrorSource {
     /// Failed to parse an OpenSSH key
     #[error("Failed to parse OpenSSH with type {key_type:?}")]
@@ -112,9 +127,14 @@ impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
         // TODO hs: create `ErrorKind` variants for `tor_keymgr::Error`s.
         match self {
+            #[cfg(feature = "keymgr")]
             Error::Filesystem { .. } => todo!(),
+            #[cfg(feature = "keymgr")]
             Error::MalformedKey { .. } => todo!(),
+            #[cfg(feature = "keymgr")]
             Error::Bug(e) => e.kind(),
+            #[cfg(not(feature = "keymgr"))]
+            Error::KeyMgrNotSupported => ErrorKind::Other,
         }
     }
 }
