@@ -13,9 +13,6 @@ use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSo
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
 
-use futures::task::SpawnExt;
-
-use crate::process::sighup_stream;
 use crate::{ArtiCombinedConfig, ArtiConfig};
 
 /// How long to wait after an event got received, before we try to process it.
@@ -25,6 +22,7 @@ const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 #[derive(Debug)]
 enum Event {
     /// SIGHUP has been received.
+    #[cfg(target_family = "unix")]
     SigHup,
     /// Some files may have been modified.
     FileChanged,
@@ -61,6 +59,9 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     #[cfg(target_family = "unix")]
     {
         use futures::StreamExt;
+        use futures::task::SpawnExt;
+
+        use crate::process::sighup_stream;
 
         let mut sighup_stream = sighup_stream()?;
         let tx = tx.clone();
