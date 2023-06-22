@@ -307,10 +307,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
 
             // block for handling inability to store
             let stored = async {
-                let mut guard = connector
-                    .services
-                    .lock()
-                    .map_err(|_| internal!("HS connector poisoned"))?;
+                let mut guard = connector.services()?;
                 let record = guard
                     .records
                     .by_index_mut(table_index)
@@ -401,10 +398,7 @@ impl<D: MockableConnectorData> Services<D> {
         let mut got;
         let table_index;
         {
-            let mut guard = connector
-                .services
-                .lock()
-                .map_err(|_| internal!("HS connector poisoned"))?;
+            let mut guard = connector.services()?;
             let services = &mut *guard;
 
             trace!("HS conn get_or_launch: {hs_id:?} {isolation:?} {secret_keys:?}");
@@ -443,10 +437,7 @@ impl<D: MockableConnectorData> Services<D> {
                 }
             }
 
-            let guard = connector
-                .services
-                .lock()
-                .map_err(|_| internal!("HS connector poisoned (relock)"))?;
+            let guard = connector.services()?;
 
             got = obtain(table_index, guard);
         }
