@@ -541,7 +541,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
                         ServiceState::Closed { .. } => break,
                         ServiceState::Open { last_used, .. } => *last_used,
                         ServiceState::Working { .. } => break, // someone else will respawn
-                        ServiceState::Dummy => break, // someone else will (report and) fix
+                        ServiceState::Dummy => break,          // someone else will (report and) fix
                     };
                     maybe_wait = calculate_expiry_wait(last_used, connector.runtime.now());
                     if maybe_wait.is_none() {
