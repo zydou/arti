@@ -495,7 +495,8 @@ impl<D: MockableConnectorData> Services<D> {
 }
 
 impl<D: MockableConnectorData> ServiceState<D> {
-    /// Spawn a task that will close the circuit at (precisely) the expiry time
+    /// Spawn a task that will drop our reference to the rendezvous circuit
+    /// at `table_index` when it has gone too long without any use.
     ///
     /// According to [`RETAIN_CIRCUIT_AFTER_LAST_USE`].
     //
