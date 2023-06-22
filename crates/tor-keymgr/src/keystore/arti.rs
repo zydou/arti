@@ -30,7 +30,6 @@ impl ArtiNativeKeyStore {
         keystore_dir: impl AsRef<Path>,
         mistrust: &Mistrust,
     ) -> Result<Self> {
-        // TODO hs: this validation should be handled by `FsMgr`.
         let keystore_dir = mistrust
             .verifier()
             .check_content()
