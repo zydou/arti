@@ -76,13 +76,15 @@ use futures::channel::{mpsc, oneshot};
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::SinkExt;
 use std::net::IpAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tor_cell::relaycell::StreamId;
 // use std::time::Duration;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 
 use self::reactor::RequireSendmeAuth;
+
+pub use path::{Path, PathEntry};
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
@@ -111,8 +113,8 @@ pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 // two atomic refcount changes/checks.  Wrapping it in another Arc would
 // be overkill.
 pub struct ClientCirc {
-    /// Information about this circuit's path.
-    path: Arc<path::Path>,
+    /// Mutable state shared with the `Reactor`.
+    mutable: Arc<Mutex<MutableState>>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -129,6 +131,17 @@ pub struct ClientCirc {
     /// For testing purposes: the CircId, for use in peek_circid().
     #[cfg(test)]
     circid: CircId,
+}
+
+/// Mutable state shared by [`ClientCirc`] and [`Reactor`].
+#[derive(Debug)]
+struct MutableState {
+    /// Information about this circuit's path.
+    ///
+    /// This is stored in an Arc so that we can cheaply give a copy of it to
+    /// client code; when we need to add a hop (which is less frequent) we use
+    /// [`Arc::make_mut()`].
+    path: Arc<path::Path>,
 }
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
@@ -221,38 +234,52 @@ impl ClientCirc {
     /// circuit with no hops.)
     pub fn first_hop(&self) -> OwnedChanTarget {
         let first_hop = self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
             .path
             .first_hop()
             .expect("called first_hop on an un-constructed circuit");
         match first_hop {
-            path::PathEntry::Relay(r) => r,
+            path::HopDetail::Relay(r) => r,
             #[cfg(feature = "hs-common")]
-            path::PathEntry::Virtual => panic!("somehow made a circuit with a virtual first hop."),
+            path::HopDetail::Virtual => {
+                panic!("somehow made a circuit with a virtual first hop.")
+            }
         }
     }
 
     /// Return a description of all the hops in this circuit.
     ///
-    /// Note that this method performs a deep copy over the `OwnedCircTarget`
-    /// values in the path.  This is undesirable for some applications; see
-    /// [ticket #787](https://gitlab.torproject.org/tpo/core/arti/-/issues/787).
+    /// This method is **deprecated** for several reasons:
+    ///   * It performs a deep copy.
+    ///   * It ignores virtual hops.
+    ///   * It's not so extensible.
     ///
-    /// Note also that this method ignores virtual hops.  This is likely to
-    /// change in the future, but it will require a backward-incompatible change
-    /// on the return type.
-    ///
-    /// TODO HS: Fix the virtual-hop issue.
+    /// Use [`ClientCirc::path_ref()`] instead.
+    #[deprecated(since = "0.11.1", note = "Use path_ref() instead.")]
     pub fn path(&self) -> Vec<OwnedChanTarget> {
         #[allow(clippy::unnecessary_filter_map)] // clippy is blind to the cfg
-        self.path
+        self.mutable
+            .lock()
+            .expect("poisoned lock")
+            .path
             .all_hops()
             .into_iter()
             .filter_map(|hop| match hop {
-                path::PathEntry::Relay(r) => Some(r),
+                path::HopDetail::Relay(r) => Some(r),
                 #[cfg(feature = "hs-common")]
-                path::PathEntry::Virtual => None,
+                path::HopDetail::Virtual => None,
             })
             .collect()
+    }
+
+    /// Return a [`Path`] object describing all the hops in this circuit.
+    ///
+    /// Note that this `Path` is not automatically updated if the circuit is
+    /// extended.
+    pub fn path_ref(&self) -> Arc<Path> {
+        self.mutable.lock().expect("poisoned_lock").path.clone()
     }
 
     /// Return a reference to the channel that this circuit is connected to.
@@ -371,6 +398,9 @@ impl ClientCirc {
     ) -> Result<()> {
         let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
         let last_hop = self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
             .path
             .last_hop_num()
             .ok_or_else(|| internal!("no last hop index"))?;
@@ -479,8 +509,6 @@ impl ClientCirc {
     // it has been extended this way" property.  We could do that with internal
     // state, or some kind of a type state pattern.
     //
-    // TODO hs: Possibly we should take a description of the hop.
-    //
     // TODO hs: possibly we should take a set of Protovers, and not just `Params`.
     #[cfg(feature = "hs-common")]
     pub async fn extend_virtual(
@@ -522,6 +550,9 @@ impl ClientCirc {
         // assuming it's the last hop.
 
         let hop_num = self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
             .path
             .last_hop_num()
             .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
@@ -704,7 +735,7 @@ impl ClientCirc {
     /// the currently pending hop may or may not be counted, depending on whether
     /// the extend operation finishes before this call is done.
     pub fn n_hops(&self) -> usize {
-        self.path.n_hops()
+        self.mutable.lock().expect("poisoned lock").path.n_hops()
     }
 }
 
@@ -721,10 +752,10 @@ impl PendingClientCirc {
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
     ) -> (PendingClientCirc, reactor::Reactor) {
-        let (reactor, control_tx, path) = Reactor::new(channel.clone(), id, unique_id, input);
+        let (reactor, control_tx, mutable) = Reactor::new(channel.clone(), id, unique_id, input);
 
         let circuit = ClientCirc {
-            path,
+            mutable,
             unique_id,
             control: control_tx,
             channel,
@@ -1305,11 +1336,27 @@ mod test {
             assert_eq!(circ.n_hops(), 4);
 
             // Do the path accessors report a reasonable outcome?
-            let path = circ.path();
-            assert_eq!(path.len(), 4);
-            use tor_linkspec::HasRelayIds;
-            assert_eq!(path[3].ed_identity(), example_target().ed_identity());
-            assert_ne!(path[0].ed_identity(), example_target().ed_identity());
+            #[allow(deprecated)]
+            {
+                let path = circ.path();
+                assert_eq!(path.len(), 4);
+                use tor_linkspec::HasRelayIds;
+                assert_eq!(path[3].ed_identity(), example_target().ed_identity());
+                assert_ne!(path[0].ed_identity(), example_target().ed_identity());
+            }
+            {
+                let path = circ.path_ref();
+                assert_eq!(path.n_hops(), 4);
+                use tor_linkspec::HasRelayIds;
+                assert_eq!(
+                    path.hops()[3].as_chan_target().unwrap().ed_identity(),
+                    example_target().ed_identity()
+                );
+                assert_ne!(
+                    path.hops()[0].as_chan_target().unwrap().ed_identity(),
+                    example_target().ed_identity()
+                );
+            }
         });
     }
 

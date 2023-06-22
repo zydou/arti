@@ -16,6 +16,7 @@
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
 use super::streammap::{ShouldSendEnd, StreamEnt};
+use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
@@ -40,7 +41,7 @@ use futures::Sink;
 use futures::Stream;
 use tor_error::internal;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use crate::channel::Channel;
@@ -490,7 +491,7 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back) = layer.split();
         reactor.add_hop(
-            path::PathEntry::Relay(self.peer_id.clone()),
+            path::HopDetail::Relay(self.peer_id.clone()),
             self.require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -562,8 +563,9 @@ pub struct Reactor {
     crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
     hops: Vec<CircHop>,
-    /// Shared atomic for information about the circuit's current path.
-    path: Arc<path::Path>,
+    /// Mutable information about this circuit, shared with
+    /// [`ClientCirc`](super::ClientCirc).
+    mutable: Arc<Mutex<MutableState>>,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// This circuit's identifier on the upstream channel.
@@ -585,10 +587,15 @@ impl Reactor {
         channel_id: CircId,
         unique_id: UniqId,
         input: mpsc::Receiver<ClientCircChanMsg>,
-    ) -> (Self, mpsc::UnboundedSender<CtrlMsg>, Arc<path::Path>) {
+    ) -> (
+        Self,
+        mpsc::UnboundedSender<CtrlMsg>,
+        Arc<Mutex<MutableState>>,
+    ) {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
         let path = Arc::new(path::Path::default());
+        let mutable = Arc::new(Mutex::new(MutableState { path }));
 
         let reactor = Reactor {
             control: control_rx,
@@ -601,10 +608,10 @@ impl Reactor {
             channel_id,
             crypto_out,
             meta_handler: None,
-            path: path.clone(),
+            mutable: mutable.clone(),
         };
 
-        (reactor, control_tx, path)
+        (reactor, control_tx, mutable)
     }
 
     /// Launch the reactor, and run until the circuit closes or we
@@ -876,7 +883,7 @@ impl Reactor {
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
-            path::PathEntry::Relay(peer_id),
+            path::HopDetail::Relay(peer_id),
             require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -944,7 +951,7 @@ impl Reactor {
     /// Add a hop to the end of this circuit.
     fn add_hop(
         &mut self,
-        peer_id: path::PathEntry,
+        peer_id: path::HopDetail,
         require_sendme_auth: RequireSendmeAuth,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
@@ -957,7 +964,8 @@ impl Reactor {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        self.path.push_hop(peer_id);
+        let mut mutable = self.mutable.lock().expect("poisoned lock");
+        Arc::make_mut(&mut mutable.path).push_hop(peer_id);
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
@@ -1257,7 +1265,7 @@ impl Reactor {
 
                 // TODO HS: Perhaps this should describe the onion service, or
                 // describe why the virtual hop was added, or something?
-                let peer_id = path::PathEntry::Virtual;
+                let peer_id = path::HopDetail::Virtual;
 
                 // NOTE: This is not 100% correct! In theory we probably
                 // should be looking at the sendme_auth_accept_min_version
@@ -1330,7 +1338,7 @@ impl Reactor {
                 let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
                 let rev = Box::new(DummyCrypto::new(rev_lasthop));
                 self.add_hop(
-                    path::PathEntry::Relay(dummy_peer_id),
+                    path::HopDetail::Relay(dummy_peer_id),
                     require_sendme_auth,
                     fwd,
                     rev,
