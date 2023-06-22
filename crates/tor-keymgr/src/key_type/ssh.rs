@@ -4,7 +4,7 @@
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
 use ssh_key::private::KeypairData;
-pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
+use ssh_key::Algorithm;
 
 use crate::{EncodableKey, ErasedKey, KeyType, KeystoreError, Result};
 
@@ -36,6 +36,44 @@ impl UnparsedOpenSshKey {
         Self {
             inner: Zeroizing::new(inner),
             path,
+        }
+    }
+}
+
+/// SSH key algorithms.
+//
+// Note: this contains all the types supported by ssh_key, plus X25519.
+#[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
+pub(crate) enum SshKeyAlgorithm {
+    /// Digital Signature Algorithm
+    Dsa,
+    /// Elliptic Curve Digital Signature Algorithm
+    Ecdsa,
+    /// Ed25519
+    Ed25519,
+    /// X25519
+    X25519,
+    /// RSA
+    Rsa,
+    /// FIDO/U2F key with ECDSA/NIST-P256 + SHA-256
+    SkEcdsaSha2NistP256,
+    /// FIDO/U2F key with Ed25519
+    SkEd25519,
+    /// An unrecognized [`ssh_key::Algorithm`].
+    Unknown(ssh_key::Algorithm),
+}
+
+impl From<Algorithm> for SshKeyAlgorithm {
+    fn from(algo: Algorithm) -> SshKeyAlgorithm {
+        match algo {
+            Algorithm::Dsa => SshKeyAlgorithm::Dsa,
+            Algorithm::Ecdsa { .. } => SshKeyAlgorithm::Ecdsa,
+            Algorithm::Ed25519 => SshKeyAlgorithm::Ed25519,
+            Algorithm::Rsa { .. } => SshKeyAlgorithm::Rsa,
+            Algorithm::SkEcdsaSha2NistP256 => SshKeyAlgorithm::SkEcdsaSha2NistP256,
+            Algorithm::SkEd25519 => SshKeyAlgorithm::SkEd25519,
+            // Note: ssh_key::Algorithm is non_exhaustive, so we need this catch-all variant
+            _ => SshKeyAlgorithm::Unknown(algo),
         }
     }
 }
@@ -115,7 +153,7 @@ fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<Er
             return Err(SshKeyError::UnexpectedSshKeyType {
                 path: key.path,
                 wanted_key_algo: key_type.ssh_algorithm(),
-                found_key_algo: sk.algorithm(),
+                found_key_algo: sk.algorithm().into(),
             }
             .boxed());
         }
