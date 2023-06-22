@@ -251,15 +251,13 @@ impl ClientCirc {
 
     /// Return a description of all the hops in this circuit.
     ///
-    /// Note that this method performs a deep copy over the `OwnedCircTarget`
-    /// values in the path.  This is undesirable for some applications; see
-    /// [ticket #787](https://gitlab.torproject.org/tpo/core/arti/-/issues/787).
+    /// This method is **deprecated** for several reasons:
+    ///   * It performs a deep copy.
+    ///   * It ignores virtual hops.
+    ///   * It's not so extensible.
     ///
-    /// Note also that this method ignores virtual hops.  This is likely to
-    /// change in the future, but it will require a backward-incompatible change
-    /// on the return type.
-    ///
-    /// TODO HS: Fix the virtual-hop issue.
+    /// Use [`ClientCirc::path_ref()`] instead.
+    #[deprecated(since = "0.11.1", note = "Use path_ref() instead.")]
     pub fn path(&self) -> Vec<OwnedChanTarget> {
         #[allow(clippy::unnecessary_filter_map)] // clippy is blind to the cfg
         self.mutable
@@ -274,6 +272,14 @@ impl ClientCirc {
                 path::HopDetail::Virtual => None,
             })
             .collect()
+    }
+
+    /// Return a [`Path`] object describing all the hops in this circuit.
+    ///
+    /// Note that this `Path` is not automatically updated if the circuit is
+    /// extended.
+    pub fn path_ref(&self) -> Arc<Path> {
+        self.mutable.lock().expect("poisoned_lock").path.clone()
     }
 
     /// Return a reference to the channel that this circuit is connected to.
@@ -1332,11 +1338,27 @@ mod test {
             assert_eq!(circ.n_hops(), 4);
 
             // Do the path accessors report a reasonable outcome?
-            let path = circ.path();
-            assert_eq!(path.len(), 4);
-            use tor_linkspec::HasRelayIds;
-            assert_eq!(path[3].ed_identity(), example_target().ed_identity());
-            assert_ne!(path[0].ed_identity(), example_target().ed_identity());
+            #[allow(deprecated)]
+            {
+                let path = circ.path();
+                assert_eq!(path.len(), 4);
+                use tor_linkspec::HasRelayIds;
+                assert_eq!(path[3].ed_identity(), example_target().ed_identity());
+                assert_ne!(path[0].ed_identity(), example_target().ed_identity());
+            }
+            {
+                let path = circ.path_ref();
+                assert_eq!(path.n_hops(), 4);
+                use tor_linkspec::HasRelayIds;
+                assert_eq!(
+                    path.hops()[3].as_chan_target().unwrap().ed_identity(),
+                    example_target().ed_identity()
+                );
+                assert_ne!(
+                    path.hops()[0].as_chan_target().unwrap().ed_identity(),
+                    example_target().ed_identity()
+                );
+            }
         });
     }
 
