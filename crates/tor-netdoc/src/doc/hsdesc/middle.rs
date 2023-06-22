@@ -16,7 +16,7 @@ use crate::{Pos, Result};
 use super::desc_enc::{
     HsDescEncNonce, HsDescEncryption, HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN,
 };
-use super::DecryptionError;
+use super::HsDescError;
 
 /// The only currently recognized `desc-auth-type`.
 //
@@ -61,7 +61,7 @@ impl HsDescMiddle {
         revision: RevisionCounter,
         subcredential: &Subcredential,
         key: Option<&HsClientDescEncSecretKey>,
-    ) -> std::result::Result<Vec<u8>, DecryptionError> {
+    ) -> std::result::Result<Vec<u8>, super::HsDescError> {
         let desc_enc_nonce = key.and_then(|k| self.find_cookie(subcredential, k));
         let decrypt = HsDescEncryption {
             blinded_id,
@@ -71,7 +71,14 @@ impl HsDescMiddle {
             string_const: b"hsdir-encrypted-data",
         };
 
-        decrypt.decrypt(&self.encrypted)
+        match decrypt.decrypt(&self.encrypted) {
+            Ok(v) => Ok(v),
+            Err(_) => match (key, desc_enc_nonce) {
+                (Some(_), None) => Err(HsDescError::WrongDecryptionKey),
+                (Some(_), Some(_)) => Err(HsDescError::DecryptionFailed),
+                (None, _) => Err(HsDescError::MissingDecryptionKey),
+            },
+        }
     }
 
     /// Use a `ClientDescAuthSecretKey` (`KS_hsc_desc_enc`) to see if there is any `auth-client`

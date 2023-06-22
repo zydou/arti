@@ -126,33 +126,12 @@ pub enum DescriptorErrorDetail {
     Directory(#[from] tor_dirclient::RequestError),
 
     /// Failed to parse or validate descriptor
-    #[error("invalid descriptor")]
-    InvalidDescriptor(#[source] tor_netdoc::Error),
-
-    /// Unable to decrypt a descriptor: we were missing a key.
-    #[error("missing decryption key")]
-    MissingDecryptionKey(#[source] tor_netdoc::Error),
-
-    /// Unable to decrypt a descriptor: we had the wrong key.
-    #[error("wrong decryption key")]
-    WrongDecryptionKey(#[source] tor_netdoc::Error),
+    #[error("problem with descriptor")]
+    Descriptor(#[from] tor_netdoc::doc::hsdesc::HsDescError),
 
     /// Internal error
     #[error("{0}")]
     Bug(#[from] Bug),
-}
-
-impl DescriptorErrorDetail {
-    /// Construct a [`DescriptorErrorDetail`] from a [`tor_netdoc::Error`], and a flag
-    /// telling us whether we were using any keys to decrypt it.
-    pub(crate) fn from_netdoc_err(err: tor_netdoc::Error, auth_provided: bool) -> Self {
-        use tor_netdoc::NetdocErrorKind as NEK;
-        match err.netdoc_error_kind() {
-            NEK::DecryptionFailed if auth_provided => Self::WrongDecryptionKey(err),
-            NEK::DecryptionFailed => Self::MissingDecryptionKey(err),
-            _ => Self::InvalidDescriptor(err),
-        }
-    }
 }
 
 /// Error that occurred making one attempt to connect to a hidden service using an IP and RP
@@ -373,7 +352,6 @@ impl HasKind for DescriptorError {
 impl HasKind for DescriptorErrorDetail {
     fn kind(&self) -> ErrorKind {
         use tor_dirclient::RequestError as RE;
-        use tor_netdoc::NetdocErrorKind as NEK;
         use DescriptorErrorDetail as DED;
         use ErrorKind as EK;
         match self {
@@ -384,12 +362,7 @@ impl HasKind for DescriptorErrorDetail {
             DED::Directory(RE::ResponseTooLong(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(RE::Utf8Encoding(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(other_re) => other_re.kind(),
-            DED::InvalidDescriptor(e) => match e.netdoc_error_kind() {
-                NEK::BadTimeBound | NEK::BadSignature => EK::OnionServiceDescriptorValidationFailed,
-                _ => EK::OnionServiceDescriptorParsingFailed,
-            },
-            DED::MissingDecryptionKey(_) => EK::OnionServiceMissingClientAuth,
-            DED::WrongDecryptionKey(_) => EK::OnionServiceWrongClientAuth,
+            DED::Descriptor(e) => e.kind(),
             DED::Bug(e) => e.kind(),
         }
     }
