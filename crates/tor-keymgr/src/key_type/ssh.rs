@@ -30,6 +30,14 @@ impl UnparsedOpenSshKey {
     }
 }
 
+/// An error that occurred while processing an OpenSSH key.
+//
+// TODO hs: use this error type instead of crate::Error.
+#[derive(thiserror::Error, Debug, Clone)]
+pub(crate) enum SshKeyError {
+    // TODO hs
+}
+
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
 fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
     let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| {
