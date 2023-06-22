@@ -490,12 +490,6 @@ where
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceWrongClientAuth => S::HS_WRONG_CLIENT_AUTH,
 
-        // TODO HS: Nothing generates the following two errorkinds (yet).
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceIntroFailed => S::HS_INTRO_FAILED,
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceRendFailed => S::HS_REND_FAILED,
-
         // TODO HS: This is not a perfect correspondence to the error we're
         // returning here.
         #[cfg(feature = "onion-service-client")]

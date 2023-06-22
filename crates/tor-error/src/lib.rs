@@ -558,25 +558,6 @@ pub enum ErrorKind {
     )]
     OnionServiceWrongClientAuth,
 
-    /// We tried to connect to an onion service, but could not send an INTRODUCE
-    /// message.
-    ///
-    /// This likely means that the onion service is at not at its introduction points
-    /// any longer; perhaps it is down, or under a DoS attack, or perhaps we do not
-    /// have up-to-date information about it.
-    #[cfg(feature = "experimental-api")]
-    #[display(fmt = "Unable to send introduction to onion service.")]
-    OnionServiceIntroFailed,
-
-    /// We tried to connect to an onion service, but could not successfully get
-    /// a RENDEZVOUS message from it.
-    ///
-    /// This likely means that the onion service is not running, or does not
-    /// want to talk to us, or all of its introduction points are subtly broken.
-    #[cfg(feature = "experimental-api")]
-    #[display(fmt = "Unable to rendezvous with onion service.")]
-    OnionServiceRendFailed,
-
     /// An resolve operation finished with an error.
     ///
     /// Contrary to [`RemoteHostNotFound`](ErrorKind::RemoteHostNotFound),
