@@ -125,9 +125,7 @@ impl<R: Runtime> HsCircPool<R> {
         let path = circ.path_ref();
         match path.hops().last() {
             Some(ent) => {
-                let ct = if let Some(ct) = ent.as_chan_target() {
-                    ct
-                } else {
+                let Some(ct) = ent.as_chan_target() else {
                     return Err(
                         internal!("HsPool gave us a circuit with a virtual last hop!?").into(),
                     );
@@ -340,9 +338,7 @@ fn circuit_compatible_with_target(
     let path = circ.path_ref();
     // (We have to use a binding here to appease borrowck.)
     let all_compatible = path.iter().all(|ent: &circuit::PathEntry| {
-        let c = if let Some(c) = ent.as_chan_target() {
-            c
-        } else {
+        let Some(c) = ent.as_chan_target() else {
             // This is a virtual hop; it's necessarily compatible with everything.
             return true;
         };
