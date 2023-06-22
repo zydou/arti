@@ -7,6 +7,11 @@ rm -rf shadow.data
 
 export RUST_BACKTRACE=1
 
+# Fix permissions on hidden service dir to prevent tor from bailing.
+# TODO: isn't there a way to set the permissions in the git repo? Tried `git
+# update-index --chmod`, but it refuses to set permissions on a directory.
+chmod 700 shadow.data.template/hosts/fileserver-onion/hs
+
 # Run the simulation
 shadow \
   --model-unblocked-syscall-latency=true \
