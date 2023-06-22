@@ -345,28 +345,36 @@ pub enum HsDescError {
 
     /// Decrypting the inner layer failed because we need to have a decryption key,
     /// but we didn't provide one.
+    ///
     /// This is probably our fault.
     #[error("Decryption failure on onion service descriptor: missing decryption key")]
     MissingDecryptionKey,
 
     /// Decrypting the inner layer failed because, although we provided a key,
     /// we did not provide the key we need to decrypt it.
+    ///
     /// This is probably our fault.
     #[error("Decryption failure on onion service descriptor: incorrect decryption key")]
     WrongDecryptionKey,
 
     /// Decrypting the inner or middle layer failed because of an issue with the
-    /// decryption itself.  This is the onion service's fault.
+    /// decryption itself.
+    ///
+    /// This is the onion service's fault.
     #[error("Decryption failure on onion service descriptor: could not decrypt")]
     DecryptionFailed,
 
     /// We failed to parse something cryptographic in an inner layer of the
-    /// onion service descriptor.  This is definitely the onion service's fault.
+    /// onion service descriptor.
+    ///
+    /// This is definitely the onion service's fault.
     #[error("Parsing failure on inner layer of an onion service descriptor")]
     InnerParsing(#[source] crate::Error),
 
     /// We failed to validate something cryptographic in an inner layer of the
-    /// onion service descriptor.  This is definitely the onion service's fault.
+    /// onion service descriptor.
+    ///
+    /// This is definitely the onion service's fault.
     #[error("Validation failure on inner layer of an onion service descriptor")]
     InnerValidation(#[source] crate::Error),
 
