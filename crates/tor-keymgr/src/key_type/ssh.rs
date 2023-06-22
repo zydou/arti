@@ -9,7 +9,7 @@ use ssh_key::Algorithm;
 use crate::{EncodableKey, ErasedKey, KeyType, KeystoreError, Result};
 
 use tor_error::{ErrorKind, HasKind};
-use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::{ed25519, keymanip};
 use zeroize::Zeroizing;
 
 use std::path::PathBuf;
@@ -181,16 +181,14 @@ impl KeyType {
                 read_ed25519_keypair(*self, key).map(|key| Box::new(key) as ErasedKey)
             }
             KeyType::X25519StaticSecret => {
-                // TODO hs: implement
-                //
-                // The ssh-key crate doesn't support curve25519 keys. We might need a more
-                // general-purpose crate for parsing keys in SSH key format (one that allows
-                // arbitrary values for the algorithm).
-                //
-                // Alternatively, we could store curve25519 keys in openssh format as ssh-ed25519
-                // (though intentionally storing the key in the wrong format only to convert it
-                // back to x25519 upon retrieval is sort of ugly).
-                Err(SshKeyError::Unsupported(*self).boxed())
+                // NOTE: The ssh-key crate doesn't support storing curve25519 keys in OpenSSH
+                // format. As a workaround, this type of key will be stored as ssh-ed25519 and
+                // converted back to x25519 upon retrieval.
+                let key = read_ed25519_keypair(KeyType::Ed25519Keypair, key)?;
+
+                Ok(Box::new(keymanip::convert_ed25519_to_curve25519_private(
+                    &key,
+                )))
             }
         }
     }
