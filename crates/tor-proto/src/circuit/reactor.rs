@@ -16,6 +16,7 @@
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
 use super::streammap::{ShouldSendEnd, StreamEnt};
+use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
@@ -40,7 +41,7 @@ use futures::Sink;
 use futures::Stream;
 use tor_error::internal;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use crate::channel::Channel;
@@ -562,8 +563,9 @@ pub struct Reactor {
     crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
     hops: Vec<CircHop>,
-    /// Shared atomic for information about the circuit's current path.
-    path: Arc<path::Path>,
+    /// Mutable information about this circuit, shared with
+    /// [`ClientCirc`](super::ClientCirc).
+    mutable: Arc<Mutex<MutableState>>,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// This circuit's identifier on the upstream channel.
@@ -585,10 +587,15 @@ impl Reactor {
         channel_id: CircId,
         unique_id: UniqId,
         input: mpsc::Receiver<ClientCircChanMsg>,
-    ) -> (Self, mpsc::UnboundedSender<CtrlMsg>, Arc<path::Path>) {
+    ) -> (
+        Self,
+        mpsc::UnboundedSender<CtrlMsg>,
+        Arc<Mutex<MutableState>>,
+    ) {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
         let path = Arc::new(path::Path::default());
+        let mutable = Arc::new(Mutex::new(MutableState { path }));
 
         let reactor = Reactor {
             control: control_rx,
@@ -601,10 +608,10 @@ impl Reactor {
             channel_id,
             crypto_out,
             meta_handler: None,
-            path: path.clone(),
+            mutable: mutable.clone(),
         };
 
-        (reactor, control_tx, path)
+        (reactor, control_tx, mutable)
     }
 
     /// Launch the reactor, and run until the circuit closes or we
@@ -957,7 +964,11 @@ impl Reactor {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        self.path.push_hop(peer_id);
+        self.mutable
+            .lock()
+            .expect("poisoned lock")
+            .path
+            .push_hop(peer_id);
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.

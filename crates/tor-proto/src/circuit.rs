@@ -76,7 +76,7 @@ use futures::channel::{mpsc, oneshot};
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::SinkExt;
 use std::net::IpAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tor_cell::relaycell::StreamId;
 // use std::time::Duration;
 
@@ -111,8 +111,8 @@ pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 // two atomic refcount changes/checks.  Wrapping it in another Arc would
 // be overkill.
 pub struct ClientCirc {
-    /// Information about this circuit's path.
-    path: Arc<path::Path>,
+    /// Mutable state shared with the `Reactor`.
+    mutable: Arc<Mutex<MutableState>>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -129,6 +129,13 @@ pub struct ClientCirc {
     /// For testing purposes: the CircId, for use in peek_circid().
     #[cfg(test)]
     circid: CircId,
+}
+
+/// Mutable state shared by [`ClientCirc`] and [`Reactor`].
+#[derive(Debug)]
+struct MutableState {
+    /// Information about this circuit's path.
+    path: Arc<path::Path>,
 }
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
@@ -221,6 +228,9 @@ impl ClientCirc {
     /// circuit with no hops.)
     pub fn first_hop(&self) -> OwnedChanTarget {
         let first_hop = self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
             .path
             .first_hop()
             .expect("called first_hop on an un-constructed circuit");
@@ -244,7 +254,10 @@ impl ClientCirc {
     /// TODO HS: Fix the virtual-hop issue.
     pub fn path(&self) -> Vec<OwnedChanTarget> {
         #[allow(clippy::unnecessary_filter_map)] // clippy is blind to the cfg
-        self.path
+        self.mutable
+            .lock()
+            .expect("poisoned lock")
+            .path
             .all_hops()
             .into_iter()
             .filter_map(|hop| match hop {
@@ -371,6 +384,9 @@ impl ClientCirc {
     ) -> Result<()> {
         let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
         let last_hop = self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
             .path
             .last_hop_num()
             .ok_or_else(|| internal!("no last hop index"))?;
@@ -522,6 +538,9 @@ impl ClientCirc {
         // assuming it's the last hop.
 
         let hop_num = self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
             .path
             .last_hop_num()
             .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
@@ -704,7 +723,7 @@ impl ClientCirc {
     /// the currently pending hop may or may not be counted, depending on whether
     /// the extend operation finishes before this call is done.
     pub fn n_hops(&self) -> usize {
-        self.path.n_hops()
+        self.mutable.lock().expect("poisoned lock").path.n_hops()
     }
 }
 
@@ -721,10 +740,10 @@ impl PendingClientCirc {
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
     ) -> (PendingClientCirc, reactor::Reactor) {
-        let (reactor, control_tx, path) = Reactor::new(channel.clone(), id, unique_id, input);
+        let (reactor, control_tx, mutable) = Reactor::new(channel.clone(), id, unique_id, input);
 
         let circuit = ClientCirc {
-            path,
+            mutable,
             unique_id,
             control: control_tx,
             channel,
