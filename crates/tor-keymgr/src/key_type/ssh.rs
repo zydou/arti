@@ -13,6 +13,8 @@ use crate::{EncodableKey, ErasedKey, Error, Result};
 use tor_llcrypto::pk::ed25519;
 use zeroize::Zeroizing;
 
+use std::sync::Arc;
+
 /// An unparsed OpenSSH key.
 ///
 /// Note: This is a wrapper around the contents of a file we think is an OpenSSH key. The inner
@@ -35,7 +37,24 @@ impl UnparsedOpenSshKey {
 // TODO hs: use this error type instead of crate::Error.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum SshKeyError {
-    // TODO hs
+    /// Failed to parse an OpenSSH key
+    #[error("Failed to parse OpenSSH with type {key_type:?}")]
+    SshKeyParse {
+        /// The type of key we were trying to fetch.
+        key_type: KeyType,
+        /// The underlying error.
+        #[source]
+        err: Arc<ssh_key::Error>,
+    },
+
+    /// The OpenSSH key we retrieved is of the wrong type.
+    #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
+    UnexpectedSshKeyType {
+        /// The algorithm we expected the key to use.
+        wanted_key_algo: SshKeyAlgorithm,
+        /// The algorithm of the key we got.
+        found_key_algo: SshKeyAlgorithm,
+    },
 }
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
