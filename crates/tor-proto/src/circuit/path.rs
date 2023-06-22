@@ -24,9 +24,12 @@ pub(super) enum PathEntry {
     Virtual,
 }
 
-/// Helper struct that shares information
+/// A circuit's path through the network.
+///
+/// Every path is composed of some number of hops; each hop is typically a
+/// bridge or relay on the Tor network.
 #[derive(Debug, Default, Clone)]
-pub(super) struct Path {
+pub struct Path {
     /// Information about the relays on this circuit.
     ///
     /// We only store ChanTarget information here, because it doesn't matter
@@ -36,11 +39,11 @@ pub(super) struct Path {
 
 impl Path {
     /// Return the number of hops in this path
-    pub(super) fn n_hops(&self) -> usize {
+    pub fn n_hops(&self) -> usize {
         self.hops.len()
     }
 
-    /// Add a hop to this  this path.
+    /// Add a hop to this path.
     pub(super) fn push_hop(&mut self, target: PathEntry) {
         self.hops.push(target);
     }

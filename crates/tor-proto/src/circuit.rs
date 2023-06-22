@@ -84,6 +84,8 @@ use crate::crypto::handshake::ntor::NtorPublicKey;
 
 use self::reactor::RequireSendmeAuth;
 
+pub use path::Path;
+
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
