@@ -4636,6 +4636,7 @@ name = "tor-netdoc"
 version = "0.8.0"
 dependencies = [
  "amplify",
+ "anyhow",
  "base64ct",
  "bitflags 2.3.1",
  "cipher",

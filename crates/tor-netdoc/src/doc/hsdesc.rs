@@ -218,7 +218,7 @@ impl HsDesc {
     /// let hsdesc = unchecked_decrypted_desc
     ///     .check_valid_at(&timestamp)?
     ///     .check_signature()?;
-    /// # Ok::<(), Error>(())
+    /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn parse(
         input: &str,
