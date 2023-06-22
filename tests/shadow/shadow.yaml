@@ -131,3 +131,19 @@ hosts:
       args: ../../../conf/tgen.torclient.graphml.xml
       start_time: 25m
       expected_final_state: {exited: 0}
+  articlient-onion:
+    network_node_id: 0
+    processes:
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+      args: proxy -c arti.toml -o proxy.socks_port=9000 --disable-fs-permission-checks -l debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 15m
+      expected_final_state: running
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.toronionclient.graphml.xml
+      start_time: 1500
+
