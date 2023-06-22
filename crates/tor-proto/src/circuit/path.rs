@@ -24,11 +24,29 @@ pub(super) enum HopDetail {
 }
 
 /// A description of a single hop in a [`Path`].
+///
+/// Each hop can be to a relay or bridge on the Tor network, or a "virtual" hop
+/// representing the cryptographic connection between a client and an onion
+/// service.
 #[derive(Debug, Clone)]
 pub struct PathEntry {
     /// The actual information about this hop.  We use an inner structure here
     /// to keep the information private.
     inner: HopDetail,
+}
+
+impl PathEntry {
+    /// If this hop was built to a known Tor relay or bridge instance, return
+    /// a reference to a ChanTarget representing that instance.
+    ///
+    /// Otherwise, return None.
+    pub fn as_chan_target(&self) -> Option<&impl tor_linkspec::ChanTarget> {
+        match &self.inner {
+            HopDetail::Relay(chan_target) => Some(chan_target),
+            #[cfg(feature = "hs-common")]
+            HopDetail::Virtual => None,
+        }
+    }
 }
 
 /// A circuit's path through the network.
@@ -48,6 +66,16 @@ impl Path {
     /// Return the number of hops in this path
     pub fn n_hops(&self) -> usize {
         self.hops.len()
+    }
+
+    /// Return a list of all the hops in this path.
+    pub fn hops(&self) -> &[PathEntry] {
+        &self.hops[..]
+    }
+
+    /// Return an iterator over all the hops in this path.
+    pub fn iter(&self) -> impl Iterator<Item = &PathEntry> + '_ {
+        self.hops.iter()
     }
 
     /// Add a hop to this path.
