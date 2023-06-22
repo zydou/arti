@@ -7,12 +7,13 @@ use ssh_key::private::KeypairData;
 pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 
 use crate::err::MalformedKeyErrorSource;
-use crate::key_type::KeyType;
-use crate::{EncodableKey, ErasedKey, Error, Result};
+use crate::{EncodableKey, ErasedKey, Error, KeyType, KeystoreError, Result};
 
+use tor_error::{ErrorKind, HasKind};
 use tor_llcrypto::pk::ed25519;
 use zeroize::Zeroizing;
 
+use std::error::Error as StdError;
 use std::sync::Arc;
 
 /// An unparsed OpenSSH key.
@@ -55,6 +56,21 @@ pub(crate) enum SshKeyError {
         /// The algorithm of the key we got.
         found_key_algo: SshKeyAlgorithm,
     },
+}
+
+impl KeystoreError for SshKeyError {}
+
+impl AsRef<dyn StdError> for SshKeyError {
+    fn as_ref(&self) -> &(dyn StdError + 'static) {
+        self
+    }
+}
+
+impl HasKind for SshKeyError {
+    fn kind(&self) -> ErrorKind {
+        // TODO hs
+        ErrorKind::Other
+    }
 }
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
