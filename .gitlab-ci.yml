@@ -94,7 +94,7 @@ rust-latest:
   image: rust:latest
   script:
     - rustup show
-    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu
+    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu --features onion-service-client
     - cargo test --verbose --target x86_64-unknown-linux-gnu
     - rustup component add clippy
     - rustup show
