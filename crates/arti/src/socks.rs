@@ -482,10 +482,6 @@ where
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceNotFound => S::HS_DESC_NOT_FOUND,
         #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceDescriptorParsingFailed | EK::OnionServiceDescriptorValidationFailed => {
-            S::HS_DESC_INVALID
-        }
-        #[cfg(feature = "onion-service-client")]
         EK::OnionServiceAddressInvalid => S::HS_BAD_ADDRESS,
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceMissingClientAuth => S::HS_MISSING_CLIENT_AUTH,

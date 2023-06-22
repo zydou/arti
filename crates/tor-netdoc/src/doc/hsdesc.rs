@@ -36,6 +36,7 @@ use tor_units::IntegerMinutes;
 
 use smallvec::SmallVec;
 
+use std::result::Result as StdResult;
 use std::time::SystemTime;
 
 #[cfg(feature = "hsdesc-inner-docs")]
@@ -217,7 +218,7 @@ impl HsDesc {
     /// let hsdesc = unchecked_decrypted_desc
     ///     .check_valid_at(&timestamp)?
     ///     .check_signature()?;
-    /// # Ok::<(), Error>(())
+    /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn parse(
         input: &str,
@@ -262,14 +263,20 @@ impl HsDesc {
         valid_at: SystemTime,
         subcredential: &Subcredential,
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
-    ) -> Result<TimerangeBound<Self>> {
-        let unchecked_desc = Self::parse(input, blinded_onion_id)?.check_signature()?;
+    ) -> StdResult<TimerangeBound<Self>, HsDescError> {
+        use HsDescError as E;
+        let unchecked_desc = Self::parse(input, blinded_onion_id)
+            .map_err(E::OuterParsing)?
+            .check_signature()
+            .map_err(|e| E::OuterValidation(e.into()))?;
 
         let (inner_desc, new_bounds) = {
             // We use is_valid_at and dangerously_into_parts instead of check_valid_at because we
             // need the time bounds of the outer layer (for computing the intersection with the
             // time bounds of the inner layer).
-            unchecked_desc.is_valid_at(&valid_at)?;
+            unchecked_desc
+                .is_valid_at(&valid_at)
+                .map_err(|e| E::OuterValidation(e.into()))?;
             // It's safe to use dangerously_into_parts() as we've just checked if unchecked_desc is
             // valid at the current time
             let (unchecked_desc, bounds) = unchecked_desc.dangerously_into_parts();
@@ -282,7 +289,11 @@ impl HsDesc {
             (inner_timerangebound, new_bounds)
         };
 
-        let hsdesc = inner_desc.check_valid_at(&valid_at)?.check_signature()?;
+        let hsdesc = inner_desc
+            .check_valid_at(&valid_at)
+            .map_err(|e| E::InnerValidation(e.into()))?
+            .check_signature()
+            .map_err(|e| E::InnerValidation(e.into()))?;
 
         // If we've reached this point, it means the descriptor is valid at specified time. This
         // means the time bounds of the two layers definitely intersect, so new_bounds **must** be
@@ -303,6 +314,88 @@ impl HsDesc {
     // Perhaps someday we can use derive_adhoc, or add as_ref() support?
     pub fn intro_points(&self) -> &[IntroPointDesc] {
         &self.intro_points
+    }
+}
+
+/// An error returned by [`HsDesc::parse_decrypt_validate`], indicating what
+/// kind of failure prevented us from validating an onion service descriptor.
+///
+/// This is distinct from [`tor_netdoc::Error`](crate::Error) so that we can
+/// tell errors that could be the HsDir's fault from those that are definitely
+/// protocol violations by the onion service.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum HsDescError {
+    /// An outer object failed parsing: the HsDir should probably have
+    /// caught this, and not given us this HsDesc.
+    ///
+    /// (This can be an innocent error if we happen to know about restrictions
+    /// that the HsDir does not).
+    #[error("Parsing failure on outer layer of an onion service descriptor.")]
+    OuterParsing(#[source] crate::Error),
+
+    /// An outer object failed validation: the HsDir should probably have
+    /// caught this, and not given us this HsDesc.
+    ///
+    /// (This can happen erroneously if we think that something is untimely but
+    /// the HSDir's clock is slightly different, or _was_ different when it
+    /// decided to give us this object.)
+    #[error("Validation failure on outer layer of an onion service descriptor.")]
+    OuterValidation(#[source] crate::Error),
+
+    /// Decrypting the inner layer failed because we need to have a decryption key,
+    /// but we didn't provide one.
+    ///
+    /// This is probably our fault.
+    #[error("Decryption failure on onion service descriptor: missing decryption key")]
+    MissingDecryptionKey,
+
+    /// Decrypting the inner layer failed because, although we provided a key,
+    /// we did not provide the key we need to decrypt it.
+    ///
+    /// This is probably our fault.
+    #[error("Decryption failure on onion service descriptor: incorrect decryption key")]
+    WrongDecryptionKey,
+
+    /// Decrypting the inner or middle layer failed because of an issue with the
+    /// decryption itself.
+    ///
+    /// This is the onion service's fault.
+    #[error("Decryption failure on onion service descriptor: could not decrypt")]
+    DecryptionFailed,
+
+    /// We failed to parse something cryptographic in an inner layer of the
+    /// onion service descriptor.
+    ///
+    /// This is definitely the onion service's fault.
+    #[error("Parsing failure on inner layer of an onion service descriptor")]
+    InnerParsing(#[source] crate::Error),
+
+    /// We failed to validate something cryptographic in an inner layer of the
+    /// onion service descriptor.
+    ///
+    /// This is definitely the onion service's fault.
+    #[error("Validation failure on inner layer of an onion service descriptor")]
+    InnerValidation(#[source] crate::Error),
+
+    /// We encountered an internal error.
+    #[error("Internal error: {0}")]
+    Bug(#[from] tor_error::Bug),
+}
+
+impl tor_error::HasKind for HsDescError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use HsDescError as E;
+        match self {
+            E::OuterParsing(_) | E::OuterValidation(_) => EK::TorProtocolViolation,
+            E::MissingDecryptionKey => EK::OnionServiceMissingClientAuth,
+            E::WrongDecryptionKey => EK::OnionServiceWrongClientAuth,
+            E::DecryptionFailed | E::InnerParsing(_) | E::InnerValidation(_) => {
+                EK::OnionServiceProtocolViolation
+            }
+            E::Bug(e) => e.kind(),
+        }
     }
 }
 
@@ -338,37 +431,39 @@ impl EncryptedHsDesc {
         &self,
         subcredential: &Subcredential,
         hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
-    ) -> Result<TimerangeBound<SignatureGated<HsDesc>>> {
+    ) -> StdResult<TimerangeBound<SignatureGated<HsDesc>>, HsDescError> {
+        use HsDescError as E;
         let blinded_id = self.outer_doc.blinded_id();
         let revision_counter = self.outer_doc.revision_counter;
         let kp_desc_sign = self.outer_doc.desc_sign_key_id();
 
         // Decrypt the superencryption layer; parse the middle document.
-        let middle = self.outer_doc.decrypt_body(subcredential).map_err(|_| {
-            EK::BadObjectVal.with_msg("onion service descriptor superencryption failed.")
+        let middle = self
+            .outer_doc
+            .decrypt_body(subcredential)
+            .map_err(|_| E::DecryptionFailed)?;
+        let middle = std::str::from_utf8(&middle[..]).map_err(|_| {
+            E::InnerParsing(EK::BadObjectVal.with_msg("Bad utf-8 in middle document"))
         })?;
-        let middle = std::str::from_utf8(&middle[..])
-            .map_err(|_| EK::BadObjectVal.with_msg("Bad utf-8 in middle document"))?;
-        let middle = middle::HsDescMiddle::parse(middle)?;
+        let middle = middle::HsDescMiddle::parse(middle).map_err(E::InnerParsing)?;
 
         // Decrypt the encryption layer and parse the inner document.
-        let inner = middle
-            .decrypt_inner(
-                &blinded_id,
-                revision_counter,
-                subcredential,
-                hsc_desc_enc.map(|keys| keys.1),
-            )
-            .map_err(|_| {
-                EK::DecryptionFailed.with_msg("onion service descriptor encryption failed.")
-            })?;
-        let inner = std::str::from_utf8(&inner[..])
-            .map_err(|_| EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))?;
-        let (cert_signing_key, time_bound) = inner::HsDescInner::parse(inner)?;
+        let inner = middle.decrypt_inner(
+            &blinded_id,
+            revision_counter,
+            subcredential,
+            hsc_desc_enc.map(|keys| keys.1),
+        )?;
+        let inner = std::str::from_utf8(&inner[..]).map_err(|_| {
+            E::InnerParsing(EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))
+        })?;
+        let (cert_signing_key, time_bound) =
+            inner::HsDescInner::parse(inner).map_err(E::InnerParsing)?;
 
         if cert_signing_key.as_ref() != Some(kp_desc_sign) {
-            return Err(EK::BadObjectVal
-                .with_msg("Signing keys in inner document did not match those in outer document"));
+            return Err(E::InnerValidation(EK::BadObjectVal.with_msg(
+                "Signing keys in inner document did not match those in outer document",
+            )));
         }
 
         // Construct the HsDesc!
@@ -498,7 +593,8 @@ mod test {
             .check_signature()?
             .check_valid_at(&humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap())
             .unwrap()
-            .decrypt(&TEST_SUBCREDENTIAL.into(), None)?;
+            .decrypt(&TEST_SUBCREDENTIAL.into(), None)
+            .unwrap();
         let desc = desc
             .check_valid_at(&humantime::parse_rfc3339("2023-01-24T03:00:00Z").unwrap())
             .unwrap();
