@@ -12,9 +12,9 @@ use crate::{CircMgr, Error, Result};
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::{bad_api_usage, internal, ErrorReport};
-use tor_linkspec::{CircTarget, OwnedChanTarget, OwnedCircTarget};
+use tor_linkspec::{CircTarget, OwnedCircTarget};
 use tor_netdir::{NetDir, NetDirProvider, Relay, SubnetConfig};
-use tor_proto::circuit::ClientCirc;
+use tor_proto::circuit::{self, ClientCirc};
 use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
@@ -122,18 +122,27 @@ impl<R: Runtime> HsCircPool<R> {
         let circ = self
             .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None)
             .await?;
-        let path = circ.path();
-        match path.last() {
-            Some(ct) => match netdir.by_ids(ct) {
-                Some(relay) => Ok((circ, relay)),
-                // This can't happen, since launch_hs_unmanaged() only takes relays from the netdir
-                // it is given, and circuit_compatible_with_target() ensures that
-                // every relay in the circuit is listed.
-                //
-                // TODO: Still, it's an ugly place in our API; maybe we should return the last hop
-                // from take_or_launch_stub_circuit()?  But in many cases it won't be needed...
-                None => Err(internal!("Got circuit with unknown last hop!?").into()),
-            },
+        let path = circ.path_ref();
+        match path.hops().last() {
+            Some(ent) => {
+                let ct = if let Some(ct) = ent.as_chan_target() {
+                    ct
+                } else {
+                    return Err(
+                        internal!("HsPool gave us a circuit with a virtual last hop!?").into(),
+                    );
+                };
+                match netdir.by_ids(ct) {
+                    Some(relay) => Ok((circ, relay)),
+                    // This can't happen, since launch_hs_unmanaged() only takes relays from the netdir
+                    // it is given, and circuit_compatible_with_target() ensures that
+                    // every relay in the circuit is listed.
+                    //
+                    // TODO: Still, it's an ugly place in our API; maybe we should return the last hop
+                    // from take_or_launch_stub_circuit()?  But in many cases it won't be needed...
+                    None => Err(internal!("Got circuit with unknown last hop!?").into()),
+                }
+            }
             None => Err(internal!("Circuit with an empty path!?").into()),
         }
     }
@@ -328,11 +337,15 @@ fn circuit_compatible_with_target(
         return false;
     }
 
-    // TODO HS: I don't like having to copy the whole path out at this point; it
-    // seems like that could get expensive. -nickm
-
-    let path = circ.path();
-    path.iter().all(|c: &OwnedChanTarget| {
+    let path = circ.path_ref();
+    // (We have to use a binding here to appease borrowck.)
+    let all_compatible = path.iter().all(|ent: &circuit::PathEntry| {
+        let c = if let Some(c) = ent.as_chan_target() {
+            c
+        } else {
+            // This is a virtual hop; it's necessarily compatible with everything.
+            return true;
+        };
         match (target, netdir.by_ids(c)) {
             // We require that every relay in this circuit is still listed; an
             // unlisted relay means "reject".
@@ -342,13 +355,13 @@ fn circuit_compatible_with_target(
             // If we have no target, any listed relay is okay.
             (None, Some(_)) => true,
         }
-    })
+    });
+    all_compatible
 }
 
 /// Return true if  every relay in `circ` is listed in `netdir`.
 fn all_circ_relays_are_listed_in(circ: &ClientCirc, netdir: &NetDir) -> bool {
-    // TODO HS: Again, I don't like having to copy the whole path out at this point.
-    let path = circ.path();
+    let path = circ.path_ref();
 
     // TODO HS: Are there any other checks we should do before declaring that
     // this is still usable?
@@ -356,8 +369,16 @@ fn all_circ_relays_are_listed_in(circ: &ClientCirc, netdir: &NetDir) -> bool {
     // TODO HS: There is some duplicate logic here and in
     // circuit_compatible_with_target.  I think that's acceptable for now, but
     // we should consider refactoring if these functions grow.
-    path.iter()
-        .all(|c: &OwnedChanTarget| netdir.by_ids(c).is_some())
+
+    // (We have to use a binding here to appease borrowck.)
+    let all_listed = path.iter().all(|ent: &circuit::PathEntry| {
+        if let Some(c) = ent.as_chan_target() {
+            netdir.by_ids(c).is_some()
+        } else {
+            true
+        }
+    });
+    all_listed
 }
 
 /// Background task to launch onion circuits as needed.
