@@ -871,6 +871,7 @@ pub(crate) mod test {
                     runtime.advance(duration).await;
                     // let expiry task run
                     outer_runtime.sleep(Duration::from_millis(25)).await;
+                    hsconn.services().unwrap().run_housekeeping(runtime.now());
                 }
             };
 
@@ -899,6 +900,10 @@ pub(crate) mod test {
             let circuit3 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             assert_ne!(circuit2c, circuit3);
             assert_eq!(circuit3.connect_called, 3);
+
+            advance(RETAIN_DATA_AFTER_LAST_USE + Duration::from_secs(10)).await;
+            let circuit4 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+            assert_eq!(circuit4.connect_called, 1);
         });
     }
 
