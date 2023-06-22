@@ -484,7 +484,7 @@ pub enum ErrorKind {
     /// Something unexpected happened when trying to connect to the selected hidden service.
     /// It seems to have been due to the hidden service violating the Tor protocols somehow.
     #[cfg(feature = "experimental-api")]
-    #[display(fmt = "Onion Service protocol failed (apprently due to service behaviour)")]
+    #[display(fmt = "Onion Service protocol failed (apparently due to service behaviour)")]
     OnionServiceProtocolViolation,
 
     /// The target hidden service (`.onion` service) is running but we couldn't connect to it,
