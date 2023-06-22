@@ -462,7 +462,6 @@ pub enum ErrorKind {
     /// This probably means that the hidden service is not running, or does not exist.
     /// (It might mean that the directory servers are faulty,
     /// and that the hidden service was unable to publish its descriptor.)
-    #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service not found")]
     OnionServiceNotFound,
 
@@ -475,7 +474,6 @@ pub enum ErrorKind {
     ///
     /// This probably means that the hidden service is not running.
     /// (It might mean that the introduction point relays are faulty.)
-    #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service not running")]
     OnionServiceNotRunning,
 
@@ -483,7 +481,6 @@ pub enum ErrorKind {
     ///
     /// Something unexpected happened when trying to connect to the selected hidden service.
     /// It seems to have been due to the hidden service violating the Tor protocols somehow.
-    #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service protocol failed (apparently due to service behaviour)")]
     OnionServiceProtocolViolation,
 
@@ -493,13 +490,11 @@ pub enum ErrorKind {
     /// This might be due to malfunction on the part of the service,
     /// or a relay being used as an introduction point or relay,
     /// or failure of the underlying Tor network.
-    #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion Service not reachable (due to service, or Tor network, behaviour)")]
     OnionServiceConnectionFailed,
 
     /// We tried to connect to an onion service without authentication,
     /// but it apparently requires authentication.
-    #[cfg(feature = "experimental-api")]
     #[display(fmt = "Onion service required authentication, but none was provided.")]
     OnionServiceMissingClientAuth,
 
@@ -508,7 +503,6 @@ pub enum ErrorKind {
     ///
     /// This likely means that we need to use a different key for talking to
     /// this onion service, or that it has revoked our permissions to reach it.
-    #[cfg(feature = "experimental-api")]
     #[display(
         fmt = "Onion service required authentication, but provided authentication was incorrect."
     )]
@@ -519,7 +513,6 @@ pub enum ErrorKind {
     /// This likely means that it was corrupted somewhere along its way from its
     /// origin to our API surface.  It may be the wrong length, have invalid
     /// characters, have an invalid version number, or have an invalid checksum.
-    #[cfg(feature = "experimental-api")]
     #[display(fmt = ".onion address was invalid.")]
     OnionServiceAddressInvalid,
 
