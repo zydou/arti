@@ -681,7 +681,7 @@ pub(crate) mod test {
 
     #[derive(Debug, Default)]
     struct MockData {
-        // things will appear here when we have more sophisticated tests
+        connect_called: usize,
     }
 
     /// Type indicating what our `connect()` should return; it always makes a fresh MockCirc
@@ -696,6 +696,7 @@ pub(crate) mod test {
     #[derive(Clone, Debug)]
     struct MockCirc {
         ok: Arc<Mutex<bool>>,
+        connect_called: usize,
     }
 
     impl PartialEq for MockCirc {
@@ -705,9 +706,9 @@ pub(crate) mod test {
     }
 
     impl MockCirc {
-        fn new() -> Self {
+        fn new(connect_called: usize) -> Self {
             let ok = Arc::new(Mutex::new(true));
-            MockCirc { ok }
+            MockCirc { ok, connect_called }
         }
     }
 
@@ -720,10 +721,14 @@ pub(crate) mod test {
             connector: &HsClientConnector<R, MockData>,
             _netdir: Arc<NetDir>,
             _hsid: HsId,
-            _data: &mut MockData,
+            data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
         ) -> Result<Arc<Self::ClientCirc>, E> {
-            let make = |()| Arc::new(MockCirc::new());
+            data.connect_called += 1;
+            let make = {
+                let connect_called = data.connect_called;
+                move |()| Arc::new(MockCirc::new(connect_called))
+            };
             let mut give = connector.mock_for_state.give.clone();
             if let Ready(ret) = &*give.borrow() {
                 return ret.clone().map(make);
@@ -891,6 +896,7 @@ pub(crate) mod test {
             advance(RETAIN_CIRCUIT_AFTER_LAST_USE + Duration::from_secs(10)).await;
             let circuit3 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             assert_ne!(circuit2c, circuit3);
+            assert_eq!(circuit3.connect_called, 3);
         });
     }
 
