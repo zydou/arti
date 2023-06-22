@@ -485,25 +485,23 @@ where
         EK::OnionServiceDescriptorParsingFailed | EK::OnionServiceDescriptorValidationFailed => {
             S::HS_DESC_INVALID
         }
-
-        // TODO HS: Nothing generates the following four errorkinds (yet).
+        #[cfg(feature = "onion-service-client")]
+        EK::OnionServiceAddressInvalid => S::HS_BAD_ADDRESS,
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceMissingClientAuth => S::HS_MISSING_CLIENT_AUTH,
         #[cfg(feature = "onion-service-client")]
         EK::OnionServiceWrongClientAuth => S::HS_WRONG_CLIENT_AUTH,
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceIntroFailed => S::HS_INTRO_FAILED,
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceRendFailed => S::HS_REND_FAILED,
 
-        // TODO HS: This is not a perfect correspondence to the error we're
-        // returning here.
+        // NOTE: This is not a perfect correspondence from these ErrorKinds to
+        // the errors we're returning here. In the longer run, we'll want to
+        // encourage other ways to indicate failure to clients.  Those ways might
+        // include encouraging HTTP CONNECT, or the RPC system, both of which
+        // would give us more robust ways to report different kinds of failure.
         #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceNotRunning | EK::OnionServiceConnectionFailed => S::HS_INTRO_FAILED,
+        EK::OnionServiceNotRunning
+        | EK::OnionServiceConnectionFailed
+        | EK::OnionServiceProtocolViolation => S::HS_INTRO_FAILED,
 
-        // TODO HS: We have nothing corresponding to these EK values.  Perhaps
-        // that means we need to refactor them?
-        // OnionServiceProtocolViolation
         _ => S::GENERAL_FAILURE,
     };
     let reply = request

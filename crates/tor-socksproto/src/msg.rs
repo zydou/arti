@@ -191,6 +191,14 @@ caret_int! {
         HS_MISSING_CLIENT_AUTH = 0xF4,
         /// Prop304: "Onion Service Wrong Client Authorization"
         HS_WRONG_CLIENT_AUTH = 0xF5,
+        /// "Onion service address is invalid"
+        ///
+        /// (Documented in `tor.1` but not yet specified.)
+        HS_BAD_ADDRESS = 0xF6,
+        /// "Onion Service Introduction Timed Out"
+        ///
+        /// (Documented in `tor.1` but not yet specified.)
+        HS_INTRO_TIMEOUT = 0xF7
     }
 }
 

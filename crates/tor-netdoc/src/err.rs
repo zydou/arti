@@ -276,6 +276,14 @@ pub enum NetdocErrorKind {
     /// Found an empty line in the middle of a document
     #[display(fmt = "Empty line")]
     EmptyLine,
+    /// We tried to decrypt something, and failed.
+    ///
+    /// This could be because of a problem with whatever we were trying to
+    /// decrypt, or because we were missing some decryption key that we needed.
+    /// If we are sure that it is a problem with what we are trying to decrypt,
+    /// we should instead use `BadObjectVal`.
+    #[display(fmt = "Unable to decrypt")]
+    DecryptionFailed,
 }
 
 /// The underlying source for an [`Error`](crate::Error).
