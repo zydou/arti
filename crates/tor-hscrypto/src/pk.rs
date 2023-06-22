@@ -429,7 +429,7 @@ define_pk_keypair! {
 /// `HsBlindIdKey` directly, so that the [`HsBlindIdKeypair`]
 /// can be kept offline.
 //
-// TODO HS: This key type is currently unused!  We should reinstate it if we
+// TODO HSS: This key type is currently unused!  We should reinstate it if we
 // decide to use it when implementing onion services; otherwise we should remove
 // it entirely.
 pub struct HsDescSigningKey(ed25519::PublicKey) / HsDescSigningKeypair(ed25519::Keypair);
