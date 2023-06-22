@@ -491,7 +491,7 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back) = layer.split();
         reactor.add_hop(
-            path::PathEntry::Relay(self.peer_id.clone()),
+            path::HopDetail::Relay(self.peer_id.clone()),
             self.require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -883,7 +883,7 @@ impl Reactor {
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
-            path::PathEntry::Relay(peer_id),
+            path::HopDetail::Relay(peer_id),
             require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -951,7 +951,7 @@ impl Reactor {
     /// Add a hop to the end of this circuit.
     fn add_hop(
         &mut self,
-        peer_id: path::PathEntry,
+        peer_id: path::HopDetail,
         require_sendme_auth: RequireSendmeAuth,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
@@ -1265,7 +1265,7 @@ impl Reactor {
 
                 // TODO HS: Perhaps this should describe the onion service, or
                 // describe why the virtual hop was added, or something?
-                let peer_id = path::PathEntry::Virtual;
+                let peer_id = path::HopDetail::Virtual;
 
                 // TODO HS: This is not really correct! We probably should be
                 // looking at the sendme_auth_accept_min_version parameter.  See
@@ -1334,7 +1334,7 @@ impl Reactor {
                 let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
                 let rev = Box::new(DummyCrypto::new(rev_lasthop));
                 self.add_hop(
-                    path::PathEntry::Relay(dummy_peer_id),
+                    path::HopDetail::Relay(dummy_peer_id),
                     require_sendme_auth,
                     fwd,
                     rev,

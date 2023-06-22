@@ -5,12 +5,11 @@ use tor_linkspec::OwnedChanTarget;
 use crate::crypto::cell::HopNum;
 
 /// A descriptor of a single hop in a circuit path.
-//
-// TODO HS: I think this will want to be a public type once we change the
-// return type of Circuit::path().
+///
+/// This enum is not public; we want the freedom to change it as we see fit.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(super) enum PathEntry {
+pub(super) enum HopDetail {
     /// A hop built through a known relay or a set of externally provided
     /// linkspecs.
     ///
@@ -22,6 +21,14 @@ pub(super) enum PathEntry {
     /// TODO hs: remember anything about what the virtual hop represents?
     #[cfg(feature = "hs-common")]
     Virtual,
+}
+
+/// A description of a single hop in a [`Path`].
+#[derive(Debug, Clone)]
+pub struct PathEntry {
+    /// The actual information about this hop.  We use an inner structure here
+    /// to keep the information private.
+    inner: HopDetail,
 }
 
 /// A circuit's path through the network.
@@ -44,18 +51,18 @@ impl Path {
     }
 
     /// Add a hop to this path.
-    pub(super) fn push_hop(&mut self, target: PathEntry) {
-        self.hops.push(target);
+    pub(super) fn push_hop(&mut self, target: HopDetail) {
+        self.hops.push(PathEntry { inner: target });
     }
 
     /// Return an OwnedChanTarget representing the first hop of this path.
-    pub(super) fn first_hop(&self) -> Option<PathEntry> {
-        self.hops.get(0).map(Clone::clone)
+    pub(super) fn first_hop(&self) -> Option<HopDetail> {
+        self.hops.get(0).map(|ent| ent.inner.clone())
     }
 
     /// Return a copy of all the hops in this path.
-    pub(super) fn all_hops(&self) -> Vec<PathEntry> {
-        self.hops.clone()
+    pub(super) fn all_hops(&self) -> Vec<HopDetail> {
+        self.hops.iter().map(|ent| ent.inner.clone()).collect()
     }
 
     /// Return the index of the last hop on this path, or `None` if the path is

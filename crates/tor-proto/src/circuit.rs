@@ -84,7 +84,7 @@ use crate::crypto::handshake::ntor::NtorPublicKey;
 
 use self::reactor::RequireSendmeAuth;
 
-pub use path::Path;
+pub use path::{Path, PathEntry};
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
@@ -241,9 +241,11 @@ impl ClientCirc {
             .first_hop()
             .expect("called first_hop on an un-constructed circuit");
         match first_hop {
-            path::PathEntry::Relay(r) => r,
+            path::HopDetail::Relay(r) => r,
             #[cfg(feature = "hs-common")]
-            path::PathEntry::Virtual => panic!("somehow made a circuit with a virtual first hop."),
+            path::HopDetail::Virtual => {
+                panic!("somehow made a circuit with a virtual first hop.")
+            }
         }
     }
 
@@ -267,9 +269,9 @@ impl ClientCirc {
             .all_hops()
             .into_iter()
             .filter_map(|hop| match hop {
-                path::PathEntry::Relay(r) => Some(r),
+                path::HopDetail::Relay(r) => Some(r),
                 #[cfg(feature = "hs-common")]
-                path::PathEntry::Virtual => None,
+                path::HopDetail::Virtual => None,
             })
             .collect()
     }
