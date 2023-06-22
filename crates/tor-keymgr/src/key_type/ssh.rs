@@ -129,17 +129,16 @@ impl HasKind for SshKeyError {
 }
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
-fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
-    let sk = ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| {
-        SshKeyError::SshKeyParse {
+fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<ed25519::Keypair> {
+    let sk =
+        ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| SshKeyError::SshKeyParse {
             // TODO: rust thinks this clone is necessary because key.path is also used below (but
             // if we get to this point, we're going to return an error and never reach the other
             // error handling branches where we use key.path).
             path: key.path.clone(),
             key_type,
             err: e.into(),
-        }
-    })?;
+        })?;
 
     // Build the expected key type (i.e. convert ssh_key key types to the key types
     // we're using internally).
@@ -147,7 +146,7 @@ fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<Er
         KeypairData::Ed25519(key) => {
             ed25519::Keypair::from_bytes(&key.to_bytes()).map_err(|_| {
                 tor_error::internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
-            })?;
+            })?
         }
         _ => {
             return Err(SshKeyError::UnexpectedSshKeyType {
@@ -159,7 +158,7 @@ fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<Er
         }
     };
 
-    Ok(Box::new(key))
+    Ok(key)
 }
 
 impl KeyType {
@@ -178,7 +177,9 @@ impl KeyType {
     pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO hs: perhaps this needs to be a method on EncodableKey instead?
         match self {
-            KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
+            KeyType::Ed25519Keypair => {
+                read_ed25519_keypair(*self, key).map(|key| Box::new(key) as ErasedKey)
+            }
             KeyType::X25519StaticSecret => {
                 // TODO hs: implement
                 //
