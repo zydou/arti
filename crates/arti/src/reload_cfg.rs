@@ -58,8 +58,8 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 
     #[cfg(target_family = "unix")]
     {
-        use futures::StreamExt;
         use futures::task::SpawnExt;
+        use futures::StreamExt;
 
         use crate::process::sighup_stream;
 
