@@ -307,7 +307,6 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
 
             // block for handling inability to store
             let stored = async {
-                // If we can't record the new state, just panic this task.
                 let mut guard = connector
                     .services
                     .lock()
