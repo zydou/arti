@@ -3,7 +3,7 @@
 //! The Ntor protocol of this section is specified in section
 //! [NTOR-WITH-EXTRA-DATA] of rend-spec-v3.txt.
 //!
-//! The main difference between this HS Ntor handshake and the standard Ntor
+//! The main difference between this HS Ntor handshake and the regular Ntor
 //! handshake in ./ntor.rs is that this one allows each party to encrypt data
 //! (without forward secrecy) after it sends the first message. This
 //! opportunistic encryption property is used by clients in the onion service
@@ -12,13 +12,8 @@
 //!
 //! # Status
 //!
-//! This module is a work in progress, and is not actually used anywhere yet
-//! or tested: please expect the API to change.
-//!
-//! This module is available only when the `hs-common` feature is enabled.
-//
-// TODO hs: go  through this code carefully and make sure that its APIs and
-// behavior are still what we want.
+//! This module is available only when the `hs-common` feature is enabled.  The
+//! specific handshakes are enabled by `hs-client` and `hs-service`.
 
 // We want to use the exact variable names from the rend-spec-v3.txt proposal.
 // This means that we allow variables to be named x (privkey) and X (pubkey).
@@ -30,7 +25,7 @@ use crate::{Error, Result};
 use tor_bytes::{Reader, SecretBuf, Writer};
 use tor_hscrypto::{
     ops::{hs_mac, HS_MAC_LEN},
-    pk::{HsIntroPtSessionIdKey, HsSvcNtorKey, HsSvcNtorSecretKey},
+    pk::{HsIntroPtSessionIdKey, HsSvcNtorKey},
     Subcredential,
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -40,10 +35,12 @@ use tor_llcrypto::util::rand_compat::RngCompatExt;
 use cipher::{KeyIvInit, StreamCipher};
 
 use generic_array::GenericArray;
-use rand_core::{CryptoRng, RngCore};
 use tor_error::into_internal;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;
+
+#[cfg(any(test, feature = "hs-service"))]
+use tor_hscrypto::pk::HsSvcNtorSecretKey;
 
 /// The ENC_KEY from the HS Ntor protocol
 //
@@ -82,6 +79,7 @@ impl KeyGenerator for HsNtorHkdfKeyGenerator {
 /// Information about an onion service that is needed for a client to perform an
 /// hs_ntor handshake with it.
 #[derive(Clone)]
+#[cfg(any(test, feature = "hs-client"))]
 pub struct HsNtorServiceInfo {
     /// Introduction point encryption key (aka `B`, aka `KP_hss_ntor`)
     /// (found in the HS descriptor)
@@ -90,17 +88,21 @@ pub struct HsNtorServiceInfo {
     /// Introduction point authentication key (aka `AUTH_KEY`, aka `KP_hs_ipt_sid`)
     /// (found in the HS descriptor)
     ///
-    /// TODO HS: This is needed to begin _and end_ the handshake, which makes
+    /// TODO: This is needed to begin _and end_ the handshake, which makes
     /// things a little trickier if someday we want to have several of these
-    /// handshakes in operation at once.  How does C tor handle the issue??
+    /// handshakes in operation at once, so that we can make
+    /// multiple introduction attempts simultaneously
+    /// using the same renedezvous point.
+    /// That's not something that C Tor supports, though, so neither do we (yet).
     auth_key: HsIntroPtSessionIdKey,
 
     /// Service subcredential
     subcredential: Subcredential,
 }
 
+#[cfg(any(test, feature = "hs-client"))]
 impl HsNtorServiceInfo {
-    /// Create a new `HsNtorClientInput`
+    /// Create a new `HsNtorServiceInfo`
     pub fn new(
         B: HsSvcNtorKey,
         auth_key: HsIntroPtSessionIdKey,
@@ -115,6 +117,7 @@ impl HsNtorServiceInfo {
 }
 
 /// Client state for an ntor handshake.
+#[cfg(any(test, feature = "hs-client"))]
 pub struct HsNtorClientState {
     /// Information about the service we are connecting to.
     service_info: HsNtorServiceInfo,
@@ -130,6 +133,7 @@ pub struct HsNtorClientState {
     Bx: curve25519::SharedSecret,
 }
 
+#[cfg(any(test, feature = "hs-client"))]
 impl HsNtorClientState {
     /// Construct a new `HsNtorClientState` for connecting to a given onion
     /// service described in `service_info`.
@@ -236,6 +240,7 @@ impl HsNtorClientState {
 /// Encrypt the 'plaintext' using 'enc_key'. Then compute the intro cell MAC
 /// using 'mac_key' over the text `(other_text, public_key, plaintext)`
 /// and return (ciphertext, mac_tag).
+#[cfg(any(test, feature = "hs-client"))]
 fn encrypt_and_mac(
     plaintext: &[u8],
     other_data: &[u8],
@@ -264,8 +269,9 @@ fn encrypt_and_mac(
 
 /// The input required to enter the HS Ntor protocol as a service
 //
-// TODO HS: maybe these should be references, or should be arguments to
+// TODO HSS: maybe these should be references, or should be arguments to
 // server_receive_intro function.
+#[cfg(any(test, feature = "hs-service"))]
 pub struct HsNtorServiceInput {
     /// Introduction point encryption privkey
     b: HsSvcNtorSecretKey,
@@ -279,6 +285,7 @@ pub struct HsNtorServiceInput {
     subcredential: Subcredential,
 }
 
+#[cfg(any(test, feature = "hs-service"))]
 impl HsNtorServiceInput {
     /// Create a new `HsNtorServiceInput`
     pub fn new(
@@ -306,6 +313,7 @@ impl HsNtorServiceInput {
 ///    SERVER_PK   Y                         [PK_PUBKEY_LEN bytes]
 ///    AUTH        AUTH_INPUT_MAC            [MAC_LEN bytes]
 /// ```
+#[cfg(any(test, feature = "hs-service"))]
 pub fn server_receive_intro<R>(
     rng: &mut R,
     proto_input: &HsNtorServiceInput,
@@ -313,13 +321,14 @@ pub fn server_receive_intro<R>(
     msg: &[u8],
 ) -> Result<(HsNtorHkdfKeyGenerator, Vec<u8>, Vec<u8>)>
 where
-    R: RngCore + CryptoRng,
+    R: rand::RngCore + rand::CryptoRng,
 {
     let y = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
     server_receive_intro_no_keygen(&y, proto_input, intro_header, msg)
 }
 
 /// Helper: Like server_receive_intro, but take an ephemeral key rather than a RNG.
+#[cfg(any(test, feature = "hs-service"))]
 fn server_receive_intro_no_keygen(
     // This should be an EphemeralSecret, but using a StaticSecret is necessary
     // so that we can make one from raw bytes in our test.

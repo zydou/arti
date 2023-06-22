@@ -5,7 +5,7 @@
     unused_variables,
     clippy::missing_panics_doc,
     clippy::needless_pass_by_value
-)] // TODO hs remove
+)] // TODO hss remove
 
 use super::DataStream;
 
@@ -28,7 +28,7 @@ pub struct IncomingStream {
 
 /// A message that can be sent to begin a stream.
 //
-// TODO hs perhaps this should be made with restricted_msg!()
+// TODO hss perhaps this should be made with restricted_msg!()
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum IncomingStreamRequest {
@@ -52,7 +52,7 @@ impl IncomingStream {
 
     /// Reject this request and send an error message to the client.
     pub fn reject(self, message: tor_cell::relaycell::msg::End) {
-        todo!() // TODO hs
+        todo!() // TODO hss
     }
 
     /// Ignore this request without replying to the client.
@@ -61,9 +61,9 @@ impl IncomingStream {
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
     pub fn discard(self) {
-        todo!() // TODO hs
+        todo!() // TODO hss
     }
 }
 
-// TODO hs: dropping an IncomingStream without accepting or rejecting it should
+// TODO hss: dropping an IncomingStream without accepting or rejecting it should
 // cause it to call `reject`.
