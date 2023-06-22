@@ -135,6 +135,10 @@ pub struct ClientCirc {
 #[derive(Debug)]
 struct MutableState {
     /// Information about this circuit's path.
+    ///
+    /// This is stored in an Arc so that we can cheaply give a copy of it to
+    /// client code; when we need to add a hop (which is less frequent) we use
+    /// [`Arc::make_mut()`].
     path: Arc<path::Path>,
 }
 

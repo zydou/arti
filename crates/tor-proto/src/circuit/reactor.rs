@@ -964,11 +964,8 @@ impl Reactor {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        self.mutable
-            .lock()
-            .expect("poisoned lock")
-            .path
-            .push_hop(peer_id);
+        let mut mutable = self.mutable.lock().expect("poisoned lock");
+        Arc::make_mut(&mut mutable.path).push_hop(peer_id);
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.

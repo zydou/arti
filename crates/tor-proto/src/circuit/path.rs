@@ -1,6 +1,5 @@
 //! Tracking for the path of a client circuit.
 
-use std::sync::Mutex;
 use tor_linkspec::OwnedChanTarget;
 
 use crate::crypto::cell::HopNum;
@@ -26,38 +25,34 @@ pub(super) enum PathEntry {
 }
 
 /// Helper struct that shares information
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(super) struct Path {
     /// Information about the relays on this circuit.
     ///
     /// We only store ChanTarget information here, because it doesn't matter
     /// which ntor key we actually used with each hop.
-    hops: Mutex<Vec<PathEntry>>,
+    hops: Vec<PathEntry>,
 }
 
 impl Path {
     /// Return the number of hops in this path
     pub(super) fn n_hops(&self) -> usize {
-        self.hops.lock().expect("poisoned lock").len()
+        self.hops.len()
     }
 
     /// Add a hop to this  this path.
-    pub(super) fn push_hop(&self, target: PathEntry) {
-        self.hops.lock().expect("poisoned lock").push(target);
+    pub(super) fn push_hop(&mut self, target: PathEntry) {
+        self.hops.push(target);
     }
 
     /// Return an OwnedChanTarget representing the first hop of this path.
     pub(super) fn first_hop(&self) -> Option<PathEntry> {
-        self.hops
-            .lock()
-            .expect("poisoned lock")
-            .get(0)
-            .map(Clone::clone)
+        self.hops.get(0).map(Clone::clone)
     }
 
     /// Return a copy of all the hops in this path.
     pub(super) fn all_hops(&self) -> Vec<PathEntry> {
-        self.hops.lock().expect("poisoned lock").clone()
+        self.hops.clone()
     }
 
     /// Return the index of the last hop on this path, or `None` if the path is
