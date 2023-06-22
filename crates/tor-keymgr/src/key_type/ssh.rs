@@ -167,16 +167,7 @@ impl KeyType {
     pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
         match self {
             KeyType::Ed25519Keypair => SshKeyAlgorithm::Ed25519,
-            KeyType::X25519StaticSecret => {
-                // The ssh-key crate doesn't support curve25519 keys. We might need a more
-                // general-purpose crate for parsing keys in SSH key format (one that allows
-                // arbitrary values for the algorithm).
-                //
-                // Alternatively, we could store curve25519 keys in openssh format as ssh-ed25519
-                // (though intentionally storing the key in the wrong format only to convert it
-                // back to x25519 upon retrieval is sort of ugly).
-                SshKeyAlgorithm::X25519
-            }
+            KeyType::X25519StaticSecret => SshKeyAlgorithm::X25519,
         }
     }
 
@@ -190,6 +181,14 @@ impl KeyType {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
             KeyType::X25519StaticSecret => {
                 // TODO hs: implement
+                //
+                // The ssh-key crate doesn't support curve25519 keys. We might need a more
+                // general-purpose crate for parsing keys in SSH key format (one that allows
+                // arbitrary values for the algorithm).
+                //
+                // Alternatively, we could store curve25519 keys in openssh format as ssh-ed25519
+                // (though intentionally storing the key in the wrong format only to convert it
+                // back to x25519 upon retrieval is sort of ugly).
                 Err(SshKeyError::Unsupported(*self).boxed())
             }
         }
