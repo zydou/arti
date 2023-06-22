@@ -72,6 +72,24 @@ const MAX_RECHECKS: u32 = 10;
 // TODO HS CFG: This should be configurable somehow
 const RETAIN_CIRCUIT_AFTER_LAST_USE: Duration = Duration::from_secs(10 * 60);
 
+/// How long to retain cached data about a hidden service
+///
+/// This is simply to reclaim space, not for correctness.
+/// So we only check this during housekeeping, not operation.
+///
+/// The starting point for this interval is the last time we used the data,
+/// or a circuit derived from it.
+///
+/// Note that this is a *maximum* for the length of time we will retain a descriptor;
+/// HS descriptors' lifetimes (as declared in the descriptor) *are* honoured;
+/// but that's done by the code in `connect.rs`, not here.
+///
+/// We're not sure this is the right value.
+/// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/916>
+//
+// TODO HS CFG: Perhaps this should be configurable somehow?
+const RETAIN_DATA_AFTER_LAST_USE: Duration = Duration::from_secs(48 * 3600 /*hours*/);
+
 /// Hidden services;, our connections to them, and history of connections, etc.
 ///
 /// Table containing state of our ideas about services.
@@ -108,7 +126,6 @@ type ServiceRecord<D> = isol_map::Record<HsClientSecretKeys, ServiceState<D>>;
 /// State and history of of our connections, including connection to any connection task.
 ///
 /// `last_used` is used to expire data eventually.
-// TODO HS actually expire old data
 //
 // TODO unify this with channels and circuits.  See arti#778.
 #[derive(Educe)]
@@ -119,7 +136,6 @@ enum ServiceState<D: MockableConnectorData> {
         /// The state
         data: D,
         /// Last time we touched this, including reuse
-        #[allow(dead_code)] // TODO hs remove, when we do data expiry
         last_used: Instant,
     },
     /// We have an open circuit, which we can (hopefully) just use
@@ -513,6 +529,25 @@ impl<D: MockableConnectorData> Services<D> {
 
             got = obtain(table_index, guard);
         }
+    }
+
+    /// Perform housekeeping - delete data we aren't interested in any more
+    pub(crate) fn run_housekeeping(&mut self, now: Instant) {
+        self.records.retain(|hsid, record, _table_index| match &**record {
+            ServiceState::Closed {
+                data: _,
+                last_used,
+            } => {
+                let Some(expiry_time) = last_used.checked_add(RETAIN_DATA_AFTER_LAST_USE) else { return false; };
+                now <= expiry_time
+            },
+            ServiceState::Open { .. } |
+            ServiceState::Working { .. } => true,
+            ServiceState::Dummy { .. } => {
+                error!("found dummy data during HS housekeeping, for {}", sv(hsid));
+                false
+            }
+        });
     }
 }
 

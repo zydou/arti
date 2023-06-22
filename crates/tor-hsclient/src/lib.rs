@@ -51,6 +51,10 @@ mod state;
 use std::future::Future;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use futures::stream::BoxStream;
+use futures::task::SpawnExt as _;
+use futures::StreamExt as _;
+
 use educe::Educe;
 
 use tor_circmgr::hspool::HsCircPool;
@@ -99,18 +103,28 @@ pub struct HsClientConnector<R: Runtime, D: state::MockableConnectorData = conne
 
 impl<R: Runtime> HsClientConnector<R, connect::Data> {
     /// Create a new `HsClientConnector`
+    ///
+    /// `housekeeping_prompt` should yield "occasionally",
+    /// perhaps every few hours or maybe daily.
+    ///
+    /// In Arti we arrange for this to happen when we have a new consensus.
+    ///
+    /// It doesn't matter whether the housekeeping events still arrive while we're dormant;
+    /// housekeeping doesn't include any thing "active".
     pub fn new(
         runtime: R,
         circpool: Arc<HsCircPool<R>>,
         // TODO HS: there should be a config here, we will probably need it at some point
-        // TODO HS: will needs a periodic task handle for us to expire old HS data/circuits
+        housekeeping_prompt: BoxStream<'static, ()>,
     ) -> Result<Self, StartupError> {
-        Ok(HsClientConnector {
+        let connector = HsClientConnector {
             runtime,
             circpool,
             services: Arc::new(Mutex::new(Services::default())),
             mock_for_state: (),
-        })
+        };
+        connector.spawn_housekeeping_task(housekeeping_prompt)?;
+        Ok(connector)
     }
 
     /// Connect to a hidden service
@@ -147,5 +161,29 @@ impl<R: Runtime, D: MockableConnectorData> HsClientConnector<R, D> {
         self.services
             .lock()
             .map_err(|_| internal!("HS connector poisoned"))
+    }
+
+    /// Spawn a task which watches `prompt` and calls [`Services::run_housekeeping`]
+    fn spawn_housekeeping_task(
+        &self,
+        mut prompt: BoxStream<'static, ()>,
+    ) -> Result<(), StartupError> {
+        self.runtime
+            .spawn({
+                let connector = self.clone();
+                let runtime = self.runtime.clone();
+                async move {
+                    while let Some(()) = prompt.next().await {
+                        let Ok(mut services) = connector.services()
+                        else { break };
+
+                        services.run_housekeeping(runtime.now());
+                    }
+                }
+            })
+            .map_err(|cause| StartupError::Spawn {
+                spawning: "housekeeping task",
+                cause: cause.into(),
+            })
     }
 }

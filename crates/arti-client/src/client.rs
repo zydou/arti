@@ -39,6 +39,7 @@ use {
         HsClientSpecifier,
     },
     tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
+    tor_netdir::DirEvent,
 };
 
 use tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
@@ -572,7 +573,17 @@ impl<R: Runtime> TorClient<R> {
                 .launch_background_tasks(&runtime, &dirmgr.clone().upcast_arc())
                 .map_err(ErrorDetail::CircMgrSetup)?;
 
-            HsClientConnector::new(runtime.clone(), circpool)?
+            // Prompt the hs connector to do its data housekeeping when we get a new consensus.
+            // That's a time we're doing a bunch of thinking anyway, and it's not very frequent.
+            let housekeeping = dirmgr.events().filter_map(|event| async move {
+                match event {
+                    DirEvent::NewConsensus => Some(()),
+                    _ => None,
+                }
+            });
+            let housekeeping = Box::pin(housekeeping);
+
+            HsClientConnector::new(runtime.clone(), circpool, housekeeping)?
         };
 
         let keymgr = {
