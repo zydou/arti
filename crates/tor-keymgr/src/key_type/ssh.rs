@@ -175,7 +175,7 @@ impl KeyType {
                 // Alternatively, we could store curve25519 keys in openssh format as ssh-ed25519
                 // (though intentionally storing the key in the wrong format only to convert it
                 // back to x25519 upon retrieval is sort of ugly).
-                todo!() // TODO hs
+                SshKeyAlgorithm::X25519
             }
         }
     }
