@@ -509,8 +509,6 @@ impl ClientCirc {
     // it has been extended this way" property.  We could do that with internal
     // state, or some kind of a type state pattern.
     //
-    // TODO hs: Possibly we should take a description of the hop.
-    //
     // TODO hs: possibly we should take a set of Protovers, and not just `Params`.
     #[cfg(feature = "hs-common")]
     pub async fn extend_virtual(

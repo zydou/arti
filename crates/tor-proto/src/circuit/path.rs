@@ -16,12 +16,16 @@ pub(super) enum HopDetail {
     /// A hop built through a known relay or a set of externally provided
     /// linkspecs.
     ///
-    /// TODO hs: distinguish the two cases here?
+    /// TODO: Someday we might ant to distinguish the two cases (known relay,
+    /// externally provided linkspecs).  We might want to also record more
+    /// information about the hop... but we can do all of  this in a
+    /// backward-compatible way, so it doesn't need to happen right now.
     Relay(OwnedChanTarget),
     /// A hop built using
     /// [`extend_virtual`](crate::circuit::ClientCirc::extend_virtual).
     ///
-    /// TODO hs: remember anything about what the virtual hop represents?
+    /// TODO: Perhaps we'd like to remember something about what the virtual hop
+    /// represents?
     #[cfg(feature = "hs-common")]
     Virtual,
 }
