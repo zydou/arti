@@ -26,6 +26,7 @@ for HOST in articlient articlient-bridge articlient-onion; do
     echo "Simulation successful"
   else
     echo "Failed. Only got $successes successful streams."
+    exit 1
   fi
 done
 
