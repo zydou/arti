@@ -316,7 +316,7 @@ impl HasKind for ConnError {
         match self {
             CE::InvalidHsId => EK::InvalidStreamTarget,
             CE::NoHsDirs => EK::TorDirectoryUnusable,
-            CE::NoUsableIntroPoints => EK::OnionServiceDescriptorValidationFailed,
+            CE::NoUsableIntroPoints => EK::OnionServiceProtocolViolation,
             CE::Spawn { cause, .. } => cause.kind(),
             CE::Bug(e) => e.kind(),
 
@@ -393,7 +393,7 @@ impl HasKind for FailedAttemptError {
         use ErrorKind as EK;
         use FailedAttemptError as FAE;
         match self {
-            FAE::UnusableIntro { .. } => EK::OnionServiceDescriptorValidationFailed,
+            FAE::UnusableIntro { .. } => EK::OnionServiceProtocolViolation,
             FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
             FAE::RendezvousCompletion { error, .. } => error.kind(),

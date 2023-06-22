@@ -479,52 +479,6 @@ pub enum ErrorKind {
     #[display(fmt = "Onion Service not running")]
     OnionServiceNotRunning,
 
-    // TODO hs: We need this error type to also indicate the reason the error might've occurred:
-    //   * If the outer layers of the descriptor are broken (i.e. the parts that are visible even
-    //   without client authorization), then we'd expect any hsdir to reject hidden service's
-    //   upload of the descriptor. If a number of hsdirs are serving broken descriptors for a
-    //   service, we can assume some (or all) of them are being hostile (and intentionally serving
-    //   mangled descriptors to DoS the service)
-    //   * If the parsing error occurred in the inner layer, the problem is due to the hidden
-    //   service rather than the hsdir that served the descriptor
-    //
-    //   OnionServiceDescriptorParsingFailed will need to be split into 2 subtypes (one for errors
-    //   that are potentially caused by malicious hsdirs, and another for errors caused by the
-    //   service itself). We'll also need to add some additional information to `tor_netoc::Error`
-    //   to be able to create this distinction.
-    //
-    /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
-    ///
-    /// None of the hidden service descriptors we found for this service could be parsed.
-    ///
-    /// This error has several possible causes:
-    ///   * We are running a version of the protocol that is incompatible with the version used
-    ///   by the hidden service for advertising itself.
-    ///   * All the directories we spoke to are malfunctioning and accepted the descriptor despite
-    ///   it being broken in a way they can see. This could indicate that some or all of the
-    ///   directories are hostile (i.e. conducting an attack)
-    #[cfg(feature = "experimental-api")]
-    #[display(fmt = "Onion Service descriptor parsing failed")]
-    OnionServiceDescriptorParsingFailed,
-
-    /// Failed to obtain a valid descriptor for the target hidden service (`.onion` service).
-    ///
-    /// None of the hidden service descriptors we found for this service were valid (because
-    /// of an invalid signature, an untimely certificate,
-    /// or connection instructions we could not handle).
-    ///
-    /// This error has several possible causes:
-    ///   * Our clock is set incorrectly
-    ///   * The clock of the hidden service is set incorrectly
-    ///   * The service's Tor version is not compatible with ours
-    ///   * The service is malfunctioning
-    ///   * All the directories we spoke to are malfunctioning and accepted the descriptor despite
-    ///   it being broken in a way they can see. This could indicate that some or all of the
-    ///   directories are hostile (i.e. conducting an attack)
-    #[cfg(feature = "experimental-api")]
-    #[display(fmt = "Onion Service descriptor validation failed")]
-    OnionServiceDescriptorValidationFailed,
-
     /// Protocol trouble involving the target hidden service (`.onion` service)
     ///
     /// Something unexpected happened when trying to connect to the selected hidden service.
