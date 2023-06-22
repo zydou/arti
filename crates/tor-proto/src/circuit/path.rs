@@ -1,5 +1,8 @@
 //! Tracking for the path of a client circuit.
 
+use std::fmt::{self, Display};
+
+use safelog::Redactable;
 use tor_linkspec::OwnedChanTarget;
 
 use crate::crypto::cell::HopNum;
@@ -33,6 +36,26 @@ pub struct PathEntry {
     /// The actual information about this hop.  We use an inner structure here
     /// to keep the information private.
     inner: HopDetail,
+}
+
+impl Display for PathEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.inner {
+            HopDetail::Relay(ct) => write!(f, "{}", ct),
+            #[cfg(feature = "hs-common")]
+            HopDetail::Virtual => write!(f, "<virtual hop>"),
+        }
+    }
+}
+
+impl Redactable for PathEntry {
+    fn display_redacted(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.inner {
+            HopDetail::Relay(ct) => Redactable::display_redacted(ct, f),
+            #[cfg(feature = "hs-common")]
+            HopDetail::Virtual => write!(f, "<virtual hop>"),
+        }
+    }
 }
 
 impl PathEntry {
