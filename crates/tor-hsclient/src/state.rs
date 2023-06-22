@@ -51,7 +51,20 @@ const MAX_RECHECKS: u32 = 10;
 /// C Tor `MaxCircuitDirtiness`
 ///
 /// As per
-///    https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914433
+///    <https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914433>
+///
+/// And C Tor's `tor(1)`, which says:
+///
+/// > MaxCircuitDirtiness NUM
+/// >
+/// > Feel free to reuse a circuit that was first used at most NUM
+/// > seconds ago, but never attach a new stream to a circuit that is
+/// > too old.  For hidden services, this applies to the last time a
+/// > circuit was used, not the first.  Circuits with streams
+/// > constructed with SOCKS authentication via SocksPorts that have
+/// > KeepAliveIsolateSOCKSAuth also remain alive for
+/// > MaxCircuitDirtiness seconds after carrying the last such
+/// > stream. (Default: 10 minutes)
 //
 // TODO HS CFG: This should be configurable somehow
 const RETAIN_CIRCUIT_AFTER_LAST_USE: Duration = Duration::from_secs(10 * 60);
@@ -114,6 +127,12 @@ enum ServiceState<D: MockableConnectorData> {
         #[educe(Debug(ignore))]
         circuit: Arc<D::ClientCirc>,
         /// Last time we touched this, including reuse
+        ///
+        /// This is set when we created the circuit, and updated when we
+        /// hand out this circuit again in response to a new request.
+        ///
+        /// We believe this mirrors C Tor behaviour;
+        /// see [`RETAIN_CIRCUIT_AFTER_LAST_USE`].
         last_used: Instant,
         /// We have a task that will close the circuit when required
         ///
