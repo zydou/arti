@@ -101,18 +101,6 @@ pub struct HsDesc {
     #[allow(dead_code)] // TODO RELAY: Remove this if there turns out to be no need for it.
     idx_info: IndexInfo,
 
-    /// `KP_hsc_desc_enc`, the public key corresponding to the private key that
-    /// we used to decrypt this descriptor.
-    ///
-    /// This is set to None if we did not have to use a private key to decrypt
-    /// the descriptor.
-    decrypted_with_id: Option<HsClientDescEncKey>,
-
-    /// A list of recognized CREATE handshakes that this onion service supports.
-    // TODO hs: this should probably be a caret enum, not an integer
-    // TODO hs: Add this if we actually need it.
-    // create2_formats: Vec<u32>,
-
     /// The list of authentication types that this onion service supports.
     auth_required: Option<SmallVec<[IntroAuthType; 2]>>,
 
@@ -121,6 +109,11 @@ pub struct HsDesc {
 
     /// One or more introduction points used to contact the onion service.
     intro_points: Vec<IntroPointDesc>,
+    // /// A list of recognized CREATE handshakes that this onion service supports.
+    //
+    // TODO:  When someday we add a "create2 format" other than "hs-ntor", we
+    // should turn this into a caret enum, record this info, and expose it.
+    // create2_formats: Vec<u32>,
 }
 
 /// A type of authentication that is required when introducing to an onion
@@ -140,9 +133,10 @@ pub struct IntroPointDesc {
     /// The list of link specifiers needed to extend a circuit to the introduction point.
     ///
     /// These can include public keys and network addresses.
-    //
-    // TODO hs: perhaps we should make certain link specifiers mandatory? That
-    // would make it possible for IntroPointDesc to implement CircTarget.
+    ///
+    /// Note that we do not enforce the presence of any link specifiers here;
+    /// this means that you can't assume that an `IntroPointDesc` is a meaningful
+    /// `ChanTarget` without some processing.
     #[getter(skip)]
     link_specifiers: Vec<EncodedLinkSpec>,
 
@@ -336,15 +330,6 @@ impl HsDesc {
     pub fn requires_intro_authentication(&self) -> bool {
         self.auth_required.is_some()
     }
-
-    /// Return true if we had to use a [`HsClientDescEncSecretKey`] to decrypt
-    /// this descriptor.
-    ///
-    /// It is possible for this to return `false` even if we provided a secret
-    /// key when decrypting: that key might not have been used.
-    pub fn was_encrypted(&self) -> bool {
-        self.decrypted_with_id.is_some()
-    }
 }
 
 /// An error returned by [`HsDesc::parse_decrypt_validate`], indicating what
@@ -500,7 +485,6 @@ impl EncryptedHsDesc {
         let time_bound = time_bound.dangerously_map(|sig_bound| {
             sig_bound.dangerously_map(|inner| HsDesc {
                 idx_info: IndexInfo::from_outer_doc(&self.outer_doc),
-                decrypted_with_id: hsc_desc_enc.map(|keys| keys.0.clone()),
                 auth_required: inner.intro_auth_types,
                 is_single_onion_service: inner.single_onion_service,
                 intro_points: inner.intro_points,
@@ -641,7 +625,6 @@ mod test {
             humantime::parse_rfc3339("2023-01-26T03:00:00Z").unwrap()
         );
         assert_eq!(desc.idx_info.revision, RevisionCounter::from(19655750));
-        assert!(desc.decrypted_with_id.is_none());
         assert!(desc.auth_required.is_none());
         assert_eq!(desc.is_single_onion_service, false);
         assert_eq!(desc.intro_points.len(), 3);
