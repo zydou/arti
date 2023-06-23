@@ -68,6 +68,8 @@ const MAX_RECHECKS: u32 = 10;
 ///
 /// However, we're not entirely sure this is the right behaviour.
 /// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/916>
+///
+// TODO SPEC: Explain C Tor `MaxCircuitDirtiness` behaviour
 //
 // TODO HS CFG: This should be configurable somehow
 const RETAIN_CIRCUIT_AFTER_LAST_USE: Duration = Duration::from_secs(10 * 60);
