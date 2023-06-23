@@ -49,12 +49,13 @@ mod relay_info;
 mod state;
 
 use std::future::Future;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use educe::Educe;
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::isolation::StreamIsolation;
+use tor_error::{internal, Bug};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
 use tor_proto::circuit::ClientCirc;
@@ -69,7 +70,7 @@ pub use keys::{
 pub use relay_info::InvalidTarget;
 
 use err::{rend_pt_identity_for_error, IntroPtIndex, RendPtIdentityForError};
-use state::Services;
+use state::{MockableConnectorData, Services};
 
 /// An object that negotiates connections with onion services
 ///
@@ -135,5 +136,16 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         // But internally we need a Box<dyn Isolation> since we need .join().
         let isolation = Box::new(isolation);
         Services::get_or_launch_connection(self, netdir, hs_id, isolation, secret_keys)
+    }
+}
+
+impl<R: Runtime, D: MockableConnectorData> HsClientConnector<R, D> {
+    /// Lock the `Services` table and return the guard
+    ///
+    /// Convenience method
+    fn services(&self) -> Result<MutexGuard<Services<D>>, Bug> {
+        self.services
+            .lock()
+            .map_err(|_| internal!("HS connector poisoned"))
     }
 }
