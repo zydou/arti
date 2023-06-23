@@ -595,12 +595,8 @@ impl<R: Runtime> TorClient<R> {
         };
 
         let keymgr = {
-            // TODO hs: load the key store dir and permissions from the config.
-            // Note: The Mistrust should be taken from StorageConfig (the keystore Mistrust needs
-            // to be the same as elsewhere). Perhaps this means the keystore should be part of
-            // `storage`.
-            let key_store_dir = Some(std::path::PathBuf::new());
-            let permissions = Default::default();
+            let key_store_dir = config.storage.expand_keystore_dir()?;
+            let permissions = config.storage.permissions();
 
             let mut stores: Vec<Box<dyn KeyStore>> = vec![];
 
