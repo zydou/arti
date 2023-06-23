@@ -87,6 +87,8 @@ const RETAIN_CIRCUIT_AFTER_LAST_USE: Duration = Duration::from_secs(10 * 60);
 /// We're not sure this is the right value.
 /// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/916>
 //
+// TODO SPEC: State how long IPT and descriptor data should be retained after use
+//
 // TODO HS CFG: Perhaps this should be configurable somehow?
 const RETAIN_DATA_AFTER_LAST_USE: Duration = Duration::from_secs(48 * 3600 /*hours*/);
 
