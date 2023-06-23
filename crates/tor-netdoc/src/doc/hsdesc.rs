@@ -234,7 +234,6 @@ impl HsDesc {
             })
         });
         if !id_matches {
-            // TODO hs: This errorkind is not quite right.
             return Err(
                 EK::BadObjectVal.with_msg("onion service descriptor did not have the expected ID")
             );
