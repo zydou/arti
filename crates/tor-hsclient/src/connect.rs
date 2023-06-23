@@ -625,6 +625,15 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             })
             .collect_vec();
 
+        // Delete experience information for now-unlisted intro points
+        // Otherwise, as the IPTs change `Data` might grow without bound,
+        // if we keep reconnecting to the same HS.
+        data.retain(|k, _v| {
+            usable_intros
+                .iter()
+                .any(|ipt| RelayIdForExperience::for_lookup(&ipt.intro_target).any(|id| &id == k))
+        });
+
         // Join with existing state recording our experiences,
         // sort by descending goodness, and then randomly
         // (so clients without any experience don't all pile onto the same, first, IPT)
