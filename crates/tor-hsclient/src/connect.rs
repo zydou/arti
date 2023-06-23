@@ -747,6 +747,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     // However, it's not clear whether this approach risks contaminating
                     // the 2nd attempt with some fault relating to the introduction point.
                     // The 1st ipt might also gain more knowledge about which HS we're talking to.
+                    //
+                    // TODO SPEC: Discuss extend-and-reuse HS intro circuit after nack
                     ?;
                 #[allow(unused_variables)] // it's *supposed* to be unused
                 let saved_rendezvous = (); // don't use `saved_rendezvous` any more, use rendezvous
