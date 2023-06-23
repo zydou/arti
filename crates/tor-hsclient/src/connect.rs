@@ -640,8 +640,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // for different services, it wouldn't be reuseable anway.
         let mut saved_rendezvous = None;
 
-        // TODO HS make multiple attempts to different IPTs in in parallel, and somehow
-        // aggregate the errors and experiences.
+        // We might consider making multiple attempts to different IPTs in in parallel,
+        // and somehow aggregating the errors and experiences.
+        // However our HS experts don't consider that important:
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914438
         loop {
             // When did we start doing things that depended on the IPT?
             //
