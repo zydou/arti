@@ -237,12 +237,6 @@ struct RelayIdForExperience(RelayId);
 ///
 /// Intermediate value for progress during a connection attempt.
 struct Introduced<R: Runtime, M: MocksForConnect<R>> {
-    /// Circuit to the introduction point
-    // TODO HS maybe this is not needed?  Maybe we just need to hold it to keep
-    // the circuit open so it doesn't collapse before the intro pt forwards our message?
-    #[allow(dead_code)]
-    intro_circ: Arc<ClientCirc!(R, M)>,
-
     /// End-to-end crypto NTORv3 handshake with the service
     ///
     /// Created as part of generating our `INTRODUCE1`,
@@ -409,14 +403,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         // TODO HS are these right? make configurable? get from netdir?
-        // TODO HS: we should check the revision counter on the HSDesc before
-        // replacing it.
         // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
         const MAX_TOTAL_ATTEMPTS: usize = 6;
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
+        // We retain a previously obtained descriptor precisely until its lifetime expires,
+        // and pay no attention to the descriptor's revision counter.
+        // When it expires, we discard it completely and try to obtain a new one.
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914448
         if let Some(previously) = data {
             let now = self.runtime.wallclock();
             if let Ok(_desc) = previously.as_ref().check_valid_at(&now) {
@@ -444,8 +440,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             hs_dirs.len()
         );
 
-        // TODO HS consider launching multiple requests in parallel
-        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
+        // We might consider launching multiple requests in parallel?
+        //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
+        // But C Tor doesn't and our HS experts don't consider that important:
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914436
         let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
         let desc = loop {
@@ -655,8 +653,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // for different services, it wouldn't be reuseable anway.
         let mut saved_rendezvous = None;
 
-        // TODO HS make multiple attempts to different IPTs in in parallel, and somehow
-        // aggregate the errors and experiences.
+        // We might consider making multiple attempts to different IPTs in in parallel,
+        // and somehow aggregating the errors and experiences.
+        // However our HS experts don't consider that important:
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914438
         loop {
             // When did we start doing things that depended on the IPT?
             //
@@ -684,14 +684,17 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 // one to replenish its pool, and that happens in parallel with the work we do
                 // here - but in arrears.  If the circmgr pool is empty, then we must wait.
                 //
-                // TODO: Perhaps this should be parallelised here.  But in that case it's not
-                // 100% clear why the pool exists, since we expect building the rendezvous
-                // circuit and building the introduction circuit to take about the same
-                // length of time.
+                // Perhaps this should be parallelised here.  But that's really what the pool
+                // is for, since we expect building the rendezvous circuit and building the
+                // introduction circuit to take about the same length of time.
                 //
-                // TODO: We *do* serialise the ESTABLISH_RENDEZVOUS exchange, with the
+                // We *do* serialise the ESTABLISH_RENDEZVOUS exchange, with the
                 // building of the introduction circuit.  That could be improved, at the cost
                 // of some additional complexity here.
+                //
+                // Our HS experts don't consider it important to increase the parallelism:
+                //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914444
+                //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914445
                 if saved_rendezvous.is_none() {
                     debug!("hs conn to {}: setting up rendezvous point", &self.hsid);
                     // Establish a rendezvous circuit.
@@ -1065,10 +1068,14 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
+        // Having received INTRODUCE_ACK. we can forget about this circuit
+        // (and potentially tear it down).
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914434
+        drop(intro_circ);
+
         Ok((
             rendezvous,
             Introduced {
-                intro_circ,
                 handshake_state,
                 marker: PhantomData,
             },
@@ -1117,9 +1124,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
-        // TODO: It would be great if we could have multiple of these existing
-        // in parallel with similar x,X values but different ipts. I believe C
-        // tor manages it somehow.
+        // In theory would be great if we could have multiple introduction attempts in parallel
+        // with similar x,X values but different IPTs.  However, our HS experts don't
+        // think increasing parallelism here is important:
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914438
         let handshake_state = introduced.handshake_state;
 
         // Try to complete the cryptographic handshake.
