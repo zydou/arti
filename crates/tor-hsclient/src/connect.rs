@@ -438,8 +438,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             hs_dirs.len()
         );
 
-        // TODO HS consider launching multiple requests in parallel
-        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
+        // We might consider launching multiple requests in parallel?
+        //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
+        // But C Tor doesn't and our HS experts don't consider that important:
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914436
         let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
         let desc = loop {
