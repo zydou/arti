@@ -186,4 +186,11 @@ mod test {
             assert!(found[idx] == (num & 1 == 1));
         }
     }
+
+    #[test]
+    fn random_idx_empty() {
+        let mut rng = testing_rng();
+        let idx = random_idx_where(&mut rng, &[], |_: &i32| panic!());
+        assert_eq!(idx, None);
+    }
 }
