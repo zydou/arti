@@ -84,10 +84,13 @@ static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     rules.add(ENC_KEY.rule().required().may_repeat().args(2..));
     rules.add(ENC_KEY_CERT.rule().required().obj_required());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
-    // TODO HS We never look at the LEGACY_KEY* fields.  But might this not open
-    // us to distinguishability attacks with C tor?  (OTOH, in theory we do not
-    // defend against those.  In fact, there's an easier distinguisher, since we
-    // enforce UTF-8 in these documents, and C tor does not.)
+
+    // NOTE: We never look at the LEGACY_KEY* fields.  This does provide a
+    // distinguisher for Arti implementations and C tor implementations, but
+    // that's outside of Arti's threat model.
+    //
+    // (In fact, there's an easier distinguisher, since we enforce UTF-8 in
+    // these documents, and C tor does not.)
 
     rules.build()
 });
