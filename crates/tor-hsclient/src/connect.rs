@@ -237,12 +237,6 @@ struct RelayIdForExperience(RelayId);
 ///
 /// Intermediate value for progress during a connection attempt.
 struct Introduced<R: Runtime, M: MocksForConnect<R>> {
-    /// Circuit to the introduction point
-    // TODO HS maybe this is not needed?  Maybe we just need to hold it to keep
-    // the circuit open so it doesn't collapse before the intro pt forwards our message?
-    #[allow(dead_code)]
-    intro_circ: Arc<ClientCirc!(R, M)>,
-
     /// End-to-end crypto NTORv3 handshake with the service
     ///
     /// Created as part of generating our `INTRODUCE1`,
@@ -1054,10 +1048,14 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
+        // Having received INTRODUCE_ACK. we can forget about this circuit
+        // (and potentially tear it down).
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914434
+        drop(intro_circ);
+
         Ok((
             rendezvous,
             Introduced {
-                intro_circ,
                 handshake_state,
                 marker: PhantomData,
             },
