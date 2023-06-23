@@ -1111,9 +1111,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
-        // TODO: It would be great if we could have multiple of these existing
-        // in parallel with similar x,X values but different ipts. I believe C
-        // tor manages it somehow.
+        // In theory would be great if we could have multiple introduction attempts in parallel
+        // with similar x,X values but different IPTs.  However, our HS experts don't
+        // think increasing parallelism here is important:
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914438
         let handshake_state = introduced.handshake_state;
 
         // Try to complete the cryptographic handshake.
