@@ -34,6 +34,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 #[cfg(feature = "onion-service-client")]
 use {
     tor_circmgr::hspool::HsCircPool,
+    tor_config::BoolOrAuto,
     tor_hsclient::{
         HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
         HsClientSpecifier,
@@ -204,9 +205,10 @@ pub struct StreamPrefs {
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
     /// Whether to try to make connections to onion services.
+    ///
+    /// `Auto` means to use the client configuration.
     #[cfg(feature = "onion-service-client")]
-    #[educe(Default(true))]
-    pub(crate) connect_to_onion_services: bool,
+    pub(crate) connect_to_onion_services: BoolOrAuto,
 }
 
 /// Record of how we are isolating connections
@@ -304,12 +306,15 @@ impl StreamPrefs {
 
     /// Indicate whether connection to a hidden service (`.onion` service) should be allowed
     ///
-    /// If `false`, attempts to connect to Onion Services will be forced to fail with
+    /// If `Explicit(false)`, attempts to connect to Onion Services will be forced to fail with
     /// an error of kind [`InvalidStreamTarget`](crate::ErrorKind::InvalidStreamTarget).
     ///
-    /// By default this is enabled.
+    /// If `Explicit(true)`, Onion Service connections are enabled.
+    ///
+    /// If `Auto`, the behaviour depends on the `address_filter.allow_onion_addrs`
+    /// configuration option, which is in turn enabled by default.
     #[cfg(feature = "onion-service-client")]
-    pub fn connect_to_onion_services(&mut self, connect_to_onion_services: bool) -> &mut Self {
+    pub fn connect_to_onion_services(&mut self, connect_to_onion_services: BoolOrAuto) -> &mut Self {
         self.connect_to_onion_services = connect_to_onion_services;
         self
     }

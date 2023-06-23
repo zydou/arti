@@ -321,7 +321,7 @@ impl TorAddr {
         if let Host::Onion(_name) = &self.host {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "onion-service-client")] {
-                    if !prefs.connect_to_onion_services {
+                    if !prefs.connect_to_onion_services.as_bool().unwrap_or(cfg.allow_onion_addrs) {
                         return Err(ErrorDetail::OnionAddressDisabled);
                     }
                 } else {
@@ -776,18 +776,21 @@ mod test {
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "onion-service-client")] {
+                use tor_config::BoolOrAuto as B;
                 let prefs_of = |yn| {
                     let mut prefs = StreamPrefs::default();
                     prefs.connect_to_onion_services(yn);
                     prefs
                 };
                 check_stream(prefs_def(), Ok(()));
-                check_stream(prefs_of(true), Ok(()));
-                check_stream(prefs_of(false), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
+                check_stream(prefs_of(B::Auto), Ok(()));
+                check_stream(prefs_of(B::Explicit(true)), Ok(()));
+                check_stream(prefs_of(B::Explicit(false)), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
 
                 check_resolve(prefs_def());
-                check_resolve(prefs_of(true));
-                check_resolve(prefs_of(false));
+                check_resolve(prefs_of(B::Auto));
+                check_resolve(prefs_of(B::Explicit(true)));
+                check_resolve(prefs_of(B::Explicit(false)));
             } else {
                 check_stream(prefs_def(), Err((EDD::OnionAddressNotSupported, EK::FeatureDisabled)));
 

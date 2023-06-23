@@ -305,6 +305,9 @@
 # Should we allow attempts to make Tor connections to local addresses?
 #allow_local_addrs = false
 
+# Should Arti make connections to hidden serivces (.onion services) ?
+#allow_onion_addrs = true
+
 # Rules for how long streams should wait when connecting to host or performing a
 # DNS lookup.
 #

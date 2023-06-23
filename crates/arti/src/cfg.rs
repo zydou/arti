@@ -368,6 +368,7 @@ mod test {
     const ALL_RELEVANT_FEATURES_ENABLED: bool = cfg!(all(
         feature = "bridge-client",
         feature = "pt-client",
+        feature = "onion-service-client",
         feature = "rpc",
     ));
 
@@ -460,6 +461,16 @@ mod test {
             FeatureDependent,
             &[
                 // PT-only settings
+            ],
+        );
+
+        declare_exceptions(
+            Absent,
+            Present,
+            FeatureDependent,
+            &[
+                // HS client settings
+                "address_filter.allow_onion_addrs",
             ],
         );
 

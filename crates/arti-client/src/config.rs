@@ -67,6 +67,13 @@ pub struct ClientAddrConfig {
     /// always reject connections to such addresses.
     #[builder(default)]
     pub(crate) allow_local_addrs: bool,
+
+    /// Should we allow attempts to connect to hidden services (`.onion` services)?
+    ///
+    /// This option is on by default.
+    #[cfg(feature = "onion-service-client")]
+    #[builder(default = "true")]
+    pub(crate) allow_onion_addrs: bool,
 }
 impl_standard_builder! { ClientAddrConfig }
 
