@@ -258,6 +258,8 @@ fn serde_default_keystore_dir() -> Option<Option<CfgPath>> {
     Some(default_keystore_dir())
 }
 
+// TODO: the expand_* functions are very repetitive. Maybe we can generate them using a macro
+// instead?
 impl StorageConfig {
     /// Try to expand `state_dir` to be a path buffer.
     pub(crate) fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
@@ -274,6 +276,17 @@ impl StorageConfig {
             .path()
             .map_err(|e| ConfigBuildError::Invalid {
                 field: "cache_dir".to_owned(),
+                problem: e.to_string(),
+            })
+    }
+    /// Try to expand `keystore_dir` to be a path buffer.
+    pub(crate) fn expand_keystore_dir(&self) -> Result<Option<PathBuf>, ConfigBuildError> {
+        self.keystore_dir
+            .as_ref()
+            .map(|dir| dir.path())
+            .transpose()
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: "keystore_dir".to_owned(),
                 problem: e.to_string(),
             })
     }
