@@ -440,8 +440,11 @@ impl EncryptedHsDesc {
     /// and corresponding KS_hsc_desc_enc. This function **does not check**
     /// this.
     //
-    // TODO hs: I'm not sure that taking `hsc_desc_enc` as an argument is correct. Instead, maybe
-    // we should take a set of keys?
+    // TODO: Someday we _might_ want to allow a list of keypairs in place of
+    // `hs_desc_enc`.  For now, though, we always know a single key that we want
+    // to try using, and we don't want to leak any extra information by
+    // providing other keys that _might_ work.  We certainly don't want to
+    // encourage people to provide every key they know.
     pub fn decrypt(
         &self,
         subcredential: &Subcredential,
