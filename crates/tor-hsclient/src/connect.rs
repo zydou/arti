@@ -413,6 +413,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // and pay no attention to the descriptor's revision counter.
         // When it expires, we discard it completely and try to obtain a new one.
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914448
+        // TODO SPEC: Discuss HS descriptor lifetime and expiry client behaviour
         if let Some(previously) = data {
             let now = self.runtime.wallclock();
             if let Ok(_desc) = previously.as_ref().check_valid_at(&now) {
@@ -444,6 +445,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
         // But C Tor doesn't and our HS experts don't consider that important:
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914436
+        // TODO SPEC: Discuss hsdir descriptor fetch (non)-parallelism
         let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
         let desc = loop {
@@ -646,6 +648,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // and somehow aggregating the errors and experiences.
         // However our HS experts don't consider that important:
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914438
+        // TODO SPEC: Discuss HS introduction (non)-parallelism, possibly with same x,X
         loop {
             // When did we start doing things that depended on the IPT?
             //
@@ -684,6 +687,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 // Our HS experts don't consider it important to increase the parallelism:
                 //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914444
                 //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914445
+                //
+                // TODO SPEC: Discuss HS rendezvous (and rend vs intro) (non)-parallelism
                 if saved_rendezvous.is_none() {
                     debug!("hs conn to {}: setting up rendezvous point", &self.hsid);
                     // Establish a rendezvous circuit.
@@ -1060,6 +1065,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // Having received INTRODUCE_ACK. we can forget about this circuit
         // (and potentially tear it down).
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914434
+        // TODO SPEC: State that intro circuit can be discarded after ACK
         drop(intro_circ);
 
         Ok((
