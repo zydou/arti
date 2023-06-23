@@ -49,6 +49,7 @@ hs-common = ["tor-hscrypto"]
 __is_experimental = []
 
 [dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 bounded-vec-deque = "0.1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }

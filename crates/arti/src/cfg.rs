@@ -471,6 +471,8 @@ mod test {
             &[
                 // HS client settings
                 "address_filter.allow_onion_addrs",
+                "circuit_timing.hs_desc_fetch_attempts",
+                "circuit_timing.hs_intro_rend_attempts",
             ],
         );
 
