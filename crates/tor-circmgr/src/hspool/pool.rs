@@ -144,6 +144,9 @@ where
     P: Fn(&T) -> bool,
 {
     let n_circuits = slice.len();
+    if n_circuits == 0 {
+        return None;
+    }
     let shift = rng.gen_range(0..n_circuits);
     (shift..n_circuits)
         .chain(0..shift)
@@ -182,5 +185,12 @@ mod test {
         for (idx, num) in numbers.iter().enumerate() {
             assert!(found[idx] == (num & 1 == 1));
         }
+    }
+
+    #[test]
+    fn random_idx_empty() {
+        let mut rng = testing_rng();
+        let idx = random_idx_where(&mut rng, &[], |_: &i32| panic!());
+        assert_eq!(idx, None);
     }
 }
