@@ -645,6 +645,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 sort_rand: ipt.sort_rand,
             }
         });
+        self.mocks.test_got_ipts(&usable_intros);
+
         let mut intro_attempts = usable_intros.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
 
         // We retain a rendezvous we managed to set up in here.  That way if we created it, and
@@ -1177,6 +1179,8 @@ trait MocksForConnect<R>: Clone {
     fn test_got_desc(&self, _: &HsDesc) {}
     /// Tell tests we got this circuit
     fn test_got_circ(&self, _: &Arc<ClientCirc!(R, Self)>) {}
+    /// Tell tests we have obtained and sorted the intros like this
+    fn test_got_ipts(&self, _: &[UsableIntroPt]) {}
 
     /// Return a random number generator
     fn thread_rng(&self) -> Self::Rng;
@@ -1352,6 +1356,8 @@ mod test {
             self.mglobal.lock().unwrap().got_desc = Some(desc.clone());
         }
 
+        fn test_got_ipts(&self, desc: &[UsableIntroPt]) {}
+
         fn thread_rng(&self) -> Self::Rng {
             testing_rng()
         }
@@ -1504,6 +1510,23 @@ mod test {
 
         // TODO HS TESTS: continue with this
     }
+
+    // TODO HS TESTS: Test IPT state management and expiry:
+    //   - obtain a test descriptor with only a broken ipt
+    //     (broken in the sense that intro can be attempted, but will fail somehow)
+    //   - try to make a connection and expect it to fail
+    //   - assert that the ipt data isn't empty
+    //   - cause the descriptor to expire (advance clock)
+    //   - start using a mocked RNG if we weren't already and pin its seed here
+    //   - make a new descriptor with two IPTs: the broken one from earlier, and a new one
+    //   - make a new connection
+    //   - use test_got_ipts to check that the random numbers
+    //     would sort the bad intro first, *and* that the good one is appears first
+    //   - assert that connection succeeded
+    //   - cause the circuit and descriptor to expire (advance clock)
+    //   - go back to the previous descriptor contents, but with a new validity period
+    //   - try to make a connection
+    //   - use test_got_ipts to check that only the broken ipt is present
 
     // TODO HS TESTS: test retries (of every retry loop we have here)
     // TODO HS TESTS: test error paths
