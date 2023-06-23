@@ -66,6 +66,8 @@ onion service client.
 `hsv3-service` -- enable cryptography that's only needed when running as a v3
 onion service.
 
+`keymgr` -- enable cryptography that's only needed for key management
+
 ### Acceleration features
 
 These features should never be enabled by default from libraries, since they

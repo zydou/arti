@@ -108,6 +108,29 @@ pub fn convert_curve25519_to_ed25519_private(
     Some((pk::ed25519::ExpandedKeypair { public, secret }, signbit))
 }
 
+/// Convert an ed25519 private key to a curve25519 private key.
+///
+/// Note: Using the same keypair for multiple purposes (such as key-exchange and signing) is
+/// considered bad practice. Don't use this function unless you know what you're doing.
+#[cfg(any(test, feature = "keymgr"))]
+pub fn convert_ed25519_to_curve25519_private(
+    keypair: &pk::ed25519::Keypair,
+) -> pk::curve25519::StaticSecret {
+    use crate::d::Sha512;
+    use zeroize::Zeroize as _;
+
+    // Generate the key according to section-5.1.5 of rfc8032
+    let h = Sha512::digest(keypair.secret.to_bytes());
+
+    let mut bytes = [0_u8; 32];
+    bytes.clone_from_slice(&h[0..32]);
+
+    // StaticSecret::from handles the clamping
+    let secret = pk::curve25519::StaticSecret::from(bytes);
+    bytes.zeroize();
+    secret
+}
+
 /// An error occurred during a key-blinding operation.
 #[derive(Error, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -290,6 +313,40 @@ mod tests {
 
         assert_eq!(ed_pk1, ed_pk0);
         assert_eq!(ed_pk1, ed_pk2);
+    }
+
+    #[test]
+    fn ed_to_curve_compatible() {
+        use crate::pk::{curve25519, ed25519};
+        use crate::util::rand_compat::RngCompatExt;
+        use signature::Verifier;
+        use tor_basic_utils::test_rng::testing_rng;
+
+        let mut rng = testing_rng().rng_compat();
+        let ed_kp = ed25519::Keypair::generate(&mut rng);
+        let ed_sk1 = ExpandedSecretKey::from(&ed_kp.secret);
+        let ed_pk1 = ed25519::PublicKey::from(&ed_sk1);
+
+        let curve_sk = convert_ed25519_to_curve25519_private(&ed_kp);
+        let curve_pk = curve25519::PublicKey::from(&curve_sk);
+
+        let (ed_kp2, signbit) = convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
+        let ed_pk2 = convert_curve25519_to_ed25519_public(&curve_pk, signbit).unwrap();
+        let ed_sk2 = ed_kp2.secret;
+
+        assert_eq!(ed_pk1, ed_pk2);
+        // Make sure the 2 secret keys are the same.
+        // Note: we only look at the first 32 bytes of the (expanded) key because the last 32 bytes
+        // represent the "domain-separation nonce".
+        assert_eq!(ed_sk1.to_bytes()[..32], ed_sk2.to_bytes()[..32]);
+
+        let msg = b"tis the gift to be simple";
+
+        for sk in &[ed_sk1, ed_sk2] {
+            let sig = sk.sign(&msg[..], &ed_pk1);
+            assert!(ed_pk1.verify(&msg[..], &sig).is_ok());
+            assert!(ed_pk2.verify(&msg[..], &sig).is_ok());
+        }
     }
 
     #[test]
