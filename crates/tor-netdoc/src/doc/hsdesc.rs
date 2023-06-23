@@ -614,7 +614,12 @@ mod test {
         assert_eq!(desc.is_single_onion_service, false);
         assert_eq!(desc.intro_points.len(), 3);
 
-        // TODO hs: add checks that the intro point fields are as expected.
+        let ipt0 = &desc.intro_points()[0];
+        assert_eq!(
+            ipt0.ipt_ntor_key().as_bytes(),
+            &hex!("553BF9F9E1979D6F5D5D7D20BB3FE7272E32E22B6E86E35C76A7CA8A377E402F")
+        );
+        // TODO TEST: Perhaps add tests for other intro point fields.
 
         Ok(())
     }

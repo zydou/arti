@@ -248,6 +248,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use hex_literal::hex;
     use tor_checkable::{SelfSigned, Timebound};
 
     use super::*;
@@ -266,15 +267,16 @@ mod test {
         let body = std::str::from_utf8(&body[..]).unwrap();
 
         let middle = HsDescMiddle::parse(body)?;
-
-        // TODO hs: assert that the fields here are expected.
+        assert_eq!(
+            middle.svc_desc_enc_key.as_bytes(),
+            &hex!("161090571E6DB517C0C8591CE524A56DF17BAE3FF8DCD50735F9AEB89634073E")
+        );
+        assert_eq!(middle.auth_clients.len(), 16);
 
         // TODO hs: write a test for the case where we _do_ have an encryption key.
         let _inner_body = middle
             .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
-
-        // dbg!(std::str::from_utf8(&inner_body).unwrap());
 
         Ok(())
     }
