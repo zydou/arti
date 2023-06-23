@@ -273,7 +273,14 @@ mod test {
         );
         assert_eq!(middle.auth_clients.len(), 16);
 
-        // TODO hs: write a test for the case where we _do_ have an encryption key.
+        // Here we make sure that decryption "works" minimally and returns some
+        // bytes for a descriptor with no HsClientDescEncSecretKey.
+        //
+        // We make sure that the actual decrypted value is reasonable elsewhere,
+        // in the tests in inner.rs.
+        //
+        // We test the case where a HsClientDescEncSecretKey is needed
+        // elsewhere, in `hsdesc::test::parse_desc_auth_good`.
         let _inner_body = middle
             .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
