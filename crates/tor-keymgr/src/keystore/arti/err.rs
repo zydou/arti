@@ -13,7 +13,7 @@ use std::sync::Arc;
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum ArtiNativeKeystoreError {
     /// An error that occurred while accessing the filesystem.
-    #[error("An error occurred while accessing the filesystem")]
+    #[error("IO error on {path} while attempting to {action}")]
     Filesystem {
         /// The action we were trying to perform.
         action: FilesystemAction,
@@ -25,7 +25,7 @@ pub(crate) enum ArtiNativeKeystoreError {
     },
 
     /// Encountered an invalid path or invalid permissions.
-    #[error("Invalid path or permissions")]
+    #[error("Invalid path or permissions on {path} while attempting to {action}")]
     FsMistrust {
         /// The action we were trying to perform.
         action: FilesystemAction,
@@ -43,7 +43,7 @@ pub(crate) enum ArtiNativeKeystoreError {
 
 /// The action that caused an [`ArtiNativeKeystoreError::Filesystem`] or
 /// [`ArtiNativeKeystoreError::FsMistrust`] error.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, derive_more::Display)]
 pub(crate) enum FilesystemAction {
     /// Filesystem key store initialization.
     Init,
