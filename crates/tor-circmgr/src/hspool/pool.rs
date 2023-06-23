@@ -144,6 +144,9 @@ where
     P: Fn(&T) -> bool,
 {
     let n_circuits = slice.len();
+    if n_circuits == 0 {
+        return None;
+    }
     let shift = rng.gen_range(0..n_circuits);
     (shift..n_circuits)
         .chain(0..shift)
