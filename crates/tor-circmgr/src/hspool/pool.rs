@@ -193,4 +193,14 @@ mod test {
         let idx = random_idx_where(&mut rng, &[], |_: &i32| panic!());
         assert_eq!(idx, None);
     }
+
+    #[test]
+    fn random_idx_none() {
+        let mut rng = testing_rng();
+        let numbers: Vec<i32> = vec![1, 3, 4, 8, 11, 19, 12, 6, 27];
+        assert_eq!(
+            random_idx_where(&mut rng, &numbers[..], |_: &i32| false),
+            None
+        );
+    }
 }
