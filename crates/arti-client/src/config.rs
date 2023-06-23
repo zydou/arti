@@ -513,6 +513,8 @@ fn convert_override_net_params(
 }
 
 impl tor_circmgr::CircMgrConfig for TorClientConfig {}
+#[cfg(feature = "onion-service-client")]
+impl tor_hsclient::HsClientConnectorConfig for TorClientConfig {}
 
 impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
     fn as_ref(&self) -> &tor_guardmgr::fallback::FallbackList {

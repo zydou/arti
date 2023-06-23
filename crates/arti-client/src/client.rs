@@ -540,7 +540,7 @@ impl<R: Runtime> TorClient<R> {
         )
         .map_err(ErrorDetail::CircMgrSetup)?;
 
-        let timeout_cfg = config.stream_timeouts;
+        let timeout_cfg = config.stream_timeouts.clone();
 
         let dirmgr_store =
             DirMgrStore::new(&dir_cfg, runtime.clone(), false).map_err(ErrorDetail::DirMgrSetup)?;
@@ -588,7 +588,7 @@ impl<R: Runtime> TorClient<R> {
             });
             let housekeeping = Box::pin(housekeeping);
 
-            HsClientConnector::new(runtime.clone(), circpool, housekeeping)?
+            HsClientConnector::new(runtime.clone(), circpool, &config, housekeeping)?
         };
 
         let keymgr = {

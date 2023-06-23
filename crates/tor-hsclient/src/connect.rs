@@ -44,6 +44,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 use crate::proto_oneshot;
 use crate::relay_info::ipt_to_circtarget;
 use crate::state::MockableConnectorData;
+use crate::Config;
 use crate::{rend_pt_identity_for_error, FailedAttemptError, IntroPtIndex, RendPtIdentityForError};
 use crate::{ConnError, DescriptorError, DescriptorErrorDetail};
 use crate::{HsClientConnector, HsClientSecretKeys};
@@ -126,6 +127,7 @@ struct IptExperience {
 pub(crate) async fn connect<R: Runtime>(
     connector: &HsClientConnector<R>,
     netdir: Arc<NetDir>,
+    config: Arc<Config>,
     hsid: HsId,
     data: &mut Data,
     secret_keys: HsClientSecretKeys,
@@ -134,6 +136,7 @@ pub(crate) async fn connect<R: Runtime>(
         &connector.runtime,
         &*connector.circpool,
         netdir,
+        config,
         hsid,
         secret_keys,
         (),
@@ -162,6 +165,8 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1228#note_2910545
     //   https://gitlab.torproject.org/tpo/core/arti/-/issues/884
     netdir: Arc<NetDir>,
+    /// Configuration
+    config: Arc<Config>,
     /// Secret keys to use
     secret_keys: HsClientSecretKeys,
     /// HS ID
@@ -332,6 +337,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         runtime: &'c R,
         circpool: &'c M::HsCircPool,
         netdir: Arc<NetDir>,
+        config: Arc<Config>,
         hsid: HsId,
         secret_keys: HsClientSecretKeys,
         mocks: M,
@@ -350,6 +356,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         Ok(Context {
             netdir,
+            config,
             hsid,
             hs_blind_id,
             subcredential,
@@ -402,6 +409,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
+        let _ = self.config.retry; // TODO HS actually use this value
         // TODO HS Use `hs_desc_fetch_attempts` from configuration
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
         const MAX_TOTAL_ATTEMPTS: usize = 6;
@@ -1310,11 +1318,12 @@ impl MockableConnectorData for Data {
     async fn connect<R: Runtime>(
         connector: &HsClientConnector<R>,
         netdir: Arc<NetDir>,
+        config: Arc<Config>,
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
     ) -> Result<Arc<Self::ClientCirc>, ConnError> {
-        connect(connector, netdir, hsid, data, secret_keys).await
+        connect(connector, netdir, config, hsid, data, secret_keys).await
     }
 
     fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
@@ -1486,7 +1495,7 @@ mod test {
         secret_keys_builder.ks_hsc_desc_enc(sk);
         let secret_keys = secret_keys_builder.build().unwrap();
 
-        let ctx = Context::new(&runtime, &mocks, netdir, hsid, secret_keys, mocks.clone()).unwrap();
+        let ctx = Context::new(&runtime, &mocks, netdir, Default::default(), hsid, secret_keys, mocks.clone()).unwrap();
 
         let _got = AssertUnwindSafe(ctx.connect(&mut data))
             .catch_unwind() // TODO HS TESTS: remove this and the AssertUnwindSafe
