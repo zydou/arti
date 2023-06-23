@@ -733,7 +733,21 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         // The intro point ought to give us a prompt ACK regardless of HS
                         // behaviour or whatever is happening at the RPT, so blame the IPT.
                         FAE::IntroductionTimeout { intro_index }
-                    })??;
+                    })?
+                    // TODO: Maybe try, once, to extend-and-reuse the intro circuit.
+                    // 
+	            // If the introduction fails, the introduction circuit is in principle
+                    // still usable.  We believe that in this case, C Tor extends the intro
+	            // circuit by one hop to the next IPT to try.  That saves on building a
+                    // whole new 3-hop intro circuit.  However, our HS experts tell us that
+                    // if introduction fails at one IPT it is likely to fail at the others too,
+                    // so that optimisation might reduce our network impact and time to failure,
+                    // but isn't likely to improve our chances of success.
+                    //
+                    // However, it's not clear whether this approach risks contaminating
+                    // the 2nd attempt with some fault relating to the introduction point.
+                    // The 1st ipt might also gain more knowledge about which HS we're talking to.
+                    ?;
                 #[allow(unused_variables)] // it's *supposed* to be unused
                 let saved_rendezvous = (); // don't use `saved_rendezvous` any more, use rendezvous
 
