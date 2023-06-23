@@ -61,8 +61,6 @@ pub(super) struct HsDescEncNonce([u8; HS_DESC_ENC_NONCE_LEN]);
 const SALT_LEN: usize = 16;
 /// Length of our ersatz MAC.
 const MAC_LEN: usize = 32;
-/// An instance of our cryptographic salt.
-type Salt = [u8; SALT_LEN];
 
 impl<'a> HsDescEncryption<'a> {
     /// Length of our MAC key.
@@ -73,6 +71,7 @@ impl<'a> HsDescEncryption<'a> {
     const IV_LEN: usize = 16;
 
     /// Encrypt a given bytestring using these encryption parameters.
+    #[cfg(any(test, feature = "hs-service"))]
     pub(super) fn encrypt<R: Rng + CryptoRng>(&self, rng: &mut R, data: &[u8]) -> Vec<u8> {
         let output_len = data.len() + SALT_LEN + MAC_LEN;
         let mut output = Vec::with_capacity(output_len);

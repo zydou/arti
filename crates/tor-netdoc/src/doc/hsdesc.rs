@@ -8,7 +8,6 @@
 //! An onion service descriptor is more complicated than most other
 //! documentation types, because it is partially encrypted.
 
-#![allow(dead_code)] // TODO hs: remove.
 mod desc_enc;
 
 #[cfg(feature = "hs-service")]
@@ -56,6 +55,8 @@ pub use build::HsDescBuilder;
 /// identity.
 ///
 /// The HsDir caches this value, along with the original text of the descriptor.
+#[cfg(feature = "hs-dir")]
+#[allow(dead_code)] // TODO RELAY: Remove this.
 pub struct StoredHsDescMeta {
     /// The blinded onion identity for this descriptor.  (This is the only
     /// identity that the HsDir knows.)
@@ -67,12 +68,14 @@ pub struct StoredHsDescMeta {
 }
 
 /// An unchecked StoredHsDescMeta: parsed, but not checked for liveness or validity.
+#[cfg(feature = "hs-dir")]
 pub type UncheckedStoredHsDescMeta =
     signed::SignatureGated<timed::TimerangeBound<StoredHsDescMeta>>;
 
 /// Information about how long to hold a given onion service descriptor, and
 /// when to replace it.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // TODO RELAY: Remove this if there turns out to be no need for it.
 struct IndexInfo {
     /// The lifetime in minutes that this descriptor should be held after it is
     /// received.
@@ -95,6 +98,7 @@ struct IndexInfo {
 pub struct HsDesc {
     /// Information about the expiration and revision counter for this
     /// descriptor.
+    #[allow(dead_code)] // TODO RELAY: Remove this if there turns out to be no need for it.
     idx_info: IndexInfo,
 
     /// `KP_hsc_desc_enc`, the public key corresponding to the private key that
@@ -168,6 +172,7 @@ pub struct EncryptedHsDesc {
 /// An unchecked HsDesc: parsed, but not checked for liveness or validity.
 pub type UncheckedEncryptedHsDesc = signed::SignatureGated<timed::TimerangeBound<EncryptedHsDesc>>;
 
+#[cfg(feature = "hs-dir")]
 impl StoredHsDescMeta {
     // TODO relay: needs accessor functions too.  (Let's not use public fields; we
     // are likely to want to mess with the repr of these types.)
@@ -315,6 +320,31 @@ impl HsDesc {
     pub fn intro_points(&self) -> &[IntroPointDesc] {
         &self.intro_points
     }
+
+    /// Return true if this onion service claims to be a non-anonymous "single
+    /// onion service".
+    ///
+    /// (We should always anonymize our own connection to an onion service.)
+    pub fn is_single_onion_service(&self) -> bool {
+        self.is_single_onion_service
+    }
+
+    /// Return true if this onion service claims that it needs user authentication
+    /// of some kind in its INTRODUCE messages.
+    ///
+    /// (Arti does not currently support sending this kind of authentication.)
+    pub fn requires_intro_authentication(&self) -> bool {
+        self.auth_required.is_some()
+    }
+
+    /// Return true if we had to use a [`HsClientDescEncSecretKey`] to decrypt
+    /// this descriptor.
+    ///
+    /// It is possible for this to return `false` even if we provided a secret
+    /// key when decrypting: that key might not have been used.
+    pub fn was_encrypted(&self) -> bool {
+        self.decrypted_with_id.is_some()
+    }
 }
 
 /// An error returned by [`HsDesc::parse_decrypt_validate`], indicating what
@@ -434,7 +464,7 @@ impl EncryptedHsDesc {
     ) -> StdResult<TimerangeBound<SignatureGated<HsDesc>>, HsDescError> {
         use HsDescError as E;
         let blinded_id = self.outer_doc.blinded_id();
-        let revision_counter = self.outer_doc.revision_counter;
+        let revision_counter = self.outer_doc.revision_counter();
         let kp_desc_sign = self.outer_doc.desc_sign_key_id();
 
         // Decrypt the superencryption layer; parse the middle document.
@@ -493,11 +523,12 @@ impl IndexInfo {
         IndexInfo {
             lifetime: outer.lifetime,
             signing_cert_expires: outer.desc_signing_key_cert.expiry(),
-            revision: outer.revision_counter,
+            revision: outer.revision_counter(),
         }
     }
 }
 
+#[cfg(feature = "hs-dir")]
 impl StoredHsDescMeta {
     /// Create a new `StoredHsDescMeta` from the outer part of an onion service descriptor.
     fn from_outer_doc(outer: &outer::HsDescOuter) -> Self {
@@ -559,6 +590,7 @@ mod test {
     use tor_llcrypto::pk::ed25519;
 
     #[test]
+    #[cfg(feature = "hs-dir")]
     fn parse_meta_good() -> Result<()> {
         let meta = StoredHsDescMeta::parse(TEST_DATA)?
             .check_signature()?
