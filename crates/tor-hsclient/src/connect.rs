@@ -403,14 +403,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         // TODO HS are these right? make configurable? get from netdir?
-        // TODO HS: we should check the revision counter on the HSDesc before
-        // replacing it.
         // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
         const MAX_TOTAL_ATTEMPTS: usize = 6;
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
+        // We retain a previously obtained descriptor precisely until its lifetime expires,
+        // and pay no attention to the descriptor's revision counter.
+        // When it expires, we discard it completely and try to obtain a new one.
+        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914448
         if let Some(previously) = data {
             let now = self.runtime.wallclock();
             if let Ok(_desc) = previously.as_ref().check_valid_at(&now) {
