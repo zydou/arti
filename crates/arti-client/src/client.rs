@@ -472,7 +472,7 @@ impl<R: Runtime> TorClient<R> {
     /// double error conversions.
     pub(crate) fn create_inner(
         runtime: R,
-        config: TorClientConfig,
+        config: &TorClientConfig,
         autobootstrap: BootstrapBehavior,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
@@ -511,7 +511,7 @@ impl<R: Runtime> TorClient<R> {
             dormant.into(),
             &NetParameters::from_map(&config.override_net_params),
         ));
-        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), &config)
+        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), config)
             .map_err(ErrorDetail::GuardMgrSetup)?;
 
         #[cfg(feature = "pt-client")]
@@ -532,7 +532,7 @@ impl<R: Runtime> TorClient<R> {
         };
 
         let circmgr = tor_circmgr::CircMgr::new(
-            &config,
+            config,
             statemgr.clone(),
             &runtime,
             Arc::clone(&chanmgr),
@@ -588,7 +588,7 @@ impl<R: Runtime> TorClient<R> {
             });
             let housekeeping = Box::pin(housekeeping);
 
-            HsClientConnector::new(runtime.clone(), circpool, &config, housekeeping)?
+            HsClientConnector::new(runtime.clone(), circpool, config, housekeeping)?
         };
 
         let keymgr = {

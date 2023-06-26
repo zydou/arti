@@ -147,7 +147,7 @@ impl<R: Runtime> TorClientBuilder<R> {
 
         TorClient::create_inner(
             self.runtime,
-            self.config,
+            &self.config,
             self.bootstrap_behavior,
             self.dirmgr_builder.as_ref(),
             dirmgr_extensions,
