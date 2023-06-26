@@ -109,8 +109,8 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     ///
     /// In Arti we arrange for this to happen when we have a new consensus.
     ///
-    /// It doesn't matter whether the housekeeping events still arrive while we're dormant;
-    /// housekeeping doesn't include any thing "active".
+    /// Housekeeping events shouldn't arrive while we're dormant,
+    /// since the housekeeping might involve processing that ought to be deferred.
     pub fn new(
         runtime: R,
         circpool: Arc<HsCircPool<R>>,
