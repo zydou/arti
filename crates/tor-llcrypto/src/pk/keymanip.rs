@@ -126,6 +126,18 @@ pub fn convert_curve25519_to_ed25519_private(
 /// yield an [`ExpandedKeypair`](pk::ed25519::ExpandedKeypair) that is _not_ identical to the
 /// expanded version of the original [`Keypair`](pk::ed25519::Keypair): the lower halves (the keys) of
 /// the expanded key pairs will be the same, but their upper halves (the nonces) will be different.
+///
+/// # Panics
+///
+/// If the `debug_assertions` feature is enabled, this function will double-check that the key it
+/// is about to return is clamped.
+///
+/// This panic should be impossible unless we have upgraded x25519-dalek without auditing this
+/// function.
+///
+/// # Availability
+///
+/// This function is only available when the `keymgr` feature is enabled.
 #[cfg(any(test, feature = "keymgr"))]
 pub fn convert_ed25519_to_curve25519_private(
     keypair: &pk::ed25519::Keypair,
