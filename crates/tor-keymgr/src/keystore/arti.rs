@@ -74,7 +74,7 @@ impl KeyStore for ArtiNativeKeyStore {
         };
 
         key_type
-            .parse_ssh_format_erased(&UnparsedOpenSshKey::new(inner))
+            .parse_ssh_format_erased(UnparsedOpenSshKey::new(inner, path))
             .map(Some)
     }
 

@@ -13,6 +13,7 @@ use tor_llcrypto::pk::ed25519;
 use zeroize::Zeroizing;
 
 use std::error::Error as StdError;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// An unparsed OpenSSH key.
@@ -21,14 +22,22 @@ use std::sync::Arc;
 /// value is unchecked/unvalidated, and might not actually be a valid OpenSSH key.
 ///
 /// The inner value is zeroed on drop.
-pub(crate) struct UnparsedOpenSshKey(Zeroizing<Vec<u8>>);
+pub(crate) struct UnparsedOpenSshKey {
+    /// The contents of an OpenSSH key file.
+    inner: Zeroizing<Vec<u8>>,
+    /// The path of the file (for error reporting).
+    path: PathBuf,
+}
 
 impl UnparsedOpenSshKey {
     /// Create a new [`UnparsedOpenSshKey`].
     ///
     /// The contents of `inner` are erased on drop.
-    pub(crate) fn new(inner: Vec<u8>) -> Self {
-        Self(Zeroizing::new(inner))
+    pub(crate) fn new(inner: Vec<u8>, path: PathBuf) -> Self {
+        Self {
+            inner: Zeroizing::new(inner),
+            path,
+        }
     }
 }
 
@@ -40,6 +49,8 @@ pub(crate) enum SshKeyError {
     /// Failed to parse an OpenSSH key
     #[error("Failed to parse OpenSSH with type {key_type:?}")]
     SshKeyParse {
+        /// The path of the malformed key.
+        path: PathBuf,
         /// The type of key we were trying to fetch.
         key_type: KeyType,
         /// The underlying error.
@@ -50,6 +61,8 @@ pub(crate) enum SshKeyError {
     /// The OpenSSH key we retrieved is of the wrong type.
     #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
     UnexpectedSshKeyType {
+        /// The path of the malformed key.
+        path: PathBuf,
         /// The algorithm we expected the key to use.
         wanted_key_algo: SshKeyAlgorithm,
         /// The algorithm of the key we got.
@@ -85,10 +98,16 @@ impl HasKind for SshKeyError {
 }
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
-fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
-    let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| SshKeyError::SshKeyParse {
-        key_type,
-        err: e.into(),
+fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
+    let sk = ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| {
+        SshKeyError::SshKeyParse {
+            // TODO: rust thinks this clone is necessary because key.path is also used below (but
+            // if we get to this point, we're going to return an error and never reach the other
+            // error handling branches where we use key.path).
+            path: key.path.clone(),
+            key_type,
+            err: e.into(),
+        }
     })?;
 
     // Build the expected key type (i.e. convert ssh_key key types to the key types
@@ -101,6 +120,7 @@ fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<E
         }
         _ => {
             return Err(SshKeyError::UnexpectedSshKeyType {
+                path: key.path,
                 wanted_key_algo: key_type.ssh_algorithm(),
                 found_key_algo: sk.algorithm(),
             }
@@ -133,7 +153,7 @@ impl KeyType {
     /// type-erased value.
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn parse_ssh_format_erased(&self, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
+    pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO hs: perhaps this needs to be a method on EncodableKey instead?
         match self {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
