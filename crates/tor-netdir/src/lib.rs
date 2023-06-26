@@ -1377,7 +1377,6 @@ impl NetDir {
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
-    #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
     pub fn hs_dirs<'r, R>(&'r self, hsid: &HsBlindId, op: HsDirOp, rng: &mut R) -> Vec<Relay<'r>>
     where
         R: rand::Rng,

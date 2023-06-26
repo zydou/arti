@@ -13,8 +13,6 @@
 //! position or later. ("N" is a "number of replicas" parameter, and "S" is a
 //! "Spread" parameter.)
 
-#![allow(unused_variables, dead_code)] //TODO hs: remove
-
 use std::collections::HashMap;
 use std::fmt::Debug;
 
