@@ -81,7 +81,7 @@ impl HsDirParams {
         consensus: &MdConsensus,
         params: &NetParameters,
     ) -> Result<HsDirs<HsDirParams>> {
-        let srvs = extract_srvs(consensus)?;
+        let srvs = extract_srvs(consensus);
         let tp_length: Duration = params.hsdir_timeperiod_length.try_into().map_err(|_| {
             Error::InvalidConsensus(
                 "Minutes in hsdir timeperiod could not be converted to a Duration",
@@ -168,10 +168,10 @@ fn find_srv_for_time(info: &[SrvInfo], when: SystemTime) -> Option<SharedRandVal
 
 /// Return every SRV from a consensus, along with a duration over which it is
 /// most recent SRV.
-fn extract_srvs(consensus: &MdConsensus) -> Result<Vec<SrvInfo>> {
+fn extract_srvs(consensus: &MdConsensus) -> Vec<SrvInfo> {
     let mut v = Vec::new();
     let consensus_ts = consensus.lifetime().valid_after();
-    let srv_interval = srv_interval(consensus)?;
+    let srv_interval = srv_interval(consensus);
 
     if let Some(cur) = consensus.shared_rand_cur() {
         let ts_begin = cur
@@ -188,12 +188,11 @@ fn extract_srvs(consensus: &MdConsensus) -> Result<Vec<SrvInfo>> {
         v.push((*prev.value(), ts_begin..ts_end));
     }
 
-    Ok(v)
+    v
 }
 
 /// Return the length of time for which a single SRV value is valid.
-#[allow(clippy::unnecessary_wraps)] // XXXX remove.
-fn srv_interval(consensus: &MdConsensus) -> Result<Duration> {
+fn srv_interval(consensus: &MdConsensus) -> Duration {
     // What we _want_ to do, ideally, is is to learn the duration from the
     // difference between the declared time for the previous value and the
     // declared time for the current one.
@@ -202,7 +201,7 @@ fn srv_interval(consensus: &MdConsensus) -> Result<Duration> {
     if let (Some(cur), Some(prev)) = (consensus.shared_rand_cur(), consensus.shared_rand_prev()) {
         if let (Some(cur_ts), Some(prev_ts)) = (cur.timestamp(), prev.timestamp()) {
             if let Ok(d) = cur_ts.duration_since(prev_ts) {
-                return Ok(d);
+                return d;
             }
         }
     }
@@ -210,7 +209,7 @@ fn srv_interval(consensus: &MdConsensus) -> Result<Duration> {
     // But if one of those values is missing, or if it has no timestamp, we have
     // to fall back to admitting that we know the schedule for the voting
     // algorithm.
-    Ok(consensus.lifetime().voting_period() * VOTING_PERIODS_IN_SRV_ROUND)
+    consensus.lifetime().voting_period() * VOTING_PERIODS_IN_SRV_ROUND
 }
 
 /// Return the length of the voting period in the consensus.
@@ -318,7 +317,7 @@ mod test {
     fn srv_period() {
         // In a basic consensus with no SRV timestamps, we'll assume 24 voting periods.
         let consensus = example_consensus_builder().testing_consensus().unwrap();
-        assert_eq!(srv_interval(&consensus).unwrap(), d("1 day"));
+        assert_eq!(srv_interval(&consensus), d("1 day"));
 
         // If there are timestamps, we look at the difference between them.
         let consensus = example_consensus_builder()
@@ -326,7 +325,7 @@ mod test {
             .shared_rand_cur(7, SRV2.into(), Some(t("1985-10-25T06:00:05Z")))
             .testing_consensus()
             .unwrap();
-        assert_eq!(srv_interval(&consensus).unwrap(), d("6 hours 5 sec"));
+        assert_eq!(srv_interval(&consensus), d("6 hours 5 sec"));
 
         // Note that if the timestamps are in reversed order, we fall back to 24 hours.
         let consensus = example_consensus_builder()
@@ -334,13 +333,13 @@ mod test {
             .shared_rand_prev(7, SRV2.into(), Some(t("1985-10-25T06:00:05Z")))
             .testing_consensus()
             .unwrap();
-        assert_eq!(srv_interval(&consensus).unwrap(), d("1 day"));
+        assert_eq!(srv_interval(&consensus), d("1 day"));
     }
 
     #[test]
     fn srvs_extract_and_find() {
         let consensus = example_consensus_builder().testing_consensus().unwrap();
-        let srvs = extract_srvs(&consensus).unwrap();
+        let srvs = extract_srvs(&consensus);
         assert_eq!(
             srvs,
             vec![
@@ -365,7 +364,7 @@ mod test {
             .shared_rand_cur(7, SRV2.into(), Some(t("1985-10-25T06:00:05Z")))
             .testing_consensus()
             .unwrap();
-        let srvs = extract_srvs(&consensus).unwrap();
+        let srvs = extract_srvs(&consensus);
         assert_eq!(
             srvs,
             vec![
