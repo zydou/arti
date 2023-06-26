@@ -112,7 +112,6 @@ hosts:
   articlient:
     network_node_id: 0
     host_options:
-      log_level: trace
     processes:
     - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
       args: proxy -c arti.toml -o proxy.socks_port=9000 --disable-fs-permission-checks -l debug,tor_proto=trace
@@ -130,7 +129,6 @@ hosts:
   articlient-bridge:
     network_node_id: 0
     host_options:
-      log_level: trace
       # Enable pcap capture so we can check for leaks
       pcap_enabled: true
     processes:
