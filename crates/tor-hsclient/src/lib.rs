@@ -181,6 +181,7 @@ impl<R: Runtime, D: MockableConnectorData> HsClientConnector<R, D> {
                         let Ok(mut services) = connector.services()
                         else { break };
 
+                        // (Currently) this is "expire old data".
                         services.run_housekeeping(runtime.now());
                     }
                     debug!("HS connector housekeeping task exiting (EOF on prompt stream)");
