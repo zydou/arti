@@ -20,6 +20,7 @@ shadow \
   --template-directory=./shadow.data.template \
   --progress=true \
   --use-memory-manager=false \
+  --use-worker-spinning=false \
   shadow.yaml \
   > shadow.log
 
