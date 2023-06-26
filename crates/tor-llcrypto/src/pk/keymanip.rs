@@ -118,6 +118,10 @@ pub fn convert_curve25519_to_ed25519_private(
 /// Note: Using the same keypair for multiple purposes (such as key-exchange and signing) is
 /// considered bad practice. Don't use this function unless you know what you're doing.
 ///
+/// This function is needed by the `ArtiNativeKeystore` from `tor-keymgr` to convert ed25519
+/// private keys to x25519. This is because `ArtiNativeKeystore` stores x25519 private keys as
+/// ssh-ed25519 OpenSSH keys. Other similar use cases are also valid.
+///
 /// It's important to note that converting a private key from ed25519 -> curve25519 -> ed25519 will
 /// yield an [`ExpandedKeypair`](pk::ed25519::ExpandedKeypair) that is _not_ identical to the
 /// expanded version of the original [`Keypair`](pk::ed25519::Keypair): the lower halves (the keys) of
