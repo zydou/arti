@@ -679,6 +679,7 @@ pub(crate) mod test {
     use super::*;
     use crate::*;
     use futures::{poll, SinkExt};
+    use std::fmt;
     use std::task::Poll::{self, *};
     use tokio::pin;
     use tokio_crate as tokio;
@@ -702,10 +703,26 @@ pub(crate) mod test {
         give: postage::watch::Receiver<MockGive>,
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone)]
     struct MockCirc {
         ok: Arc<Mutex<bool>>,
         connect_called: usize,
+    }
+
+    impl Debug for MockCirc {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            let mut d = f.debug_struct("MockCirc");
+            let guard = self.ok.lock();
+            {
+                d.field("ok*", &Arc::as_ptr(&self.ok));
+                let guard = guard.unwrap_or_else(|g| {
+                    d.field("POISON", &true);
+                    g.into_inner()
+                });
+                d.field("ok", &*guard);
+            }
+            d.finish()
+        }
     }
 
     impl PartialEq for MockCirc {
