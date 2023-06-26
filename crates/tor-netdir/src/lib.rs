@@ -374,14 +374,14 @@ pub(crate) struct HsDirs<D> {
     /// secondary rings will be active at a time.  We have two here in order
     /// to conform with a more flexible regime in proposal 342.
     //
-    // TODO hs: hs clients never need this; so I've made it not-present for thm.
+    // TODO hss: hs clients never need this; so I've made it not-present for thm.
     // But does that risk too much with respect to side channels?
     //
-    // TODO hs: Perhaps we should refactor this so that it is clear that these
+    // TODO hss: Perhaps we should refactor this so that it is clear that these
     // are immutable?  On the other hand, the documentation for this type
     // declares that it is immutable, so we are likely okay.
     //
-    // TODO hs: this `Vec` is only ever 0,1,2 elements.
+    // TODO hss: this `Vec` is only ever 0,1,2 elements.
     // Maybe it should be an ArrayVec or something.
     #[cfg(feature = "hs-service")]
     secondary: Vec<D>,
@@ -1342,8 +1342,6 @@ impl NetDir {
     /// Specifically, this returns the time period that contains the beginning
     /// of the validity period of this `NetDir`'s consensus.  That time period
     /// is the one we use when acting as an hidden service client.
-    //
-    // TODO HS do we need this function?
     #[cfg(feature = "hs-common")]
     pub fn hs_time_period(&self) -> TimePeriod {
         self.hsdir_rings.current.time_period()
@@ -1356,7 +1354,7 @@ impl NetDir {
     /// plus additional time periods that we publish descriptors for when we are
     /// acting as a hidden service.
     //
-    // TODO HS do we need this function?
+    // TODO HSS do we need this function?
     #[cfg(feature = "hs-service")]
     pub fn hs_all_time_periods(&self) -> Vec<TimePeriod> {
         self.hsdir_rings

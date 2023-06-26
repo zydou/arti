@@ -144,7 +144,7 @@ impl HsDirRing {
         this_netdir: &NetDir,
         prev_netdir: Option<&NetDir>,
     ) -> Self {
-        // TODO hs: The ring itself can be a bit expensive to compute, so maybe we should
+        // TODO: The ring itself can be a bit expensive to compute, so maybe we should
         // make sure this happens in a separate task or something, and expose a
         // way to do that?
         // But: this is being done during netdir ingestion, which is already happening
