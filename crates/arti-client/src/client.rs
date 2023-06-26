@@ -605,7 +605,7 @@ impl<R: Runtime> TorClient<R> {
             // if the keystore dir fails the validation checks.
             if let Some(key_store_dir) = key_store_dir {
                 let arti_store =
-                    ArtiNativeKeyStore::from_path_and_mistrust(key_store_dir, &permissions)?;
+                    ArtiNativeKeyStore::from_path_and_mistrust(key_store_dir, permissions)?;
                 stores.push(Box::new(arti_store));
             }
 
