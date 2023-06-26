@@ -131,12 +131,6 @@ impl std::error::Error for Bug {
     }
 }
 
-impl AsRef<dyn std::error::Error> for Bug {
-    fn as_ref(&self) -> &(dyn std::error::Error + 'static) {
-        self
-    }
-}
-
 impl Display for Bug {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(

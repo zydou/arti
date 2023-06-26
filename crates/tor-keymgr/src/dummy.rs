@@ -13,7 +13,6 @@ use tor_error::HasKind;
 
 use fs_mistrust::Mistrust;
 use std::any::Any;
-use std::error::Error as StdError;
 use std::path::Path;
 
 /// A dummy key manager implementation.
@@ -51,12 +50,6 @@ impl KeystoreError for Error {}
 impl HasKind for Error {
     fn kind(&self) -> tor_error::ErrorKind {
         tor_error::ErrorKind::Other
-    }
-}
-
-impl AsRef<dyn StdError + 'static> for Error {
-    fn as_ref(&self) -> &(dyn StdError + 'static) {
-        self
     }
 }
 

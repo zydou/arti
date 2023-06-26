@@ -3,7 +3,6 @@
 use crate::KeystoreError;
 use tor_error::{ErrorKind, HasKind};
 
-use std::error::Error as StdError;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -56,12 +55,6 @@ pub(crate) enum FilesystemAction {
 }
 
 impl KeystoreError for ArtiNativeKeystoreError {}
-
-impl AsRef<dyn StdError> for ArtiNativeKeystoreError {
-    fn as_ref(&self) -> &(dyn StdError + 'static) {
-        self
-    }
-}
 
 impl HasKind for ArtiNativeKeystoreError {
     fn kind(&self) -> ErrorKind {

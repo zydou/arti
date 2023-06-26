@@ -12,7 +12,6 @@ use tor_error::{ErrorKind, HasKind};
 use tor_llcrypto::pk::ed25519;
 use zeroize::Zeroizing;
 
-use std::error::Error as StdError;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -81,12 +80,6 @@ impl SshKeyError {
     /// A convenience method for boxing `self`.
     pub(crate) fn boxed(self) -> Box<Self> {
         Box::new(self)
-    }
-}
-
-impl AsRef<dyn StdError> for SshKeyError {
-    fn as_ref(&self) -> &(dyn StdError + 'static) {
-        self
     }
 }
 

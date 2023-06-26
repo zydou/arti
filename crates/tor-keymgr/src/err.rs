@@ -14,7 +14,7 @@ pub type Error = Box<dyn KeystoreError>;
 // TODO hs: replace Error with KeyStoreError and create an `ArtiNativeKeyStoreError: KeyStoreError`
 // type for ArtiNativeKeyStore.
 pub trait KeystoreError:
-    HasKind + AsRef<dyn StdError> + DynClone + fmt::Debug + fmt::Display + Send + Sync + 'static
+    HasKind + StdError + DynClone + fmt::Debug + fmt::Display + Send + Sync + 'static
 {
 }
 
