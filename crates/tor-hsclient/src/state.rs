@@ -74,6 +74,26 @@ const MAX_RECHECKS: u32 = 10;
 // TODO HS CFG: This should be configurable somehow
 const RETAIN_CIRCUIT_AFTER_LAST_USE: Duration = Duration::from_secs(10 * 60);
 
+/// How long to retain cached data about a hidden service
+///
+/// This is simply to reclaim space, not for correctness.
+/// So we only check this during housekeeping, not operation.
+///
+/// The starting point for this interval is the last time we used the data,
+/// or a circuit derived from it.
+///
+/// Note that this is a *maximum* for the length of time we will retain a descriptor;
+/// HS descriptors' lifetimes (as declared in the descriptor) *are* honoured;
+/// but that's done by the code in `connect.rs`, not here.
+///
+/// We're not sure this is the right value.
+/// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/916>
+//
+// TODO SPEC: State how long IPT and descriptor data should be retained after use
+//
+// TODO HS CFG: Perhaps this should be configurable somehow?
+const RETAIN_DATA_AFTER_LAST_USE: Duration = Duration::from_secs(48 * 3600 /*hours*/);
+
 /// Hidden services;, our connections to them, and history of connections, etc.
 ///
 /// Table containing state of our ideas about services.
@@ -110,7 +130,6 @@ type ServiceRecord<D> = isol_map::Record<HsClientSecretKeys, ServiceState<D>>;
 /// State and history of of our connections, including connection to any connection task.
 ///
 /// `last_used` is used to expire data eventually.
-// TODO HS actually expire old data
 //
 // TODO unify this with channels and circuits.  See arti#778.
 #[derive(Educe)]
@@ -121,7 +140,6 @@ enum ServiceState<D: MockableConnectorData> {
         /// The state
         data: D,
         /// Last time we touched this, including reuse
-        #[allow(dead_code)] // TODO hs remove, when we do data expiry
         last_used: Instant,
     },
     /// We have an open circuit, which we can (hopefully) just use
@@ -516,6 +534,30 @@ impl<D: MockableConnectorData> Services<D> {
             got = obtain(table_index, guard);
         }
     }
+
+    /// Perform housekeeping - delete data we aren't interested in any more
+    pub(crate) fn run_housekeeping(&mut self, now: Instant) {
+        self.expire_old_data(now);
+    }
+
+    /// Delete data we aren't interested in any more
+    fn expire_old_data(&mut self, now: Instant) {
+        self.records.retain(|hsid, record, _table_index| match &**record {
+            ServiceState::Closed {
+                data: _,
+                last_used,
+            } => {
+                let Some(expiry_time) = last_used.checked_add(RETAIN_DATA_AFTER_LAST_USE) else { return false; };
+                now <= expiry_time
+            },
+            ServiceState::Open { .. } |
+            ServiceState::Working { .. } => true,
+            ServiceState::Dummy { .. } => {
+                error!("found dummy data during HS housekeeping, for {}", sv(hsid));
+                false
+            }
+        });
+    }
 }
 
 impl<D: MockableConnectorData> ServiceState<D> {
@@ -648,7 +690,7 @@ pub(crate) mod test {
 
     #[derive(Debug, Default)]
     struct MockData {
-        // things will appear here when we have more sophisticated tests
+        connect_called: usize,
     }
 
     /// Type indicating what our `connect()` should return; it always makes a fresh MockCirc
@@ -663,6 +705,7 @@ pub(crate) mod test {
     #[derive(Clone, Debug)]
     struct MockCirc {
         ok: Arc<Mutex<bool>>,
+        connect_called: usize,
     }
 
     impl PartialEq for MockCirc {
@@ -672,9 +715,9 @@ pub(crate) mod test {
     }
 
     impl MockCirc {
-        fn new() -> Self {
+        fn new(connect_called: usize) -> Self {
             let ok = Arc::new(Mutex::new(true));
-            MockCirc { ok }
+            MockCirc { ok, connect_called }
         }
     }
 
@@ -687,10 +730,14 @@ pub(crate) mod test {
             connector: &HsClientConnector<R, MockData>,
             _netdir: Arc<NetDir>,
             _hsid: HsId,
-            _data: &mut MockData,
+            data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
         ) -> Result<Arc<Self::ClientCirc>, E> {
-            let make = |()| Arc::new(MockCirc::new());
+            data.connect_called += 1;
+            let make = {
+                let connect_called = data.connect_called;
+                move |()| Arc::new(MockCirc::new(connect_called))
+            };
             let mut give = connector.mock_for_state.give.clone();
             if let Ready(ret) = &*give.borrow() {
                 return ret.clone().map(make);
@@ -823,18 +870,21 @@ pub(crate) mod test {
         test_with_one_runtime!(|outer_runtime| async move {
             let runtime = MockSleepRuntime::new(outer_runtime.clone());
 
+            let (hsconn, keys, _give_send) = mk_hsconn(runtime.clone());
+
             let advance = |duration| {
+                let hsconn = hsconn.clone();
                 let runtime = &runtime;
                 let outer_runtime = &outer_runtime;
                 async move {
                     runtime.advance(duration).await;
                     // let expiry task run
                     outer_runtime.sleep(Duration::from_millis(25)).await;
+                    hsconn.services().unwrap().run_housekeeping(runtime.now());
                 }
             };
 
             // make circuit1
-            let (hsconn, keys, _give_send) = mk_hsconn(runtime.clone());
             let circuit1 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
 
             // expire it
@@ -858,6 +908,11 @@ pub(crate) mod test {
             advance(RETAIN_CIRCUIT_AFTER_LAST_USE + Duration::from_secs(10)).await;
             let circuit3 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             assert_ne!(circuit2c, circuit3);
+            assert_eq!(circuit3.connect_called, 3);
+
+            advance(RETAIN_DATA_AFTER_LAST_USE + Duration::from_secs(10)).await;
+            let circuit4 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
+            assert_eq!(circuit4.connect_called, 1);
         });
     }
 

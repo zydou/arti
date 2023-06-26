@@ -412,6 +412,16 @@ impl HasKind for FailedAttemptError {
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 pub enum StartupError {
+    /// Unable to spawn
+    #[error("Unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn
+        spawning: &'static str,
+        /// What happened when we tried to spawn it
+        #[source]
+        cause: Arc<SpawnError>,
+    },
+
     /// Internal error
     #[error("{0}")]
     Bug(#[from] Bug),
@@ -421,6 +431,7 @@ impl HasKind for StartupError {
     fn kind(&self) -> ErrorKind {
         use StartupError as SE;
         match self {
+            SE::Spawn { cause, .. } => cause.kind(),
             SE::Bug(e) => e.kind(),
         }
     }
