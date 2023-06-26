@@ -56,6 +56,7 @@ use futures::task::SpawnExt as _;
 use futures::StreamExt as _;
 
 use educe::Educe;
+use tracing::debug;
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::isolation::StreamIsolation;
@@ -182,6 +183,7 @@ impl<R: Runtime, D: MockableConnectorData> HsClientConnector<R, D> {
 
                         services.run_housekeeping(runtime.now());
                     }
+                    debug!("HS connector housekeeping task exiting (EOF on prompt stream)");
                 }
             })
             .map_err(|cause| StartupError::Spawn {
