@@ -110,6 +110,11 @@ pub fn convert_curve25519_to_ed25519_private(
 
 /// Convert an ed25519 private key to a curve25519 private key.
 ///
+/// This creates a curve25519 key as described in section-5.1.5 of RFC8032: the bytes of the secret
+/// part of `keypair` are hashed using SHA-512, and the result is clamped (the first 3 bits of the
+/// first byte are cleared, the highest bit of the last byte is cleared, the second highest bit of
+/// the last byte is set).
+///
 /// Note: Using the same keypair for multiple purposes (such as key-exchange and signing) is
 /// considered bad practice. Don't use this function unless you know what you're doing.
 ///
