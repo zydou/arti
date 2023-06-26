@@ -11,9 +11,13 @@ use std::iter::Peekable;
 ///
 /// We make this a trait to avoid entangling all the types with `Peekable`.
 /// Ideally we would do this with `Itertools::PeekingNext`
-/// but that's not implemented for `&mut PeekingNext`,
+/// but that was not implemented for `&mut PeekingNext`
+/// when we wrote this code,
 /// and we need that because we use a lot of `&mut NetdocReader`.
 /// <https://github.com/rust-itertools/itertools/issues/678>
+///
+/// TODO: As of itertools 0.11.0, `PeekingNext` _is_ implemented for
+/// `&'a mut I where I: PeekingNext`, so we can remove this type some time.
 ///
 /// # **UNSTABLE**
 ///

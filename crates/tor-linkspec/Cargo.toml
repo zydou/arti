@@ -38,7 +38,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 educe = "0.4.6"
 hex = "0.4"
-itertools = "0.10.1"
+itertools = "0.11.0"
 safelog = { path = "../safelog", version = "0.3.1" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
@@ -52,7 +52,7 @@ tor-protover = { path = "../tor-protover", version = "0.5.1" }
 
 [dev-dependencies]
 hex-literal = "0.4"
-itertools = "0.10.1"
+itertools = "0.11.0"
 serde_test = "1.0.124"
 
 [package.metadata.docs.rs]
