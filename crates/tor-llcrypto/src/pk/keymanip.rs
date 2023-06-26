@@ -524,7 +524,7 @@ mod tests {
     // TODO #808: Remove this test after upgrading to the latest x25519-dalek. The only purpose
     #[test]
     fn static_secret_clamping() {
-        let mut secret = [1u8; 32];
+        let mut secret = [1_u8; 32];
 
         const LAST_BYTE: &[u8] = &[0b10111111, 0b10000000];
 
