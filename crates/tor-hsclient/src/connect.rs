@@ -409,10 +409,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
-        let _ = self.config.retry; // TODO HS actually use this value
-                                   // TODO HS Use `hs_desc_fetch_attempts` from configuration
-        /// Maxmimum number of hsdir connection and retrieval attempts we'll make
-        const MAX_TOTAL_ATTEMPTS: usize = 6;
+        // Maxmimum number of hsdir connection and retrieval attempts we'll make
+        let max_total_attempts = self.config.retry.hs_desc_fetch_attempts()
+            .try_into().unwrap_or(usize::MAX);
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -453,7 +452,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // But C Tor doesn't and our HS experts don't consider that important:
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914436
         // TODO SPEC: Discuss hsdir descriptor fetch (non)-parallelism
-        let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
+        let mut attempts = hs_dirs.iter().cycle().take(max_total_attempts);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
         let desc = loop {
             let relay = match attempts.next() {
@@ -590,9 +589,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         desc: &HsDesc,
         data: &mut DataIpts,
     ) -> Result<Arc<ClientCirc!(R, M)>, CE> {
-        // TODO HS use `hs_intro_rend_attempts` from configuration
-        /// Maxmimum number of rendezvous/introduction attempts we'll make
-        const MAX_TOTAL_ATTEMPTS: usize = 6;
+        // Maxmimum number of rendezvous/introduction attempts we'll make
+        let max_total_attempts = self.config.retry.hs_intro_rend_attempts()
+            .try_into().unwrap_or(usize::MAX);
         /// Limit on the duration of each attempt to establishg a rendezvous point
         const REND_TIMEOUT: Duration = Duration::from_secs(10);
         /// Limit on the duration of each attempt to negotiate with an introduction point
@@ -605,7 +604,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         // We limit the number of rendezvous establishment attempts, separately, since we don't
         // try to talk to the intro pt until we've established the rendezvous circuit.
-        let mut rend_attempts = 0..MAX_TOTAL_ATTEMPTS;
+        let mut rend_attempts = 0..max_total_attempts;
 
         // But, we put all the errors into the same bucket, since we might have a mixture.
         let mut errors = RetryError::in_attempt_to("make circuit to to hidden service");
@@ -664,7 +663,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         });
         self.mocks.test_got_ipts(&usable_intros);
 
-        let mut intro_attempts = usable_intros.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
+        let mut intro_attempts = usable_intros.iter().cycle().take(max_total_attempts);
 
         // We retain a rendezvous we managed to set up in here.  That way if we created it, and
         // then failed before we actually needed it, we can reuse it.
