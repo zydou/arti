@@ -133,6 +133,28 @@ pub fn convert_ed25519_to_curve25519_private(
     // StaticSecret::from handles the clamping
     let secret = pk::curve25519::StaticSecret::from(bytes);
     bytes.zeroize();
+
+    // TODO #808: Review this function after upgrading to the latest x25519-dalek.
+    //
+    // This function was written with x25519-dalek version =2.0.0-rc.2 in mind, where
+    // StaticSecret::from returns a clamped value. However, in the latest version of x25519-dalek,
+    // StaticSecret::from does _not_ do any clamping (the clamping is still done during
+    // scalar-point multiplication though). This might not be an issue, but we should double-check
+    // this is OK.
+    //
+    // The debug_assertions can be removed when #808 is closed.
+    #[cfg(debug_assertions)]
+    {
+        // Ensure StaticSecret::from actually handled the clamping.
+        // This will panic if we bump x25519-dalek without updating this code.
+        let bytes = secret.to_bytes();
+
+        // Clamping should clear the last 3 bits of the first byte.
+        assert_eq!(bytes[0] & 0b111, 0);
+        // Clamping should clear the highest bit and set the second highest bit of the last byte.
+        assert_eq!(bytes[31] & 0b11000000, 0b01000000);
+    }
+
     secret
 }
 
@@ -487,6 +509,29 @@ mod tests {
                 let pk2 = pk2.compress();
                 assert_eq!(pk2.as_bytes(), blinded_pk.as_bytes());
             }
+        }
+    }
+
+    // TODO #808: Remove this test after upgrading to the latest x25519-dalek. The only purpose
+    #[test]
+    fn static_secret_clamping() {
+        let mut secret = [1u8; 32];
+
+        const LAST_BYTE: &[u8] = &[0b10111111, 0b10000000];
+
+        for last_byte in LAST_BYTE {
+            // Clamping should clear the last 3 bits of the first byte.
+            secret[0] = 0b111;
+            // Clamping should clear the highest bit and set the second highest bit of the last byte.
+            secret[31] = *last_byte;
+
+            let static_secret = crate::pk::curve25519::StaticSecret::from(secret);
+            let secret = static_secret.to_bytes();
+
+            assert_eq!(secret[0] & 0b111, 0);
+            assert_eq!(secret[31] & 0b11000000, 0b01000000);
+            // The last 6 bits should be unchanged
+            assert_eq!(secret[31] & 0b00111111, last_byte & 0b00111111);
         }
     }
 }
