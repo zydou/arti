@@ -887,6 +887,17 @@ pub(crate) mod test {
         test_with_one_runtime!(|outer_runtime| async move {
             let runtime = MockSleepRuntime::new(outer_runtime.clone());
 
+            // We sleep this actual amount, with the real runtime, when we want to yield
+            // for long enough for some other task to do whatever it needs to.
+            // This represents an actual delay to the real test run.
+            const BODGE_YIELD: Duration = Duration::from_millis(25);
+
+            // This is the amount by which we adjust clock advances to make sure we
+            // hit more or less than a particular value, to avoid edge cases and
+            // cope with real time advancing too.
+            // This does *not* represent an actual delay to real test runs.
+            const TIMEOUT_SLOP: Duration = Duration::from_secs(10);
+
             let (hsconn, keys, _give_send) = mk_hsconn(runtime.clone());
 
             let advance = |duration| {
@@ -895,10 +906,10 @@ pub(crate) mod test {
                 let outer_runtime = &outer_runtime;
                 async move {
                     // let expiry task get going and choose its expiry (wakeup) time
-                    outer_runtime.sleep(Duration::from_millis(25)).await;
+                    outer_runtime.sleep(BODGE_YIELD).await;
                     runtime.advance(duration).await;
                     // let expiry task run
-                    outer_runtime.sleep(Duration::from_millis(25)).await;
+                    outer_runtime.sleep(BODGE_YIELD).await;
                     hsconn.services().unwrap().run_housekeeping(runtime.now());
                 }
             };
@@ -914,17 +925,17 @@ pub(crate) mod test {
             assert_ne!(circuit1, circuit2a);
 
             // nearly expire it, then reuse it
-            advance(RETAIN_CIRCUIT_AFTER_LAST_USE - Duration::from_secs(10)).await;
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE - TIMEOUT_SLOP).await;
             let circuit2b = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             assert_eq!(circuit2a, circuit2b);
 
             // nearly expire it again, then reuse it
-            advance(RETAIN_CIRCUIT_AFTER_LAST_USE - Duration::from_secs(10)).await;
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE - TIMEOUT_SLOP).await;
             let circuit2c = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             assert_eq!(circuit2a, circuit2c);
 
             // actually expire it
-            advance(RETAIN_CIRCUIT_AFTER_LAST_USE + Duration::from_secs(10)).await;
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE + TIMEOUT_SLOP).await;
             let circuit3 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
             assert_ne!(circuit2c, circuit3);
             assert_eq!(circuit3.connect_called, 3);
