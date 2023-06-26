@@ -111,6 +111,9 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     ///
     /// Housekeeping events shouldn't arrive while we're dormant,
     /// since the housekeeping might involve processing that ought to be deferred.
+    // This ^ is why we don't have a separate "launch background tasks" method.
+    // It is fine for this background task to be launched pre-bootstrap, since it willp
+    // do nothing until it gets events.
     pub fn new(
         runtime: R,
         circpool: Arc<HsCircPool<R>>,
