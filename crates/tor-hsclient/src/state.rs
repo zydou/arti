@@ -894,6 +894,8 @@ pub(crate) mod test {
                 let runtime = &runtime;
                 let outer_runtime = &outer_runtime;
                 async move {
+                    // let expiry task get going and choose its expiry (wakeup) time
+                    outer_runtime.sleep(Duration::from_millis(25)).await;
                     runtime.advance(duration).await;
                     // let expiry task run
                     outer_runtime.sleep(Duration::from_millis(25)).await;
