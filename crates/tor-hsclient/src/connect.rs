@@ -410,8 +410,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         // Maxmimum number of hsdir connection and retrieval attempts we'll make
-        let max_total_attempts = self.config.retry.hs_desc_fetch_attempts()
-            .try_into().unwrap_or(usize::MAX);
+        let max_total_attempts = self
+            .config
+            .retry
+            .hs_desc_fetch_attempts()
+            .try_into()
+            .unwrap_or(usize::MAX);
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -590,8 +594,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         data: &mut DataIpts,
     ) -> Result<Arc<ClientCirc!(R, M)>, CE> {
         // Maxmimum number of rendezvous/introduction attempts we'll make
-        let max_total_attempts = self.config.retry.hs_intro_rend_attempts()
-            .try_into().unwrap_or(usize::MAX);
+        let max_total_attempts = self
+            .config
+            .retry
+            .hs_intro_rend_attempts()
+            .try_into()
+            .unwrap_or(usize::MAX);
         /// Limit on the duration of each attempt to establishg a rendezvous point
         const REND_TIMEOUT: Duration = Duration::from_secs(10);
         /// Limit on the duration of each attempt to negotiate with an introduction point
