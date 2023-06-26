@@ -667,9 +667,11 @@ impl PartialNetDir {
         #[cfg(feature = "hs-common")]
         let hsdir_rings = Arc::new({
             let params = HsDirParams::compute(&consensus, &params).expect("Invalid consensus!");
-            // TODO HS: I dislike using expect above, but this function does not
-            // return a Result. Perhaps we should change it so that it can?  Or as an alternative
-            // we could let this object exist in a state without any HsDir rings.
+            // TODO: It's a bit ugly to use expect above, but this function does
+            // not return a Result. On the other hand, the error conditions under which
+            // HsDirParams::compute can return Err are _very_ narrow and hard to
+            // hit; see documentation in that function.  As such, we probably
+            // don't need to have this return a Result.
 
             params.map(HsDirRing::empty_from_params)
         });
@@ -722,7 +724,7 @@ impl PartialNetDir {
     fn compute_rings(&mut self) {
         let params = HsDirParams::compute(&self.netdir.consensus, &self.netdir.params)
             .expect("Invalid consensus");
-        // TODO hs: see TODO by similar expect in new()
+        // TODO: see TODO by similar expect in new()
 
         self.netdir.hsdir_rings =
             Arc::new(params.map(|params| {

@@ -77,12 +77,19 @@ impl HsDirParams {
     ///
     /// (This function's return type is a bit cumbersome; these parameters are
     /// bundled together because it is efficient to compute them all at once.)
+    ///
+    /// Note that this function will only return an error if something is
+    /// _extremely_ wrong with the provided consensus: for other error cases, it
+    /// returns a "disaster fallback".
     pub(crate) fn compute(
         consensus: &MdConsensus,
         params: &NetParameters,
     ) -> Result<HsDirs<HsDirParams>> {
         let srvs = extract_srvs(consensus);
         let tp_length: Duration = params.hsdir_timeperiod_length.try_into().map_err(|_| {
+            // Note that this error should be impossible:
+            // The type of hsdir_timeperiod_length() is IntegerMinutes<BoundedInt32<30, 14400>>...
+            // It should be at most 10 days, which _definitely_ fits into a Duration.
             Error::InvalidConsensus(
                 "Minutes in hsdir timeperiod could not be converted to a Duration",
             )
@@ -90,6 +97,14 @@ impl HsDirParams {
         let offset = consensus.lifetime().voting_period() * VOTING_PERIODS_IN_OFFSET;
         let cur_period = TimePeriod::new(tp_length, consensus.lifetime().valid_after(), offset)
             .map_err(|_| {
+                // This error should be nearly impossible too:
+                // - It can occur if the time period length is not an integer
+                //   number of minutes--but we took it from an IntegerMinutes,
+                //   so that's unlikely.
+                // - It can occur if the time period length or the offset is
+                //   greater than can be represented in u32 seconds.
+                // - It can occur if the valid_after time is so far from the
+                //   epoch that we can't represent the distance as a Duration.
                 Error::InvalidConsensus("Consensus valid-after did not fall in a time period")
             })?;
 
