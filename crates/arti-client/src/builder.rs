@@ -169,10 +169,10 @@ mod test {
 
     use super::*;
 
-    fn must_be_send<S: Send>() {}
+    fn must_be_send_and_sync<S: Send + Sync>() {}
 
     #[test]
     fn builder_is_send() {
-        must_be_send::<TorClientBuilder<PreferredRuntime>>();
+        must_be_send_and_sync::<TorClientBuilder<PreferredRuntime>>();
     }
 }
