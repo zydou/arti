@@ -945,10 +945,6 @@ impl NetDir {
     /// This will be very slow if `target` does not have an Ed25519 or RSA
     /// identity.
     //
-    // TODO HS: We should use this to check whether a set of linkspecs is
-    // possible when we're about to use it to make an introduction or rendezvous
-    // circuit from an externally provided set of linkspecs.
-    //
     // TODO HS: This function could use a better name.
     //
     // TODO: We could remove the feature restriction here once we think this API is
