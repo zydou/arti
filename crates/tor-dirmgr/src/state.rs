@@ -1163,11 +1163,8 @@ fn pick_download_time(lifetime: &Lifetime) -> SystemTime {
 /// clients should fetch the next one.
 fn client_download_range(lt: &Lifetime) -> (SystemTime, Duration) {
     let valid_after = lt.valid_after();
-    let fresh_until = lt.fresh_until();
     let valid_until = lt.valid_until();
-    let voting_interval = fresh_until
-        .duration_since(valid_after)
-        .expect("valid-after must precede fresh-until");
+    let voting_interval = lt.voting_period();
     let whole_lifetime = valid_until
         .duration_since(valid_after)
         .expect("valid-after must precede valid-until");
