@@ -32,6 +32,7 @@ experimental = [
     "build_docs",
     "experimental-api",
     "hs-client",
+    "hs-dir",
     "hs-service",
     "hsdesc-inner-docs",
     "dangerous-expose-struct-fields",
@@ -50,9 +51,10 @@ testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
 # Enable the "ns consensus" document type, which some relays cache and serve.
 ns_consensus = []
 
-# Client-side and service-side support for onion services.
+# Client-side, directory-side, and service-side support for onion services.
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
+hs-dir = ["hs-common", "__is_experimental"]
 hs-client = ["hs-common", "__is_experimental"]
 hs-service = ["hs-common", "tor-cert/encode", "__is_experimental"]
 hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]

@@ -8,7 +8,6 @@
 //! An onion service descriptor is more complicated than most other
 //! documentation types, because it is partially encrypted.
 
-#![allow(dead_code)] // TODO hs: remove.
 mod desc_enc;
 
 #[cfg(feature = "hs-service")]
@@ -56,6 +55,8 @@ pub use build::HsDescBuilder;
 /// identity.
 ///
 /// The HsDir caches this value, along with the original text of the descriptor.
+#[cfg(feature = "hs-dir")]
+#[allow(dead_code)] // TODO RELAY: Remove this.
 pub struct StoredHsDescMeta {
     /// The blinded onion identity for this descriptor.  (This is the only
     /// identity that the HsDir knows.)
@@ -67,12 +68,14 @@ pub struct StoredHsDescMeta {
 }
 
 /// An unchecked StoredHsDescMeta: parsed, but not checked for liveness or validity.
+#[cfg(feature = "hs-dir")]
 pub type UncheckedStoredHsDescMeta =
     signed::SignatureGated<timed::TimerangeBound<StoredHsDescMeta>>;
 
 /// Information about how long to hold a given onion service descriptor, and
 /// when to replace it.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // TODO RELAY: Remove this if there turns out to be no need for it.
 struct IndexInfo {
     /// The lifetime in minutes that this descriptor should be held after it is
     /// received.
@@ -95,19 +98,8 @@ struct IndexInfo {
 pub struct HsDesc {
     /// Information about the expiration and revision counter for this
     /// descriptor.
+    #[allow(dead_code)] // TODO RELAY: Remove this if there turns out to be no need for it.
     idx_info: IndexInfo,
-
-    /// `KP_hsc_desc_enc`, the public key corresponding to the private key that
-    /// we used to decrypt this descriptor.
-    ///
-    /// This is set to None if we did not have to use a private key to decrypt
-    /// the descriptor.
-    decrypted_with_id: Option<HsClientDescEncKey>,
-
-    /// A list of recognized CREATE handshakes that this onion service supports.
-    // TODO hs: this should probably be a caret enum, not an integer
-    // TODO hs: Add this if we actually need it.
-    // create2_formats: Vec<u32>,
 
     /// The list of authentication types that this onion service supports.
     auth_required: Option<SmallVec<[IntroAuthType; 2]>>,
@@ -117,6 +109,11 @@ pub struct HsDesc {
 
     /// One or more introduction points used to contact the onion service.
     intro_points: Vec<IntroPointDesc>,
+    // /// A list of recognized CREATE handshakes that this onion service supports.
+    //
+    // TODO:  When someday we add a "create2 format" other than "hs-ntor", we
+    // should turn this into a caret enum, record this info, and expose it.
+    // create2_formats: Vec<u32>,
 }
 
 /// A type of authentication that is required when introducing to an onion
@@ -136,9 +133,10 @@ pub struct IntroPointDesc {
     /// The list of link specifiers needed to extend a circuit to the introduction point.
     ///
     /// These can include public keys and network addresses.
-    //
-    // TODO hs: perhaps we should make certain link specifiers mandatory? That
-    // would make it possible for IntroPointDesc to implement CircTarget.
+    ///
+    /// Note that we do not enforce the presence of any link specifiers here;
+    /// this means that you can't assume that an `IntroPointDesc` is a meaningful
+    /// `ChanTarget` without some processing.
     #[getter(skip)]
     link_specifiers: Vec<EncodedLinkSpec>,
 
@@ -168,6 +166,7 @@ pub struct EncryptedHsDesc {
 /// An unchecked HsDesc: parsed, but not checked for liveness or validity.
 pub type UncheckedEncryptedHsDesc = signed::SignatureGated<timed::TimerangeBound<EncryptedHsDesc>>;
 
+#[cfg(feature = "hs-dir")]
 impl StoredHsDescMeta {
     // TODO relay: needs accessor functions too.  (Let's not use public fields; we
     // are likely to want to mess with the repr of these types.)
@@ -235,7 +234,6 @@ impl HsDesc {
             })
         });
         if !id_matches {
-            // TODO hs: This errorkind is not quite right.
             return Err(
                 EK::BadObjectVal.with_msg("onion service descriptor did not have the expected ID")
             );
@@ -314,6 +312,22 @@ impl HsDesc {
     // Perhaps someday we can use derive_adhoc, or add as_ref() support?
     pub fn intro_points(&self) -> &[IntroPointDesc] {
         &self.intro_points
+    }
+
+    /// Return true if this onion service claims to be a non-anonymous "single
+    /// onion service".
+    ///
+    /// (We should always anonymize our own connection to an onion service.)
+    pub fn is_single_onion_service(&self) -> bool {
+        self.is_single_onion_service
+    }
+
+    /// Return true if this onion service claims that it needs user authentication
+    /// of some kind in its INTRODUCE messages.
+    ///
+    /// (Arti does not currently support sending this kind of authentication.)
+    pub fn requires_intro_authentication(&self) -> bool {
+        self.auth_required.is_some()
     }
 }
 
@@ -425,8 +439,11 @@ impl EncryptedHsDesc {
     /// and corresponding KS_hsc_desc_enc. This function **does not check**
     /// this.
     //
-    // TODO hs: I'm not sure that taking `hsc_desc_enc` as an argument is correct. Instead, maybe
-    // we should take a set of keys?
+    // TODO: Someday we _might_ want to allow a list of keypairs in place of
+    // `hs_desc_enc`.  For now, though, we always know a single key that we want
+    // to try using, and we don't want to leak any extra information by
+    // providing other keys that _might_ work.  We certainly don't want to
+    // encourage people to provide every key they know.
     pub fn decrypt(
         &self,
         subcredential: &Subcredential,
@@ -434,7 +451,7 @@ impl EncryptedHsDesc {
     ) -> StdResult<TimerangeBound<SignatureGated<HsDesc>>, HsDescError> {
         use HsDescError as E;
         let blinded_id = self.outer_doc.blinded_id();
-        let revision_counter = self.outer_doc.revision_counter;
+        let revision_counter = self.outer_doc.revision_counter();
         let kp_desc_sign = self.outer_doc.desc_sign_key_id();
 
         // Decrypt the superencryption layer; parse the middle document.
@@ -470,7 +487,6 @@ impl EncryptedHsDesc {
         let time_bound = time_bound.dangerously_map(|sig_bound| {
             sig_bound.dangerously_map(|inner| HsDesc {
                 idx_info: IndexInfo::from_outer_doc(&self.outer_doc),
-                decrypted_with_id: hsc_desc_enc.map(|keys| keys.0.clone()),
                 auth_required: inner.intro_auth_types,
                 is_single_onion_service: inner.single_onion_service,
                 intro_points: inner.intro_points,
@@ -493,11 +509,12 @@ impl IndexInfo {
         IndexInfo {
             lifetime: outer.lifetime,
             signing_cert_expires: outer.desc_signing_key_cert.expiry(),
-            revision: outer.revision_counter,
+            revision: outer.revision_counter(),
         }
     }
 }
 
+#[cfg(feature = "hs-dir")]
 impl StoredHsDescMeta {
     /// Create a new `StoredHsDescMeta` from the outer part of an onion service descriptor.
     fn from_outer_doc(outer: &outer::HsDescOuter) -> Self {
@@ -559,6 +576,7 @@ mod test {
     use tor_llcrypto::pk::ed25519;
 
     #[test]
+    #[cfg(feature = "hs-dir")]
     fn parse_meta_good() -> Result<()> {
         let meta = StoredHsDescMeta::parse(TEST_DATA)?
             .check_signature()?
@@ -609,12 +627,16 @@ mod test {
             humantime::parse_rfc3339("2023-01-26T03:00:00Z").unwrap()
         );
         assert_eq!(desc.idx_info.revision, RevisionCounter::from(19655750));
-        assert!(desc.decrypted_with_id.is_none());
         assert!(desc.auth_required.is_none());
         assert_eq!(desc.is_single_onion_service, false);
         assert_eq!(desc.intro_points.len(), 3);
 
-        // TODO hs: add checks that the intro point fields are as expected.
+        let ipt0 = &desc.intro_points()[0];
+        assert_eq!(
+            ipt0.ipt_ntor_key().as_bytes(),
+            &hex!("553BF9F9E1979D6F5D5D7D20BB3FE7272E32E22B6E86E35C76A7CA8A377E402F")
+        );
+        // TODO TEST: Perhaps add tests for other intro point fields.
 
         Ok(())
     }

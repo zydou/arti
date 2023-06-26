@@ -25,7 +25,8 @@ use tor_llcrypto::pk::{curve25519, ed25519, ValidatableSignature};
 pub(crate) struct HsDescInner {
     /// The authentication types that this onion service accepts when
     /// connecting.
-    // TODO HS: This should probably be a bitfield or enum-set of something.
+    //
+    // TODO: This should probably be a bitfield or enum-set of something.
     // Once we know whether the "password" authentication type really exists,
     // let's change to a better representation here.
     pub(super) intro_auth_types: Option<SmallVec<[IntroAuthType; 2]>>,
@@ -83,10 +84,13 @@ static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     rules.add(ENC_KEY.rule().required().may_repeat().args(2..));
     rules.add(ENC_KEY_CERT.rule().required().obj_required());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
-    // TODO HS We never look at the LEGACY_KEY* fields.  But might this not open
-    // us to distinguishability attacks with C tor?  (OTOH, in theory we do not
-    // defend against those.  In fact, there's an easier distinguisher, since we
-    // enforce UTF-8 in these documents, and C tor does not.)
+
+    // NOTE: We never look at the LEGACY_KEY* fields.  This does provide a
+    // distinguisher for Arti implementations and C tor implementations, but
+    // that's outside of Arti's threat model.
+    //
+    // (In fact, there's an easier distinguisher, since we enforce UTF-8 in
+    // these documents, and C tor does not.)
 
     rules.build()
 });
@@ -409,6 +413,7 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use hex_literal::hex;
     use tor_checkable::{SelfSigned, Timebound};
 
     use super::*;
@@ -432,10 +437,26 @@ mod test {
             .decrypt_inner(&desc.blinded_id(), desc.revision_counter(), &subcred, None)
             .unwrap();
         let inner_body = std::str::from_utf8(&inner_body).unwrap();
-        let _inner = HsDescInner::parse(inner_body)?;
+        let (ed_id, inner) = HsDescInner::parse(inner_body)?;
+        let inner = inner
+            .check_valid_at(&humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap())
+            .unwrap()
+            .check_signature()
+            .unwrap();
 
-        // TODO hs: validate the expected contents of this part of the
-        // descriptor.
+        assert_eq!(ed_id.as_ref(), Some(desc.desc_sign_key_id()));
+
+        assert!(inner.intro_auth_types.is_none());
+        assert_eq!(inner.single_onion_service, false);
+        assert_eq!(inner.intro_points.len(), 3);
+
+        let ipt0 = &inner.intro_points[0];
+        assert_eq!(
+            ipt0.ipt_ntor_key().as_bytes(),
+            &hex!("553BF9F9E1979D6F5D5D7D20BB3FE7272E32E22B6E86E35C76A7CA8A377E402F")
+        );
+
+        assert_ne!(ipt0.link_specifiers, inner.intro_points[1].link_specifiers);
 
         Ok(())
     }
