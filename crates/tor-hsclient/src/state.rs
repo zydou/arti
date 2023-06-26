@@ -890,7 +890,7 @@ pub(crate) mod test {
             // We sleep this actual amount, with the real runtime, when we want to yield
             // for long enough for some other task to do whatever it needs to.
             // This represents an actual delay to the real test run.
-            const BODGE_YIELD: Duration = Duration::from_millis(25);
+            const BODGE_YIELD: Duration = Duration::from_millis(125);
 
             // This is the amount by which we adjust clock advances to make sure we
             // hit more or less than a particular value, to avoid edge cases and
@@ -918,7 +918,7 @@ pub(crate) mod test {
             let circuit1 = launch_one(&hsconn, 0, &keys, None).await.unwrap();
 
             // expire it
-            advance(RETAIN_CIRCUIT_AFTER_LAST_USE + Duration::from_millis(10)).await;
+            advance(RETAIN_CIRCUIT_AFTER_LAST_USE + TIMEOUT_SLOP).await;
 
             // make circuit2 (a)
             let circuit2a = launch_one(&hsconn, 0, &keys, None).await.unwrap();
