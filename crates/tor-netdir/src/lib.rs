@@ -1395,8 +1395,18 @@ impl NetDir {
         //         adding them to Dirs until we have added `spread` new elements
         //         that were not there before.
         // 7. return Dirs.
-        let n_replicas = 2; // TODO HS get this from netdir and/or make it configurable
-        let spread_fetch = 3; // TODO HS get this from netdir and/or make it configurable
+        let n_replicas = self
+            .params
+            .hsdir_n_replicas
+            .get()
+            .try_into()
+            .expect("BoundedInt did not enforce bounds");
+        let spread_fetch = self
+            .params
+            .hsdir_spread_fetch
+            .get()
+            .try_into()
+            .expect("BoundedInt did not enforce bounds!");
 
         // TODO HS We don't implement this bit of the spec (2.2.3 penultimate para):
         //
