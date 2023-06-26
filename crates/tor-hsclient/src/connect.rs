@@ -410,7 +410,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         let _ = self.config.retry; // TODO HS actually use this value
-        // TODO HS Use `hs_desc_fetch_attempts` from configuration
+                                   // TODO HS Use `hs_desc_fetch_attempts` from configuration
         /// Maxmimum number of hsdir connection and retrieval attempts we'll make
         const MAX_TOTAL_ATTEMPTS: usize = 6;
         /// Limit on the duration of each retrieval attempt
@@ -1495,7 +1495,16 @@ mod test {
         secret_keys_builder.ks_hsc_desc_enc(sk);
         let secret_keys = secret_keys_builder.build().unwrap();
 
-        let ctx = Context::new(&runtime, &mocks, netdir, Default::default(), hsid, secret_keys, mocks.clone()).unwrap();
+        let ctx = Context::new(
+            &runtime,
+            &mocks,
+            netdir,
+            Default::default(),
+            hsid,
+            secret_keys,
+            mocks.clone(),
+        )
+        .unwrap();
 
         let _got = AssertUnwindSafe(ctx.connect(&mut data))
             .catch_unwind() // TODO HS TESTS: remove this and the AssertUnwindSafe

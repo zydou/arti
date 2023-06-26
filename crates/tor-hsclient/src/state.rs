@@ -402,14 +402,20 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         let connect_future = async move {
             let mut data = data;
 
-            let got =
-                AssertUnwindSafe(D::connect(&connector, netdir, config, hsid, &mut data, secret_keys))
-                    .catch_unwind()
-                    .await
-                    .unwrap_or_else(|_| {
-                        data = D::default();
-                        Err(internal!("hidden service connector task panicked!").into())
-                    });
+            let got = AssertUnwindSafe(D::connect(
+                &connector,
+                netdir,
+                config,
+                hsid,
+                &mut data,
+                secret_keys,
+            ))
+            .catch_unwind()
+            .await
+            .unwrap_or_else(|_| {
+                data = D::default();
+                Err(internal!("hidden service connector task panicked!").into())
+            });
             let now = connector.runtime.now();
             let last_used = now;
 
