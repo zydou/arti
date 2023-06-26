@@ -28,7 +28,7 @@ use std::time::{Duration, SystemTime};
 use crate::{params::NetParameters, Error, HsDirs, Result};
 use time::{OffsetDateTime, UtcOffset};
 use tor_hscrypto::time::TimePeriod;
-use tor_netdoc::doc::netstatus::{Lifetime, MdConsensus, SharedRandVal};
+use tor_netdoc::doc::netstatus::{MdConsensus, SharedRandVal};
 
 /// Parameters for generating and using an HsDir ring.
 ///
@@ -87,7 +87,7 @@ impl HsDirParams {
                 "Minutes in hsdir timeperiod could not be converted to a Duration",
             )
         })?;
-        let offset = voting_period(consensus.lifetime())? * VOTING_PERIODS_IN_OFFSET;
+        let offset = consensus.lifetime().voting_period() * VOTING_PERIODS_IN_OFFSET;
         let cur_period = TimePeriod::new(tp_length, consensus.lifetime().valid_after(), offset)
             .map_err(|_| {
                 Error::InvalidConsensus("Consensus valid-after did not fall in a time period")
@@ -192,6 +192,7 @@ fn extract_srvs(consensus: &MdConsensus) -> Result<Vec<SrvInfo>> {
 }
 
 /// Return the length of time for which a single SRV value is valid.
+#[allow(clippy::unnecessary_wraps)] // XXXX remove.
 fn srv_interval(consensus: &MdConsensus) -> Result<Duration> {
     // What we _want_ to do, ideally, is is to learn the duration from the
     // difference between the declared time for the previous value and the
@@ -209,20 +210,12 @@ fn srv_interval(consensus: &MdConsensus) -> Result<Duration> {
     // But if one of those values is missing, or if it has no timestamp, we have
     // to fall back to admitting that we know the schedule for the voting
     // algorithm.
-    voting_period(consensus.lifetime()).map(|d| d * VOTING_PERIODS_IN_SRV_ROUND)
+    Ok(consensus.lifetime().voting_period() * VOTING_PERIODS_IN_SRV_ROUND)
 }
 
 /// Return the length of the voting period in the consensus.
 ///
 /// (The "voting period" is the length of time between between one consensus and the next.)
-fn voting_period(lifetime: &Lifetime) -> Result<Duration> {
-    // TODO hs: consider moving this function to be a method of Lifetime.
-    let valid_after = lifetime.valid_after();
-    let fresh_until = lifetime.fresh_until();
-    fresh_until
-        .duration_since(valid_after)
-        .map_err(|_| Error::InvalidConsensus("Mis-formed lifetime"))
-}
 
 /// Return a time at the start of the UTC day containing `t`.
 fn start_of_day_containing(t: SystemTime) -> SystemTime {
@@ -246,7 +239,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
-    use tor_netdoc::doc::netstatus::{ConsensusBuilder, MdConsensusRouterStatus};
+    use tor_netdoc::doc::netstatus::{ConsensusBuilder, Lifetime, MdConsensusRouterStatus};
 
     /// Helper: parse an rfc3339 time.
     ///
@@ -309,7 +302,7 @@ mod test {
 
     #[test]
     fn vote_period() {
-        assert_eq!(voting_period(&example_lifetime()).unwrap(), d("1 hour"));
+        assert_eq!(example_lifetime().voting_period(), d("1 hour"));
 
         let lt2 = Lifetime::new(
             t("1985-10-25T07:00:00Z"),
@@ -318,7 +311,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(voting_period(&lt2).unwrap(), d("22 min"));
+        assert_eq!(lt2.voting_period(), d("22 min"));
     }
 
     #[test]

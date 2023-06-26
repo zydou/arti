@@ -141,6 +141,18 @@ impl Lifetime {
     pub fn valid_at(&self, when: time::SystemTime) -> bool {
         self.valid_after <= when && when <= self.valid_until
     }
+
+    /// Return the voting period implied by this lifetime.
+    ///
+    /// (The "voting period" is the amount of time in between when a consensus first
+    /// becomes valid, and when the next consensus is expected to become valid)
+    pub fn voting_period(&self) -> time::Duration {
+        let valid_after = self.valid_after();
+        let fresh_until = self.fresh_until();
+        fresh_until
+            .duration_since(valid_after)
+            .expect("Mis-formed lifetime")
+    }
 }
 
 /// A set of named network parameters.
