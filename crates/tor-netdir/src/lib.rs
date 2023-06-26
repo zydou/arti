@@ -1408,12 +1408,23 @@ impl NetDir {
             .try_into()
             .expect("BoundedInt did not enforce bounds!");
 
-        // TODO HS We don't implement this bit of the spec (2.2.3 penultimate para):
+        // TODO HSS We don't implement this bit of the spec (2.2.3 penultimate para):
         //
         //                                                        ... If any of those
         //       nodes have already been selected for a lower-numbered replica of the
         //       service, any nodes already chosen are disregarded (i.e. skipped over)
         //       when choosing a replica's hsdir_spread_store nodes.
+        //
+        // This doesn't yet affect compatibility for clients, but when we
+        // implement onion services, it will create compatibility issues.  We
+        // need to fix it.
+        //
+        // TODO HSS: I may be wrong here but I suspect that this function may
+        // need refactoring so that it does not look at _all_ of the HsDirRings,
+        // but only at the ones that corresponds to time periods for which
+        // HsBlindId is valid.  Or I could be mistaken, in which case we should
+        // have a comment to explain why I am, since the logic is subtle.
+        // (For clients, there is only one ring.) -nickm
 
         let mut hs_dirs = self
             .hsdir_rings
