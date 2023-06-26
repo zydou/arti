@@ -535,6 +535,11 @@ impl<D: MockableConnectorData> Services<D> {
 
     /// Perform housekeeping - delete data we aren't interested in any more
     pub(crate) fn run_housekeeping(&mut self, now: Instant) {
+        self.expire_old_data(now);
+    }
+
+    /// Delete data we aren't interested in any more
+    fn expire_old_data(&mut self, now: Instant) {
         self.records.retain(|hsid, record, _table_index| match &**record {
             ServiceState::Closed {
                 data: _,
