@@ -6,12 +6,14 @@
 use ssh_key::private::KeypairData;
 pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
 
-use crate::err::MalformedKeyErrorSource;
-use crate::key_type::KeyType;
-use crate::{EncodableKey, ErasedKey, Error, Result};
+use crate::{EncodableKey, ErasedKey, KeyType, KeystoreError, Result};
 
+use tor_error::{ErrorKind, HasKind};
 use tor_llcrypto::pk::ed25519;
 use zeroize::Zeroizing;
+
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// An unparsed OpenSSH key.
 ///
@@ -19,24 +21,86 @@ use zeroize::Zeroizing;
 /// value is unchecked/unvalidated, and might not actually be a valid OpenSSH key.
 ///
 /// The inner value is zeroed on drop.
-pub(crate) struct UnparsedOpenSshKey(Zeroizing<Vec<u8>>);
+pub(crate) struct UnparsedOpenSshKey {
+    /// The contents of an OpenSSH key file.
+    inner: Zeroizing<Vec<u8>>,
+    /// The path of the file (for error reporting).
+    path: PathBuf,
+}
 
 impl UnparsedOpenSshKey {
     /// Create a new [`UnparsedOpenSshKey`].
     ///
     /// The contents of `inner` are erased on drop.
-    pub(crate) fn new(inner: Vec<u8>) -> Self {
-        Self(Zeroizing::new(inner))
+    pub(crate) fn new(inner: Vec<u8>, path: PathBuf) -> Self {
+        Self {
+            inner: Zeroizing::new(inner),
+            path,
+        }
+    }
+}
+
+/// An error that occurred while processing an OpenSSH key.
+//
+// TODO hs: use this error type instead of crate::Error.
+#[derive(thiserror::Error, Debug, Clone)]
+pub(crate) enum SshKeyError {
+    /// Failed to parse an OpenSSH key
+    #[error("Failed to parse OpenSSH with type {key_type:?}")]
+    SshKeyParse {
+        /// The path of the malformed key.
+        path: PathBuf,
+        /// The type of key we were trying to fetch.
+        key_type: KeyType,
+        /// The underlying error.
+        #[source]
+        err: Arc<ssh_key::Error>,
+    },
+
+    /// The OpenSSH key we retrieved is of the wrong type.
+    #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
+    UnexpectedSshKeyType {
+        /// The path of the malformed key.
+        path: PathBuf,
+        /// The algorithm we expected the key to use.
+        wanted_key_algo: SshKeyAlgorithm,
+        /// The algorithm of the key we got.
+        found_key_algo: SshKeyAlgorithm,
+    },
+
+    // TODO hs: remove
+    /// Unsupported key type.
+    #[error("Found a key type we don't support yet: {0:?}")]
+    Unsupported(KeyType),
+}
+
+impl KeystoreError for SshKeyError {}
+
+impl SshKeyError {
+    /// A convenience method for boxing `self`.
+    pub(crate) fn boxed(self) -> Box<Self> {
+        Box::new(self)
+    }
+}
+
+impl HasKind for SshKeyError {
+    fn kind(&self) -> ErrorKind {
+        // TODO hs
+        ErrorKind::Other
     }
 }
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
-fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
-    let sk = ssh_key::PrivateKey::from_openssh(&*key.0).map_err(|e| {
-        Error::MalformedKey(MalformedKeyErrorSource::SshKeyParse {
+fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
+    let sk = ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| {
+        SshKeyError::SshKeyParse {
+            // TODO: rust thinks this clone is necessary because key.path is also used below (but
+            // if we get to this point, we're going to return an error and never reach the other
+            // error handling branches where we use key.path).
+            path: key.path.clone(),
             key_type,
             err: e.into(),
-        })
+        }
     })?;
 
     // Build the expected key type (i.e. convert ssh_key key types to the key types
@@ -44,18 +108,16 @@ fn read_ed25519_keypair(key_type: KeyType, key: &UnparsedOpenSshKey) -> Result<E
     let key = match sk.key_data() {
         KeypairData::Ed25519(key) => {
             ed25519::Keypair::from_bytes(&key.to_bytes()).map_err(|_| {
-                Error::Bug(tor_error::internal!(
-                    "failed to build ed25519 key out of ed25519 OpenSSH key"
-                ))
+                tor_error::internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
             })?;
         }
         _ => {
-            return Err(Error::MalformedKey(
-                MalformedKeyErrorSource::UnexpectedSshKeyType {
-                    wanted_key_algo: key_type.ssh_algorithm(),
-                    found_key_algo: sk.algorithm(),
-                },
-            ));
+            return Err(SshKeyError::UnexpectedSshKeyType {
+                path: key.path,
+                wanted_key_algo: key_type.ssh_algorithm(),
+                found_key_algo: sk.algorithm(),
+            }
+            .boxed());
         }
     };
 
@@ -84,15 +146,13 @@ impl KeyType {
     /// type-erased value.
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn parse_ssh_format_erased(&self, key: &UnparsedOpenSshKey) -> Result<ErasedKey> {
+    pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO hs: perhaps this needs to be a method on EncodableKey instead?
         match self {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
             KeyType::X25519StaticSecret => {
                 // TODO hs: implement
-                Err(Error::MalformedKey(MalformedKeyErrorSource::Unsupported(
-                    *self,
-                )))
+                Err(SshKeyError::Unsupported(*self).boxed())
             }
         }
     }

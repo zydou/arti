@@ -2,13 +2,16 @@
 //!
 //! The Arti key store stores the keys on disk in OpenSSH format.
 
+pub(crate) mod err;
+
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, KeyStore};
-use crate::{Error, KeyType, Result};
+use crate::{KeyType, Result};
+use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
 
@@ -34,8 +37,8 @@ impl ArtiNativeKeyStore {
             .verifier()
             .check_content()
             .make_secure_dir(&keystore_dir)
-            .map_err(|e| Error::Filesystem {
-                action: "init",
+            .map_err(|e| ArtiNativeKeystoreError::FsMistrust {
+                action: FilesystemAction::Init,
                 path: keystore_dir.as_ref().into(),
                 err: e.into(),
             })?;
@@ -63,15 +66,15 @@ impl KeyStore for ArtiNativeKeyStore {
             Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
                 return Ok(None);
             }
-            res => res.map_err(|err| Error::Filesystem {
-                action: "read",
+            res => res.map_err(|err| ArtiNativeKeystoreError::FsMistrust {
+                action: FilesystemAction::Read,
                 path: path.clone(),
                 err: err.into(),
             })?,
         };
 
         key_type
-            .parse_ssh_format_erased(&UnparsedOpenSshKey::new(inner))
+            .parse_ssh_format_erased(UnparsedOpenSshKey::new(inner, path))
             .map(Some)
     }
 
@@ -84,32 +87,37 @@ impl KeyStore for ArtiNativeKeyStore {
         let path = self.key_path(key_spec, key_type)?;
         let openssh_key = key_type.to_ssh_format(key)?;
 
-        self.keystore_dir
+        Ok(self
+            .keystore_dir
             .write_and_replace(&path, openssh_key)
-            .map_err(|err| Error::Filesystem {
-                action: "write",
+            .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
+                action: FilesystemAction::Write,
                 path,
                 err: err.into(),
-            })
+            })?)
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>> {
         let key_path = self.key_path(key_spec, key_type)?;
-        let to_fs_err = |err| Error::Filesystem {
-            action: "remove",
-            path: key_path.clone(),
-            err,
-        };
 
-        let abs_key_path = self
-            .keystore_dir
-            .join(&key_path)
-            .map_err(|e| to_fs_err(e.into()))?;
+        let abs_key_path =
+            self.keystore_dir
+                .join(&key_path)
+                .map_err(|e| ArtiNativeKeystoreError::FsMistrust {
+                    action: FilesystemAction::Remove,
+                    path: key_path.clone(),
+                    err: e.into(),
+                })?;
 
         match fs::remove_file(abs_key_path) {
             Ok(()) => Ok(Some(())),
             Err(e) if matches!(e.kind(), ErrorKind::NotFound) => Ok(None),
-            Err(e) => Err(to_fs_err(e.into())),
+            Err(e) => Err(ArtiNativeKeystoreError::Filesystem {
+                action: FilesystemAction::Remove,
+                path: key_path,
+                err: e.into(),
+            }
+            .into()),
         }
     }
 

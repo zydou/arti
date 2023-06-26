@@ -3,7 +3,7 @@
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
 //! [`KeyStore`].
 
-use crate::{EncodableKey, Error, KeySpecifier, KeyStore, Result, ToEncodableKey};
+use crate::{EncodableKey, KeySpecifier, KeyStore, Result, ToEncodableKey};
 
 use tor_error::internal;
 
@@ -49,7 +49,7 @@ impl KeyMgr {
             let key: K::Key = key
                 .downcast::<K::Key>()
                 .map(|k| *k)
-                .map_err(|_| Error::Bug(internal!("failed to downcast key to requested type")))?;
+                .map_err(|_| internal!("failed to downcast key to requested type"))?;
 
             return Ok(Some(K::from_encodable_key(key)));
         }
@@ -71,7 +71,7 @@ impl KeyMgr {
         // preferring the first one.
         let primary_store = match self.key_stores.first() {
             Some(store) => store,
-            None => return Err(Error::Bug(internal!("no key stores configured"))),
+            None => return Err(internal!("no key stores configured").into()),
         };
         let key = key.to_encodable_key();
 

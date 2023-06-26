@@ -23,6 +23,7 @@ __is_experimental = []
 
 [dependencies]
 derive_more = "0.99.3"
+dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.1", features = ["serde", "walkdir"] }
 ssh-key = { version = "0.5.1", features = ["std"] }
 thiserror = "1"

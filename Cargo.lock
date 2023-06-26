@@ -4522,6 +4522,7 @@ name = "tor-keymgr"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "dyn-clone",
  "fs-mistrust",
  "ssh-key",
  "thiserror",
