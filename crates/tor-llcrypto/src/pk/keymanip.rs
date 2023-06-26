@@ -77,8 +77,8 @@ pub fn convert_curve25519_to_ed25519_public(
 ///
 /// # Availability
 ///
-/// This function is only available when the `relay` feature is enabled.
-#[cfg(any(test, feature = "relay"))]
+/// This function is only available when the `cvt-x25519` feature is enabled.
+#[cfg(any(test, feature = "cvt-x25519"))]
 pub fn convert_curve25519_to_ed25519_private(
     privkey: &pk::curve25519::StaticSecret,
 ) -> Option<(pk::ed25519::ExpandedKeypair, u8)> {
@@ -137,8 +137,8 @@ pub fn convert_curve25519_to_ed25519_private(
 ///
 /// # Availability
 ///
-/// This function is only available when the `keymgr` feature is enabled.
-#[cfg(any(test, feature = "keymgr"))]
+/// This function is only available when the `cvt-x25519` feature is enabled.
+#[cfg(any(test, feature = "cvt-x25519"))]
 pub fn convert_ed25519_to_curve25519_private(
     keypair: &pk::ed25519::Keypair,
 ) -> pk::curve25519::StaticSecret {

@@ -21,13 +21,15 @@ with-sha1-asm = ["sha1/asm", "__is_nonadditive"]
 experimental = ["relay", "hsv3-client", "hsv3-service", "keymgr"]
 
 # Enable support for cryptography needed to be a Tor relay.
-relay = ["__is_experimental"]
+relay = ["cvt-x25519", "__is_experimental"]
 # Enable support for cryptography needed to be an onion service v3 client.
 hsv3-client = ["__is_experimental"]
 # Enable support for cryptography needed to be an onion service v3 service.
 hsv3-service = ["__is_experimental"]
 # Enable support for cryptography needed for key management.
-keymgr = ["__is_experimental"]
+keymgr = ["cvt-x25519", "__is_experimental"]
+# Enable extra support for converting keys to and from x25519
+cvt-x25519 = []
 
 __is_nonadditive = []
 __is_experimental = []
