@@ -207,6 +207,16 @@ pub enum ErrorKind {
     #[display(fmt = "cache access problem")]
     CacheAccessFailed,
 
+    /// The keystore has been corrupted
+    ///
+    /// This could be because of a bug in the Tor code, or because something else has been messing
+    /// with the data.
+    ///
+    /// Note that this kind of error only applies to problems in your `keystore_dir`:
+    /// problems with your cache or persistent state are another kind.
+    #[display(fmt = "corrupted data in keystore")]
+    KeystoreCorrupted,
+
     /// Tor client's Rust async reactor is shutting down.
     ///
     /// This likely indicates that the reactor has encountered a fatal error, or
