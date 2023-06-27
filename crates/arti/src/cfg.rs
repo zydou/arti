@@ -294,6 +294,12 @@ mod test {
 
     use super::*;
 
+    //---------- tests that rely on the provided example config file ----------
+    //
+    // These are quite complex.  They uncomment the file, parse bits of it,
+    // and do tests via serde and via the normal config machinery,
+    // to see that everything is documented as expected.
+
     fn uncomment_example_settings(template: &str) -> String {
         let re = Regex::new(r#"(?m)^\#([^ \n])"#).unwrap();
         re.replace_all(template, |cap: &regex::Captures<'_>| -> _ {
@@ -395,212 +401,6 @@ mod test {
         assert_eq!(&parsed_old, &built_default);
 
         assert_eq!(&default, &built_default);
-    }
-
-    #[test]
-    fn builder() {
-        use tor_config::CfgPath;
-        let sec = std::time::Duration::from_secs(1);
-
-        let auth = dir::Authority::builder()
-            .name("Fred")
-            .v3ident([22; 20].into())
-            .clone();
-        let mut fallback = dir::FallbackDir::builder();
-        fallback
-            .rsa_identity([23; 20].into())
-            .ed_identity([99; 32].into())
-            .orports()
-            .push("127.0.0.7:7".parse().unwrap());
-
-        let mut bld = ArtiConfig::builder();
-        let mut bld_tor = TorClientConfig::builder();
-
-        bld.proxy().socks_listen(Listen::new_localhost(9999));
-        bld.logging().console("warn");
-
-        bld_tor.tor_network().set_authorities(vec![auth]);
-        bld_tor.tor_network().set_fallback_caches(vec![fallback]);
-        bld_tor
-            .storage()
-            .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
-            .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-        bld_tor.download_schedule().retry_certs().attempts(10);
-        bld_tor.download_schedule().retry_certs().initial_delay(sec);
-        bld_tor.download_schedule().retry_certs().parallelism(3);
-        bld_tor.download_schedule().retry_microdescs().attempts(30);
-        bld_tor
-            .download_schedule()
-            .retry_microdescs()
-            .initial_delay(10 * sec);
-        bld_tor
-            .download_schedule()
-            .retry_microdescs()
-            .parallelism(9);
-        bld_tor
-            .override_net_params()
-            .insert("wombats-per-quokka".to_owned(), 7);
-        bld_tor
-            .path_rules()
-            .ipv4_subnet_family_prefix(20)
-            .ipv6_subnet_family_prefix(48);
-        bld_tor.preemptive_circuits().disable_at_threshold(12);
-        bld_tor
-            .preemptive_circuits()
-            .set_initial_predicted_ports(vec![80, 443]);
-        bld_tor
-            .preemptive_circuits()
-            .prediction_lifetime(Duration::from_secs(3600))
-            .min_exit_circs_for_port(2);
-        bld_tor
-            .circuit_timing()
-            .max_dirtiness(90 * sec)
-            .request_timeout(10 * sec)
-            .request_max_retries(22)
-            .request_loyalty(3600 * sec);
-        bld_tor.address_filter().allow_local_addrs(true);
-
-        let val = bld.build().unwrap();
-
-        assert_ne!(val, ArtiConfig::default());
-    }
-
-    #[test]
-    fn articonfig_application() {
-        let config = ArtiConfig::default();
-
-        let application = config.application();
-        assert_eq!(&config.application, application);
-    }
-
-    #[test]
-    fn articonfig_logging() {
-        let config = ArtiConfig::default();
-
-        let logging = config.logging();
-        assert_eq!(&config.logging, logging);
-    }
-
-    #[test]
-    fn articonfig_proxy() {
-        let config = ArtiConfig::default();
-
-        let proxy = config.proxy();
-        assert_eq!(&config.proxy, proxy);
-    }
-
-    /// Comprehensive tests for the various `socks_port` and `dns_port`
-    ///
-    /// The "this isn't set at all, just use the default" cases are tested elsewhere.
-    fn compat_ports_listen(
-        f: &str,
-        get_listen: &dyn Fn(&ArtiConfig) -> &Listen,
-        bld_get_port: &dyn Fn(&ArtiConfigBuilder) -> &Option<Option<u16>>,
-        bld_get_listen: &dyn Fn(&ArtiConfigBuilder) -> &Option<Listen>,
-        setter_port: &dyn Fn(&mut ArtiConfigBuilder, Option<u16>) -> &mut ProxyConfigBuilder,
-        setter_listen: &dyn Fn(&mut ArtiConfigBuilder, Listen) -> &mut ProxyConfigBuilder,
-    ) {
-        let from_toml = |s: &str| -> ArtiConfigBuilder {
-            let cfg: toml::Value = toml::from_str(dbg!(s)).unwrap();
-            let cfg: ArtiConfigBuilder = cfg.try_into().unwrap();
-            cfg
-        };
-
-        let conflicting_cfgs = [
-            format!("proxy.{}_port = 0 \n proxy.{}_listen = 200", f, f),
-            format!("proxy.{}_port = 100 \n proxy.{}_listen = 0", f, f),
-            format!("proxy.{}_port = 100 \n proxy.{}_listen = 200", f, f),
-        ];
-
-        let chk = |cfg: &ArtiConfigBuilder, expected: &Listen| {
-            dbg!(bld_get_listen(cfg), bld_get_port(cfg));
-            let cfg = cfg.build().unwrap();
-            assert_eq!(get_listen(&cfg), expected);
-        };
-
-        let check_setters = |port, expected: &_| {
-            for cfg in chain!(
-                iter::once(ArtiConfig::builder()),
-                conflicting_cfgs.iter().map(|cfg| from_toml(cfg)),
-            ) {
-                for listen in match port {
-                    None => vec![Listen::new_none(), Listen::new_localhost(0)],
-                    Some(port) => vec![Listen::new_localhost(port)],
-                } {
-                    let mut cfg = cfg.clone();
-                    setter_port(&mut cfg, dbg!(port));
-                    setter_listen(&mut cfg, dbg!(listen));
-                    chk(&cfg, expected);
-                }
-            }
-        };
-
-        {
-            let expected = Listen::new_localhost(100);
-
-            let cfg = from_toml(&format!("proxy.{}_port = 100", f));
-            assert_eq!(bld_get_port(&cfg), &Some(Some(100)));
-            chk(&cfg, &expected);
-
-            let cfg = from_toml(&format!("proxy.{}_listen = 100", f));
-            assert_eq!(bld_get_listen(&cfg), &Some(Listen::new_localhost(100)));
-            chk(&cfg, &expected);
-
-            let cfg = from_toml(&format!(
-                "proxy.{}_port = 100\n proxy.{}_listen = 100",
-                f, f
-            ));
-            chk(&cfg, &expected);
-
-            check_setters(Some(100), &expected);
-        }
-
-        {
-            let expected = Listen::new_none();
-
-            let cfg = from_toml(&format!("proxy.{}_port = 0", f));
-            chk(&cfg, &expected);
-
-            let cfg = from_toml(&format!("proxy.{}_listen = 0", f));
-            chk(&cfg, &expected);
-
-            let cfg = from_toml(&format!("proxy.{}_port = 0 \n proxy.{}_listen = 0", f, f));
-            chk(&cfg, &expected);
-
-            check_setters(None, &expected);
-        }
-
-        for cfg in &conflicting_cfgs {
-            let cfg = from_toml(cfg);
-            let err = dbg!(cfg.build()).unwrap_err();
-            assert!(err.to_string().contains("specifying different values"));
-        }
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn ports_listen_socks() {
-        compat_ports_listen(
-            "socks",
-            &|cfg| &cfg.proxy.socks_listen,
-            &|bld| &bld.proxy.socks_port,
-            &|bld| &bld.proxy.socks_listen,
-            &|bld, arg| bld.proxy.socks_port(arg),
-            &|bld, arg| bld.proxy.socks_listen(arg),
-        );
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn compat_ports_listen_dns() {
-        compat_ports_listen(
-            "dns",
-            &|cfg| &cfg.proxy.dns_listen,
-            &|bld| &bld.proxy.dns_port,
-            &|bld| &bld.proxy.dns_listen,
-            &|bld, arg| bld.proxy.dns_port(arg),
-            &|bld, arg| bld.proxy.dns_listen(arg),
-        );
     }
 
     /// Config keys which would be recognised by the parser, but are missing from the examples
@@ -1018,5 +818,213 @@ mod test {
         fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
             tor_config::load::resolve(self.parse())
         }
+    }
+
+    // ---------- More normal config tests ----------
+
+    #[test]
+    fn builder() {
+        use tor_config::CfgPath;
+        let sec = std::time::Duration::from_secs(1);
+
+        let auth = dir::Authority::builder()
+            .name("Fred")
+            .v3ident([22; 20].into())
+            .clone();
+        let mut fallback = dir::FallbackDir::builder();
+        fallback
+            .rsa_identity([23; 20].into())
+            .ed_identity([99; 32].into())
+            .orports()
+            .push("127.0.0.7:7".parse().unwrap());
+
+        let mut bld = ArtiConfig::builder();
+        let mut bld_tor = TorClientConfig::builder();
+
+        bld.proxy().socks_listen(Listen::new_localhost(9999));
+        bld.logging().console("warn");
+
+        bld_tor.tor_network().set_authorities(vec![auth]);
+        bld_tor.tor_network().set_fallback_caches(vec![fallback]);
+        bld_tor
+            .storage()
+            .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
+            .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
+        bld_tor.download_schedule().retry_certs().attempts(10);
+        bld_tor.download_schedule().retry_certs().initial_delay(sec);
+        bld_tor.download_schedule().retry_certs().parallelism(3);
+        bld_tor.download_schedule().retry_microdescs().attempts(30);
+        bld_tor
+            .download_schedule()
+            .retry_microdescs()
+            .initial_delay(10 * sec);
+        bld_tor
+            .download_schedule()
+            .retry_microdescs()
+            .parallelism(9);
+        bld_tor
+            .override_net_params()
+            .insert("wombats-per-quokka".to_owned(), 7);
+        bld_tor
+            .path_rules()
+            .ipv4_subnet_family_prefix(20)
+            .ipv6_subnet_family_prefix(48);
+        bld_tor.preemptive_circuits().disable_at_threshold(12);
+        bld_tor
+            .preemptive_circuits()
+            .set_initial_predicted_ports(vec![80, 443]);
+        bld_tor
+            .preemptive_circuits()
+            .prediction_lifetime(Duration::from_secs(3600))
+            .min_exit_circs_for_port(2);
+        bld_tor
+            .circuit_timing()
+            .max_dirtiness(90 * sec)
+            .request_timeout(10 * sec)
+            .request_max_retries(22)
+            .request_loyalty(3600 * sec);
+        bld_tor.address_filter().allow_local_addrs(true);
+
+        let val = bld.build().unwrap();
+
+        assert_ne!(val, ArtiConfig::default());
+    }
+
+    #[test]
+    fn articonfig_application() {
+        let config = ArtiConfig::default();
+
+        let application = config.application();
+        assert_eq!(&config.application, application);
+    }
+
+    #[test]
+    fn articonfig_logging() {
+        let config = ArtiConfig::default();
+
+        let logging = config.logging();
+        assert_eq!(&config.logging, logging);
+    }
+
+    #[test]
+    fn articonfig_proxy() {
+        let config = ArtiConfig::default();
+
+        let proxy = config.proxy();
+        assert_eq!(&config.proxy, proxy);
+    }
+
+    /// Comprehensive tests for the various `socks_port` and `dns_port`
+    ///
+    /// The "this isn't set at all, just use the default" cases are tested elsewhere.
+    fn compat_ports_listen(
+        f: &str,
+        get_listen: &dyn Fn(&ArtiConfig) -> &Listen,
+        bld_get_port: &dyn Fn(&ArtiConfigBuilder) -> &Option<Option<u16>>,
+        bld_get_listen: &dyn Fn(&ArtiConfigBuilder) -> &Option<Listen>,
+        setter_port: &dyn Fn(&mut ArtiConfigBuilder, Option<u16>) -> &mut ProxyConfigBuilder,
+        setter_listen: &dyn Fn(&mut ArtiConfigBuilder, Listen) -> &mut ProxyConfigBuilder,
+    ) {
+        let from_toml = |s: &str| -> ArtiConfigBuilder {
+            let cfg: toml::Value = toml::from_str(dbg!(s)).unwrap();
+            let cfg: ArtiConfigBuilder = cfg.try_into().unwrap();
+            cfg
+        };
+
+        let conflicting_cfgs = [
+            format!("proxy.{}_port = 0 \n proxy.{}_listen = 200", f, f),
+            format!("proxy.{}_port = 100 \n proxy.{}_listen = 0", f, f),
+            format!("proxy.{}_port = 100 \n proxy.{}_listen = 200", f, f),
+        ];
+
+        let chk = |cfg: &ArtiConfigBuilder, expected: &Listen| {
+            dbg!(bld_get_listen(cfg), bld_get_port(cfg));
+            let cfg = cfg.build().unwrap();
+            assert_eq!(get_listen(&cfg), expected);
+        };
+
+        let check_setters = |port, expected: &_| {
+            for cfg in chain!(
+                iter::once(ArtiConfig::builder()),
+                conflicting_cfgs.iter().map(|cfg| from_toml(cfg)),
+            ) {
+                for listen in match port {
+                    None => vec![Listen::new_none(), Listen::new_localhost(0)],
+                    Some(port) => vec![Listen::new_localhost(port)],
+                } {
+                    let mut cfg = cfg.clone();
+                    setter_port(&mut cfg, dbg!(port));
+                    setter_listen(&mut cfg, dbg!(listen));
+                    chk(&cfg, expected);
+                }
+            }
+        };
+
+        {
+            let expected = Listen::new_localhost(100);
+
+            let cfg = from_toml(&format!("proxy.{}_port = 100", f));
+            assert_eq!(bld_get_port(&cfg), &Some(Some(100)));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_listen = 100", f));
+            assert_eq!(bld_get_listen(&cfg), &Some(Listen::new_localhost(100)));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!(
+                "proxy.{}_port = 100\n proxy.{}_listen = 100",
+                f, f
+            ));
+            chk(&cfg, &expected);
+
+            check_setters(Some(100), &expected);
+        }
+
+        {
+            let expected = Listen::new_none();
+
+            let cfg = from_toml(&format!("proxy.{}_port = 0", f));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_listen = 0", f));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_port = 0 \n proxy.{}_listen = 0", f, f));
+            chk(&cfg, &expected);
+
+            check_setters(None, &expected);
+        }
+
+        for cfg in &conflicting_cfgs {
+            let cfg = from_toml(cfg);
+            let err = dbg!(cfg.build()).unwrap_err();
+            assert!(err.to_string().contains("specifying different values"));
+        }
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn ports_listen_socks() {
+        compat_ports_listen(
+            "socks",
+            &|cfg| &cfg.proxy.socks_listen,
+            &|bld| &bld.proxy.socks_port,
+            &|bld| &bld.proxy.socks_listen,
+            &|bld, arg| bld.proxy.socks_port(arg),
+            &|bld, arg| bld.proxy.socks_listen(arg),
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compat_ports_listen_dns() {
+        compat_ports_listen(
+            "dns",
+            &|cfg| &cfg.proxy.dns_listen,
+            &|bld| &bld.proxy.dns_port,
+            &|bld| &bld.proxy.dns_listen,
+            &|bld, arg| bld.proxy.dns_port(arg),
+            &|bld, arg| bld.proxy.dns_listen(arg),
+        );
     }
 }
