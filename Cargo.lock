@@ -141,6 +141,7 @@ dependencies = [
  "clap",
  "config",
  "derive_builder_fork_arti",
+ "derive_more",
  "educe",
  "fs-mistrust",
  "futures",
