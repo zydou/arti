@@ -85,8 +85,7 @@ impl SshKeyError {
 
 impl HasKind for SshKeyError {
     fn kind(&self) -> ErrorKind {
-        // TODO hs
-        ErrorKind::Other
+        ErrorKind::KeystoreCorrupted
     }
 }
 
