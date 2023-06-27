@@ -1,6 +1,6 @@
 //! Manage a pool of circuits for usage with onion services.
 //
-// TODO HS: We need tests here. First, though, we need a testing strategy.
+// TODO HS TEST: We need tests here. First, though, we need a testing strategy.
 mod pool;
 
 use std::{
@@ -165,7 +165,7 @@ impl<R: Runtime> HsCircPool<R> {
                 )
             }
             HsCircKind::SvcIntro => {
-                // TODO HS: In this case we will want to add an extra hop, once we have vanguards.
+                // TODO HS-VANGUARDS: In this case we will want to add an extra hop, once we have vanguards.
                 // When this happens, the whole match statement will want to become
                 // let extra_hop = match kind {...}
             }
