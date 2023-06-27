@@ -83,6 +83,13 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 ///
 /// Use the [ChanMgr::get_or_launch] function to create a new channel, or
 /// get one if it exists.
+///
+/// Each channel is kept open as long as there is a reference outside ChanMgr
+/// to it, unless the relay kills it.
+///
+/// If there is no reference to a channel, ChanMgr will wait a random period of
+/// time between 180 and 270 seconds before closing the channel.
+/// To close unused channels, call the [ChanMgr::expire_channels] method
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
     mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
