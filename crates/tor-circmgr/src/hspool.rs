@@ -359,9 +359,6 @@ fn circuit_compatible_with_target(
 fn all_circ_relays_are_listed_in(circ: &ClientCirc, netdir: &NetDir) -> bool {
     let path = circ.path_ref();
 
-    // TODO HS: Are there any other checks we should do before declaring that
-    // this is still usable?
-
     // TODO HS: There is some duplicate logic here and in
     // circuit_compatible_with_target.  I think that's acceptable for now, but
     // we should consider refactoring if these functions grow.
