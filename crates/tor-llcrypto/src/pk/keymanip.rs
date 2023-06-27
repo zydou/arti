@@ -74,10 +74,6 @@ pub fn convert_curve25519_to_ed25519_public(
 ///
 /// This panic should be impossible unless there are implementation
 /// bugs.
-///
-/// # Availability
-///
-/// This function is only available when the `cvt-x25519` feature is enabled.
 #[cfg(any(test, feature = "cvt-x25519"))]
 pub fn convert_curve25519_to_ed25519_private(
     privkey: &pk::curve25519::StaticSecret,
@@ -134,10 +130,6 @@ pub fn convert_curve25519_to_ed25519_private(
 ///
 /// This panic should be impossible unless we have upgraded x25519-dalek without auditing this
 /// function.
-///
-/// # Availability
-///
-/// This function is only available when the `cvt-x25519` feature is enabled.
 #[cfg(any(test, feature = "cvt-x25519"))]
 pub fn convert_ed25519_to_curve25519_private(
     keypair: &pk::ed25519::Keypair,
