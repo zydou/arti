@@ -167,6 +167,7 @@ fn default_max_files() -> u64 {
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[builder_struct_attr(non_exhaustive)]
 #[non_exhaustive]
 pub struct RpcConfig {
     /// Location to listen for incoming RPC connections.
