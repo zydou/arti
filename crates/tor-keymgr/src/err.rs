@@ -39,3 +39,42 @@ impl StdError for Error {
         (**self).source()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use tor_error::ErrorKind;
+
+    #[derive(Debug, Copy, Clone, PartialEq, thiserror::Error)]
+    #[error("The source of a test error")]
+    struct TestErrorSource;
+
+    #[derive(Debug, Clone, thiserror::Error)]
+    #[error("A test error")]
+    struct TestError(#[from] TestErrorSource);
+
+    impl KeystoreError for TestError {}
+
+    impl HasKind for TestError {
+        fn kind(&self) -> ErrorKind {
+            ErrorKind::Other
+        }
+    }
+
+    #[test]
+    fn error_source() {
+        let e: Error = Box::new(TestError(TestErrorSource)) as Error;
+
+        assert_eq!(e.source().unwrap().to_string(), TestErrorSource.to_string());
+    }
+}
