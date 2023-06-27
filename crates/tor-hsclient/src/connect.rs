@@ -507,7 +507,18 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &self,
         hsdir: &Relay<'_>,
     ) -> Result<TimerangeBound<HsDesc>, DescriptorErrorDetail> {
-        let request = tor_dirclient::request::HsDescDownloadRequest::new(self.hs_blind_id);
+        let max_len: usize = self
+            .netdir
+            .params()
+            .hsdir_max_desc_size
+            .get()
+            .try_into()
+            .map_err(into_internal!("BoundedInt was not truly bounded!"))?;
+        let request = {
+            let mut r = tor_dirclient::request::HsDescDownloadRequest::new(self.hs_blind_id);
+            r.set_max_len(max_len);
+            r
+        };
         trace!(
             "hsdir for {}, trying {}/{}, request {:?} (http request {:?}",
             &self.hsid,
