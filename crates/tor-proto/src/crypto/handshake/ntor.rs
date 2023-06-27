@@ -134,7 +134,7 @@ fn client_handshake_ntor_v1<R>(
 where
     R: RngCore + CryptoRng,
 {
-    let my_sk = StaticSecret::random_from_rng(rng);
+    let my_sk = StaticSecret::new(rng);
     let my_public = PublicKey::from(&my_sk);
 
     client_handshake_ntor_v1_no_keygen(my_public, my_sk, relay_public)
@@ -264,7 +264,7 @@ where
     // actually going to find our nodeid or keyid. Perhaps we should
     // delay that till later?  It shouldn't matter for most cases,
     // though.
-    let ephem = EphemeralSecret::random_from_rng(rng);
+    let ephem = EphemeralSecret::new(rng);
     let ephem_pub = PublicKey::from(&ephem);
 
     server_handshake_ntor_v1_no_keygen(ephem_pub, ephem, msg, keys)
@@ -331,7 +331,7 @@ mod tests {
     fn simple() -> Result<()> {
         use crate::crypto::handshake::{ClientHandshake, ServerHandshake};
         let mut rng = testing_rng();
-        let relay_secret = StaticSecret::random_from_rng(&mut rng);
+        let relay_secret = StaticSecret::new(&mut rng);
         let relay_public = PublicKey::from(&relay_secret);
         let relay_identity = RsaIdentity::from_bytes(&[12; 20]).unwrap();
         let relay_ntpk = NtorPublicKey {
@@ -361,7 +361,7 @@ mod tests {
     fn make_fake_ephem_key(bytes: &[u8]) -> EphemeralSecret {
         assert_eq!(bytes.len(), 32);
         let rng = FakePRNG::new(bytes);
-        EphemeralSecret::random_from_rng(rng)
+        EphemeralSecret::new(rng)
     }
 
     #[test]
@@ -415,7 +415,7 @@ mod tests {
         let mut rng = testing_rng();
 
         // Set up keys.
-        let relay_secret = StaticSecret::random_from_rng(&mut rng);
+        let relay_secret = StaticSecret::new(&mut rng);
         let relay_public = PublicKey::from(&relay_secret);
         let wrong_public = PublicKey::from([16_u8; 32]);
         let relay_identity = RsaIdentity::from_bytes(&[12; 20]).unwrap();

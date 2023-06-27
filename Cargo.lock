@@ -958,20 +958,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve25519-dalek"
-version = "4.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03d928d978dbec61a1167414f5ec534f24bea0d7a0d24dd9b6233d3d8223e585"
-dependencies = [
- "cfg-if",
- "fiat-crypto",
- "packed_simd_2",
- "platforms",
- "subtle",
- "zeroize",
-]
-
-[[package]]
 name = "darling"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1238,7 +1224,7 @@ version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c762bae6dcaf24c4c84667b8579785430908723d5c889f469d76a41d59cc7a9d"
 dependencies = [
- "curve25519-dalek 3.2.0",
+ "curve25519-dalek",
  "ed25519",
  "merlin",
  "rand 0.7.3",
@@ -1388,12 +1374,6 @@ dependencies = [
  "rand_core 0.6.4",
  "subtle",
 ]
-
-[[package]]
-name = "fiat-crypto"
-version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 
 [[package]]
 name = "filetime"
@@ -2095,12 +2075,6 @@ checksum = "2b00cc1c228a6782d0f076e7b232802e0c5689d41bb5df366f2a6b6621cfdfe1"
 
 [[package]]
 name = "libm"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fc7aa29613bd6a620df431842069224d8bc9011086b1db4c0e0cd47fa03ec9a"
-
-[[package]]
-name = "libm"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7012b1bbb0719e1097c47611d3898568c546d597c2e74d66f6087edd5233ff4"
@@ -2354,7 +2328,7 @@ checksum = "2399c9463abc5f909349d8aa9ba080e0b88b3ce2885389b60b993f39b1a56905"
 dependencies = [
  "byteorder",
  "lazy_static",
- "libm 0.2.7",
+ "libm",
  "num-integer",
  "num-iter",
  "num-traits",
@@ -2411,7 +2385,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
- "libm 0.2.7",
+ "libm",
 ]
 
 [[package]]
@@ -2558,16 +2532,6 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "sha2 0.10.6",
-]
-
-[[package]]
-name = "packed_simd_2"
-version = "0.3.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1914cd452d8fccd6f9db48147b29fd4ae05bea9dc5d9ad578509f72415de282"
-dependencies = [
- "cfg-if",
- "libm 0.1.4",
 ]
 
 [[package]]
@@ -2768,12 +2732,6 @@ name = "pkg-config"
 version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
-
-[[package]]
-name = "platforms"
-version = "3.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3d7ddaed09e0eb771a79ab0fd64609ba0afb0a8366421957936ad14cbd13630"
 
 [[package]]
 name = "polling"
@@ -4567,7 +4525,7 @@ dependencies = [
  "base64ct",
  "cipher",
  "ctr",
- "curve25519-dalek 3.2.0",
+ "curve25519-dalek",
  "derive_more",
  "digest 0.10.7",
  "ed25519-dalek",
@@ -5478,13 +5436,12 @@ dependencies = [
 
 [[package]]
 name = "x25519-dalek"
-version = "2.0.0-rc.2"
+version = "2.0.0-pre.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fabd6e16dd08033932fc3265ad4510cc2eab24656058a6dcb107ffe274abcc95"
+checksum = "e5da623d8af10a62342bcbbb230e33e58a63255a58012f8653c578e54bab48df"
 dependencies = [
- "curve25519-dalek 4.0.0-rc.2",
+ "curve25519-dalek",
  "rand_core 0.6.4",
- "serde",
  "zeroize",
 ]
 

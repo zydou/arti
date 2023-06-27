@@ -108,7 +108,7 @@ impl<'a> ClientAuth<'a> {
         // Generate a new `N_hs_desc_enc` descriptor_cookie key for this descriptor.
         let descriptor_cookie = rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(rng);
 
-        let secret = curve25519::StaticSecret::random_from_rng(rng);
+        let secret = curve25519::StaticSecret::new(rng);
         let ephemeral_key = HsSvcDescEncKeypair {
             public: curve25519::PublicKey::from(&secret).into(),
             secret: secret.into(),
@@ -299,7 +299,7 @@ mod test {
     pub(super) fn create_curve25519_pk<R: RngCore + CryptoRng>(
         rng: &mut R,
     ) -> curve25519::PublicKey {
-        let ephemeral_key = curve25519::EphemeralSecret::random_from_rng(rng);
+        let ephemeral_key = curve25519::EphemeralSecret::new(rng);
         (&ephemeral_key).into()
     }
 
@@ -411,8 +411,7 @@ mod test {
         assert_eq!(&*encoded_desc, &*reencoded_desc);
 
         // The same test, this time with client auth enabled (with a single authorized client):
-        let client_skey: HsClientDescEncSecretKey =
-            curve25519::StaticSecret::random_from_rng(&mut rng).into();
+        let client_skey: HsClientDescEncSecretKey = curve25519::StaticSecret::new(&mut rng).into();
         let client_pkey: HsClientDescEncKey =
             curve25519::PublicKey::from(client_skey.as_ref()).into();
         let auth_clients = vec![*client_pkey];
