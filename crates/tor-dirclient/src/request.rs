@@ -505,18 +505,25 @@ impl Requestable for RoutersOwnDescRequest {
 pub struct HsDescDownloadRequest {
     /// What hidden service?
     hsid: HsBlindId,
+    /// What's the largest acceptable response length?
+    max_len: usize,
 }
 
 #[cfg(feature = "hs-client")]
 impl HsDescDownloadRequest {
     /// Construct a request for all router descriptors.
     pub fn new(hsid: HsBlindId) -> Self {
-        HsDescDownloadRequest { hsid }
+        /// Default maximum length to use when we have no other information.
+        const DEFAULT_HSDESC_MAX_LEN: usize = 50 * 1024;
+        HsDescDownloadRequest {
+            hsid,
+            max_len: DEFAULT_HSDESC_MAX_LEN,
+        }
     }
 
-/// Set the maximum acceptable response length.
-    pub fn set_max_len(&mut self, max_len) {
-
+    /// Set the maximum acceptable response length.
+    pub fn set_max_len(&mut self, max_len: usize) {
+        self.max_len = max_len;
     }
 }
 
@@ -537,10 +544,7 @@ impl Requestable for HsDescDownloadRequest {
     }
 
     fn max_response_len(&self) -> usize {
-        // rend-spec-v3 2.5.1.4
-        // TODO HS: spec says this should be a consensus parameter, but we have no netdir here
-        // 50 KiB
-        50 * 1024
+        self.max_len
     }
 }
 /// List the encodings we accept
