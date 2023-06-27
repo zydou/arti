@@ -415,6 +415,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .retry
             .hs_desc_fetch_attempts()
             .try_into()
+            // User specified a very large u32.  We must be downcasting it to 16bit!
+            // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
@@ -599,6 +601,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .retry
             .hs_intro_rend_attempts()
             .try_into()
+            // User specified a very large u32.  We must be downcasting it to 16bit!
+            // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
         /// Limit on the duration of each attempt to establishg a rendezvous point
         const REND_TIMEOUT: Duration = Duration::from_secs(10);
