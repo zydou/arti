@@ -145,7 +145,7 @@ impl HsNtorClientState {
     where
         R: rand::RngCore + rand::CryptoRng,
     {
-        let x = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
+        let x = curve25519::StaticSecret::new(rng.rng_compat());
         Self::new_no_keygen(service_info, x)
     }
 
@@ -323,7 +323,7 @@ pub fn server_receive_intro<R>(
 where
     R: rand::RngCore + rand::CryptoRng,
 {
-    let y = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
+    let y = curve25519::StaticSecret::new(rng.rng_compat());
     server_receive_intro_no_keygen(&y, proto_input, intro_header, msg)
 }
 
@@ -554,7 +554,7 @@ mod test {
         let mut rng = testing_rng().rng_compat();
 
         // Let's initialize keys for the client (and the intro point)
-        let intro_b_privkey = curve25519::StaticSecret::random_from_rng(&mut rng);
+        let intro_b_privkey = curve25519::StaticSecret::new(&mut rng);
         let intro_b_pubkey = curve25519::PublicKey::from(&intro_b_privkey);
         let intro_auth_key_privkey = ed25519::SecretKey::generate(&mut rng);
         let intro_auth_key_pubkey = ed25519::PublicKey::from(&intro_auth_key_privkey);
