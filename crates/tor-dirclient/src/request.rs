@@ -515,7 +515,7 @@ impl HsDescDownloadRequest {
     /// blinded ID.
     pub fn new(hsid: HsBlindId) -> Self {
         /// Default maximum length to use when we have no other information.
-        const DEFAULT_HSDESC_MAX_LEN: usize = 50 * 1024;
+        const DEFAULT_HSDESC_MAX_LEN: usize = 50_000;
         HsDescDownloadRequest {
             hsid,
             max_len: DEFAULT_HSDESC_MAX_LEN,
@@ -751,7 +751,7 @@ mod test {
         let hsid = HsBlindId::from(hsid);
         let req = HsDescDownloadRequest::new(hsid);
         assert!(!req.partial_docs_ok());
-        assert_eq!(req.max_response_len(), 50 * 1024);
+        assert_eq!(req.max_response_len(), 50 * 1000);
 
         let req = crate::util::encode_request(&req.make_request()?);
 
