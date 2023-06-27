@@ -517,20 +517,22 @@ mod test {
             use EitherOrBoth::*;
             let (key, err) = match eob {
                 // Unrecognised entry, no exception
-                Left(found) => {
-                    (found, "found in example but not processed".into())
-                },
+                Left(found) => (found, "found in example but not processed".into()),
                 Both(found, exc) => {
                     let but = match (exc.in_example(which), exc.in_code, uncommented) {
                         (Absent, _, _) => "but exception entry expected key to be absent",
                         (_, _, false) => "when processing still-commented-out file!",
-                        (_, Some(true), _) =>
-                            "but an exception entry says it should have been recognised",
+                        (_, Some(true), _) => {
+                            "but an exception entry says it should have been recognised"
+                        }
                         (Present, Some(false), true) => return Ok(()), // that's as expected
                         (Present, None, true) => return Ok(()), // that's could be as expected
                     };
-                    (found, format!("parser reported unrecognised config key, {but}"))
-                },
+                    (
+                        found,
+                        format!("parser reported unrecognised config key, {but}"),
+                    )
+                }
                 Right(exc) => {
                     // An exception entry exists.  The actual situation is either
                     //   - not found in file (so no "unrecognised" report)
@@ -538,10 +540,11 @@ mod test {
                     // but we don't know which.
                     let trouble = match (exc.in_example(which), exc.in_code, uncommented) {
                         (Absent, _, _) => return Ok(()), // not in file, no report expected
-                        (_, _, false) => return Ok(()), // not uncommented, no report expected
+                        (_, _, false) => return Ok(()),  // not uncommented, no report expected
                         (_, Some(true), _) => return Ok(()), // code likes it, no report expected
-                        (Present, Some(false), true) =>
-                            "expected an 'unknown config key' report but didn't see one",
+                        (Present, Some(false), true) => {
+                            "expected an 'unknown config key' report but didn't see one"
+                        }
                         (Present, None, true) => return Ok(()), // not sure, have to just allow it
                     };
                     (&exc.key, trouble.into())
@@ -575,11 +578,10 @@ mod test {
                 "parsing of {which:?} uncommented={uncommented:?}, unrecognized={unrecognized:#?}"
             );
 
-            let reports = Itertools::merge_join_by(
-                unrecognized.iter(),
-                exceptions.iter(),
-                |u, e| u.as_str().cmp(&e.key),
-            )
+            let reports =
+                Itertools::merge_join_by(unrecognized.iter(), exceptions.iter(), |u, e| {
+                    u.as_str().cmp(&e.key)
+                })
                 .filter_map(|eob| analyse_joined_info(which, uncommented, eob).err())
                 .collect_vec();
 
@@ -589,26 +591,20 @@ mod test {
                     .map(|(k, s)| format!("  {}: {}\n", s, k))
                     .collect::<String>();
 
-                panic!(r"
+                panic!(
+                    r"
 mismatch: results of parsing example files (& vs declared exceptions):
 example config file {which:?}, uncommented={uncommented:?}
 {reports}
-");
+"
+                );
             }
 
             results.value
         };
 
-        let _ = parses_to_defaults(
-            ARTI_EXAMPLE_CONFIG,
-            WhichExample::New,
-            false,
-        );
-        let _ = parses_to_defaults(
-            OLDEST_SUPPORTED_CONFIG,
-            WhichExample::Old,
-            false,
-        );
+        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, WhichExample::New, false);
+        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, WhichExample::Old, false);
 
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),
@@ -692,9 +688,13 @@ example config file {which:?}, uncommented={uncommented:?}
         enum ProblemKind {
             #[display(fmt = "recognised by serialisation, but missing from example config file")]
             MissingFromExample,
-            #[display(fmt = "expected that example config file should contain have this as a table")]
+            #[display(
+                fmt = "expected that example config file should contain have this as a table"
+            )]
             ExpectedTableInExample,
-            #[display(fmt = "declared exception says this key should be recognised but not in file, but that doesn't seem to be the case")]
+            #[display(
+                fmt = "declared exception says this key should be recognised but not in file, but that doesn't seem to be the case"
+            )]
             UnusedException,
         }
 
@@ -707,8 +707,7 @@ example config file {which:?}, uncommented={uncommented:?}
         impl Walk {
             /// Records a problem
             fn bad(&mut self, kind: ProblemKind) {
-                self.problems
-                    .push((self.current_path.join("."), kind));
+                self.problems.push((self.current_path.join("."), kind));
             }
 
             /// Recurses, looking for problems
@@ -793,7 +792,7 @@ example config file {which:?}, uncommented={uncommented:?}
             .iter()
             .cloned()
             .filter({
-                let original: HashSet<_> = expect_missing.iter().map(|(k,_)| k.clone()).collect();
+                let original: HashSet<_> = expect_missing.iter().map(|(k, _)| k.clone()).collect();
                 move |(found, _)| {
                     !found
                         .match_indices('.')
@@ -807,10 +806,7 @@ example config file {which:?}, uncommented={uncommented:?}
             let was = problems.len();
             problems.retain(|(path, _)| path != &exp);
             if problems.len() == was && definitely.is_some() {
-                problems.push((
-                    exp,
-                    ProblemKind::UnusedException,
-                ));
+                problems.push((exp, ProblemKind::UnusedException));
             }
         }
 
