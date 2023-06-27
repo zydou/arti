@@ -113,6 +113,8 @@ pub fn convert_curve25519_to_ed25519_private(
 ///
 /// Note: Using the same keypair for multiple purposes (such as key-exchange and signing) is
 /// considered bad practice. Don't use this function unless you know what you're doing.
+/// See [On using the same key pair for Ed25519 and an X25519 based
+/// KEM](https://eprint.iacr.org/2021/509.pdf).
 ///
 /// This function is needed by the `ArtiNativeKeystore` from `tor-keymgr` to convert ed25519
 /// private keys to x25519. This is because `ArtiNativeKeystore` stores x25519 private keys as
