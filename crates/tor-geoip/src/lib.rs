@@ -338,6 +338,7 @@ mod test {
 
     // NOTE(eta): this test takes a whole 1.6 seconds in *non-release* mode
     #[test]
+    #[cfg(feature = "embedded-db")]
     fn embedded_db() {
         let db = GeoipDb::new_embedded();
 
