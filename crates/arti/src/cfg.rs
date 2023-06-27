@@ -323,10 +323,6 @@ mod test {
                 .unwrap();
 
             // This tests that the example settings do not *contradict* the defaults.
-            //
-            // Also we should ideally test that every setting from the config appears here in
-            // the file.  Possibly that could be done with some kind of stunt Deserializer,
-            // but it's not trivial.
             let results: ResolutionResults<ArtiCombinedConfig> =
                 tor_config::resolve_return_results(cfg).unwrap();
 
