@@ -74,11 +74,7 @@ pub fn convert_curve25519_to_ed25519_public(
 ///
 /// This panic should be impossible unless there are implementation
 /// bugs.
-///
-/// # Availability
-///
-/// This function is only available when the `relay` feature is enabled.
-#[cfg(any(test, feature = "relay"))]
+#[cfg(any(test, feature = "cvt-x25519"))]
 pub fn convert_curve25519_to_ed25519_private(
     privkey: &pk::curve25519::StaticSecret,
 ) -> Option<(pk::ed25519::ExpandedKeypair, u8)> {
@@ -106,6 +102,75 @@ pub fn convert_curve25519_to_ed25519_private(
     }
 
     Some((pk::ed25519::ExpandedKeypair { public, secret }, signbit))
+}
+
+/// Convert an ed25519 private key to a curve25519 private key.
+///
+/// This creates a curve25519 key as described in section-5.1.5 of RFC8032: the bytes of the secret
+/// part of `keypair` are hashed using SHA-512, and the result is clamped (the first 3 bits of the
+/// first byte are cleared, the highest bit of the last byte is cleared, the second highest bit of
+/// the last byte is set).
+///
+/// Note: Using the same keypair for multiple purposes (such as key-exchange and signing) is
+/// considered bad practice. Don't use this function unless you know what you're doing.
+/// See [On using the same key pair for Ed25519 and an X25519 based
+/// KEM](https://eprint.iacr.org/2021/509.pdf).
+///
+/// This function is needed by the `ArtiNativeKeystore` from `tor-keymgr` to convert ed25519
+/// private keys to x25519. This is because `ArtiNativeKeystore` stores x25519 private keys as
+/// ssh-ed25519 OpenSSH keys. Other similar use cases are also valid.
+///
+/// It's important to note that converting a private key from ed25519 -> curve25519 -> ed25519 will
+/// yield an [`ExpandedKeypair`](pk::ed25519::ExpandedKeypair) that is _not_ identical to the
+/// expanded version of the original [`Keypair`](pk::ed25519::Keypair): the lower halves (the keys) of
+/// the expanded key pairs will be the same, but their upper halves (the nonces) will be different.
+///
+/// # Panics
+///
+/// If the `debug_assertions` feature is enabled, this function will double-check that the key it
+/// is about to return is clamped.
+///
+/// This panic should be impossible unless we have upgraded x25519-dalek without auditing this
+/// function.
+#[cfg(any(test, feature = "cvt-x25519"))]
+pub fn convert_ed25519_to_curve25519_private(
+    keypair: &pk::ed25519::Keypair,
+) -> pk::curve25519::StaticSecret {
+    use crate::d::Sha512;
+    use zeroize::Zeroize as _;
+
+    // Generate the key according to section-5.1.5 of rfc8032
+    let h = Sha512::digest(keypair.secret.to_bytes());
+
+    let mut bytes = [0_u8; 32];
+    bytes.clone_from_slice(&h[0..32]);
+
+    // StaticSecret::from handles the clamping
+    let secret = pk::curve25519::StaticSecret::from(bytes);
+    bytes.zeroize();
+
+    // TODO #808: Review this function after upgrading to the latest x25519-dalek.
+    //
+    // This function was written with x25519-dalek version =2.0.0-rc.2 in mind, where
+    // StaticSecret::from returns a clamped value. However, in the latest version of x25519-dalek,
+    // StaticSecret::from does _not_ do any clamping (the clamping is still done during
+    // scalar-point multiplication though). This might not be an issue, but we should double-check
+    // this is OK.
+    //
+    // The debug_assertions can be removed when #808 is closed.
+    #[cfg(debug_assertions)]
+    {
+        // Ensure StaticSecret::from actually handled the clamping.
+        // This will panic if we bump x25519-dalek without updating this code.
+        let bytes = secret.to_bytes();
+
+        // Clamping should clear the last 3 bits of the first byte.
+        assert_eq!(bytes[0] & 0b111, 0);
+        // Clamping should clear the highest bit and set the second highest bit of the last byte.
+        assert_eq!(bytes[31] & 0b11000000, 0b01000000);
+    }
+
+    secret
 }
 
 /// An error occurred during a key-blinding operation.
@@ -293,6 +358,40 @@ mod tests {
     }
 
     #[test]
+    fn ed_to_curve_compatible() {
+        use crate::pk::{curve25519, ed25519};
+        use crate::util::rand_compat::RngCompatExt;
+        use signature::Verifier;
+        use tor_basic_utils::test_rng::testing_rng;
+
+        let mut rng = testing_rng().rng_compat();
+        let ed_kp = ed25519::Keypair::generate(&mut rng);
+        let ed_sk1 = ExpandedSecretKey::from(&ed_kp.secret);
+        let ed_pk1 = ed25519::PublicKey::from(&ed_sk1);
+
+        let curve_sk = convert_ed25519_to_curve25519_private(&ed_kp);
+        let curve_pk = curve25519::PublicKey::from(&curve_sk);
+
+        let (ed_kp2, signbit) = convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
+        let ed_pk2 = convert_curve25519_to_ed25519_public(&curve_pk, signbit).unwrap();
+        let ed_sk2 = ed_kp2.secret;
+
+        assert_eq!(ed_pk1, ed_pk2);
+        // Make sure the 2 secret keys are the same.
+        // Note: we only look at the first 32 bytes of the (expanded) key because the last 32 bytes
+        // represent the "domain-separation nonce".
+        assert_eq!(ed_sk1.to_bytes()[..32], ed_sk2.to_bytes()[..32]);
+
+        let msg = b"tis the gift to be simple";
+
+        for sk in &[ed_sk1, ed_sk2] {
+            let sig = sk.sign(&msg[..], &ed_pk1);
+            assert!(ed_pk1.verify(&msg[..], &sig).is_ok());
+            assert!(ed_pk2.verify(&msg[..], &sig).is_ok());
+        }
+    }
+
+    #[test]
     #[cfg(all(feature = "hsv3-client", feature = "hsv3-service"))]
     fn blinding() {
         // Test the ed25519 blinding function.
@@ -425,6 +524,29 @@ mod tests {
                 let pk2 = pk2.compress();
                 assert_eq!(pk2.as_bytes(), blinded_pk.as_bytes());
             }
+        }
+    }
+
+    // TODO #808: Remove this test after upgrading to the latest x25519-dalek. The only purpose
+    #[test]
+    fn static_secret_clamping() {
+        let mut secret = [1_u8; 32];
+
+        const LAST_BYTE: &[u8] = &[0b10111111, 0b10000000];
+
+        for last_byte in LAST_BYTE {
+            // Clamping should clear the last 3 bits of the first byte.
+            secret[0] = 0b111;
+            // Clamping should clear the highest bit and set the second highest bit of the last byte.
+            secret[31] = *last_byte;
+
+            let static_secret = crate::pk::curve25519::StaticSecret::from(secret);
+            let secret = static_secret.to_bytes();
+
+            assert_eq!(secret[0] & 0b111, 0);
+            assert_eq!(secret[31] & 0b11000000, 0b01000000);
+            // The last 6 bits should be unchanged
+            assert_eq!(secret[31] & 0b00111111, last_byte & 0b00111111);
         }
     }
 }

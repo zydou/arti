@@ -63,6 +63,14 @@ manipulating cryptography-related objects and code.
 `hsv3-client` -- enable cryptography that's only needed when running as a v3
 onion service client.
 
+`hsv3-service` -- enable cryptography that's only needed when running as a v3
+onion service.
+
+`keymgr` -- enable cryptography that's only needed for key management
+
+`cvt-x25519` -- export functions for converting ed25519 keys to x25519 and
+vice-versa
+
 ### Acceleration features
 
 These features should never be enabled by default from libraries, since they
