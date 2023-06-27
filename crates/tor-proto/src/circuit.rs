@@ -93,11 +93,6 @@ pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
 ///
-/// This struct is the interface used by the rest of the code, It is fairly
-/// cheaply cloneable.  None of the public methods need mutable access, since
-/// they all actually communicate with the Reactor which contains the primary
-/// mutable state, and does the actual work.
-///
 /// # Circuit life cycle
 ///
 /// `ClientCirc`s are created in an initially unusable state using [`Channel::new_circ`],
