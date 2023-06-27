@@ -217,6 +217,25 @@ pub enum ErrorKind {
     #[display(fmt = "corrupted data in keystore")]
     KeystoreCorrupted,
 
+    /// IO error accessing keystore
+    ///
+    /// For example, the disk might be full, or there may be a permissions problem.
+    /// The source is typically an [`std::io::Error`].
+    ///
+    /// Note that this kind of error only applies to problems in your `keystore_dir`:
+    /// problems with your cache or persistent state are another kind.
+    #[display(fmt = "could not access keystore")]
+    KeystoreAccessFailed,
+
+    /// We encountered a problem with filesystem permissions within the keystore.
+    ///
+    /// This is likeliest to be caused by permissions on a file or directory
+    /// being too permissive; the next likeliest cause is that we were unable to
+    /// check the permissions on the file or directory, or on one of its
+    /// ancestors.
+    #[display(fmt = "problem with keystore filesystem permissions")]
+    KeystoreFsPermissions,
+
     /// Tor client's Rust async reactor is shutting down.
     ///
     /// This likely indicates that the reactor has encountered a fatal error, or
