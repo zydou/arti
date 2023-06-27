@@ -36,7 +36,6 @@ impl<K: KeystoreError + Send + Sync> From<K> for Error {
 // See <https://github.com/dtolnay/thiserror/issues/212>
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        let e: &dyn StdError = self;
-        e.source()
+        (**self).source()
     }
 }
