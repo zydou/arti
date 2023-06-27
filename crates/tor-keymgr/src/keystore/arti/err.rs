@@ -58,7 +58,12 @@ impl KeystoreError for ArtiNativeKeystoreError {}
 
 impl HasKind for ArtiNativeKeystoreError {
     fn kind(&self) -> ErrorKind {
-        // TODO hs
-        ErrorKind::Other
+        use ArtiNativeKeystoreError as KE;
+
+        match self {
+            KE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
+            KE::FsMistrust { .. } => ErrorKind::KeystoreFsPermissions,
+            KE::Bug(e) => e.kind(),
+        }
     }
 }
