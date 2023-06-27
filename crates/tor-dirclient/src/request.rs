@@ -513,13 +513,19 @@ impl HsDescDownloadRequest {
     pub fn new(hsid: HsBlindId) -> Self {
         HsDescDownloadRequest { hsid }
     }
+
+/// Set the maximum acceptable response length.
+    pub fn set_max_len(&mut self, max_len) {
+
+    }
 }
 
 #[cfg(feature = "hs-client")]
 impl Requestable for HsDescDownloadRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
         let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
-        // TODO HS: is it OK to hardcode the version for now?
+        // We hardcode version 3 here; if we ever have a v4 onion service
+        // descriptor, it will need a different kind of Request.
         let uri = format!("/tor/hs/3/{}", hsid);
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req);
