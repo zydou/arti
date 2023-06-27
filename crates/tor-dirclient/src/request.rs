@@ -511,7 +511,8 @@ pub struct HsDescDownloadRequest {
 
 #[cfg(feature = "hs-client")]
 impl HsDescDownloadRequest {
-    /// Construct a request for all router descriptors.
+    /// Construct a request for a single onion service descriptor by its
+    /// blinded ID.
     pub fn new(hsid: HsBlindId) -> Self {
         /// Default maximum length to use when we have no other information.
         const DEFAULT_HSDESC_MAX_LEN: usize = 50 * 1024;
