@@ -5,6 +5,14 @@ use tor_error::HasKind;
 
 /// The path of a key in the Arti key store.
 ///
+/// # Requirements
+///
+/// An `ArtiPath` may only consist of UTF-8 alphanumeric, dash (`-`), underscore (`_`), and
+/// path separator (`/`) characters.
+///
+/// The specified string is normalized by replacing any consecutive occurrences of the path
+/// separator character with a single path separator.
+///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
@@ -35,14 +43,7 @@ const PATH_SEP: char = '/';
 impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
-    /// An `ArtiPath` may only consist of UTF-8 alphanumeric, dash (`-`), underscore (`_`), and
-    /// path separator (`/`) characters.
-    ///
-    /// The specified string is normalized by replacing any consecutive occurrences of the path
-    /// separator character with a single path separator.
-    ///
-    /// This function returns an error if `inner` contains any disallowed characters, or if it
-    /// consists solely of path sepatators.
+    /// This function returns an error if `inner` is not a valid `ArtiPath`.
     pub fn new(inner: String) -> Result<Self> {
         let is_allowed = |c: char| ArtiPathComponent::is_allowed_char(c) || c == PATH_SEP;
 
@@ -71,6 +72,11 @@ impl ArtiPath {
 /// A component of an [`ArtiPath`].
 ///
 /// This represents a substring of an [`ArtiPath`] between path separators (`/`).
+///
+/// # Requirements
+///
+/// An `ArtiPathComponent` may only consist of UTF-8 alphanumeric, dash
+/// (`-`), and underscore (`_`) characters.
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
@@ -79,10 +85,7 @@ pub struct ArtiPathComponent(String);
 impl ArtiPathComponent {
     /// Create a new [`ArtiPathComponent`].
     ///
-    /// An `ArtiPathComponent` may only consist of UTF-8 alphanumeric, dash
-    /// (`-`), and underscore (`_`) characters.
-    ///
-    /// This function returns an error if `inner` contains any disallowed characters.
+    /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
     pub fn new(inner: String) -> Result<Self> {
         if inner.chars().any(|c| !Self::is_allowed_char(c)) {
             Err(Box::new(InvalidArtiPathError(inner)))
