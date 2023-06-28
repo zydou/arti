@@ -8,7 +8,7 @@ use thiserror::Error;
 use tracing::error;
 
 use retry_error::RetryError;
-use safelog::Redacted;
+use safelog::{Redacted, Sensitive};
 use tor_cell::relaycell::hs::IntroduceAckStatus;
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind, HasRetryTime, RetryTime};
@@ -87,10 +87,9 @@ pub enum ConnError {
 pub struct DescriptorError {
     /// Which hsdir we were trying
     // TODO #813 this should be Redacted<RelayDescription> or something
-    // TODO HS: is even this too much leakage?
-    // Perhaps the set of redacted hsdir ids may identify the service;
-    // in that case this should be `Sensitive` instead.
-    pub hsdir: Redacted<Ed25519Identity>,
+    // It seems likely that the set of redacted hsdir ids could identify the service,
+    // so use Sensitive rather than Redacted.
+    pub hsdir: Sensitive<Ed25519Identity>,
 
     /// What happened
     #[source]
