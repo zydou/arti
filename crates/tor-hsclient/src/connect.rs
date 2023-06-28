@@ -22,7 +22,7 @@ use tor_proto::circuit::handshake::hs_ntor;
 use tracing::{debug, trace, warn};
 
 use retry_error::RetryError;
-use safelog::Redacted;
+use safelog::Sensitive;
 use tor_cell::relaycell::hs::{
     AuthKeyType, EstablishRendezvous, IntroduceAck, RendezvousEstablished,
 };
@@ -459,7 +459,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     })
                 }
             };
-            let hsdir_for_error: Redacted<Ed25519Identity> = (*relay.id()).into();
+            let hsdir_for_error: Sensitive<Ed25519Identity> = (*relay.id()).into();
             match self
                 .runtime
                 .timeout(EACH_TIMEOUT, self.descriptor_fetch_attempt(relay))
