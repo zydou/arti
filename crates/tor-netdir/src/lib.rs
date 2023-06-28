@@ -282,6 +282,14 @@ pub enum HsDirOp {
 /// that it can be used to build paths. (Thus, if you have a NetDir, it is
 /// definitely adequate to build paths.)
 ///
+/// # "Usable" relays
+///
+/// Many methods on NetDir are defined in terms of  "Usable" relays.  Unless
+/// otherwise stated, a relay is "usable" if it is listed in the consensus,
+/// if we have full directory information for that relay (including a
+/// microdescriptor), and if that relay does not have any flags indicating that
+/// we should never use it. (Currently, `NoEdConsensus` is the only such flag.)
+///
 /// # Limitations
 ///
 /// The current NetDir implementation assumes fairly strongly that every relay
