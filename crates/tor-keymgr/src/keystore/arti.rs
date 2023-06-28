@@ -161,6 +161,12 @@ mod tests {
         }
     }
 
+    fn key_path(key_store: &ArtiNativeKeyStore, key_type: KeyType) -> PathBuf {
+        let rel_key_path = key_store.key_path(&TestSpecifier, key_type).unwrap();
+
+        key_store.keystore_dir.as_path().join(rel_key_path)
+    }
+
     fn init_keystore(gen_keys: bool) -> (ArtiNativeKeyStore, TempDir) {
         #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
@@ -175,11 +181,7 @@ mod tests {
                 .unwrap();
 
         if gen_keys {
-            let rel_key_path = key_store
-                .key_path(&TestSpecifier, KeyType::Ed25519Keypair)
-                .unwrap();
-
-            let key_path = keystore_dir.path().join(rel_key_path);
+            let key_path = key_path(&key_store, KeyType::Ed25519Keypair);
             fs::write(key_path, OPENSSH_ED25519).unwrap();
         }
 
@@ -228,5 +230,52 @@ mod tests {
                 .unwrap(),
             PathBuf::from("test-specifier.x25519_private")
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn get_and_rm_bad_perms() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (key_store, _keystore_dir) = init_keystore(true);
+
+        let key_path = key_path(&key_store, KeyType::Ed25519Keypair);
+
+        // Make the permissions of the test key too permissive
+        fs::set_permissions(key_path, fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(key_store
+            .get(&TestSpecifier, KeyType::Ed25519Keypair)
+            .is_err());
+
+        // TODO HSS: remove works even if the permissions are not restrictive enough for other
+        // the operations... I **think** this is alright, but we might want to give this a bit more
+        // thought before we document and advertise this behaviour.
+        assert_eq!(
+            key_store
+                .remove(&TestSpecifier, KeyType::Ed25519Keypair)
+                .unwrap(),
+            Some(())
+        );
+    }
+
+    #[test]
+    fn get() {
+        // Initialize an empty key store
+        let (key_store, _keystore_dir) = init_keystore(false);
+
+        // Not found
+        assert!(key_store
+            .get(&TestSpecifier, KeyType::Ed25519Keypair)
+            .unwrap()
+            .is_none());
+
+        // Initialize a key store with some test keys
+        let (key_store, _keystore_dir) = init_keystore(true);
+
+        // Found!
+        assert!(key_store
+            .get(&TestSpecifier, KeyType::Ed25519Keypair)
+            .unwrap()
+            .is_some());
     }
 }
