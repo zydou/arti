@@ -52,7 +52,7 @@ pub enum KeyType {
 impl KeyType {
     /// The file extension for a key of this type.
     //
-    // TODO hs: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
+    // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
     // to decide the file extension should be).
     pub fn arti_extension(&self) -> &'static str {
         match self {
@@ -65,8 +65,8 @@ impl KeyType {
     //
     // TODO hs: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
     // to decide the file extension should be).
-    #[allow(clippy::missing_panics_doc)] // TODO hs: remove
+    #[allow(clippy::missing_panics_doc)] // TODO HSS: remove
     pub fn ctor_extension(&self) -> &'static str {
-        todo!() // TODO hs
+        todo!() // TODO HSS
     }
 }

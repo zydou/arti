@@ -11,8 +11,6 @@ use std::fmt;
 pub type Error = Box<dyn KeystoreError>;
 
 /// An error returned by a [`KeyStore`](crate::KeyStore).
-// TODO hs: replace Error with KeyStoreError and create an `ArtiNativeKeyStoreError: KeyStoreError`
-// type for ArtiNativeKeyStore.
 pub trait KeystoreError:
     HasKind + StdError + DynClone + fmt::Debug + fmt::Display + Send + Sync + 'static
 {

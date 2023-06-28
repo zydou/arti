@@ -41,8 +41,6 @@ impl UnparsedOpenSshKey {
 }
 
 /// An error that occurred while processing an OpenSSH key.
-//
-// TODO hs: use this error type instead of crate::Error.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum SshKeyError {
     /// Failed to parse an OpenSSH key
@@ -146,7 +144,7 @@ impl KeyType {
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
     pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
-        // TODO hs: perhaps this needs to be a method on EncodableKey instead?
+        // TODO HSS: perhaps this needs to be a method on EncodableKey instead?
         match self {
             KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
             KeyType::X25519StaticSecret => {
@@ -158,9 +156,9 @@ impl KeyType {
 
     /// Encode an OpenSSH-formatted key.
     //
-    // TODO hs: remove "allow" and choose a better name for this function
+    // TODO HSS: remove "allow" and choose a better name for this function
     #[allow(clippy::wrong_self_convention)]
     pub(crate) fn to_ssh_format(&self, _key: &dyn EncodableKey) -> Result<String> {
-        todo!() // TODO hs
+        todo!() // TODO HSS
     }
 }
