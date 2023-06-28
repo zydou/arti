@@ -1,7 +1,6 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
 use crate::{KeystoreError, Result};
-use std::path;
 use tor_error::HasKind;
 
 /// The path of a key in the Arti key store.
@@ -30,11 +29,14 @@ impl HasKind for InvalidArtiPathError {
 
 impl KeystoreError for InvalidArtiPathError {}
 
+/// A separator for `ArtiPath`s.
+const PATH_SEP: char = '/';
+
 impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
     /// An `ArtiPath` may only consist of UTF-8 alphanumeric, dash (`-`), underscore (`_`), and
-    /// path separator characters.
+    /// path separator (`/`) characters.
     ///
     /// The specified string is normalized by replacing any consecutive occurrences of the path
     /// separator character with a single path separator.
@@ -42,8 +44,7 @@ impl ArtiPath {
     /// This function returns an error if `inner` contains any disallowed characters, or if it
     /// consists solely of path sepatators.
     pub fn new(inner: String) -> Result<Self> {
-        let is_allowed =
-            |c: char| ArtiPathComponent::is_allowed_char(c) || c == path::MAIN_SEPARATOR;
+        let is_allowed = |c: char| ArtiPathComponent::is_allowed_char(c) || c == PATH_SEP;
 
         if inner.chars().any(|c| !is_allowed(c)) {
             Err(Box::new(InvalidArtiPathError(inner)))
@@ -52,17 +53,16 @@ impl ArtiPath {
         }
     }
 
-    /// Remove all but the first of consecutive [MAIN_SEPARATOR](path::MAIN_SEPARATOR) elements
-    /// from `s`.
+    /// Remove all but the first of consecutive path separator (`/`) elements from `s`.
     ///
     /// This function returns an error if `s` consists solely of path sepatators.
     fn normalize_string(s: &str) -> Result<String> {
-        if s.chars().all(|c| c == path::MAIN_SEPARATOR) {
+        if s.chars().all(|c| c == PATH_SEP) {
             return Err(Box::new(InvalidArtiPathError(s.into())));
         }
 
         let mut chars = s.chars().collect::<Vec<_>>();
-        chars.dedup_by(|a, b| *a == path::MAIN_SEPARATOR && *b == path::MAIN_SEPARATOR);
+        chars.dedup_by(|a, b| *a == PATH_SEP && *b == PATH_SEP);
 
         Ok(chars.into_iter().collect::<String>())
     }
@@ -179,7 +179,7 @@ mod test {
             check_valid!(ArtiPathComponent, path, false);
         }
 
-        const SEP: char = path::MAIN_SEPARATOR;
+        const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid ArtiPathComponent
         let path = format!("{SEP}client{SEP}key");
         check_valid!(ArtiPath, &path, true);
@@ -188,7 +188,7 @@ mod test {
 
     #[test]
     fn arti_path_normalization() {
-        const SEP: char = path::MAIN_SEPARATOR;
+        const SEP: char = PATH_SEP;
 
         let normalized_paths = vec![
             (
