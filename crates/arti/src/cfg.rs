@@ -349,7 +349,7 @@ mod test {
         key: String,
         /// Does it appear in the oldest supported example file?
         in_old_example: InExample,
-        /// Does it appear in the current example file?  `None` means "either is OK"
+        /// Does it appear in the current example file?
         in_new_example: InExample,
         /// Does our code recognise it ?  `None` means "don't know"
         in_code: Option<bool>,
