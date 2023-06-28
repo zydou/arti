@@ -295,7 +295,6 @@ impl HasRetryTime for FailedAttemptError {
             FAE::RendezvousCircuitObtain { error } => error.retry_time(),
             FAE::IntroductionCircuitObtain { error, .. } => error.retry_time(),
             FAE::IntroductionFailed { status, .. } => status.retry_time(),
-            FAE::Bug(_) => RT::Never,
             // tor_proto::Error doesn't impl HasRetryTime, so we guess
             FAE::RendezvousCompletion { error: _e, .. }
             | FAE::IntroductionExchange { error: _e, .. }
@@ -304,6 +303,8 @@ impl HasRetryTime for FailedAttemptError {
             FAE::RendezvousEstablishTimeout { .. }
             | FAE::RendezvousCompletionTimeout { .. }
             | FAE::IntroductionTimeout { .. } => RT::AfterWaiting,
+            // Bespoke
+            FAE::Bug(_) => RT::Never,
         }
     }
 }
