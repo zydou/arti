@@ -752,26 +752,23 @@ pub(crate) mod test {
         give: postage::watch::Receiver<MockGive>,
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Educe)]
+    #[educe(Debug)]
     struct MockCirc {
+        #[educe(Debug(method = "debug_arc_mutex"))]
         ok: Arc<Mutex<bool>>,
         connect_called: usize,
     }
 
-    impl Debug for MockCirc {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            let mut d = f.debug_struct("MockCirc");
-            let guard = self.ok.lock();
-            {
-                d.field("ok*", &Arc::as_ptr(&self.ok));
-                let guard = guard.unwrap_or_else(|g| {
-                    d.field("POISON", &true);
-                    g.into_inner()
-                });
-                d.field("ok", &*guard);
-            }
-            d.finish()
-        }
+    fn debug_arc_mutex(val: &Arc<Mutex<impl Debug>>, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "@{:?}", Arc::as_ptr(val))?;
+        let guard = val.lock();
+        let guard = guard.or_else(|g| {
+            write!(f, ",POISON")?;
+            Ok::<_, fmt::Error>(g.into_inner())
+        })?;
+        write!(f, " ")?;
+        Debug::fmt(&*guard, f)
     }
 
     impl PartialEq for MockCirc {
