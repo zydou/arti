@@ -27,7 +27,7 @@ pub trait KeyStore: Send + Sync + 'static {
 
     /// Write `key` to the key store.
     //
-    // TODO hs: the key_type argument here might seem redundant: `key` implements `EncodableKey`,
+    // TODO HSS: the key_type argument here might seem redundant: `key` implements `EncodableKey`,
     // which has a `key_type` function. However:
     //   * `key_type` is an associated function on `EncodableKey`, not a method, which means we
     //   can't call it on `key: &dyn EncodableKey` (you can't call an associated function of trait
@@ -90,7 +90,7 @@ impl EncodableKey for ed25519::Keypair {
 
 /// A key that can be converted to an [`EncodableKey`].
 //
-// TODO hs: try to fold this trait into `EncodableKey`.
+// TODO HSS: try to fold this trait into `EncodableKey`.
 pub trait ToEncodableKey {
     /// The key type this can be converted to/from.
     type Key: EncodableKey + 'static;
