@@ -151,7 +151,7 @@ dependencies = [
  "educe",
  "fs-mistrust",
  "futures",
- "itertools",
+ "itertools 0.11.0",
  "libc",
  "notify",
  "once_cell",
@@ -2010,6 +2010,15 @@ name = "ipnet"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28b29a3cd74f0f4598934efe3aeba42bae0eb4680554128851ebbecb02af14e6"
+
+[[package]]
+name = "itertools"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
+]
 
 [[package]]
 name = "itertools"
@@ -4132,7 +4141,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex-literal",
- "itertools",
+ "itertools 0.11.0",
  "postage",
  "rand 0.8.5",
  "safelog",
@@ -4179,7 +4188,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime-serde",
- "itertools",
+ "itertools 0.11.0",
  "once_cell",
  "pin-project",
  "rand 0.8.5",
@@ -4218,7 +4227,7 @@ dependencies = [
  "educe",
  "either",
  "fs-mistrust",
- "itertools",
+ "itertools 0.11.0",
  "once_cell",
  "paste",
  "regex",
@@ -4270,7 +4279,7 @@ dependencies = [
  "http",
  "httparse",
  "httpdate",
- "itertools",
+ "itertools 0.11.0",
  "memchr",
  "thiserror",
  "tor-circmgr",
@@ -4305,7 +4314,7 @@ dependencies = [
  "hex-literal",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools",
+ "itertools 0.11.0",
  "memmap2",
  "once_cell",
  "paste",
@@ -4390,7 +4399,7 @@ dependencies = [
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools",
+ "itertools 0.11.0",
  "num_enum",
  "pin-project",
  "postage",
@@ -4427,7 +4436,7 @@ dependencies = [
  "either",
  "futures",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.11.0",
  "postage",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -4472,7 +4481,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.11.0",
  "paste",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -4509,6 +4518,7 @@ dependencies = [
  "derive_more",
  "dyn-clone",
  "fs-mistrust",
+ "itertools 0.10.5",
  "ssh-key",
  "tempfile",
  "thiserror",
@@ -4531,7 +4541,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
- "itertools",
+ "itertools 0.11.0",
  "safelog",
  "serde",
  "serde_test",
@@ -4594,7 +4604,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.11.0",
  "num_enum",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -4635,7 +4645,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.11.0",
  "once_cell",
  "phf",
  "rand 0.8.5",
@@ -4699,7 +4709,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.11.0",
  "pin-project",
  "rand 0.8.5",
  "rand_core 0.6.4",

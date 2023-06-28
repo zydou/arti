@@ -1,6 +1,7 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
 use crate::{KeystoreError, Result};
+use itertools::Itertools;
 use tor_error::HasKind;
 
 /// The path of a key in the Arti key store.
@@ -11,12 +12,11 @@ use tor_error::HasKind;
 /// separator (`/`) characters. In addition, its underlying string representation must:
 ///   * not begin or end in `-` or `_`
 ///   * not contain any consecutive repeated `/` characters
+///   * not be `/`
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
-//
-// TODO hs: remove normalization and implement the validation described here
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
@@ -48,25 +48,25 @@ impl ArtiPath {
     pub fn new(inner: String) -> Result<Self> {
         let is_allowed = |c: char| ArtiPathComponent::is_allowed_char(c) || c == PATH_SEP;
 
-        if inner.chars().any(|c| !is_allowed(c)) {
-            Err(Box::new(InvalidArtiPathError(inner)))
-        } else {
-            Self::normalize_string(&inner).map(Self)
+        validate_path(&inner, is_allowed)?;
+
+        // Ensure there are no consecutive `/` chars and that `inner` is not `/`.
+        if inner == "/" || Self::has_duplicate_sep(&inner) {
+            return Err(Box::new(InvalidArtiPathError(inner)));
         }
+
+        Ok(Self(inner))
     }
 
-    /// Remove all but the first of consecutive path separator (`/`) elements from `s`.
-    ///
-    /// This function returns an error if `s` consists solely of path sepatators.
-    fn normalize_string(s: &str) -> Result<String> {
-        if s.chars().all(|c| c == PATH_SEP) {
-            return Err(Box::new(InvalidArtiPathError(s.into())));
+    /// Check if s contains any consecutive path separator (`/`) elements.
+    fn has_duplicate_sep(s: &str) -> bool {
+        for (c1, c2) in s.chars().tuple_windows() {
+            if c1 == PATH_SEP && c2 == PATH_SEP {
+                return true;
+            }
         }
 
-        let mut chars = s.chars().collect::<Vec<_>>();
-        chars.dedup_by(|a, b| *a == PATH_SEP && *b == PATH_SEP);
-
-        Ok(chars.into_iter().collect::<String>())
+        false
     }
 }
 
@@ -79,8 +79,6 @@ impl ArtiPath {
 /// An `ArtiPathComponent` may only consist of UTF-8 alphanumeric, dash (`-`), and underscore (`_`)
 /// characters. In addition, the first and last characters of its underlying string representation
 /// cannot be `-` or `_`.
-//
-// TODO hs: implement the validation described here
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
@@ -91,17 +89,33 @@ impl ArtiPathComponent {
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
     pub fn new(inner: String) -> Result<Self> {
-        if inner.chars().any(|c| !Self::is_allowed_char(c)) {
-            Err(Box::new(InvalidArtiPathError(inner)))
-        } else {
-            Ok(Self(inner))
-        }
+        validate_path(&inner, Self::is_allowed_char)?;
+
+        Ok(Self(inner))
     }
 
     /// Check whether `c` can be used within an `ArtiPathComponent`.
     fn is_allowed_char(c: char) -> bool {
         c.is_alphanumeric() || c == '_' || c == '-'
     }
+}
+
+/// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
+fn validate_path(inner: &str, is_allowed_char: fn(char) -> bool) -> Result<()> {
+    /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
+    const MIDDLE_ONLY: &[char] = &['-', '_'];
+
+    if inner.chars().any(|c| !is_allowed_char(c)) {
+        return Err(Box::new(InvalidArtiPathError(inner.to_string())));
+    }
+
+    for c in MIDDLE_ONLY {
+        if inner.starts_with(*c) || inner.ends_with(*c) {
+            return Err(Box::new(InvalidArtiPathError(inner.to_string())));
+        }
+    }
+
+    Ok(())
 }
 
 /// The path of a key in the C Tor key store.
@@ -163,11 +177,17 @@ mod test {
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn arti_path_validation() {
-        const VALID_ARTI_PATHS: &[&str] =
-            &["my-hs-client-2", "hs_client_", "_", "client٣¾", "clientß"];
+        const VALID_ARTI_PATHS: &[&str] = &["my-hs-client-2", "hs_client", "client٣¾", "clientß"];
 
         const INVALID_ARTI_PATHS: &[&str] = &[
             "alice/../bob",
+            "alice//bob",
+            "-hs_client",
+            "_hs_client",
+            "hs_client-",
+            "hs_client_",
+            "-",
+            "_",
             "./bob",
             "c++",
             "client?",
@@ -191,25 +211,5 @@ mod test {
         let path = format!("{SEP}client{SEP}key");
         check_valid!(ArtiPath, &path, true);
         check_valid!(ArtiPathComponent, &path, false);
-    }
-
-    #[test]
-    fn arti_path_normalization() {
-        const SEP: char = PATH_SEP;
-
-        let normalized_paths = vec![
-            (
-                format!("client{SEP}{SEP}{SEP}key"),
-                Some(format!("client{SEP}key")),
-            ),
-            ("ccccclient-----key".into(), None),
-            (format!("{SEP}hs-client{SEP}key-1-2-3{SEP}"), None),
-        ];
-
-        for (path, normalized) in normalized_paths {
-            let arti_path = ArtiPath::new(path.clone()).unwrap();
-            let normalized = normalized.unwrap_or_else(|| path.clone());
-            assert_eq!(arti_path.as_ref(), normalized);
-        }
     }
 }
