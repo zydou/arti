@@ -284,7 +284,7 @@ pub enum HsDirOp {
 ///
 /// # "Usable" relays
 ///
-/// Many methods on NetDir are defined in terms of  "Usable" relays.  Unless
+/// Many methods on NetDir are defined in terms of <a name="usable">"Usable"</a> relays.  Unless
 /// otherwise stated, a relay is "usable" if it is listed in the consensus,
 /// if we have full directory information for that relay (including a
 /// microdescriptor), and if that relay does not have any flags indicating that
@@ -847,7 +847,7 @@ impl NetDir {
             .iter_enumerated()
             .map(move |(rsidx, rs)| self.relay_from_rs_and_rsidx(rs, rsidx))
     }
-    /// Return an iterator over all usable Relays.
+    /// Return an iterator over all [usable](NetDir#usable) Relays.
     pub fn relays(&self) -> impl Iterator<Item = Relay<'_>> {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
     }
@@ -861,7 +861,7 @@ impl NetDir {
     /// Return a relay matching a given identity, if we have a
     /// _usable_ relay with that key.
     ///
-    /// (Does not return unusable relays.)
+    /// (Does not return [unusable](NetDir#usable) relays.)
     ///
     ///
     /// Note that a `None` answer is not always permanent: if a microdescriptor
@@ -898,7 +898,7 @@ impl NetDir {
     ///  * That function returns an `UncheckedRelay`; this one a `Relay`.
     ///
     /// `None` could be returned here, even with a valid `rsi`,
-    /// if `rsi` refers to an unusable relay.
+    /// if `rsi` refers to an [unusable](NetDir#usable) relay.
     #[cfg_attr(not(feature = "hs-common"), allow(dead_code))]
     pub(crate) fn relay_by_rs_idx(&self, rs_idx: RouterStatusIdx) -> Option<Relay<'_>> {
         let rs = self.c_relays().get(rs_idx)?;
@@ -909,7 +909,7 @@ impl NetDir {
     /// Return a relay with the same identities as those in `target`, if one
     /// exists.
     ///
-    /// Does not return unusable relays.
+    /// Does not return [unusable](NetDir#usable) relays.
     ///
     /// # Limitations
     ///
@@ -943,7 +943,7 @@ impl NetDir {
     /// one identity from `target`, but that relay's other identities contradict
     /// what we learned from `target`.
     ///
-    /// Does not return unusable relays.
+    /// Does not return [unusable](NetDir#usable) relays.
     ///
     /// (This function is only useful if you need to distinguish the
     /// "impossible" case from the "no such relay known" case.)
@@ -1058,7 +1058,7 @@ impl NetDir {
         }
     }
 
-    /// Return a (possibly unusable) relay with a given RSA identity.
+    /// Return a (possibly [unusable](NetDir#usable)) relay with a given RSA identity.
     ///
     /// This API can be used to find information about a relay that is listed in
     /// the current consensus, even if we don't yet have enough information
@@ -1073,14 +1073,14 @@ impl NetDir {
         Some(self.relay_from_rs_and_rsidx(rs, rsidx))
     }
     /// Return the relay with a given RSA identity, if we have one
-    /// and it is usable.
+    /// and it is [usable](NetDir#usable).
     fn by_rsa_id(&self, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
         self.by_rsa_id_unchecked(rsa_id)?.into_relay()
     }
     /// Return true if `rsa_id` is listed in this directory, even if it isn't
     /// currently usable.
     ///
-    /// (An "unusable" relay in this context is one for which we don't have full
+    /// (An "[unusable](NetDir#usable)" relay in this context is one for which we don't have full
     /// directory information.)
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
     #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
@@ -1322,7 +1322,7 @@ impl NetDir {
     /// selected for a given `role`.
     ///
     /// Note that weight returned by this function assumes that the
-    /// relay with that ID is actually usable; if it isn't usable,
+    /// relay with that ID is actually [usable](NetDir#usable); if it isn't usable,
     /// then other weight-related functions will call its weight zero.
     pub fn weight_by_rsa_id(&self, rsa_id: &RsaIdentity, role: WeightRole) -> Option<RelayWeight> {
         self.by_rsa_id_unchecked(rsa_id)
@@ -1485,7 +1485,7 @@ impl MdReceiver for NetDir {
 }
 
 impl<'a> UncheckedRelay<'a> {
-    /// Return true if this relay is valid and usable.
+    /// Return true if this relay is valid and [usable](NetDir#usable).
     ///
     /// This function should return `true` for every Relay we expose
     /// to the user.
@@ -1493,7 +1493,7 @@ impl<'a> UncheckedRelay<'a> {
         // No need to check for 'valid' or 'running': they are implicit.
         self.md.is_some() && self.rs.ed25519_id_is_usable()
     }
-    /// If this is usable, return a corresponding Relay object.
+    /// If this is [usable](NetDir#usable), return a corresponding Relay object.
     pub fn into_relay(self) -> Option<Relay<'a>> {
         if self.is_usable() {
             Some(Relay {
@@ -1554,7 +1554,7 @@ impl<'a> Relay<'a> {
     pub fn is_dir_cache(&self) -> bool {
         rs_is_dir_cache(self.rs)
     }
-    /// Return true if this relay is marked as usable as a new Guard node.
+    /// Return true if this relay is marked as a potential Guard node.
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
