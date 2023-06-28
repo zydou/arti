@@ -140,7 +140,17 @@ impl HsClientSecretKeysBuilder {
 ///
 /// Distinguishes different "clients" or "users" of this Arti instance,
 /// so that they can have different sets of HS client authentication keys.
-pub type HsClientSpecifier = ArtiPathComponent;
+#[derive(Clone, Debug, derive_more::Display, derive_more::Into, derive_more::AsRef)]
+pub struct HsClientSpecifier(ArtiPathComponent);
+
+impl HsClientSpecifier {
+    /// Create a new [`HsClientSpecifier`].
+    ///
+    /// The `inner` string **must** be a valid [`ArtiPathComponent`].
+    pub fn new(inner: String) -> Result<Self, tor_keymgr::Error> {
+        ArtiPathComponent::new(inner).map(Self)
+    }
+}
 
 /// An identifier for a particular instance of an HS client key.
 pub struct HsClientSecretKeySpecifier {
