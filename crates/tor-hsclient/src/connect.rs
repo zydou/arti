@@ -44,6 +44,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 use crate::proto_oneshot;
 use crate::relay_info::ipt_to_circtarget;
 use crate::state::MockableConnectorData;
+use crate::Config;
 use crate::{rend_pt_identity_for_error, FailedAttemptError, IntroPtIndex, RendPtIdentityForError};
 use crate::{ConnError, DescriptorError, DescriptorErrorDetail};
 use crate::{HsClientConnector, HsClientSecretKeys};
@@ -126,6 +127,7 @@ struct IptExperience {
 pub(crate) async fn connect<R: Runtime>(
     connector: &HsClientConnector<R>,
     netdir: Arc<NetDir>,
+    config: Arc<Config>,
     hsid: HsId,
     data: &mut Data,
     secret_keys: HsClientSecretKeys,
@@ -134,6 +136,7 @@ pub(crate) async fn connect<R: Runtime>(
         &connector.runtime,
         &*connector.circpool,
         netdir,
+        config,
         hsid,
         secret_keys,
         (),
@@ -162,6 +165,8 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1228#note_2910545
     //   https://gitlab.torproject.org/tpo/core/arti/-/issues/884
     netdir: Arc<NetDir>,
+    /// Configuration
+    config: Arc<Config>,
     /// Secret keys to use
     secret_keys: HsClientSecretKeys,
     /// HS ID
@@ -332,6 +337,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         runtime: &'c R,
         circpool: &'c M::HsCircPool,
         netdir: Arc<NetDir>,
+        config: Arc<Config>,
         hsid: HsId,
         secret_keys: HsClientSecretKeys,
         mocks: M,
@@ -350,6 +356,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         Ok(Context {
             netdir,
+            config,
             hsid,
             hs_blind_id,
             subcredential,
@@ -402,10 +409,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
-        // TODO HS are these right? make configurable? get from netdir?
-        // TODO HS should we even have MAX_TOTAL_ATTEMPTS or should we just try each one once?
-        /// Maxmimum number of hsdir connection and retrieval attempts we'll make
-        const MAX_TOTAL_ATTEMPTS: usize = 6;
+        // Maxmimum number of hsdir connection and retrieval attempts we'll make
+        let max_total_attempts = self
+            .config
+            .retry
+            .hs_desc_fetch_attempts()
+            .try_into()
+            // User specified a very large u32.  We must be downcasting it to 16bit!
+            // let's give them as many retries as we can manage.
+            .unwrap_or(usize::MAX);
+        // TODO HS is this right? make configurable? get from netdir?
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -446,7 +459,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // But C Tor doesn't and our HS experts don't consider that important:
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914436
         // TODO SPEC: Discuss hsdir descriptor fetch (non)-parallelism
-        let mut attempts = hs_dirs.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
+        let mut attempts = hs_dirs.iter().cycle().take(max_total_attempts);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
         let desc = loop {
             let relay = match attempts.next() {
@@ -583,15 +596,23 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         desc: &HsDesc,
         data: &mut DataIpts,
     ) -> Result<Arc<ClientCirc!(R, M)>, CE> {
-        // TODO HS are these right? make configurable? get from netdir?
-        // TODO HS should we even have this or should we just try each one once?
-        /// Maxmimum number of rendezvous/introduction attempts we'll make
-        const MAX_TOTAL_ATTEMPTS: usize = 6;
+        // Maxmimum number of rendezvous/introduction attempts we'll make
+        let max_total_attempts = self
+            .config
+            .retry
+            .hs_intro_rend_attempts()
+            .try_into()
+            // User specified a very large u32.  We must be downcasting it to 16bit!
+            // let's give them as many retries as we can manage.
+            .unwrap_or(usize::MAX);
         /// Limit on the duration of each attempt to establishg a rendezvous point
+        // TODO HS is this right? make configurable? get from netdir?
         const REND_TIMEOUT: Duration = Duration::from_secs(10);
         /// Limit on the duration of each attempt to negotiate with an introduction point
+        // TODO HS is this right? make configurable? get from netdir?
         const INTRO_TIMEOUT: Duration = Duration::from_secs(10);
         /// Limit on the duration of each attempt for activities involving both RPT and IPT
+        // TODO HS is this right? make configurable? get from netdir?
         const RPT_IPT_TIMEOUT: Duration = Duration::from_secs(10);
 
         // We can't reliably distinguish IPT failure from RPT failure, so we iterate over IPTs
@@ -599,7 +620,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         // We limit the number of rendezvous establishment attempts, separately, since we don't
         // try to talk to the intro pt until we've established the rendezvous circuit.
-        let mut rend_attempts = 0..MAX_TOTAL_ATTEMPTS;
+        let mut rend_attempts = 0..max_total_attempts;
 
         // But, we put all the errors into the same bucket, since we might have a mixture.
         let mut errors = RetryError::in_attempt_to("make circuit to to hidden service");
@@ -658,7 +679,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         });
         self.mocks.test_got_ipts(&usable_intros);
 
-        let mut intro_attempts = usable_intros.iter().cycle().take(MAX_TOTAL_ATTEMPTS);
+        let mut intro_attempts = usable_intros.iter().cycle().take(max_total_attempts);
 
         // We retain a rendezvous we managed to set up in here.  That way if we created it, and
         // then failed before we actually needed it, we can reuse it.
@@ -1312,11 +1333,12 @@ impl MockableConnectorData for Data {
     async fn connect<R: Runtime>(
         connector: &HsClientConnector<R>,
         netdir: Arc<NetDir>,
+        config: Arc<Config>,
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
     ) -> Result<Arc<Self::ClientCirc>, ConnError> {
-        connect(connector, netdir, hsid, data, secret_keys).await
+        connect(connector, netdir, config, hsid, data, secret_keys).await
     }
 
     fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
@@ -1488,7 +1510,16 @@ mod test {
         secret_keys_builder.ks_hsc_desc_enc(sk);
         let secret_keys = secret_keys_builder.build().unwrap();
 
-        let ctx = Context::new(&runtime, &mocks, netdir, hsid, secret_keys, mocks.clone()).unwrap();
+        let ctx = Context::new(
+            &runtime,
+            &mocks,
+            netdir,
+            Default::default(),
+            hsid,
+            secret_keys,
+            mocks.clone(),
+        )
+        .unwrap();
 
         let _got = AssertUnwindSafe(ctx.connect(&mut data))
             .catch_unwind() // TODO HS TESTS: remove this and the AssertUnwindSafe

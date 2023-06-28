@@ -34,6 +34,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 #[cfg(feature = "onion-service-client")]
 use {
     tor_circmgr::hspool::HsCircPool,
+    tor_config::BoolOrAuto,
     tor_hsclient::{
         HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
         HsClientSpecifier,
@@ -204,9 +205,10 @@ pub struct StreamPrefs {
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
     /// Whether to try to make connections to onion services.
+    ///
+    /// `Auto` means to use the client configuration.
     #[cfg(feature = "onion-service-client")]
-    #[educe(Default(true))]
-    pub(crate) connect_to_onion_services: bool,
+    pub(crate) connect_to_onion_services: BoolOrAuto,
 }
 
 /// Record of how we are isolating connections
@@ -304,12 +306,18 @@ impl StreamPrefs {
 
     /// Indicate whether connection to a hidden service (`.onion` service) should be allowed
     ///
-    /// If `false`, attempts to connect to Onion Services will be forced to fail with
+    /// If `Explicit(false)`, attempts to connect to Onion Services will be forced to fail with
     /// an error of kind [`InvalidStreamTarget`](crate::ErrorKind::InvalidStreamTarget).
     ///
-    /// By default this is enabled.
+    /// If `Explicit(true)`, Onion Service connections are enabled.
+    ///
+    /// If `Auto`, the behaviour depends on the `address_filter.allow_onion_addrs`
+    /// configuration option, which is in turn enabled by default.
     #[cfg(feature = "onion-service-client")]
-    pub fn connect_to_onion_services(&mut self, connect_to_onion_services: bool) -> &mut Self {
+    pub fn connect_to_onion_services(
+        &mut self,
+        connect_to_onion_services: BoolOrAuto,
+    ) -> &mut Self {
         self.connect_to_onion_services = connect_to_onion_services;
         self
     }
@@ -467,7 +475,7 @@ impl<R: Runtime> TorClient<R> {
     /// double error conversions.
     pub(crate) fn create_inner(
         runtime: R,
-        config: TorClientConfig,
+        config: &TorClientConfig,
         autobootstrap: BootstrapBehavior,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
@@ -506,7 +514,7 @@ impl<R: Runtime> TorClient<R> {
             dormant.into(),
             &NetParameters::from_map(&config.override_net_params),
         ));
-        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), &config)
+        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), config)
             .map_err(ErrorDetail::GuardMgrSetup)?;
 
         #[cfg(feature = "pt-client")]
@@ -527,7 +535,7 @@ impl<R: Runtime> TorClient<R> {
         };
 
         let circmgr = tor_circmgr::CircMgr::new(
-            &config,
+            config,
             statemgr.clone(),
             &runtime,
             Arc::clone(&chanmgr),
@@ -535,7 +543,7 @@ impl<R: Runtime> TorClient<R> {
         )
         .map_err(ErrorDetail::CircMgrSetup)?;
 
-        let timeout_cfg = config.stream_timeouts;
+        let timeout_cfg = config.stream_timeouts.clone();
 
         let dirmgr_store =
             DirMgrStore::new(&dir_cfg, runtime.clone(), false).map_err(ErrorDetail::DirMgrSetup)?;
@@ -583,7 +591,7 @@ impl<R: Runtime> TorClient<R> {
             });
             let housekeeping = Box::pin(housekeeping);
 
-            HsClientConnector::new(runtime.clone(), circpool, housekeeping)?
+            HsClientConnector::new(runtime.clone(), circpool, config, housekeeping)?
         };
 
         let keymgr = {

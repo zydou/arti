@@ -170,11 +170,16 @@ impl_standard_builder! { PreemptiveCircuitConfig }
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+// TODO Use a getters derive macro which lets us only generate getters
+// for fields we explicitly request, rather than having to mark the rest with `skip`.
+// (amplify::Getters doesn't allow #[getter(skip)] at the type level)
+#[derive(amplify::Getters)]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
     #[builder(default = "default_max_dirtiness()")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[getter(skip)]
     pub(crate) max_dirtiness: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits
@@ -182,12 +187,14 @@ pub struct CircuitTiming {
     // TODO: Impose a maximum or minimum?
     #[builder(default = "default_request_timeout()")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[getter(skip)]
     pub(crate) request_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits after
     /// this many attempts.
     // TODO: Impose a maximum or minimum?
     #[builder(default = "default_request_max_retries()")]
+    #[getter(skip)]
     pub(crate) request_max_retries: u32,
 
     /// When waiting for requested circuits, wait at least this long
@@ -195,7 +202,27 @@ pub struct CircuitTiming {
     /// request.
     #[builder(default = "default_request_loyalty()")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[getter(skip)]
     pub(crate) request_loyalty: Duration,
+
+    /// When an HS connection is attempted, we stop trying more hsdirs after this many attempts
+    //
+    // This parameter is honoured by tor-hsclient, not here.
+    // This is because the best configuration taxonomy isn't the same as the best code structure.
+    // This, and `hs_intro_rend_attempts`, fit rather well amongst the other tunings here.
+    #[cfg(feature = "hs-client")]
+    #[builder(default = "default_hs_max_attempts()")]
+    #[getter(as_copy)]
+    pub(crate) hs_desc_fetch_attempts: u32,
+
+    /// When an HS connection is attempted, we stop trying intro/rendezvous
+    /// after this many attempts
+    //
+    // This parameter is honoured by tor-hsclient, not here.
+    #[cfg(feature = "hs-client")]
+    #[builder(default = "default_hs_max_attempts()")]
+    #[getter(as_copy)]
+    pub(crate) hs_intro_rend_attempts: u32,
 }
 impl_standard_builder! { CircuitTiming }
 
@@ -250,6 +277,15 @@ fn default_request_timeout() -> Duration {
 /// Return the default value for `request_max_retries`.
 fn default_request_max_retries() -> u32 {
     16
+}
+
+/// Return the default value for `request_max_retries`.
+#[cfg(feature = "hs-client")]
+fn default_hs_max_attempts() -> u32 {
+    // TODO SPEC: Should HS retries be 6 even though the default request_max_retries is 16?
+    // Probably, because the HS may be missing or down, and we don't want to spend ages
+    // turning over every stone looking for it.
+    6
 }
 
 /// Return the default request loyalty timeout.

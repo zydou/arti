@@ -4143,6 +4143,7 @@ dependencies = [
 name = "tor-circmgr"
 version = "0.9.0"
 dependencies = [
+ "amplify",
  "async-trait",
  "bounded-vec-deque",
  "derive_builder_fork_arti",

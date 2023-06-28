@@ -298,12 +298,21 @@
 # will wait this long before using the unexpectedly available circuit.
 #request_loyalty = "50 msec"
 
+# When we're trying to connect to a hidden service (.onion service),
+# how many attempts  will we make to (i) download the descriptor from the directories
+# (ii) conduct the introduction and rendezvous exchange, before giving up.
+#hs_desc_fetch_attempts = 6
+#hs_intro_rend_attempts = 6
+
 # Rules for which addresses a client is willing to try to connect to over
 # the tor network.
 [address_filter]
 
 # Should we allow attempts to make Tor connections to local addresses?
 #allow_local_addrs = false
+
+# Should Arti make connections to hidden serivces (.onion services) ?
+#allow_onion_addrs = true
 
 # Rules for how long streams should wait when connecting to host or performing a
 # DNS lookup.

@@ -67,6 +67,13 @@ pub struct ClientAddrConfig {
     /// always reject connections to such addresses.
     #[builder(default)]
     pub(crate) allow_local_addrs: bool,
+
+    /// Should we allow attempts to connect to hidden services (`.onion` services)?
+    ///
+    /// This option is on by default.
+    #[cfg(feature = "onion-service-client")]
+    #[builder(default = "true")]
+    pub(crate) allow_onion_addrs: bool,
 }
 impl_standard_builder! { ClientAddrConfig }
 
@@ -506,6 +513,8 @@ fn convert_override_net_params(
 }
 
 impl tor_circmgr::CircMgrConfig for TorClientConfig {}
+#[cfg(feature = "onion-service-client")]
+impl tor_hsclient::HsClientConnectorConfig for TorClientConfig {}
 
 impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
     fn as_ref(&self) -> &tor_guardmgr::fallback::FallbackList {

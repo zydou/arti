@@ -17,6 +17,7 @@ use postage::stream::Stream as _;
 use tracing::{debug, error, trace};
 
 use safelog::sensitive as sv;
+use tor_basic_utils::define_accessor_trait;
 use tor_circmgr::isolation::Isolation;
 use tor_error::{internal, Bug, ErrorReport as _};
 use tor_hscrypto::pk::HsId;
@@ -28,6 +29,33 @@ use crate::{ConnError, HsClientConnector, HsClientSecretKeys};
 
 slotmap::new_key_type! {
     struct TableIndex;
+}
+
+/// Configuration, currently just some retry parameters
+#[derive(Default, Debug)]
+// This is not really public.
+// It has to be `pub` because it appears in one of the methods in `MockableConnectorData`.
+// That has to be because that trait is a bound on a parameter for `HsClientConnector`.
+// `Config` is not re-exported.  (This is isomorphic to the trait sealing pattern.)
+//
+// This means that this struct cannot live in the crate root, so we put it here.
+pub struct Config {
+    /// Retry parameters
+    pub(crate) retry: tor_circmgr::CircuitTiming,
+}
+
+define_accessor_trait! {
+    /// Configuration for an HS client connector
+    ///
+    /// If the HS client connector gains new configurabilities, this trait will gain additional
+    /// supertraits, as an API break.
+    ///
+    /// Prefer to use `TorClientConfig`, which will always implement this trait.
+    //
+    // This arrangement is very like that for `CircMgrConfig`.
+    pub trait HsClientConnectorConfig {
+        circuit_timing: tor_circmgr::CircuitTiming,
+    }
 }
 
 /// Number of times we're willing to iterate round the state machine loop
@@ -119,6 +147,11 @@ const RETAIN_DATA_AFTER_LAST_USE: Duration = Duration::from_secs(48 * 3600 /*hou
 pub(crate) struct Services<D: MockableConnectorData> {
     /// The actual records of our connections/attempts for each service, as separated
     records: isol_map::MultikeyIsolatedMap<TableIndex, HsId, HsClientSecretKeys, ServiceState<D>>,
+
+    /// Configuration
+    ///
+    /// `Arc` so that it can be shared with individual hs connector tasks
+    config: Arc<Config>,
 }
 
 /// Entry in the 2nd-level lookup array
@@ -362,20 +395,27 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         // Make a connection
         let runtime = &connector.runtime;
         let connector = (*connector).clone();
+        let config = guard.config.clone();
         let netdir = netdir.clone();
         let secret_keys = secret_keys.clone();
         let hsid = *hsid;
         let connect_future = async move {
             let mut data = data;
 
-            let got =
-                AssertUnwindSafe(D::connect(&connector, netdir, hsid, &mut data, secret_keys))
-                    .catch_unwind()
-                    .await
-                    .unwrap_or_else(|_| {
-                        data = D::default();
-                        Err(internal!("hidden service connector task panicked!").into())
-                    });
+            let got = AssertUnwindSafe(D::connect(
+                &connector,
+                netdir,
+                config,
+                hsid,
+                &mut data,
+                secret_keys,
+            ))
+            .catch_unwind()
+            .await
+            .unwrap_or_else(|_| {
+                data = D::default();
+                Err(internal!("hidden service connector task panicked!").into())
+            });
             let now = connector.runtime.now();
             let last_used = now;
 
@@ -462,6 +502,14 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
 }
 
 impl<D: MockableConnectorData> Services<D> {
+    /// Create a new empty `Services`
+    pub(crate) fn new(config: Config) -> Self {
+        Services {
+            records: Default::default(),
+            config: Arc::new(config),
+        }
+    }
+
     /// Connect to a hidden service
     // We *do* drop guard.  There is *one* await point, just after drop(guard).
     pub(crate) async fn get_or_launch_connection(
@@ -655,6 +703,7 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
     async fn connect<R: Runtime>(
         connector: &HsClientConnector<R, Self>,
         netdir: Arc<NetDir>,
+        config: Arc<Config>,
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
@@ -746,6 +795,7 @@ pub(crate) mod test {
         async fn connect<R: Runtime>(
             connector: &HsClientConnector<R, MockData>,
             _netdir: Arc<NetDir>,
+            _config: Arc<Config>,
             _hsid: HsId,
             data: &mut MockData,
             _secret_keys: HsClientSecretKeys,

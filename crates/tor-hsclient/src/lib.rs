@@ -73,9 +73,10 @@ pub use keys::{
     HsClientSpecifier,
 };
 pub use relay_info::InvalidTarget;
+pub use state::HsClientConnectorConfig;
 
 use err::{rend_pt_identity_for_error, IntroPtIndex, RendPtIdentityForError};
-use state::{MockableConnectorData, Services};
+use state::{Config, MockableConnectorData, Services};
 
 /// An object that negotiates connections with onion services
 ///
@@ -118,13 +119,16 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     pub fn new(
         runtime: R,
         circpool: Arc<HsCircPool<R>>,
-        // TODO HS: there should be a config here, we will probably need it at some point
+        config: &impl HsClientConnectorConfig,
         housekeeping_prompt: BoxStream<'static, ()>,
     ) -> Result<Self, StartupError> {
+        let config = Config {
+            retry: config.as_ref().clone(),
+        };
         let connector = HsClientConnector {
             runtime,
             circpool,
-            services: Arc::new(Mutex::new(Services::default())),
+            services: Arc::new(Mutex::new(Services::new(config))),
             mock_for_state: (),
         };
         connector.spawn_housekeeping_task(housekeeping_prompt)?;
