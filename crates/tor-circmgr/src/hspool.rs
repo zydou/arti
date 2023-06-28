@@ -1,6 +1,6 @@
 //! Manage a pool of circuits for usage with onion services.
 //
-// TODO HS: We need tests here. First, though, we need a testing strategy.
+// TODO HS TEST: We need tests here. First, though, we need a testing strategy.
 mod pool;
 
 use std::{
@@ -165,7 +165,7 @@ impl<R: Runtime> HsCircPool<R> {
                 )
             }
             HsCircKind::SvcIntro => {
-                // TODO HS: In this case we will want to add an extra hop, once we have vanguards.
+                // TODO HS-VANGUARDS: In this case we will want to add an extra hop, once we have vanguards.
                 // When this happens, the whole match statement will want to become
                 // let extra_hop = match kind {...}
             }
@@ -279,7 +279,7 @@ impl<R: Runtime> HsCircPool<R> {
         let mut inner = self.inner.lock().expect("lock poisoned");
         inner
             .pool
-            .retain(|circ| all_circ_relays_are_listed_in(circ, netdir));
+            .retain(|circ| circuit_still_useable(netdir, circ, |_relay| true));
     }
 }
 
@@ -331,6 +331,21 @@ fn circuit_compatible_with_target(
     circ: &ClientCirc,
     target: Option<&TargetInfo<'_>>,
 ) -> bool {
+    circuit_still_useable(netdir, circ, |relay| match target {
+        Some(t) => t.may_share_circuit_with(relay, subnet_config),
+        None => true,
+    })
+}
+
+/// Return true if we can still use a given pre-build circuit.
+///
+/// We require that the circuit is open, that every hop  in the circuit is
+/// listed in `netdir`, and that `relay_okay` returns true for every hop on the
+/// circuit.
+fn circuit_still_useable<F>(netdir: &NetDir, circ: &ClientCirc, relay_okay: F) -> bool
+where
+    F: Fn(&Relay<'_>) -> bool,
+{
     if circ.is_closing() {
         return false;
     }
@@ -342,39 +357,15 @@ fn circuit_compatible_with_target(
             // This is a virtual hop; it's necessarily compatible with everything.
             return true;
         };
-        match (target, netdir.by_ids(c)) {
+        let Some(relay) = netdir.by_ids(c) else {
             // We require that every relay in this circuit is still listed; an
             // unlisted relay means "reject".
-            (_, None) => false,
-            // If we have a target, the relay must be compatible with it.
-            (Some(t), Some(r)) => t.may_share_circuit_with(&r, subnet_config),
-            // If we have no target, any listed relay is okay.
-            (None, Some(_)) => true,
-        }
+            return false;
+        };
+        // Now it's all down to the predicate.
+        relay_okay(&relay)
     });
     all_compatible
-}
-
-/// Return true if  every relay in `circ` is listed in `netdir`.
-fn all_circ_relays_are_listed_in(circ: &ClientCirc, netdir: &NetDir) -> bool {
-    let path = circ.path_ref();
-
-    // TODO HS: Are there any other checks we should do before declaring that
-    // this is still usable?
-
-    // TODO HS: There is some duplicate logic here and in
-    // circuit_compatible_with_target.  I think that's acceptable for now, but
-    // we should consider refactoring if these functions grow.
-
-    // (We have to use a binding here to appease borrowck.)
-    let all_listed = path.iter().all(|ent: &circuit::PathEntry| {
-        if let Some(c) = ent.as_chan_target() {
-            netdir.by_ids(c).is_some()
-        } else {
-            true
-        }
-    });
-    all_listed
 }
 
 /// Background task to launch onion circuits as needed.
