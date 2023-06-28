@@ -142,7 +142,12 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::{ArtiPath, CTorPath};
+    use std::fs;
     use tempfile::{tempdir, TempDir};
+
+    // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
+    // include it once)
+    const OPENSSH_ED25519: &[u8] = include_bytes!("../../testdata/ed25519_openssh.private");
 
     struct TestSpecifier;
 
@@ -156,7 +161,7 @@ mod tests {
         }
     }
 
-    fn init_keystore() -> (ArtiNativeKeyStore, TempDir) {
+    fn init_keystore(gen_keys: bool) -> (ArtiNativeKeyStore, TempDir) {
         #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
 
@@ -168,6 +173,15 @@ mod tests {
         let key_store =
             ArtiNativeKeyStore::from_path_and_mistrust(&keystore_dir, &Mistrust::default())
                 .unwrap();
+
+        if gen_keys {
+            let rel_key_path = key_store
+                .key_path(&TestSpecifier, KeyType::Ed25519Keypair)
+                .unwrap();
+
+            let key_path = keystore_dir.path().join(rel_key_path);
+            fs::write(key_path, OPENSSH_ED25519).unwrap();
+        }
 
         (key_store, keystore_dir)
     }
@@ -199,7 +213,7 @@ mod tests {
 
     #[test]
     fn key_path_repr() {
-        let (key_store, _) = init_keystore();
+        let (key_store, _) = init_keystore(false);
 
         assert_eq!(
             key_store
