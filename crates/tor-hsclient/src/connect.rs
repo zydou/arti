@@ -418,6 +418,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // User specified a very large u32.  We must be downcasting it to 16bit!
             // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
+        // TODO HS is this right? make configurable? get from netdir?
         /// Limit on the duration of each retrieval attempt
         const EACH_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -605,10 +606,13 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
         /// Limit on the duration of each attempt to establishg a rendezvous point
+        // TODO HS is this right? make configurable? get from netdir?
         const REND_TIMEOUT: Duration = Duration::from_secs(10);
         /// Limit on the duration of each attempt to negotiate with an introduction point
+        // TODO HS is this right? make configurable? get from netdir?
         const INTRO_TIMEOUT: Duration = Duration::from_secs(10);
         /// Limit on the duration of each attempt for activities involving both RPT and IPT
+        // TODO HS is this right? make configurable? get from netdir?
         const RPT_IPT_TIMEOUT: Duration = Duration::from_secs(10);
 
         // We can't reliably distinguish IPT failure from RPT failure, so we iterate over IPTs
