@@ -334,8 +334,8 @@ mod test {
         /// *Some* configuration of this codebase know about this option
         ///
         /// This means:
-        ///   - If *every* feature in `ALL_RELEVANT_FEATURES_ENABLED`,
-        ///     the feature is config key is expected to be `Recognised`
+        ///   - If *every* feature in `ALL_RELEVANT_FEATURES_ENABLED` is enabled,
+        ///     the config key is expected to be `Recognised`
         ///   - Otherwise we're not sure (because cargo features are additive,
         ///     dependency crates' features might be *en*abled willy-nilly).
         FeatureDependent,
