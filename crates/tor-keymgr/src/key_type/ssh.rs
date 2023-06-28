@@ -106,7 +106,7 @@ fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<Er
         KeypairData::Ed25519(key) => {
             ed25519::Keypair::from_bytes(&key.to_bytes()).map_err(|_| {
                 tor_error::internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
-            })?;
+            })?
         }
         _ => {
             return Err(SshKeyError::UnexpectedSshKeyType {
