@@ -505,13 +505,26 @@ impl Requestable for RoutersOwnDescRequest {
 pub struct HsDescDownloadRequest {
     /// What hidden service?
     hsid: HsBlindId,
+    /// What's the largest acceptable response length?
+    max_len: usize,
 }
 
 #[cfg(feature = "hs-client")]
 impl HsDescDownloadRequest {
-    /// Construct a request for all router descriptors.
+    /// Construct a request for a single onion service descriptor by its
+    /// blinded ID.
     pub fn new(hsid: HsBlindId) -> Self {
-        HsDescDownloadRequest { hsid }
+        /// Default maximum length to use when we have no other information.
+        const DEFAULT_HSDESC_MAX_LEN: usize = 50_000;
+        HsDescDownloadRequest {
+            hsid,
+            max_len: DEFAULT_HSDESC_MAX_LEN,
+        }
+    }
+
+    /// Set the maximum acceptable response length.
+    pub fn set_max_len(&mut self, max_len: usize) {
+        self.max_len = max_len;
     }
 }
 
@@ -519,7 +532,8 @@ impl HsDescDownloadRequest {
 impl Requestable for HsDescDownloadRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
         let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
-        // TODO HS: is it OK to hardcode the version for now?
+        // We hardcode version 3 here; if we ever have a v4 onion service
+        // descriptor, it will need a different kind of Request.
         let uri = format!("/tor/hs/3/{}", hsid);
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req);
@@ -531,10 +545,7 @@ impl Requestable for HsDescDownloadRequest {
     }
 
     fn max_response_len(&self) -> usize {
-        // rend-spec-v3 2.5.1.4
-        // TODO HS: spec says this should be a consensus parameter, but we have no netdir here
-        // 50 KiB
-        50 * 1024
+        self.max_len
     }
 }
 /// List the encodings we accept
@@ -740,7 +751,7 @@ mod test {
         let hsid = HsBlindId::from(hsid);
         let req = HsDescDownloadRequest::new(hsid);
         assert!(!req.partial_docs_ok());
-        assert_eq!(req.max_response_len(), 50 * 1024);
+        assert_eq!(req.max_response_len(), 50 * 1000);
 
         let req = crate::util::encode_request(&req.make_request()?);
 
