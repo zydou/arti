@@ -625,10 +625,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // But, we put all the errors into the same bucket, since we might have a mixture.
         let mut errors = RetryError::in_attempt_to("make circuit to to hidden service");
 
-        // TODO HS desc.intro_points() ought not to be able to be empty
-        // however currently nothing in crates/tor-netdoc/src/doc/hsdesc/inner.rs
-        // seems to ensure this.  Until that's fixed, we might produce unhelpful errors here.
-        //
         // Note that IntroPtIndex is *not* the index into this Vec.
         // It is the index into the original list of introduction points in the descriptor.
         let mut usable_intros: Vec<UsableIntroPt> = desc

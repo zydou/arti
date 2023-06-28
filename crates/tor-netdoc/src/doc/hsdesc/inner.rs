@@ -36,6 +36,8 @@ pub(crate) struct HsDescInner {
     /// itself.)
     pub(super) single_onion_service: bool,
     /// A list of advertised introduction points and their contact info.
+    //
+    // Always has >= 1 entries
     pub(super) intro_points: Vec<IntroPointDesc>,
 }
 
@@ -383,6 +385,17 @@ impl HsDescInner {
                 ipt_sid_key: auth_key,
                 svc_ntor_key,
             });
+        }
+
+        // TODO SPEC: Might a HS publish descriptor with no IPTs to declare itself down?
+        // If it might, then we should:
+        //   - accept such descriptors here
+        //   - check for this situation explicitly in tor-hsclient connect.rs intro_rend_connect
+        //   - bail with a new `ConnError` (with ErrorKind OnionServiceNotRunning)
+        // with the consequence that once we obtain such a descriptor,
+        // we'll be satisfied with it and consider the HS down until the descriptor expires.
+        if intro_points.is_empty() {
+            return Err(EK::MissingEntry.with_msg(format!("no introduction pointsr")).into());
         }
 
         let inner = HsDescInner {
