@@ -323,25 +323,6 @@ mod test {
         Old,
         New,
     }
-    /// Is this key recognised by the parsing code ?
-    ///
-    /// (This can be feature-dependent, so literal values of this type
-    /// are often feature-qualified.)
-    #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-    enum InCode {
-        /// No configuration of this codebase knows about this option
-        Ignored,
-        /// *Some* configuration of this codebase know about this option
-        ///
-        /// This means:
-        ///   - If *every* feature in `ALL_RELEVANT_FEATURES_ENABLED` is enabled,
-        ///     the config key is expected to be `Recognised`
-        ///   - Otherwise we're not sure (because cargo features are additive,
-        ///     dependency crates' features might be *en*abled willy-nilly).
-        FeatureDependent,
-        /// All configurations of this codebase know about this option
-        Recognized,
-    }
     /// An exception to the usual expectations about configuration example files
     #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
     struct ConfigException {
@@ -374,6 +355,25 @@ mod test {
 
     /// Return the expected exceptions to the usual expectations about config and examples
     fn declared_config_exceptions() -> Vec<ConfigException> {
+        /// Is this key recognised by the parsing code ?
+        ///
+        /// (This can be feature-dependent, so literal values of this type
+        /// are often feature-qualified.)
+        #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+        enum InCode {
+            /// No configuration of this codebase knows about this option
+            Ignored,
+            /// *Some* configuration of this codebase know about this option
+            ///
+            /// This means:
+            ///   - If *every* feature in `ALL_RELEVANT_FEATURES_ENABLED` is enabled,
+            ///     the config key is expected to be `Recognised`
+            ///   - Otherwise we're not sure (because cargo features are additive,
+            ///     dependency crates' features might be *en*abled willy-nilly).
+            FeatureDependent,
+            /// All configurations of this codebase know about this option
+            Recognized,
+        }
         use InCode::*;
 
         /// Marker.  `Some(InOld)` means presence of this config key in the oldest-supported file
