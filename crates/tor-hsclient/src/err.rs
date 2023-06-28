@@ -169,7 +169,7 @@ pub enum FailedAttemptError {
     RendezvousEstablishTimeout {
         /// Which relay did we choose for rendezvous point
         // TODO #813 this should be Redacted<RelayDescription> or something
-        rend_pt: Redacted<RsaIdentity>,
+        rend_pt: RendPtIdentityForError,
     },
 
     /// Failed to establish rendezvous point
@@ -181,7 +181,7 @@ pub enum FailedAttemptError {
 
         /// Which relay did we choose for rendezvous point
         // TODO #813 this should be Redacted<RelayDescription> or something
-        rend_pt: Redacted<RsaIdentity>,
+        rend_pt: RendPtIdentityForError,
     },
 
     /// Failed to obtain circuit to introduction point
@@ -237,7 +237,7 @@ pub enum FailedAttemptError {
 
         /// Which relay did we choose for rendezvous point
         // TODO #813 this should be Redacted<RelayDescription> or something
-        rend_pt: Redacted<RsaIdentity>,
+        rend_pt: RendPtIdentityForError,
     },
 
     /// Error on rendezvous circuit when expecting rendezvous completion
@@ -252,7 +252,7 @@ pub enum FailedAttemptError {
 
         /// Which relay did we choose for rendezvous point
         // TODO #813 this should be Redacted<RelayDescription> or something
-        rend_pt: Redacted<RsaIdentity>,
+        rend_pt: RendPtIdentityForError,
     },
 
     /// Internal error
