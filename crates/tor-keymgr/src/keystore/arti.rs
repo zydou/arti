@@ -127,3 +127,92 @@ impl KeyStore for ArtiNativeKeyStore {
         Ok(true)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use crate::{ArtiPath, CTorPath};
+    use tempfile::{tempdir, TempDir};
+
+    struct TestSpecifier;
+
+    impl KeySpecifier for TestSpecifier {
+        fn arti_path(&self) -> Result<ArtiPath> {
+            ArtiPath::new("test-specifier".into())
+        }
+
+        fn ctor_path(&self) -> Option<CTorPath> {
+            None
+        }
+    }
+
+    fn init_keystore() -> (ArtiNativeKeyStore, TempDir) {
+        #[cfg(unix)]
+        use std::os::unix::fs::PermissionsExt;
+
+        let keystore_dir = tempdir().unwrap();
+
+        #[cfg(unix)]
+        fs::set_permissions(&keystore_dir, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let key_store =
+            ArtiNativeKeyStore::from_path_and_mistrust(&keystore_dir, &Mistrust::default())
+                .unwrap();
+
+        (key_store, keystore_dir)
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn init_failure_perms() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let keystore_dir = tempdir().unwrap();
+
+        // Too permissive
+        let mode = 0o777;
+
+        fs::set_permissions(&keystore_dir, fs::Permissions::from_mode(mode)).unwrap();
+        let err = ArtiNativeKeyStore::from_path_and_mistrust(&keystore_dir, &Mistrust::default())
+            .expect_err(&format!("expected failure (perms = {mode:o})"));
+
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "Invalid path or permissions on {} while attempting to Init",
+                keystore_dir.path().display()
+            ),
+            "expected keystore init failure (perms = {:o})",
+            mode
+        );
+    }
+
+    #[test]
+    fn key_path_repr() {
+        let (key_store, _) = init_keystore();
+
+        assert_eq!(
+            key_store
+                .key_path(&TestSpecifier, KeyType::Ed25519Keypair)
+                .unwrap(),
+            PathBuf::from("test-specifier.ed25519_private")
+        );
+
+        assert_eq!(
+            key_store
+                .key_path(&TestSpecifier, KeyType::X25519StaticSecret)
+                .unwrap(),
+            PathBuf::from("test-specifier.x25519_private")
+        );
+    }
+}
