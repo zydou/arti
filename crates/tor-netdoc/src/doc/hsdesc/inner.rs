@@ -437,7 +437,10 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use std::iter;
+
     use hex_literal::hex;
+    use itertools::chain;
     use tor_checkable::{SelfSigned, Timebound};
 
     use super::*;
@@ -446,6 +449,36 @@ mod test {
         outer::HsDescOuter,
         test_data::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
+
+    // This is the inner document from hsdesc1.txt aka TEST_DATA
+    const TEST_DATA_INNER: &str = include_str!("../../../testdata/hsdesc-inner.txt");
+
+    #[test]
+    fn inner_text() {
+        use crate::NetdocErrorKind as NEK;
+        let _desc = HsDescInner::parse(TEST_DATA_INNER).unwrap();
+
+        let none = format!(
+            "{}\n",
+            TEST_DATA_INNER.split_once("\nintroduction-point").unwrap().0,
+        );
+        let err = HsDescInner::parse(&none).map(|_| &none).unwrap_err();
+        assert_eq!(err.kind, NEK::MissingEntry);
+
+        let ipt = format!(
+            "introduction-point{}",
+            TEST_DATA_INNER.rsplit_once("\nintroduction-point").unwrap().1,
+        );
+        for n in NUM_INTRO_POINT_MAX..NUM_INTRO_POINT_MAX+2 {
+            let many = chain!(
+                iter::once(&*none),
+                iter::repeat(&*ipt).take(n),
+            ).collect::<String>();
+            let desc = HsDescInner::parse(&many).unwrap();
+            let desc = desc.1.dangerously_into_parts().0.dangerously_assume_wellsigned();
+            assert_eq!(desc.intro_points.len(), NUM_INTRO_POINT_MAX);
+        }
+    }
 
     #[test]
     fn parse_good() -> Result<()> {

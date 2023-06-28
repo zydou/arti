@@ -1,0 +1,47 @@
+create2-formats 2
+flow-control 1-2 31
+introduction-point BAAGkExRxiD7AhQ49zLdNJouWQeENGURYqL0IBk0pQMgw1eln3yXVWwqSIfX1dGKcQQl5S43/Y0XTeY0hBhAaowBEioBBPgBkgPFAAAAAAAAAAIg+w==
+onion-key ntor eNcVZi04zhg4x1/wogQfH3/4ReCn+hgfqvPwoYgFBzk=
+auth-key
+-----BEGIN ED25519 CERT-----
+AQkABxq8AXv6oBvRcZ4YLScM2JhdvW9Cit+IN4OmJCkTJ3rbLVmgAQAgBAAmAobr
+sExwX1OlpAcfkKoEcnvKUbWx/FfylIvH7yOxbfMxOsGQIdSEMomgEnsx9wPkfveg
+rnG3uHoojzKS+P1l3RdzbB0TWDBHad7A+xAqQRSJFjiSt6hbvOaaoQ9PXg0=
+-----END ED25519 CERT-----
+enc-key ntor cPy17Vtuw54asOdgjNdVMwgNLnplwnMpmLOuhMqS9DE=
+enc-key-cert
+-----BEGIN ED25519 CERT-----
+AQsABxq8AZ99sg1LKtfLwNWMlxRTqmSdNI1iVNkxoszdbpA/qItVAQAgBAAmAobr
+sExwX1OlpAcfkKoEcnvKUbWx/FfylIvH7yOxbRqNgPuN+J+OUV6wBy1+yTlC8snc
+MfgVVo+YuB7mPoHa8W5mMWauJ9AAXNz7sexLYPjhDCajAYOMopvKQ+mEMQ0=
+-----END ED25519 CERT-----
+introduction-point AwAGZAItpCMpAhRn9aw126INIqAXi/tvSsB2w7FoKQMg/Hv8OlCp2T4Uutvr0bdboxHIBiubg5OoWQRXdxjssDw=
+onion-key ntor GHunWWyNi97OUsEtcKzTsCVGfvaMXgsS6EOXD+PUum0=
+auth-key
+-----BEGIN ED25519 CERT-----
+AQkABxq8ARsr54j2Fd4pYRjIONyJXZL7WiBMUcz0/iK5w6DNIYjeAQAgBAAmAobr
+sExwX1OlpAcfkKoEcnvKUbWx/FfylIvH7yOxbSlPk5ex/7lRux3xk1BbMRxPWmK2
+FIeudDZK/cz9NrinVTXvNxqRhNFgEE1I+ROODME1HtNf55+xT9d37gq9TAA=
+-----END ED25519 CERT-----
+enc-key ntor 4plcxBMvIS6ZpJ8YqaXut1+AaOjlnZtqJLz+leAo0ho=
+enc-key-cert
+-----BEGIN ED25519 CERT-----
+AQsABxq8AVmbbJVgyomU9uTMmBHXCbedFuaybHb7JPee8RD3ozNoAQAgBAAmAobr
+sExwX1OlpAcfkKoEcnvKUbWx/FfylIvH7yOxbZa2/uI4bCYD4TwvLru1upTFqWQp
+p6bRRIk7eg9IejdIGzFHpVHgK1UYWX+lY6ERlBj/Oqk1Vvlmi4ndE4NoNw0=
+-----END ED25519 CERT-----
+introduction-point BAAG1ZCHFgG7AhSazSFoDMvmWl1aY42FqDiKhdbuBQMgHFAex1y4FpOOz+LZz8JlNfSuf2TprWhi9b6vLwM10Q8BEioCAWhqFhEwAAAAAAAyAQIBuw==
+onion-key ntor WCC+2QriSGz2UBTXeQWhLsUKO5GNYY+x4H5xtJ1qM1c=
+auth-key
+-----BEGIN ED25519 CERT-----
+AQkABxq8AUQz+fimzueFwUcCmuP90t/ryEV1eGisc3LLUXui8ZpgAQAgBAAmAobr
+sExwX1OlpAcfkKoEcnvKUbWx/FfylIvH7yOxbcvWekeIcZXoC9Z/ToAd7qds4xYw
+nzuBtHbZ+MpnHs/A8cTh8ijDzCb/lvYOpzdJM6S5rjbo7Pa5nl2eslr4Tgg=
+-----END ED25519 CERT-----
+enc-key ntor tMDtb7dOCgTKBaS3ULdiXCur94fBmdsxvDo80gsj6Gc=
+enc-key-cert
+-----BEGIN ED25519 CERT-----
+AQsABxq8ATh/rjZ2Q4tKWYxnLJ0/SwwCsaKseZtQfn52ZSXBtFwNAQAgBAAmAobr
+sExwX1OlpAcfkKoEcnvKUbWx/FfylIvH7yOxbROoEi5bUPGtDFaHkyQdoJ7xDw9u
+MLYf8ysmC55dMGc2TyDXeH4nxf8DaEwsH0rj9BpyIsCx9s+N2RFvvXLo5wM=
+-----END ED25519 CERT-----

@@ -353,7 +353,7 @@ impl From<signature::Error> for NetdocErrorSource {
 #[non_exhaustive]
 pub struct Error {
     /// What kind of error occurred?
-    kind: NetdocErrorKind,
+    pub(crate) kind: NetdocErrorKind,
     /// Do we have more information about the error?>
     msg: Option<Cow<'static, str>>,
     /// Where did the error occur?
