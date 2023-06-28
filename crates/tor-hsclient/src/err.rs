@@ -255,6 +255,23 @@ pub enum FailedAttemptError {
         rend_pt: Redacted<RsaIdentity>,
     },
 
+    /// Error processing rendezvous completion
+    ///
+    /// This is might be the fault of the hidden service or the rendezvous point.
+    #[error("Rendezvous completion end-to-end crypto handshake failed")]
+    RendezvousCompletionHandshake {
+        /// What happened
+        #[source]
+        error: tor_proto::Error,
+
+        /// The index of the IPT in the list of IPTs in the descriptor
+        intro_index: IntroPtIndex,
+
+        /// Which relay did we choose for rendezvous point
+        // TODO #813 this should be Redacted<RelayDescription> or something
+        rend_pt: RendPtIdentityForError,
+    },
+
     /// Internal error
     #[error("{0}")]
     Bug(#[from] Bug),
@@ -272,6 +289,7 @@ impl FailedAttemptError {
         match self {
             FAE::UnusableIntro { intro_index, .. }
             | FAE::RendezvousCompletionCircuit { intro_index, .. }
+            | FAE::RendezvousCompletionHandshake { intro_index, .. }
             | FAE::RendezvousCompletionTimeout { intro_index, .. }
             | FAE::IntroductionCircuitObtain { intro_index, .. }
             | FAE::IntroductionExchange { intro_index, .. }
@@ -303,6 +321,8 @@ impl HasRetryTime for FailedAttemptError {
             FAE::RendezvousEstablishTimeout { .. }
             | FAE::RendezvousCompletionTimeout { .. }
             | FAE::IntroductionTimeout { .. } => RT::AfterWaiting,
+            // If service didn't cause this, it was the RPT, so prefer to try another RPT
+            FAE::RendezvousCompletionHandshake { error: _e, .. } => RT::Never,
             // Bespoke
             FAE::Bug(_) => RT::Never,
         }
@@ -397,6 +417,7 @@ impl HasKind for FailedAttemptError {
             FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
             FAE::RendezvousCompletionCircuit { error, .. } => error.kind(),
+            FAE::RendezvousCompletionHandshake { error, .. } => error.kind(),
             FAE::RendezvousEstablishTimeout { .. } => EK::TorNetworkTimeout,
             FAE::IntroductionCircuitObtain { error, .. } => error.kind(),
             FAE::IntroductionExchange { error, .. } => error.kind(),

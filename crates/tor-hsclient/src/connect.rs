@@ -1187,12 +1187,16 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // Try to complete the cryptographic handshake.
         let keygen = handshake_state
             .client_receive_rend(rend2_msg.handshake_info())
-            .map_err(into_internal!(
-                "ACTUALLY this is a protocol violation, make a better error" // TODO HS
-            ))?;
-        // TODO HS: make sure that we do the correct error recovery from the
-        // above error.  Either the onion service has failed, or the rendezvous
-        // point has misbehaved, or we have used the wrong handshake_state.
+            // If this goes wrong. either the onion service has mangled the crypto,
+            // or the rendezvous point has misbehaved (that that is possible is a protocol bug),
+            // or we have used the wrong handshake_state (let's assume that's not true).
+            //
+            // If this happens we'll go and try another RPT.
+            .map_err(|error| FAE::RendezvousCompletionHandshake {
+                error,
+                intro_index,
+                rend_pt: rend_pt.clone(),
+            })?;
 
         // TODO HS: Generate this more sensibly!
         let params = CircParameters::default();
