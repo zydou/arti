@@ -1156,7 +1156,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
         let intro_index = ipt.intro_index;
-        let handle_proto_error = |error| FAE::RendezvousCompletion {
+        let handle_proto_error = |error| FAE::RendezvousCompletionCircuit {
             error,
             intro_index,
             rend_pt: rend_pt.clone(),

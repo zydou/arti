@@ -242,7 +242,7 @@ pub enum FailedAttemptError {
 
     /// Error on rendezvous circuit when expecting rendezvous completion
     #[error("Error on rendezvous circuit when expecting rendezvous completion")]
-    RendezvousCompletion {
+    RendezvousCompletionCircuit {
         /// What happened
         #[source]
         error: tor_proto::Error,
@@ -271,7 +271,7 @@ impl FailedAttemptError {
         use FailedAttemptError as FAE;
         match self {
             FAE::UnusableIntro { intro_index, .. }
-            | FAE::RendezvousCompletion { intro_index, .. }
+            | FAE::RendezvousCompletionCircuit { intro_index, .. }
             | FAE::RendezvousCompletionTimeout { intro_index, .. }
             | FAE::IntroductionCircuitObtain { intro_index, .. }
             | FAE::IntroductionExchange { intro_index, .. }
@@ -296,7 +296,7 @@ impl HasRetryTime for FailedAttemptError {
             FAE::IntroductionCircuitObtain { error, .. } => error.retry_time(),
             FAE::IntroductionFailed { status, .. } => status.retry_time(),
             // tor_proto::Error doesn't impl HasRetryTime, so we guess
-            FAE::RendezvousCompletion { error: _e, .. }
+            FAE::RendezvousCompletionCircuit { error: _e, .. }
             | FAE::IntroductionExchange { error: _e, .. }
             | FAE::RendezvousEstablish { error: _e, .. } => RT::AfterWaiting,
             // Timeouts
@@ -396,7 +396,7 @@ impl HasKind for FailedAttemptError {
             FAE::UnusableIntro { .. } => EK::OnionServiceProtocolViolation,
             FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
-            FAE::RendezvousCompletion { error, .. } => error.kind(),
+            FAE::RendezvousCompletionCircuit { error, .. } => error.kind(),
             FAE::RendezvousEstablishTimeout { .. } => EK::TorNetworkTimeout,
             FAE::IntroductionCircuitObtain { error, .. } => error.kind(),
             FAE::IntroductionExchange { error, .. } => error.kind(),
