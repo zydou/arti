@@ -41,8 +41,6 @@ impl UnparsedOpenSshKey {
 }
 
 /// An error that occurred while processing an OpenSSH key.
-//
-// TODO hs: use this error type instead of crate::Error.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum SshKeyError {
     /// Failed to parse an OpenSSH key
