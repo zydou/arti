@@ -188,6 +188,17 @@ mod tests {
         (key_store, keystore_dir)
     }
 
+    macro_rules! assert_found {
+        ($key_store:expr, $key_spec:expr, $key_type:expr, $found:expr) => {{
+            let res = $key_store.get($key_spec, $key_type).unwrap();
+            if $found {
+                assert!(res.is_some());
+            } else {
+                assert!(res.is_none());
+            }
+        }};
+    }
+
     #[test]
     #[cfg(unix)]
     fn init_failure_perms() {
@@ -264,18 +275,12 @@ mod tests {
         let (key_store, _keystore_dir) = init_keystore(false);
 
         // Not found
-        assert!(key_store
-            .get(&TestSpecifier, KeyType::Ed25519Keypair)
-            .unwrap()
-            .is_none());
+        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, false);
 
         // Initialize a key store with some test keys
         let (key_store, _keystore_dir) = init_keystore(true);
 
         // Found!
-        assert!(key_store
-            .get(&TestSpecifier, KeyType::Ed25519Keypair)
-            .unwrap()
-            .is_some());
+        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
     }
 }
