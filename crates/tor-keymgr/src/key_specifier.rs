@@ -7,15 +7,16 @@ use tor_error::HasKind;
 ///
 /// # Requirements
 ///
-/// An `ArtiPath` may only consist of UTF-8 alphanumeric, dash (`-`), underscore (`_`), and
-/// path separator (`/`) characters.
-///
-/// The specified string is normalized by replacing any consecutive occurrences of the path
-/// separator character with a single path separator.
+/// An `ArtiPath` may only consist of UTF-8 alphanumeric, dash (`-`), underscore (`_`), and path
+/// separator (`/`) characters. In addition, its underlying string representation must:
+///   * not begin or end in `-` or `_`
+///   * not contain any consecutive repeated `/` characters
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
+//
+// TODO hs: remove normalization and implement the validation described here
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
@@ -75,8 +76,11 @@ impl ArtiPath {
 ///
 /// # Requirements
 ///
-/// An `ArtiPathComponent` may only consist of UTF-8 alphanumeric, dash
-/// (`-`), and underscore (`_`) characters.
+/// An `ArtiPathComponent` may only consist of UTF-8 alphanumeric, dash (`-`), and underscore (`_`)
+/// characters. In addition, the first and last characters of its underlying string representation
+/// cannot be `-` or `_`.
+//
+// TODO hs: implement the validation described here
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
