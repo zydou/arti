@@ -312,18 +312,30 @@ mod test {
     ///
     /// Depending on which variable this is in, it refers to presence in other the
     /// old or the new example file.
+    ///
+    /// This type is *not* used in declarations in `declared_config_exceptions`;
+    /// it is used by the actual checking code.
+    /// The declarations use types in that function.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
     enum InExample {
         Absent,
         Present,
     }
     /// Which of the two example files?
+    ///
+    /// This type is *not* used in declarations in `declared_config_exceptions`;
+    /// it is used by the actual checking code.
+    /// The declarations use types in that function.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
     enum WhichExample {
         Old,
         New,
     }
     /// An exception to the usual expectations about configuration example files
+    ///
+    /// This type is *not* used in declarations in `declared_config_exceptions`;
+    /// it is used by the actual checking code.
+    /// The declarations use types in that function.
     #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
     struct ConfigException {
         /// The actual config key
