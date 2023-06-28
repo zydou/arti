@@ -12,6 +12,9 @@ set -euo pipefail
 # We don't currently do a good job of understanding AND, so
 # interesting license combinations that involve AND may need to be given
 # in quotes.
+#
+# TODO is a temporary marker for crates that need to have a proper
+#      license assigned. This should be removed soon.
 RECOGNIZED_LICENSES=(
     Apache-2.0
     BSD-2-Clause
@@ -19,6 +22,7 @@ RECOGNIZED_LICENSES=(
     CC0-1.0
     ISC
     MIT
+    TODO
     Unicode-DFS-2016
     Unlicense
     Zlib
@@ -51,6 +55,8 @@ MPL_20_OK=(
     # This one is pending: See https://github.com/soc/option-ext/pull/4
     option-ext
     generational-arena
+    dynasm
+    dynasmrt
 )
 
 containsElement () {

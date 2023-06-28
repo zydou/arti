@@ -1,0 +1,34 @@
+[package]
+name = "hashx"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Micah Elizabeth Scott <beth@torproject.org>"]
+edition = "2021"
+rust-version = "1.65"
+license = "TODO"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Hash function family designed for ASIC-resistant client puzzles"
+keywords = ["cryptography"]
+categories = ["cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = ["compiler"]
+full = ["compiler"]
+compiler = ["dep:dynasmrt", "dep:hex"]
+
+[dependencies]
+arrayvec = "0.7.3"
+blake2 = "0.10.6"
+dynasmrt = { version = "2.0.0", optional = true }
+hex = { version = "0.4.3", optional = true }
+thiserror = "1.0.40"
+
+[dev-dependencies]
+criterion = "0.5.1"
+hex-literal = "0.4.1"
+rand = "0.8.5"
+
+[[bench]]
+name = "hashx_bench"
+harness = false
+
