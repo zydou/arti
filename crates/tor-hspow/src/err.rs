@@ -1,0 +1,51 @@
+//! Define error types for the `tor-hspow` crate
+
+/// Error type for the onion service proof of work subsystem
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// Solution was incorrect
+    ///
+    /// In general the detailed reason for failure should be ignored,
+    /// and it certainly should not be shared with clients. It's useful
+    /// for unit testing and possibly debugging. A particular type of flaw
+    /// in a solution could be exposed at a variety of layers in the
+    /// verification process depending on luck and algorithm parameters.
+    #[error("Incorrect solution to a client puzzle")]
+    BadSolution(#[source] SolutionError),
+
+    /// Runtime error while solving a proof of work puzzle
+    ///
+    /// Something went wrong in the environment to prevent the
+    /// solver from completing.
+    #[error("Runtime error while solving a client puzzle: {0}")]
+    SolveRuntime(#[source] RuntimeError),
+
+    /// Runtime error while verifying a proof of work puzzle
+    ///
+    /// Something went wrong in the environment to prevent the
+    /// verifier from coming to any conclusion.
+    #[error("Runtime error while verifying a client puzzle: {0}")]
+    VerifyRuntime(#[source] RuntimeError),
+}
+
+/// Detailed errors for ways a solution can fail verification
+///
+/// These errors must not be exposed to clients, who might
+/// use them to gain an advantage in computing solutions.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SolutionError {
+    /// Solution errors from the v1 protocol implementation
+    #[error("V1, {0}")]
+    V1(#[from] crate::v1::SolutionError),
+}
+
+/// Detailed runtime errors
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum RuntimeError {
+    /// Runtime errors from the v1 protocol implementation
+    #[error("V1, {0}")]
+    V1(#[from] crate::v1::RuntimeError),
+}

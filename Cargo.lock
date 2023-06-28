@@ -4897,6 +4897,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-hspow"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "blake2",
+ "derive_more",
+ "equix",
+ "hex-literal",
+ "rand 0.8.5",
+ "thiserror",
+ "tor-hscrypto",
+]
+
+[[package]]
 name = "tor-hsservice"
 version = "0.2.2"
 dependencies = [
