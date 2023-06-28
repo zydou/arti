@@ -375,7 +375,11 @@ mod test {
     /// Return the expected exceptions to the usual expectations about config and examples
     fn declared_config_exceptions() -> Vec<ConfigException> {
         use InCode::*;
-        use InExample::*;
+
+        /// Marker.  `Some(InOld)` means presence of this config key in the oldest-supported file
+        struct InOld;
+        /// Marker.  `Some(InNew)` means presence of this config key in the current example file
+        struct InNew;
 
         let mut out = vec![];
 
@@ -398,6 +402,14 @@ mod test {
                 FeatureDependent if ALL_RELEVANT_FEATURES_ENABLED => Some(true),
                 FeatureDependent => None,
             };
+            fn in_example<T>(spec: Option<T>) -> InExample {
+                match spec {
+                    None => InExample::Absent,
+                    Some(_) => InExample::Present,
+                }
+            }
+            let in_old_example = in_example(in_old_example);
+            let in_new_example = in_example(in_new_example);
             out.extend(keys.iter().cloned().map(|key| ConfigException {
                 key: key.to_owned(),
                 in_old_example,
@@ -407,8 +419,8 @@ mod test {
         };
 
         declare_exceptions(
-            Absent,
-            Present,
+            None,
+            Some(InNew),
             Recognized,
             &[
                 // Keys that are newer than the oldest-supported example, but otherwise normal.
@@ -420,8 +432,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Absent,
+            None,
+            None,
             Recognized,
             &[
                 // Examples exist but are not auto-testable
@@ -431,8 +443,8 @@ mod test {
         );
 
         declare_exceptions(
-            Present,
-            Present,
+            Some(InOld),
+            Some(InNew),
             if cfg!(target_family = "windows") {
                 Ignored
             } else {
@@ -446,8 +458,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Absent, // TODO: Make examples for bridges settings!
+            None,
+            None, // TODO: Make examples for bridges settings!
             FeatureDependent,
             &[
                 // Settings only available with bridge support
@@ -456,8 +468,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Present,
+            None,
+            Some(InNew),
             FeatureDependent,
             &[
                 // PT-only settings
@@ -465,8 +477,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Present,
+            None,
+            Some(InNew),
             FeatureDependent,
             &[
                 // HS client settings
@@ -477,8 +489,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Absent, // TODO RPC, these should actually appear in the example config
+            None,
+            None, // TODO RPC, these should actually appear in the example config
             FeatureDependent,
             &[
                 // RPC-only settings
