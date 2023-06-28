@@ -63,7 +63,7 @@ impl KeyType {
 
     /// The file extension for a key of this type, for use in a C Tor key store.
     //
-    // TODO hs: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
+    // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
     // to decide the file extension should be).
     #[allow(clippy::missing_panics_doc)] // TODO HSS: remove
     pub fn ctor_extension(&self) -> &'static str {

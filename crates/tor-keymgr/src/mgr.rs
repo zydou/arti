@@ -38,7 +38,7 @@ impl KeyMgr {
                 }
                 Ok(Some(k)) => k,
                 Err(e) => {
-                    // TODO hs: we immediately return if one of the keystores is inaccessible.
+                    // TODO HSS: we immediately return if one of the keystores is inaccessible.
                     // Perhaps we should ignore any errors and simply poll the next store in the
                     // list?
                     return Err(e);
@@ -64,7 +64,7 @@ impl KeyMgr {
     ///
     /// If the key already exists, it is overwritten.
     ///
-    // TODO hs: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
+    // TODO HSS: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
     // TODO HSS (#903): define what "key bundle" means
     pub fn insert<K: ToEncodableKey>(&self, key: K, key_spec: &dyn KeySpecifier) -> Result<()> {
         // TODO HSS: maybe we should designate an explicit 'primary' store instead of implicitly
