@@ -167,6 +167,7 @@ fn default_max_files() -> u64 {
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[builder_struct_attr(non_exhaustive)]
 #[non_exhaustive]
 pub struct RpcConfig {
     /// Location to listen for incoming RPC connections.
@@ -284,7 +285,7 @@ mod test {
 
     use arti_client::config::dir;
     use arti_client::config::TorClientConfigBuilder;
-    use itertools::{chain, Itertools};
+    use itertools::{chain, EitherOrBoth, Itertools};
     use regex::Regex;
     use std::collections::HashSet;
     use std::iter;
@@ -292,6 +293,12 @@ mod test {
     use tor_config::load::{ConfigResolveError, ResolutionResults};
 
     use super::*;
+
+    //---------- tests that rely on the provided example config file ----------
+    //
+    // These are quite complex.  They uncomment the file, parse bits of it,
+    // and do tests via serde and via the normal config machinery,
+    // to see that everything is documented as expected.
 
     fn uncomment_example_settings(template: &str) -> String {
         let re = Regex::new(r#"(?m)^\#([^ \n])"#).unwrap();
@@ -301,30 +308,263 @@ mod test {
         .into()
     }
 
+    /// Is this key present or absent in the examples in one of the example files ?
+    ///
+    /// Depending on which variable this is in, it refers to presence in other the
+    /// old or the new example file.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+    enum InExample {
+        Absent,
+        Present,
+    }
+    /// Which of the two example files?
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+    enum WhichExample {
+        Old,
+        New,
+    }
+    /// Is this key recognised by the parsing code ?
+    ///
+    /// (This can be feature-dependent, so literal values of this type
+    /// are often feature-qualified.)
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+    enum InCode {
+        /// No configuration of this codebase knows about this option
+        Ignored,
+        /// *Some* configuration of this codebase know about this option
+        ///
+        /// This means:
+        ///   - If *every* feature in `ALL_RELEVANT_FEATURES_ENABLED` is enabled,
+        ///     the config key is expected to be `Recognised`
+        ///   - Otherwise we're not sure (because cargo features are additive,
+        ///     dependency crates' features might be *en*abled willy-nilly).
+        FeatureDependent,
+        /// All configurations of this codebase know about this option
+        Recognized,
+    }
+    /// An exception to the usual expectations about configuration example files
+    #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+    struct ConfigException {
+        /// The actual config key
+        key: String,
+        /// Does it appear in the oldest supported example file?
+        in_old_example: InExample,
+        /// Does it appear in the current example file?
+        in_new_example: InExample,
+        /// Does our code recognise it ?  `None` means "don't know"
+        in_code: Option<bool>,
+    }
+    impl ConfigException {
+        fn in_example(&self, which: WhichExample) -> InExample {
+            use WhichExample::*;
+            match which {
+                Old => self.in_old_example,
+                New => self.in_new_example,
+            }
+        }
+    }
+
+    /// *every* feature that's listed as `InCode::FeatureDependent`
+    const ALL_RELEVANT_FEATURES_ENABLED: bool = cfg!(all(
+        feature = "bridge-client",
+        feature = "pt-client",
+        feature = "rpc",
+    ));
+
+    /// Return the expected exceptions to the usual expectations about config and examples
+    fn declared_config_exceptions() -> Vec<ConfigException> {
+        use InCode::*;
+        use InExample::*;
+
+        let mut out = vec![];
+
+        // Declare some keys which aren't "normal", eg they aren't documented in the usual
+        // way, are configurable, aren't in the oldest supported file, etc.
+        //
+        // `in_old_example` and `in_new_example` are whether the key appears in
+        // `arti-example-config.toml` and `oldest-supported-config.toml` respectively.
+        // (in each case, only a line like `#example.key = ...` counts.)
+        //
+        // `whether_supported` tells is if the key is supposed to be
+        // recognised by the code.
+        //
+        // `keys` is the list of keys.  Add a // comment at the start of the list
+        // so that rustfmt retains the consistent formatting.
+        let mut declare_exceptions = |in_old_example, in_new_example, in_code, keys: &[&str]| {
+            let in_code = match in_code {
+                Ignored => Some(false),
+                Recognized => Some(true),
+                FeatureDependent if ALL_RELEVANT_FEATURES_ENABLED => Some(true),
+                FeatureDependent => None,
+            };
+            out.extend(keys.iter().cloned().map(|key| ConfigException {
+                key: key.to_owned(),
+                in_old_example,
+                in_new_example,
+                in_code,
+            }));
+        };
+
+        declare_exceptions(
+            Absent,
+            Present,
+            Recognized,
+            &[
+                // Keys that are newer than the oldest-supported example, but otherwise normal.
+                "application.allow_running_as_root",
+                "bridges",
+                "proxy.socks_listen",
+                "proxy.dns_listen",
+            ],
+        );
+
+        declare_exceptions(
+            Absent,
+            Absent,
+            Recognized,
+            &[
+                // Examples exist but are not auto-testable
+                "tor_network.authorities",
+                "tor_network.fallback_caches",
+            ],
+        );
+
+        declare_exceptions(
+            Present,
+            Present,
+            if cfg!(target_family = "windows") {
+                Ignored
+            } else {
+                Recognized
+            },
+            &[
+                // Unix-only mistrust settings
+                "storage.permissions.trust_group",
+                "storage.permissions.trust_user",
+            ],
+        );
+
+        declare_exceptions(
+            Absent,
+            Absent, // TODO: Make examples for bridges settings!
+            FeatureDependent,
+            &[
+                // Settings only available with bridge support
+                "bridges.transports", // we recognise this so we can reject it
+            ],
+        );
+
+        declare_exceptions(
+            Absent,
+            Present,
+            FeatureDependent,
+            &[
+                // PT-only settings
+            ],
+        );
+
+        declare_exceptions(
+            Absent,
+            Absent, // TODO RPC, these should actually appear in the example config
+            FeatureDependent,
+            &[
+                // RPC-only settings
+                "rpc",
+                "rpc.rpc_listen",
+            ],
+        );
+
+        out.sort();
+
+        let dupes = out.iter().map(|exc| &exc.key).duplicates().collect_vec();
+        assert!(
+            dupes.is_empty(),
+            "duplicate exceptions in configuration {dupes:?}"
+        );
+
+        eprintln!(
+            "declared config exceptions for this configuration:\n{:#?}",
+            &out
+        );
+        out
+    }
+
     #[test]
     fn default_config() {
-        // See comment for OLDEST_SUPPORTED_CONFIG for likely future evolution
+        use InExample::*;
+
         let empty_config = config::Config::builder().build().unwrap();
         let empty_config: ArtiCombinedConfig = tor_config::resolve(empty_config).unwrap();
 
         let default = (ArtiConfig::default(), TorClientConfig::default());
+        let exceptions = declared_config_exceptions();
 
-        let parses_to_defaults = |example: &str, known_unrecognized_options: &[&str]| {
+        /// Helper to decide what to do about a possible discrepancy
+        ///
+        /// Provided with `EitherOrBoth` of:
+        ///   - the config key that the config parser reported it found, but didn't recognise
+        ///   - the declared exception entry
+        /// (for the same config key)
+        ///
+        /// Decides whether this is something that should fail the test.
+        /// If so it returns `Err((key, error_message))`, otherwise `Ok`.
+        #[allow(clippy::needless_pass_by_value)] // clippy is IMO wrong about eob
+        fn analyse_joined_info(
+            which: WhichExample,
+            uncommented: bool,
+            eob: EitherOrBoth<&String, &ConfigException>,
+        ) -> Result<(), (String, String)> {
+            use EitherOrBoth::*;
+            let (key, err) = match eob {
+                // Unrecognised entry, no exception
+                Left(found) => (found, "found in example but not processed".into()),
+                Both(found, exc) => {
+                    let but = match (exc.in_example(which), exc.in_code, uncommented) {
+                        (Absent, _, _) => "but exception entry expected key to be absent",
+                        (_, _, false) => "when processing still-commented-out file!",
+                        (_, Some(true), _) => {
+                            "but an exception entry says it should have been recognised"
+                        }
+                        (Present, Some(false), true) => return Ok(()), // that's as expected
+                        (Present, None, true) => return Ok(()), // that's could be as expected
+                    };
+                    (
+                        found,
+                        format!("parser reported unrecognised config key, {but}"),
+                    )
+                }
+                Right(exc) => {
+                    // An exception entry exists.  The actual situation is either
+                    //   - not found in file (so no "unrecognised" report)
+                    //   - processed successfully (found in file and in code)
+                    // but we don't know which.
+                    let trouble = match (exc.in_example(which), exc.in_code, uncommented) {
+                        (Absent, _, _) => return Ok(()), // not in file, no report expected
+                        (_, _, false) => return Ok(()),  // not uncommented, no report expected
+                        (_, Some(true), _) => return Ok(()), // code likes it, no report expected
+                        (Present, Some(false), true) => {
+                            "expected an 'unknown config key' report but didn't see one"
+                        }
+                        (Present, None, true) => return Ok(()), // not sure, have to just allow it
+                    };
+                    (&exc.key, trouble.into())
+                }
+            };
+            Err((key.clone(), err))
+        }
+
+        let parses_to_defaults = |example: &str, which: WhichExample, uncommented: bool| {
             let cfg = config::Config::builder()
                 .add_source(config::File::from_str(example, config::FileFormat::Toml))
                 .build()
                 .unwrap();
 
             // This tests that the example settings do not *contradict* the defaults.
-            //
-            // Also we should ideally test that every setting from the config appears here in
-            // the file.  Possibly that could be done with some kind of stunt Deserializer,
-            // but it's not trivial.
             let results: ResolutionResults<ArtiCombinedConfig> =
                 tor_config::resolve_return_results(cfg).unwrap();
 
-            assert_eq!(&results.value, &default);
-            assert_eq!(&results.value, &empty_config);
+            assert_eq!(&results.value, &default, "{which:?} {uncommented:?}");
+            assert_eq!(&results.value, &empty_config, "{which:?} {uncommented:?}");
 
             // We serialize the DisfavouredKey entries to strings to compare them against
             // `known_unrecognized_options`.
@@ -334,47 +574,37 @@ mod test {
                 .map(|k| k.to_string())
                 .collect_vec();
 
-            assert_eq!(&unrecognized, &known_unrecognized_options);
+            eprintln!(
+                "parsing of {which:?} uncommented={uncommented:?}, unrecognized={unrecognized:#?}"
+            );
+
+            let reports =
+                Itertools::merge_join_by(unrecognized.iter(), exceptions.iter(), |u, e| {
+                    u.as_str().cmp(&e.key)
+                })
+                .filter_map(|eob| analyse_joined_info(which, uncommented, eob).err())
+                .collect_vec();
+
+            if !reports.is_empty() {
+                let reports = reports
+                    .iter()
+                    .map(|(k, s)| format!("  {}: {}\n", s, k))
+                    .collect::<String>();
+
+                panic!(
+                    r"
+mismatch: results of parsing example files (& vs declared exceptions):
+example config file {which:?}, uncommented={uncommented:?}
+{reports}
+"
+                );
+            }
 
             results.value
         };
 
-        #[allow(unused_mut)]
-        let mut known_unrecognized_options_all = vec![];
-
-        #[allow(unused_mut)]
-        let mut known_unrecognized_options_new = vec![];
-
-        #[cfg(target_family = "windows")]
-        known_unrecognized_options_all.extend([
-            "storage.permissions.trust_group",
-            "storage.permissions.trust_user",
-        ]);
-
-        // Additional cfg blocks will need to be added whenever we add features
-        // which have example config, since if the feature isn't enabled,
-        // those keys are ignored (unrecognized).
-
-        // The unrecognized options in new are those that are only new, plus those in all
-        known_unrecognized_options_new.extend(known_unrecognized_options_all.clone());
-
-        let unrecognized_sections = |options| {
-            let options: &[&str] = options;
-            options
-                .iter()
-                .cloned()
-                .filter(|o| !o.contains("."))
-                .collect_vec()
-        };
-
-        let _ = parses_to_defaults(
-            ARTI_EXAMPLE_CONFIG,
-            &unrecognized_sections(&known_unrecognized_options_new),
-        );
-        let _ = parses_to_defaults(
-            OLDEST_SUPPORTED_CONFIG,
-            &unrecognized_sections(&known_unrecognized_options_all),
-        );
+        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, WhichExample::New, false);
+        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, WhichExample::Old, false);
 
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),
@@ -383,11 +613,13 @@ mod test {
 
         let parsed = parses_to_defaults(
             &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
-            &known_unrecognized_options_new,
+            WhichExample::New,
+            true,
         );
         let parsed_old = parses_to_defaults(
             &uncomment_example_settings(OLDEST_SUPPORTED_CONFIG),
-            &known_unrecognized_options_all,
+            WhichExample::Old,
+            true,
         );
 
         assert_eq!(&parsed, &built_default);
@@ -395,6 +627,424 @@ mod test {
 
         assert_eq!(&default, &built_default);
     }
+
+    /// Config file exhaustiveness and default checking
+    ///
+    /// `example_file` is a putative configuration file text.
+    /// It is expected to contain "example lines",
+    /// which are lines in start with `#` *not followed by whitespace*.
+    ///
+    /// This function checks that:
+    ///
+    /// Positive check on the example lines that are present.
+    ///  * `example_file`, when example lines are uncommented, can be parsed.
+    ///  * The example values are the same as the default values.
+    ///
+    /// Check for missing examples:
+    ///  * Every key `in `TorClientConfig` or `ArtiConfig` has a corresponding example value.
+    ///  * Except as declared in [`declared_config_exceptions`]
+    ///  * And also, tolerating absence in the example files of `deprecated` keys
+    ///
+    /// It handles straightforward cases, where the example line is in a `[section]`
+    /// and is something like `#key = value`.
+    ///
+    /// More complex keys, eg those which don't appear in "example lines" starting with just `#`,
+    /// must be dealt with ad-hoc and mentioned in `declared_config_exceptions`.
+    ///
+    /// For complex config keys, it may not be sufficient to simply write the default value in
+    /// the example files (along with perhaps some other information).  In that case,
+    ///   1. Write a bespoke example (with lines starting `# `) in the config file.
+    ///   2. Write a bespoke test, to test the parsing of the bespoke example.
+    ///      This will probably involve using `ExampleSectionLines` and may be quite ad-hoc.
+    ///      The test function bridges(), below, is a complex worked example.
+    ///   3. Either add a trivial example for the affected key(s) (starting with just `#`)
+    ///      or add the affected key(s) to `declared_config_exceptions`
+    fn exhaustive_1(example_file: &str, which: WhichExample, deprecated: &[String]) {
+        use serde_json::Value as JsValue;
+        use std::collections::BTreeSet;
+        use InExample::*;
+
+        let example = uncomment_example_settings(example_file);
+        let example: toml::Value = toml::from_str(&example).unwrap();
+        // dbg!(&example);
+        let example = serde_json::to_value(example).unwrap();
+        // dbg!(&example);
+
+        // "Exhaustive" taxonomy of the recognized configuration keys
+        //
+        // We use the JSON serialization of the default builders, because Rust's toml
+        // implementation likes to omit more things, that we want to see.
+        //
+        // I'm not sure this is quite perfect but it is pretty good,
+        // and has found a number of un-exampled config keys.
+        let exhausts = [
+            serde_json::to_value(TorClientConfig::builder()).unwrap(),
+            serde_json::to_value(ArtiConfig::builder()).unwrap(),
+        ];
+
+        /// This code does *not* record a problem for keys *in* the example file
+        /// that are unrecognized.  That is handled by the `default_config` test.
+        #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, derive_more::Display)]
+        enum ProblemKind {
+            #[display(fmt = "recognised by serialisation, but missing from example config file")]
+            MissingFromExample,
+            #[display(
+                fmt = "expected that example config file should contain have this as a table"
+            )]
+            ExpectedTableInExample,
+            #[display(
+                fmt = "declared exception says this key should be recognised but not in file, but that doesn't seem to be the case"
+            )]
+            UnusedException,
+        }
+
+        #[derive(Default, Debug)]
+        struct Walk {
+            current_path: Vec<String>,
+            problems: Vec<(String, ProblemKind)>,
+        }
+
+        impl Walk {
+            /// Records a problem
+            fn bad(&mut self, kind: ProblemKind) {
+                self.problems.push((self.current_path.join("."), kind));
+            }
+
+            /// Recurses, looking for problems
+            ///
+            /// Visited for every node in either or both of the starting `exhausts`.
+            ///
+            /// `E` is the number of elements in `exhausts`, ie the number of different
+            /// top-level config types that Arti uses.  Ie, 2.
+            fn walk<const E: usize>(
+                &mut self,
+                example: Option<&JsValue>,
+                exhausts: [Option<&JsValue>; E],
+            ) {
+                assert! { exhausts.into_iter().any(|e| e.is_some()) }
+
+                let example = if let Some(e) = example {
+                    e
+                } else {
+                    self.bad(ProblemKind::MissingFromExample);
+                    return;
+                };
+
+                let tables = exhausts.map(|e| e?.as_object());
+
+                // Union of the keys of both exhausts' tables (insofar as they *are* tables)
+                let table_keys = tables
+                    .iter()
+                    .flat_map(|t| t.map(|t| t.keys().cloned()).into_iter().flatten())
+                    .collect::<BTreeSet<String>>();
+
+                for key in table_keys {
+                    let example = if let Some(e) = example.as_object() {
+                        e
+                    } else {
+                        // At least one of the exhausts was a nonempty table,
+                        // but the corresponding example node isn't a table.
+                        self.bad(ProblemKind::ExpectedTableInExample);
+                        continue;
+                    };
+
+                    // Descend the same key in all the places.
+                    self.current_path.push(key.clone());
+                    self.walk(example.get(&key), tables.map(|t| t?.get(&key)));
+                    self.current_path.pop().unwrap();
+                }
+            }
+        }
+
+        let exhausts = exhausts.iter().map(Some).collect_vec().try_into().unwrap();
+
+        let mut walk = Walk::default();
+        walk.walk::<2>(Some(&example), exhausts);
+        let mut problems = walk.problems;
+
+        /// Marker present in `expect_missing` to say we *definitely* expect it
+        #[derive(Debug, Copy, Clone)]
+        struct DefinitelyRecognized;
+
+        let expect_missing = declared_config_exceptions()
+            .iter()
+            .filter_map(|exc| {
+                let definitely = match (exc.in_example(which), exc.in_code) {
+                    (Present, _) => return None, // in file, don't expect "non-exhaustive" notice
+                    (_, Some(false)) => return None, // code hasn't heard of it, likewise
+                    (Absent, Some(true)) => Some(DefinitelyRecognized),
+                    (Absent, None) => None, // allow this exception but don't mind if not known
+                };
+                Some((exc.key.clone(), definitely))
+            })
+            .collect_vec();
+        dbg!(&expect_missing);
+
+        // Things might appear in expect_missing for different reasons, and sometimes
+        // at different levels.  For example, `bridges.transports` is expected to be
+        // missing because we document that a different way in the example; but
+        // `bridges` is expected to be missing from the OLDEST_SUPPORTED_CONFIG,
+        // because that config predates bridge support.
+        //
+        // When this happens, we need to remove `bridges.transports` in favour of
+        // the over-arching `bridges`.
+        let expect_missing: Vec<(String, Option<DefinitelyRecognized>)> = expect_missing
+            .iter()
+            .cloned()
+            .filter({
+                let original: HashSet<_> = expect_missing.iter().map(|(k, _)| k.clone()).collect();
+                move |(found, _)| {
+                    !found
+                        .match_indices('.')
+                        .any(|(doti, _)| original.contains(&found[0..doti]))
+                }
+            })
+            .collect_vec();
+        dbg!(&expect_missing);
+
+        for (exp, definitely) in expect_missing {
+            let was = problems.len();
+            problems.retain(|(path, _)| path != &exp);
+            if problems.len() == was && definitely.is_some() {
+                problems.push((exp, ProblemKind::UnusedException));
+            }
+        }
+
+        let problems = problems
+            .into_iter()
+            .filter(|(key, _kind)| !deprecated.iter().any(|dep| key == dep))
+            .map(|(path, m)| format!("    config key {:?}: {}", path, m))
+            .collect_vec();
+
+        // If this assert fails, it might be because in `fn exhaustive`, below,
+        // a newly-defined config item has not been added to the list for OLDEST_SUPPORTED_CONFIG.
+        assert! { problems.is_empty(),
+        "example config exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
+                  problems.join("\n"), example_file}
+    }
+
+    #[test]
+    fn exhaustive() {
+        let mut deprecated = vec![];
+        <(ArtiConfig, TorClientConfig) as tor_config::load::Resolvable>::enumerate_deprecated_keys(
+            &mut |l| {
+                for k in l {
+                    deprecated.push(k.to_string());
+                }
+            },
+        );
+        let deprecated = deprecated.iter().cloned().collect_vec();
+
+        // Check that:
+        //  - The primary example config file has good examples for everything
+        //  - Except for deprecated config keys
+        //  - (And, except for those that we never expect: CONFIG_KEYS_EXPECT_NO_EXAMPLE.)
+        exhaustive_1(ARTI_EXAMPLE_CONFIG, WhichExample::New, &deprecated);
+
+        // Check that:
+        //  - That oldest supported example config file has good examples for everything
+        //  - Except for keys that we have introduced since that file was written
+        //  - (And, except for those that we never expect: CONFIG_KEYS_EXPECT_NO_EXAMPLE.)
+        // We *tolerate* entries in this table that don't actually occur in the oldest-supported
+        // example.  This avoids having to feature-annotate them.
+        exhaustive_1(OLDEST_SUPPORTED_CONFIG, WhichExample::Old, &deprecated);
+    }
+
+    /// Check that the `Report` of `err` contains the string `exp`, and otherwise panic
+    #[cfg_attr(feature = "pt-client", allow(dead_code))]
+    fn expect_err_contains(err: ConfigResolveError, exp: &str) {
+        use std::error::Error as StdError;
+        let err: Box<dyn StdError> = Box::new(err);
+        let err = tor_error::Report(err).to_string();
+        assert!(
+            err.contains(exp),
+            "wrong message, got {:?}, exp {:?}",
+            err,
+            exp,
+        );
+    }
+
+    #[test]
+    fn bridges() {
+        // We make assumptions about the contents of `arti-example-config.toml` !
+        //
+        // 1. There are nontrivial, non-default examples of `bridges.bridges`.
+        // 2. These are in the `[bridges]` section, after a line `# For example:`
+        // 3. There's precisely one ``` example, with conventional TOML formatting.
+        // 4. There's precisely one [ ] example, with conventional TOML formatting.
+        // 5. Both these examples specify the same set of bridges.
+        // 6. There are three bridges.
+        // 7. Lines starting with a digit or `[` are direct bridges; others are PT.
+        //
+        // Below, we annotate with `[1]` etc. where these assumptions are made.
+
+        // Filter examples that we don't want to test in this configuration
+        let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| -> _ {
+            // [7], filter out the PTs
+            if cfg!(all(feature = "bridge-client", not(feature = "pt-client"))) {
+                let looks_like_addr =
+                    |l: &str| l.starts_with(|c: char| c.is_ascii_digit() || c == '[');
+                examples.lines.retain(|l| looks_like_addr(l));
+            }
+
+            examples
+        };
+
+        // Tests that one example parses, and returns what it parsed.
+        // If bridge support is completely disabled, checks that this configuration
+        // is rejected, as it should be, and returns a dummy value `((),)`
+        // (so that the rest of the test has something to "compare that we parsed it the same").
+        let resolve_examples = |examples: &ExampleSectionLines| {
+            // [7], check that the PT bridge is properly rejected
+            #[cfg(all(feature = "bridge-client", not(feature = "pt-client")))]
+            {
+                let err = examples.resolve::<TorClientConfig>().unwrap_err();
+                expect_err_contains(err, "support disabled in cargo features");
+            }
+
+            let examples = filter_examples(examples.clone());
+
+            #[cfg(feature = "bridge-client")]
+            {
+                examples.resolve::<TorClientConfig>().unwrap()
+            }
+
+            #[cfg(not(feature = "bridge-client"))]
+            {
+                let err = examples.resolve::<TorClientConfig>().unwrap_err();
+                expect_err_contains(err, "support disabled in cargo features");
+                // Use ((),) as the dummy unit value because () gives clippy conniptions
+                ((),)
+            }
+        };
+
+        // [1], [2], narrow to just the nontrivial, non-default, examples
+        let mut examples = ExampleSectionLines::new("bridges");
+        examples.narrow((r#"^# For example:"#, true), NARROW_NONE);
+
+        let compare = {
+            // [3], narrow to the multi-line string
+            let mut examples = examples.clone();
+            examples.narrow((r#"^#  bridges = '''"#, true), (r#"^#  '''"#, true));
+            examples.uncomment();
+
+            let parsed = resolve_examples(&examples);
+
+            // Now we fish out the lines ourselves as a double-check
+            // We must strip off the bridges = ''' and ''' lines.
+            examples.lines.remove(0);
+            examples.lines.remove(examples.lines.len() - 1);
+            // [6], check we got the number of examples we expected
+            examples.expect_lines(3);
+
+            // If we have the bridge API, try parsing each line and using the API to insert it
+            #[cfg(feature = "bridge-client")]
+            {
+                let examples = filter_examples(examples);
+                let mut built = TorClientConfig::builder();
+                for l in &examples.lines {
+                    built.bridges().bridges().push(l.trim().parse().expect(l));
+                }
+                let built = built.build().unwrap();
+
+                assert_eq!(&parsed, &built);
+            }
+
+            parsed
+        };
+
+        // [4], [5], narrow to the [ ] section, parse again, and compare
+        {
+            examples.narrow((r#"^#  bridges = \["#, true), (r#"^#  \]"#, true));
+            examples.uncomment();
+            let parsed = resolve_examples(&examples);
+            assert_eq!(&parsed, &compare);
+        }
+    }
+
+    /// Helper for fishing out parts of the config file and uncommenting them
+    ///
+    /// This can be used to find part of the config file by ad-hoc regexp matching,
+    /// uncomment it, and parse it.  This is useful as part of a test to check
+    /// that we can parse more complex config.
+    #[derive(Debug, Clone)]
+    struct ExampleSectionLines {
+        section: String,
+        lines: Vec<String>,
+    }
+
+    type NarrowInstruction<'s> = (&'s str, bool);
+    const NARROW_NONE: NarrowInstruction<'static> = ("?<none>", false);
+
+    impl ExampleSectionLines {
+        fn new(section: &str) -> Self {
+            let section = format!("[{}]", section);
+
+            let mut first = Some(());
+            let lines = ARTI_EXAMPLE_CONFIG
+                .lines()
+                .skip_while(|l| l != &section)
+                .take_while(|l| first.take().is_some() || !l.starts_with("["))
+                .map(|l| l.to_string())
+                .collect_vec();
+
+            ExampleSectionLines { section, lines }
+        }
+
+        fn narrow(&mut self, start: NarrowInstruction, end: NarrowInstruction) {
+            let find_index = |(re, include), adjust: [isize; 2]| {
+                if (re, include) == NARROW_NONE {
+                    return None;
+                }
+
+                let re = Regex::new(re).expect(re);
+                let i = self
+                    .lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, l)| re.is_match(l))
+                    .map(|(i, _)| i);
+                let i = i.clone().exactly_one().unwrap_or_else(|_| {
+                    panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
+                });
+
+                let adjust = adjust[usize::from(include)];
+                let i = (i as isize + adjust) as usize;
+                Some(i)
+            };
+
+            eprint!("narrow {:?} {:?}: ", start, end);
+            let start = find_index(start, [1, 0]).unwrap_or(0);
+            let end = find_index(end, [0, 1]).unwrap_or(self.lines.len());
+            eprintln!("{:?} {:?}", start, end);
+            // don't tolerate empty
+            assert!(start < end, "empty, from {:#?}", &self.lines);
+            self.lines = self.lines.drain(..).take(end).skip(start).collect_vec();
+        }
+
+        fn expect_lines(&self, n: usize) {
+            assert_eq!(self.lines.len(), n);
+        }
+
+        fn uncomment(&mut self) {
+            for l in &mut self.lines {
+                *l = l.strip_prefix('#').expect(l).to_string();
+            }
+        }
+
+        fn parse(&self) -> config::Config {
+            let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
+            eprintln!("parsing\n  --\n{}\n  --", &s);
+            let c: toml::Value = toml::from_str(&s).expect(&s);
+            config::Config::try_from(&c).expect(&s)
+        }
+
+        fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
+            tor_config::load::resolve(self.parse())
+        }
+    }
+
+    // More normal config tests
 
     #[test]
     fn builder() {
@@ -600,422 +1250,5 @@ mod test {
             &|bld, arg| bld.proxy.dns_port(arg),
             &|bld, arg| bld.proxy.dns_listen(arg),
         );
-    }
-
-    /// Config keys which would be recognised by the parser, but are missing from the examples
-    ///
-    /// Used by `exhaustive_1`.
-    const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] = &[
-        // TODO: Provide a test case that parses the `[bridges.transports]` example.
-        // See and bullet points 2 and 3 in the doc for `exhaustive_1`, below.
-        // https://gitlab.torproject.org/tpo/core/arti/-/issues/674
-        #[cfg(feature = "pt-client")]
-        "bridges.transports",
-        "tor_network.authorities",
-        "tor_network.fallback_caches",
-        #[cfg(feature = "rpc")]
-        "rpc",
-        #[cfg(feature = "rpc")]
-        "rpc.rpc_listen",
-    ];
-
-    /// Config file exhaustiveness and default checking
-    ///
-    /// `example_file` is a putative configuration file text.
-    /// It is expected to contain "example lines",
-    /// which are lines in start with `#` *not followed by whitespace*.
-    ///
-    /// This function checks that:
-    ///
-    /// Positive check on the example lines that are present.
-    ///  * `example_file`, when example lines are uncommented, can be parsed.
-    ///  * The example values are the same as the default values.
-    ///
-    /// Check for missing examples:
-    ///  * Every key `in `TorClientConfig` or `ArtiConfig` has a corresponding example value.
-    ///  * Except: entries in union(`expect_missing` `CONFIG_KEYS_EXPECT_NO_EXAMPLE`)
-    ///    do *not* have an example value.
-    ///
-    /// It handles straightforward cases, where the example line is in a `[section]`
-    /// and is something like `#key = value`.
-    ///
-    /// It does not handle more complex keys, eg those listed in `CONFIG_KEYS_EXPECT_NO_EXAMPLE`,
-    /// and which don't appear in "example lines" starting with just `#`:
-    ///
-    /// For complex config keys, it may not be sufficient to simply write the default value in
-    /// the example files (along with perhaps some other information).  In that case,
-    ///   1. Write a bespoke example (with lines starting `# `) in the config file.
-    ///   2. Write a bespoke test, to test the parsing of the bespoke example.
-    ///      This will probably involve using `ExampleSectionLines` and may be quite ad-hoc.
-    ///      The test function bridges(), below, is a complex worked example.
-    ///   3. Either add a trivial example for the affected key(s) (starting with just `#`)
-    ///      or add the affected key(s) to the manual overrides `CONFIG_KEYS_EXPECT_NO_EXAMPLE`.
-    fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
-        use serde_json::Value as JsValue;
-        use std::collections::BTreeSet;
-
-        let example = uncomment_example_settings(example_file);
-        let example: toml::Value = toml::from_str(&example).unwrap();
-        // dbg!(&example);
-        let example = serde_json::to_value(example).unwrap();
-        // dbg!(&example);
-
-        // "Exhaustive" taxonomy of the recognized configuration keys
-        //
-        // We use the JSON serialization of the default builders, because Rust's toml
-        // implementation likes to omit more things, that we want to see.
-        //
-        // I'm not sure this is quite perfect but it is pretty good,
-        // and has found a number of un-exampled config keys.
-        let exhausts = [
-            serde_json::to_value(TorClientConfig::builder()).unwrap(),
-            serde_json::to_value(ArtiConfig::builder()).unwrap(),
-        ];
-
-        #[derive(Default, Debug)]
-        struct Walk {
-            current_path: Vec<String>,
-            problems: Vec<(String, String)>,
-        }
-
-        impl Walk {
-            /// Records a problem
-            fn bad(&mut self, m: &str) {
-                self.problems
-                    .push((self.current_path.join("."), m.to_string()));
-            }
-
-            /// Recurses, looking for problems
-            ///
-            /// Visited for every node in either or both of the starting `exhausts`.
-            ///
-            /// `E` is the number of elements in `exhausts`, ie the number of different
-            /// top-level config types that Arti uses.  Ie, 2.
-            fn walk<const E: usize>(
-                &mut self,
-                example: Option<&JsValue>,
-                exhausts: [Option<&JsValue>; E],
-            ) {
-                assert! { exhausts.into_iter().any(|e| e.is_some()) }
-
-                let example = if let Some(e) = example {
-                    e
-                } else {
-                    self.bad("missing from example");
-                    return;
-                };
-
-                let tables = exhausts.map(|e| e?.as_object());
-
-                // Union of the keys of both exhausts' tables (insofar as they *are* tables)
-                let table_keys = tables
-                    .iter()
-                    .flat_map(|t| t.map(|t| t.keys().cloned()).into_iter().flatten())
-                    .collect::<BTreeSet<String>>();
-
-                for key in table_keys {
-                    let example = if let Some(e) = example.as_object() {
-                        e
-                    } else {
-                        // At least one of the exhausts was a nonempty table,
-                        // but the corresponding example node isn't a table.
-                        self.bad("expected table in example");
-                        continue;
-                    };
-
-                    // Descend the same key in all the places.
-                    self.current_path.push(key.clone());
-                    self.walk(example.get(&key), tables.map(|t| t?.get(&key)));
-                    self.current_path.pop().unwrap();
-                }
-            }
-        }
-
-        let exhausts = exhausts.iter().map(Some).collect_vec().try_into().unwrap();
-
-        let mut walk = Walk::default();
-        walk.walk::<2>(Some(&example), exhausts);
-        let mut problems = walk.problems;
-
-        // When adding things here, check that `arti-example-config.toml`
-        // actually has something about these particular config keys.
-        dbg!(&expect_missing);
-        let expect_missing: Vec<&str> = CONFIG_KEYS_EXPECT_NO_EXAMPLE
-            .iter()
-            .cloned()
-            .chain(expect_missing.iter().cloned())
-            .collect_vec();
-
-        // Things might appear in expect_missing for different reasons, and sometimes
-        // at different levels.  For example, `bridges.transports` is expected to be
-        // missing because we document that a different way in the example; but
-        // `bridges` is expected to be missing from the OLDEST_SUPPORTED_CONFIG,
-        // because that config predates bridge support.
-        //
-        // When this happens, we need to remove `bridges.transports` in favour of
-        // the over-arching `bridges`.
-        let expect_missing = expect_missing
-            .iter()
-            .cloned()
-            .filter({
-                let original: HashSet<_> = expect_missing.iter().cloned().collect();
-                move |found| {
-                    !found
-                        .match_indices('.')
-                        .any(|(doti, _)| original.contains(&found[0..doti]))
-                }
-            })
-            .collect_vec();
-        dbg!(&expect_missing);
-
-        for exp in expect_missing {
-            let was = problems.len();
-            problems.retain(|(path, _)| path != exp);
-            if problems.len() == was {
-                problems.push((
-                    exp.into(),
-                    "expected to be missing but found in default".into(),
-                ));
-            }
-        }
-
-        let problems = problems
-            .into_iter()
-            .map(|(path, m)| format!("    config key {:?}: {}", path, m))
-            .collect_vec();
-
-        // If this assert fails, it might be because in `fn exhaustive`, below,
-        // a newly-defined config item has not been added to the list for OLDEST_SUPPORTED_CONFIG.
-        assert! { problems.is_empty(),
-        "example config exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
-                  problems.join("\n"), example_file}
-    }
-
-    #[test]
-    fn exhaustive() {
-        let mut deprecated = vec![];
-        <(ArtiConfig, TorClientConfig) as tor_config::load::Resolvable>::enumerate_deprecated_keys(
-            &mut |l| {
-                for k in l {
-                    deprecated.push(k.to_string());
-                }
-            },
-        );
-        let deprecated = deprecated.iter().map(|s| &**s).collect_vec();
-
-        // Check that:
-        //  - The primary example config file has good examples for everything
-        //  - Except for deprecated config keys
-        //  - (And, except for those that we never expect: CONFIG_KEYS_EXPECT_NO_EXAMPLE.)
-        exhaustive_1(ARTI_EXAMPLE_CONFIG, &deprecated);
-
-        // Check that:
-        //  - That oldest supported example config file has good examples for everything
-        //  - Except for keys that we have introduced since that file was written
-        //  - (And, except for those that we never expect: CONFIG_KEYS_EXPECT_NO_EXAMPLE.)
-        exhaustive_1(
-            OLDEST_SUPPORTED_CONFIG,
-            // add *new*, not present in old file, settings here
-            &[
-                "application.allow_running_as_root",
-                "bridges",
-                "proxy.socks_listen",
-                "proxy.dns_listen",
-            ],
-        );
-    }
-
-    /// Check that the `Report` of `err` contains the string `exp`, and otherwise panic
-    #[cfg_attr(feature = "pt-client", allow(dead_code))]
-    fn expect_err_contains(err: ConfigResolveError, exp: &str) {
-        use std::error::Error as StdError;
-        let err: Box<dyn StdError> = Box::new(err);
-        let err = tor_error::Report(err).to_string();
-        assert!(
-            err.contains(exp),
-            "wrong message, got {:?}, exp {:?}",
-            err,
-            exp,
-        );
-    }
-
-    #[test]
-    fn bridges() {
-        // We make assumptions about the contents of `arti-example-config.toml` !
-        //
-        // 1. There are nontrivial, non-default examples of `bridges.bridges`.
-        // 2. These are in the `[bridges]` section, after a line `# For example:`
-        // 3. There's precisely one ``` example, with conventional TOML formatting.
-        // 4. There's precisely one [ ] example, with conventional TOML formatting.
-        // 5. Both these examples specify the same set of bridges.
-        // 6. There are three bridges.
-        // 7. Lines starting with a digit or `[` are direct bridges; others are PT.
-        //
-        // Below, we annotate with `[1]` etc. where these assumptions are made.
-
-        // Filter examples that we don't want to test in this configuration
-        let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| -> _ {
-            // [7], filter out the PTs
-            if cfg!(all(feature = "bridge-client", not(feature = "pt-client"))) {
-                let looks_like_addr =
-                    |l: &str| l.starts_with(|c: char| c.is_ascii_digit() || c == '[');
-                examples.lines.retain(|l| looks_like_addr(l));
-            }
-
-            examples
-        };
-
-        // Tests that one example parses, and returns what it parsed.
-        // If bridge support is completely disabled, checks that this configuration
-        // is rejected, as it should be, and returns a dummy value `((),)`
-        // (so that the rest of the test has something to "compare that we parsed it the same").
-        let resolve_examples = |examples: &ExampleSectionLines| {
-            // [7], check that the PT bridge is properly rejected
-            #[cfg(all(feature = "bridge-client", not(feature = "pt-client")))]
-            {
-                let err = examples.resolve::<TorClientConfig>().unwrap_err();
-                expect_err_contains(err, "support disabled in cargo features");
-            }
-
-            let examples = filter_examples(examples.clone());
-
-            #[cfg(feature = "bridge-client")]
-            {
-                examples.resolve::<TorClientConfig>().unwrap()
-            }
-
-            #[cfg(not(feature = "bridge-client"))]
-            {
-                let err = examples.resolve::<TorClientConfig>().unwrap_err();
-                expect_err_contains(err, "support disabled in cargo features");
-                // Use ((),) as the dummy unit value because () gives clippy conniptions
-                ((),)
-            }
-        };
-
-        // [1], [2], narrow to just the nontrivial, non-default, examples
-        let mut examples = ExampleSectionLines::new("bridges");
-        examples.narrow((r#"^# For example:"#, true), NARROW_NONE);
-
-        let compare = {
-            // [3], narrow to the multi-line string
-            let mut examples = examples.clone();
-            examples.narrow((r#"^#  bridges = '''"#, true), (r#"^#  '''"#, true));
-            examples.uncomment();
-
-            let parsed = resolve_examples(&examples);
-
-            // Now we fish out the lines ourselves as a double-check
-            // We must strip off the bridges = ''' and ''' lines.
-            examples.lines.remove(0);
-            examples.lines.remove(examples.lines.len() - 1);
-            // [6], check we got the number of examples we expected
-            examples.expect_lines(3);
-
-            // If we have the bridge API, try parsing each line and using the API to insert it
-            #[cfg(feature = "bridge-client")]
-            {
-                let examples = filter_examples(examples);
-                let mut built = TorClientConfig::builder();
-                for l in &examples.lines {
-                    built.bridges().bridges().push(l.trim().parse().expect(l));
-                }
-                let built = built.build().unwrap();
-
-                assert_eq!(&parsed, &built);
-            }
-
-            parsed
-        };
-
-        // [4], [5], narrow to the [ ] section, parse again, and compare
-        {
-            examples.narrow((r#"^#  bridges = \["#, true), (r#"^#  \]"#, true));
-            examples.uncomment();
-            let parsed = resolve_examples(&examples);
-            assert_eq!(&parsed, &compare);
-        }
-    }
-
-    /// Helper for fishing out parts of the config file and uncommenting them
-    ///
-    /// This can be used to find part of the config file by ad-hoc regexp matching,
-    /// uncomment it, and parse it.  This is useful as part of a test to check
-    /// that we can parse more complex config.
-    #[derive(Debug, Clone)]
-    struct ExampleSectionLines {
-        section: String,
-        lines: Vec<String>,
-    }
-
-    type NarrowInstruction<'s> = (&'s str, bool);
-    const NARROW_NONE: NarrowInstruction<'static> = ("?<none>", false);
-
-    impl ExampleSectionLines {
-        fn new(section: &str) -> Self {
-            let section = format!("[{}]", section);
-
-            let mut first = Some(());
-            let lines = ARTI_EXAMPLE_CONFIG
-                .lines()
-                .skip_while(|l| l != &section)
-                .take_while(|l| first.take().is_some() || !l.starts_with("["))
-                .map(|l| l.to_string())
-                .collect_vec();
-
-            ExampleSectionLines { section, lines }
-        }
-
-        fn narrow(&mut self, start: NarrowInstruction, end: NarrowInstruction) {
-            let find_index = |(re, include), adjust: [isize; 2]| {
-                if (re, include) == NARROW_NONE {
-                    return None;
-                }
-
-                let re = Regex::new(re).expect(re);
-                let i = self
-                    .lines
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, l)| re.is_match(l))
-                    .map(|(i, _)| i);
-                let i = i.clone().exactly_one().unwrap_or_else(|_| {
-                    panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
-                });
-
-                let adjust = adjust[usize::from(include)];
-                let i = (i as isize + adjust) as usize;
-                Some(i)
-            };
-
-            eprint!("narrow {:?} {:?}: ", start, end);
-            let start = find_index(start, [1, 0]).unwrap_or(0);
-            let end = find_index(end, [0, 1]).unwrap_or(self.lines.len());
-            eprintln!("{:?} {:?}", start, end);
-            // don't tolerate empty
-            assert!(start < end, "empty, from {:#?}", &self.lines);
-            self.lines = self.lines.drain(..).take(end).skip(start).collect_vec();
-        }
-
-        fn expect_lines(&self, n: usize) {
-            assert_eq!(self.lines.len(), n);
-        }
-
-        fn uncomment(&mut self) {
-            for l in &mut self.lines {
-                *l = l.strip_prefix('#').expect(l).to_string();
-            }
-        }
-
-        fn parse(&self) -> config::Config {
-            let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
-            eprintln!("parsing\n  --\n{}\n  --", &s);
-            let c: toml::Value = toml::from_str(&s).expect(&s);
-            config::Config::try_from(&c).expect(&s)
-        }
-
-        fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
-            tor_config::load::resolve(self.parse())
-        }
     }
 }

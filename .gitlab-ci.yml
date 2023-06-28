@@ -318,6 +318,23 @@ integration-shadow:
     - amd64
     - tpa
 
+rust-latest-test-all-features:
+  stage: test
+  image: rust:latest
+  script:
+    - rustup show
+    - cargo build --target x86_64-unknown-linux-gnu --locked --workspace --all-features --all-targets
+    - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
+  after_script:
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+    - cargo clean
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 1 hours
+  tags:
+    - amd64
+
 every-crate:
   stage: test
   image: rust:latest
