@@ -144,6 +144,7 @@ mod tests {
     use crate::{ArtiPath, CTorPath};
     use std::fs;
     use tempfile::{tempdir, TempDir};
+    use tor_llcrypto::pk::ed25519;
 
     // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
     // include it once)
@@ -282,5 +283,56 @@ mod tests {
 
         // Found!
         assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
+    }
+
+    #[test]
+    #[should_panic(expected = "not yet implemented")] // TODO HSS: remove when KeyType::to_ssh_format is implemented
+    fn insert() {
+        // Initialize an empty key store
+        let (key_store, _keystore_dir) = init_keystore(false);
+
+        // Not found
+        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, false);
+
+        // Insert the key
+        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
+        let erased_kp = KeyType::Ed25519Keypair
+            .parse_ssh_format_erased(key)
+            .unwrap();
+        key_store
+            .insert(
+                &*erased_kp.downcast::<ed25519::Keypair>().unwrap(),
+                &TestSpecifier,
+                KeyType::Ed25519Keypair,
+            )
+            .unwrap();
+
+        // Found!
+        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
+    }
+
+    #[test]
+    fn remove() {
+        // Initialize the key store
+        let (key_store, _keystore_dir) = init_keystore(true);
+
+        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
+
+        // Now remove the key... remove() should indicate success by returning Ok(Some(()))
+        assert_eq!(
+            key_store
+                .remove(&TestSpecifier, KeyType::Ed25519Keypair)
+                .unwrap(),
+            Some(())
+        );
+
+        // Can't find it anymore!
+        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, false);
+
+        // remove() returns Ok(None) now.
+        assert!(key_store
+            .remove(&TestSpecifier, KeyType::Ed25519Keypair)
+            .unwrap()
+            .is_none());
     }
 }
