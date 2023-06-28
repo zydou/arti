@@ -4590,6 +4590,7 @@ dependencies = [
  "tor-units",
  "tracing",
  "typed-index-collections",
+ "visibility",
 ]
 
 [[package]]

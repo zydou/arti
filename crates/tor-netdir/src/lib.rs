@@ -1051,7 +1051,13 @@ impl NetDir {
     }
 
     /// Return a (possibly unusable) relay with a given RSA identity.
+    ///
+    /// This API can be used to find information about a relay that is listed in
+    /// the current consensus, even if we don't yet have enough information
+    /// (like a microdescriptor) about the relay to use it.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
     fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
         let rsidx = *self.rsidx_by_rsa.get(rsa_id)?;
         let rs = self.c_relays().get(rsidx).expect("Corrupt index");
@@ -1063,8 +1069,13 @@ impl NetDir {
     fn by_rsa_id(&self, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
         self.by_rsa_id_unchecked(rsa_id)?.into_relay()
     }
-    /// Return true if `rsa_id` is listed in this directory, even if it
-    /// isn't currently usable.
+    /// Return true if `rsa_id` is listed in this directory, even if it isn't
+    /// currently usable.
+    ///
+    /// (An "unusable" relay in this context is one for which we don't have full
+    /// directory information.)
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
     fn rsa_id_is_listed(&self, rsa_id: &RsaIdentity) -> bool {
         self.by_rsa_id_unchecked(rsa_id).is_some()
     }
