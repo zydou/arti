@@ -406,7 +406,9 @@ impl HsDescInner {
         // with the consequence that once we obtain such a descriptor,
         // we'll be satisfied with it and consider the HS down until the descriptor expires.
         if intro_points.is_empty() {
-            return Err(EK::MissingEntry.with_msg(format!("no introduction pointsr")).into());
+            return Err(EK::MissingEntry
+                .with_msg(format!("no introduction pointsr"))
+                .into());
         }
 
         let inner = HsDescInner {
@@ -460,22 +462,29 @@ mod test {
 
         let none = format!(
             "{}\n",
-            TEST_DATA_INNER.split_once("\nintroduction-point").unwrap().0,
+            TEST_DATA_INNER
+                .split_once("\nintroduction-point")
+                .unwrap()
+                .0,
         );
         let err = HsDescInner::parse(&none).map(|_| &none).unwrap_err();
         assert_eq!(err.kind, NEK::MissingEntry);
 
         let ipt = format!(
             "introduction-point{}",
-            TEST_DATA_INNER.rsplit_once("\nintroduction-point").unwrap().1,
+            TEST_DATA_INNER
+                .rsplit_once("\nintroduction-point")
+                .unwrap()
+                .1,
         );
-        for n in NUM_INTRO_POINT_MAX..NUM_INTRO_POINT_MAX+2 {
-            let many = chain!(
-                iter::once(&*none),
-                iter::repeat(&*ipt).take(n),
-            ).collect::<String>();
+        for n in NUM_INTRO_POINT_MAX..NUM_INTRO_POINT_MAX + 2 {
+            let many = chain!(iter::once(&*none), iter::repeat(&*ipt).take(n),).collect::<String>();
             let desc = HsDescInner::parse(&many).unwrap();
-            let desc = desc.1.dangerously_into_parts().0.dangerously_assume_wellsigned();
+            let desc = desc
+                .1
+                .dangerously_into_parts()
+                .0
+                .dangerously_assume_wellsigned();
             assert_eq!(desc.intro_points.len(), NUM_INTRO_POINT_MAX);
         }
     }
