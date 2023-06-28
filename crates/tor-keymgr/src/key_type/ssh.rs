@@ -162,3 +162,55 @@ impl KeyType {
         todo!() // TODO HSS
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    const OPENSSH_ED25519: &[u8] = include_bytes!("../../testdata/ed25519_openssh.private");
+    const OPENSSH_ED25519_BAD: &[u8] = include_bytes!("../../testdata/ed25519_openssh_bad.private");
+    const OPENSSH_DSA: &[u8] = include_bytes!("../../testdata/dsa_openssh.private");
+
+    #[test]
+    fn wrong_key_type() {
+        let key_type = KeyType::Ed25519Keypair;
+        let key = UnparsedOpenSshKey::new(OPENSSH_DSA.into(), PathBuf::from("/test/path"));
+        let err = key_type.parse_ssh_format_erased(key).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Unexpected OpenSSH key type: wanted ssh-ed25519, found ssh-dss"
+        );
+    }
+
+    #[test]
+    fn invalid_ed25519_key() {
+        let key_type = KeyType::Ed25519Keypair;
+        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519_BAD.into(), PathBuf::from("/test/path"));
+        let err = key_type.parse_ssh_format_erased(key).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Failed to parse OpenSSH with type Ed25519Keypair"
+        );
+    }
+
+    #[test]
+    fn ed25519_key() {
+        let key_type = KeyType::Ed25519Keypair;
+        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
+        let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
+
+        assert!(erased_key.downcast::<ed25519::Keypair>().is_ok());
+    }
+}
