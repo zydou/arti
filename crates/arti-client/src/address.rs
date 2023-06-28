@@ -344,6 +344,9 @@ impl std::fmt::Display for TorAddr {
 }
 
 /// An error created while making or using a [`TorAddr`].
+//
+// NOTE: Unlike ErrorDetail, this is a `pub` enum: Do not make breaking changes
+// to it, or expose lower-level errors in it, without careful consideration!
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 // TODO Should implement ErrorKind
