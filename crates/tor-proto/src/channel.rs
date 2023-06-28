@@ -154,12 +154,31 @@ type CellFrame<T> =
 ///
 /// A channel is a direct connection to a Tor relay, implemented using TLS.
 ///
-/// This struct is a frontend that can be used to send cells (using the `Sink<ChanCell>`
-/// impl and otherwise control the channel.  The main state is in the Reactor object.
-/// `Channel` is cheap to clone.
+/// This struct is a frontend that can be used to send cells (using the
+/// `Sink<ChanCell>` impl and otherwise control the channel.  The main state is
+/// in the Reactor object. `Channel` is cheap to clone.
 ///
-/// (Users need a mutable reference because of the types in `Sink`, and ultimately because
-/// `cell_tx: mpsc::Sender` doesn't work without mut.
+/// (Users need a mutable reference because of the types in `Sink`, and
+/// ultimately because `cell_tx: mpsc::Sender` doesn't work without mut.
+///
+/// # Channel life cycle
+///
+/// Channels can be created directly here through the [`ChannelBuilder`] API.
+/// For a higher-level API (with better support for TLS, pluggable transports,
+/// and channel reuse) see the `tor-chanmgr` crate.
+///
+/// After a channel is created, it will persist until it is closed in one of
+/// four ways:
+///    1. A remote error occurs.
+///    2. The other side of the channel closes the channel.
+///    3. Someone calls [`Channel::terminate`] on the channel.
+///    4. The last reference to the `Channel` is dropped. (Note that every circuit
+///       on a `Channel` keeps a reference to it, which will in turn keep the
+///       channel from closing until all those circuits have gone away.)
+///
+/// Note that in cases 1-3, the [`Channel`] object itself will still exist: it
+/// will just be unusable for most purposes.  Most operations on it will fail
+/// with an error.
 #[derive(Clone, Debug)]
 pub struct Channel {
     /// A channel used to send control messages to the Reactor.

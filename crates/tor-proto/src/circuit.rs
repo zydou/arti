@@ -93,10 +93,33 @@ pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
 ///
-/// This struct is the interface used by the rest of the code, It is fairly
-/// cheaply cloneable.  None of the public methods need mutable access, since
-/// they all actually communicate with the Reactor which contains the primary
-/// mutable state, and does the actual work.
+/// # Circuit life cycle
+///
+/// `ClientCirc`s are created in an initially unusable state using [`Channel::new_circ`],
+/// which returns a [`PendingClientCirc`].  To get a real (one-hop) circuit from
+/// one of these, you invoke one of its `create_firsthop` methods (currently
+/// [`create_firsthop_fast()`](PendingClientCirc::create_firsthop_fast) or
+/// [`create_firsthop_ntor()`](PendingClientCirc::create_firsthop_ntor)).
+/// Then, to add more hops to the circuit, you can call
+/// [`extend_ntor()`](ClientCirc::extend_ntor) on it.
+///
+/// For higher-level APIs, see the `tor-circmgr` crate: the ones here in
+/// `tor-proto` are probably not what you need.
+///
+/// After a circuit is created, it will persist until it is closed in one of
+/// five ways:
+///    1. A remote error occurs.
+///    2. Some hop on the circuit sends a `DESTROY` message to tear down the
+///       circuit.
+///    3. The circuit's channel is closed.
+///    4. Someone calls [`ClientCirc::terminate`] on the circuit.
+///    5. The last reference to the `ClientCirc` is dropped. (Note that every stream
+///       on a `ClientCirc` keeps a reference to it, which will in turn keep the
+///       circuit from closing until all those streams have gone away.)
+///
+/// Note that in cases 1-4 the [`ClientCirc`] object itself will still exist: it
+/// will just be unusable for most purposes.  Most operations on it will fail
+/// with an error.
 //
 // Effectively, this struct contains two Arcs: one for `path` and one for
 // `control` (which surely has something Arc-like in it).  We cannot unify
@@ -109,6 +132,7 @@ pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 // Because of the above, cloning this struct is always going to involve
 // two atomic refcount changes/checks.  Wrapping it in another Arc would
 // be overkill.
+
 pub struct ClientCirc {
     /// Mutable state shared with the `Reactor`.
     mutable: Arc<Mutex<MutableState>>,

@@ -78,18 +78,22 @@ use crate::factory::BootstrapReporter;
 pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
-/// A Type that remembers a set of live channels, and launches new
-/// ones on request.
+/// An object that remembers a set of live channels, and launches new ones on
+/// request.
 ///
-/// Use the [ChanMgr::get_or_launch] function to create a new channel, or
-/// get one if it exists.
+/// Use the [`ChanMgr::get_or_launch`] function to create a new [`Channel`], or
+/// get one if it exists.  (For a slightly lower-level API that does no caching,
+/// see [`ChannelFactory`](factory::ChannelFactory) and its implementors.  For a
+/// much lower-level API, see [`tor_proto::channel::ChannelBuilder`].)
 ///
-/// Each channel is kept open as long as there is a reference outside ChanMgr
-/// to it, unless the relay kills it.
+/// Each channel is kept open as long as there is a reference to it, or
+/// something else (such as the relay or a network error) kills the channel.
 ///
-/// If there is no reference to a channel, ChanMgr will wait a random period of
-/// time between 180 and 270 seconds before closing the channel.
-/// To close unused channels, call the [ChanMgr::expire_channels] method
+/// After a `ChanMgr` launches a channel, it keeps a reference to it until that
+/// channel has been unused (that is, had no circuits attached to it) for a
+/// certain amount of time. (Currently this interval is chosen randomly from
+/// between 180-270 seconds, but this is an implementation detail that may change
+/// in the future.)
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
     mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
