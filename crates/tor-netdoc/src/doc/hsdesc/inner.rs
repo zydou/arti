@@ -406,8 +406,7 @@ impl HsDescInner {
         // with the consequence that once we obtain such a descriptor,
         // we'll be satisfied with it and consider the HS down until the descriptor expires.
         if intro_points.is_empty() {
-            return Err(EK::MissingEntry
-                .with_msg("no introduction points"));
+            return Err(EK::MissingEntry.with_msg("no introduction points"));
         }
 
         let inner = HsDescInner {
