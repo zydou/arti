@@ -12,19 +12,16 @@ use safelog::{Redacted, Sensitive};
 use tor_cell::relaycell::hs::IntroduceAckStatus;
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind, HasRetryTime, RetryTime};
+use tor_linkspec::RelayIds;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdir::Relay;
 
 /// Identity of a rendezvous point, for use in error reports
-//
-// TODO HS this should be `Redacted<RelayIds>`, as per
-//   <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1228#note_2910283>
-pub(crate) type RendPtIdentityForError = Redacted<RsaIdentity>;
+pub(crate) type RendPtIdentityForError = Redacted<RelayIds>;
 
 /// Given a `Relay` for a rendezvous pt, provides its identify for use in error reports
 pub(crate) fn rend_pt_identity_for_error(relay: &Relay<'_>) -> RendPtIdentityForError {
-    (*relay.rsa_id()).into()
+    RelayIds::from_relay_ids(relay).into()
 }
 
 /// Index of an introduction point in the descriptor
