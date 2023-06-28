@@ -599,7 +599,7 @@ impl<R: Runtime> TorClient<R> {
             // Note: The Mistrust should be taken from StorageConfig (the keystore Mistrust needs
             // to be the same as elsewhere). Perhaps this means the keystore should be part of
             // `storage`.
-            let key_store_dir = std::path::PathBuf::new();
+            let key_store_dir = Some(std::path::PathBuf::new());
             let permissions = Default::default();
 
             let mut stores: Vec<Box<dyn KeyStore>> = vec![];
@@ -607,9 +607,9 @@ impl<R: Runtime> TorClient<R> {
             // TODO hs: For now, let's ignore any errors coming from the ArtiNativeKeyStore
             // constructor. We should remove this when we implement the key store config and bail
             // if the keystore dir fails the validation checks.
-            if let Ok(arti_store) =
-                ArtiNativeKeyStore::from_path_and_mistrust(key_store_dir, &permissions)
-            {
+            if let Some(key_store_dir) = key_store_dir {
+                let arti_store =
+                    ArtiNativeKeyStore::from_path_and_mistrust(key_store_dir, &permissions)?;
                 stores.push(Box::new(arti_store));
             }
 

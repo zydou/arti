@@ -444,6 +444,7 @@ mod test {
                 "bridges",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
+                "storage.keystore_dir",
             ],
         );
 

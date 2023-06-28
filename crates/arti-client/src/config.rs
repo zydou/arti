@@ -15,7 +15,7 @@ pub use tor_config::convert_helper_via_multi_line_list_builder;
 pub use tor_config::impl_standard_builder;
 pub use tor_config::list_builder::{MultilineListBuilder, MultilineListBuilderError};
 pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
-pub use tor_config::{BoolOrAuto, ConfigError};
+pub use tor_config::{BoolOrAuto, ConfigError, ItemOrBool};
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
 
 pub use tor_guardmgr::bridge::BridgeConfigBuilder;
@@ -173,12 +173,60 @@ pub struct StorageConfig {
     /// Location on disk for less-sensitive persistent state information.
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
+    /// Location on disk for the Arti keystore.
+    #[builder(setter(into), default = "default_keystore_dir()")]
+    #[builder_field_attr(serde(
+        deserialize_with = "deserialize_keystore_dir",
+        default = "serde_default_keystore_dir"
+    ))]
+    keystore_dir: Option<CfgPath>,
     /// Filesystem state to
     #[builder(sub_builder(fn_name = "build_for_arti"))]
     #[builder_field_attr(serde(default))]
     permissions: Mistrust,
 }
 impl_standard_builder! { StorageConfig }
+
+/// Deserialize the `keystore_dir` storage field.
+///
+/// NOTE: The first option is needed because of the builder, the second is the actual type of the field.
+#[cfg(feature = "keymgr")]
+#[allow(clippy::option_option)]
+fn deserialize_keystore_dir<'de, D>(deserializer: D) -> Result<Option<Option<CfgPath>>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let cfg: ItemOrBool<CfgPath> = serde::de::Deserialize::deserialize(deserializer)?;
+
+    let cfg = match cfg {
+        ItemOrBool::Item(cfg) => Some(cfg),
+        ItemOrBool::Bool(true) => default_keystore_dir(),
+        ItemOrBool::Bool(false) => None,
+    };
+
+    Ok(Some(cfg))
+}
+
+/// Deserialize the `keystore_dir` storage field.
+///
+/// NOTE: The first option is needed because of the builder, the second is the actual type of the field.
+#[cfg(not(feature = "keymgr"))]
+#[allow(clippy::option_option)]
+fn deserialize_keystore_dir<'de, D>(deserializer: D) -> Result<Option<Option<CfgPath>>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+
+    let cfg: ItemOrBool<CfgPath> = serde::de::Deserialize::deserialize(deserializer)?;
+
+    match cfg {
+        ItemOrBool::Item(_) | ItemOrBool::Bool(true) => Err(D::Error::custom(
+            "keystore not available unless the `keymgr` feature is enabled".to_string(),
+        )),
+        ItemOrBool::Bool(false) => Ok(None),
+    }
+}
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
@@ -188,6 +236,26 @@ fn default_cache_dir() -> CfgPath {
 /// Return the default state directory.
 fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
+}
+
+/// Return the default keystore directory.
+#[allow(clippy::unnecessary_wraps)] // needed because of the type expected by the builder
+fn default_keystore_dir() -> Option<CfgPath> {
+    #[cfg(feature = "keymgr")]
+    {
+        Some(CfgPath::new("${ARTI_LOCAL_DATA}/keystore".to_owned()))
+    }
+
+    #[cfg(not(feature = "keymgr"))]
+    {
+        None
+    }
+}
+
+/// Return the default keystore directory.
+#[allow(clippy::unnecessary_wraps, clippy::option_option)] // needed because of the type expected by the builder
+fn serde_default_keystore_dir() -> Option<Option<CfgPath>> {
+    Some(default_keystore_dir())
 }
 
 impl StorageConfig {
