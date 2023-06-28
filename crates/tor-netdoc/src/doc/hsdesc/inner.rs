@@ -16,6 +16,7 @@ use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
 use tor_hscrypto::pk::{HsIntroPtSessionIdKey, HsSvcNtorKey};
+use tor_hscrypto::NUM_INTRO_POINT_MAX;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::{curve25519, ed25519, ValidatableSignature};
 
@@ -37,7 +38,7 @@ pub(crate) struct HsDescInner {
     pub(super) single_onion_service: bool,
     /// A list of advertised introduction points and their contact info.
     //
-    // Always has >= 1 entries
+    // Always has >= 1 and <= NUM_INTRO_POINT_MAX entries
     pub(super) intro_points: Vec<IntroPointDesc>,
 }
 
@@ -379,12 +380,22 @@ impl HsDescInner {
                 }
             };
 
-            intro_points.push(IntroPointDesc {
-                link_specifiers,
-                ipt_ntor_key: ntor_onion_key,
-                ipt_sid_key: auth_key,
-                svc_ntor_key,
-            });
+            // TODO SPEC: State who enforces NUM_INTRO_POINT_MAX and how (hsdirs, clients?)
+            //
+            // Simply discard extraneous IPTs.  The MAX value is hardcoded now, but a future
+            // protocol evolution might increase it and we should probably still work then.
+            //
+            // If the spec intended that hsdirs ought to validate this and reject descriptors
+            // with more than MAX (when they can), then this code is wrong because it would
+            // prevent any caller (eg future hsdir code in arti relay) from seeing the violation.
+            if intro_points.len() < NUM_INTRO_POINT_MAX {
+                intro_points.push(IntroPointDesc {
+                    link_specifiers,
+                    ipt_ntor_key: ntor_onion_key,
+                    ipt_sid_key: auth_key,
+                    svc_ntor_key,
+                });
+            }
         }
 
         // TODO SPEC: Might a HS publish descriptor with no IPTs to declare itself down?
