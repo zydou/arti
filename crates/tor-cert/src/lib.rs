@@ -150,10 +150,6 @@ caret_int! {
         SHA256_OF_RSA = 0x02,
         /// Identifies the SHA256 of an X.509 certificate.
         SHA256_OF_X509 = 0x03,
-
-        // 08 through 09 and 0B are used for onion services.  They
-        // probably shouldn't be, but that's what Tor does.
-        // TODO hs: Add these types.
     }
 }
 
@@ -198,8 +194,6 @@ pub enum CertifiedKey {
     X509Sha256Digest([u8; 32]),
     /// Some unrecognized key type.
     Unrecognized(UnrecognizedKey),
-    // TODO hs: Add new alternatives here for the case that we're handling key types from
-    // onion services.  These will correspond to types in tor-hscrypto.
 }
 
 /// A key whose type we didn't recognize.
