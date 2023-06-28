@@ -16,6 +16,7 @@ use err::{ArtiNativeKeystoreError, FilesystemAction};
 use fs_mistrust::{CheckedDir, Mistrust};
 
 /// The Arti key store.
+#[derive(Debug)]
 pub struct ArtiNativeKeyStore {
     /// The root of the key store.
     keystore_dir: CheckedDir,
