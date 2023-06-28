@@ -417,6 +417,7 @@ mod test {
                 FeatureDependent if ALL_RELEVANT_FEATURES_ENABLED => Some(true),
                 FeatureDependent => None,
             };
+            #[allow(clippy::needless_pass_by_value)] // pass by value defends against a->a b->a
             fn in_example<T>(spec: Option<T>) -> InExample {
                 match spec {
                     None => InExample::Absent,
