@@ -407,12 +407,10 @@ mod test {
         //
         // `keys` is the list of keys.  Add a // comment at the start of the list
         // so that rustfmt retains the consistent formatting.
-        let mut declare_exceptions = |
-            in_old_example: Option<InOld>,
-            in_new_example: Option<InNew>,
-            in_code: InCode,
-            keys: &[&str],
-        | {
+        let mut declare_exceptions = |in_old_example: Option<InOld>,
+                                      in_new_example: Option<InNew>,
+                                      in_code: InCode,
+                                      keys: &[&str]| {
             let in_code = match in_code {
                 Ignored => Some(false),
                 Recognized => Some(true),
