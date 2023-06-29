@@ -6,13 +6,9 @@ use tor_error::HasKind;
 
 /// The path of a key in the Arti key store.
 ///
-/// # Requirements
-///
-/// An `ArtiPath` may only consist of UTF-8 alphanumeric, dash (`-`), underscore (`_`), and path
-/// separator (`/`) characters. In addition, its underlying string representation must:
-///   * not begin or end in `-` or `_`
-///   * not contain any consecutive repeated `/` characters
-///   * not be `/`
+/// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
+/// components may contain ASCII alphanumerics and (except as the first or last character) `-` or `_`.
+/// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
@@ -72,13 +68,8 @@ impl ArtiPath {
 
 /// A component of an [`ArtiPath`].
 ///
-/// This represents a substring of an [`ArtiPath`] between path separators (`/`).
-///
-/// # Requirements
-///
-/// An `ArtiPathComponent` may only consist of UTF-8 alphanumeric, dash (`-`), and underscore (`_`)
-/// characters. In addition, the first and last characters of its underlying string representation
-/// cannot be `-` or `_`.
+/// Path components may contain ASCII alphanumerics and (except as the first or last character) `-`
+/// or `_`.
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
