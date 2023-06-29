@@ -30,6 +30,7 @@ use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::build::circparameters_from_netparameters;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
+use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
 use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_error::{HasRetryTime as _, RetryTime};
@@ -52,6 +53,25 @@ use crate::{HsClientConnector, HsClientSecretKeys};
 
 use ConnError as CE;
 use FailedAttemptError as FAE;
+
+/// Number of hops in our hsdir, introduction, and rendezvous circuits
+///
+/// Required by `tor_circmgr`'s timeout estimation API
+/// ([`tor_circmgr::CircMgr::estimate_timeout`], [`HsCircPool::estimate_timeout`]).
+///
+/// TODO HS hardcoding the number of hops to 3 seems wrong.
+/// This is really something that HsCircPool knows.  And some setups might want to make
+/// shorter circuits for some reason.  And it will become wrong with vanguards?
+/// But right now I think this is what HsCircPool does.
+//
+// Some commentary from
+//   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1342#note_2918050
+// Possibilities:
+//  * Look at n_hops() on the circuits we get, if we don't need this estimate
+//    till after we have the circuit.
+//  * Add a function to HsCircPool to tell us what length of circuit to expect
+//    for each given type of circuit.
+const HOPS: usize = 3;
 
 /// Given `R, M` where `M: MocksForConnect<M>`, expand to the mockable `ClientCirc`
 // This is quite annoying.  But the alternative is to write out `<... as // ...>`
@@ -419,9 +439,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // User specified a very large u32.  We must be downcasting it to 16bit!
             // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
-        // TODO HS is this right? make configurable? get from netdir?
-        /// Limit on the duration of each retrieval attempt
-        const EACH_TIMEOUT: Duration = Duration::from_secs(10);
+
+        // Limit on the duration of each retrieval attempt
+        let each_timeout = self.estimate_timeout(&[
+            (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
+            (1, TimeoutsAction::RoundTrip { length: HOPS }),    // One HTTP query/response
+        ]);
 
         // We retain a previously obtained descriptor precisely until its lifetime expires,
         // and pay no attention to the descriptor's revision counter.
@@ -476,7 +499,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             let hsdir_for_error: Sensitive<Ed25519Identity> = (*relay.id()).into();
             match self
                 .runtime
-                .timeout(EACH_TIMEOUT, self.descriptor_fetch_attempt(relay))
+                .timeout(each_timeout, self.descriptor_fetch_attempt(relay))
                 .await
                 .unwrap_or(Err(DescriptorErrorDetail::Timeout))
             {
@@ -606,15 +629,51 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // User specified a very large u32.  We must be downcasting it to 16bit!
             // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
-        /// Limit on the duration of each attempt to establishg a rendezvous point
-        // TODO HS is this right? make configurable? get from netdir?
-        const REND_TIMEOUT: Duration = Duration::from_secs(10);
-        /// Limit on the duration of each attempt to negotiate with an introduction point
-        // TODO HS is this right? make configurable? get from netdir?
-        const INTRO_TIMEOUT: Duration = Duration::from_secs(10);
-        /// Limit on the duration of each attempt for activities involving both RPT and IPT
-        // TODO HS is this right? make configurable? get from netdir?
-        const RPT_IPT_TIMEOUT: Duration = Duration::from_secs(10);
+
+        // Limit on the duration of each attempt to establish a rendezvous point
+        //
+        // This *might* include establishing a fresh circuit,
+        // if the HsCircPool's pool is empty.
+        let rend_timeout = self.estimate_timeout(&[
+            (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
+            (1, TimeoutsAction::RoundTrip { length: HOPS }),    // One ESTABLISH_RENDEZVOUS
+        ]);
+
+        // Limit on the duration of each attempt to negotiate with an introduction point
+        //
+        // *Does* include establishing the ciruit.
+        let intro_timeout = self.estimate_timeout(&[
+            (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
+            // This does some crypto too, but we don't account for that.
+            (1, TimeoutsAction::RoundTrip { length: HOPS }), // One INTRODUCE1/INTRODUCE_ACK
+        ]);
+
+        // Limit on the duration of each attempt for activities involving both RPT and IPT
+        let hs_hops = if desc.is_single_onion_service() {
+            1
+        } else {
+            HOPS
+        };
+        let rpt_ipt_timeout = self.estimate_timeout(&[
+            // The API requires us to specify a number of circuit builds and round trips.
+            // So what we tell the estimator is a rather imprecise description.
+            // (TODO it would be nice if the circmgr offered us a one-way trip Action).
+            //
+            // What we are timing here is:
+            //
+            //    INTFRODUCE2 goes from IPT to HS
+            //    but that happens in parallel with us waiting for INTRODUCE_ACK,
+            //    which is controlled by `intro_timeout` so not pat of `ipt_rpt_timeout`.
+            //    and which has to come HOPS hops.  So don't count INTRODUCE2 here.
+            //
+            //    HS builds to our RPT
+            (1, TimeoutsAction::BuildCircuit { length: hs_hops }),
+            //
+            //    RENDEZVOUS1 goes from HS to RPT.  `hs_hops`, one-way.
+            //    RENDEZVOUS2 goes from RPT to us.  HOPS, one-way.
+            //    Together, we squint a bit and call this a HOPS round trip:
+            (1, TimeoutsAction::RoundTrip { length: HOPS }),
+        ]);
 
         // We can't reliably distinguish IPT failure from RPT failure, so we iterate over IPTs
         // (best first) and each time use a random RPT.
@@ -737,7 +796,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     let mut using_rend_pt = None;
                     saved_rendezvous = Some(
                         self.runtime
-                            .timeout(REND_TIMEOUT, self.establish_rendezvous(&mut using_rend_pt))
+                            .timeout(rend_timeout, self.establish_rendezvous(&mut using_rend_pt))
                             .await
                             .map_err(|_: TimeoutError| match using_rend_pt {
                                 None => FAE::RendezvousCircuitObtain {
@@ -773,7 +832,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let (rendezvous, introduced) = self
                     .runtime
                     .timeout(
-                        INTRO_TIMEOUT,
+                        intro_timeout,
                         self.exchange_introduce(ipt, &mut saved_rendezvous),
                     )
                     .await
@@ -805,7 +864,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let circ = self
                     .runtime
                     .timeout(
-                        RPT_IPT_TIMEOUT,
+                        rpt_ipt_timeout,
                         self.complete_rendezvous(ipt, rendezvous, introduced),
                     )
                     .await
@@ -1219,6 +1278,30 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         Ok(rendezvous.rend_circ)
     }
+
+    /// Helper to estimate a timeout for a complicated operation
+    ///
+    /// `actions` is a list of `(count, action)`, where each entry
+    /// represents doing `action`, `count` times sequentially.
+    ///
+    /// Combines the timeout estimates and returns an overall timeout.
+    fn estimate_timeout(&self, actions: &[(u32, TimeoutsAction)]) -> Duration {
+        // This algorithm is, perhaps, wrong.  For uncorrelated variables, a particular
+        // percentile estimate for a sum of random variables, is not calculated by adding the
+        // percentile estimates of the individual variables.
+        //
+        // But the actual lengths of times of the operations aren't uncorrelated.
+        // If they were *perfectly* correlated, then this addition would be correct.
+        // It will do for now; it just might be rather longer than it ought to be.
+        actions
+            .iter()
+            .map(|(count, action)| {
+                self.circpool
+                    .estimate_timeout(action)
+                    .saturating_mul(*count)
+            })
+            .fold(Duration::ZERO, Duration::saturating_add)
+    }
 }
 
 /// Mocks used for testing `connect.rs`
@@ -1264,6 +1347,9 @@ trait MockableCircPool<R> {
         &self,
         netdir: &'a NetDir,
     ) -> tor_circmgr::Result<(Arc<Self::ClientCirc>, Relay<'a>)>;
+
+    /// Estimate timeout
+    fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration;
 }
 /// Mock for `ClientCirc`
 #[async_trait]
@@ -1313,6 +1399,9 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
         netdir: &'a NetDir,
     ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)> {
         HsCircPool::get_or_launch_client_rend(self, netdir).await
+    }
+    fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
+        HsCircPool::estimate_timeout(self, action)
     }
 }
 #[async_trait]
@@ -1447,6 +1536,10 @@ mod test {
             netdir: &'a NetDir,
         ) -> tor_circmgr::Result<(Arc<ClientCirc!(R, Self)>, Relay<'a>)> {
             todo!()
+        }
+
+        fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
+            Duration::from_secs(10)
         }
     }
     #[async_trait]

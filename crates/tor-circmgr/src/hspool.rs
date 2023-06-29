@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{CircMgr, Error, Result};
+use crate::{timeouts, CircMgr, Error, Result};
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::{bad_api_usage, internal, ErrorReport};
@@ -280,6 +280,26 @@ impl<R: Runtime> HsCircPool<R> {
         inner
             .pool
             .retain(|circ| circuit_still_useable(netdir, circ, |_relay| true));
+    }
+
+    /// Return an estimate-based delay for how long a given
+    /// [`Action`](timeouts::Action) should be allowed to complete.
+    ///
+    /// This function has the same semantics as
+    /// [`CircMgr::estimate_timeout`].
+    /// See the notes there.
+    ///
+    /// In particular **you do not need to use this function** in order to get
+    /// reasonable timeouts for the circuit-building operations provided by `HsCircPool`.
+    //
+    // In principle we could have made this available by making `HsCircPool` `Deref`
+    // to `CircMgr`, but we don't want to do that because `CircMgr` has methods that
+    // operate on *its* pool which is separate from the pool maintained by `HsCircPool`.
+    //
+    // We *might* want to provide a method to access the underlying `CircMgr`
+    // but that has the same issues, albeit less severely.
+    pub fn estimate_timeout(&self, timeout_action: &timeouts::Action) -> std::time::Duration {
+        self.circmgr.estimate_timeout(timeout_action)
     }
 }
 
