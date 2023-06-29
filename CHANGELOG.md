@@ -3,6 +3,195 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.0 — 30 June 2023
+
+Arti 1.2.0 completes the work needed to connect to onion services
+on the Tor network.   (TODO: SAY MORE)
+
+(TODO: Decide if we really want to call it 1.2.0
+
+This is up-to-date as of 9407fe1ab5b2df6a8cee40047eea724b00c021cc
+
+
+### Major bugfixes
+
+- Downgrade our dependency on x25519-dalek from "2.0.0-rc.2" to
+  "2.0.0-pre.1".  The former had a compatibility bug that made it stop
+  working once a newer version of `curve25519-dalek` was released.  We
+  hope to [re-upgrade] to a more recent version of this crate in a
+  future release. ([#926], [!1317])
+
+### Breaking changes in lower-level crates
+
+- We have removed an empty `relaycell::restrict` module from the
+  `tor-cell` crate.  This module was added in error.  This change will
+  break any code that (ineffectually) tried to import
+  it. ([589fefd581e962a7])
+
+### Onion service development
+
+- Implement the core logic of an onion service client.  Having fetched a
+  descriptor for an onion service, we now establish a rendezvous
+  circuit, and try to send INTRODUCE1 requests to the service's
+  introduction points, while waiting for a RENDEZVOUS2 message in
+  response on the rendezvous circuit. Once the message is received, we
+  can launch streams to the service over that circuit. ([!1228],
+  [!1230], [!1235], [!1238], [!1240])
+- Re-launch and retry onion service connection attempts as
+  appropriate. ([!1246])
+- Onion service descriptors now have accessor functions to enable their
+  actual use. ([!1220])
+- We can transform the information about relays used in onion service
+  desciptors, and in introduce1 cells, into the format needed to connect
+  to the relay described. ([!1221])
+- Generate random rendezvous cookies to identify circuits at a client's
+  rendezvous point. ([!1227])
+- Ensure that specific information about onion services, rendezvous
+  points, and introduction points are treated as sensitive or redacted
+  in our error messages. ([!1326], [!1335])
+- Reduce the cost of duplicating HsDir rings in our network
+  objects. ([#883], [!1234])
+- Refactor and simplify our `hs_ntor` APIs to better reuse state
+  information. ([bb6115103aad177c])
+- Return a more informative error type from our time-period manipulation
+  code. ([!1244])
+- Remember our introduction point experiences, and try to use known-good
+  ones before ones that have failed recently. ([!1247], [!1295])
+- We now adjust the size of our pre-constructed circuit pool dynamically
+  based on past demend for onion-service circuits (or lack
+  thereof). ([686d5cf2093322e4])
+- Speed improvements to the algorithm we use to select pre-constructed
+  circuits for onion services, and correctness fixes to those speed
+  improvements. ([1691c353924f89cc], [#918], [!1296], [!1301])
+
+- The StreamPrefs::connect_to_onion_services` method now can be used to
+  enable or disable onion service connections, and TorClients can handle
+  onion services correctly. ([!1257])
+- Provide the extended SOCKS5 error codes as documented in [proposal
+  304]. ([#736], [!1248], [!1279])
+- Drop introduction circuits after they are no longer needed. ([!1299],
+  [!1303])
+- Expire long-unused onion service circuits. ([!1287], [!1302])
+- Expire long-unused onion service descriptors. ([!1290])
+- Provide a higher-level HsDescError to explain what, exactly, has gone
+  wrong with parsing or decrypting an onion service
+  descriptor. ([!1289])
+- Respect the maximum onion service descriptor size in the consensus and
+  change the default maximum from 50 KiB to 50 KB per the specification.
+  ([!1323])
+- Go through all of our remaining "TODO HS" comments and make sure that
+  they are not issues that should block a release. ([#892], [#928], etc)
+- We support enabling or disabling onion service connections via a new
+  `allow_onion_addrs` option, and configuring these connections through
+  other parameters. ([!1305])
+- Ensure that our directory ring parameters are taken from the consensus
+  parameters, rather than set unconditionally to defaults. ([!1310])
+
+
+### RPC development
+
+- Our RPC engine now supports holds a list of SOCKS connections,
+  so that applications can register their SOCKS connections with their
+  RPC sessions. ([545984b095119ecc])
+- `TorClient`s, and similar RPC-visible, can now be exposed with a
+  secure global identifier so applications can refer to them outside of
+  an RPC session This will allow applications to name a `TorClient` from
+  e.g. within the parameters of a SOCKS connection. ([#863], [!1208])
+- Enable `rpc::Object`s to be downcast to (some of) the `&dyn Trait`s
+  that they implement. This is in tension with some of Rust's current
+  limitations, but we need it so that we can downcast a `TorClient` from
+  an `Object` into a type we can use in the SOCKS code for opening a
+  data stream. ([!1225], [!1253])
+- Major refactoring to our RPC session initialization code. ([!1254])
+
+
+### New crates
+
+- New `tor-keymgr` crate to handle persistent cryptographic keys that
+  can be stored to disk. In the future this will be used for all client,
+  service, and relay keys. ([!1223], [!1255], [!1256], [!1263], [!1267],
+  [!1269], [!1278], [!1280], [!1284], [!1319], [!1321], [!1315],
+  [!1321], [!1328], [!1337])
+
+- New `tor-geoip` crate to handle a static in-binary or on-disk
+  IP-to-country lookup table. We will use this in the future to support
+  country restrictions on selected paths through the network. ([!1239],
+  [!1268])
+
+### Documentation
+
+- Clarify behavior of `ClientCirc::send_control_message`. ([#885],
+  [!1219], [58babcb756f6427c])
+- Clarify required behavior for `NetDocProvider`. ([!1224])
+- More information about how to configure snowflake and other pluggable
+  transports. ([#875], [#879], [!1216], [!1249])
+- New examples and documentation for how to implement error
+  reporting. ([!1213])
+- Clarify some error cases for onion service descriptor
+  validation. ([!1250], [!1252])
+- Improve documentation on the channel and circuit lifecycle. ([!1316],
+  [!1318])
+
+- 
+
+### Infrastructure
+
+- For now we ignore an "unmaintained crate" warning for the [`users`] crate
+  while we work on [finding a replacement][#877]. ([!1217])
+- Our CI now tests each crate individually with its default
+  features. This helps detect bugs where a crate was only working
+  because it had been built with the features required of it by another
+  crate. ([!1250])
+
+### Cleanups, minor features, and smaller bugfixes
+
+- We no longer use the [`arrayref`] crate to convert slice-references
+  into array references.  In recent versions of Rust, we can simply use
+  TryFrom and const generics. ([#872], [!1214])
+- Our consensus directory objects now expose accessors that list
+  required and recommended protocol versions.  ([205b6d176c4a619b])
+- The `tor-error` crate now exposes a convenience macro to derive
+  `AsRef<dyn Error>` for our specific error types. ([33c90e5b7243c3b3])
+- The formerly experimental `send_control_message` API now takes an
+  `AnyRelayMsg` rather than a cell, as does its associated `MsgHandler`
+  API. ([#881], [#887], [!1232], [!1236])
+- Backend code to more readily display and redact relay
+  identities. ([#882], [!1233]).
+- `tor-proto` no longer gives an error when trying to use `SENDME`
+  messages with a relay digest algorithm with an output length of other
+  than 20.  ([!1242])
+- `tor-llcrypto` now exposes a method to try to look up an element from
+  a slice in constant time. ([25db56777c0042a9])
+- Apply two now-universally-available clippy lints to all of our crates.
+  ([!1271])
+- Add experimental API to expose a `chanmgr` method from
+  `TorClient`. ([!1275])
+- The `ClientCirc::path_ref()` method now returns an `Arc<Path>` type,
+  which can be used to find information about a circuit's path without
+  extensive copying.  The old `path()` method still exists, but is
+  deprecated. ([#787], [!1286])
+- `CircMgr` now exposes its estimates for good timeouts for circuit
+  operations. ([!1281].)
+- Fix a compilation warning on Windows. ([!1294])
+- Make sure DirProviderBuilder is `Send + Sync`, so that
+  TorClientBuilder is always `Send + Sync`. ([#924], [!1307])
+- Implement conversion from ed25519 private keys to curve25519 private
+  keys, as part of our eventual compatibility with ssh's key storage
+  format. ([!1297])
+- Numerous improvements and fixes to our configuration handling tests.
+  ([!1320], [!1330])
+- Refactor some duplicate logic in our circuit-retention code. ([!1322])
+
+### Removed features
+
+- We no longer support ancient (pre-0.3.6) versions of Tor without
+  support for authenticated SENDME messages. ([#914], [!1283])
+- 
+
+
+
+
+
 # Arti 1.1.5 — 1 June 2023
 
 Arti 1.1.5 fixes a local-only denial-of-service attack, and continues
