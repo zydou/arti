@@ -313,6 +313,13 @@ impl StreamPrefs {
     ///
     /// If `Auto`, the behaviour depends on the `address_filter.allow_onion_addrs`
     /// configuration option, which is in turn **disabled** by default.
+    ///
+    /// **Note**: Arti currently lacks the
+    /// "vanguards" feature that Tor uses to prevent guard discovery attacks over time.
+    /// As such, you should probably stick with C Tor if you need to make a large
+    /// number of onion service connections, or if you are using the Tor protocol
+    /// in a way that lets an attacker control how many onion services connections that you make -
+    /// for example, when using Arti's SOCKS support from a web browser such as Tor Browser.
     #[cfg(feature = "onion-service-client")]
     pub fn connect_to_onion_services(
         &mut self,
