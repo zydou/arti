@@ -240,7 +240,7 @@ pub enum FailedAttemptError {
         rend_pt: Redacted<RsaIdentity>,
     },
 
-    /// Error on rendezvous circuit when expecting rendezvous completion
+    /// Error on rendezvous circuit when expecting rendezvous completion (`RENDEZVOUS2`)
     #[error("Error on rendezvous circuit when expecting rendezvous completion")]
     RendezvousCompletionCircuit {
         /// What happened
@@ -255,7 +255,7 @@ pub enum FailedAttemptError {
         rend_pt: Redacted<RsaIdentity>,
     },
 
-    /// Error processing rendezvous completion
+    /// Error processing rendezvous completion (`RENDEZVOUS2`)
     ///
     /// This is might be the fault of the hidden service or the rendezvous point.
     #[error("Rendezvous completion end-to-end crypto handshake failed")]
