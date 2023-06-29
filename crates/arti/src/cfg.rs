@@ -444,7 +444,6 @@ mod test {
                 "bridges",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
-                "storage.keystore_dir",
             ],
         );
 
@@ -481,6 +480,7 @@ mod test {
             &[
                 // Settings only available with bridge support
                 "bridges.transports", // we recognise this so we can reject it
+                "storage.keystore_dir",
             ],
         );
 

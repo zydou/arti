@@ -89,22 +89,6 @@
 #cache_dir = "${ARTI_CACHE}"
 #state_dir = "${ARTI_LOCAL_DATA}"
 
-# The Arti keystore root directory (only available if Arti has been built with
-# the `keymgr` feature flag).
-#
-# For example, you can set a specific keystore path (this will fail if the
-# `keymgr` feature is not enabled):
-# keystore_dir = "${ARTI_LOCAL_DATA}/keystore"
-#
-# Or, to use the default keystore path (this will fail if the `keymgr` feature
-# is not enabled):
-# keystore_dir = true
-#
-# You can also disable keystore support altogether:
-# keystore_dir = false
-#
-#keystore_dir = true
-
 # Describe how to enforce permissions on the filesystem when accessing the cache
 # and state directories.  (This does not apply to configuration files) 
 [storage.permissions]
