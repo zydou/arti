@@ -6,7 +6,7 @@ use tor_error::internal;
 /// The path of a key in the Arti key store.
 ///
 /// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
-/// components may contain ASCII alphanumerics, and (except as the first or last character) `-`,
+/// components may contain UTF-8 alphanumerics, and (except as the first or last character) `-`,
 /// `_`, or  `.`.
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
@@ -42,7 +42,7 @@ impl ArtiPath {
 
 /// A component of an [`ArtiPath`].
 ///
-/// Path components may contain ASCII alphanumerics, and (except as the first or last character)
+/// Path components may contain UTF-8 alphanumerics, and (except as the first or last character)
 /// `-`,  `_`, or `.`.
 //
 // TODO HSS: disallow consecutive `.` to prevent path traversal.
