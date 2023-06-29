@@ -1,6 +1,7 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
-use crate::Result;
+use crate::{KeystoreError, Result};
+use tor_error::HasKind;
 
 /// The path of a key in the Arti key store.
 ///
@@ -11,6 +12,22 @@ use crate::Result;
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
 pub struct ArtiPath(String);
+
+/// Encountered an invalid arti path.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Invalid arti path: {0}")]
+struct InvalidArtiPathError(String);
+
+impl HasKind for InvalidArtiPathError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        // TODO HSS: this error kind is bad, because it doesn't tell us exactly where the error is
+        // coming from (`ArtiPath` will be used as a basis for various kinds of specifiers, such as
+        // HsClientSpecifier).
+        tor_error::ErrorKind::KeystoreBadArtiPath
+    }
+}
+
+impl KeystoreError for InvalidArtiPathError {}
 
 impl ArtiPath {
     /// Create a new [`ArtiPath`].
