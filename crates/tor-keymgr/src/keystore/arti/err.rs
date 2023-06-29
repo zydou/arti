@@ -1,4 +1,4 @@
-//! An error type for [`ArtiNativeKeyStore`](crate::ArtiNativeKeyStore).
+//! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
 use crate::KeystoreError;
 use tor_error::{ErrorKind, HasKind};
@@ -7,8 +7,8 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// An error returned by [`ArtiNativeKeyStore`](crate::ArtiNativeKeyStore)'s
-/// [`KeyStore`](crate::KeyStore) implementation.
+/// An error returned by [`ArtiNativeKeystore`](crate::ArtiNativeKeystore)'s
+/// [`Keystore`](crate::Keystore) implementation.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum ArtiNativeKeystoreError {
     /// An error that occurred while accessing the filesystem.

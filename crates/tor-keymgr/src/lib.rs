@@ -60,8 +60,8 @@ pub use key_specifier::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
 pub use {
     key_type::KeyType,
-    keystore::arti::ArtiNativeKeyStore,
-    keystore::{EncodableKey, ErasedKey, KeyStore, ToEncodableKey},
+    keystore::arti::ArtiNativeKeystore,
+    keystore::{EncodableKey, ErasedKey, Keystore, ToEncodableKey},
     mgr::KeyMgr,
 };
 
