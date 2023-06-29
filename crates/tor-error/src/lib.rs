@@ -233,6 +233,9 @@ pub enum ErrorKind {
     /// being too permissive; the next likeliest cause is that we were unable to
     /// check the permissions on the file or directory, or on one of its
     /// ancestors.
+    #[cfg(feature = "experimental-api")]
+    // TODO HSS: KeystoreFsPermissions
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1315#note_2916498
     #[display(fmt = "problem with keystore filesystem permissions")]
     KeystoreFsPermissions,
 
