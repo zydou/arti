@@ -431,9 +431,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // User specified a very large u32.  We must be downcasting it to 16bit!
             // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
-        // TODO HS is this right? make configurable? get from netdir?
-        /// Limit on the duration of each retrieval attempt
-        const EACH_TIMEOUT: Duration = Duration::from_secs(10);
+
+        // Limit on the duration of each retrieval attempt
+        let each_timeout = self.estimate_timeout(&[
+            (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
+            (1, TimeoutsAction::RoundTrip { length: HOPS }), // One HTTP query/response
+        ]);
 
         // We retain a previously obtained descriptor precisely until its lifetime expires,
         // and pay no attention to the descriptor's revision counter.
@@ -488,7 +491,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             let hsdir_for_error: Sensitive<Ed25519Identity> = (*relay.id()).into();
             match self
                 .runtime
-                .timeout(EACH_TIMEOUT, self.descriptor_fetch_attempt(relay))
+                .timeout(each_timeout, self.descriptor_fetch_attempt(relay))
                 .await
                 .unwrap_or(Err(DescriptorErrorDetail::Timeout))
             {
@@ -1242,7 +1245,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// represents doing `action`, `count` times sequentially.
     ///
     /// Combines the timeout estimates and returns an overall timeout.
-    #[allow(dead_code)] // XXXX
     fn estimate_timeout(&self, actions: &[(u32, TimeoutsAction)]) -> Duration {
         // This algorithm is, perhaps, wrong.  For uncorrelated variables, a particular
         // percentile estimate for a sum of random variables, is not calculated by adding the
