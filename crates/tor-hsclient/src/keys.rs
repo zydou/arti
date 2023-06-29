@@ -10,7 +10,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair, HsId};
-use tor_keymgr::{ArtiPath, CTorPath, KeySpecifier};
+use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -140,28 +140,15 @@ impl HsClientSecretKeysBuilder {
 ///
 /// Distinguishes different "clients" or "users" of this Arti instance,
 /// so that they can have different sets of HS client authentication keys.
-///
-/// TODO hs: this could be turned into a more general `KeystoreClientUserSpecifier` (or even
-/// `KeystoreUserSpecifier`). Once we start adding new specifiers we should consider refactoring
-/// this (and making the client specifiers HS-agnostic).
-#[derive(Clone, derive_more::Display)]
-pub struct HsClientSpecifier(String);
+#[derive(Clone, Debug, derive_more::Display, derive_more::Into, derive_more::AsRef)]
+pub struct HsClientSpecifier(ArtiPathComponent);
 
 impl HsClientSpecifier {
     /// Create a new [`HsClientSpecifier`].
-    // TODO hs: restrict the charset allowed for the name.
-    pub fn new(client_name: String) -> Self {
-        Self(client_name)
-    }
-}
-
-// TODO hs: remove this default implementation (or decide what a correct default impl would look
-// like).
-//
-// This is meant to be a temporary measure, since we don't currently validate client specifiers
-impl Default for HsClientSpecifier {
-    fn default() -> Self {
-        Self::new(Default::default())
+    ///
+    /// The `inner` string **must** be a valid [`ArtiPathComponent`].
+    pub fn new(inner: String) -> Result<Self, tor_keymgr::Error> {
+        ArtiPathComponent::new(inner).map(Self)
     }
 }
 

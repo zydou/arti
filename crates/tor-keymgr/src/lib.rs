@@ -54,7 +54,7 @@ mod mgr;
 mod dummy;
 
 pub use err::{Error, KeystoreError};
-pub use key_specifier::{ArtiPath, CTorPath, KeySpecifier};
+pub use key_specifier::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
 
 #[cfg(feature = "keymgr")]
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
