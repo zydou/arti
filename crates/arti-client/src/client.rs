@@ -312,7 +312,7 @@ impl StreamPrefs {
     /// If `Explicit(true)`, Onion Service connections are enabled.
     ///
     /// If `Auto`, the behaviour depends on the `address_filter.allow_onion_addrs`
-    /// configuration option, which is in turn enabled by default.
+    /// configuration option, which is in turn **disabled** by default.
     #[cfg(feature = "onion-service-client")]
     pub fn connect_to_onion_services(
         &mut self,
