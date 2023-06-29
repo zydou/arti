@@ -8,10 +8,12 @@ This crate is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 implement [Tor](https://www.torproject.org/) in Rust.
 
-### **UNSTABLE**
+### **Likely to change**
 
-The APIs exposed by this crate are experimental and not covered by semver
-guarantees.
+The APIs exposed by this crate (even without the `keymgr` feature)
+are new and are likely to change rapidly.
+We'll therefore often be making semver-breaking changes
+(and will update the crate version accordingly).
 
 ## Key stores
 
@@ -57,5 +59,18 @@ stable
 
 ### Additive features
 
-* `keymgr` (default) -- build with full key manager support. Disabling this
+(None yet.)
+
+### Experimental and unstable features
+
+ Note that the APIs enabled by these features are NOT covered by semantic
+ versioning[^1] guarantees: we might break them or remove them between patch
+ versions.
+
+* `keymgr` -- build with full key manager support. Disabling this
   feature causes `tor-keymgr` to export a no-op, placeholder implementation.
+
+[^1]: Remember, semantic versioning is what makes various `cargo`
+features work reliably. To be explicit: if you want `cargo update`
+to _only_ make safe changes, then you cannot enable these
+features.
