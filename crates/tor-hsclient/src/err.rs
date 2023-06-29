@@ -242,7 +242,7 @@ pub enum FailedAttemptError {
 
     /// Error on rendezvous circuit when expecting rendezvous completion (`RENDEZVOUS2`)
     #[error("Error on rendezvous circuit when expecting rendezvous completion (RENDEZVOUS2 message)")]
-    RendezvousCompletionCircuit {
+    RendezvousCompletionCircuitError {
         /// What happened
         #[source]
         error: tor_proto::Error,
@@ -288,7 +288,7 @@ impl FailedAttemptError {
         use FailedAttemptError as FAE;
         match self {
             FAE::UnusableIntro { intro_index, .. }
-            | FAE::RendezvousCompletionCircuit { intro_index, .. }
+            | FAE::RendezvousCompletionCircuitError { intro_index, .. }
             | FAE::RendezvousCompletionHandshake { intro_index, .. }
             | FAE::RendezvousCompletionTimeout { intro_index, .. }
             | FAE::IntroductionCircuitObtain { intro_index, .. }
@@ -331,7 +331,7 @@ impl HasRetryTime for FailedAttemptError {
             FAE::IntroductionCircuitObtain { error, .. } => error.retry_time(),
             FAE::IntroductionFailed { status, .. } => status.retry_time(),
             // tor_proto::Error doesn't impl HasRetryTime, so we guess
-            FAE::RendezvousCompletionCircuit { error: _e, .. }
+            FAE::RendezvousCompletionCircuitError { error: _e, .. }
             | FAE::IntroductionExchange { error: _e, .. }
             | FAE::RendezvousEstablish { error: _e, .. } => RT::AfterWaiting,
             // Timeouts
@@ -416,7 +416,7 @@ impl HasKind for FailedAttemptError {
             FAE::UnusableIntro { .. } => EK::OnionServiceProtocolViolation,
             FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
-            FAE::RendezvousCompletionCircuit { error, .. } => error.kind(),
+            FAE::RendezvousCompletionCircuitError { error, .. } => error.kind(),
             FAE::RendezvousCompletionHandshake { error, .. } => error.kind(),
             FAE::RendezvousEstablishTimeout { .. } => EK::TorNetworkTimeout,
             FAE::IntroductionCircuitObtain { error, .. } => error.kind(),
