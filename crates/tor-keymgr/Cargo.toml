@@ -18,7 +18,7 @@ default = []
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-keymgr = ["__is_experimental"]
+keymgr = ["__is_experimental", "tor-error/experimental"]
 __is_experimental = []
 
 [dependencies]
