@@ -48,7 +48,7 @@ full = [
     "tor-netdir/full",
     "tor-persist/full",
     "tor-ptmgr?/full",
-    "tor-rpcbase?/full",
+    "tor-rpcbase?/full", "tor-keymgr/full",
 ]
 
 async-std = ["tor-rtcompat/async-std"]
@@ -85,7 +85,7 @@ experimental = [
     "tor-netdoc/experimental",
     "tor-dirmgr/experimental",
     "tor-circmgr/experimental",
-    "tor-config/experimental",
+    "tor-config/experimental", "keymgr",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
@@ -97,6 +97,8 @@ dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 error_detail = ["__is_experimental"]
 onion-service-client = ["tor-hsclient", "tor-hscrypto"]
 rpc = ["tor-rpcbase", "__is_experimental"]
+
+# XXXX Mark as full, experimental, or non-additive!
 keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr", "__is_experimental"]
 __is_experimental = []
 

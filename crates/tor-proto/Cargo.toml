@@ -37,7 +37,9 @@ full = [
 
 experimental = ["experimental-api", "hs-client", "hs-service", "ntor_v3", "stream-ctrl", "testing"]
 ntor_v3 = ["__is_experimental"]
-hs-client = ["hs-common"]
+
+# XXXX This is experimental, but reachable from 'full'.
+hs-client = ["hs-common", "__is_experimental"]
 hs-service = ["hs-common", "__is_experimental"]
 hs-common = ["tor-hscrypto"]
 experimental-api = ["__is_experimental"]

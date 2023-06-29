@@ -18,8 +18,12 @@ default = []
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
+
+# XXXX Mark as full, experimental, or non-additive!
 keymgr = ["__is_experimental", "tor-error/experimental"]
 __is_experimental = []
+full = ["fs-mistrust/full", "tor-error/full", "tor-hscrypto/full", "tor-llcrypto/full"]
+experimental = ["keymgr"]
 
 [dependencies]
 derive_more = "0.99.3"

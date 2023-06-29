@@ -13,6 +13,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+
+# XXXX Mark as full, experimental, or non-additive!
 keymgr = ["tor-keymgr/keymgr", "__is_experimental"]
 full = [
     "retry-error/full",
@@ -28,9 +30,10 @@ full = [
     "tor-netdir/full",
     "tor-netdoc/full",
     "tor-proto/full",
-    "tor-rtcompat/full",
+    "tor-rtcompat/full", "tor-basic-utils/full", "tor-bytes/full", "tor-cell/full", "tor-keymgr/full",
 ]
 __is_experimental = []
+experimental = ["keymgr"]
 
 [dependencies]
 async-trait = "0.1.54"
