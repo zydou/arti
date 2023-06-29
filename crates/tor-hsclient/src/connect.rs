@@ -435,7 +435,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // Limit on the duration of each retrieval attempt
         let each_timeout = self.estimate_timeout(&[
             (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
-            (1, TimeoutsAction::RoundTrip { length: HOPS }), // One HTTP query/response
+            (1, TimeoutsAction::RoundTrip { length: HOPS }),    // One HTTP query/response
         ]);
 
         // We retain a previously obtained descriptor precisely until its lifetime expires,
