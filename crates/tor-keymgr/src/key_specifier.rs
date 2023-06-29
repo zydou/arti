@@ -1,7 +1,6 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
 use crate::{KeystoreError, Result};
-use itertools::Itertools;
 use tor_error::HasKind;
 
 /// The path of a key in the Arti key store.
@@ -42,27 +41,14 @@ impl ArtiPath {
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
     pub fn new(inner: String) -> Result<Self> {
-        let is_allowed = |c: char| ArtiPathComponent::is_allowed_char(c) || c == PATH_SEP;
-
-        validate_path(&inner, is_allowed)?;
-
-        // Ensure there are no consecutive `/` chars and that `inner` is not `/`.
-        if inner == "/" || Self::has_duplicate_sep(&inner) {
-            return Err(Box::new(InvalidArtiPathError(inner)));
+        if let Some(e) = inner
+            .split(PATH_SEP)
+            .find_map(|s| ArtiPathComponent::validate_str(s).err())
+        {
+            return Err(e);
         }
 
         Ok(Self(inner))
-    }
-
-    /// Check if s contains any consecutive path separator (`/`) elements.
-    fn has_duplicate_sep(s: &str) -> bool {
-        for (c1, c2) in s.chars().tuple_windows() {
-            if c1 == PATH_SEP && c2 == PATH_SEP {
-                return true;
-            }
-        }
-
-        false
     }
 }
 
@@ -80,7 +66,7 @@ impl ArtiPathComponent {
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
     pub fn new(inner: String) -> Result<Self> {
-        validate_path(&inner, Self::is_allowed_char)?;
+        Self::validate_str(&inner)?;
 
         Ok(Self(inner))
     }
@@ -89,24 +75,24 @@ impl ArtiPathComponent {
     fn is_allowed_char(c: char) -> bool {
         c.is_alphanumeric() || c == '_' || c == '-'
     }
-}
 
-/// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
-fn validate_path(inner: &str, is_allowed_char: fn(char) -> bool) -> Result<()> {
-    /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
-    const MIDDLE_ONLY: &[char] = &['-', '_'];
+    /// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
+    fn validate_str(inner: &str) -> Result<()> {
+        /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
+        const MIDDLE_ONLY: &[char] = &['-', '_'];
 
-    if inner.chars().any(|c| !is_allowed_char(c)) {
-        return Err(Box::new(InvalidArtiPathError(inner.to_string())));
-    }
-
-    for c in MIDDLE_ONLY {
-        if inner.starts_with(*c) || inner.ends_with(*c) {
+        if inner.is_empty() || inner.chars().any(|c| !Self::is_allowed_char(c)) {
             return Err(Box::new(InvalidArtiPathError(inner.to_string())));
         }
-    }
 
-    Ok(())
+        for c in MIDDLE_ONLY {
+            if inner.starts_with(*c) || inner.ends_with(*c) {
+                return Err(Box::new(InvalidArtiPathError(inner.to_string())));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// The path of a key in the C Tor key store.
@@ -143,8 +129,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    fn is_invalid_arti_path_error(err: &Error, inner: &str) -> bool {
-        matches!(err, Error::InvalidArtiPath(c) if c == inner)
+    fn is_invalid_arti_path_error(err: &crate::Error) -> bool {
+        err.to_string().starts_with("Invalid arti path")
     }
 
     macro_rules! check_valid {
@@ -157,7 +143,7 @@ mod test {
             } else {
                 assert!(path.is_err(), "{} should be invalid", $inner);
                 assert!(
-                    is_invalid_arti_path_error(path.as_ref().unwrap_err(), $inner),
+                    is_invalid_arti_path_error(path.as_ref().unwrap_err()),
                     "wrong error type for {}: {path:?}",
                     $inner
                 );
@@ -173,6 +159,8 @@ mod test {
         const INVALID_ARTI_PATHS: &[&str] = &[
             "alice/../bob",
             "alice//bob",
+            "/alice/bob",
+            "alice/bob/",
             "-hs_client",
             "_hs_client",
             "hs_client-",
@@ -199,7 +187,7 @@ mod test {
 
         const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid ArtiPathComponent
-        let path = format!("{SEP}client{SEP}key");
+        let path = format!("a{SEP}client{SEP}key");
         check_valid!(ArtiPath, &path, true);
         check_valid!(ArtiPathComponent, &path, false);
     }
