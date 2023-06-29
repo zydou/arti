@@ -304,6 +304,10 @@ impl HsDesc {
 
     /// One or more introduction points used to contact the onion service.
     ///
+    /// Always returns at least one introduction point,
+    /// and never more than [`NUM_INTRO_POINT_MAX`].
+    /// (Descriptors which have fewer or more are dealt with during parsing.)
+    ///
     /// Accessor function.
     //
     // TODO: We'd like to derive this, but amplify::Getters  would give us &Vec<>,

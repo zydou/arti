@@ -261,6 +261,9 @@ pub enum NetdocErrorKind {
     /// Unexpected document type
     #[display(fmt = "unexpected document type")]
     BadDocumentType,
+    /// We expected a kind of entry that we didn't find
+    #[display(fmt = "missing entriy")]
+    MissingEntry,
     /// Document or section started with wrong token
     #[display(fmt = "Wrong starting token")]
     WrongStartingToken,
@@ -350,7 +353,7 @@ impl From<signature::Error> for NetdocErrorSource {
 #[non_exhaustive]
 pub struct Error {
     /// What kind of error occurred?
-    kind: NetdocErrorKind,
+    pub(crate) kind: NetdocErrorKind,
     /// Do we have more information about the error?>
     msg: Option<Cow<'static, str>>,
     /// Where did the error occur?

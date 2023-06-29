@@ -16,6 +16,7 @@ use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
 use tor_hscrypto::pk::{HsIntroPtSessionIdKey, HsSvcNtorKey};
+use tor_hscrypto::NUM_INTRO_POINT_MAX;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::{curve25519, ed25519, ValidatableSignature};
 
@@ -36,6 +37,8 @@ pub(crate) struct HsDescInner {
     /// itself.)
     pub(super) single_onion_service: bool,
     /// A list of advertised introduction points and their contact info.
+    //
+    // Always has >= 1 and <= NUM_INTRO_POINT_MAX entries
     pub(super) intro_points: Vec<IntroPointDesc>,
 }
 
@@ -377,12 +380,33 @@ impl HsDescInner {
                 }
             };
 
-            intro_points.push(IntroPointDesc {
-                link_specifiers,
-                ipt_ntor_key: ntor_onion_key,
-                ipt_sid_key: auth_key,
-                svc_ntor_key,
-            });
+            // TODO SPEC: State who enforces NUM_INTRO_POINT_MAX and how (hsdirs, clients?)
+            //
+            // Simply discard extraneous IPTs.  The MAX value is hardcoded now, but a future
+            // protocol evolution might increase it and we should probably still work then.
+            //
+            // If the spec intended that hsdirs ought to validate this and reject descriptors
+            // with more than MAX (when they can), then this code is wrong because it would
+            // prevent any caller (eg future hsdir code in arti relay) from seeing the violation.
+            if intro_points.len() < NUM_INTRO_POINT_MAX {
+                intro_points.push(IntroPointDesc {
+                    link_specifiers,
+                    ipt_ntor_key: ntor_onion_key,
+                    ipt_sid_key: auth_key,
+                    svc_ntor_key,
+                });
+            }
+        }
+
+        // TODO SPEC: Might a HS publish descriptor with no IPTs to declare itself down?
+        // If it might, then we should:
+        //   - accept such descriptors here
+        //   - check for this situation explicitly in tor-hsclient connect.rs intro_rend_connect
+        //   - bail with a new `ConnError` (with ErrorKind OnionServiceNotRunning)
+        // with the consequence that once we obtain such a descriptor,
+        // we'll be satisfied with it and consider the HS down until the descriptor expires.
+        if intro_points.is_empty() {
+            return Err(EK::MissingEntry.with_msg("no introduction points"));
         }
 
         let inner = HsDescInner {
@@ -413,7 +437,10 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use std::iter;
+
     use hex_literal::hex;
+    use itertools::chain;
     use tor_checkable::{SelfSigned, Timebound};
 
     use super::*;
@@ -422,6 +449,43 @@ mod test {
         outer::HsDescOuter,
         test_data::{TEST_DATA, TEST_SUBCREDENTIAL},
     };
+
+    // This is the inner document from hsdesc1.txt aka TEST_DATA
+    const TEST_DATA_INNER: &str = include_str!("../../../testdata/hsdesc-inner.txt");
+
+    #[test]
+    fn inner_text() {
+        use crate::NetdocErrorKind as NEK;
+        let _desc = HsDescInner::parse(TEST_DATA_INNER).unwrap();
+
+        let none = format!(
+            "{}\n",
+            TEST_DATA_INNER
+                .split_once("\nintroduction-point")
+                .unwrap()
+                .0,
+        );
+        let err = HsDescInner::parse(&none).map(|_| &none).unwrap_err();
+        assert_eq!(err.kind, NEK::MissingEntry);
+
+        let ipt = format!(
+            "introduction-point{}",
+            TEST_DATA_INNER
+                .rsplit_once("\nintroduction-point")
+                .unwrap()
+                .1,
+        );
+        for n in NUM_INTRO_POINT_MAX..NUM_INTRO_POINT_MAX + 2 {
+            let many = chain!(iter::once(&*none), iter::repeat(&*ipt).take(n),).collect::<String>();
+            let desc = HsDescInner::parse(&many).unwrap();
+            let desc = desc
+                .1
+                .dangerously_into_parts()
+                .0
+                .dangerously_assume_wellsigned();
+            assert_eq!(desc.intro_points.len(), NUM_INTRO_POINT_MAX);
+        }
+    }
 
     #[test]
     fn parse_good() -> Result<()> {
