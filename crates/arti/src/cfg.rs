@@ -312,37 +312,30 @@ mod test {
     ///
     /// Depending on which variable this is in, it refers to presence in other the
     /// old or the new example file.
+    ///
+    /// This type is *not* used in declarations in `declared_config_exceptions`;
+    /// it is used by the actual checking code.
+    /// The declarations use types in that function.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
     enum InExample {
         Absent,
         Present,
     }
     /// Which of the two example files?
+    ///
+    /// This type is *not* used in declarations in `declared_config_exceptions`;
+    /// it is used by the actual checking code.
+    /// The declarations use types in that function.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
     enum WhichExample {
         Old,
         New,
     }
-    /// Is this key recognised by the parsing code ?
-    ///
-    /// (This can be feature-dependent, so literal values of this type
-    /// are often feature-qualified.)
-    #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-    enum InCode {
-        /// No configuration of this codebase knows about this option
-        Ignored,
-        /// *Some* configuration of this codebase know about this option
-        ///
-        /// This means:
-        ///   - If *every* feature in `ALL_RELEVANT_FEATURES_ENABLED` is enabled,
-        ///     the config key is expected to be `Recognised`
-        ///   - Otherwise we're not sure (because cargo features are additive,
-        ///     dependency crates' features might be *en*abled willy-nilly).
-        FeatureDependent,
-        /// All configurations of this codebase know about this option
-        Recognized,
-    }
     /// An exception to the usual expectations about configuration example files
+    ///
+    /// This type is *not* used in declarations in `declared_config_exceptions`;
+    /// it is used by the actual checking code.
+    /// The declarations use types in that function.
     #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
     struct ConfigException {
         /// The actual config key
@@ -374,8 +367,31 @@ mod test {
 
     /// Return the expected exceptions to the usual expectations about config and examples
     fn declared_config_exceptions() -> Vec<ConfigException> {
+        /// Is this key recognised by the parsing code ?
+        ///
+        /// (This can be feature-dependent, so literal values of this type
+        /// are often feature-qualified.)
+        #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+        enum InCode {
+            /// No configuration of this codebase knows about this option
+            Ignored,
+            /// *Some* configuration of this codebase know about this option
+            ///
+            /// This means:
+            ///   - If *every* feature in `ALL_RELEVANT_FEATURES_ENABLED` is enabled,
+            ///     the config key is expected to be `Recognised`
+            ///   - Otherwise we're not sure (because cargo features are additive,
+            ///     dependency crates' features might be *en*abled willy-nilly).
+            FeatureDependent,
+            /// All configurations of this codebase know about this option
+            Recognized,
+        }
         use InCode::*;
-        use InExample::*;
+
+        /// Marker.  `Some(InOld)` means presence of this config key in the oldest-supported file
+        struct InOld;
+        /// Marker.  `Some(InNew)` means presence of this config key in the current example file
+        struct InNew;
 
         let mut out = vec![];
 
@@ -391,13 +407,25 @@ mod test {
         //
         // `keys` is the list of keys.  Add a // comment at the start of the list
         // so that rustfmt retains the consistent formatting.
-        let mut declare_exceptions = |in_old_example, in_new_example, in_code, keys: &[&str]| {
+        let mut declare_exceptions = |in_old_example: Option<InOld>,
+                                      in_new_example: Option<InNew>,
+                                      in_code: InCode,
+                                      keys: &[&str]| {
             let in_code = match in_code {
                 Ignored => Some(false),
                 Recognized => Some(true),
                 FeatureDependent if ALL_RELEVANT_FEATURES_ENABLED => Some(true),
                 FeatureDependent => None,
             };
+            #[allow(clippy::needless_pass_by_value)] // pass by value defends against a->a b->a
+            fn in_example<T>(spec: Option<T>) -> InExample {
+                match spec {
+                    None => InExample::Absent,
+                    Some(_) => InExample::Present,
+                }
+            }
+            let in_old_example = in_example(in_old_example);
+            let in_new_example = in_example(in_new_example);
             out.extend(keys.iter().cloned().map(|key| ConfigException {
                 key: key.to_owned(),
                 in_old_example,
@@ -407,8 +435,8 @@ mod test {
         };
 
         declare_exceptions(
-            Absent,
-            Present,
+            None,
+            Some(InNew),
             Recognized,
             &[
                 // Keys that are newer than the oldest-supported example, but otherwise normal.
@@ -420,8 +448,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Absent,
+            None,
+            None,
             Recognized,
             &[
                 // Examples exist but are not auto-testable
@@ -431,8 +459,8 @@ mod test {
         );
 
         declare_exceptions(
-            Present,
-            Present,
+            Some(InOld),
+            Some(InNew),
             if cfg!(target_family = "windows") {
                 Ignored
             } else {
@@ -446,8 +474,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Absent, // TODO: Make examples for bridges settings!
+            None,
+            None, // TODO: Make examples for bridges settings!
             FeatureDependent,
             &[
                 // Settings only available with bridge support
@@ -456,8 +484,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Present,
+            None,
+            Some(InNew),
             FeatureDependent,
             &[
                 // PT-only settings
@@ -465,8 +493,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Present,
+            None,
+            Some(InNew),
             FeatureDependent,
             &[
                 // HS client settings
@@ -477,8 +505,8 @@ mod test {
         );
 
         declare_exceptions(
-            Absent,
-            Absent, // TODO RPC, these should actually appear in the example config
+            None,
+            None, // TODO RPC, these should actually appear in the example config
             FeatureDependent,
             &[
                 // RPC-only settings
