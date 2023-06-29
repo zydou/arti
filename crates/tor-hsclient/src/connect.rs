@@ -628,7 +628,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // if the HsCircPool's pool is empty.
         let rend_timeout = self.estimate_timeout(&[
             (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
-            (1, TimeoutsAction::RoundTrip { length: HOPS }), // One ESTABLISH_RENDEZVOUS
+            (1, TimeoutsAction::RoundTrip { length: HOPS }),    // One ESTABLISH_RENDEZVOUS
         ]);
 
         // Limit on the duration of each attempt to negotiate with an introduction point
@@ -641,7 +641,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         ]);
 
         // Limit on the duration of each attempt for activities involving both RPT and IPT
-        let hs_hops = if desc.is_single_onion_service() { 1 } else { HOPS };
+        let hs_hops = if desc.is_single_onion_service() {
+            1
+        } else {
+            HOPS
+        };
         let rpt_ipt_timeout = self.estimate_timeout(&[
             // The API requires us to specify a number of circuit builds and round trips.
             // So what we tell the estimator is a rather imprecise description.
