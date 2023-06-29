@@ -237,9 +237,28 @@ pub enum FailedAttemptError {
         rend_pt: RendPtIdentityForError,
     },
 
-    /// Error on rendezvous circuit when expecting rendezvous completion
-    #[error("Error on rendezvous circuit when expecting rendezvous completion")]
-    RendezvousCompletion {
+    /// Error on rendezvous circuit when expecting rendezvous completion (`RENDEZVOUS2`)
+    #[error(
+        "Error on rendezvous circuit when expecting rendezvous completion (RENDEZVOUS2 message)"
+    )]
+    RendezvousCompletionCircuitError {
+        /// What happened
+        #[source]
+        error: tor_proto::Error,
+
+        /// The index of the IPT in the list of IPTs in the descriptor
+        intro_index: IntroPtIndex,
+
+        /// Which relay did we choose for rendezvous point
+        // TODO #813 this should be Redacted<RelayDescription> or something
+        rend_pt: RendPtIdentityForError,
+    },
+
+    /// Error processing rendezvous completion (`RENDEZVOUS2`)
+    ///
+    /// This is might be the fault of the hidden service or the rendezvous point.
+    #[error("Rendezvous completion end-to-end crypto handshake failed (bad RENDEZVOUS2 message)")]
+    RendezvousCompletionHandshake {
         /// What happened
         #[source]
         error: tor_proto::Error,
@@ -268,7 +287,8 @@ impl FailedAttemptError {
         use FailedAttemptError as FAE;
         match self {
             FAE::UnusableIntro { intro_index, .. }
-            | FAE::RendezvousCompletion { intro_index, .. }
+            | FAE::RendezvousCompletionCircuitError { intro_index, .. }
+            | FAE::RendezvousCompletionHandshake { intro_index, .. }
             | FAE::RendezvousCompletionTimeout { intro_index, .. }
             | FAE::IntroductionCircuitObtain { intro_index, .. }
             | FAE::IntroductionExchange { intro_index, .. }
@@ -282,6 +302,23 @@ impl FailedAttemptError {
     }
 }
 
+/// When *an attempt like this* should be retried.
+///
+/// For error variants with an introduction point index
+/// (`FailedAttemptError::intro_index` returns `Some`)
+/// that's when we might retry *with that introduction point*.
+///
+/// For error variants with a rendezvous point,
+/// that's when we might retry *with that rendezvous point*.
+///
+/// For variants with both, we don't know
+/// which of the introduction point or rendezvous point is implicated.
+/// Retrying earlier with *one* different relay out of the two relays would be reasonable,
+/// as would delaying retrying with *either* of the same relays.
+//
+// Our current code doesn't keep history about rendezvous points.
+// We use this to choose what order to try the service's introduction points.
+// See `IptSortKey` in connect.rs.
 impl HasRetryTime for FailedAttemptError {
     fn retry_time(&self) -> RetryTime {
         use FailedAttemptError as FAE;
@@ -292,15 +329,18 @@ impl HasRetryTime for FailedAttemptError {
             FAE::RendezvousCircuitObtain { error } => error.retry_time(),
             FAE::IntroductionCircuitObtain { error, .. } => error.retry_time(),
             FAE::IntroductionFailed { status, .. } => status.retry_time(),
-            FAE::Bug(_) => RT::Never,
             // tor_proto::Error doesn't impl HasRetryTime, so we guess
-            FAE::RendezvousCompletion { error: _e, .. }
+            FAE::RendezvousCompletionCircuitError { error: _e, .. }
             | FAE::IntroductionExchange { error: _e, .. }
             | FAE::RendezvousEstablish { error: _e, .. } => RT::AfterWaiting,
             // Timeouts
             FAE::RendezvousEstablishTimeout { .. }
             | FAE::RendezvousCompletionTimeout { .. }
             | FAE::IntroductionTimeout { .. } => RT::AfterWaiting,
+            // Other cases where we define the ErrorKind ourselves
+            // If service didn't cause this, it was the RPT, so prefer to try another RPT
+            FAE::RendezvousCompletionHandshake { error: _e, .. } => RT::Never,
+            FAE::Bug(_) => RT::Never,
         }
     }
 }
@@ -364,23 +404,6 @@ impl HasKind for DescriptorErrorDetail {
     }
 }
 
-/// When *an attempt like this* should be retried.
-///
-/// For error variants with an introduction point index
-/// (`FailedAttemptError::intro_index` returns `Some`)
-/// that's when we might retry *with that introduction point*.
-///
-/// For error variants with a rendezvous point,
-/// that's when we might retry *with that rendezvous point*.
-///
-/// For variants with both, we don't know
-/// which of the introduction point or rendezvous point is implicated.
-/// Retrying earlier with *one* different relay out of the two relays would be reasonable,
-/// as would delaying retrying with *either* of the same relays.
-//
-// Our current code doesn't keep history about rendezvous points.
-// We use this to choose what order to try the service's introduction points.
-// See `IptSortKey` in connect.rs.
 impl HasKind for FailedAttemptError {
     fn kind(&self) -> ErrorKind {
         /*use tor_dirclient::RequestError as RE;
@@ -392,7 +415,8 @@ impl HasKind for FailedAttemptError {
             FAE::UnusableIntro { .. } => EK::OnionServiceProtocolViolation,
             FAE::RendezvousCircuitObtain { error, .. } => error.kind(),
             FAE::RendezvousEstablish { error, .. } => error.kind(),
-            FAE::RendezvousCompletion { error, .. } => error.kind(),
+            FAE::RendezvousCompletionCircuitError { error, .. } => error.kind(),
+            FAE::RendezvousCompletionHandshake { error, .. } => error.kind(),
             FAE::RendezvousEstablishTimeout { .. } => EK::TorNetworkTimeout,
             FAE::IntroductionCircuitObtain { error, .. } => error.kind(),
             FAE::IntroductionExchange { error, .. } => error.kind(),
