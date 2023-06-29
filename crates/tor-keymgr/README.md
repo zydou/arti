@@ -57,5 +57,5 @@ stable
 
 ### Additive features
 
-* `keymgr` (default) -- build with full key manager support. Disabling this
+* `keymgr` -- build with full key manager support. Disabling this
   feature causes `tor-keymgr` to export a no-op, placeholder implementation.
