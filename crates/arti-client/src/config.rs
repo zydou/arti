@@ -289,6 +289,7 @@ impl StorageConfig {
             })
     }
     /// Try to expand `keystore_dir` to be a path buffer.
+    #[allow(clippy::unnecessary_wraps)] // needed because of the experimental-api branch
     pub(crate) fn expand_keystore_dir(&self) -> Result<Option<PathBuf>, ConfigBuildError> {
         #[cfg(feature = "experimental-api")]
         {
