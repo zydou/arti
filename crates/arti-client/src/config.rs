@@ -25,6 +25,7 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 pub use tor_guardmgr::bridge::BridgeParseError;
 
 #[cfg(feature = "experimental-api")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 pub use tor_config::ItemOrBool;
 
 use tor_guardmgr::bridge::BridgeConfig;
