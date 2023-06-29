@@ -20,9 +20,6 @@ thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.5.1" }
 
 [features]
-# XXXX Mark as full, experimental, or non-additive!
-
-# XXXX This is reachable from 'default', but from 'full'.
 embedded-db = []
 default = ["embedded-db"]
-full = ["tor-error/full"]
+full = ["tor-error/full", "embedded-db"]
