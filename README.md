@@ -112,6 +112,14 @@ enable it on the command line (`cargo run -p arti -o address_filter.allow_onion_
 or
 edit your config file (set `allow_onion_addrs = true` in the section `[address_filter]`)
 
+Then you can make a connection to a `.onion` service, via Arti.
+For example, to try it out from the command line:
+```
+target/release/arti -o address_filter.allow_onion_addrs=true proxy
+# and in another window:
+curl --socks5-hostname localhost:9150 https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ | head | cat -v
+```
+
 ### Custom compile-time options
 
 Arti has a number of configurable
