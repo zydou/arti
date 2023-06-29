@@ -16,7 +16,7 @@ Instructions for enabling it and trying it out can be found in the
 
 TODO Write even more.
 
-This is up-to-date as of 729bff6ff9d443d75549d8873e0528b1c075d093.
+This is up-to-date as of 6e2b48c6b9ea0ecc49749266a112717857ff83e8
 
 
 ### Major bugfixes
@@ -95,6 +95,8 @@ This is up-to-date as of 729bff6ff9d443d75549d8873e0528b1c075d093.
   onion service descriptor. ([!1332])
 - Use correct circuit parameters when creating onion service circuits.
   ([#935], [!1340])
+- Use more accurate timeout predictions for building and using onion
+  service circuits. ([!1342])
 
 
 ### RPC development
@@ -113,15 +115,13 @@ This is up-to-date as of 729bff6ff9d443d75549d8873e0528b1c075d093.
   data stream. ([!1225], [!1253])
 - Major refactoring to our RPC session initialization code. ([!1254])
 
-
 ### New crates
 
 - New `tor-keymgr` crate to handle persistent cryptographic keys that
   can be stored to disk. In the future this will be used for all client,
   service, and relay keys. ([!1223], [!1255], [!1256], [!1263], [!1267],
   [!1269], [!1278], [!1280], [!1284], [!1319], [!1321], [!1315],
-  [!1321], [!1328], [!1337])
-
+  [!1321], [!1328], [!1337], etc.)
 - New `tor-geoip` crate to handle a static in-binary or on-disk
   IP-to-country lookup table. We will use this in the future to support
   country restrictions on selected paths through the network. ([!1239],
@@ -151,6 +151,9 @@ This is up-to-date as of 729bff6ff9d443d75549d8873e0528b1c075d093.
   features. This helps detect bugs where a crate was only working
   because it had been built with the features required of it by another
   crate. ([!1250])
+- We now supplement our existing system for tracking semver-breaking
+  issues with the [`cargo-semver-checks`] tool. We require version
+  0.22.1 or later. ([!1339])
 
 ### Cleanups, minor features, and smaller bugfixes
 
