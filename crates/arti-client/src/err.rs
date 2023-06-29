@@ -391,7 +391,7 @@ impl From<TorAddrError> for Error {
 
 impl From<tor_keymgr::Error> for Error {
     fn from(e: tor_keymgr::Error) -> Error {
-        e.into()
+        ErrorDetail::KeyStore(e).into()
     }
 }
 
