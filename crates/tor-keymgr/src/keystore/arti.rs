@@ -335,4 +335,12 @@ mod tests {
             .unwrap()
             .is_none());
     }
+
+    #[test]
+    fn key_bundles() {
+        // TODO HSS TEST: implement has_key_bundle and write a proper test
+        let (key_store, _keystore_dir) = init_keystore(true);
+
+        assert!(key_store.has_key_bundle(&TestSpecifier).unwrap());
+    }
 }
