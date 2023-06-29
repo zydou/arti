@@ -621,15 +621,47 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // User specified a very large u32.  We must be downcasting it to 16bit!
             // let's give them as many retries as we can manage.
             .unwrap_or(usize::MAX);
-        /// Limit on the duration of each attempt to establishg a rendezvous point
-        // TODO HS is this right? make configurable? get from netdir?
-        const REND_TIMEOUT: Duration = Duration::from_secs(10);
-        /// Limit on the duration of each attempt to negotiate with an introduction point
-        // TODO HS is this right? make configurable? get from netdir?
-        const INTRO_TIMEOUT: Duration = Duration::from_secs(10);
-        /// Limit on the duration of each attempt for activities involving both RPT and IPT
-        // TODO HS is this right? make configurable? get from netdir?
-        const RPT_IPT_TIMEOUT: Duration = Duration::from_secs(10);
+
+        // Limit on the duration of each attempt to establish a rendezvous point
+        //
+        // This *might* include establishing a fresh circuit,
+        // if the HsCircPool's pool is empty.
+        let rend_timeout = self.estimate_timeout(&[
+            (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
+            (1, TimeoutsAction::RoundTrip { length: HOPS }), // One ESTABLISH_RENDEZVOUS
+        ]);
+
+        // Limit on the duration of each attempt to negotiate with an introduction point
+        //
+        // *Does* include establishing the ciruit.
+        let intro_timeout = self.estimate_timeout(&[
+            (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
+            // This does some crypto too, but we don't account for that.
+            (1, TimeoutsAction::RoundTrip { length: HOPS }), // One INTRODUCE1/INTRODUCE_ACK
+        ]);
+
+        // Limit on the duration of each attempt for activities involving both RPT and IPT
+        let hs_hops = if desc.is_single_onion_service() { 1 } else { HOPS };
+        let rpt_ipt_timeout = self.estimate_timeout(&[
+            // The API requires us to specify a number of circuit builds and round trips.
+            // So what we tell the estimator is a rather imprecise description.
+            // (TODO it would be nice if the circmgr offered us a one-way trip Action).
+            //
+            // What we are timing here is:
+            //
+            //    INTFRODUCE2 goes from IPT to HS
+            //    but that happens in parallel with us waiting for INTRODUCE_ACK,
+            //    which is controlled by `intro_timeout` so not pat of `ipt_rpt_timeout`.
+            //    and which has to come HOPS hops.  So don't count INTRODUCE2 here.
+            //
+            //    HS builds to our RPT
+            (1, TimeoutsAction::BuildCircuit { length: hs_hops }),
+            //
+            //    RENDEZVOUS1 goes from HS to RPT.  `hs_hops`, one-way.
+            //    RENDEZVOUS2 goes from RPT to us.  HOPS, one-way.
+            //    Together, we squint a bit and call this a HOPS round trip:
+            (1, TimeoutsAction::RoundTrip { length: HOPS }),
+        ]);
 
         // We can't reliably distinguish IPT failure from RPT failure, so we iterate over IPTs
         // (best first) and each time use a random RPT.
@@ -756,7 +788,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     let mut using_rend_pt = None;
                     saved_rendezvous = Some(
                         self.runtime
-                            .timeout(REND_TIMEOUT, self.establish_rendezvous(&mut using_rend_pt))
+                            .timeout(rend_timeout, self.establish_rendezvous(&mut using_rend_pt))
                             .await
                             .map_err(|_: TimeoutError| match using_rend_pt {
                                 None => FAE::RendezvousCircuitObtain {
@@ -792,7 +824,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let (rendezvous, introduced) = self
                     .runtime
                     .timeout(
-                        INTRO_TIMEOUT,
+                        intro_timeout,
                         self.exchange_introduce(ipt, &mut saved_rendezvous),
                     )
                     .await
@@ -824,7 +856,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 let circ = self
                     .runtime
                     .timeout(
-                        RPT_IPT_TIMEOUT,
+                        rpt_ipt_timeout,
                         self.complete_rendezvous(ipt, rendezvous, introduced),
                     )
                     .await
