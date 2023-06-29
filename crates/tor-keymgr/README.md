@@ -57,5 +57,13 @@ stable
 
 ### Additive features
 
+(None yet.)
+
+### Experimental and unstable features
+
+ Note that the APIs enabled by these features are NOT covered by semantic
+ versioning[^1] guarantees: we might break them or remove them between patch
+ versions.
+
 * `keymgr` -- build with full key manager support. Disabling this
   feature causes `tor-keymgr` to export a no-op, placeholder implementation.
