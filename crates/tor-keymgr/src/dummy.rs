@@ -39,6 +39,15 @@ pub struct ArtiNativeKeyStore;
 #[non_exhaustive]
 pub struct KeyType;
 
+impl KeyType {
+    /// The file extension for a key of this type.
+    //
+    // TODO HSS: maybe this function should return an error instead
+    pub fn arti_extension(&self) -> &'static str {
+        "dummy_extension"
+    }
+}
+
 /// A dummy `Error` indicating that key manager support is disabled in cargo features.
 #[non_exhaustive]
 #[derive(Debug, Clone, thiserror::Error)]
