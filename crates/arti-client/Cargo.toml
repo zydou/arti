@@ -85,6 +85,7 @@ experimental = [
     "tor-netdoc/experimental",
     "tor-dirmgr/experimental",
     "tor-circmgr/experimental",
+    "tor-config/experimental",
 ]
 
 # Enable experimental APIs that are not yet officially supported.

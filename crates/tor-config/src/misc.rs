@@ -387,6 +387,7 @@ impl TryFrom<ListenItemSerde> for ListenItem {
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
 #[serde(untagged, bound = "T: Serialize, for<'de2> T: Deserialize<'de2>")]
+#[cfg(feature = "experimental-api")]
 pub enum ItemOrBool<T>
 where
     T: std::fmt::Debug + Serialize,
@@ -398,6 +399,7 @@ where
     Bool(bool),
 }
 
+#[cfg(feature = "experimental-api")]
 impl<T> Default for ItemOrBool<T>
 where
     T: std::fmt::Debug + Serialize,
@@ -433,6 +435,7 @@ mod test {
         #[serde(default)]
         listen: Option<Listen>,
 
+        #[cfg(feature = "experimental-api")]
         #[serde(default)]
         enabled_or_string: ItemOrBool<String>,
     }
@@ -585,6 +588,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "experimental-api")]
     fn enabled_or_string() {
         use ItemOrBool as IOB;
 

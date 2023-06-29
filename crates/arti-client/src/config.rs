@@ -15,7 +15,7 @@ pub use tor_config::convert_helper_via_multi_line_list_builder;
 pub use tor_config::impl_standard_builder;
 pub use tor_config::list_builder::{MultilineListBuilder, MultilineListBuilderError};
 pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
-pub use tor_config::{BoolOrAuto, ConfigError, ItemOrBool};
+pub use tor_config::{BoolOrAuto, ConfigError};
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
 
 pub use tor_guardmgr::bridge::BridgeConfigBuilder;
@@ -23,6 +23,9 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 #[cfg(feature = "bridge-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
 pub use tor_guardmgr::bridge::BridgeParseError;
+
+#[cfg(feature = "experimental-api")]
+pub use tor_config::ItemOrBool;
 
 use tor_guardmgr::bridge::BridgeConfig;
 
@@ -190,7 +193,7 @@ impl_standard_builder! { StorageConfig }
 /// Deserialize the `keystore_dir` storage field.
 ///
 /// NOTE: The first option is needed because of the builder, the second is the actual type of the field.
-#[cfg(feature = "keymgr")]
+#[cfg(all(feature = "keymgr", feature = "experimental-api"))]
 #[allow(clippy::option_option)]
 fn deserialize_keystore_dir<'de, D>(deserializer: D) -> Result<Option<Option<CfgPath>>, D::Error>
 where
@@ -210,7 +213,7 @@ where
 /// Deserialize the `keystore_dir` storage field.
 ///
 /// NOTE: The first option is needed because of the builder, the second is the actual type of the field.
-#[cfg(not(feature = "keymgr"))]
+#[cfg(all(not(feature = "keymgr"), feature = "experimental-api"))]
 #[allow(clippy::option_option)]
 fn deserialize_keystore_dir<'de, D>(deserializer: D) -> Result<Option<Option<CfgPath>>, D::Error>
 where
@@ -226,6 +229,22 @@ where
         )),
         ItemOrBool::Bool(false) => Ok(None),
     }
+}
+
+/// Deserialize the `keystore_dir` storage field.
+///
+/// NOTE: The first option is needed because of the builder, the second is the actual type of the field.
+#[cfg(not(feature = "experimental-api"))]
+#[allow(clippy::option_option)]
+fn deserialize_keystore_dir<'de, D>(deserializer: D) -> Result<Option<Option<CfgPath>>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+
+    Err(D::Error::custom(
+        "keystore not available unless the `experimental` feature is enabled".to_string(),
+    ))
 }
 
 /// Return the default cache directory.
