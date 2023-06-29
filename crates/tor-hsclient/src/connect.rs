@@ -63,6 +63,14 @@ use FailedAttemptError as FAE;
 /// This is really something that HsCircPool knows.  And some setups might want to make
 /// shorter circuits for some reason.  And it will become wrong with vanguards?
 /// But right now I think this is what HsCircPool does.
+//
+// Some commentary from
+//   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1342#note_2918050
+// Possibilities:
+//  * Look at n_hops() on the circuits we get, if we don't need this estimate
+//    till after we have the circuit.
+//  * Add a function to HsCircPool to tell us what length of circuit to expect
+//    for each given type of circuit.
 const HOPS: usize = 3;
 
 /// Given `R, M` where `M: MocksForConnect<M>`, expand to the mockable `ClientCirc`
