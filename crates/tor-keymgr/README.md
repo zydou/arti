@@ -69,3 +69,8 @@ stable
 
 * `keymgr` -- build with full key manager support. Disabling this
   feature causes `tor-keymgr` to export a no-op, placeholder implementation.
+
+[^1]: Remember, semantic versioning is what makes various `cargo`
+features work reliably. To be explicit: if you want `cargo update`
+to _only_ make safe changes, then you cannot enable these
+features.
