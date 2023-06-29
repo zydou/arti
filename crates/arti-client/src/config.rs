@@ -177,6 +177,9 @@ pub struct StorageConfig {
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
     /// Location on disk for the Arti keystore.
+    //
+    // TODO HSS: try to use #[serde(into / try_from)] instead (and also move the deserialization
+    // code to tor-keymgr).
     #[builder(setter(into), default = "default_keystore_dir()")]
     #[builder_field_attr(serde(
         deserialize_with = "deserialize_keystore_dir",
