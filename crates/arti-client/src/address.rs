@@ -560,6 +560,20 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    /// Make a `StreamPrefs` with `.onion` enabled, if cfg-enabled
+    fn mk_stream_prefs() -> StreamPrefs {
+        let prefs = crate::StreamPrefs::default();
+
+        #[cfg(feature = "onion-service-client")]
+        let prefs = {
+            let mut prefs = prefs;
+            prefs.connect_to_onion_services(tor_config::BoolOrAuto::Explicit(true));
+            prefs
+        };
+
+        prefs
+    }
+
     #[test]
     fn validate_hostname() {
         // Valid hostname tests
@@ -580,7 +594,7 @@ mod test {
         use crate::err::ErrorDetail;
         fn val<A: IntoTorAddr>(addr: A) -> Result<TorAddr, ErrorDetail> {
             let toraddr = addr.into_tor_addr()?;
-            toraddr.enforce_config(&Default::default(), &Default::default())?;
+            toraddr.enforce_config(&Default::default(), &mk_stream_prefs())?;
             Ok(toraddr)
         }
 
@@ -657,7 +671,7 @@ mod test {
         fn sap(s: &str) -> Result<StreamInstructions, ErrorDetail> {
             TorAddr::from(s)
                 .unwrap()
-                .into_stream_instructions(&Default::default(), &Default::default())
+                .into_stream_instructions(&Default::default(), &mk_stream_prefs())
         }
 
         assert_eq!(
@@ -776,8 +790,8 @@ mod test {
                     prefs.connect_to_onion_services(yn);
                     prefs
                 };
-                check_stream(prefs_def(), Ok(()));
-                check_stream(prefs_of(B::Auto), Ok(()));
+                check_stream(prefs_def(), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
+                check_stream(prefs_of(B::Auto), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
                 check_stream(prefs_of(B::Explicit(true)), Ok(()));
                 check_stream(prefs_of(B::Explicit(false)), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
 
