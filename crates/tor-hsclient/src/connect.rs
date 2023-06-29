@@ -54,6 +54,17 @@ use crate::{HsClientConnector, HsClientSecretKeys};
 use ConnError as CE;
 use FailedAttemptError as FAE;
 
+/// Number of hops in our hsdir, introduction, and rendezvous circuits
+///
+/// Required by `tor_circmgr`'s timeout estimation API
+/// ([`tor_circmgr::CircMgr::estimate_timeout`], [`HsCircPool::estimate_timeout`]).
+///
+/// TODO HS hardcoding the number of hops to 3 seems wrong.
+/// This is really something that HsCircPool knows.  And some setups might want to make
+/// shorter circuits for some reason.  And it will become wrong with vanguards?
+/// But right now I think this is what HsCircPool does.
+const HOPS: usize = 3;
+
 /// Given `R, M` where `M: MocksForConnect<M>`, expand to the mockable `ClientCirc`
 // This is quite annoying.  But the alternative is to write out `<... as // ...>`
 // each time, since otherwise the compile complains about ambiguous associated types.
