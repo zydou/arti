@@ -276,6 +276,11 @@ enum ErrorDetail {
     #[error("Error while trying to access a key store")]
     KeyStore(#[from] tor_keymgr::Error),
 
+    /// We tried to parse an onion address, but we found that it was invalid.
+    #[cfg(feature = "onion-service-client")]
+    #[error("Invalid onion address")]
+    BadOnionAddress(#[from] tor_hscrypto::pk::HsIdParseError),
+
     /// A programming problem, either in our code or the code calling it.
     #[error("Programming problem")]
     Bug(#[from] tor_error::Bug),
@@ -364,6 +369,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::OnionAddressResolveRequest => EK::NotImplemented,
             #[cfg(feature = "onion-service-client")]
             E::OnionAddressDisabled => EK::ForbiddenStreamTarget,
+            #[cfg(feature = "onion-service-client")]
+            E::BadOnionAddress(e) => e.kind(),
             // TODO Should delegate to TorAddrError EK
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
@@ -395,17 +402,7 @@ impl From<TorAddrError> for ErrorDetail {
         match e {
             TAE::InvalidHostname => E::InvalidHostname,
             TAE::NoPort | TAE::BadPort => E::Address(e),
-            #[cfg(feature = "onion-service-client")]
-            TAE::BadOnion => E::Address(e),
         }
-    }
-}
-
-#[cfg(feature = "onion-service-client")]
-impl From<tor_hscrypto::pk::HsIdParseError> for ErrorDetail {
-    // TODO HS throwing away the original error is not nice, see comment near BadOnion
-    fn from(_e: tor_hscrypto::pk::HsIdParseError) -> ErrorDetail {
-        TorAddrError::BadOnion.into()
     }
 }
 

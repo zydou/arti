@@ -344,6 +344,9 @@ impl std::fmt::Display for TorAddr {
 }
 
 /// An error created while making or using a [`TorAddr`].
+//
+// NOTE: Unlike ErrorDetail, this is a `pub` enum: Do not make breaking changes
+// to it, or expose lower-level errors in it, without careful consideration!
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 // TODO Should implement ErrorKind
@@ -357,15 +360,6 @@ pub enum TorAddrError {
     /// Tried to parse a port that wasn't a valid nonzero `u16`.
     #[error("Could not parse port")]
     BadPort,
-    /// Tried to parse a `.onion` domain that could not be decoded
-    #[cfg(feature = "onion-service-client")]
-    #[error("Invalid or corrupted `.onion` address")]
-    // TODO HS should we include the original HsIdParseError?
-    // However, this struct wants to be Eq and HsIdParseError contains a tor_bytes::Error
-    // which contains various other stuff that's not Eq.  We need a policy about whether
-    // errors are always Eq (or maybe PartialEq).
-    // TODO HS the ErrorKind should delegate to HsIdParseError's
-    BadOnion,
 }
 
 /// A host that Tor can connect to: either a hostname or an IP address.
