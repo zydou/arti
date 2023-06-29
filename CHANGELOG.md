@@ -3,12 +3,13 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.2.0 — 30 June 2023
+# Arti 1.1.6 — 30 June 2023
 
-Arti 1.2.0 completes the work needed to connect to onion services
-on the Tor network.   (TODO: SAY MORE)
-
-(TODO: Decide if we really want to call it 1.2.0
+Arti 1.1.6 completes the work needed for a not very privacy-sensitive
+client to connect to onion services on the Tor network.  This new
+feature is disabled by default (because of some missing security
+features).  Instructions for enabling it and trying it out can be
+found in the README.md.
 
 This is up-to-date as of 729bff6ff9d443d75549d8873e0528b1c075d093.
 
