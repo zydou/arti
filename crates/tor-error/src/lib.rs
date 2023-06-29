@@ -236,13 +236,6 @@ pub enum ErrorKind {
     #[display(fmt = "problem with keystore filesystem permissions")]
     KeystoreFsPermissions,
 
-    /// We encountered an invalid `ArtiPath`.
-    ///
-    /// This can be caused by misconfiguration (for example, by configuring an invalid HS client
-    /// name), or by a programming error.
-    #[display(fmt = "invalid keystore path")]
-    KeystoreBadArtiPath,
-
     /// Tor client's Rust async reactor is shutting down.
     ///
     /// This likely indicates that the reactor has encountered a fatal error, or

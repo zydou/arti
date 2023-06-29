@@ -1,7 +1,7 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
-use crate::{KeystoreError, Result};
-use tor_error::HasKind;
+use crate::Result;
+use tor_error::internal;
 
 /// The path of a key in the Arti key store.
 ///
@@ -12,26 +12,12 @@ use tor_error::HasKind;
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
+//
+// TODO HSS: Create an error type for ArtiPath errors instead of relying on internal!
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
 pub struct ArtiPath(String);
-
-/// Encountered an invalid arti path.
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("Invalid arti path: {0}")]
-struct InvalidArtiPathError(String);
-
-impl HasKind for InvalidArtiPathError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        // TODO HSS: this error kind is bad, because it doesn't tell us exactly where the error is
-        // coming from (`ArtiPath` will be used as a basis for various kinds of specifiers, such as
-        // HsClientSpecifier).
-        tor_error::ErrorKind::KeystoreBadArtiPath
-    }
-}
-
-impl KeystoreError for InvalidArtiPathError {}
 
 /// A separator for `ArtiPath`s.
 const PATH_SEP: char = '/';
@@ -82,12 +68,12 @@ impl ArtiPathComponent {
         const MIDDLE_ONLY: &[char] = &['-', '_'];
 
         if inner.is_empty() || inner.chars().any(|c| !Self::is_allowed_char(c)) {
-            return Err(Box::new(InvalidArtiPathError(inner.to_string())));
+            return Err(Box::new(internal!("Invalid arti path: {inner}")));
         }
 
         for c in MIDDLE_ONLY {
             if inner.starts_with(*c) || inner.ends_with(*c) {
-                return Err(Box::new(InvalidArtiPathError(inner.to_string())));
+                return Err(Box::new(internal!("Invalid arti path: {inner}")));
             }
         }
 
@@ -130,7 +116,7 @@ mod test {
     use super::*;
 
     fn is_invalid_arti_path_error(err: &crate::Error) -> bool {
-        err.to_string().starts_with("Invalid arti path")
+        err.to_string().contains("Invalid arti path")
     }
 
     macro_rules! check_valid {
