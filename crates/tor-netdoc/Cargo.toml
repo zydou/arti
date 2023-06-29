@@ -15,6 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 full = [
+    "hs-client",
     "routerdesc",
     "ns_consensus",
     "tor-basic-utils/full",
@@ -31,7 +32,6 @@ full = [
 experimental = [
     "build_docs",
     "experimental-api",
-    "hs-client",
     "hs-dir",
     "hs-service",
     "hsdesc-inner-docs",
@@ -55,7 +55,7 @@ ns_consensus = []
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
 hs-dir = ["hs-common", "__is_experimental"]
-hs-client = ["hs-common", "__is_experimental"]
+hs-client = ["hs-common"]
 hs-service = ["hs-common", "tor-cert/encode", "__is_experimental"]
 hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.

@@ -20,6 +20,7 @@ default = ["tokio", "native-tls", "compression"]
 #     which therefore are not strictly additive.
 #   * Features which may introduce unnecessary licensing restrictions.
 full = [
+    "onion-service-client",
     "tokio",
     "async-std",
     "native-tls",
@@ -77,7 +78,6 @@ experimental = [
     "dirfilter",
     "experimental-api",
     "error_detail",
-    "onion-service-client",
     "rpc",
     "tor-proto/experimental",
     "tor-cell/experimental",
@@ -94,7 +94,7 @@ experimental = [
 experimental-api = ["__is_experimental"]
 dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 error_detail = ["__is_experimental"]
-onion-service-client = ["tor-hsclient", "tor-hscrypto", "__is_experimental"]
+onion-service-client = ["tor-hsclient", "tor-hscrypto"]
 rpc = ["tor-rpcbase", "__is_experimental"]
 keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr", "__is_experimental"]
 __is_experimental = []
