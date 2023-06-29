@@ -241,7 +241,9 @@ pub enum FailedAttemptError {
     },
 
     /// Error on rendezvous circuit when expecting rendezvous completion (`RENDEZVOUS2`)
-    #[error("Error on rendezvous circuit when expecting rendezvous completion (RENDEZVOUS2 message)")]
+    #[error(
+        "Error on rendezvous circuit when expecting rendezvous completion (RENDEZVOUS2 message)"
+    )]
     RendezvousCompletionCircuitError {
         /// What happened
         #[source]
