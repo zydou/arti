@@ -3,14 +3,20 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.2.0 — 30 June 2023
+# Arti 1.1.6 — 30 June 2023
 
-Arti 1.2.0 completes the work needed to connect to onion services
-on the Tor network.   (TODO: SAY MORE)
+Arti 1.1.6 completes the core of the work needed for a client client
+to connect to onion services on the Tor network.  This is not yet
+enabled by default: we do not yet recommend using this feature for
+security-sensitive purposes, because of some
+[missing security features][#98].
+Instructions for enabling it and trying it out can be found in the
+[README.md] file.
 
-(TODO: Decide if we really want to call it 1.2.0
 
-This is up-to-date as of 9407fe1ab5b2df6a8cee40047eea724b00c021cc
+TODO Write even more.
+
+This is up-to-date as of 729bff6ff9d443d75549d8873e0528b1c075d093.
 
 
 ### Major bugfixes
@@ -63,7 +69,6 @@ This is up-to-date as of 9407fe1ab5b2df6a8cee40047eea724b00c021cc
 - Speed improvements to the algorithm we use to select pre-constructed
   circuits for onion services, and correctness fixes to those speed
   improvements. ([1691c353924f89cc], [#918], [!1296], [!1301])
-
 - The StreamPrefs::connect_to_onion_services` method now can be used to
   enable or disable onion service connections, and TorClients can handle
   onion services correctly. ([!1257])
@@ -86,6 +91,10 @@ This is up-to-date as of 9407fe1ab5b2df6a8cee40047eea724b00c021cc
   other parameters. ([!1305])
 - Ensure that our directory ring parameters are taken from the consensus
   parameters, rather than set unconditionally to defaults. ([!1310])
+- Enforce upper bounds on the number of introduction points in an
+  onion service descriptor. ([!1332])
+- Use correct circuit parameters when creating onion service circuits.
+  ([#935], [!1340])
 
 
 ### RPC development
@@ -131,8 +140,8 @@ This is up-to-date as of 9407fe1ab5b2df6a8cee40047eea724b00c021cc
   validation. ([!1250], [!1252])
 - Improve documentation on the channel and circuit lifecycle. ([!1316],
   [!1318])
-
-- 
+- Clarify descriptions in `NetDir`'s documentation of what we mean by
+  a "usable" Relay. ([a902f320b5b31812])
 
 ### Infrastructure
 
@@ -181,6 +190,10 @@ This is up-to-date as of 9407fe1ab5b2df6a8cee40047eea724b00c021cc
 - Numerous improvements and fixes to our configuration handling tests.
   ([!1320], [!1330])
 - Refactor some duplicate logic in our circuit-retention code. ([!1322])
+- Experimentally expose some of `NetDir`'s information about whether
+  a relay is in the consensus (independent of whether we have full
+  information about it). ([!1325])
+
 
 ### Removed features
 
