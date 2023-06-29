@@ -4,12 +4,12 @@
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
 use ssh_key::private::KeypairData;
-pub(crate) use ssh_key::Algorithm as SshKeyAlgorithm;
+use ssh_key::Algorithm;
 
 use crate::{EncodableKey, ErasedKey, KeyType, KeystoreError, Result};
 
 use tor_error::{ErrorKind, HasKind};
-use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::{ed25519, keymanip};
 use zeroize::Zeroizing;
 
 use std::path::PathBuf;
@@ -40,6 +40,44 @@ impl UnparsedOpenSshKey {
     }
 }
 
+/// SSH key algorithms.
+//
+// Note: this contains all the types supported by ssh_key, plus X25519.
+#[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
+pub(crate) enum SshKeyAlgorithm {
+    /// Digital Signature Algorithm
+    Dsa,
+    /// Elliptic Curve Digital Signature Algorithm
+    Ecdsa,
+    /// Ed25519
+    Ed25519,
+    /// X25519
+    X25519,
+    /// RSA
+    Rsa,
+    /// FIDO/U2F key with ECDSA/NIST-P256 + SHA-256
+    SkEcdsaSha2NistP256,
+    /// FIDO/U2F key with Ed25519
+    SkEd25519,
+    /// An unrecognized [`ssh_key::Algorithm`].
+    Unknown(ssh_key::Algorithm),
+}
+
+impl From<Algorithm> for SshKeyAlgorithm {
+    fn from(algo: Algorithm) -> SshKeyAlgorithm {
+        match algo {
+            Algorithm::Dsa => SshKeyAlgorithm::Dsa,
+            Algorithm::Ecdsa { .. } => SshKeyAlgorithm::Ecdsa,
+            Algorithm::Ed25519 => SshKeyAlgorithm::Ed25519,
+            Algorithm::Rsa { .. } => SshKeyAlgorithm::Rsa,
+            Algorithm::SkEcdsaSha2NistP256 => SshKeyAlgorithm::SkEcdsaSha2NistP256,
+            Algorithm::SkEd25519 => SshKeyAlgorithm::SkEd25519,
+            // Note: ssh_key::Algorithm is non_exhaustive, so we need this catch-all variant
+            _ => SshKeyAlgorithm::Unknown(algo),
+        }
+    }
+}
+
 /// An error that occurred while processing an OpenSSH key.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum SshKeyError {
@@ -65,11 +103,6 @@ pub(crate) enum SshKeyError {
         /// The algorithm of the key we got.
         found_key_algo: SshKeyAlgorithm,
     },
-
-    // TODO hs: remove
-    /// Unsupported key type.
-    #[error("Found a key type we don't support yet: {0:?}")]
-    Unsupported(KeyType),
 }
 
 impl KeystoreError for SshKeyError {}
@@ -88,17 +121,16 @@ impl HasKind for SshKeyError {
 }
 
 /// A helper for reading Ed25519 OpenSSH private keys from disk.
-fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
-    let sk = ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| {
-        SshKeyError::SshKeyParse {
+fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<ed25519::Keypair> {
+    let sk =
+        ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| SshKeyError::SshKeyParse {
             // TODO: rust thinks this clone is necessary because key.path is also used below (but
             // if we get to this point, we're going to return an error and never reach the other
             // error handling branches where we use key.path).
             path: key.path.clone(),
             key_type,
             err: e.into(),
-        }
-    })?;
+        })?;
 
     // Build the expected key type (i.e. convert ssh_key key types to the key types
     // we're using internally).
@@ -106,19 +138,19 @@ fn read_ed25519_keypair(key_type: KeyType, key: UnparsedOpenSshKey) -> Result<Er
         KeypairData::Ed25519(key) => {
             ed25519::Keypair::from_bytes(&key.to_bytes()).map_err(|_| {
                 tor_error::internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
-            })?;
+            })?
         }
         _ => {
             return Err(SshKeyError::UnexpectedSshKeyType {
                 path: key.path,
                 wanted_key_algo: key_type.ssh_algorithm(),
-                found_key_algo: sk.algorithm(),
+                found_key_algo: sk.algorithm().into(),
             }
             .boxed());
         }
     };
 
-    Ok(Box::new(key))
+    Ok(key)
 }
 
 impl KeyType {
@@ -126,16 +158,7 @@ impl KeyType {
     pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
         match self {
             KeyType::Ed25519Keypair => SshKeyAlgorithm::Ed25519,
-            KeyType::X25519StaticSecret => {
-                // The ssh-key crate doesn't support curve25519 keys. We might need a more
-                // general-purpose crate for parsing keys in SSH key format (one that allows
-                // arbitrary values for the algorithm).
-                //
-                // Alternatively, we could store curve25519 keys in openssh format as ssh-ed25519
-                // (though intentionally storing the key in the wrong format only to convert it
-                // back to x25519 upon retrieval is sort of ugly).
-                todo!() // TODO hs
-            }
+            KeyType::X25519StaticSecret => SshKeyAlgorithm::X25519,
         }
     }
 
@@ -146,10 +169,18 @@ impl KeyType {
     pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO HSS: perhaps this needs to be a method on EncodableKey instead?
         match self {
-            KeyType::Ed25519Keypair => read_ed25519_keypair(*self, key),
+            KeyType::Ed25519Keypair => {
+                read_ed25519_keypair(*self, key).map(|key| Box::new(key) as ErasedKey)
+            }
             KeyType::X25519StaticSecret => {
-                // TODO hs: implement
-                Err(SshKeyError::Unsupported(*self).boxed())
+                // NOTE: The ssh-key crate doesn't support storing curve25519 keys in OpenSSH
+                // format. As a workaround, this type of key will be stored as ssh-ed25519 and
+                // converted back to x25519 upon retrieval.
+                let key = read_ed25519_keypair(KeyType::Ed25519Keypair, key)?;
+
+                Ok(Box::new(keymanip::convert_ed25519_to_curve25519_private(
+                    &key,
+                )))
             }
         }
     }

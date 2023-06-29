@@ -29,7 +29,7 @@ ssh-key = { version = "0.5.1", features = ["std"] }
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.5.0" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.2.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.0", features = ["keymgr"] }
 zeroize = "1"
 
 [package.metadata.docs.rs]
