@@ -321,9 +321,9 @@ impl HasRetryTime for FailedAttemptError {
             FAE::RendezvousEstablishTimeout { .. }
             | FAE::RendezvousCompletionTimeout { .. }
             | FAE::IntroductionTimeout { .. } => RT::AfterWaiting,
+            // Other cases where we define the ErrorKind ourselves
             // If service didn't cause this, it was the RPT, so prefer to try another RPT
             FAE::RendezvousCompletionHandshake { error: _e, .. } => RT::Never,
-            // Bespoke
             FAE::Bug(_) => RT::Never,
         }
     }
