@@ -220,7 +220,11 @@ mod tests {
 
         assert_eq!(
             err.to_string(),
-            "Unexpected OpenSSH key type: wanted ssh-ed25519, found ssh-dss"
+            format!(
+                "Unexpected OpenSSH key type: wanted {}, found {}",
+                SshKeyAlgorithm::Ed25519,
+                SshKeyAlgorithm::Dsa
+            )
         );
     }
 
