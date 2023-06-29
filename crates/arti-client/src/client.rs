@@ -997,9 +997,8 @@ impl<R: Runtime> TorClient<R> {
                 let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
 
                 // TODO hs: use a real client id (loaded from the config)
-                let client_id = HsClientSpecifier::new("not_a_real_spec".into()).map_err(|e| {
-                    ErrorDetail::KeyStore(e)
-                })?;
+                let client_id = HsClientSpecifier::new("not_a_real_spec".into())
+                    .map_err(|e| ErrorDetail::KeyStore(e))?;
                 let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
                     client_id.clone(),
                     hsid,
