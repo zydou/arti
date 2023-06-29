@@ -21,7 +21,7 @@ use std::path::Path;
 /// enabled, except all its read operations return `None` and all its write operations will fail.
 ///
 /// For operations that normally involve updating the state of the key manager and/or its
-/// underlying storage, such as `insert` or `remove`, this `KeyMgr` always returns an [`Error`].
+/// underlying storage, such as `insert` or `remove`, this `KeyMgr` always returns an error.
 #[derive(Copy, Clone, Debug)]
 #[non_exhaustive]
 pub struct KeyMgr;
@@ -38,6 +38,15 @@ pub struct ArtiNativeKeyStore;
 /// A dummy `KeyType`.
 #[non_exhaustive]
 pub struct KeyType;
+
+impl KeyType {
+    /// The file extension for a key of this type.
+    //
+    // TODO HSS: maybe this function should return an error instead
+    pub fn arti_extension(&self) -> &'static str {
+        "dummy_extension"
+    }
+}
 
 /// A dummy `Error` indicating that key manager support is disabled in cargo features.
 #[non_exhaustive]
@@ -78,14 +87,14 @@ impl KeyMgr {
 
     /// A dummy `insert` implementation that always fails.
     ///
-    /// This function always returns [`Error`].
+    /// This function always returns an error.
     pub fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
         Err(Box::new(Error))
     }
 
     /// A dummy `remove` implementation that always fails.
     ///
-    /// This function always returns [`Error`].
+    /// This function always returns an error.
     pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
         Err(Box::new(Error))
     }
