@@ -30,6 +30,7 @@ use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::build::circparameters_from_netparameters;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
+use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
 use tor_error::{internal, into_internal, ErrorReport as _};
 use tor_error::{HasRetryTime as _, RetryTime};
@@ -1223,6 +1224,31 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         Ok(rendezvous.rend_circ)
     }
+
+    /// Helper to estimate a timeout for a complicated operation
+    ///
+    /// `actions` is a list of `(count, action)`, where each entry
+    /// represents doing `action`, `count` times sequentially.
+    ///
+    /// Combines the timeout estimates and returns an overall timeout.
+    #[allow(dead_code)] // XXXX
+    fn estimate_timeout(&self, actions: &[(u32, TimeoutsAction)]) -> Duration {
+        // This algorithm is, perhaps, wrong.  For uncorrelated variables, a particular
+        // percentile estimate for a sum of random variables, is not calculated by adding the
+        // percentile estimates of the individual variables.
+        //
+        // But the actual lengths of times of the operations aren't uncorrelated.
+        // If they were *perfectly* correlated, then this addition would be correct.
+        // It will do for now; it just might be rather longer than it ought to be.
+        actions
+            .iter()
+            .map(|(count, action)| {
+                self.circpool
+                    .estimate_timeout(action)
+                    .saturating_mul(*count)
+            })
+            .fold(Duration::ZERO, Duration::saturating_add)
+    }
 }
 
 /// Mocks used for testing `connect.rs`
@@ -1268,6 +1294,9 @@ trait MockableCircPool<R> {
         &self,
         netdir: &'a NetDir,
     ) -> tor_circmgr::Result<(Arc<Self::ClientCirc>, Relay<'a>)>;
+
+    /// Estimate timeout
+    fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration;
 }
 /// Mock for `ClientCirc`
 #[async_trait]
@@ -1317,6 +1346,9 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
         netdir: &'a NetDir,
     ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)> {
         HsCircPool::get_or_launch_client_rend(self, netdir).await
+    }
+    fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
+        HsCircPool::estimate_timeout(self, action)
     }
 }
 #[async_trait]
@@ -1451,6 +1483,10 @@ mod test {
             netdir: &'a NetDir,
         ) -> tor_circmgr::Result<(Arc<ClientCirc!(R, Self)>, Relay<'a>)> {
             todo!()
+        }
+
+        fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
+            Duration::from_secs(10)
         }
     }
     #[async_trait]
