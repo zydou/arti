@@ -374,14 +374,14 @@ pub(crate) struct HsDirs<D> {
     /// secondary rings will be active at a time.  We have two here in order
     /// to conform with a more flexible regime in proposal 342.
     //
-    // TODO hs: hs clients never need this; so I've made it not-present for thm.
+    // TODO hss: hs clients never need this; so I've made it not-present for thm.
     // But does that risk too much with respect to side channels?
     //
-    // TODO hs: Perhaps we should refactor this so that it is clear that these
+    // TODO hss: Perhaps we should refactor this so that it is clear that these
     // are immutable?  On the other hand, the documentation for this type
     // declares that it is immutable, so we are likely okay.
     //
-    // TODO hs: this `Vec` is only ever 0,1,2 elements.
+    // TODO hss: this `Vec` is only ever 0,1,2 elements.
     // Maybe it should be an ArrayVec or something.
     #[cfg(feature = "hs-service")]
     secondary: Vec<D>,
@@ -667,9 +667,11 @@ impl PartialNetDir {
         #[cfg(feature = "hs-common")]
         let hsdir_rings = Arc::new({
             let params = HsDirParams::compute(&consensus, &params).expect("Invalid consensus!");
-            // TODO HS: I dislike using expect above, but this function does not
-            // return a Result. Perhaps we should change it so that it can?  Or as an alternative
-            // we could let this object exist in a state without any HsDir rings.
+            // TODO: It's a bit ugly to use expect above, but this function does
+            // not return a Result. On the other hand, the error conditions under which
+            // HsDirParams::compute can return Err are _very_ narrow and hard to
+            // hit; see documentation in that function.  As such, we probably
+            // don't need to have this return a Result.
 
             params.map(HsDirRing::empty_from_params)
         });
@@ -722,7 +724,7 @@ impl PartialNetDir {
     fn compute_rings(&mut self) {
         let params = HsDirParams::compute(&self.netdir.consensus, &self.netdir.params)
             .expect("Invalid consensus");
-        // TODO hs: see TODO by similar expect in new()
+        // TODO: see TODO by similar expect in new()
 
         self.netdir.hsdir_rings =
             Arc::new(params.map(|params| {
@@ -942,10 +944,6 @@ impl NetDir {
     ///
     /// This will be very slow if `target` does not have an Ed25519 or RSA
     /// identity.
-    //
-    // TODO HS: We should use this to check whether a set of linkspecs is
-    // possible when we're about to use it to make an introduction or rendezvous
-    // circuit from an externally provided set of linkspecs.
     //
     // TODO HS: This function could use a better name.
     //
@@ -1342,8 +1340,6 @@ impl NetDir {
     /// Specifically, this returns the time period that contains the beginning
     /// of the validity period of this `NetDir`'s consensus.  That time period
     /// is the one we use when acting as an hidden service client.
-    //
-    // TODO HS do we need this function?
     #[cfg(feature = "hs-common")]
     pub fn hs_time_period(&self) -> TimePeriod {
         self.hsdir_rings.current.time_period()
@@ -1356,7 +1352,7 @@ impl NetDir {
     /// plus additional time periods that we publish descriptors for when we are
     /// acting as a hidden service.
     //
-    // TODO HS do we need this function?
+    // TODO HSS do we need this function?
     #[cfg(feature = "hs-service")]
     pub fn hs_all_time_periods(&self) -> Vec<TimePeriod> {
         self.hsdir_rings
@@ -1377,7 +1373,6 @@ impl NetDir {
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
-    #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
     pub fn hs_dirs<'r, R>(&'r self, hsid: &HsBlindId, op: HsDirOp, rng: &mut R) -> Vec<Relay<'r>>
     where
         R: rand::Rng,
@@ -1398,15 +1393,36 @@ impl NetDir {
         //         adding them to Dirs until we have added `spread` new elements
         //         that were not there before.
         // 7. return Dirs.
-        let n_replicas = 2; // TODO HS get this from netdir and/or make it configurable
-        let spread_fetch = 3; // TODO HS get this from netdir and/or make it configurable
+        let n_replicas = self
+            .params
+            .hsdir_n_replicas
+            .get()
+            .try_into()
+            .expect("BoundedInt did not enforce bounds");
+        let spread_fetch = self
+            .params
+            .hsdir_spread_fetch
+            .get()
+            .try_into()
+            .expect("BoundedInt did not enforce bounds!");
 
-        // TODO HS We don't implement this bit of the spec (2.2.3 penultimate para):
+        // TODO HSS We don't implement this bit of the spec (2.2.3 penultimate para):
         //
         //                                                        ... If any of those
         //       nodes have already been selected for a lower-numbered replica of the
         //       service, any nodes already chosen are disregarded (i.e. skipped over)
         //       when choosing a replica's hsdir_spread_store nodes.
+        //
+        // This doesn't yet affect compatibility for clients, but when we
+        // implement onion services, it will create compatibility issues.  We
+        // need to fix it.
+        //
+        // TODO HSS: I may be wrong here but I suspect that this function may
+        // need refactoring so that it does not look at _all_ of the HsDirRings,
+        // but only at the ones that corresponds to time periods for which
+        // HsBlindId is valid.  Or I could be mistaken, in which case we should
+        // have a comment to explain why I am, since the logic is subtle.
+        // (For clients, there is only one ring.) -nickm
 
         let mut hs_dirs = self
             .hsdir_rings

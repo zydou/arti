@@ -13,8 +13,6 @@
 //! position or later. ("N" is a "number of replicas" parameter, and "S" is a
 //! "Spread" parameter.)
 
-#![allow(unused_variables, dead_code)] //TODO hs: remove
-
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -146,7 +144,7 @@ impl HsDirRing {
         this_netdir: &NetDir,
         prev_netdir: Option<&NetDir>,
     ) -> Self {
-        // TODO hs: The ring itself can be a bit expensive to compute, so maybe we should
+        // TODO: The ring itself can be a bit expensive to compute, so maybe we should
         // make sure this happens in a separate task or something, and expose a
         // way to do that?
         // But: this is being done during netdir ingestion, which is already happening
