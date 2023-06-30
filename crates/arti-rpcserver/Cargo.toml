@@ -23,7 +23,7 @@ full = [
 ]
 
 [dependencies]
-arti-client = { path = "../arti-client", version = "0.9.1", features = ["rpc"] }
+arti-client = { path = "../arti-client", version = "0.9.2", features = ["rpc"] }
 asynchronous-codec = { version = "0.6.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
@@ -38,10 +38,10 @@ serde_json = "1.0.50"
 thiserror = "1"
 tiny-keccak = { version = "2", features = ["kmac"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.1" }
-tor-bytes = { path = "../tor-bytes", version = "0.7.1" }
-tor-error = { path = "../tor-error", version = "0.5.1" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.1" }
-tor-rpcbase = { path = "../tor-rpcbase", version = "0.1.1" }
+tor-bytes = { path = "../tor-bytes", version = "0.7.2" }
+tor-error = { path = "../tor-error", version = "0.5.2" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.2" }
+tor-rpcbase = { path = "../tor-rpcbase", version = "0.1.2" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1" }
 tracing = "0.1.36"
 typetag = "0.2.7"
