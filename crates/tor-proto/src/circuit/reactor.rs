@@ -165,8 +165,10 @@ pub(super) enum CtrlMsg {
         /// The message to send, if any
         msg: Option<AnyRelayCell>,
         /// A message handler to install.
+        ///
+        /// If this is `None`, there must already be a message handler installed
         #[educe(Debug(ignore))]
-        handler: Box<dyn MetaCellHandler + Send + 'static>,
+        handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
         /// A sender that we use to tell the caller that the message was sent
         /// and the handler installed.
         sender: oneshot::Sender<Result<()>>,
@@ -1217,9 +1219,14 @@ impl Reactor {
             } => {
                 let outcome: Result<()> = (|| {
                     if let Some(msg) = msg {
+                        let handler = handler
+                            .as_ref()
+                            .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
                         self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
                     }
-                    self.set_meta_handler(handler)?;
+                    if let Some(handler) = handler {
+                        self.set_meta_handler(handler)?;
+                    }
                     Ok(())
                 })();
                 let _ = sender.send(outcome.clone()); // don't care if receiver goes away.

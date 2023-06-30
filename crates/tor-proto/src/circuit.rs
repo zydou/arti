@@ -430,7 +430,7 @@ impl ClientCirc {
 
         let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
             msg,
-            handler,
+            handler: Some(handler),
             sender,
         };
         self.control
