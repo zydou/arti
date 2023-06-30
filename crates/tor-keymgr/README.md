@@ -18,7 +18,7 @@ We'll therefore often be making semver-breaking changes
 ## Key stores
 
 The [`KeyMgr`] is an interface to one or more key stores. The key
-stores are types that implement the [`KeyStore`] trait.
+stores are types that implement the [`Keystore`] trait.
 
 This crate provides the following key store implementations:
 * Arti key store: an on-disk store that stores keys in OpenSSH format.
@@ -30,7 +30,7 @@ In the future we plan to also support HSM-based key stores.
 
 ## Key specifiers and key types
 
-The [`KeyStore`] APIs expect a "key specifier" (specified for each supported key
+The [`Keystore`] APIs expect a "key specifier" (specified for each supported key
 type via the [`KeySpecifier`] trait), and a [`KeyType`].
 
 A "key specifier" identifies a group of equivalent keys, each of a different
