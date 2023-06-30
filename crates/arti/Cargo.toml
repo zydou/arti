@@ -32,7 +32,7 @@ full = [
     "tor-config/full",
     "tor-error/full",
     "tor-rtcompat/full",
-    "tor-socksproto/full",
+    "tor-socksproto/full", "tor-rpcbase?/full",
 ]
 
 async-std = [

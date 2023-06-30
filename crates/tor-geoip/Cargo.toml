@@ -22,3 +22,4 @@ tor-error = { path = "../tor-error", version = "0.5.1" }
 [features]
 embedded-db = []
 default = ["embedded-db"]
+full = ["tor-error/full", "embedded-db"]

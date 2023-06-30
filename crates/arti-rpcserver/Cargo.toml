@@ -19,7 +19,7 @@ full = [
     "tor-error/full",
     "tor-rpcbase/full",
     "tor-rtcompat/full",
-    "tor-bytes/full",
+    "tor-bytes/full", "tor-llcrypto/full",
 ]
 
 [dependencies]
