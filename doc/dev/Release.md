@@ -1,5 +1,23 @@
 # How to release Arti
 
+## Tools and notation
+
+We're going to use the following.
+Why not upgrade to the latest version before you start?
+
+  * cargo-semver-checks
+  * cargo-edit
+
+In the documentation below,
+we sometimes use environment variables to indicate
+particular versions of Arti.
+For example, in the release I just did, I had:
+
+```
+LAST_VERSION=1.1.5
+THIS_VERSION=1.1.6
+```
+
 ## Are we ready to release?
 
 Before we can finally release, we need to check a few things
