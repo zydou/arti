@@ -2,7 +2,41 @@
 
 ## Are we ready to release?
 
-## Preparing the release
+Before we can finally release, we need to check a few things
+to make sure we aren't going to break our users.
+
+1. Make sure CI is passing.
+
+2. After making sure that the pipeline as a whole has passed,
+   look at every part of the pipeline that "passed with warnings".
+   Are the warnings what we expect?
+   If it's failing, is is it failing for the reasons we anticipated,
+   or have new failures crept in?
+
+3. Look at the current list of exceptions in our automated tooling.
+   Are they still relevant?
+   (There are exceptions in
+   `cargo_audit`,
+   `check_doc_features`,
+   and
+   `check_licenses`.)
+
+4. Do we have any open [issues] or [merge requests] tagged "Blocker"?
+
+[issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Blocker
+[merge requests]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/?label_name[]=Blocker
+
+5. Does `maint/fixup-features` produce any results?
+   If so, fix them.
+
+6. Does `maint/semver-checks` find any issues
+   not noted in our semver.md files?
+   If so, add them.
+
+Note that you can do these steps _in parallel_ with "preparing for the
+release" below.
+
+## Preparing for the release
 
 1. For 0.0.x, we do a toplevel changelog only.
 
@@ -14,8 +48,6 @@
 2. Make sure we're up-to-date.  Try to run:
   * cargo update
   * cargo upgrade --dry-run --workspace --skip-compatible
-  * ./maint/cargo_audit
-  * ./maint/check_licenses
 
     (Note that not all of the above will make changes on their own; you'll
     need to understand the output and decide what to do.)
@@ -153,3 +185,5 @@ since the last release.)
 7. File any followup tickets and/or do any post-patch cleanup.
 
 8. Consider whether to make a blog post about the patch release.
+
+
