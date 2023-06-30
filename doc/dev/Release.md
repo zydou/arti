@@ -176,6 +176,9 @@ before you continue!
    Now _that_ crate counts as changed,
    and needs a version bump of its own.
 
+   Run `maint/semver-checks` again:
+   It should be quiet now that you bumped all the versions.
+
 4. Then make sure that CI passes, again.
 
 ## The actual release itself.
