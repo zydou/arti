@@ -251,6 +251,25 @@ impl CircHop {
     }
 }
 
+/// Handle to use during an ongoing protocol exchange with a circuit's last hop
+///
+/// This is passed to `MsgHandler::handle_msg`.
+///
+/// See also [`ConversationInHandler`], which is a type used for the same purpose
+/// but available to the caller of `start_conversation_last_hop`
+//
+// This is the subset of the arguments to MetaCellHandler::handle_msg
+// which are needed to be able to call send_relay_cell.
+#[cfg(feature = "send-control-msg")]
+pub struct ConversationInHandler<'r, 'c, 'cc> {
+    /// Async task waker context
+    pub(super) cx: &'c mut Context<'cc>,
+    /// Reactor
+    pub(super) reactor: &'r mut Reactor,
+    /// Hop
+    pub(super) hop_num: HopNum,
+}
+
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
 /// progress.
 ///
@@ -1492,6 +1511,29 @@ impl Reactor {
     /// Return the hop corresponding to `hopnum`, if there is one.
     fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
         self.hops.get_mut(Into::<usize>::into(hopnum))
+    }
+}
+
+#[cfg(feature = "send-control-msg")]
+impl ConversationInHandler<'_, '_, '_> {
+    /// Send a protocol message as part of an ad-hoc exchange
+    ///
+    /// This is the within-[`MsgHandler`](super::MsgHandler)
+    /// counterpart to [`Conversation`](super::Conversation).
+    ///
+    /// It differs only in that the `send_message` function here is sync,
+    /// and takes `&mut self`.
+    //
+    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
+    //   tor-proto interface.
+    #[cfg(feature = "send-control-msg")]
+    pub fn send_message(
+        &mut self,
+        msg: tor_cell::relaycell::msg::AnyRelayMsg,
+    ) -> Result<()> {
+        let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
+
+        self.reactor.send_relay_cell(self.cx, self.hop_num, false, msg)
     }
 }
 

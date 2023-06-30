@@ -91,7 +91,7 @@ use reactor::MetaCellHandler;
 
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
+pub use {msghandler::MsgHandler, reactor::{ConversationInHandler, MetaCellDisposition}};
 
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
@@ -338,6 +338,8 @@ impl ClientCirc {
     ///  3. In your [`MsgHandler`], process the incoming messages.
     ///     You may respond by
     ///     sending additional messages
+    ///     (using the [`ConversationInHandler`] provided to `MsgHandler::handle_msg`,
+    ///     or, outside the handler using the `Conversation`)
     ///     When the protocol exchange is finished,
     ///     `MsgHandler::handle_msg` should return
     ///     [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
@@ -733,6 +735,9 @@ impl ClientCirc {
 ///
 /// This is obtained from [`ClientCirc::start_conversation_last_hop`],
 /// and used to send messages to the last hop relay.
+///
+/// See also [`ConversationInHandler`], which is a type used for the same purpose
+/// but available only inside [`MsgHandler::handle_msg`].
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub struct Conversation<'r>(&'r ClientCirc);

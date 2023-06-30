@@ -12,7 +12,7 @@ use crate::{Error, Result};
 
 use std::task::Context;
 
-use super::MetaCellDisposition;
+use super::{ConversationInHandler, MetaCellDisposition};
 
 /// An object that checks whether incoming control messages are acceptable on a
 /// circuit, and delivers them to a client if so.
@@ -40,7 +40,7 @@ pub trait MsgHandler {
     /// or highly contended locks, to avoid blocking the circuit reactor.
     ///
     /// If this function returns an error, the circuit will be closed.
-    fn handle_msg(&mut self, msg: AnyRelayMsg) -> Result<MetaCellDisposition>;
+    fn handle_msg(&mut self, conversation: ConversationInHandler<'_, '_, '_>, msg: AnyRelayMsg) -> Result<MetaCellDisposition>;
 }
 
 /// Wrapper for `MsgHandler` to implement `MetaCellHandler`
@@ -66,9 +66,9 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
 
     fn handle_msg(
         &mut self,
-        _cx: &mut Context<'_>,
+        cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
-        _reactor: &mut super::reactor::Reactor,
+        reactor: &mut super::reactor::Reactor,
     ) -> Result<MetaCellDisposition> {
         let cell: AnyRelayCell = msg.decode().map_err(|err| Error::BytesErr {
             object: "cell for message handler",
@@ -81,6 +81,11 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
                 msg.cmd()
             )));
         }
-        self.handler.handle_msg(msg)
+        let conversation = ConversationInHandler {
+            reactor,
+            cx,
+            hop_num: self.hop,
+        };
+        self.handler.handle_msg(conversation, msg)
     }
 }
