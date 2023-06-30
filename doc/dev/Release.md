@@ -1,63 +1,221 @@
-# How to release Arti 0.0.x
+# How to release Arti
 
-1. For 0.0.x, we do a toplevel changelog only.
+## Tools and notation
 
-  I made the toplevel changelog for 0.0.1 by reading 'git shortlog
-  arti-v0.0.0..' and summarizing the best stuff.
+We're going to use the following.
+Why not upgrade to the latest version before you start?
 
-  There is a ./maint/thanks script to generate the acknowledgments.
+  * cargo-semver-checks
+  * cargo-edit
 
-2. Make sure we're up-to-date.  Try to run:
-  * cargo update
-  * cargo upgrade --dry-run --workspace --skip-compatible
-  * ./maint/cargo_audit
-  * ./maint/check_licenses
+In the documentation below,
+we sometimes use environment variables to indicate
+particular versions of Arti.
+For example, in the release I just did, I had:
 
-    (Note that not all of the above will make changes on their own; you'll
-    need to understand the output and decide what to do.)
+```
+LAST_VERSION=1.1.5
+THIS_VERSION=1.1.6
+```
 
-3. Then make sure that CI passes. *Also ensure we've run tests for all
-  possible Cargo feature combinations, as per arti#303.*
+## Are we ready to release?
 
-4. Increase all appropriate version numbers.  This time we'll be moving to
-   0.0.1 on all crates.
+Before we can finally release, we need to check a few things
+to make sure we aren't going to break our users.
 
-   We'll also need to update the versions in all our dependencies to 0.0.1.
+1. Make sure CI is passing.
 
-   It seems that `cargo set-version -p ${CRATE} --bump patch` does the right
-   thing here, but `cargo set-version --workspace --bump patch` doesn't
-   update dependent crates correctly.
+2. After making sure that the pipeline as a whole has passed,
+   look at every part of the pipeline that "passed with warnings".
+   Are the warnings what we expect?
+   If it's failing, is is it failing for the reasons we anticipated,
+   or have new failures crept in?
 
-   To bump the patch version of _every_ crate, run:
+3. Look at the current list of exceptions in our automated tooling.
+   Are they still relevant?
+   (There are exceptions in
+   `cargo_audit`,
+   `check_doc_features`,
+   and
+   `check_licenses`.)
 
-   ; for crate in $(./maint/list_crates); do cargo set-version -p "$crate" --bump patch; done
+4. Do we have any open [issues] or [merge requests] tagged "Blocker"?
 
-   To find only the crates that changed since version 0.0.x, you can run:
+[issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Blocker
+[merge requests]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/?label_name[]=Blocker
 
-   ; ./maint/changed_crates arti-v0.0.x
+5. Does `maint/fixup-features` produce any results?
+   If so, fix them.
 
-   But note that you can't just bump _only_ the crates that changed!  Any
-   crate that depends on one of those might now count as changed, even if
-   it wasn't changed before.
+6. Does `maint/semver-checks` find any issues
+   not noted in our semver.md files?
+   If so, add them.
 
-5. Then make sure that CI passes, again.
+Note that you can do these steps _in parallel_ with "preparing for the
+release" below.
 
-6. From lowest-level to highest-level, we have to run cargo publish.  For
+## Preparing for the release
+
+Note that you can do these steps _in parallel_ with "are we ready to
+release?" above.
+
+1. Check for breaking changes to our dependencies.
+   In the weeks between releases, I try to run:
+   `cargo upgrade --dry-run --compatible=ignore --incompatible=allow`.
+   This will tell us if any of our dependencies
+   have new versions that will not upgrade automatically.
+
+2. Check for non-breaking changes to our dependencies.
+   A day or two before release, I try to run:
+   `cargo update`.
+   This will replace each of our dependencies in Cargo.lock
+   with the latest version.
+   (I recommend doing this a bit before the release
+   to make sure that we have time
+   to deal with any surprising breakage.)
+
+3. Write a changelog.
+
+   I start by running
+   `git log --reverse arti-v${LAST_VERSION}..`,
+   and writing a short summary of everything I find into
+   new sections of the changelog.
+   I try to copy the list of sections
+   from previous changelogs, to keep them consistent.
+
+   If I have to take a break in the middle,
+   or if time will pass between now and the release,
+   I add a note like
+   `UP TO DATE WITH 726f666c2d2d6d61646520796f75206c6f6f6b21`
+   to remind me where I need to start again.
+
+4. Finish the changelog.
+
+   When the changelog is done, pipe it into
+   `maint/gen_md_links` to auto-generate markdown links
+   to our gitlab repositories.
+   Then, fill in the URLs for any links that the script
+   couldn't find.
+
+   Run `maint/thanks arti-v${LAST_VERSION}`
+   to generate our list of ackowledgments;
+   insert this into the changelog.
+
+   Add an acknowledgement for the current sponsor(s).
+
+4. Determine what crates have semver changes.
+
+   We need to sort our crates into the following tiers.
+    * No changes were made.
+      (No version bump needed)
+    * Only non-functional changes were made.
+      (Bump the version of the crate, but not the depended-on version.)
+    * Functional changes were made, but no APIs were added or broken.
+      (Bump patchlevel.)
+    * APIs were added.
+      (Bump patchlevel if major == 0; else bump minor.)
+    * APIs were broken.
+      (Bump minor if major == 0; else bump major.)
+
+   You can identify crates that have no changes (by elimination)
+   with `./maint/changed_crates ${LAST_VERSION}`.
+
+   To see whether a crate has only non-functional changes,
+   you have to use  `git diff`.  Sorry!
+   Historically, trivial changes
+   are small tweaks in the clippy lints,
+   or documentation/comment improvements.
+
+   To determine whether any APIs were added,
+   look in the semver.md files.
+   (We often forget to add these;
+   but fortunately,
+   most of our crates currently have major version 0,
+   so we don't need to distinguish "functional changes"
+   from "new APIs".)
+
+   To determine whether any APIs were broken,
+   look in the semver.md files.
+   The `cargo semver-checks` tool
+   can also identify some of these,
+   but its false-negative rate is high.
+
+   You may also want to look over the crate-by-crate diffs.
+   This can be quite time-consuming.
+
+## Final preparation for a release.
+
+Wait! Go back and make sure
+that you have done everything in the previous sections
+before you continue!
+
+1. Finalize the changelog.
+
+   Make sure that the date is correct.
+   Make sure that the acknoweldgments and links are correct,
+   if they might have gotten stale.
+
+2. Increase all appropriate version numbers.
+
+   To do this, run for each crate with functional changes:
+    `cargo set-version --bump {patch|minor|major} -p ${CRATE}`.
+
+   For crates with non-functional changes,
+   you need to edit the Cargo.toml files.
+   We have [a ticket][#945] to automate this.
+
+[#945]: https://gitlab.torproject.org/tpo/core/arti/-/issues/945
+
+3. Check for side effects from bumping versions!
+
+   Is there a Cargo.lock change you forgot to commit?
+   If so, commit it.
+
+   Does a previously unchanged crate
+   depend on a crate that got a version bump?
+   Now _that_ crate counts as changed,
+   and needs a version bump of its own.
+
+   Run `maint/semver-checks` again:
+   It should be quiet now that you bumped all the versions.
+
+4. Then make sure that CI passes, again.
+
+## The actual release itself.
+
+1. From lowest-level to highest-level, we have to run cargo publish.  For
    a list of crates from lowest- to highest-level, see the top-level
    Cargo.toml.
 
-   ; for crate in $(./maint/list_crates); do cargo publish -p "$crate"; echo "Sleeping"; sleep 30; done
+   `; for crate in $(./maint/list_crates); do cargo publish -p "$crate"; done`
 
-    (The "sleep 30" is probably too long, but some delay seems to be
-    necessary to give crates.io time to publish each crate before the next
-    crate tries to download it.)
 
-7. We tag the repository with arti-v0.0.1
+2. We tag the repository with `arti-v${THIS_VERSION}`
 
-8. Remove all of the semver.md files.
+   To do this, run
+   `git tag -s "arti-v${THIS_VERSION}`.
 
-9. Update the origin/pages branch to refer to the new version.
+   In the tag message, be sure to include the output of
+   `./maint/crate_versions`.
 
+   (Note to self: if you find that gpg can't find your yubikey,
+   you'll need to run
+   `sudo systemctl restart pcscd`
+   to set things right.
+   I hope that nobody else has this problem.)
+
+## Post-release
+
+1. Remove all of the semver.md files:
+   `git rm crates/*/semver.md`.
+
+2. Write a blog post.
+
+3. One the blog post is published,
+   update the origin/pages branch to refer to the new version.
+
+
+<!-- ================================================== -->
 
 # Making a patch release of a crate, eg to fix a semver breakage
 
@@ -144,3 +302,5 @@ since the last release.)
 7. File any followup tickets and/or do any post-patch cleanup.
 
 8. Consider whether to make a blog post about the patch release.
+
+
