@@ -1,1 +1,0 @@
-ADDED: `HsClientKeyRole`, `HsClientSecretKeySpecifier`, `HsClientSpecifier`
