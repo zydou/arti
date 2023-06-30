@@ -13,8 +13,19 @@ security-sensitive purposes, because of some
 Instructions for enabling it and trying it out can be found in the
 [README.md] file.
 
+Additionally, this version includes an experimental key manager
+implementation. Currently it's used to store the keys needed for
+client authentication, but in the future it will store the keys for
+onion services themselves, and eventually relays.  In this release it
+is still missing some import functionality for interoparability;
+the interface is likely to change significantly.
 
-TODO Write even more.
+Work on our RPC subsystem has also continued; we have achieved several
+preqequisites needed for applications' SOCKS connections to
+integrate correctly with the RPC subsystem.
+
+And as usual, there are large number of smaller fixes and improvements
+throughout the codebase.
 
 This is up-to-date as of 6e2b48c6b9ea0ecc49749266a112717857ff83e8
 
