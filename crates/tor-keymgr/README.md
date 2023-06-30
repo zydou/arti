@@ -52,9 +52,6 @@ same `KeySpecifier::arti_path`), but different key types (i.e. different
   as a unique identifier for a particular instance of a key.
 * `ctor_path`: the location of the key in the C Tor key store (optional).
 
-TODO hs: write more comprehensive documentation when the API is a bit more
-stable
-
 ## Feature flags
 
 ### Additive features
