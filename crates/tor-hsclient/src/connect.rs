@@ -981,7 +981,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         .deliver_expected_message(msg, MetaCellDisposition::Consumed)
                 } else {
                     self.rend2_tx
-                        .deliver_expected_message(msg, MetaCellDisposition::UninstallHandler)
+                        .deliver_expected_message(msg, MetaCellDisposition::ConversationFinished)
                 }
             }
         }
@@ -1140,7 +1140,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 self.intro_ack_tx
-                    .deliver_expected_message(msg, MetaCellDisposition::UninstallHandler)
+                    .deliver_expected_message(msg, MetaCellDisposition::ConversationFinished)
             }
         }
         let handle_intro_proto_error = |error| FAE::IntroductionExchange { error, intro_index };

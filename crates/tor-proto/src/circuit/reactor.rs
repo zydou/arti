@@ -284,11 +284,7 @@ pub(super) enum MetaCellDisposition {
     #[cfg(feature = "send-control-msg")]
     Consumed,
     /// The message was consumed; the handler should be uninstalled.
-    //
-    // TODO since there are no "install handler" and "uninstall handler" calls,
-    // only `send_control_message` which implicitly installs on entry and uninstalls
-    // on exit, this should be renamed to `ConversationFinished` or something.
-    UninstallHandler,
+    ConversationFinished,
     /// The message was consumed; the circuit should be closed.
     #[cfg(feature = "send-control-msg")]
     CloseCirc,
@@ -444,7 +440,7 @@ where
             Box::new(layer_back),
             &self.params,
         );
-        Ok(MetaCellDisposition::UninstallHandler)
+        Ok(MetaCellDisposition::ConversationFinished)
     }
 }
 
@@ -958,7 +954,7 @@ impl Reactor {
                         self.meta_handler = Some(handler);
                         Ok(CellStatus::Continue)
                     }
-                    Ok(MetaCellDisposition::UninstallHandler) => Ok(CellStatus::Continue),
+                    Ok(MetaCellDisposition::ConversationFinished) => Ok(CellStatus::Continue),
                     #[cfg(feature = "send-control-msg")]
                     Ok(MetaCellDisposition::CloseCirc) => Ok(CellStatus::CleanShutdown),
                     Err(e) => Err(e),
