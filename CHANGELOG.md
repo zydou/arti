@@ -220,8 +220,6 @@ Saksham Mittal, and Trinity Pointard.
 Also, our deep thanks to [Zcash Community Grants] for funding the
 development of Arti!
 
-
-
 [!1208]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1208
 [!1213]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1213
 [!1214]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1214
@@ -333,18 +331,14 @@ development of Arti!
 [686d5cf2093322e4]: https://gitlab.torproject.org/tpo/core/arti/-/commit/686d5cf2093322e4408513daf832af6693fa67a9
 [a902f320b5b31812]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a902f320b5b31812fabc42b95a38b5453f050e7f
 [bb6115103aad177c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bb6115103aad177c0b57918b1cb8cf0e8280223e
-[README.md]: 
-[Zcash Community Grants]: 
-[`arrayref`]: 
-[`cargo-semver-checks`]: 
-[`users`]: 
-[finding a replacement]: 
-[missing security features]: 
-[proposal
-  304]: 
-[re-upgrade]: 
-
-
+[README.md]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`arrayref`]: https://docs.rs/arrayref/latest/arrayref/
+[`cargo-semver-checks`]: https://crates.io/crates/cargo-semver-checks
+[`users`]: https://crates.io/crates/users
+[missing security features]: https://blog.torproject.org/announcing-vanguards-add-onion-services/
+[proposal 304]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/304-socks5-extending-hs-error-codes.txt
+[re-upgrade]: https://gitlab.torproject.org/tpo/core/arti/-/issues/808
 
 
 
