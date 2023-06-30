@@ -1369,12 +1369,16 @@ trait MockableClientCirc: Debug {
     type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
     async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
 
-    /// Send a control message
+    /// Converse
     async fn m_start_conversation_last_hop(
         &self,
         msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-    ) -> tor_proto::Result<()>;
+    ) -> tor_proto::Result<Self::Conversation<'_>>;
+    /// Conversation
+    type Conversation<'r>
+    where
+        Self: 'r;
 
     /// Add a virtual hop to the circuit.
     async fn m_extend_virtual(
@@ -1426,9 +1430,10 @@ impl MockableClientCirc for ClientCirc {
         &self,
         msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-    ) -> tor_proto::Result<()> {
+    ) -> tor_proto::Result<Self::Conversation<'_>> {
         ClientCirc::start_conversation_last_hop(self, msg, reply_handler).await
     }
+    type Conversation<'r> = tor_proto::circuit::Conversation<'r>;
 
     async fn m_extend_virtual(
         &self,
@@ -1556,6 +1561,7 @@ mod test {
     #[async_trait]
     impl MockableClientCirc for Mocks<()> {
         type DirStream = JoinReadWrite<futures::io::Cursor<Box<[u8]>>, futures::io::Sink>;
+        type Conversation<'r> = &'r ();
         async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
             let response = format!(
                 r#"HTTP/1.1 200 OK
@@ -1575,7 +1581,7 @@ mod test {
             &self,
             msg: Option<AnyRelayMsg>,
             reply_handler: impl MsgHandler + Send + 'static,
-        ) -> tor_proto::Result<()> {
+        ) -> tor_proto::Result<Self::Conversation<'_>> {
             todo!()
         }
 
