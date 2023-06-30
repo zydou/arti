@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsclient"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -51,13 +51,13 @@ strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.1" }
 tor-bytes = { path = "../tor-bytes", version = "0.7.1" }
-tor-cell = { path = "../tor-cell", version = "0.11.0", features = ["hs"] }
+tor-cell = { path = "../tor-cell", version = "0.12.0", features = ["hs"] }
 tor-checkable = { path = "../tor-checkable", version = "0.5.1" }
 tor-circmgr = { version = "0.9.0", path = "../tor-circmgr", features = ["hs-client"] }
 tor-config = { path = "../tor-config", version = "0.9.1" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.7.1", default-features = false, features = ["hs-client"] }
 tor-error = { path = "../tor-error", version = "0.5.1" }
-tor-hscrypto = { version = "0.2.1", path = "../tor-hscrypto" }
+tor-hscrypto = { version = "0.3.0", path = "../tor-hscrypto" }
 tor-keymgr = { version = "0.1.0", path = "../tor-keymgr", default-features = false }
 tor-linkspec = { version = "0.8.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
 tor-llcrypto = { version = "0.5.1", path = "../tor-llcrypto" }

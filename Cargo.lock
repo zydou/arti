@@ -279,7 +279,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpcserver"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "arti-client",
  "asynchronous-codec",
@@ -4089,7 +4089,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "bitflags 2.3.3",
  "bytes",
@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsclient"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -4473,7 +4473,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "data-encoding",
  "derive_more",
