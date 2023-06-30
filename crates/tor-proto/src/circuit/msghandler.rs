@@ -40,7 +40,11 @@ pub trait MsgHandler {
     /// or highly contended locks, to avoid blocking the circuit reactor.
     ///
     /// If this function returns an error, the circuit will be closed.
-    fn handle_msg(&mut self, conversation: ConversationInHandler<'_, '_, '_>, msg: AnyRelayMsg) -> Result<MetaCellDisposition>;
+    fn handle_msg(
+        &mut self,
+        conversation: ConversationInHandler<'_, '_, '_>,
+        msg: AnyRelayMsg,
+    ) -> Result<MetaCellDisposition>;
 }
 
 /// Wrapper for `MsgHandler` to implement `MetaCellHandler`

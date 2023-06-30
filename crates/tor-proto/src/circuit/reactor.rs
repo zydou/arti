@@ -918,7 +918,12 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, cx: &mut Context<'_>, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
+    fn handle_meta_cell(
+        &mut self,
+        cx: &mut Context<'_>,
+        hopnum: HopNum,
+        msg: UnparsedRelayCell,
+    ) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
 
         // TODO: This pattern (Check command, try to decode, map error) occurs
@@ -1526,13 +1531,11 @@ impl ConversationInHandler<'_, '_, '_> {
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
     #[cfg(feature = "send-control-msg")]
-    pub fn send_message(
-        &mut self,
-        msg: tor_cell::relaycell::msg::AnyRelayMsg,
-    ) -> Result<()> {
+    pub fn send_message(&mut self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
         let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
 
-        self.reactor.send_relay_cell(self.cx, self.hop_num, false, msg)
+        self.reactor
+            .send_relay_cell(self.cx, self.hop_num, false, msg)
     }
 }
 

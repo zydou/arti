@@ -40,7 +40,9 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
-use tor_proto::circuit::{CircParameters, ClientCirc, ConversationInHandler, MetaCellDisposition, MsgHandler};
+use tor_proto::circuit::{
+    CircParameters, ClientCirc, ConversationInHandler, MetaCellDisposition, MsgHandler,
+};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
 use crate::proto_oneshot;

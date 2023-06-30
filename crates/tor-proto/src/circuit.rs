@@ -91,7 +91,10 @@ use reactor::MetaCellHandler;
 
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub use {msghandler::MsgHandler, reactor::{ConversationInHandler, MetaCellDisposition}};
+pub use {
+    msghandler::MsgHandler,
+    reactor::{ConversationInHandler, MetaCellDisposition},
+};
 
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
