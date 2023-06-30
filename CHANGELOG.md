@@ -27,9 +27,6 @@ integrate correctly with the RPC subsystem.
 And as usual, there are large number of smaller fixes and improvements
 throughout the codebase.
 
-This is up-to-date as of 6e2b48c6b9ea0ecc49749266a112717857ff83e8
-
-
 ### Major bugfixes
 
 - Downgrade our dependency on x25519-dalek from "2.0.0-rc.2" to
