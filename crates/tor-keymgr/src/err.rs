@@ -10,7 +10,7 @@ use std::fmt;
 /// An Error type for this crate.
 pub type Error = Box<dyn KeystoreError>;
 
-/// An error returned by a [`KeyStore`](crate::KeyStore).
+/// An error returned by a [`Keystore`](crate::Keystore).
 pub trait KeystoreError:
     HasKind + StdError + DynClone + fmt::Debug + fmt::Display + Send + Sync + 'static
 {
@@ -27,7 +27,7 @@ impl<K: KeystoreError + Send + Sync> From<K> for Error {
     }
 }
 
-// This impl is needed because tor_keymgr::Error is the error source type of ErrorDetail::KeyStore,
+// This impl is needed because tor_keymgr::Error is the error source type of ErrorDetail::Keystore,
 // which _must_ implement StdError (otherwise we get an error about thiserror::AsDynError not being
 // implemented for tor_keymgr::Error).
 //

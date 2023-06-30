@@ -1,4 +1,4 @@
-//! This module defines the key types that can be written to a [`KeyStore`](crate::KeyStore).
+//! This module defines the key types that can be written to a [`Keystore`](crate::Keystore).
 
 // @Diziet's notes regarding why we shouldn't be storing public keys in the key store:
 //

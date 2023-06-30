@@ -274,7 +274,7 @@ enum ErrorDetail {
 
     /// A key store access failed.
     #[error("Error while trying to access a key store")]
-    KeyStore(#[from] tor_keymgr::Error),
+    Keystore(#[from] tor_keymgr::Error),
 
     /// We tried to parse an onion address, but we found that it was invalid.
     #[cfg(feature = "onion-service-client")]
@@ -376,7 +376,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
-            E::KeyStore(e) => e.kind(),
+            E::Keystore(e) => e.kind(),
             E::FsMistrust(_) => EK::FsPermissions,
             E::Bug(e) => e.kind(),
         }

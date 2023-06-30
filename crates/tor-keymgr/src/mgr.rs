@@ -1,24 +1,24 @@
-//! Code for managing multiple [`KeyStore`]s.
+//! Code for managing multiple [`Keystore`]s.
 //!
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
-//! [`KeyStore`].
+//! [`Keystore`].
 
-use crate::{EncodableKey, KeySpecifier, KeyStore, Result, ToEncodableKey};
+use crate::{EncodableKey, KeySpecifier, Keystore, Result, ToEncodableKey};
 
 use tor_error::internal;
 
-/// A key manager with several [`KeyStore`]s.
+/// A key manager with several [`Keystore`]s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
 pub struct KeyMgr {
     /// The underlying persistent stores.
-    key_stores: Vec<Box<dyn KeyStore>>,
+    key_stores: Vec<Box<dyn Keystore>>,
 }
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`].
-    pub fn new(key_stores: Vec<Box<dyn KeyStore>>) -> Self {
+    pub fn new(key_stores: Vec<Box<dyn Keystore>>) -> Self {
         Self { key_stores }
     }
 

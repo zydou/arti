@@ -27,13 +27,13 @@ use std::path::Path;
 pub struct KeyMgr;
 
 /// A dummy key store trait.
-pub trait KeyStore {
+pub trait Keystore {
     // TODO(gabi): Add the missing functions and impls
 }
 
-/// A dummy `ArtiNativeKeyStore`.
+/// A dummy `ArtiNativeKeystore`.
 #[non_exhaustive]
-pub struct ArtiNativeKeyStore;
+pub struct ArtiNativeKeystore;
 
 /// A dummy `KeyType`.
 #[non_exhaustive]
@@ -62,19 +62,19 @@ impl HasKind for Error {
     }
 }
 
-impl ArtiNativeKeyStore {
-    /// Create a new [`ArtiNativeKeyStore`].
+impl ArtiNativeKeystore {
+    /// Create a new [`ArtiNativeKeystore`].
     #[allow(clippy::unnecessary_wraps)]
     pub fn from_path_and_mistrust(_: impl AsRef<Path>, _: &Mistrust) -> Result<Self> {
         Ok(Self)
     }
 }
 
-impl KeyStore for ArtiNativeKeyStore {}
+impl Keystore for ArtiNativeKeystore {}
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`].
-    pub fn new(_: Vec<Box<dyn KeyStore>>) -> Self {
+    pub fn new(_: Vec<Box<dyn Keystore>>) -> Self {
         Self
     }
 

@@ -43,7 +43,7 @@ use {
     tor_netdir::DirEvent,
 };
 
-use tor_keymgr::{ArtiNativeKeyStore, KeyMgr, KeyStore};
+use tor_keymgr::{ArtiNativeKeystore, KeyMgr, Keystore};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
@@ -605,14 +605,14 @@ impl<R: Runtime> TorClient<R> {
             let key_store_dir = config.storage.expand_keystore_dir()?;
             let permissions = config.storage.permissions();
 
-            let mut stores: Vec<Box<dyn KeyStore>> = vec![];
+            let mut stores: Vec<Box<dyn Keystore>> = vec![];
 
-            // TODO hs: For now, let's ignore any errors coming from the ArtiNativeKeyStore
+            // TODO hs: For now, let's ignore any errors coming from the ArtiNativeKeystore
             // constructor. We should remove this when we implement the key store config and bail
             // if the keystore dir fails the validation checks.
             if let Some(key_store_dir) = key_store_dir {
                 let arti_store =
-                    ArtiNativeKeyStore::from_path_and_mistrust(key_store_dir, permissions)?;
+                    ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
                 stores.push(Box::new(arti_store));
             }
 
@@ -1001,7 +1001,7 @@ impl<R: Runtime> TorClient<R> {
 
                 // TODO hs: use a real client id (loaded from the config)
                 let client_id = HsClientSpecifier::new("not_a_real_spec".into())
-                    .map_err(|e| ErrorDetail::KeyStore(e))?;
+                    .map_err(|e| ErrorDetail::Keystore(e))?;
                 let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
                     client_id.clone(),
                     hsid,

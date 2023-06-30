@@ -1,4 +1,4 @@
-//! The [`KeyStore`] trait and its implementations.
+//! The [`Keystore`] trait and its implementations.
 
 pub(crate) mod arti;
 
@@ -10,7 +10,7 @@ use crate::{KeySpecifier, Result};
 
 use std::any::Any;
 
-/// A type-erased key returned by a [`KeyStore`].
+/// A type-erased key returned by a [`Keystore`].
 pub type ErasedKey = Box<dyn Any>;
 
 /// A generic key store.
@@ -18,7 +18,7 @@ pub type ErasedKey = Box<dyn Any>;
 // TODO HSS: eventually this will be able to store items that aren't keys (such as certificates and
 // perhaps other types of sensitive data). We should consider renaming this (and other Key* types)
 // to something more generic (such as `SecretStore` or `Vault`).
-pub trait KeyStore: Send + Sync + 'static {
+pub trait Keystore: Send + Sync + 'static {
     /// Retrieve the key identified by `key_spec`.
     ///
     /// Returns `Ok(Some(key))` if the key was successfully retrieved. Returns `Ok(None)` if the
@@ -31,7 +31,7 @@ pub trait KeyStore: Send + Sync + 'static {
     // which has a `key_type` function. However:
     //   * `key_type` is an associated function on `EncodableKey`, not a method, which means we
     //   can't call it on `key: &dyn EncodableKey` (you can't call an associated function of trait
-    //   object). The caller of `KeyStore::insert` (i.e. `KeyMgr`) OTOH _can_ call `K::key_type()`
+    //   object). The caller of `Keystore::insert` (i.e. `KeyMgr`) OTOH _can_ call `K::key_type()`
     //   on the `EncodableKey` because the concrete type `K` that implements `EncodableKey` is
     //   known.
     //  * one argue I should make `key_type` a `&self` method rather than an associated function,
@@ -62,7 +62,7 @@ pub trait KeyStore: Send + Sync + 'static {
 }
 
 /// A key that can be serialized to, and deserialized from, a format used by a
-/// [`KeyStore`](crate::KeyStore).
+/// [`Keystore`](crate::Keystore).
 pub trait EncodableKey {
     /// The type of the key.
     fn key_type() -> KeyType

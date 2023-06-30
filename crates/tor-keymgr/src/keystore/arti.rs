@@ -9,7 +9,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
-use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, KeyStore};
+use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{KeyType, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
@@ -17,13 +17,13 @@ use fs_mistrust::{CheckedDir, Mistrust};
 
 /// The Arti key store.
 #[derive(Debug)]
-pub struct ArtiNativeKeyStore {
+pub struct ArtiNativeKeystore {
     /// The root of the key store.
     keystore_dir: CheckedDir,
 }
 
-impl ArtiNativeKeyStore {
-    /// Create a new [`ArtiNativeKeyStore`] rooted at the specified `keystore_dir` directory.
+impl ArtiNativeKeystore {
+    /// Create a new [`ArtiNativeKeystore`] rooted at the specified `keystore_dir` directory.
     ///
     /// The `keystore_dir` directory is created if it doesn't exist.
     ///
@@ -58,7 +58,7 @@ impl ArtiNativeKeyStore {
     }
 }
 
-impl KeyStore for ArtiNativeKeyStore {
+impl Keystore for ArtiNativeKeystore {
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
         let path = self.key_path(key_spec, key_type)?;
 
@@ -162,13 +162,13 @@ mod tests {
         }
     }
 
-    fn key_path(key_store: &ArtiNativeKeyStore, key_type: KeyType) -> PathBuf {
+    fn key_path(key_store: &ArtiNativeKeystore, key_type: KeyType) -> PathBuf {
         let rel_key_path = key_store.key_path(&TestSpecifier, key_type).unwrap();
 
         key_store.keystore_dir.as_path().join(rel_key_path)
     }
 
-    fn init_keystore(gen_keys: bool) -> (ArtiNativeKeyStore, TempDir) {
+    fn init_keystore(gen_keys: bool) -> (ArtiNativeKeystore, TempDir) {
         #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
 
@@ -178,7 +178,7 @@ mod tests {
         fs::set_permissions(&keystore_dir, fs::Permissions::from_mode(0o700)).unwrap();
 
         let key_store =
-            ArtiNativeKeyStore::from_path_and_mistrust(&keystore_dir, &Mistrust::default())
+            ArtiNativeKeystore::from_path_and_mistrust(&keystore_dir, &Mistrust::default())
                 .unwrap();
 
         if gen_keys {
@@ -211,7 +211,7 @@ mod tests {
         let mode = 0o777;
 
         fs::set_permissions(&keystore_dir, fs::Permissions::from_mode(mode)).unwrap();
-        let err = ArtiNativeKeyStore::from_path_and_mistrust(&keystore_dir, &Mistrust::default())
+        let err = ArtiNativeKeystore::from_path_and_mistrust(&keystore_dir, &Mistrust::default())
             .expect_err(&format!("expected failure (perms = {mode:o})"));
 
         assert_eq!(
