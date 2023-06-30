@@ -10,6 +10,8 @@ use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
 use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 
+use std::task::Context;
+
 use super::MetaCellDisposition;
 
 /// An object that checks whether incoming control messages are acceptable on a
@@ -64,6 +66,7 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
 
     fn handle_msg(
         &mut self,
+        _cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
         _reactor: &mut super::reactor::Reactor,
     ) -> Result<MetaCellDisposition> {

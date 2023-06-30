@@ -272,6 +272,7 @@ pub(super) trait MetaCellHandler: Send {
     /// If this function returns an error, the reactor will shut down.
     fn handle_msg(
         &mut self,
+        cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition>;
@@ -460,6 +461,7 @@ where
     }
     fn handle_msg(
         &mut self,
+        _cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition> {
@@ -898,7 +900,7 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
+    fn handle_meta_cell(&mut self, cx: &mut Context<'_>, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
 
         // TODO: This pattern (Check command, try to decode, map error) occurs
@@ -944,7 +946,7 @@ impl Reactor {
         if let Some(mut handler) = self.meta_handler.take() {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message
-                let ret = handler.handle_msg(msg, self);
+                let ret = handler.handle_msg(cx, msg, self);
                 trace!(
                     "{}: meta handler completed with result: {:?}",
                     self.unique_id,
@@ -1411,7 +1413,7 @@ impl Reactor {
         // If this has a reasonable streamID value of 0, it's a meta cell,
         // not meant for a particular stream.
         if streamid.is_zero() {
-            return self.handle_meta_cell(hopnum, msg);
+            return self.handle_meta_cell(cx, hopnum, msg);
         }
 
         let hop = self
