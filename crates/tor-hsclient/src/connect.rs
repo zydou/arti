@@ -567,14 +567,14 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let circuit = self
             .circpool
-            .get_or_launch_specific(
+            .m_get_or_launch_specific(
                 &self.netdir,
                 HsCircKind::ClientHsDir,
                 OwnedCircTarget::from_circ_target(hsdir),
             )
             .await?;
         let mut stream = circuit
-            .begin_dir_stream()
+            .m_begin_dir_stream()
             .await
             .map_err(DescriptorErrorDetail::Stream)?;
 
@@ -949,7 +949,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ) -> Result<Rendezvous<R, M>, FAE> {
         let (rend_circ, rend_relay) = self
             .circpool
-            .get_or_launch_client_rend(&self.netdir)
+            .m_get_or_launch_client_rend(&self.netdir)
             .await
             .map_err(|error| FAE::RendezvousCircuitObtain { error })?;
 
@@ -1002,7 +1002,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         };
 
         rend_circ
-            .send_control_message(message.into(), handler)
+            .m_send_control_message(message.into(), handler)
             .await
             .map_err(handle_proto_error)?;
 
@@ -1051,7 +1051,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let intro_circ = self
             .circpool
-            .get_or_launch_specific(
+            .m_get_or_launch_specific(
                 &self.netdir,
                 HsCircKind::ClientIntro,
                 ipt.intro_target.clone(), // &OwnedCircTarget isn't CircTarget apparently
@@ -1155,7 +1155,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         );
 
         intro_circ
-            .send_control_message(intro1_real.into(), handler)
+            .m_send_control_message(intro1_real.into(), handler)
             .await
             .map_err(handle_intro_proto_error)?;
 
@@ -1258,7 +1258,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         rendezvous
             .rend_circ
-            .extend_virtual(
+            .m_extend_virtual(
                 handshake::RelayProtocol::HsV3,
                 handshake::HandshakeRole::Initiator,
                 keygen,
@@ -1297,7 +1297,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .iter()
             .map(|(count, action)| {
                 self.circpool
-                    .estimate_timeout(action)
+                    .m_estimate_timeout(action)
                     .saturating_mul(*count)
             })
             .fold(Duration::ZERO, Duration::saturating_add)
@@ -1331,11 +1331,22 @@ trait MocksForConnect<R>: Clone {
     fn thread_rng(&self) -> Self::Rng;
 }
 /// Mock for `HsCircPool`
+///
+/// Methods start with `m_` to avoid the following problem:
+/// `ClientCirc::send_control_message` (say) means
+/// to use the inherent method if one exists,
+/// but will use a trait method if there isn't an inherent method.
+///
+/// So if the inherent method is renamed, the call in the impl here
+/// turns into an always-recursive call.
+/// This is not detected by the compiler due to the situation being
+/// complicated by futures, `#[async_trait]` etc.
+/// <https://github.com/rust-lang/rust/issues/111177>
 #[async_trait]
 trait MockableCircPool<R> {
     /// Client circuit
     type ClientCirc: MockableClientCirc;
-    async fn get_or_launch_specific(
+    async fn m_get_or_launch_specific(
         &self,
         netdir: &NetDir,
         kind: HsCircKind,
@@ -1343,30 +1354,30 @@ trait MockableCircPool<R> {
     ) -> tor_circmgr::Result<Arc<Self::ClientCirc>>;
 
     /// Client circuit
-    async fn get_or_launch_client_rend<'a>(
+    async fn m_get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
     ) -> tor_circmgr::Result<(Arc<Self::ClientCirc>, Relay<'a>)>;
 
     /// Estimate timeout
-    fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration;
+    fn m_estimate_timeout(&self, action: &TimeoutsAction) -> Duration;
 }
 /// Mock for `ClientCirc`
 #[async_trait]
 trait MockableClientCirc: Debug {
     /// Client circuit
     type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
-    async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
+    async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
 
     /// Send a control message
-    async fn send_control_message(
+    async fn m_send_control_message(
         &self,
         msg: AnyRelayMsg,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()>;
 
     /// Add a virtual hop to the circuit.
-    async fn extend_virtual(
+    async fn m_extend_virtual(
         &self,
         protocol: tor_proto::circuit::handshake::RelayProtocol,
         protocol: tor_proto::circuit::handshake::HandshakeRole,
@@ -1386,7 +1397,7 @@ impl<R: Runtime> MocksForConnect<R> for () {
 #[async_trait]
 impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
     type ClientCirc = ClientCirc;
-    async fn get_or_launch_specific(
+    async fn m_get_or_launch_specific(
         &self,
         netdir: &NetDir,
         kind: HsCircKind,
@@ -1394,13 +1405,13 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
     ) -> tor_circmgr::Result<Arc<ClientCirc>> {
         HsCircPool::get_or_launch_specific(self, netdir, kind, target).await
     }
-    async fn get_or_launch_client_rend<'a>(
+    async fn m_get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
     ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)> {
         HsCircPool::get_or_launch_client_rend(self, netdir).await
     }
-    fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
+    fn m_estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
         HsCircPool::estimate_timeout(self, action)
     }
 }
@@ -1408,10 +1419,10 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
 impl MockableClientCirc for ClientCirc {
     /// Client circuit
     type DirStream = tor_proto::stream::DataStream;
-    async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
+    async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
         ClientCirc::begin_dir_stream(self).await
     }
-    async fn send_control_message(
+    async fn m_send_control_message(
         &self,
         msg: AnyRelayMsg,
         reply_handler: impl MsgHandler + Send + 'static,
@@ -1419,7 +1430,7 @@ impl MockableClientCirc for ClientCirc {
         ClientCirc::send_control_message(self, msg, reply_handler).await
     }
 
-    async fn extend_virtual(
+    async fn m_extend_virtual(
         &self,
         protocol: tor_proto::circuit::handshake::RelayProtocol,
         role: tor_proto::circuit::handshake::HandshakeRole,
@@ -1517,7 +1528,7 @@ mod test {
     #[async_trait]
     impl<R: Runtime> MockableCircPool<R> for Mocks<()> {
         type ClientCirc = Mocks<()>;
-        async fn get_or_launch_specific(
+        async fn m_get_or_launch_specific(
             &self,
             _netdir: &NetDir,
             kind: HsCircKind,
@@ -1531,21 +1542,21 @@ mod test {
             Ok(Arc::new(self.clone()))
         }
         /// Client circuit
-        async fn get_or_launch_client_rend<'a>(
+        async fn m_get_or_launch_client_rend<'a>(
             &self,
             netdir: &'a NetDir,
         ) -> tor_circmgr::Result<(Arc<ClientCirc!(R, Self)>, Relay<'a>)> {
             todo!()
         }
 
-        fn estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
+        fn m_estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
             Duration::from_secs(10)
         }
     }
     #[async_trait]
     impl MockableClientCirc for Mocks<()> {
         type DirStream = JoinReadWrite<futures::io::Cursor<Box<[u8]>>, futures::io::Sink>;
-        async fn begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
+        async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
             let response = format!(
                 r#"HTTP/1.1 200 OK
 
@@ -1560,7 +1571,7 @@ mod test {
                 futures::io::sink(),
             ))
         }
-        async fn send_control_message(
+        async fn m_send_control_message(
             &self,
             msg: AnyRelayMsg,
             reply_handler: impl MsgHandler + Send + 'static,
@@ -1568,7 +1579,7 @@ mod test {
             todo!()
         }
 
-        async fn extend_virtual(
+        async fn m_extend_virtual(
             &self,
             protocol: tor_proto::circuit::handshake::RelayProtocol,
             role: tor_proto::circuit::handshake::HandshakeRole,
