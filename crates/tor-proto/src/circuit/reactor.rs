@@ -581,7 +581,7 @@ impl Reactor {
 
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
-    pub(super) async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
+    async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
         #[allow(clippy::cognitive_complexity)]
         let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
             let mut create_message = None;
