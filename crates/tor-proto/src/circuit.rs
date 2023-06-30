@@ -414,10 +414,10 @@ impl ClientCirc {
     #[cfg(feature = "send-control-msg")]
     pub async fn send_control_message(
         &self,
-        msg: tor_cell::relaycell::msg::AnyRelayMsg,
+        msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> Result<()> {
-        let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
+        let msg = msg.map(|msg| tor_cell::relaycell::AnyRelayCell::new(0.into(), msg));
         let last_hop = self
             .mutable
             .lock()

@@ -1002,7 +1002,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         };
 
         rend_circ
-            .m_send_control_message(message.into(), handler)
+            .m_send_control_message(Some(message.into()), handler)
             .await
             .map_err(handle_proto_error)?;
 
@@ -1155,7 +1155,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         );
 
         intro_circ
-            .m_send_control_message(intro1_real.into(), handler)
+            .m_send_control_message(Some(intro1_real.into()), handler)
             .await
             .map_err(handle_intro_proto_error)?;
 
@@ -1372,7 +1372,7 @@ trait MockableClientCirc: Debug {
     /// Send a control message
     async fn m_send_control_message(
         &self,
-        msg: AnyRelayMsg,
+        msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()>;
 
@@ -1424,7 +1424,7 @@ impl MockableClientCirc for ClientCirc {
     }
     async fn m_send_control_message(
         &self,
-        msg: AnyRelayMsg,
+        msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<()> {
         ClientCirc::send_control_message(self, msg, reply_handler).await
@@ -1573,7 +1573,7 @@ mod test {
         }
         async fn m_send_control_message(
             &self,
-            msg: AnyRelayMsg,
+            msg: Option<AnyRelayMsg>,
             reply_handler: impl MsgHandler + Send + 'static,
         ) -> tor_proto::Result<()> {
             todo!()

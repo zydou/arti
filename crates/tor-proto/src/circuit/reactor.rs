@@ -162,8 +162,8 @@ pub(super) enum CtrlMsg {
     // TODO hs naming.
     #[cfg(feature = "send-control-msg")]
     SendMsgAndInstallHandler {
-        /// The message to send
-        msg: AnyRelayCell,
+        /// The message to send, if any
+        msg: Option<AnyRelayCell>,
         /// A message handler to install.
         #[educe(Debug(ignore))]
         handler: Box<dyn MetaCellHandler + Send + 'static>,
@@ -1216,7 +1216,9 @@ impl Reactor {
                 sender,
             } => {
                 let outcome: Result<()> = (|| {
-                    self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
+                    if let Some(msg) = msg {
+                        self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
+                    }
                     self.set_meta_handler(handler)?;
                     Ok(())
                 })();
