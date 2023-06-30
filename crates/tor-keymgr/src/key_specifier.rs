@@ -6,7 +6,8 @@ use tor_error::internal;
 /// The path of a key in the Arti key store.
 ///
 /// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
-/// components may contain ASCII alphanumerics and (except as the first or last character) `-` or `_`.
+/// components may contain UTF-8 alphanumerics, and (except as the first or last character) `-`,
+/// `_`, or  `.`.
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
@@ -14,6 +15,7 @@ use tor_error::internal;
 /// conversion is not supported.
 //
 // TODO HSS: Create an error type for ArtiPath errors instead of relying on internal!
+// TODO HSS: disallow consecutive `.` to prevent path traversal.
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
@@ -40,8 +42,10 @@ impl ArtiPath {
 
 /// A component of an [`ArtiPath`].
 ///
-/// Path components may contain ASCII alphanumerics and (except as the first or last character) `-`
-/// or `_`.
+/// Path components may contain UTF-8 alphanumerics, and (except as the first or last character)
+/// `-`,  `_`, or `.`.
+//
+// TODO HSS: disallow consecutive `.` to prevent path traversal.
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
@@ -59,13 +63,13 @@ impl ArtiPathComponent {
 
     /// Check whether `c` can be used within an `ArtiPathComponent`.
     fn is_allowed_char(c: char) -> bool {
-        c.is_alphanumeric() || c == '_' || c == '-'
+        c.is_alphanumeric() || c == '_' || c == '-' || c == '.'
     }
 
     /// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
     fn validate_str(inner: &str) -> Result<()> {
         /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
-        const MIDDLE_ONLY: &[char] = &['-', '_'];
+        const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
 
         if inner.is_empty() || inner.chars().any(|c| !Self::is_allowed_char(c)) {
             return Err(Box::new(internal!("Invalid arti path: {inner}")));
@@ -140,10 +144,15 @@ mod test {
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn arti_path_validation() {
-        const VALID_ARTI_PATHS: &[&str] = &["my-hs-client-2", "hs_client", "client٣¾", "clientß"];
+        const VALID_ARTI_PATHS: &[&str] = &[
+            "my-hs-client-2",
+            "hs_client",
+            "client٣¾",
+            "clientß",
+            "client.key",
+        ];
 
         const INVALID_ARTI_PATHS: &[&str] = &[
-            "alice/../bob",
             "alice//bob",
             "/alice/bob",
             "alice/bob/",
@@ -151,15 +160,19 @@ mod test {
             "_hs_client",
             "hs_client-",
             "hs_client_",
+            ".client",
+            "client.",
             "-",
             "_",
-            "./bob",
             "c++",
             "client?",
             "no spaces please",
             "/",
             "/////",
         ];
+
+        // TODO HSS: add test for "./bob", "alice/../bob" (which should be invalid both as an
+        // ArtiPath and as an ArtiPathComponent).
 
         for path in VALID_ARTI_PATHS {
             check_valid!(ArtiPath, path, true);
@@ -173,7 +186,7 @@ mod test {
 
         const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid ArtiPathComponent
-        let path = format!("a{SEP}client{SEP}key");
+        let path = format!("a{SEP}client{SEP}key.private");
         check_valid!(ArtiPath, &path, true);
         check_valid!(ArtiPathComponent, &path, false);
     }
