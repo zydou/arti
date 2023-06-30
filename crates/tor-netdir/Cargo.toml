@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-experimental = ["experimental-api", "hs-service", "testing"]
+experimental = ["experimental-api", "hs-service", "testing", "geoip"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
@@ -24,6 +24,7 @@ experimental-api = ["visibility", "__is_experimental"]
 hs-client = ["hs-common"]
 hs-service = ["hs-common", "__is_experimental"]
 hs-common = ["digest", "hex", "time", "tor-hscrypto"]
+geoip = ["tor-geoip"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
@@ -65,6 +66,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.1" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.1" }
 tor-config = { path = "../tor-config", version = "0.9.2" }
 tor-error = { path = "../tor-error", version = "0.5.2" }
+tor-geoip = { path = "../tor-geoip", version = "0.1.0", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.1" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.2" }

@@ -314,10 +314,51 @@ impl GeoipDb {
         self.lookup_defn(ip).and_then(|x| x.country_code())
     }
 
+    /// Determine a 2-letter country code for a host with multiple IP addresses.
+    ///
+    /// This looks up all of the IP addresses with `lookup_country_code`. If the lookups
+    /// return different countries, `None` is returned. IP addresses that fail to resolve
+    /// into a country are ignored if some of the other addresses do resolve successfully.
+    pub fn lookup_country_code_multi<I>(&self, ips: I) -> Option<&CountryCode>
+    where
+        I: IntoIterator<Item = IpAddr>,
+    {
+        let mut ret = None;
+
+        for ip in ips {
+            if let Some(cc) = self.lookup_country_code(ip) {
+                // If we already have a return value and it's different, then return None;
+                // a server can't be in two different countries.
+                if ret.is_some() && ret != Some(cc) {
+                    return None;
+                }
+
+                ret = Some(cc);
+            }
+        }
+
+        ret
+    }
+
     /// Return the ASN the IP address is in, if this data is available.
     pub fn lookup_asn(&self, ip: IpAddr) -> Option<u32> {
         self.lookup_defn(ip)?.asn()
     }
+}
+
+/// A (representation of a) host on the network which may have a known country code.
+pub trait HasCountryCode {
+    /// Return the country code in which this server is most likely located.
+    ///
+    /// This is usually implemented by simple GeoIP lookup on the addresses provided by `HasAddrs`.
+    /// It follows that the server might not actually be in the returned country, but this is a
+    /// halfway decent estimate for what other servers might guess the server's location to be
+    /// (and thus useful for e.g. getting around simple geo-blocks, or having webpages return
+    /// the correct localised versions).
+    ///
+    /// Returning `None` signifies that no country code information is available. (Conflicting
+    /// GeoIP lookup results might also cause `None` to be returned.)
+    fn country_code(&self) -> Option<CountryCode>;
 }
 
 #[cfg(test)]
