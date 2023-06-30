@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.8.5"
+version = "0.8.6"
 dependencies = [
  "anyhow",
  "arti",
@@ -256,11 +256,11 @@ dependencies = [
 
 [[package]]
 name = "arti-config"
-version = "0.6.1"
+version = "0.6.2"
 
 [[package]]
 name = "arti-hyper"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -311,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.8.5"
+version = "0.8.6"
 dependencies = [
  "anyhow",
  "arti",
@@ -729,7 +729,7 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "caret"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "cc"
@@ -1469,7 +1469,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -2999,7 +2999,7 @@ checksum = "4389f1d5789befaf6029ebd9f7dac4af7f7e3d61b69d4f30e2ac02b57e7712b0"
 
 [[package]]
 name = "retry-error"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
 ]
@@ -4043,7 +4043,7 @@ dependencies = [
 
 [[package]]
 name = "tor-async-utils"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "futures",
  "futures-await-test",
@@ -4056,7 +4056,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "derive_more",
  "educe",
@@ -4131,7 +4131,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -4165,7 +4165,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "humantime 2.1.0",
  "signature 1.6.4",
@@ -4248,7 +4248,7 @@ dependencies = [
 
 [[package]]
 name = "tor-congestion"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "thiserror",
  "tor-error",
@@ -4258,7 +4258,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "digest 0.10.7",
  "hex",
@@ -4364,7 +4364,7 @@ dependencies = [
 
 [[package]]
 name = "tor-events"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-broadcast",
  "futures",
@@ -4388,7 +4388,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -4676,7 +4676,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "derive_more",
  "fs-mistrust",
@@ -4743,7 +4743,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "caret",
  "thiserror",
@@ -4751,7 +4751,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4795,7 +4795,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "async-io",
  "async-native-tls",
@@ -4816,7 +4816,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "async-trait",
  "futures",
@@ -4845,7 +4845,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "derive_more",
  "float-cmp",

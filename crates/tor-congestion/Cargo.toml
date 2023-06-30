@@ -1,6 +1,6 @@
 [package]
 name = "tor-congestion"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
 rust-version = "1.65"
