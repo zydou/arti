@@ -341,29 +341,29 @@ impl ClientCirc {
     ///
     /// # Limitations
     ///
-    /// Only one call to `send_control_message` may be active at any one time,
+    /// Only one call to `start_conversation_last_hop` may be active at any one time,
     /// for any one circuit.
     /// This generally means that this function should not be called
     /// on a circuit which might be shared with anyone else.
     ///
     /// Likewise, it is forbidden to try to extend the circuit,
-    /// while `send_control_message` is running.
+    /// while `start_conversation_last_hop` is running.
     ///
     /// If these restrictions are violated, the circuit will be closed with an error.
     ///
-    /// After `send_control_message` has returned, the circuit may be extended,
-    /// or `send_control_message` called again.
+    /// After `start_conversation_last_hop` has returned, the circuit may be extended,
+    /// or `start_conversation_last_hop` called again.
     /// Note that it is not currently possible, with this API,
     /// to send a followup control message,
     /// while continuously monitoring for relevant incoming cells:
-    /// there will necessarily be a gap between `send_control_message` returning,
+    /// there will necessarily be a gap between `start_conversation_last_hop` returning,
     /// and being called again.
     //
     // TODO hs (Diziet): IMO the above limitation ^ shows the API is not right.
     // There should probably be a separate function for when you're having
     // a conversation, that *doesn't* mess with the handler.
     // Something like this maybe:
-    //     // This behaves like `send_control_message`, but the returned
+    //     // This behaves like `start_conversation_last_hop`, but the returned
     //     // future is a named type.
     //     //
     //     // Having two `Conversations` at once is forbidden.
@@ -412,7 +412,7 @@ impl ClientCirc {
     // thinks maybe we should store a callback instead.
     //
     #[cfg(feature = "send-control-msg")]
-    pub async fn send_control_message(
+    pub async fn start_conversation_last_hop(
         &self,
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
