@@ -1,4 +1,8 @@
-# How to release Arti 0.0.x
+# How to release Arti
+
+## Are we ready to release?
+
+## Preparing the release
 
 1. For 0.0.x, we do a toplevel changelog only.
 
@@ -18,6 +22,9 @@
 
 3. Then make sure that CI passes. *Also ensure we've run tests for all
   possible Cargo feature combinations, as per arti#303.*
+
+## Actually releasing
+
 
 4. Increase all appropriate version numbers.  This time we'll be moving to
    0.0.1 on all crates.
@@ -53,6 +60,8 @@
     crate tries to download it.)
 
 7. We tag the repository with arti-v0.0.1
+
+## Post-release
 
 8. Remove all of the semver.md files.
 
