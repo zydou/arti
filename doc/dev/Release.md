@@ -180,50 +180,39 @@ before you continue!
 
 ## The actual release itself.
 
-## Actually releasing
-
-
-4. Increase all appropriate version numbers.  This time we'll be moving to
-   0.0.1 on all crates.
-
-   We'll also need to update the versions in all our dependencies to 0.0.1.
-
-   It seems that `cargo set-version -p ${CRATE} --bump patch` does the right
-   thing here, but `cargo set-version --workspace --bump patch` doesn't
-   update dependent crates correctly.
-
-   To bump the patch version of _every_ crate, run:
-
-   ; for crate in $(./maint/list_crates); do cargo set-version -p "$crate" --bump patch; done
-
-   To find only the crates that changed since version 0.0.x, you can run:
-
-   ; ./maint/changed_crates arti-v0.0.x
-
-   But note that you can't just bump _only_ the crates that changed!  Any
-   crate that depends on one of those might now count as changed, even if
-   it wasn't changed before.
-
-5. Then make sure that CI passes, again.
-
-6. From lowest-level to highest-level, we have to run cargo publish.  For
+1. From lowest-level to highest-level, we have to run cargo publish.  For
    a list of crates from lowest- to highest-level, see the top-level
    Cargo.toml.
 
-   ; for crate in $(./maint/list_crates); do cargo publish -p "$crate"; echo "Sleeping"; sleep 30; done
+   `; for crate in $(./maint/list_crates); do cargo publish -p "$crate"; done`
 
-    (The "sleep 30" is probably too long, but some delay seems to be
-    necessary to give crates.io time to publish each crate before the next
-    crate tries to download it.)
 
-7. We tag the repository with arti-v0.0.1
+2. We tag the repository with `arti-v${THIS_VERSION}`
+
+   To do this, run
+   `git tag -s "arti-v${THIS_VERSION}`.
+
+   In the tag message, be sure to include the output of
+   `./maint/crate_versions`.
+
+   (Note to self: if you find that gpg can't find your yubikey,
+   you'll need to run
+   `sudo systemctl restart pcscd`
+   to set things right.
+   I hope that nobody else has this problem.)
 
 ## Post-release
 
-8. Remove all of the semver.md files.
+1. Remove all of the semver.md files:
+   `git rm crates/*/semver.md`.
 
-9. Update the origin/pages branch to refer to the new version.
+2. Write a blog post.
 
+3. One the blog post is published,
+   update the origin/pages branch to refer to the new version.
+
+
+<!-- ================================================== -->
 
 # Making a patch release of a crate, eg to fix a semver breakage
 
