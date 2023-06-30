@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.6 — 30 June 2023
 
-Arti 1.1.6 completes the core of the work needed for a client client
+Arti 1.1.6 completes the core of the work needed for a client
 to connect to onion services on the Tor network.  This is not yet
 enabled by default: we do not yet recommend using this feature for
 security-sensitive purposes, because of some
@@ -17,14 +17,14 @@ Additionally, this version includes an experimental key manager
 implementation. Currently it's used to store the keys needed for
 client authentication, but in the future it will store the keys for
 onion services themselves, and eventually relays.  In this release it
-is still missing some import functionality for interoparability;
+is still missing some import functionality for interoperability;
 the interface is likely to change significantly.
 
 Work on our RPC subsystem has also continued; we have achieved several
-preqequisites needed for applications' SOCKS connections to
+prerequisites needed for applications' SOCKS connections to
 integrate correctly with the RPC subsystem.
 
-And as usual, there are large number of smaller fixes and improvements
+And as usual, there are a large number of smaller fixes and improvements
 throughout the codebase.
 
 ### Major bugfixes
@@ -39,7 +39,7 @@ throughout the codebase.
 
 - We have removed an empty `relaycell::restrict` module from the
   `tor-cell` crate.  This module was added in error.  This change will
-  break any code that (ineffectually) tried to import
+  break any code that (pointlessly) tried to import
   it. ([589fefd581e962a7])
 
 ### Onion service development
@@ -56,7 +56,7 @@ throughout the codebase.
 - Onion service descriptors now have accessor functions to enable their
   actual use. ([!1220])
 - We can transform the information about relays used in onion service
-  desciptors, and in introduce1 cells, into the format needed to connect
+  descriptors, and in introduce1 cells, into the format needed to connect
   to the relay described. ([!1221])
 - Generate random rendezvous cookies to identify circuits at a client's
   rendezvous point. ([!1227])
@@ -72,12 +72,12 @@ throughout the codebase.
 - Remember our introduction point experiences, and try to use known-good
   ones before ones that have failed recently. ([!1247], [!1295])
 - We now adjust the size of our pre-constructed circuit pool dynamically
-  based on past demend for onion-service circuits (or lack
+  based on past demand for onion-service circuits (or lack
   thereof). ([686d5cf2093322e4])
 - Speed improvements to the algorithm we use to select pre-constructed
   circuits for onion services, and correctness fixes to those speed
   improvements. ([1691c353924f89cc], [#918], [!1296], [!1301])
-- The StreamPrefs::connect_to_onion_services` method now can be used to
+- The `StreamPrefs::connect_to_onion_services` method now can be used to
   enable or disable onion service connections, and TorClients can handle
   onion services correctly. ([!1257])
 - Provide the extended SOCKS5 error codes as documented in [proposal
@@ -114,7 +114,7 @@ throughout the codebase.
   RPC sessions. ([545984b095119ecc])
 - `TorClient`s, and similar RPC-visible, can now be exposed with a
   secure global identifier so applications can refer to them outside of
-  an RPC session This will allow applications to name a `TorClient` from
+  an RPC session. This will allow applications to name a `TorClient` from
   e.g. within the parameters of a SOCKS connection. ([#863], [!1208])
 - Enable `rpc::Object`s to be downcast to (some of) the `&dyn Trait`s
   that they implement. This is in tension with some of Rust's current
