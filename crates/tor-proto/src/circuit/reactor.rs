@@ -159,7 +159,6 @@ pub(super) enum CtrlMsg {
     },
     /// Send a given control message on this circuit, and install a control-message handler to
     /// receive responses.
-    // TODO hs naming.
     #[cfg(feature = "send-control-msg")]
     SendMsgAndInstallHandler {
         /// The message to send, if any
