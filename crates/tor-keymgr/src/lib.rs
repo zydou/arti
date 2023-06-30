@@ -40,6 +40,9 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// TODO HSS: write more comprehensive documentation when the API is a bit more
+// stable
+
 mod err;
 mod key_specifier;
 
