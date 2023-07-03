@@ -47,6 +47,7 @@ mod util;
 
 pub mod io;
 pub mod net;
+pub mod task;
 pub mod time;
 
 mod net_runtime;
