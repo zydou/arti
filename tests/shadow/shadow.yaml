@@ -149,7 +149,7 @@ hosts:
     network_node_id: 0
     processes:
     - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
-      args: proxy -c ./arti.d/arti.common.toml -o proxy.socks_port=9000 --disable-fs-permission-checks -l debug,tor_proto=trace
+      args: proxy -c ./arti.d/arti.common.toml -c ./arti.d/arti.onion.toml -o proxy.socks_port=9000 --disable-fs-permission-checks -l debug,tor_proto=trace
       environment:
         RUST_BACKTRACE: "1"
         HOME: ./home
