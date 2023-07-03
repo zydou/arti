@@ -46,10 +46,14 @@ enum Inner {
     Pluggable(PtTransportName),
 }
 
-/// Pluggable transport name
+/// The name of a Pluggable Transport protocol.
 ///
-/// The name for a pluggable transport.
-/// The name has been syntax checked.
+/// The name has been syntax-checked.
+///
+/// These names are used to identify the particular transport protocol, such as
+/// "obfs4" or "snowflake".  They match a name of a protocol that the transport
+/// binary knows how to provide to the name of a protocol that a bridge is
+/// configured to use.
 #[derive(
     Debug,
     Clone,
@@ -60,7 +64,6 @@ enum Inner {
     serde_with::DeserializeFromStr,
     serde_with::SerializeDisplay,
 )]
-
 pub struct PtTransportName(String);
 
 impl FromStr for PtTransportName {

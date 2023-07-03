@@ -313,7 +313,20 @@ impl StorageConfig {
     }
 }
 
-/// Configuration for bridges and pluggable transports
+/// Configuration for anti-censorship features: bridges and pluggable transports.
+///
+/// A "bridge" is a relay that is not listed in the regular Tor network directory;
+/// clients use them to reach the network when a censor is blocking their
+/// connection to all the regular Tor relays.
+///
+/// A "pluggable transport" is a tool that transforms and conceals a user's connection
+/// to a bridge; clients use them to reach the network when a censor is blocking
+/// all traffic that "looks like Tor".
+///
+/// A [`BridgesConfig`] configuration has the following pieces:
+///    * A [`BridgeList`] of [`BridgeConfig`]s, which describes one or more bridges.
+///    * An `enabled` boolean to say whether or not to use the listed bridges.
+///    * A list of [`pt::ManagedTransportConfig`]s.
 ///
 /// # Example
 ///

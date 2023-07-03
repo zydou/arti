@@ -1202,7 +1202,8 @@ impl<R: Runtime> TorClient<R> {
 
     /// Return a netdir that is timely according to the rules of `timeliness`.
     ///
-    /// Use `action` to
+    /// The `action` string is a description of what we wanted to do with the
+    /// directory, to be put into the error message if we couldn't find a directory.
     fn netdir(
         &self,
         timeliness: Timeliness,
