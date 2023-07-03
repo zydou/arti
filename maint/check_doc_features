@@ -13,9 +13,9 @@ additional_required = {}
 
 # PreferredRuntime has a somewhat more complexe rule for existing
 additional_provided['tor-rtcompat'] = [
-    ('PreferredRuntime', 'all(feature = "native-tls")'),
-    ('PreferredRuntime', 'all(feature = "rustls", not(feature = "native-tls"))'),
     ('PreferredRuntime', 'feature = "native-tls"'),
+    ('PreferredRuntime', 'feature = "native-tls"'),
+    ('PreferredRuntime', 'all(feature = "rustls", not(feature = "native-tls"))'),
     ('PreferredRuntime', 'all(feature = "rustls", not(feature = "native-tls"))'),
     ('NativeTlsProvider', 'all(feature = "native-tls", any(feature = "tokio", feature = "async-std"))'),
     ('RustlsProvider', 'all(feature = "rustls", any(feature = "tokio", feature = "async-std"))'),

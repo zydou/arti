@@ -2,14 +2,14 @@
 //!
 //! Currently only async_std and tokio are provided.
 
-#[cfg(all(feature = "async-std"))]
+#[cfg(feature = "async-std")]
 pub(crate) mod async_std;
 
-#[cfg(all(feature = "tokio"))]
+#[cfg(feature = "tokio")]
 pub(crate) mod tokio;
 
-#[cfg(all(feature = "rustls"))]
+#[cfg(feature = "rustls")]
 pub(crate) mod rustls;
 
-#[cfg(all(feature = "native-tls"))]
+#[cfg(feature = "native-tls")]
 pub(crate) mod native_tls;
