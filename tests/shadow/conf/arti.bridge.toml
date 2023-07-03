@@ -1,0 +1,5 @@
+[bridges]
+enabled = true
+bridges = '''
+100.0.0.2:9111 CD3405C1A1C1C73E390C8DB910E0C7D93C90E564
+'''
