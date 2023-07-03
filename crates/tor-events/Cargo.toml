@@ -11,6 +11,9 @@ keywords = ["tor", "arti"]
 categories = ["asynchronous"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+# This crate is not (yet?) used anywhere in Arti.
+publish = false
+
 [dependencies]
 async-broadcast = "0.5.0"
 futures = "0.3.14"

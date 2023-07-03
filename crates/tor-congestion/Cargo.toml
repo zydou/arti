@@ -11,6 +11,9 @@ keywords = ["tor", "arti", "async"]
 categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+# This crate is not yet used in Arti.
+publish = false
+
 [dependencies]
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.5.2" }
