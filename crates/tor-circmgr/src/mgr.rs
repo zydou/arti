@@ -1982,7 +1982,7 @@ mod test {
             ));
             let c1 = rt.wait_for(mgr.get_or_launch(&ports, di())).await;
 
-            assert!(matches!(c1, Ok(_)));
+            assert!(c1.is_ok());
         });
     }
 

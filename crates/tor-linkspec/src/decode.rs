@@ -158,8 +158,8 @@ mod test {
             .err()
         };
 
-        assert!(matches!(err_from(&[&ipv4, &ipv6, &ed, &rsa]), None));
-        assert!(matches!(err_from(&[&ipv4, &ed, &rsa]), None));
+        assert!(err_from(&[&ipv4, &ipv6, &ed, &rsa]).is_none());
+        assert!(err_from(&[&ipv4, &ed, &rsa]).is_none());
         assert!(matches!(
             err_from(&[&ipv4, &ed, &ed, &rsa]),
             Some(E::DuplicatedId(ID::Ed25519))

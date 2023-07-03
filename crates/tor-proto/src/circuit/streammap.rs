@@ -273,11 +273,11 @@ mod test {
         assert_eq!(map.terminate(ids[2]).unwrap(), ShouldSendEnd::Send);
         assert!(matches!(map.get_mut(ids[2]), Some(StreamEnt::EndSent(_))));
         assert_eq!(map.terminate(ids[1]).unwrap(), ShouldSendEnd::DontSend);
-        assert!(matches!(map.get_mut(ids[1]), None));
+        assert!(map.get_mut(ids[1]).is_none());
 
         // Try receiving an end after a terminate.
         assert!(map.ending_msg_received(ids[2]).is_ok());
-        assert!(matches!(map.get_mut(ids[2]), None));
+        assert!(map.get_mut(ids[2]).is_none());
 
         Ok(())
     }
