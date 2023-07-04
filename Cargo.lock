@@ -4832,6 +4832,7 @@ dependencies = [
  "tor-basic-utils",
  "tor-rtcompat",
  "tracing",
+ "tracing-test",
 ]
 
 [[package]]

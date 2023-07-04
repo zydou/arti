@@ -579,3 +579,109 @@ impl Debug for Data {
         s.finish()
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use futures::channel::mpsc;
+    use futures::{SinkExt as _, StreamExt as _};
+    use tracing_test::traced_test;
+
+    #[traced_test]
+    #[test]
+    fn simple() {
+        let runtime = MockExecutor::default();
+        let val = runtime.block_on(async { 42 });
+        assert_eq!(val, 42);
+    }
+
+    #[traced_test]
+    #[test]
+    fn stall() {
+        let runtime = MockExecutor::default();
+
+        let () = runtime.block_on({
+            let runtime = runtime.clone();
+            async move {
+                const N: usize = 3;
+                let (mut txs, mut rxs): (Vec<_>, Vec<_>) =
+                    (0..N).map(|_| mpsc::channel::<usize>(5)).unzip();
+
+                let mut rx_n = rxs.pop().unwrap();
+
+                for (i, mut rx) in rxs.into_iter().enumerate() {
+                    runtime.spawn_identified(i, {
+                        let mut txs = txs.clone();
+                        async move {
+                            loop {
+                                eprintln!("task {i} rx...");
+                                let v = rx.next().await.unwrap();
+                                let nv = v + 1;
+                                eprintln!("task {i} rx {v}, tx {nv}");
+                                let v = nv;
+                                txs[v].send(v).await.unwrap();
+                            }
+                        }
+                    });
+                }
+
+                dbg!();
+                let _: mpsc::TryRecvError = rx_n.try_next().unwrap_err();
+
+                dbg!();
+                runtime.progress_until_stalled().await;
+
+                dbg!();
+                let _: mpsc::TryRecvError = rx_n.try_next().unwrap_err();
+
+                dbg!();
+                txs[0].send(0).await.unwrap();
+
+                dbg!();
+                runtime.progress_until_stalled().await;
+
+                dbg!();
+                let r = rx_n.next().await;
+                assert_eq!(r, Some(N - 1));
+
+                dbg!();
+                let _: mpsc::TryRecvError = rx_n.try_next().unwrap_err();
+
+                runtime.spawn_identified("tx", {
+                    let txs = txs.clone();
+                    async {
+                        eprintln!("sending task...");
+                        for (i, mut tx) in txs.into_iter().enumerate() {
+                            eprintln!("sending 0 to {i}...");
+                            tx.send(0).await.unwrap();
+                        }
+                        eprintln!("sending task done");
+                    }
+                });
+
+                for i in 0..txs.len() {
+                    eprintln!("main {i} wait stall...");
+                    runtime.progress_until_stalled().await;
+                    eprintln!("main {i} rx wait...");
+                    let r = rx_n.next().await;
+                    eprintln!("main {i} rx = {r:?}");
+                    assert!(r == Some(0) || r == Some(N - 1));
+                }
+
+                eprintln!("finishing...");
+                runtime.progress_until_stalled().await;
+                eprintln!("finished.");
+            }
+        });
+    }
+}
