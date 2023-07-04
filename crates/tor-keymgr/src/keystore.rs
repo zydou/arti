@@ -90,7 +90,18 @@ impl EncodableKey for ed25519::Keypair {
 
 /// A key that can be converted to an [`EncodableKey`].
 //
-// TODO HSS: try to fold this trait into `EncodableKey`.
+// NOTE: Conceptually, the `ToEncodableKey` and `EncodableKey` traits serve the same purpose (they
+// provide information about how to encode/decode a key).
+//
+// The reason we have two traits instead of just one is because `EncodableKey` cannot have an
+// associated type: if it did, we'd need to either give `Keystore::insert` a generic parameter
+// (which would make `Keystore` object-unsafe), or specify a concrete type for the associated type
+// of the `EncodableKey` (which would defeat the whole purpose of the trait, i.e. to enable users
+// to store their own "encodable key" types).
+//
+// `ToEncodableKey` is used in the `KeyMgr` impl, where the associated type isn't an issue because
+// the `KeyMgr` implementation is generic over `K: ToEncodableKey`. The `Keystore`s themselves only
+// receive `&dyn EncodableKey`s.
 pub trait ToEncodableKey {
     /// The key type this can be converted to/from.
     type Key: EncodableKey + 'static;
