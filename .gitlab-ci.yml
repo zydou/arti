@@ -175,11 +175,12 @@ coverage:
 
 minimal-versions:
   stage: test
+  # when this reaches at least rust 1.68, we should enable crates-io sparse protocol
+  # (which becomes default in 1.70), to make builds faster.
   image: rust:1.65
   script:
     - rustup install nightly
     - ./maint/downgrade_dependencies
-    - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
   after_script:
     - cargo clean
@@ -323,7 +324,6 @@ rust-latest-test-all-features:
   image: rust:latest
   script:
     - rustup show
-    - cargo build --target x86_64-unknown-linux-gnu --locked --workspace --all-features --all-targets
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
   after_script:
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
@@ -338,6 +338,7 @@ rust-latest-test-all-features:
 every-crate:
   stage: test
   image: rust:latest
+  needs: ["rust-checks", "rust-latest-async-std-rustls"]
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/every-crate
@@ -345,6 +346,7 @@ every-crate:
 matrix-test:
   stage: test
   image: rust:latest
+  needs: ["rust-checks", "rust-latest-async-std-rustls"]
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/matrix_test
