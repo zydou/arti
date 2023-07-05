@@ -238,6 +238,35 @@ where
     Ok((Some(layer), guards))
 }
 
+/// Configure a panic handler to send everything to tracing, in addition to our
+/// default panic behavior.
+fn install_panic_handler() {
+    let default_handler = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        // Note that if we were ever to _not_ call this handler,
+        // we would want to abort on nested panics and !can_unwind cases.
+        default_handler(panic_info);
+
+        // This statement is copied from stdlib.
+        let msg = match panic_info.payload().downcast_ref::<&'static str>() {
+            Some(s) => *s,
+            None => match panic_info.payload().downcast_ref::<String>() {
+                Some(s) => &s[..],
+                None => "Box<dyn Any>",
+            },
+        };
+
+        let location_str: std::borrow::Cow<str> = panic_info
+            .location()
+            .map(|loc| loc.to_string().into())
+            .unwrap_or_else(|| "???".into());
+
+        let backtrace = backtrace::Backtrace::new();
+
+        tracing::error!("Panic at {}: {}\n{:?}", location_str, msg, backtrace);
+    }));
+}
+
 /// Opaque structure that gets dropped when the program is shutting down,
 /// after logs are no longer needed.  The `Drop` impl flushes buffered messages.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
@@ -293,6 +322,8 @@ pub(crate) fn setup_logging(
     } else {
         None
     };
+
+    install_panic_handler();
 
     Ok(LogGuards {
         guards,
