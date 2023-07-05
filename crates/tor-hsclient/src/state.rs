@@ -733,7 +733,7 @@ pub(crate) mod test {
     use tokio::pin;
     use tokio_crate as tokio;
     use tor_rtcompat::{test_with_one_runtime, SleepProvider};
-    use tor_rtmock::MockSleepRuntime;
+    use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
 
     use ConnError as E;
@@ -931,14 +931,7 @@ pub(crate) mod test {
     #[test]
     #[traced_test]
     fn expiry() {
-        test_with_one_runtime!(|outer_runtime| async move {
-            let runtime = MockSleepRuntime::new(outer_runtime.clone());
-
-            // We sleep this actual amount, with the real runtime, when we want to yield
-            // for long enough for some other task to do whatever it needs to.
-            // This represents an actual delay to the real test run.
-            const BODGE_YIELD: Duration = Duration::from_millis(125);
-
+        MockRuntime::test_with_various(|runtime| async move {
             // This is the amount by which we adjust clock advances to make sure we
             // hit more or less than a particular value, to avoid edge cases and
             // cope with real time advancing too.
@@ -950,13 +943,12 @@ pub(crate) mod test {
             let advance = |duration| {
                 let hsconn = hsconn.clone();
                 let runtime = &runtime;
-                let outer_runtime = &outer_runtime;
                 async move {
                     // let expiry task get going and choose its expiry (wakeup) time
-                    outer_runtime.sleep(BODGE_YIELD).await;
+                    runtime.progress_until_stalled().await;
                     runtime.advance(duration).await;
                     // let expiry task run
-                    outer_runtime.sleep(BODGE_YIELD).await;
+                    runtime.progress_until_stalled().await;
                     hsconn.services().unwrap().run_housekeeping(runtime.now());
                 }
             };
