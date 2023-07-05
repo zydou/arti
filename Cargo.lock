@@ -4331,7 +4331,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "time",
- "tokio",
  "tor-basic-utils",
  "tor-checkable",
  "tor-circmgr",

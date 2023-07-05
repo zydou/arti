@@ -102,7 +102,6 @@ anyhow = "1.0.23"
 float_eq = "1.0.0"
 hex-literal = "0.4"
 tempfile = "3"
-tokio = { version = "1.7", features = ["full"] }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.8.1" }
