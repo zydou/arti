@@ -1,7 +1,9 @@
 //! Completely mock runtime
 
 use amplify::Getters;
+use futures::FutureExt as _;
 use strum::IntoEnumIterator as _;
+use void::{ResultVoidExt as _, Void};
 
 use crate::util::impl_runtime_prelude::*;
 
@@ -66,6 +68,47 @@ impl MockRuntime {
     /// Return a builder, for creating a `MockRuntime` with some parameters manually configured
     pub fn builder() -> MockRuntimeBuilder {
         Default::default()
+    }
+
+    /// Run a test case with a variety of runtime parameters, to try to find bugs
+    ///
+    /// `test_case` is an async closure which receives a `MockRuntime`.
+    /// It will be run with a number of differently configured executors.
+    ///
+    /// ### Variations
+    ///
+    /// The only variation currently implemented is this:
+    ///
+    /// Both FIFO and LIFO scheduling policies are tested,
+    /// in the hope that this will help discover ordering-dependent bugs.
+    pub fn test_with_various<TC, FUT>(mut test_case: TC)
+    where
+        TC: FnMut(MockRuntime) -> FUT,
+        FUT: Future<Output = ()>,
+    {
+        Self::try_test_with_various(|runtime| test_case(runtime).map(|()| Ok::<_, Void>(())))
+            .void_unwrap();
+    }
+
+    /// Run a faillible test case with a variety of runtime parameters, to try to find bugs
+    ///
+    /// `test_case` is an async closure which receives a `MockRuntime`.
+    /// It will be run with a number of differently configured executors.
+    ///
+    /// This function accepts a fallible closure,
+    /// and returns the first `Err` to the caller.
+    ///
+    /// See [`test_with_various()`](MockRuntime::test_with_various) for more details.
+    pub fn try_test_with_various<TC, FUT, E>(mut test_case: TC) -> Result<(), E>
+    where
+        TC: FnMut(MockRuntime) -> FUT,
+        FUT: Future<Output = Result<(), E>>,
+    {
+        for scheduling in SchedulingPolicy::iter() {
+            let runtime = MockRuntime::builder().scheduling(scheduling).build();
+            runtime.block_on(test_case(runtime.clone()))?;
+        }
+        Ok(())
     }
 
     /// Run tasks in the current executor until every task except this one is waiting

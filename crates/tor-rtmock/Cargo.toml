@@ -25,6 +25,7 @@ thiserror = "1"
 tor-rtcompat = { version = "0.9.1", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 tracing-test = "0.2"
+void = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
