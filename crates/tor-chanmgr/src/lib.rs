@@ -74,12 +74,10 @@ use tor_rtcompat::Runtime;
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
-use crate::factory::BootstrapReporter;
+use crate::factory::{BootstrapReporter, CompoundFactory};
 pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
-#[cfg(feature = "experimental")]
-use crate::factory::CompoundFactory;
 /// An object that remembers a set of live channels, and launches new ones on
 /// request.
 ///
