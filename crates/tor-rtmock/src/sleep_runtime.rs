@@ -46,6 +46,10 @@ impl<R: Runtime> MockSleepRuntime<R> {
     /// Run a future under mock time, advancing time forward where necessary until it completes.
     /// Users of this function should read the whole of this documentation before using!
     ///
+    /// **NOTE** Instead of using this, consider [`MockRuntime`](crate::MockRuntime),
+    /// which will fully isolate the test case
+    /// (albeit at the cost of demanding manual management of the simulated time).
+    ///
     /// The returned future will run `fut`, expecting it to create `Sleeping` futures (as returned
     /// by `MockSleepProvider::sleep()` and similar functions). When all such created futures have
     /// been polled (indicating the future is waiting on them), time will be advanced in order that
