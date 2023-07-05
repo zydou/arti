@@ -261,8 +261,9 @@ fn install_panic_handler() {
             .map(|loc| loc.to_string().into())
             .unwrap_or_else(|| "???".into());
 
+        // TODO MSRV 1.65: std::backtrace::Backtrace is stable; maybe we should be using
+        // that instead?
         let backtrace = backtrace::Backtrace::new();
-
         tracing::error!("Panic at {}: {}\n{:?}", location_str, msg, backtrace);
     }));
 }
