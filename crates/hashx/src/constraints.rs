@@ -35,12 +35,14 @@ mod model {
     pub(super) const REQUIRED_MULTIPLIES: usize = 192;
 
     /// Determine which ops count as a multiply when testing REQUIRED_MULTIPLIES
+    #[inline(always)]
     pub(super) fn is_multiply(op: Opcode) -> bool {
         matches!(op, Opcode::Mul | Opcode::SMulH | Opcode::UMulH)
     }
 
     /// Does an instruction prohibit using the same register for source and dest?
     /// Meaningful only for ops that have both a source and destination register.
+    #[inline(always)]
     pub(super) fn disallow_src_is_dst(op: Opcode) -> bool {
         matches!(
             op,
@@ -60,6 +62,7 @@ mod model {
     pub(super) const DISALLOW_REGISTER_FOR_ADDSHIFT: RegisterId = register::R5;
 
     /// Should a particular pair of opcodes be rejected early?
+    #[inline(always)]
     pub(super) fn disallow_opcode_pair(previous: Opcode, proposed: Opcode) -> bool {
         match proposed {
             // Never rejected at this stage
@@ -77,6 +80,7 @@ mod model {
 
     /// Constraints for pairs of instructions that would be writing to the same
     /// destination
+    #[inline(always)]
     pub(super) fn writer_pair_allowed(
         pass: Pass,
         last_writer: Option<&RegisterWriter>,
@@ -159,6 +163,7 @@ pub(crate) struct Validator {
 
 impl Validator {
     /// Construct a new empty Validator
+    #[inline(always)]
     pub(crate) fn new() -> Self {
         Self {
             writer_map: RegisterWriterMap::new(),
@@ -167,6 +172,7 @@ impl Validator {
     }
 
     /// Commit a new instruction to the validator state
+    #[inline(always)]
     pub(crate) fn commit_instruction(&mut self, inst: &Instruction, regw: Option<RegisterWriter>) {
         if model::is_multiply(inst.opcode()) {
             self.multiply_count += 1;
@@ -182,6 +188,7 @@ impl Validator {
 
     /// Once the whole program is assembled, HashX still has a chance to reject
     /// it if it fails certain criteria.
+    #[inline(always)]
     pub(crate) fn check_whole_program(
         &self,
         scheduler: &Scheduler,
@@ -199,6 +206,7 @@ impl Validator {
 
     /// Figure out the allowed set of destination registers for an op after its
     /// source is known, using the current state of the validator.
+    #[inline(always)]
     pub(crate) fn dst_registers_allowed(
         &self,
         available: RegisterSet,
@@ -207,27 +215,31 @@ impl Validator {
         writer_info: &RegisterWriter,
         src: Option<RegisterId>,
     ) -> RegisterSet {
-        available.filter(|dst| {
-            // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
-            // be used as destination for AddShift.
-            if op == Opcode::AddShift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
-                return false;
-            }
+        available.filter(
+            #[inline(always)]
+            |dst| {
+                // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
+                // be used as destination for AddShift.
+                if op == Opcode::AddShift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
+                    return false;
+                }
 
-            // A few instructions disallow choosing src and dst as the same
-            if model::disallow_src_is_dst(op) && src == Some(dst) {
-                return false;
-            }
+                // A few instructions disallow choosing src and dst as the same
+                if model::disallow_src_is_dst(op) && src == Some(dst) {
+                    return false;
+                }
 
-            // Additional constraints are written on the pair of previous and
-            // current instructions with the same destination.
-            model::writer_pair_allowed(pass, self.writer_map.get(dst), writer_info)
-        })
+                // Additional constraints are written on the pair of previous and
+                // current instructions with the same destination.
+                model::writer_pair_allowed(pass, self.writer_map.get(dst), writer_info)
+            },
+        )
     }
 }
 
 /// Figure out the allowed register set for an operation, given what's available
 /// in the schedule
+#[inline(always)]
 pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> RegisterSet {
     // HashX defines a special case DISALLOW_REGISTER_FOR_ADDSHIFT for
     // destination registers, and it also includes a look-ahead
@@ -241,7 +253,10 @@ pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> Regis
         && available.contains(model::DISALLOW_REGISTER_FOR_ADDSHIFT)
         && available.len() == 2
     {
-        available.filter(|reg| reg == model::DISALLOW_REGISTER_FOR_ADDSHIFT)
+        available.filter(
+            #[inline(always)]
+            |reg| reg == model::DISALLOW_REGISTER_FOR_ADDSHIFT,
+        )
     } else {
         available
     }
@@ -249,6 +264,7 @@ pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> Regis
 
 /// Some pairs of adjacent [`Opcode`]s are rejected at the opcode selector level
 /// without causing an entire instruction generation pass to fail.
+#[inline(always)]
 pub(crate) fn opcode_pair_allowed(previous: Option<Opcode>, proposed: Opcode) -> Result<(), ()> {
     match previous {
         None => Ok(()),
@@ -273,6 +289,7 @@ struct RegisterWriterMap {
 
 impl RegisterWriterMap {
     /// A new empty register writer map. All registers are set to None
+    #[inline(always)]
     fn new() -> Self {
         Self {
             regs: [None; NUM_REGISTERS],
@@ -281,6 +298,7 @@ impl RegisterWriterMap {
     }
 
     /// Write or overwrite the last [`RegisterWriter`] associated with `reg`
+    #[inline(always)]
     fn insert(&mut self, reg: RegisterId, writer: RegisterWriter) {
         let previous = self.regs[reg.as_usize()];
         match previous {
@@ -300,6 +318,7 @@ impl RegisterWriterMap {
     }
 
     /// Return the most recent mapping for 'reg', if any
+    #[inline(always)]
     fn get(&self, reg: RegisterId) -> Option<&RegisterWriter> {
         self.regs[reg.as_usize()].map(|index| &self.writers[index as usize])
     }

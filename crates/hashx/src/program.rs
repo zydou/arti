@@ -143,6 +143,7 @@ pub(crate) enum Opcode {
 
 impl Instruction {
     /// Get this instruction's [`Opcode`]
+    #[inline(always)]
     pub(crate) fn opcode(&self) -> Opcode {
         match self {
             Instruction::AddConst { .. } => Opcode::AddConst,
@@ -160,6 +161,7 @@ impl Instruction {
     }
 
     /// Get this instruction's destination register if any
+    #[inline(always)]
     pub(crate) fn destination(&self) -> Option<RegisterId> {
         match self {
             Instruction::AddConst { dst, .. } => Some(*dst),
@@ -203,6 +205,7 @@ impl fmt::Debug for Program {
 
 impl Program {
     /// Construct a finished `Program` from a list of instructions
+    #[inline(always)]
     pub(crate) fn new(instructions: InstructionArray) -> Self {
         Self { instructions }
     }
@@ -303,6 +306,7 @@ impl Program {
 }
 
 impl<'a> From<&'a Program> for &'a InstructionArray {
+    #[inline(always)]
     fn from(prog: &'a Program) -> Self {
         &prog.instructions
     }

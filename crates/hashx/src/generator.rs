@@ -31,6 +31,7 @@ mod model {
     /// Normal cycles are all replaced by `ImmediateSrc` if this is the retry
     /// pass, so that retries won't need to attempt source register selection
     /// in this case.
+    #[inline(always)]
     pub(super) fn choose_opcode_selector(pass: Pass, sub_cycle: SubCycle) -> OpcodeSelector {
         let n = sub_cycle.as_usize() % 36;
         if n == 1 {
@@ -107,6 +108,7 @@ struct Generator {
 
 impl Generator {
     /// Create a fresh program generator from the corresponding siphash state
+    #[inline(always)]
     fn new(key: siphash::State) -> Self {
         Generator {
             rng: siphash::Rng::new(key),
@@ -119,6 +121,7 @@ impl Generator {
     /// Pick a pseudorandom register from a RegisterSet, or return `Err(())`
     /// if the set is empty. Consumes one `u32` from the `Rng` only if the set
     /// contains more than one item.
+    #[inline(always)]
     fn select_register(&mut self, reg_options: RegisterSet) -> Result<RegisterId, ()> {
         match reg_options.len() {
             0 => Err(()),
@@ -138,6 +141,7 @@ impl Generator {
     }
 
     /// Pick a pseudorandom operation from a list of at least two options
+    #[inline(always)]
     fn select_op<'a, T, const SIZE: usize>(&mut self, options: &'a [T; SIZE]) -> &'a T {
         &options[(self.rng.next_u8() as usize) % options.len()]
     }
@@ -145,6 +149,7 @@ impl Generator {
     /// Generate a random u32 bit mask, with a constant number of bits set.
     /// This uses an iterative algorithm that selects one bit at a time
     /// using a u8 from the Rng for each, discarding duplicates.
+    #[inline(always)]
     fn select_constant_weight_bit_mask(&mut self, num_ones: usize) -> u32 {
         let mut result = 0_u32;
         let mut count = 0;
@@ -160,6 +165,7 @@ impl Generator {
 
     /// Generate random nonzero values, by iteratively picking a random u32,
     /// masking it, and discarding results that would be all zero.
+    #[inline(always)]
     fn select_nonzero_u32(&mut self, mask: u32) -> u32 {
         loop {
             let result = self.rng.next_u32() & mask;
@@ -173,6 +179,7 @@ impl Generator {
     /// state can't be advanced any further. Returns with
     /// [`Error::ProgramConstraints`] if the program fails the HashX
     /// whole-program checks.
+    #[inline(always)]
     fn generate_program(&mut self) -> Result<Program, Error> {
         let mut array: InstructionArray = Default::default();
         while array.len() < array.capacity() {
@@ -203,6 +210,7 @@ impl Generator {
     ///
     /// This only returns `Err(())` if we've hit a stopping condition for the
     /// program.
+    #[inline(always)]
     fn generate_instruction(&mut self) -> Result<(Instruction, Option<RegisterWriter>), ()> {
         loop {
             if let Ok(result) = self.instruction_gen_attempt(Pass::Original) {
@@ -217,6 +225,7 @@ impl Generator {
 
     /// Choose an opcode using the current [`OpcodeSelector`], subject to
     /// stateful constraints on adjacent opcode choices.
+    #[inline(always)]
     fn choose_opcode(&mut self, pass: Pass) -> Opcode {
         let op = loop {
             let sub_cycle = self.scheduler.instruction_stream_sub_cycle();
@@ -233,6 +242,7 @@ impl Generator {
     /// [`OpcodeSelector`], chooses an opcode, then finishes choosing the
     /// opcode-specific parts of the instruction. Each of these choices affects
     /// the [`siphash::Rng`] state, and may fail if conditions are not met.
+    #[inline(always)]
     fn instruction_gen_attempt(
         &mut self,
         pass: Pass,
@@ -247,6 +257,7 @@ impl Generator {
 
     /// Choose both a source and destination register using a normal
     /// [`RegisterWriter`] for two-operand instructions
+    #[inline(always)]
     fn choose_src_dst_regs(
         &mut self,
         op: Opcode,
@@ -269,6 +280,7 @@ impl Generator {
     /// Choose both a source and destination register, with a custom
     /// [`RegisterWriter`] constraint that doesn't depend on source
     /// register choice.
+    #[inline(always)]
     fn choose_src_dst_regs_with_writer_info(
         &mut self,
         op: Opcode,
@@ -289,6 +301,7 @@ impl Generator {
     }
 
     /// Choose a destination register only
+    #[inline(always)]
     fn choose_dst_reg(
         &mut self,
         op: Opcode,
@@ -309,6 +322,7 @@ impl Generator {
     /// With an [`Opcode`] and an execution unit timing plan already in mind,
     /// generate the other pieces necessary to fully describe an
     /// [`Instruction`]. This can fail if register selection fails.
+    #[inline(always)]
     fn choose_instruction_with_opcode_plan(
         &mut self,
         op: Opcode,
@@ -394,6 +408,7 @@ impl Generator {
     /// that's for certain being written to the final program. Returns `Ok(())`
     /// on success or `Err(())` if the new state is no longer valid for
     /// program generation and we're done writing code.
+    #[inline(always)]
     fn commit_instruction_state(
         &mut self,
         inst: &Instruction,
@@ -425,6 +440,7 @@ enum OpcodeSelector {
 
 impl OpcodeSelector {
     /// Apply the selector, advancing the Rng state and returning an Opcode
+    #[inline(always)]
     fn apply(&self, gen: &mut Generator) -> Opcode {
         match self {
             OpcodeSelector::Target => Opcode::Target,

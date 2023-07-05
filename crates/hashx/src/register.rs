@@ -27,26 +27,21 @@ impl RegisterId {
     pub(crate) fn as_usize(&self) -> usize {
         self.0 as usize
     }
-
-    /// Convert a usize into a RegisterId. Panics if out of range.
-    ///
-    /// This is only available within the module, so we can implement
-    /// RegisterSet. The public interface to RegisterId does not allow
-    /// creating new instances of specific registers.
-    fn from_usize(n: usize) -> Self {
-        assert!(n < NUM_REGISTERS);
-        Self(
-            n.try_into()
-                .expect("register ID type wide enough for register file"),
-        )
-    }
 }
 
 /// Identify a set of RegisterIds
+///
+/// This could be done compactly as a u8 bitfield for storage purposes, but
+/// in our program generator this is never stored long-term. Instead, we want
+/// something the optimizer can reason about as effectively as possible, and
+/// let's inline as much as possible in order to resolve special cases in
+/// the program generator at compile time.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) struct RegisterSet {
-    /// Bit field, in LSB-first order, tracking which registers are in the set
-    bits: u8,
+    /// Number of registers in the set
+    len: usize,
+    /// Array indexed by register Id, indicating registers we've excluded
+    reg_not_in_set: [bool; 8],
 }
 
 impl fmt::Debug for RegisterSet {
@@ -67,61 +62,104 @@ impl RegisterSet {
     ///
     /// This is the main way to construct a new RegisterId, starting with
     /// all available registers and filtering them repeatedly.
+    #[inline(always)]
     pub(crate) fn all() -> Self {
         Self {
-            bits: ((1_usize << NUM_REGISTERS) - 1)
-                .try_into()
-                .expect("register set is wide enough to hold all registers"),
+            len: NUM_REGISTERS,
+            reg_not_in_set: Default::default(),
         }
     }
 
     /// Number of registers still contained in this set
+    #[inline(always)]
     pub(crate) fn len(&self) -> usize {
-        self.bits
-            .count_ones()
-            .try_into()
-            .expect("register set length always fits in usize")
+        self.len
     }
 
     /// Test if a register is contained in the set
+    #[inline(always)]
     pub(crate) fn contains(&self, id: RegisterId) -> bool {
-        (self.bits & (1 << id.0)) != 0
+        !self.reg_not_in_set[id.0 as usize]
     }
 
     /// Filter this register set through a predicate. Invokes the predicate only
     /// for registers in this set, and returns the set of registers for which it
     /// returned true.
+    #[inline(always)]
     pub(crate) fn filter<P: FnMut(RegisterId) -> bool>(&self, mut predicate: P) -> Self {
-        let mut shift = 0;
-        let mut result = *self;
-        loop {
-            if result.bits == 0 {
-                break;
-            }
-            shift += result.bits.wrapping_shr(shift as _).trailing_zeros() as usize;
-            if shift >= NUM_REGISTERS {
-                break;
-            }
-            if !predicate(RegisterId::from_usize(shift)) {
-                result.bits &= !(1 << shift);
-            }
-            shift += 1;
-        }
+        let mut result = Self {
+            len: 0,
+            reg_not_in_set: Default::default(),
+        };
+        self.filter_impl(0, &mut predicate, &mut result);
+        self.filter_impl(1, &mut predicate, &mut result);
+        self.filter_impl(2, &mut predicate, &mut result);
+        self.filter_impl(3, &mut predicate, &mut result);
+        self.filter_impl(4, &mut predicate, &mut result);
+        self.filter_impl(5, &mut predicate, &mut result);
+        self.filter_impl(6, &mut predicate, &mut result);
+        self.filter_impl(7, &mut predicate, &mut result);
         result
+    }
+
+    /// Internal implementation to be unrolled by `filter`
+    #[inline(always)]
+    fn filter_impl<P: FnMut(RegisterId) -> bool>(
+        &self,
+        id: usize,
+        predicate: &mut P,
+        result: &mut Self,
+    ) {
+        if self.reg_not_in_set[id] {
+            result.reg_not_in_set[id] = true;
+        } else if predicate(RegisterId(id as u8)) {
+            result.len += 1;
+        } else {
+            result.reg_not_in_set[id] = true;
+        }
     }
 
     /// Return a particular register within this set, counting from R0 to R7.
     /// The supplied index must be less than the len() of this set.
-    pub(crate) fn index(&self, mut idx: usize) -> RegisterId {
-        let mut shift = 0;
-        loop {
-            shift += (self.bits >> shift).trailing_zeros() as usize;
-            assert!(shift < NUM_REGISTERS);
-            if idx == 0 {
-                return RegisterId::from_usize(shift);
-            }
-            idx -= 1;
-            shift += 1;
+    #[inline(always)]
+    pub(crate) fn index(&self, mut index: usize) -> RegisterId {
+        if let Some(result) = self.index_impl(0, &mut index) {
+            return result;
+        }
+        if let Some(result) = self.index_impl(1, &mut index) {
+            return result;
+        }
+        if let Some(result) = self.index_impl(2, &mut index) {
+            return result;
+        }
+        if let Some(result) = self.index_impl(3, &mut index) {
+            return result;
+        }
+        if let Some(result) = self.index_impl(4, &mut index) {
+            return result;
+        }
+        if let Some(result) = self.index_impl(5, &mut index) {
+            return result;
+        }
+        if let Some(result) = self.index_impl(6, &mut index) {
+            return result;
+        }
+        if let Some(result) = self.index_impl(7, &mut index) {
+            return result;
+        }
+        unreachable!();
+    }
+
+    /// Internal implementation to be unrolled by `index`
+    #[inline(always)]
+    fn index_impl(&self, id: usize, index: &mut usize) -> Option<RegisterId> {
+        if self.reg_not_in_set[id] {
+            None
+        } else if *index == 0 {
+            Some(RegisterId(id as u8))
+        } else {
+            *index -= 1;
+            None
         }
     }
 }

@@ -50,6 +50,7 @@ mod model {
     const MAX_LATENCY: usize = 4;
 
     /// Latency for each operation, in cycles
+    #[inline(always)]
     pub(super) fn instruction_latency_cycles(op: Opcode) -> usize {
         match op {
             Opcode::AddConst => 1,
@@ -67,6 +68,7 @@ mod model {
     }
 
     /// Break an instruction down into one or two micro-operation port sets
+    #[inline(always)]
     pub(super) fn micro_operations(op: Opcode) -> (ExecPorts, Option<ExecPorts>) {
         match op {
             Opcode::AddConst { .. } => (P015, None),
@@ -85,6 +87,7 @@ mod model {
 
     /// Each instruction advances the earliest possible issuing cycle by one
     /// sub-cycle per micro-op.
+    #[inline(always)]
     pub(super) fn instruction_sub_cycle_count(op: Opcode) -> usize {
         match micro_operations(op) {
             (_, None) => 1,
@@ -120,23 +123,27 @@ pub(crate) struct Scheduler {
 
 impl Scheduler {
     /// Create a new empty execution schedule at cycle 0
+    #[inline(always)]
     pub(crate) fn new() -> Self {
         Default::default()
     }
 
     /// Stall for one cycle, used when register allocation fails.
     /// Returns Ok if we had enough time, or Err if we ran out.
+    #[inline(always)]
     pub(crate) fn stall(&mut self) -> Result<(), ()> {
         self.advance(SubCycle::PER_CYCLE as usize)
     }
 
     /// Return the current instruction fetch/decode timestamp in sub-cycles
+    #[inline(always)]
     pub(crate) fn instruction_stream_sub_cycle(&self) -> SubCycle {
         self.sub_cycle
     }
 
     /// Advance forward in time by some number of sub-cycles. Stops just before
     /// reaching the target cycle, where we stop scheduling new instructions.
+    #[inline(always)]
     fn advance(&mut self, n: usize) -> Result<(), ()> {
         let sub_cycle = self.sub_cycle.add_usize(n)?;
         let cycle = sub_cycle.cycle();
@@ -152,12 +159,14 @@ impl Scheduler {
     /// Advance time forward by the modeled duration of the instruction fetch
     /// and decode, in sub-cycles. Returns Ok if we still have enough time to
     /// schedule more, or Err if the schedule would be full.
+    #[inline(always)]
     pub(crate) fn advance_instruction_stream(&mut self, op: Opcode) -> Result<(), ()> {
         self.advance(model::instruction_sub_cycle_count(op))
     }
 
     /// Calculate a timing plan describing the cycle and execution units
     /// on which a particular opcode could run, at the earliest.
+    #[inline(always)]
     pub(crate) fn instruction_plan(&self, op: Opcode) -> Result<InstructionPlan, ()> {
         self.exec.instruction_plan(self.cycle, op)
     }
@@ -166,6 +175,7 @@ impl Scheduler {
     /// concrete Instruction instance. Marks as busy each execution unit cycle
     /// specified, and updates the register latency for the instruction's
     /// destination if it has one.
+    #[inline(always)]
     pub(crate) fn commit_instruction_plan(&mut self, plan: &InstructionPlan, inst: &Instruction) {
         self.exec.mark_instruction_busy(plan);
         if let Some(dst) = inst.destination() {
@@ -175,12 +185,14 @@ impl Scheduler {
     }
 
     /// Figure out which registers will be available at or before the indicated cycle
+    #[inline(always)]
     pub(crate) fn registers_available(&self, cycle: Cycle) -> RegisterSet {
         self.data.registers_available(cycle)
     }
 
     /// Return the overall latency, the Cycle at which we expect every register
     /// to reach its latest simulated state.
+    #[inline(always)]
     pub(crate) fn overall_latency(&self) -> Cycle {
         self.data.overall_latency()
     }
@@ -195,6 +207,7 @@ pub(crate) struct Cycle(u8);
 
 impl Cycle {
     /// HashX will stop generating code once the issue cycle reaches this target
+    #[inline(always)]
     fn target() -> Self {
         Cycle(
             model::TARGET_CYCLES
@@ -204,11 +217,13 @@ impl Cycle {
     }
 
     /// Cast this Cycle count to a usize losslessly
+    #[inline(always)]
     pub(crate) fn as_usize(&self) -> usize {
         self.0.into()
     }
 
     /// Add an integer number of cycles, returning Err(()) if we reach the end
+    #[inline(always)]
     fn add_usize(&self, n: usize) -> Result<Self, ()> {
         let result = self.as_usize() + n;
         if result < model::SCHEDULE_SIZE {
@@ -238,11 +253,13 @@ impl SubCycle {
     const MAX: Self = SubCycle(model::SCHEDULE_SIZE as u16 * Self::PER_CYCLE - 1);
 
     /// Cast this sub-cycle count into a usize losslessly
+    #[inline(always)]
     pub(crate) fn as_usize(&self) -> usize {
         self.0.into()
     }
 
     /// Convert this sub-cycle into a full Cycle timestamp
+    #[inline(always)]
     fn cycle(&self) -> Cycle {
         Cycle(
             (self.0 / Self::PER_CYCLE)
@@ -255,6 +272,7 @@ impl SubCycle {
     ///
     /// Returns the new advanced [`SubCycle`], or `Err(())`
     /// if we reach the end of the schedule.
+    #[inline(always)]
     fn add_usize(&self, n: usize) -> Result<Self, ()> {
         let result = self.as_usize() + n;
         if result < Self::MAX.0.into() {
@@ -285,17 +303,23 @@ struct DataSchedule {
 
 impl DataSchedule {
     /// Plan to finish a register write at the indicated cycle
+    #[inline(always)]
     fn plan_register_write(&mut self, dst: RegisterId, cycle: Cycle) {
         self.latencies[dst.as_usize()] = cycle;
     }
 
     /// Figure out which registers will be available at or before the indicated cycle
+    #[inline(always)]
     fn registers_available(&self, cycle: Cycle) -> RegisterSet {
-        RegisterSet::all().filter(|reg| self.latencies[reg.as_usize()] <= cycle)
+        RegisterSet::all().filter(
+            #[inline(always)]
+            |reg| self.latencies[reg.as_usize()] <= cycle,
+        )
     }
 
     /// Return the overall latency, the [`Cycle`] at which we expect
     /// every register to reach its latest simulated state.
+    #[inline(always)]
     fn overall_latency(&self) -> Cycle {
         match self.latencies.iter().max() {
             Some(cycle) => *cycle,
@@ -320,6 +344,7 @@ impl ExecSchedule {
     ///
     /// HashX always searches execution ports in the same order, and it will
     /// look ahead up to the entire length of the schedule before failing.
+    #[inline(always)]
     fn micro_plan(&self, begin: Cycle, ports: model::ExecPorts) -> Result<MicroOpPlan, ()> {
         let mut cycle = begin;
         loop {
@@ -338,6 +363,7 @@ impl ExecSchedule {
     }
 
     /// Mark the schedule busy according to a previously calculated plan
+    #[inline(always)]
     fn mark_micro_busy(&mut self, plan: MicroOpPlan) {
         self.ports[plan.port.index as usize]
             .busy
@@ -347,6 +373,7 @@ impl ExecSchedule {
     /// Calculate a timing plan describing the cycle and execution units
     /// we could use for scheduling one entire instruction, based on its Opcode
     /// but not its arguments.
+    #[inline(always)]
     fn instruction_plan(&self, begin: Cycle, op: Opcode) -> Result<InstructionPlan, ()> {
         match model::micro_operations(op) {
             // Single-op instructions
@@ -377,6 +404,7 @@ impl ExecSchedule {
     }
 
     /// Mark each micro-op in an InstructionPlan as busy in the schedule
+    #[inline(always)]
     fn mark_instruction_busy(&mut self, plan: &InstructionPlan) {
         let (first, second) = plan.as_micro_plans();
         self.mark_micro_busy(first);
@@ -414,11 +442,13 @@ pub(crate) struct InstructionPlan {
 
 impl InstructionPlan {
     /// Get the Cycle this whole instruction begins on
+    #[inline(always)]
     pub(crate) fn cycle_issued(&self) -> Cycle {
         self.cycle
     }
 
     /// Calculate the cycle this instruction is completed by
+    #[inline(always)]
     pub(crate) fn cycle_retired(&self, op: Opcode) -> Cycle {
         self.cycle
             .add_usize(model::instruction_latency_cycles(op))
@@ -426,6 +456,7 @@ impl InstructionPlan {
     }
 
     /// Convert this InstructionPlan back to one or two MicroOp plans
+    #[inline(always)]
     fn as_micro_plans(&self) -> (MicroOpPlan, Option<MicroOpPlan>) {
         (
             MicroOpPlan {
@@ -443,6 +474,7 @@ impl InstructionPlan {
     /// if they are on matching cycles.
     ///
     /// Returns `Err(())` if the combination is not possible.
+    #[inline(always)]
     fn from_micro_plans(first_op: MicroOpPlan, second_op: Option<MicroOpPlan>) -> Result<Self, ()> {
         let second_port = match second_op {
             None => None,

@@ -59,6 +59,7 @@ impl Rng {
     ///
     /// The internal SipHash1,3 generator is initialized to a supplied
     /// internal state, and the counter is reset to zero.
+    #[inline(always)]
     pub(crate) fn new(key: State) -> Self {
         Rng {
             key,
@@ -124,6 +125,7 @@ where
     const ITEM_MASK: u64 = (1 << Self::BITS_PER_ITEM) - 1;
 
     /// Construct a new shift register buffer containing no data bits
+    #[inline(always)]
     fn new() -> Self {
         Self {
             word: 0,
@@ -143,6 +145,7 @@ where
 
     /// Refill the buffer and remove the most significant item.
     /// Buffer must be empty.
+    #[inline(always)]
     fn refill_and_pop(&mut self, word: u64) -> T {
         assert!(self.remaining == 0);
         self.word = word;
@@ -151,6 +154,7 @@ where
     }
 
     /// Remove the most significant item in this buffer
+    #[inline(always)]
     fn pop(&mut self) -> Option<T> {
         if self.remaining >= Self::BITS_PER_ITEM {
             self.remaining -= Self::BITS_PER_ITEM;
