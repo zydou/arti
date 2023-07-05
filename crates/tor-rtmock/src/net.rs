@@ -157,6 +157,12 @@ pub struct ProviderBuilder {
     net: Arc<MockNetwork>,
 }
 
+impl Default for MockNetProvider {
+    fn default() -> Self {
+        Arc::new(MockNetwork::default()).builder().provider()
+    }
+}
+
 impl MockNetwork {
     /// Make a new MockNetwork with no active listeners.
     pub fn new() -> Arc<Self> {
