@@ -295,8 +295,6 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Obtain a channel builder which can be used to create connections to
     /// relays directly, bypassing many of the setup processes of [ChanMgr]
-    #[cfg(feature = "experimental")]
-    use crate::factory::CompoundFactory;
     pub fn get_channelbuilder(&self) -> CompoundFactory {
         self.mgr.channels.builder()
     }
