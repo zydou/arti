@@ -498,6 +498,7 @@ fn dormant() -> Result<(), anyhow::Error> {
     })
 }
 
+#[traced_test]
 #[test]
 fn process_doc() -> Result<(), anyhow::Error> {
     MockRuntime::try_test_with_various(|runtime| async {
