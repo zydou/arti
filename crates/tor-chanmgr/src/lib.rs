@@ -78,6 +78,8 @@ use crate::factory::BootstrapReporter;
 pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
+#[cfg(feature = "experimental")]
+use crate::factory::CompoundFactory;
 /// An object that remembers a set of live channels, and launches new ones on
 /// request.
 ///
@@ -293,6 +295,13 @@ impl<R: Runtime> ChanMgr<R> {
         self.mgr.with_mut_builder(|f| f.replace_ptmgr(ptmgr));
     }
 
+    /// Obtain a channel builder which can be used to create connections to
+    /// relays directly, bypassing many of the setup processes of [ChanMgr]
+    #[cfg(feature = "experimental")]
+    use crate::factory::CompoundFactory;
+    pub fn get_channelbuilder(&self) -> CompoundFactory {
+        self.mgr.channels.builder()
+    }
     /// Watch for things that ought to change the configuration of all channels in the client
     ///
     /// Currently this handles enabling and disabling channel padding.
