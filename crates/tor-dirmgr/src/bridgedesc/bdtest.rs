@@ -27,7 +27,7 @@ use tracing_test::traced_test;
 use tor_linkspec::HasAddrs;
 use tor_rtcompat::SleepProvider;
 use tor_rtmock::time::MockSleepProvider;
-use tor_rtmock::MockSleepRuntime;
+use tor_rtmock::MockRuntime;
 
 use super::*;
 
@@ -49,8 +49,7 @@ fn example_wallclock() -> SystemTime {
     example_validity().0 + Duration::from_secs(10)
 }
 
-type RealRuntime = tor_rtcompat::tokio::TokioNativeTlsRuntime;
-type R = MockSleepRuntime<RealRuntime>;
+type R = MockRuntime;
 type M = Mock;
 type Bdm = BridgeDescMgr<R, M>;
 type RT = RetryTime;
@@ -126,11 +125,8 @@ impl Mock {
     }
 }
 
-fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
-    let runtime = RealRuntime::current().unwrap();
-    let runtime = MockSleepRuntime::new(runtime);
+fn setup(runtime: MockRuntime) -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let sleep = runtime.mock_sleep().clone();
-
     sleep.jump_to(example_wallclock());
 
     let mut docs = HashMap::new();
@@ -228,10 +224,11 @@ fn bad_bridge(i: usize) -> BridgeKey {
     bad
 }
 
-#[tokio::test]
 #[traced_test]
-async fn success() -> Result<(), anyhow::Error> {
-    let (_db_tmp_dir, bdm, runtime, mock, bridge, ..) = setup();
+#[test]
+fn success() -> Result<(), anyhow::Error> {
+  MockRuntime::try_test_with_various(|runtime| async {
+    let (_db_tmp_dir, bdm, runtime, mock, bridge, ..) = setup(runtime);
 
     bdm.check_consistency(Some([]));
 
@@ -385,12 +382,14 @@ async fn success() -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+  })
 }
 
-#[tokio::test]
 #[traced_test]
-async fn cache() -> Result<(), anyhow::Error> {
-    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+#[test]
+fn cache() -> Result<(), anyhow::Error> {
+  MockRuntime::try_test_with_various(|runtime| async {
+    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup(runtime);
     let mut events = bdm.events().fuse();
 
     let in_results = |wanted| in_results(&bdm, &bridge, wanted);
@@ -464,13 +463,15 @@ async fn cache() -> Result<(), anyhow::Error> {
     mock.expect_download_calls(1).await;
 
     Ok(())
+  })
 }
 
-#[tokio::test]
 #[traced_test]
-async fn dormant() -> Result<(), anyhow::Error> {
+#[test]
+fn dormant() -> Result<(), anyhow::Error> {
+  MockRuntime::try_test_with_various(|runtime| async {
     #[allow(unused_variables)] // avoids churn and makes all of these identical
-    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup(runtime);
     let mut events = bdm.events().fuse();
 
     use Dormancy::*;
@@ -479,22 +480,8 @@ async fn dormant() -> Result<(), anyhow::Error> {
     bdm.set_dormancy(Dormant);
     bdm.set_bridges(&[bridge.clone()]);
 
-    // TODO async wait for idle:
-    //
-    // This is a bodge.  What we really want to do is drive all tasks until we are idle.
-    // But Tokio does not provide this facility, AFAICT.  I also checked smol and
-    // async-std, and did a moderately thorough search using lib.rs.  I think the proper
-    // approach has to be a custom executor.  (`tor_rtmock::MockSleepRuntime::wait_for`
-    // doesn't work because it doesn't track, and therefore doesn't progress, spawned tasks.)
-    //
-    // Instead, we do this: this is real time, not mock time.  That ought to let
-    // everything that is going to run, do so.  (I have verified that this test fails
-    // before dormancy is actually implemented.)  If the 10ms we have here is too short
-    // (eg by random chance) then we might miss a situation where the dormancy is not
-    // properly effective, but we oughtn't to have a flaky test with good code, since "no
-    // progress was made within 10ms" is the expected behaviour.
-    tokio::time::sleep(Duration::from_millis(10)).await;
-    mock.expect_download_calls(0).await;
+    // Drive all tasks until we are idle
+    runtime.progress_until_stalled().await;
 
     eprintln!("----- become active -----");
     bdm.set_dormancy(Active);
@@ -507,12 +494,14 @@ async fn dormant() -> Result<(), anyhow::Error> {
     mock.expect_download_calls(1).await;
 
     Ok(())
+  })
 }
 
-#[tokio::test]
-async fn process_doc() -> Result<(), anyhow::Error> {
+#[test]
+fn process_doc() -> Result<(), anyhow::Error> {
+  MockRuntime::try_test_with_various(|runtime| async {
     #[allow(unused_variables)] // avoids churn and makes all of these identical
-    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup(runtime);
 
     let text = EXAMPLE_DESCRIPTOR;
     let config = BridgeDescDownloadConfig::default();
@@ -607,4 +596,5 @@ async fn process_doc() -> Result<(), anyhow::Error> {
     // make signed test documents.
 
     Ok(())
+  })
 }
