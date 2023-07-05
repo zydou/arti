@@ -4829,6 +4829,7 @@ dependencies = [
  "pin-project",
  "rand 0.8.5",
  "slotmap",
+ "strum",
  "thiserror",
  "tor-basic-utils",
  "tor-rtcompat",

@@ -2,6 +2,7 @@
 //!
 //! See [`MockExecutor`]
 
+use std::collections::VecDeque;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::iter;
@@ -16,6 +17,7 @@ use futures::FutureExt as _;
 use educe::Educe;
 use itertools::{chain, izip};
 use slotmap::DenseSlotMap;
+use strum::EnumIter;
 use tracing::trace;
 
 use tor_rtcompat::BlockOn;
@@ -109,10 +111,32 @@ struct Data {
     tasks: DenseSlotMap<TaskId, Task>,
 
     /// `awake` lists precisely: tasks that are `Awake`, plus maybe stale `TaskId`s
-    awake: Vec<TaskId>,
+    ///
+    /// Tasks are pushed onto the *back* when woken,
+    /// so back is the most recently woken.
+    awake: VecDeque<TaskId>,
 
     /// If a future from `progress_until_stalled` exists
     progressing_until_stalled: Option<ProgressingUntilStalled>,
+
+    /// Scheduling policy
+    scheduling: SchedulingPolicy,
+}
+
+/// How we should schedule?
+#[derive(Debug, Clone, Default, EnumIter)]
+#[non_exhaustive]
+pub enum SchedulingPolicy {
+    /// Task *most* recently woken is run
+    ///
+    /// This is the default.
+    ///
+    /// It will expose starvation bugs if a task never sleeps.
+    /// (Which is a good thing in tests.)
+    #[default]
+    Stack,
+    /// Task *least* recently woken is run.
+    Queue,
 }
 
 /// Record of a single task
@@ -218,6 +242,23 @@ impl MockExecutor {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Make a `MockExecutor` with a specific `SchedulingPolicy`
+    pub fn with_scheduling(scheduling: SchedulingPolicy) -> Self {
+        Data {
+            scheduling,
+            ..Default::default()
+        }
+        .into()
+    }
+}
+
+impl From<Data> for MockExecutor {
+    fn from(data: Data) -> MockExecutor {
+        MockExecutor {
+            data: ArcMutexData(Arc::new(Mutex::new(data))),
+        }
+    }
 }
 
 //---------- spawning ----------
@@ -261,7 +302,7 @@ impl Data {
             desc,
             fut: Some(fut),
         });
-        self.awake.push(id);
+        self.awake.push_back(id);
         trace!("MockExecutor spawned {:?}={:?}", id, self.tasks[id]);
         id
     }
@@ -373,7 +414,7 @@ impl MockExecutor {
             // Take a `Awake` task off `awake` and make it `Polling`
             let (id, mut fut) = 'inner: loop {
                 let mut data = self.data.lock();
-                let Some(id) = data.awake.pop() else { break 'outer };
+                let Some(id) = data.schedule() else { break 'outer };
                 let Some(task) = data.tasks.get_mut(id) else {
                     trace!("MockExecutor {id:?} vanished");
                     continue;
@@ -428,6 +469,20 @@ impl MockExecutor {
     }
 }
 
+impl Data {
+    /// Return the next task to run
+    ///
+    /// The task is removed from `awake`, but **`state` is not set to `Asleep`**.
+    /// The caller must restore the invariant!
+    fn schedule(&mut self) -> Option<TaskId> {
+        use SchedulingPolicy as SP;
+        match self.scheduling {
+            SP::Stack => self.awake.pop_back(),
+            SP::Queue => self.awake.pop_front(),
+        }
+    }
+}
+
 impl Wake for ActualWaker {
     fn wake(self: Arc<Self>) {
         let mut data = self.data.lock();
@@ -437,7 +492,7 @@ impl Wake for ActualWaker {
             Awake => {}
             Asleep => {
                 task.state = Awake;
-                data.awake.push(self.id);
+                data.awake.push_back(self.id);
             }
         }
     }
@@ -571,11 +626,13 @@ impl Debug for Data {
             tasks,
             awake,
             progressing_until_stalled: pus,
+            scheduling,
         } = self;
         let mut s = f.debug_struct("Data");
         s.field("tasks", &DebugTasks(self, || tasks.keys()));
         s.field("awake", &DebugTasks(self, || awake.iter().cloned()));
         s.field("p.u.s", pus);
+        s.field("scheduling", scheduling);
         s.finish()
     }
 }

@@ -1,11 +1,12 @@
 //! Completely mock runtime
 
 use amplify::Getters;
+use strum::IntoEnumIterator as _;
 
 use crate::util::impl_runtime_prelude::*;
 
 use crate::net::MockNetProvider;
-use crate::task::MockExecutor;
+use crate::task::{MockExecutor, SchedulingPolicy};
 use crate::time::MockSleepProvider;
 
 /// Completely mock runtime
@@ -42,6 +43,8 @@ pub struct MockRuntime {
 /// Builder for a manually-configured `MockRuntime`
 #[derive(Debug, Default, Clone)]
 pub struct MockRuntimeBuilder {
+    /// scheduling policy
+    scheduling: SchedulingPolicy,
     /// starting wall clock time
     starting_wallclock: Option<SystemTime>,
 }
@@ -102,6 +105,12 @@ impl MockRuntime {
 }
 
 impl MockRuntimeBuilder {
+    /// Set the scheduling policy
+    pub fn scheduling(mut self, scheduling: SchedulingPolicy) -> Self {
+        self.scheduling = scheduling;
+        self
+    }
+
     /// Set the starting wall clock time
     pub fn starting_wallclock(mut self, starting_wallclock: SystemTime) -> Self {
         self.starting_wallclock = Some(starting_wallclock);
@@ -121,8 +130,11 @@ impl MockRuntimeBuilder {
             MockSleepProvider::default()
         };
 
+        let task = MockExecutor::with_scheduling(scheduling);
+
         MockRuntime {
             sleep,
+            task,
             ..Default::default()
         }
     }
