@@ -4,6 +4,8 @@
 // generally useful: and it might, if we are encouraging the use of `tracing`
 // with arti!  If we do this, we need to clean up the API a little.
 
+use std::num::NonZeroU8;
+
 use time::format_description;
 
 /// Construct a new [`FormatTime`](tracing_subscriber::fmt::time::FormatTime)
@@ -72,10 +74,10 @@ enum TimeRounder {
     Verbatim,
     /// Round the minutes within the hours down to the nearest multiple of
     /// this granularity.
-    RoundMinutes(u8),
+    RoundMinutes(NonZeroU8),
     /// Round the seconds within the minute down to the nearest multiple of
     /// this granularity.
-    RoundSeconds(u8),
+    RoundSeconds(NonZeroU8),
 }
 
 /// Actual type to implement log formatting.
@@ -144,12 +146,37 @@ impl LogPrecision {
             .expect("Couldn't parse a built-in time format string");
         let rounder = match self {
             Hours | Minutes(1) | Seconds(1) | Subseconds(_) => TimeRounder::Verbatim,
-            Minutes(granularity) => TimeRounder::RoundMinutes(*granularity),
-            Seconds(granularity) => TimeRounder::RoundSeconds(*granularity),
+            Minutes(granularity) => {
+                TimeRounder::RoundMinutes((*granularity).try_into().expect("Math bug"))
+            }
+            Seconds(granularity) => {
+                TimeRounder::RoundSeconds((*granularity).try_into().expect("Math bug"))
+            }
         };
 
         LogTimer { rounder, formatter }
     }
+}
+
+/// An error that occurs while trying to format the time.
+///
+/// Internal.
+#[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
+enum TimeFmtError {
+    /// The time crate wouldn't let us replace a field.
+    ///
+    /// This indicates that the value we were trying to use there was invalid,
+    /// and so our math must have been wrong.
+    #[error("Internal error while trying to round the time.")]
+    Rounding(#[from] time::error::ComponentRange),
+
+    /// The time crate wouldn't let us format a value.
+    ///
+    /// This indicates that our formatters were busted, and so we probably have
+    /// a programming error.
+    #[error("`time` couldn't format this time.")]
+    TimeFmt(#[from] time::error::Format),
 }
 
 impl TimeRounder {
@@ -157,35 +184,40 @@ impl TimeRounder {
     ///
     /// Note that we round fields minimally: we don't round any fields that the
     /// associated formatter will not display.
-    fn round(&self, when: time::OffsetDateTime) -> time::OffsetDateTime {
+    fn round(&self, when: time::OffsetDateTime) -> Result<time::OffsetDateTime, TimeFmtError> {
+        // NOTE: This function really mustn't panic.  We try to log any panics
+        // that we encounter, and if logging itself can panic, we're in a
+        // potential heap of trouble.
+
         use TimeRounder::*;
         /// Round `inp` down to the nearest multiple of `granularity`.
-        fn round_down(inp: u8, granularity: u8) -> u8 {
+        fn round_down(inp: u8, granularity: NonZeroU8) -> u8 {
             inp - (inp % granularity)
         }
 
-        // XXXX mustn't panic
-        match self {
+        Ok(match self {
             Verbatim => when,
-            RoundMinutes(granularity) => when
-                .replace_minute(round_down(when.minute(), *granularity))
-                .expect("Rounding down failed somehow!?"),
-            RoundSeconds(granularity) => when
-                .replace_second(round_down(when.second(), *granularity))
-                .expect("Rounding down failed somehow!?"),
-        }
+            RoundMinutes(granularity) => {
+                when.replace_minute(round_down(when.minute(), *granularity))?
+            }
+            RoundSeconds(granularity) => {
+                when.replace_second(round_down(when.second(), *granularity))?
+            }
+        })
     }
 }
 
 impl LogTimer {
     /// Convert `when` to a string with appropriate rounding.
-    fn time_to_string(&self, when: time::OffsetDateTime) -> Result<String, time::error::Format> {
-        self.rounder.round(when).format(&self.formatter)
+    fn time_to_string(&self, when: time::OffsetDateTime) -> Result<String, TimeFmtError> {
+        // See NOTE above: This function mustn't panic.
+        Ok(self.rounder.round(when)?.format(&self.formatter)?)
     }
 }
 
 impl tracing_subscriber::fmt::time::FormatTime for LogTimer {
     fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer<'_>) -> std::fmt::Result {
+        // See NOTE above: This function mustn't panic.
         w.write_str(
             &self
                 .time_to_string(time::OffsetDateTime::now_utc())
