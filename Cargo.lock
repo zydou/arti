@@ -4819,6 +4819,7 @@ dependencies = [
 name = "tor-rtmock"
 version = "0.8.2"
 dependencies = [
+ "amplify",
  "async-trait",
  "educe",
  "futures",

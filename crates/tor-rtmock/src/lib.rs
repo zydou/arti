@@ -51,7 +51,9 @@ pub mod task;
 pub mod time;
 
 mod net_runtime;
+mod runtime;
 mod sleep_runtime;
 
 pub use net_runtime::MockNetRuntime;
+pub use runtime::MockRuntime;
 pub use sleep_runtime::MockSleepRuntime;
