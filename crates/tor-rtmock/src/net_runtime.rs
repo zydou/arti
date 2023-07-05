@@ -3,15 +3,9 @@
 // TODO(nickm): This is mostly copy-paste from MockSleepRuntime.  If possible,
 // we should make it so that more code is more shared.
 
-use crate::net::MockNetProvider;
-use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider, UdpProvider};
+use crate::util::impl_runtime_prelude::*;
 
-use async_trait::async_trait;
-use futures::task::{FutureObj, Spawn, SpawnError};
-use futures::Future;
-use std::io::Result as IoResult;
-use std::net::SocketAddr;
-use std::time::{Duration, Instant, SystemTime};
+use crate::net::MockNetProvider;
 
 /// A wrapper Runtime that overrides the SleepProvider trait for the
 /// underlying runtime.

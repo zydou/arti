@@ -96,3 +96,23 @@ macro_rules! impl_runtime { {
         }
     }
 } }
+
+/// Prelude that must be imported to use [`impl_runtime!`](impl_runtime)
+//
+// This could have been part of the expansion of `impl_runtime!`,
+// but it seems rather too exciting for a macro to import things as a side gig.
+//
+// Arguably this ought to be an internal crate::prelude instead.
+// But crate-internal preludes are controversial within the Arti team.  -Diziet
+//
+// For macro visibility reasons, this must come *lexically after* the macro,
+// to allow it to refer to the macro in the doc comment.
+pub(crate) mod impl_runtime_prelude {
+    pub(crate) use async_trait::async_trait;
+    pub(crate) use futures::task::{FutureObj, Spawn, SpawnError};
+    pub(crate) use futures::Future;
+    pub(crate) use std::io::Result as IoResult;
+    pub(crate) use std::net::SocketAddr;
+    pub(crate) use std::time::{Duration, Instant, SystemTime};
+    pub(crate) use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider, UdpProvider};
+}

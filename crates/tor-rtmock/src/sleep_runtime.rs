@@ -1,16 +1,11 @@
 //! Declare MockSleepRuntime.
 
-use crate::time::MockSleepProvider;
-use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider, UdpProvider};
-
-use async_trait::async_trait;
-use futures::task::{FutureObj, Spawn, SpawnError};
-use futures::Future;
 use pin_project::pin_project;
-use std::io::Result as IoResult;
-use std::net::SocketAddr;
-use std::time::{Duration, Instant, SystemTime};
 use tracing::trace;
+
+use crate::time::MockSleepProvider;
+
+use crate::util::impl_runtime_prelude::*;
 
 /// A wrapper Runtime that overrides the SleepProvider trait for the
 /// underlying runtime.
