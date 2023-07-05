@@ -86,3 +86,9 @@ lto = "thin"
 codegen-units = 16
 opt-level = 2
 incremental = true
+
+[profile.bench]
+# For "cargo bench", which is only used by some crates.
+# Inherits release build settings, but adds full debug symbols.
+debug = 2
+strip = "none"
