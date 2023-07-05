@@ -41,6 +41,7 @@ type ConnReceiver = mpsc::Receiver<(LocalStream, SocketAddr)>;
 /// are implemented using [`LocalStream`]. The MockNetwork object is
 /// shared by a large set of MockNetworkProviders, each of which has
 /// its own view of its address(es) on the network.
+#[derive(Default)]
 pub struct MockNetwork {
     /// A map from address to the entries about listeners there.
     listening: Mutex<HashMap<SocketAddr, AddrBehavior>>,
@@ -159,9 +160,7 @@ pub struct ProviderBuilder {
 impl MockNetwork {
     /// Make a new MockNetwork with no active listeners.
     pub fn new() -> Arc<Self> {
-        Arc::new(MockNetwork {
-            listening: Mutex::new(HashMap::new()),
-        })
+        Default::default()
     }
 
     /// Return a [`ProviderBuilder`] for creating a [`MockNetProvider`]
