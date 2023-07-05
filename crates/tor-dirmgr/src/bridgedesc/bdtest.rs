@@ -362,8 +362,11 @@ async fn success() -> Result<(), anyhow::Error> {
 
     drop(hold);
 
-    // should produce a removed bridge event
-    let () = stream_drain_until(1, &mut events, || async {
+    // Check that queues become empty.
+    // Depending on scheduling, there may be tasks still live from the work above.
+    // For example, one of the requeues might be still running after we did the remove.
+    // So we may get a number of change events.  Certainly not more than 10.
+    let () = stream_drain_until(10, &mut events, || async {
         bdm.check_consistency(Some(&bridges));
         queues_are_empty(&bdm)
     })
