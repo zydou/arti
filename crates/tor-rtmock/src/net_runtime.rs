@@ -41,5 +41,4 @@ impl_runtime! {
     block: runtime,
     sleep: runtime: R,
     net: net: MockNetProvider,
-    udp: runtime: R, // TODO this should probably get delegated to $NetProvider instead
 }

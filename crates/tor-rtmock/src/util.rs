@@ -24,7 +24,6 @@ macro_rules! impl_runtime { {
     block: $block:ident,
     sleep: $sleep:ident: $SleepProvider:ty,
     net: $net:ident: $NetProvider:ty,
-    udp: $udp:ident: $UdpProvider:ty, // TODO when MockNetProvider is fixed, abolish this
 } => {
     impl $($gens)* Spawn for $SomeMockRuntime {
         fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
@@ -65,11 +64,11 @@ macro_rules! impl_runtime { {
 
     #[async_trait]
     impl $($gens)* UdpProvider for $SomeMockRuntime {
-        type UdpSocket = <$UdpProvider as UdpProvider>::UdpSocket;
+        type UdpSocket = <$NetProvider as UdpProvider>::UdpSocket;
 
         #[inline]
         async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket> {
-            self.$udp.bind(addr).await
+            self.$net.bind(addr).await
         }
     }
 

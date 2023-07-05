@@ -81,7 +81,6 @@ impl_runtime! {
     block: runtime,
     sleep: sleep: MockSleepProvider,
     net: runtime: R,
-    udp: runtime: R,
 }
 
 /// A future that advances time until another future is ready to complete.

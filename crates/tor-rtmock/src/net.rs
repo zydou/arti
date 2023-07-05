@@ -10,6 +10,7 @@ use super::MockNetRuntime;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
 use tor_rtcompat::{CertifiedConn, Runtime, TcpListener, TcpProvider, TlsProvider};
+use tor_rtcompat::{UdpProvider, UdpSocket};
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
@@ -86,6 +87,12 @@ enum AddrBehavior {
 ///
 /// We don't do the right thing (block) if there is a listener that
 /// never calls accept.
+///
+/// UDP is completely broken:
+/// datagrams appear to be transmitted, but will never be received.
+/// And local address assignment is not implemented
+/// so [`.local_addr()`](UdpSocket::local_addr) can return `NONE`
+// TODO MOCK UDP: Documentation does describe the brokennesses
 ///
 /// We use a simple `u16` counter to decide what arbitrary port
 /// numbers to use: Once that counter is exhausted, we will fail with
@@ -296,6 +303,43 @@ impl Stream for MockNetListener {
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Ready(Some(v)) => Poll::Ready(Some(Ok(v))),
         }
+    }
+}
+
+/// A very poor imitation of a UDP socket
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct MockUdpSocket {
+    /// The address provided to `bind`
+    addr_provided_to_bind: SocketAddr,
+}
+
+#[async_trait]
+impl UdpProvider for MockNetProvider {
+    type UdpSocket = MockUdpSocket;
+
+    async fn bind(&self, addr: &SocketAddr) -> IoResult<MockUdpSocket> {
+        Ok(MockUdpSocket {
+            addr_provided_to_bind: *addr,
+        })
+    }
+}
+
+#[async_trait]
+impl UdpSocket for MockUdpSocket {
+    async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)> {
+        let _ = buf; // TODO MOCK UDP: Packets are never received
+        futures::future::pending().await
+    }
+    async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize> {
+        let _ = target; // TODO MOCK UDP: Packets are always simply discarded
+        Ok(buf.len())
+    }
+    fn local_addr(&self) -> IoResult<SocketAddr> {
+        // TODO MOCK UDP: Wrong address returned from UdpSocket::local_addr
+        // This is wrong; if `bind` was passed NONE we should have selected
+        // an address (and port) and that is what should be returned here.
+        Ok(self.addr_provided_to_bind)
     }
 }
 
