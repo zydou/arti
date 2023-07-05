@@ -15,3 +15,11 @@ ipv6_subnet_family_prefix = 129
 # https://github.com/shadow/shadow/issues/2368
 permit_debugging = true
 allow_running_as_root = true
+
+[logging]
+log_sensitive_information = true
+
+[override_net_params]
+# When TestingTorNetwork is enabled, tor uses a hard-coded value
+# of 120 here; match it.
+hsdir_interval = 120
