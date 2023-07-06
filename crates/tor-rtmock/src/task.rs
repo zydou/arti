@@ -668,7 +668,7 @@ mod test {
     fn stall() {
         let runtime = MockExecutor::default();
 
-        let () = runtime.block_on({
+        runtime.block_on({
             let runtime = runtime.clone();
             async move {
                 const N: usize = 3;
