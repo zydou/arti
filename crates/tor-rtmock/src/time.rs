@@ -86,6 +86,13 @@ pub struct Sleeping {
     provider: Weak<Mutex<SleepSchedule>>,
 }
 
+impl Default for MockSleepProvider {
+    fn default() -> Self {
+        let wallclock = humantime::parse_rfc3339("2023-07-05T11:25:56Z").expect("parse");
+        MockSleepProvider::new(wallclock)
+    }
+}
+
 impl MockSleepProvider {
     /// Create a new MockSleepProvider, starting at a given wall-clock time.
     pub fn new(wallclock: SystemTime) -> Self {

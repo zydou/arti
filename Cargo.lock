@@ -4335,7 +4335,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "time",
- "tokio",
  "tor-basic-utils",
  "tor-checkable",
  "tor-circmgr",
@@ -4823,16 +4822,23 @@ dependencies = [
 name = "tor-rtmock"
 version = "0.8.2"
 dependencies = [
+ "amplify",
  "async-trait",
+ "educe",
  "futures",
  "futures-await-test",
  "humantime 2.1.0",
+ "itertools 0.11.0",
  "pin-project",
  "rand 0.8.5",
+ "slotmap",
+ "strum",
  "thiserror",
  "tor-basic-utils",
  "tor-rtcompat",
  "tracing",
+ "tracing-test",
+ "void",
 ]
 
 [[package]]

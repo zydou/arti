@@ -10,6 +10,7 @@ use super::MockNetRuntime;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
 use tor_rtcompat::{CertifiedConn, Runtime, TcpListener, TcpProvider, TlsProvider};
+use tor_rtcompat::{UdpProvider, UdpSocket};
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
@@ -20,13 +21,14 @@ use futures::stream::{Stream, StreamExt};
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::io::{Error as IoError, ErrorKind, Result as IoResult};
+use std::io::{self, Error as IoError, ErrorKind, Result as IoResult};
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use thiserror::Error;
+use void::Void;
 
 /// A channel sender that we use to send incoming connections to
 /// listeners.
@@ -40,6 +42,7 @@ type ConnReceiver = mpsc::Receiver<(LocalStream, SocketAddr)>;
 /// are implemented using [`LocalStream`]. The MockNetwork object is
 /// shared by a large set of MockNetworkProviders, each of which has
 /// its own view of its address(es) on the network.
+#[derive(Default)]
 pub struct MockNetwork {
     /// A map from address to the entries about listeners there.
     listening: Mutex<HashMap<SocketAddr, AddrBehavior>>,
@@ -86,6 +89,12 @@ enum AddrBehavior {
 ///
 /// We don't do the right thing (block) if there is a listener that
 /// never calls accept.
+///
+/// UDP is completely broken:
+/// datagrams appear to be transmitted, but will never be received.
+/// And local address assignment is not implemented
+/// so [`.local_addr()`](UdpSocket::local_addr) can return `NONE`
+// TODO MOCK UDP: Documentation does describe the brokennesses
 ///
 /// We use a simple `u16` counter to decide what arbitrary port
 /// numbers to use: Once that counter is exhausted, we will fail with
@@ -149,12 +158,16 @@ pub struct ProviderBuilder {
     net: Arc<MockNetwork>,
 }
 
+impl Default for MockNetProvider {
+    fn default() -> Self {
+        Arc::new(MockNetwork::default()).builder().provider()
+    }
+}
+
 impl MockNetwork {
     /// Make a new MockNetwork with no active listeners.
     pub fn new() -> Arc<Self> {
-        Arc::new(MockNetwork {
-            listening: Mutex::new(HashMap::new()),
-        })
+        Default::default()
     }
 
     /// Return a [`ProviderBuilder`] for creating a [`MockNetProvider`]
@@ -296,6 +309,43 @@ impl Stream for MockNetListener {
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Ready(Some(v)) => Poll::Ready(Some(Ok(v))),
         }
+    }
+}
+
+/// A very poor imitation of a UDP socket
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct MockUdpSocket {
+    /// This is uninhabited.
+    ///
+    /// To implement UDP support, implement `.bind()`, and abolish this field,
+    /// replacing it with the actual implementation.
+    void: Void,
+}
+
+#[async_trait]
+impl UdpProvider for MockNetProvider {
+    type UdpSocket = MockUdpSocket;
+
+    async fn bind(&self, addr: &SocketAddr) -> IoResult<MockUdpSocket> {
+        let _ = addr; // MockNetProvider UDP is not implemented
+        Err(io::ErrorKind::Unsupported.into())
+    }
+}
+
+#[async_trait]
+impl UdpSocket for MockUdpSocket {
+    async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)> {
+        // This tuple idiom avoids unused variable warnings.
+        // An alternative would be to write _buf, but then when this is implemented,
+        // and the void::unreachable call removed, we actually *want* those warnings.
+        void::unreachable((self.void, buf).0)
+    }
+    async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize> {
+        void::unreachable((self.void, buf, target).0)
+    }
+    fn local_addr(&self) -> IoResult<SocketAddr> {
+        void::unreachable(self.void)
     }
 }
 

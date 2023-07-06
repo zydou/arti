@@ -27,7 +27,7 @@ use tracing_test::traced_test;
 use tor_linkspec::HasAddrs;
 use tor_rtcompat::SleepProvider;
 use tor_rtmock::time::MockSleepProvider;
-use tor_rtmock::MockSleepRuntime;
+use tor_rtmock::MockRuntime;
 
 use super::*;
 
@@ -49,8 +49,7 @@ fn example_wallclock() -> SystemTime {
     example_validity().0 + Duration::from_secs(10)
 }
 
-type RealRuntime = tor_rtcompat::tokio::TokioNativeTlsRuntime;
-type R = MockSleepRuntime<RealRuntime>;
+type R = MockRuntime;
 type M = Mock;
 type Bdm = BridgeDescMgr<R, M>;
 type RT = RetryTime;
@@ -126,11 +125,8 @@ impl Mock {
     }
 }
 
-fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
-    let runtime = RealRuntime::current().unwrap();
-    let runtime = MockSleepRuntime::new(runtime);
+fn setup(runtime: MockRuntime) -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let sleep = runtime.mock_sleep().clone();
-
     sleep.jump_to(example_wallclock());
 
     let mut docs = HashMap::new();
@@ -228,380 +224,379 @@ fn bad_bridge(i: usize) -> BridgeKey {
     bad
 }
 
-#[tokio::test]
 #[traced_test]
-async fn success() -> Result<(), anyhow::Error> {
-    let (_db_tmp_dir, bdm, runtime, mock, bridge, ..) = setup();
+#[test]
+fn success() -> Result<(), anyhow::Error> {
+    MockRuntime::try_test_with_various(|runtime| async {
+        let (_db_tmp_dir, bdm, runtime, mock, bridge, ..) = setup(runtime);
 
-    bdm.check_consistency(Some([]));
+        bdm.check_consistency(Some([]));
 
-    let mut events = bdm.events().fuse();
+        let mut events = bdm.events().fuse();
 
-    eprintln!("----- test downloading one descriptor -----");
+        eprintln!("----- test downloading one descriptor -----");
 
-    stream_drain_ready(&mut events).await;
+        stream_drain_ready(&mut events).await;
 
-    let hold = mock.mstate.lock().await;
+        let hold = mock.mstate.lock().await;
 
-    bdm.set_bridges(&[bridge.clone()]);
-    bdm.check_consistency(Some([&bridge]));
+        bdm.set_bridges(&[bridge.clone()]);
+        bdm.check_consistency(Some([&bridge]));
 
-    drop(hold);
+        drop(hold);
 
-    let got = stream_drain_until(3, &mut events, || async {
-        bdm.bridges().get(&bridge).cloned()
-    })
-    .await;
-
-    dbg!(runtime.wallclock(), example_validity(),);
-
-    eprintln!("got: {:?}", got.unwrap());
-
-    bdm.check_consistency(Some([&bridge]));
-    mock.expect_download_calls(1).await;
-
-    eprintln!("----- add a number of failing descriptors -----");
-
-    const NFAIL: usize = 6;
-
-    let bad = (1..=NFAIL).map(bad_bridge).collect_vec();
-
-    let mut bridges = chain!(iter::once(bridge.clone()), bad.iter().cloned(),).collect_vec();
-
-    let hold = mock.mstate.lock().await;
-
-    bdm.set_bridges(&bridges);
-    bdm.check_consistency(Some(&bridges));
-
-    drop(hold);
-
-    let () = stream_drain_until(13, &mut events, || async {
-        bdm.check_consistency(Some(&bridges));
-        bridges
-            .iter()
-            .all(|b| bdm.bridges().contains_key(b))
-            .then_some(())
-    })
-    .await;
-
-    for b in &bad {
-        bdm.bridges().get(b).unwrap().as_ref().unwrap_err();
-    }
-
-    bdm.check_consistency(Some(&bridges));
-    mock.expect_download_calls(NFAIL).await;
-
-    eprintln!("----- move the clock forward to do some retries ----------");
-
-    mock.sleep.advance(Duration::from_secs(5000)).await;
-
-    bdm.check_consistency(Some(&bridges));
-
-    let () = stream_drain_until(13, &mut events, || async {
-        bdm.check_consistency(Some(&bridges));
-        (mock.mstate.lock().await.download_calls == NFAIL).then_some(())
-    })
-    .await;
-
-    stream_drain_ready(&mut events).await;
-
-    bdm.check_consistency(Some(&bridges));
-    mock.expect_download_calls(NFAIL).await;
-
-    eprintln!("----- set the bridges to the ones we have already ----------");
-
-    let hold = mock.mstate.lock().await;
-
-    bdm.set_bridges(&bridges);
-    bdm.check_consistency(Some(&bridges));
-
-    drop(hold);
-
-    let events_counted = stream_drain_ready(&mut events).await;
-    assert_eq!(events_counted, 0);
-    bdm.check_consistency(Some(&bridges));
-    mock.expect_download_calls(0).await;
-
-    eprintln!("----- set the bridges to one fewer than we have already ----------");
-
-    let _ = bridges.pop().unwrap();
-
-    let hold = mock.mstate.lock().await;
-
-    bdm.set_bridges(&bridges);
-    bdm.check_consistency(Some(&bridges));
-
-    drop(hold);
-
-    let events_counted = stream_drain_ready(&mut events).await;
-    assert_eq!(events_counted, 1);
-    bdm.check_consistency(Some(&bridges));
-    mock.expect_download_calls(0).await;
-
-    eprintln!("----- remove a bridge while we have some requeued ----------");
-
-    let hold = mock.mstate.lock().await;
-
-    mock.sleep.advance(Duration::from_secs(8000)).await;
-    bdm.check_consistency(Some(&bridges));
-
-    // should yield, but not produce any events yet
-    let count = stream_drain_ready(&mut events).await;
-    assert_eq!(count, 0);
-    bdm.check_consistency(Some(&bridges));
-
-    let removed = bridges.pop().unwrap();
-    bdm.set_bridges(&bridges);
-
-    // should produce a removed bridge event
-    let () = stream_drain_until(1, &mut events, || async {
-        bdm.check_consistency(Some(&bridges));
-        (!bdm.bridges().contains_key(&removed)).then_some(())
-    })
-    .await;
-
-    drop(hold);
-
-    // should produce a removed bridge event
-    let () = stream_drain_until(1, &mut events, || async {
-        bdm.check_consistency(Some(&bridges));
-        queues_are_empty(&bdm)
-    })
-    .await;
-
-    {
-        // When we cancel the download, we race with the manager.
-        // Maybe the download for the one we removed was started, or maybe not.
-        let mut mstate = mock.mstate.lock().await;
-        assert!(
-            ((NFAIL - 1)..=NFAIL).contains(&mstate.download_calls),
-            "{:?}",
-            mstate.download_calls
-        );
-        mstate.download_calls = 0;
-    }
-
-    Ok(())
-}
-
-#[tokio::test]
-#[traced_test]
-async fn cache() -> Result<(), anyhow::Error> {
-    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
-    let mut events = bdm.events().fuse();
-
-    let in_results = |wanted| in_results(&bdm, &bridge, wanted);
-
-    eprintln!("----- test that a downloaded descriptor goes into the cache -----");
-
-    bdm.set_bridges(&[bridge.clone()]);
-    stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
-
-    mock.expect_download_calls(1).await;
-
-    sql_conn
-        .query_row("SELECT * FROM BridgeDescs", [], |row| {
-            let get_time = |f| -> SystemTime { row.get_unwrap::<&str, OffsetDateTime>(f).into() };
-            let bline: String = row.get_unwrap("bridge_line");
-            let fetched: SystemTime = get_time("fetched");
-            let until: SystemTime = get_time("until");
-            let contents: String = row.get_unwrap("contents");
-            let now = runtime.wallclock();
-            assert_eq!(bline, bridge.to_string());
-            assert!(fetched <= now);
-            assert!(now < until);
-            assert_eq!(contents, EXAMPLE_DESCRIPTOR);
-            Ok(())
+        let got = stream_drain_until(3, &mut events, || async {
+            bdm.bridges().get(&bridge).cloned()
         })
-        .unwrap();
+        .await;
 
-    eprintln!("----- forget the descriptor and try to reload it from the cache -----");
+        dbg!(runtime.wallclock(), example_validity(),);
 
-    clear_and_re_request(&bdm, &mut events, &bridge).await;
-    stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
+        eprintln!("got: {:?}", got.unwrap());
 
-    // Should not have been re-downloaded, since the fetch time is great.
-    mock.expect_download_calls(0).await;
+        bdm.check_consistency(Some([&bridge]));
+        mock.expect_download_calls(1).await;
 
-    eprintln!("----- corrupt the cache and check we re-download -----");
+        eprintln!("----- add a number of failing descriptors -----");
 
-    sql_conn
-        .execute_batch("UPDATE BridgeDescs SET contents = 'garbage'")
-        .unwrap();
+        const NFAIL: usize = 6;
 
-    clear_and_re_request(&bdm, &mut events, &bridge).await;
-    stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
+        let bad = (1..=NFAIL).map(bad_bridge).collect_vec();
 
-    mock.expect_download_calls(1).await;
+        let mut bridges = chain!(iter::once(bridge.clone()), bad.iter().cloned(),).collect_vec();
 
-    eprintln!("----- advance the lock and check that we do an if-modified-since -----");
+        let hold = mock.mstate.lock().await;
 
-    let published = bdm
-        .bridges()
-        .get(&bridge)
-        .unwrap()
-        .as_ref()
-        .unwrap()
-        .as_ref()
-        .published();
+        bdm.set_bridges(&bridges);
+        bdm.check_consistency(Some(&bridges));
 
-    mock.mstate.lock().await.docs.insert(
-        EXAMPLE_PORT,
-        Ok(format!("{}{:?}", MOCK_NOT_MODIFIED, published)),
-    );
+        drop(hold);
 
-    // Exceeds default max_refetch
-    mock.sleep.advance(Duration::from_secs(20000)).await;
+        let () = stream_drain_until(13, &mut events, || async {
+            bdm.check_consistency(Some(&bridges));
+            bridges
+                .iter()
+                .all(|b| bdm.bridges().contains_key(b))
+                .then_some(())
+        })
+        .await;
 
-    stream_drain_until(3, &mut events, || async {
-        (mock.mstate.lock().await.download_calls > 0).then_some(())
+        for b in &bad {
+            bdm.bridges().get(b).unwrap().as_ref().unwrap_err();
+        }
+
+        bdm.check_consistency(Some(&bridges));
+        mock.expect_download_calls(NFAIL).await;
+
+        eprintln!("----- move the clock forward to do some retries ----------");
+
+        mock.sleep.advance(Duration::from_secs(5000)).await;
+
+        bdm.check_consistency(Some(&bridges));
+
+        let () = stream_drain_until(13, &mut events, || async {
+            bdm.check_consistency(Some(&bridges));
+            (mock.mstate.lock().await.download_calls == NFAIL).then_some(())
+        })
+        .await;
+
+        stream_drain_ready(&mut events).await;
+
+        bdm.check_consistency(Some(&bridges));
+        mock.expect_download_calls(NFAIL).await;
+
+        eprintln!("----- set the bridges to the ones we have already ----------");
+
+        let hold = mock.mstate.lock().await;
+
+        bdm.set_bridges(&bridges);
+        bdm.check_consistency(Some(&bridges));
+
+        drop(hold);
+
+        let events_counted = stream_drain_ready(&mut events).await;
+        assert_eq!(events_counted, 0);
+        bdm.check_consistency(Some(&bridges));
+        mock.expect_download_calls(0).await;
+
+        eprintln!("----- set the bridges to one fewer than we have already ----------");
+
+        let _ = bridges.pop().unwrap();
+
+        let hold = mock.mstate.lock().await;
+
+        bdm.set_bridges(&bridges);
+        bdm.check_consistency(Some(&bridges));
+
+        drop(hold);
+
+        let events_counted = stream_drain_ready(&mut events).await;
+        assert_eq!(events_counted, 1);
+        bdm.check_consistency(Some(&bridges));
+        mock.expect_download_calls(0).await;
+
+        eprintln!("----- remove a bridge while we have some requeued ----------");
+
+        let hold = mock.mstate.lock().await;
+
+        mock.sleep.advance(Duration::from_secs(8000)).await;
+        bdm.check_consistency(Some(&bridges));
+
+        // should yield, but not produce any events yet
+        let count = stream_drain_ready(&mut events).await;
+        assert_eq!(count, 0);
+        bdm.check_consistency(Some(&bridges));
+
+        let removed = bridges.pop().unwrap();
+        bdm.set_bridges(&bridges);
+
+        // should produce a removed bridge event
+        let () = stream_drain_until(1, &mut events, || async {
+            bdm.check_consistency(Some(&bridges));
+            (!bdm.bridges().contains_key(&removed)).then_some(())
+        })
+        .await;
+
+        drop(hold);
+
+        // Check that queues become empty.
+        // Depending on scheduling, there may be tasks still live from the work above.
+        // For example, one of the requeues might be still running after we did the remove.
+        // So we may get a number of change events.  Certainly not more than 10.
+        let () = stream_drain_until(10, &mut events, || async {
+            bdm.check_consistency(Some(&bridges));
+            queues_are_empty(&bdm)
+        })
+        .await;
+
+        {
+            // When we cancel the download, we race with the manager.
+            // Maybe the download for the one we removed was started, or maybe not.
+            let mut mstate = mock.mstate.lock().await;
+            assert!(
+                ((NFAIL - 1)..=NFAIL).contains(&mstate.download_calls),
+                "{:?}",
+                mstate.download_calls
+            );
+            mstate.download_calls = 0;
+        }
+
+        Ok(())
     })
-    .await;
-
-    mock.expect_download_calls(1).await;
-
-    Ok(())
 }
 
-#[tokio::test]
 #[traced_test]
-async fn dormant() -> Result<(), anyhow::Error> {
-    #[allow(unused_variables)] // avoids churn and makes all of these identical
-    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
-    let mut events = bdm.events().fuse();
+#[test]
+fn cache() -> Result<(), anyhow::Error> {
+    MockRuntime::try_test_with_various(|runtime| async {
+        let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup(runtime);
+        let mut events = bdm.events().fuse();
 
-    use Dormancy::*;
+        let in_results = |wanted| in_results(&bdm, &bridge, wanted);
 
-    eprintln!("----- become dormant, but request a bridge -----");
-    bdm.set_dormancy(Dormant);
-    bdm.set_bridges(&[bridge.clone()]);
+        eprintln!("----- test that a downloaded descriptor goes into the cache -----");
 
-    // TODO async wait for idle:
-    //
-    // This is a bodge.  What we really want to do is drive all tasks until we are idle.
-    // But Tokio does not provide this facility, AFAICT.  I also checked smol and
-    // async-std, and did a moderately thorough search using lib.rs.  I think the proper
-    // approach has to be a custom executor.  (`tor_rtmock::MockSleepRuntime::wait_for`
-    // doesn't work because it doesn't track, and therefore doesn't progress, spawned tasks.)
-    //
-    // Instead, we do this: this is real time, not mock time.  That ought to let
-    // everything that is going to run, do so.  (I have verified that this test fails
-    // before dormancy is actually implemented.)  If the 10ms we have here is too short
-    // (eg by random chance) then we might miss a situation where the dormancy is not
-    // properly effective, but we oughtn't to have a flaky test with good code, since "no
-    // progress was made within 10ms" is the expected behaviour.
-    tokio::time::sleep(Duration::from_millis(10)).await;
-    mock.expect_download_calls(0).await;
+        bdm.set_bridges(&[bridge.clone()]);
+        stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
 
-    eprintln!("----- become active -----");
-    bdm.set_dormancy(Active);
-    // This should immediately trigger the download:
+        mock.expect_download_calls(1).await;
 
-    stream_drain_until(3, &mut events, || async {
-        in_results(&bdm, &bridge, Some(Ok(())))
+        sql_conn
+            .query_row("SELECT * FROM BridgeDescs", [], |row| {
+                let get_time =
+                    |f| -> SystemTime { row.get_unwrap::<&str, OffsetDateTime>(f).into() };
+                let bline: String = row.get_unwrap("bridge_line");
+                let fetched: SystemTime = get_time("fetched");
+                let until: SystemTime = get_time("until");
+                let contents: String = row.get_unwrap("contents");
+                let now = runtime.wallclock();
+                assert_eq!(bline, bridge.to_string());
+                assert!(fetched <= now);
+                assert!(now < until);
+                assert_eq!(contents, EXAMPLE_DESCRIPTOR);
+                Ok(())
+            })
+            .unwrap();
+
+        eprintln!("----- forget the descriptor and try to reload it from the cache -----");
+
+        clear_and_re_request(&bdm, &mut events, &bridge).await;
+        stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
+
+        // Should not have been re-downloaded, since the fetch time is great.
+        mock.expect_download_calls(0).await;
+
+        eprintln!("----- corrupt the cache and check we re-download -----");
+
+        sql_conn
+            .execute_batch("UPDATE BridgeDescs SET contents = 'garbage'")
+            .unwrap();
+
+        clear_and_re_request(&bdm, &mut events, &bridge).await;
+        stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
+
+        mock.expect_download_calls(1).await;
+
+        eprintln!("----- advance the lock and check that we do an if-modified-since -----");
+
+        let published = bdm
+            .bridges()
+            .get(&bridge)
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .published();
+
+        mock.mstate.lock().await.docs.insert(
+            EXAMPLE_PORT,
+            Ok(format!("{}{:?}", MOCK_NOT_MODIFIED, published)),
+        );
+
+        // Exceeds default max_refetch
+        mock.sleep.advance(Duration::from_secs(20000)).await;
+
+        stream_drain_until(3, &mut events, || async {
+            (mock.mstate.lock().await.download_calls > 0).then_some(())
+        })
+        .await;
+
+        mock.expect_download_calls(1).await;
+
+        Ok(())
     })
-    .await;
-    mock.expect_download_calls(1).await;
-
-    Ok(())
 }
 
-#[tokio::test]
-async fn process_doc() -> Result<(), anyhow::Error> {
-    #[allow(unused_variables)] // avoids churn and makes all of these identical
-    let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+#[traced_test]
+#[test]
+fn dormant() -> Result<(), anyhow::Error> {
+    MockRuntime::try_test_with_various(|runtime| async {
+        #[allow(unused_variables)] // avoids churn and makes all of these identical
+        let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup(runtime);
+        let mut events = bdm.events().fuse();
 
-    let text = EXAMPLE_DESCRIPTOR;
-    let config = BridgeDescDownloadConfig::default();
-    let valid = example_validity();
+        use Dormancy::*;
 
-    let pr_t = |s: &str, t: SystemTime| {
-        let now = runtime.wallclock();
-        eprintln!(
-            "                  {:10} {:?} {:10}",
-            s,
-            t,
-            t.duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
-                - now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64(),
+        eprintln!("----- become dormant, but request a bridge -----");
+        bdm.set_dormancy(Dormant);
+        bdm.set_bridges(&[bridge.clone()]);
+
+        // Drive all tasks until we are idle
+        runtime.progress_until_stalled().await;
+
+        eprintln!("----- become active -----");
+        bdm.set_dormancy(Active);
+        // This should immediately trigger the download:
+
+        stream_drain_until(3, &mut events, || async {
+            in_results(&bdm, &bridge, Some(Ok(())))
+        })
+        .await;
+        mock.expect_download_calls(1).await;
+
+        Ok(())
+    })
+}
+
+#[traced_test]
+#[test]
+fn process_doc() -> Result<(), anyhow::Error> {
+    MockRuntime::try_test_with_various(|runtime| async {
+        #[allow(unused_variables)] // avoids churn and makes all of these identical
+        let (db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup(runtime);
+
+        let text = EXAMPLE_DESCRIPTOR;
+        let config = BridgeDescDownloadConfig::default();
+        let valid = example_validity();
+
+        let pr_t = |s: &str, t: SystemTime| {
+            let now = runtime.wallclock();
+            eprintln!(
+                "                  {:10} {:?} {:10}",
+                s,
+                t,
+                t.duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
+                    - now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64(),
+            );
+        };
+
+        let expecting_of = |text: &str, exp: Result<SystemTime, &str>| {
+            let got = process_document(&runtime, &config, text);
+            match exp {
+                Ok(exp_refetch) => {
+                    let refetch = got.unwrap().refetch;
+                    pr_t("refetch", refetch);
+                    assert_eq!(refetch, exp_refetch);
+                }
+                Err(exp_msg) => {
+                    let msg = got.as_ref().expect_err(exp_msg).to_string();
+                    assert!(
+                        msg.contains(exp_msg),
+                        "{:?} {:?} exp={:?}",
+                        msg,
+                        got,
+                        exp_msg
+                    );
+                }
+            }
+        };
+
+        let expecting_at = |now: SystemTime, exp| {
+            mock.sleep.jump_to(now);
+            pr_t("now", now);
+            pr_t("valid.0", valid.0);
+            pr_t("valid.1", valid.1);
+            if let Ok(exp) = exp {
+                pr_t("expect", exp);
+            }
+            expecting_of(text, exp);
+        };
+
+        let secs = Duration::from_secs;
+
+        eprintln!("----- good -----");
+        expecting_of(text, Ok(runtime.wallclock() + config.max_refetch));
+
+        eprintln!("----- modified under signature -----");
+        expecting_of(
+            &text.replace("\nbandwidth 10485760", "\nbandwidth 10485761"),
+            Err("Signature check failed"),
         );
-    };
 
-    let expecting_of = |text: &str, exp: Result<SystemTime, &str>| {
-        let got = process_document(&runtime, &config, text);
-        match exp {
-            Ok(exp_refetch) => {
-                let refetch = got.unwrap().refetch;
-                pr_t("refetch", refetch);
-                assert_eq!(refetch, exp_refetch);
-            }
-            Err(exp_msg) => {
-                let msg = got.as_ref().expect_err(exp_msg).to_string();
-                assert!(
-                    msg.contains(exp_msg),
-                    "{:?} {:?} exp={:?}",
-                    msg,
-                    got,
-                    exp_msg
-                );
-            }
+        eprintln!("----- doc not yet valid -----");
+        expecting_at(
+            valid.0 - secs(10),
+            Err("Descriptor is outside its validity time"),
+        );
+
+        eprintln!("----- need to refetch due to doc validity expiring soon -----");
+        expecting_at(valid.1 - secs(5000), Ok(valid.1 - secs(1000)));
+
+        eprintln!("----- will refetch later than usual, due to min refetch interval -----");
+        {
+            let now = valid.1 - secs(4000); // would want to refetch at valid.1-1000 ie 30000
+            expecting_at(now, Ok(now + config.min_refetch));
         }
-    };
 
-    let expecting_at = |now: SystemTime, exp| {
-        mock.sleep.jump_to(now);
-        pr_t("now", now);
-        pr_t("valid.0", valid.0);
-        pr_t("valid.1", valid.1);
-        if let Ok(exp) = exp {
-            pr_t("expect", exp);
+        eprintln!("----- will refetch after doc validity ends, due to min refetch interval -----");
+        {
+            let now = valid.1 - secs(10);
+            let exp = now + config.min_refetch;
+            assert!(exp > valid.1);
+            expecting_at(now, Ok(exp));
         }
-        expecting_of(text, exp);
-    };
 
-    let secs = Duration::from_secs;
+        eprintln!("----- expired -----");
+        expecting_at(
+            valid.1 + secs(10),
+            Err("Descriptor is outside its validity time"),
+        );
 
-    eprintln!("----- good -----");
-    expecting_of(text, Ok(runtime.wallclock() + config.max_refetch));
+        // TODO ideally we would test the `ops::Bound::Unbounded` case in process_download's
+        // expiry time handling, but that would require making a document with unbounded
+        // validity time.  Even if that is possible, I don't think we have code in-tree to
+        // make signed test documents.
 
-    eprintln!("----- modified under signature -----");
-    expecting_of(
-        &text.replace("\nbandwidth 10485760", "\nbandwidth 10485761"),
-        Err("Signature check failed"),
-    );
-
-    eprintln!("----- doc not yet valid -----");
-    expecting_at(
-        valid.0 - secs(10),
-        Err("Descriptor is outside its validity time"),
-    );
-
-    eprintln!("----- need to refetch due to doc validity expiring soon -----");
-    expecting_at(valid.1 - secs(5000), Ok(valid.1 - secs(1000)));
-
-    eprintln!("----- will refetch later than usual, due to min refetch interval -----");
-    {
-        let now = valid.1 - secs(4000); // would want to refetch at valid.1-1000 ie 30000
-        expecting_at(now, Ok(now + config.min_refetch));
-    }
-
-    eprintln!("----- will refetch after doc validity ends, due to min refetch interval -----");
-    {
-        let now = valid.1 - secs(10);
-        let exp = now + config.min_refetch;
-        assert!(exp > valid.1);
-        expecting_at(now, Ok(exp));
-    }
-
-    eprintln!("----- expired -----");
-    expecting_at(
-        valid.1 + secs(10),
-        Err("Descriptor is outside its validity time"),
-    );
-
-    // TODO ideally we would test the `ops::Bound::Unbounded` case in process_download's
-    // expiry time handling, but that would require making a document with unbounded
-    // validity time.  Even if that is possible, I don't think we have code in-tree to
-    // make signed test documents.
-
-    Ok(())
+        Ok(())
+    })
 }
