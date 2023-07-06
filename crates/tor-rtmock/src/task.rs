@@ -502,7 +502,7 @@ impl Wake for ActualWaker {
 //---------- "progress until stalled" functionality ----------
 
 impl MockExecutor {
-    /// Run tasks in the current executor until every task is waiting
+    /// Run tasks in the current executor until every other task is waiting
     ///
     /// # Panics
     ///
@@ -510,6 +510,8 @@ impl MockExecutor {
     ///
     /// (Ie, you must `.await` or drop the returned `Future`
     /// before calling this method again.)
+    ///
+    /// Must be called and awaited within a future being run by `self`.
     pub fn progress_until_stalled(&self) -> impl Future<Output = ()> {
         let mut data = self.data.lock();
         assert!(

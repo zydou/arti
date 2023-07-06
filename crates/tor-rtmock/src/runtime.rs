@@ -163,6 +163,8 @@ impl MockRuntime {
     ///
     /// (Ie, you must `.await` or drop the returned `Future`
     /// before calling this method again.)
+    ///
+    /// Must be called and awaited within a future being run by `self`.
     pub async fn progress_until_stalled(&self) {
         self.task.progress_until_stalled().await;
     }
