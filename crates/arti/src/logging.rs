@@ -241,6 +241,11 @@ where
 /// Configure a panic handler to send everything to tracing, in addition to our
 /// default panic behavior.
 fn install_panic_handler() {
+    // TODO library support: There's a library called `tracing-panic` that
+    // provides a hook we could use instead, but that doesn't have backtrace
+    // support.  We should consider using it if it gets backtrace support in the
+    // future.  We should also keep an eye on `tracing` to see if it learns how
+    // to do this for us.
     let default_handler = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         // Note that if we were ever to _not_ call this handler,
