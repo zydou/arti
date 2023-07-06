@@ -188,6 +188,15 @@ impl TimeRounder {
         // NOTE: This function really mustn't panic.  We try to log any panics
         // that we encounter, and if logging itself can panic, we're in a
         // potential heap of trouble.
+        //
+        // This danger is somewhat ameliorated by the behavior of the default
+        // panic handler, which detects nested panics and aborts in response.
+        // Thus, if we ever discard that handler, we need to be sure to
+        // reimplement nested panic detection.
+        //
+        // Alternatively, we _could_ nest this functionality within
+        // `catch_unwind`.  But I'm not sure that the overhead there would be
+        // acceptable: Logging can be performance sensitive.
 
         use TimeRounder::*;
         /// Round `inp` down to the nearest multiple of `granularity`.
