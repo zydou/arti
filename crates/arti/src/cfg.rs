@@ -442,6 +442,7 @@ mod test {
                 // Keys that are newer than the oldest-supported example, but otherwise normal.
                 "application.allow_running_as_root",
                 "bridges",
+                "logging.time_granularity",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
             ],

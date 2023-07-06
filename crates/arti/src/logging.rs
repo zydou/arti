@@ -17,6 +17,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::Targets, fmt, registry, Layer};
 
+mod time;
+
 /// Structure to hold our logging configuration options
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
@@ -62,6 +64,19 @@ pub struct LoggingConfig {
     #[builder_field_attr(serde(default))]
     #[builder(default)]
     log_sensitive_information: bool,
+
+    /// An approximate granularity with which log times should be displayed.
+    ///
+    /// This value controls every log time that arti outputs; it doesn't have any
+    /// effect on times written by other logging programs like `journald`.
+    ///
+    /// We may round this value up for convenience: For example, if you say
+    /// "2.5s", we may treat it as if you had said "3s."
+    ///
+    /// The default is "1s", or one second.
+    #[builder(default = "std::time::Duration::new(1,0)")]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    time_granularity: std::time::Duration,
 }
 impl_standard_builder! { LoggingConfig }
 
@@ -141,6 +156,7 @@ fn console_layer<S>(config: &LoggingConfig, cli: Option<&str>) -> Result<impl La
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
 {
+    let timer = time::new_formatter(config.time_granularity);
     let filter = cli
         .map(|s| filt_from_str_verbose(s, "--log-level command line parameter"))
         .or_else(|| filt_from_opt_str(&config.console, "logging.console").transpose())
@@ -149,7 +165,7 @@ where
     // feature: we cannot be certain that the console really is volatile. Even
     // if isatty() returns true on the console, we can't be sure that the
     // terminal isn't saving backlog to disk or something like that.
-    Ok(fmt::Layer::default().with_filter(filter))
+    Ok(fmt::Layer::default().with_timer(timer).with_filter(filter))
 }
 
 /// Try to construct a tracing [`Layer`] for logging to journald, if one is
@@ -174,6 +190,7 @@ where
 /// dropped when the program exits, to flush buffered messages.
 fn logfile_layer<S>(
     config: &LogfileConfig,
+    granularity: std::time::Duration,
     mistrust: &Mistrust,
 ) -> Result<(impl Layer<S> + Send + Sync + Sized, WorkerGuard)>
 where
@@ -183,6 +200,7 @@ where
         non_blocking,
         rolling::{RollingFileAppender, Rotation},
     };
+    let timer = time::new_formatter(granularity);
 
     let filter = filt_from_str_verbose(&config.filter, "logging.files.filter")?;
     let rotation = match config.rotate {
@@ -200,7 +218,10 @@ where
 
     let appender = RollingFileAppender::new(rotation, directory, fname);
     let (nonblocking, guard) = non_blocking(appender);
-    let layer = fmt::layer().with_writer(nonblocking).with_filter(filter);
+    let layer = fmt::layer()
+        .with_writer(nonblocking)
+        .with_timer(timer)
+        .with_filter(filter);
     Ok((layer, guard))
 }
 
@@ -222,7 +243,7 @@ where
         return Ok((None, guards));
     }
 
-    let (layer, guard) = logfile_layer(&config.files[0], mistrust)?;
+    let (layer, guard) = logfile_layer(&config.files[0], config.time_granularity, mistrust)?;
     guards.push(guard);
 
     // We have to use a dyn pointer here so we can build up linked list of
@@ -230,7 +251,7 @@ where
     let mut layer: Box<dyn Layer<S> + Send + Sync + 'static> = Box::new(layer);
 
     for logfile in &config.files[1..] {
-        let (new_layer, guard) = logfile_layer(logfile, mistrust)?;
+        let (new_layer, guard) = logfile_layer(logfile, config.time_granularity, mistrust)?;
         layer = Box::new(layer.and_then(new_layer));
         guards.push(guard);
     }

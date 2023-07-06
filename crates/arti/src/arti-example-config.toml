@@ -73,6 +73,22 @@
 # level `info` or higher.
 #log_sensitive_information = false
 
+# The granularity with which to display times in our logs.
+#
+# When logging persistently, it can be risky to record very precise timing
+# information: if the logs are later exposed or compromised, they can help
+# traffic analysis attacks.
+#
+# To lower this risk, we support rounding the times in our logs, and displaying
+# them with less precision.  This option configures the maximum degree of
+# precision we'll use.  (We may use even a little less precision if you specify
+# an odd interval of time.)
+#
+# This option can't affect the granularity of times recorded by logging systems
+# outside of arti, inluding journald.
+#
+#time_granularity = "1s"
+
 # Locations to use for storing things on disk.
 #
 # These paths can use ~ to indicate the user's home directory, or a set
