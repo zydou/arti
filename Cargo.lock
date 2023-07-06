@@ -143,6 +143,7 @@ dependencies = [
  "arti-client",
  "arti-rpcserver",
  "async-ctrlc",
+ "backtrace",
  "cfg-if",
  "clap",
  "config",

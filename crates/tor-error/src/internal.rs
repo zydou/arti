@@ -10,6 +10,8 @@ use super::*;
 /// Backtrace implementation for when the feature is enabled
 mod ie_backtrace {
     use super::*;
+    // TODO MSRV 1.65: std::backtrace::Backtrace is stable; maybe we should be
+    // using that instead?
     use backtrace::Backtrace;
 
     #[derive(Debug, Clone)]

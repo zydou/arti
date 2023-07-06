@@ -32,7 +32,8 @@ full = [
     "tor-config/full",
     "tor-error/full",
     "tor-rtcompat/full",
-    "tor-socksproto/full", "tor-rpcbase?/full",
+    "tor-socksproto/full",
+    "tor-rpcbase?/full",
 ]
 
 async-std = [
@@ -81,6 +82,7 @@ arti-rpcserver = { path = "../arti-rpcserver", version = "0.2.0", optional = tru
 anyhow = "1.0.23"
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.9.2", default-features = false }
 async-ctrlc = { version = "1.2.0", optional = true }
+backtrace = "0.3.39"
 cfg-if = "1.0.0"
 clap = "3.2.20"
 config = { version = "0.13", default-features = false, features = ["toml"] }

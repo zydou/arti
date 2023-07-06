@@ -11,7 +11,7 @@ use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_config::{CfgPath, ConfigBuildError};
 use tor_error::ErrorReport;
-use tracing::{warn, Subscriber};
+use tracing::{error, warn, Subscriber};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
@@ -238,6 +238,39 @@ where
     Ok((Some(layer), guards))
 }
 
+/// Configure a panic handler to send everything to tracing, in addition to our
+/// default panic behavior.
+fn install_panic_handler() {
+    // TODO library support: There's a library called `tracing-panic` that
+    // provides a hook we could use instead, but that doesn't have backtrace
+    // support.  We should consider using it if it gets backtrace support in the
+    // future.  We should also keep an eye on `tracing` to see if it learns how
+    // to do this for us.
+    let default_handler = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        // Note that if we were ever to _not_ call this handler,
+        // we would want to abort on nested panics and !can_unwind cases.
+        default_handler(panic_info);
+
+        // This statement is copied from stdlib.
+        let msg = match panic_info.payload().downcast_ref::<&'static str>() {
+            Some(s) => *s,
+            None => match panic_info.payload().downcast_ref::<String>() {
+                Some(s) => &s[..],
+                None => "Box<dyn Any>",
+            },
+        };
+
+        // TODO MSRV 1.65: std::backtrace::Backtrace is stable; maybe we should be using
+        // that instead?
+        let backtrace = backtrace::Backtrace::new();
+        match panic_info.location() {
+            Some(location) => error!("Panic at {}: {}\n{:?}", location, msg, backtrace),
+            None => error!("Panic at ???: {}\n{:?}", msg, backtrace),
+        };
+    }));
+}
+
 /// Opaque structure that gets dropped when the program is shutting down,
 /// after logs are no longer needed.  The `Drop` impl flushes buffered messages.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
@@ -293,6 +326,8 @@ pub(crate) fn setup_logging(
     } else {
         None
     };
+
+    install_panic_handler();
 
     Ok(LogGuards {
         guards,
