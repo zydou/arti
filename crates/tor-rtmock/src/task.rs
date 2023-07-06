@@ -345,7 +345,9 @@ impl BlockOn for MockExecutor {
 
         {
             pin_mut!(fut);
-            self.data.lock().insert_task("main".into(), TaskFutureInfo::Main);
+            self.data
+                .lock()
+                .insert_task("main".into(), TaskFutureInfo::Main);
             self.execute_to_completion(fut);
         }
 
