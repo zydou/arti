@@ -16,7 +16,7 @@ use crate::time::MockSleepProvider;
 /// Suitable for test cases that wish to completely control
 /// the environment experienced by the code under test.
 ///
-/// # Restrictions
+/// ### Restrictions
 ///
 /// The test case must advance the mock time explicitly as desired.
 /// There is not currently any facility for automatically
@@ -29,8 +29,38 @@ use crate::time::MockSleepProvider;
 /// Tests that use this runtime *must not* interact with the outside world;
 /// everything must go through this runtime (and its pieces).
 ///
-/// Use of inter-future communication facilities from `futures`
-/// or other runtime-agnostic crates is permitted.
+/// #### Allowed
+///
+///  * Inter-future communication facilities from `futures`
+///    or other runtime-agnostic crates.
+///
+///  * Fast synchronous operations that will complete "immediately" or "quickly".
+///    E.g.: filesystem calls.
+///
+///  * `std::sync::Mutex` (assuming the use is deadlock-free in a single-threaded
+///    executor, as it should be in all of Arti).
+///
+///  * Slower operations that are run synchronously (without futures `await`)
+///    provided their completion doesn't depend on any of the futures we're running.
+///    (These kind of operations are often discouraged in async contexts,
+///    because they block the async runtime or its worker threads.
+///    But they are often OK in tests.)
+///
+///  * All facilities provided by this `MockExecutor` and its trait impls.
+///
+/// #### Not allowed
+///
+///  * Direct access to the real-world clock (`SystemTime::now`, `Instant::now`).
+///    Including `coarsetime`, which is not mocked.
+///    Exception: CPU use measurements.
+///
+///  * Anything that spawns threads and then communicates with those threads
+///    using async Rust facilities (futures).
+///
+///  * Async sockets, or async use of other kernel-based IPC or network mechanisms.
+///
+///  * Anything provided by a Rust runtime/executor project (eg anything from Tokio),
+///    unless it is definitively established that it's runtime-agnostic.
 #[derive(Debug, Default, Clone, Getters)]
 #[getter(prefix = "mock_")]
 pub struct MockRuntime {
