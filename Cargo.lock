@@ -4364,6 +4364,7 @@ dependencies = [
  "once_cell",
  "strum",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

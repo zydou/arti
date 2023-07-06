@@ -54,6 +54,9 @@ pub use retriable::*;
 mod misc;
 pub use misc::*;
 
+#[cfg(feature = "tracing")]
+pub mod tracing;
+
 /// Classification of an error arising from Arti's Tor operations
 ///
 /// This `ErrorKind` should suffice for programmatic handling by most applications embedding Arti:

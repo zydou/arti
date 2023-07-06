@@ -13,7 +13,7 @@ categories = ["rust-patterns"]
 
 [features]
 default = ["backtrace"]
-full = ["backtrace"]
+full = ["backtrace", "tracing"]
 
 experimental = ["experimental-api", "rpc"]
 experimental-api = ["rpc", "__is_experimental"]
@@ -29,6 +29,7 @@ futures = "0.3"
 once_cell = "1"
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
+tracing = { version = "0.1.36", optional = true }
 
 [dev-dependencies]
 [package.metadata.docs.rs]
