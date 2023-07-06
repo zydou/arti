@@ -10,7 +10,6 @@
 //! These functions can panic on numerous possible internal failures:
 //! only use these functions for testing.
 
-#![allow(clippy::missing_panics_doc)]
 #![allow(clippy::unwrap_used)]
 
 use crate::{MdDigest, MdReceiver, PartialNetDir};

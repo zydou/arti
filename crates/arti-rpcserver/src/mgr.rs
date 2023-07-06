@@ -109,7 +109,6 @@ impl RpcMgr {
     }
 
     /// Start a new session based on this RpcMgr, with a given TorClient.
-    #[allow(clippy::missing_panics_doc)]
     pub fn new_connection(self: &Arc<Self>) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
         let connection = Arc::new(Connection::new(
