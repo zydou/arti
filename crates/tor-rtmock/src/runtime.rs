@@ -83,8 +83,7 @@ pub struct MockRuntimeBuilder {
 
 impl_runtime! {
     [ ] MockRuntime,
-    spawn: task,
-    block: task,
+    task: task,
     sleep: sleep: MockSleepProvider,
     net: net: MockNetProvider,
 }

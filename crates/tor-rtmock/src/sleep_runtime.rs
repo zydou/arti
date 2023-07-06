@@ -81,8 +81,7 @@ impl<R: Runtime> MockSleepRuntime<R> {
 
 impl_runtime! {
     [ <R: Runtime> ] MockSleepRuntime<R>,
-    spawn: runtime,
-    block: runtime,
+    task: runtime,
     sleep: sleep: MockSleepProvider,
     net: runtime: R,
 }

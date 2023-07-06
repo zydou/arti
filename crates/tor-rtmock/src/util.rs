@@ -5,6 +5,8 @@
 /// The `$SomeMockRuntime` type must be a struct containing
 /// field(s) which implement `SleepProvider`, `NetProvider`, etc.
 ///
+/// The entry for `task` is used for both `BlockOn` and `Spawn`.
+///
 /// `$gens` are the generics, written as (for example) `[ <R: Runtime> ]`.
 ///
 /// The remaining arguments are the fields.
@@ -20,20 +22,19 @@
 // derive-adhoc would allow a more natural input syntax and avoid restating field types
 macro_rules! impl_runtime { {
     [ $($gens:tt)* ] $SomeMockRuntime:ty,
-    spawn: $spawn:ident,
-    block: $block:ident,
+    task: $task:ident,
     sleep: $sleep:ident: $SleepProvider:ty,
     net: $net:ident: $NetProvider:ty,
 } => {
     impl $($gens)* Spawn for $SomeMockRuntime {
         fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
-            self.$spawn.spawn_obj(future)
+            self.$task.spawn_obj(future)
         }
     }
 
     impl $($gens)* BlockOn for $SomeMockRuntime {
         fn block_on<F: Future>(&self, future: F) -> F::Output {
-            self.$block.block_on(future)
+            self.$task.block_on(future)
         }
     }
 
@@ -94,6 +95,12 @@ macro_rules! impl_runtime { {
             self.$sleep.allow_one_advance(dur);
         }
     }
+
+   // TODO this wants to be assert_impl but it fails at generics
+   const _: fn() = || {
+       fn x(_: impl Runtime) { }
+       fn check_impl_runtime $($gens)* (t: $SomeMockRuntime) { x(t) }
+   };
 } }
 
 /// Prelude that must be imported to use [`impl_runtime!`](impl_runtime)
