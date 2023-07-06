@@ -11,7 +11,7 @@ use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_config::{CfgPath, ConfigBuildError};
 use tor_error::ErrorReport;
-use tracing::{warn, Subscriber};
+use tracing::{error, warn, Subscriber};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
@@ -256,15 +256,13 @@ fn install_panic_handler() {
             },
         };
 
-        let location_str: std::borrow::Cow<str> = panic_info
-            .location()
-            .map(|loc| loc.to_string().into())
-            .unwrap_or_else(|| "???".into());
-
         // TODO MSRV 1.65: std::backtrace::Backtrace is stable; maybe we should be using
         // that instead?
         let backtrace = backtrace::Backtrace::new();
-        tracing::error!("Panic at {}: {}\n{:?}", location_str, msg, backtrace);
+        match panic_info.location() {
+            Some(location) => error!("Panic at {}: {}\n{:?}", location, msg, backtrace),
+            None => error!("Panic at ???: {}\n{:?}", msg, backtrace),
+        };
     }));
 }
 
