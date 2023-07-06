@@ -451,7 +451,7 @@ impl MockExecutor {
                         if task.fut.is_some() {
                             panic!("task reinserted while we polled it?!");
                         }
-                        // The task might have been woking *by its own poll method*.
+                        // The task might have been woken *by its own poll method*.
                         // That's why we set it to `Asleep` *earlier* rather than here.
                         // All we need to do is put the future back.
                         task.fut = Some(fut);
