@@ -162,7 +162,6 @@ enum TaskFutureInfo {
     /// The future isn't here because this task is the main future for `block_on`
     Main,
 }
-use TaskFutureInfo as TFI;
 
 /// State of a task - do we think it needs to be polled?
 ///
@@ -289,7 +288,7 @@ impl MockExecutor {
     /// The future passed to `block_on` is not handled here.
     fn spawn_internal(&self, desc: String, fut: TaskFuture) -> TaskId {
         let mut data = self.data.lock();
-        data.insert_task(desc, TFI::Normal(fut))
+        data.insert_task(desc, TaskFutureInfo::Normal(fut))
     }
 }
 
@@ -346,7 +345,7 @@ impl BlockOn for MockExecutor {
 
         {
             pin_mut!(fut);
-            self.data.lock().insert_task("main".into(), TFI::Main);
+            self.data.lock().insert_task("main".into(), TaskFutureInfo::Main);
             self.execute_to_completion(fut);
         }
 
@@ -432,8 +431,8 @@ impl MockExecutor {
             trace!("MockExecutor {id:?} polling...");
             let mut cx = Context::from_waker(&waker);
             let r = match &mut fut {
-                TFI::Normal(fut) => fut.poll_unpin(&mut cx),
-                TFI::Main => main_fut.as_mut().poll(&mut cx),
+                TaskFutureInfo::Normal(fut) => fut.poll_unpin(&mut cx),
+                TaskFutureInfo::Main => main_fut.as_mut().poll(&mut cx),
             };
 
             // Deal with the returned `Poll`
@@ -571,8 +570,8 @@ impl Debug for Task {
         write!(f, "=")?;
         match fut {
             None => write!(f, "P")?,
-            Some(TFI::Normal(_)) => write!(f, "f")?,
-            Some(TFI::Main) => write!(f, "m")?,
+            Some(TaskFutureInfo::Normal(_)) => write!(f, "f")?,
+            Some(TaskFutureInfo::Main) => write!(f, "m")?,
         }
         match state {
             Awake => write!(f, "W")?,
