@@ -295,7 +295,7 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Obtain a channel builder which can be used to create connections to
     /// relays directly, bypassing many of the setup processes of [ChanMgr]
-    pub fn get_channelbuilder(&self) -> CompoundFactory {
+    pub fn builder(&self) -> CompoundFactory {
         self.mgr.channels.builder()
     }
     /// Watch for things that ought to change the configuration of all channels in the client
