@@ -8,7 +8,7 @@ use crate::timeouts::{
 use crate::TimeoutStateHandle;
 use std::sync::Mutex;
 use std::time::Duration;
-use tor_error::ErrorReport;
+use tor_error::warn_report;
 use tor_netdir::params::NetParameters;
 use tracing::{debug, warn};
 
@@ -138,7 +138,7 @@ fn estimator_from_storage(
         Ok(Some(v)) => v,
         Ok(None) => ParetoTimeoutState::default(),
         Err(e) => {
-            warn!("Unable to load timeout state: {}", e.report());
+            warn_report!(e, "Unable to load timeout state");
             return (true, Box::new(ReadonlyTimeoutEstimator::new()));
         }
     };

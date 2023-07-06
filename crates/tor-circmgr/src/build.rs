@@ -13,13 +13,12 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
-use tor_error::ErrorReport;
+use tor_error::warn_report;
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use tracing::warn;
 
 mod guardstatus;
 
@@ -470,7 +469,7 @@ impl<R: Runtime> CircuitBuilder<R> {
 pub fn circparameters_from_netparameters(inp: &NetParameters) -> CircParameters {
     let mut p = CircParameters::default();
     if let Err(e) = p.set_initial_send_window(inp.circuit_window.get() as u16) {
-        warn!("Invalid parameter in directory: {}", e.report());
+        warn_report!(e, "Invalid parameter in directory");
     }
     p.set_extend_by_ed25519_id(inp.extend_by_ed25519_id.into());
     p
