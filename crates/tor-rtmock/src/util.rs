@@ -95,6 +95,12 @@ macro_rules! impl_runtime { {
             self.$sleep.allow_one_advance(dur);
         }
     }
+
+   // TODO this wants to be assert_impl but it fails at generics
+   const _: fn() = || {
+       fn x(_: impl Runtime) { }
+       fn check_impl_runtime $($gens)* (t: $SomeMockRuntime) { x(t) }
+   };
 } }
 
 /// Prelude that must be imported to use [`impl_runtime!`](impl_runtime)
