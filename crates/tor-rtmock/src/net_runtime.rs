@@ -37,8 +37,7 @@ impl<R: Runtime> MockNetRuntime<R> {
 
 impl_runtime! {
     [ <R: Runtime> ] MockNetRuntime<R>,
-    spawn: runtime,
-    block: runtime,
+    task: runtime,
     sleep: runtime: R,
     net: net: MockNetProvider,
 }
