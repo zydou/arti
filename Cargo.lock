@@ -1081,6 +1081,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-adhoc"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bf4f1be2a84b4ba6f6443854fc9c3b8942ee3ffadadc7106fa777659a946cd4"
+dependencies = [
+ "derive-adhoc-macros",
+ "heck",
+]
+
+[[package]]
+name = "derive-adhoc-macros"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a7134a81d247901c0d03ef80194867644796cd8f858e82bf1b433dfc1c35485"
+dependencies = [
+ "heck",
+ "itertools 0.10.5",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "sha3",
+ "strum",
+ "syn 1.0.109",
+ "void",
+]
+
+[[package]]
 name = "derive_arbitrary"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4824,6 +4851,7 @@ version = "0.8.2"
 dependencies = [
  "amplify",
  "async-trait",
+ "derive-adhoc",
  "educe",
  "futures",
  "futures-await-test",

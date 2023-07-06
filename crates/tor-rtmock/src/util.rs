@@ -1,109 +1,119 @@
 //! Internal utilities for `tor_rtmock`
 
+use derive_adhoc::define_derive_adhoc;
+
+define_derive_adhoc! {
 /// Implements `Runtime` for a struct made of multiple sub-providers
 ///
-/// The `$SomeMockRuntime` type must be a struct containing
+/// The type must be a struct containing
 /// field(s) which implement `SleepProvider`, `NetProvider`, etc.
 ///
-/// The entry for `task` is used for both `BlockOn` and `Spawn`.
+/// The corresponding fields must be decorated with:
 ///
-/// `$gens` are the generics, written as (for example) `[ <R: Runtime> ]`.
-///
-/// The remaining arguments are the fields.
-/// For each field there's:
-///   - the short name of what is being provided (a fixed identifier)
-///   - the field name in `$SockMockRuntime`
-///   - for some cases, the type of that field
-///
-/// The fields must be specified in the expected order!
+///  * `#[adhoc(mock(task))]` to indicate the field implementing `Spawn + BlockOn`
+///  * `#[adhoc(mock(net))]` to indicate the field implementing `NetProvider`
+///  * `#[adhoc(mock(sleep))]` to indicate the field implementing `SleepProvider`
+// It would be nice to be able to reject misspelled or obsolete `#[adhoc(mock(THING))]`,
+// but derive-adhoc only allows us to look up known entries, not iterate.
+// However, a misspelling would result in a missing trait impl, leading to compile error.
+// Likewise, duplicates result in duplicate trait impls.
 //
-// This could be further reduced with more macrology:
+// This could perhaps be further reduced:
 // ambassador might be able to remove most of the body (although does it do async well?)
-// derive-adhoc would allow a more natural input syntax and avoid restating field types
-macro_rules! impl_runtime { {
-    [ $($gens:tt)* ] $SomeMockRuntime:ty,
-    task: $task:ident,
-    sleep: $sleep:ident: $SleepProvider:ty,
-    net: $net:ident: $NetProvider:ty,
-} => {
-    impl $($gens)* Spawn for $SomeMockRuntime {
+    SomeMockRuntime for struct, expect items =
+
+ $(
+  ${when fmeta(mock(task))}
+
+    impl <$tgens> Spawn for $ttype {
         fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
-            self.$task.spawn_obj(future)
+            self.$fname.spawn_obj(future)
         }
     }
 
-    impl $($gens)* BlockOn for $SomeMockRuntime {
+    impl <$tgens> BlockOn for $ttype {
         fn block_on<F: Future>(&self, future: F) -> F::Output {
-            self.$task.block_on(future)
+            self.$fname.block_on(future)
         }
     }
+
+ )
+ $(
+  ${when fmeta(mock(net))}
 
     #[async_trait]
-    impl $($gens)* TcpProvider for $SomeMockRuntime {
-        type TcpStream = <$NetProvider as TcpProvider>::TcpStream;
-        type TcpListener = <$NetProvider as TcpProvider>::TcpListener;
+    impl <$tgens> TcpProvider for $ttype {
+        type TcpStream = <$ftype as TcpProvider>::TcpStream;
+        type TcpListener = <$ftype as TcpProvider>::TcpListener;
 
         async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
-            self.$net.connect(addr).await
+            self.$fname.connect(addr).await
         }
         async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
-            self.$net.listen(addr).await
+            self.$fname.listen(addr).await
         }
     }
 
-    impl $($gens)* TlsProvider<<$NetProvider as TcpProvider>::TcpStream> for $SomeMockRuntime {
-        type Connector = <$NetProvider as TlsProvider<
-            <$NetProvider as TcpProvider>::TcpStream
+    impl <$tgens> TlsProvider<<$ftype as TcpProvider>::TcpStream> for $ttype {
+        type Connector = <$ftype as TlsProvider<
+            <$ftype as TcpProvider>::TcpStream
             >>::Connector;
-        type TlsStream = <$NetProvider as TlsProvider<
-            <$NetProvider as TcpProvider>::TcpStream
+        type TlsStream = <$ftype as TlsProvider<
+            <$ftype as TcpProvider>::TcpStream
             >>::TlsStream;
         fn tls_connector(&self) -> Self::Connector {
-            self.$net.tls_connector()
+            self.$fname.tls_connector()
         }
     }
 
     #[async_trait]
-    impl $($gens)* UdpProvider for $SomeMockRuntime {
-        type UdpSocket = <$NetProvider as UdpProvider>::UdpSocket;
+    impl <$tgens> UdpProvider for $ttype {
+        type UdpSocket = <$ftype as UdpProvider>::UdpSocket;
 
         #[inline]
         async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket> {
-            self.$net.bind(addr).await
+            self.$fname.bind(addr).await
         }
     }
 
-    impl $($gens)* SleepProvider for $SomeMockRuntime {
-        type SleepFuture = <$SleepProvider as SleepProvider>::SleepFuture;
+ )
+ $(
+  ${when fmeta(mock(sleep))}
+
+    impl <$tgens> SleepProvider for $ttype {
+        type SleepFuture = <$ftype as SleepProvider>::SleepFuture;
 
         fn sleep(&self, dur: Duration) -> Self::SleepFuture {
-            self.$sleep.sleep(dur)
+            self.$fname.sleep(dur)
         }
         fn now(&self) -> Instant {
-            self.$sleep.now()
+            self.$fname.now()
         }
         fn wallclock(&self) -> SystemTime {
-            self.$sleep.wallclock()
+            self.$fname.wallclock()
         }
         fn block_advance<T: Into<String>>(&self, reason: T) {
-            self.$sleep.block_advance(reason);
+            self.$fname.block_advance(reason);
         }
         fn release_advance<T: Into<String>>(&self, reason: T) {
-            self.$sleep.release_advance(reason);
+            self.$fname.release_advance(reason);
         }
         fn allow_one_advance(&self, dur: Duration) {
-            self.$sleep.allow_one_advance(dur);
+            self.$fname.allow_one_advance(dur);
         }
     }
+
+ )
 
    // TODO this wants to be assert_impl but it fails at generics
    const _: fn() = || {
        fn x(_: impl Runtime) { }
-       fn check_impl_runtime $($gens)* (t: $SomeMockRuntime) { x(t) }
+       fn check_impl_runtime<$tgens>(t: $ttype) { x(t) }
    };
-} }
+}
 
-/// Prelude that must be imported to use [`impl_runtime!`](impl_runtime)
+/// Prelude that must be imported to derive
+/// [`SomeMockRuntime`](derive_adhoc_template_SomeMockRuntime)
 //
 // This could have been part of the expansion of `impl_runtime!`,
 // but it seems rather too exciting for a macro to import things as a side gig.
@@ -115,6 +125,7 @@ macro_rules! impl_runtime { {
 // to allow it to refer to the macro in the doc comment.
 pub(crate) mod impl_runtime_prelude {
     pub(crate) use async_trait::async_trait;
+    pub(crate) use derive_adhoc::Adhoc;
     pub(crate) use futures::task::{FutureObj, Spawn, SpawnError};
     pub(crate) use futures::Future;
     pub(crate) use std::io::Result as IoResult;

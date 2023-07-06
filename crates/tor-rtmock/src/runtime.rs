@@ -61,14 +61,18 @@ use crate::time::MockSleepProvider;
 ///
 ///  * Anything provided by a Rust runtime/executor project (eg anything from Tokio),
 ///    unless it is definitively established that it's runtime-agnostic.
-#[derive(Debug, Default, Clone, Getters)]
+#[derive(Debug, Default, Clone, Getters, Adhoc)]
+#[derive_adhoc(SomeMockRuntime)]
 #[getter(prefix = "mock_")]
 pub struct MockRuntime {
     /// Tasks
+    #[adhoc(mock(task))]
     task: MockExecutor,
     /// Time provider
+    #[adhoc(mock(sleep))]
     sleep: MockSleepProvider,
     /// Net provider
+    #[adhoc(mock(net))]
     net: MockNetProvider,
 }
 
@@ -79,13 +83,6 @@ pub struct MockRuntimeBuilder {
     scheduling: SchedulingPolicy,
     /// starting wall clock time
     starting_wallclock: Option<SystemTime>,
-}
-
-impl_runtime! {
-    [ ] MockRuntime,
-    task: task,
-    sleep: sleep: MockSleepProvider,
-    net: net: MockNetProvider,
 }
 
 impl MockRuntime {
