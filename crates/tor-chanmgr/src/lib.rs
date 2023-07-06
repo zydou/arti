@@ -74,7 +74,7 @@ use tor_rtcompat::Runtime;
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
-use crate::factory::{BootstrapReporter, CompoundFactory};
+use crate::factory::{BootstrapReporter, ChannelFactory};
 pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
@@ -295,8 +295,8 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Obtain a channel builder which can be used to create connections to
     /// relays directly, bypassing many of the setup processes of [ChanMgr]
-    pub fn builder(&self) -> CompoundFactory {
-        self.mgr.channels.builder()
+    pub fn builder(&self) -> Arc<dyn ChannelFactory + Send + Sync> {
+        Arc::new(self.mgr.channels.builder())
     }
     /// Watch for things that ought to change the configuration of all channels in the client
     ///
