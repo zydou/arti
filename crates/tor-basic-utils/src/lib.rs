@@ -123,6 +123,7 @@ pub trait RngExt: Rng {
         if range.is_empty() {
             None
         } else {
+            #[allow(clippy::disallowed_methods)]
             Some(Rng::gen_range(self, range))
         }
     }
