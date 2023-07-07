@@ -368,7 +368,7 @@ impl FoundConfigFiles<'_> {
 fn is_syntactically_directory(p: &Path) -> bool {
     use std::path::Component as PC;
 
-    match p.components().rev().next() {
+    match p.components().next_back() {
         None => false,
         Some(PC::Prefix(_)) | Some(PC::RootDir) | Some(PC::CurDir) | Some(PC::ParentDir) => true,
         Some(PC::Normal(_)) => {

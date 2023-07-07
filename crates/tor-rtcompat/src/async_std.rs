@@ -19,7 +19,7 @@ use async_executors::AsyncStd;
 /// Currently, `native_tls` is preferred over `rustls` when both are available,
 /// because of its maturity within Arti.  However, this might change in the
 /// future.
-#[cfg(all(feature = "native-tls"))]
+#[cfg(feature = "native-tls")]
 pub use AsyncStdNativeTlsRuntime as PreferredRuntime;
 
 #[cfg(all(feature = "rustls", not(feature = "native-tls")))]
@@ -27,17 +27,17 @@ pub use AsyncStdRustlsRuntime as PreferredRuntime;
 
 /// A [`Runtime`](crate::Runtime) powered by `async_std` and `native_tls`.
 #[derive(Clone)]
-#[cfg(all(feature = "native-tls"))]
+#[cfg(feature = "native-tls")]
 pub struct AsyncStdNativeTlsRuntime {
     /// The actual runtime object.
     inner: NativeTlsInner,
 }
 
 /// Implementation type for AsyncStdRuntime.
-#[cfg(all(feature = "native-tls"))]
+#[cfg(feature = "native-tls")]
 type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider, AsyncStd>;
 
-#[cfg(all(feature = "native-tls"))]
+#[cfg(feature = "native-tls")]
 crate::opaque::implement_opaque_runtime! {
     AsyncStdNativeTlsRuntime { inner : NativeTlsInner }
 }
@@ -59,7 +59,7 @@ crate::opaque::implement_opaque_runtime! {
     AsyncStdRustlsRuntime { inner: RustlsInner }
 }
 
-#[cfg(all(feature = "native-tls"))]
+#[cfg(feature = "native-tls")]
 impl AsyncStdNativeTlsRuntime {
     /// Return a new [`AsyncStdNativeTlsRuntime`]
     ///
