@@ -1477,7 +1477,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             // padding.
             use rand::Rng;
             let mut rng = rand::thread_rng();
-            rng.gen_range(timings.not_learning..timings.not_learning * 2)
+            rng.gen_range(timings.not_learning..=timings.not_learning * 2)
         }
     }
 }
