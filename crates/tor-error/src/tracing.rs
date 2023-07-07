@@ -7,6 +7,8 @@ pub use static_assertions;
 #[doc(hidden)]
 pub use tracing::{event, Level};
 
+use paste::paste;
+
 impl ErrorKind {
     /// Return true if this [`ErrorKind`] should always be logged as
     /// a warning (or more severe).
@@ -51,7 +53,7 @@ pub const fn fmt_ending_ok(s: &str) -> bool {
 /// # Limitations
 ///
 /// This macro does not support the full range of syntaxes supported by
-/// [`tracing::event`].
+/// [`tracing::event!`].
 ///
 /// The compile-time error produced when the format string has a bad ending is
 /// kind of confusing.  This is a limitation of the `static_assertions` crate.
@@ -95,97 +97,57 @@ macro_rules! event_report {
     }
 }
 
-/// Log a report for `err` at level `TRACE` (or higher if it is a bug).
+/// Define a macro `$level_report`
 ///
-/// # Examples:
+/// The title line for the doc comment will be
+/// ``$title_1 `LEVEL` $title_2``
 ///
-/// ```
-/// # fn demo(err: &futures::task::SpawnError) {
-/// # let msg = ();
-/// use tor_error::trace_report;
-/// trace_report!(err, "Cheese exhausted (ephemeral)");
-/// trace_report!(err, "Unable to parse message {:?}", msg);
-/// # }
-/// ```
-#[macro_export]
-macro_rules! trace_report {
-    ( $err:expr, $($rest:expr),+ $(,)? ) => {
-        $crate::event_report!($crate::tracing::Level::TRACE, $err, $($rest),+)
+/// A standard body, containing a set of examples, will be provided.
+///
+/// You must pass a dollar sign for `D`, because there is no dollar escaping mechanism
+/// for macro_rules macros in stable Rust (!)
+macro_rules! define_report_macros { {
+    # $title_1:tt
+    LEVEL
+    # $title_2:tt
+    $D:tt
+    $( $level:ident )*
+} => { $( paste!{
+    # $title_1
+    #[doc = concat!("`", stringify!( [< $level:upper >] ), "`")]
+    # $title_2
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # fn demo(err: &futures::task::SpawnError) {
+    /// # let msg = ();
+    #[doc = concat!("use tor_error::", stringify!($level), "_report;")]
+    #[doc = concat!(stringify!($level), "_report!",
+                    r#"(err, "Cheese exhausted (ephemeral)");"#)]
+    #[doc = concat!(stringify!($level), "_report!",
+                    r#"(err, "Unable to parse message {:?}", msg);"#)]
+    /// # }
+    /// ```
+    #[macro_export]
+    macro_rules! [< $level _report >] {
+        ( $D err:expr, $D ($D rest:expr),+ $D (,)? ) => {
+            $D crate::event_report!($D crate::tracing::Level::[< $level:upper >],
+                                    $D err, $D ($D rest),+)
+        }
     }
+} )* } }
+
+define_report_macros! {
+    /// Log a report for `err` at level
+    LEVEL
+    /// (or higher if it is a bug).
+    $ trace debug info
 }
-/// Log a report for `err` at level `DEBUG` (or higher if it is a bug).
-///
-/// # Examples
-///
-/// ```
-/// # fn demo(err: &futures::task::SpawnError) {
-/// # let peer = "";
-/// use tor_error::debug_report;
-/// debug_report!(err, "Existentialism overload; retrying");
-/// debug_report!(err, "Recoverable error from {}; will try somebody else", peer);
-/// # }
-/// ```
-#[macro_export]
-macro_rules! debug_report {
-    ( $err:expr, $($rest:expr),+ $(,)? ) => {
-        $crate::event_report!($crate::tracing::Level::DEBUG, $err, $($rest),+)
-    }
-}
-/// Log a report for `err` at level `INFO` (or higher if it is a bug).
-///
-/// # Examples
-///
-/// ```
-/// # fn demo(err: &futures::task::SpawnError) {
-/// # let first = ""; let second = "";
-/// use tor_error::info_report;
-/// info_report!(err, "Speculative load failed; proceeding anyway");
-/// info_report!(err, "No {} available; will try {} instead", first, second);
-/// # }
-/// ```
-#[macro_export]
-macro_rules! info_report {
-    ( $err:expr, $($rest:expr),+ $(,)? ) => {
-        $crate::event_report!($crate::tracing::Level::INFO, $err, $($rest),+)
-    }
-}
-/// Log a report for `err` at level `WARN`.
-///
-/// # Examples
-///
-/// ```
-/// # fn demo(err: &futures::task::SpawnError) {
-/// # let peer = "";
-/// use tor_error::warn_report;
-/// warn_report!(err, "Cannot contact remote server");
-/// warn_report!(err, "No address found for {}", peer);
-/// # }
-/// ```
-#[macro_export]
-macro_rules! warn_report {
-    ( $err:expr, $($rest:expr),+ $(,)? ) => {
-        // @raw, since we don't escalate warnings any higher,
-        // no matter what their kind might be.
-        $crate::event_report!(@raw $crate::tracing::Level::WARN, $err, $($rest),+)
-    }
-}
-/// Log a report for `err` at level `ERROR`.
-///
-/// # Examples
-///
-/// ```
-/// # fn demo(err: &futures::task::SpawnError) {
-/// # let action = "";
-/// use tor_error::error_report;
-/// error_report!(err, "Everything has crashed");
-/// error_report!(err, "Everything has crashed while trying to {}", action);
-/// # }
-/// ```
-#[macro_export]
-macro_rules! error_report {
-    ( $err:expr, $($rest:expr),+ $(,)? ) => {
-        // @raw, since we don't escalate warnings any higher,
-        // no matter what their kind might be.
-        $crate::event_report!(@raw $crate::tracing::Level::ERROR, $err, $($rest),+)
-    }
+
+define_report_macros! {
+    /// Log a report for `err` at level
+    LEVEL
+    ///
+    $ warn error
 }
