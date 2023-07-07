@@ -51,7 +51,7 @@ pub const fn fmt_ending_ok(s: &str) -> bool {
 /// # Limitations
 ///
 /// This macro does not support the full range of syntaxes supported by
-/// [`tracing::event`].
+/// [`tracing::event!`].
 ///
 /// The compile-time error produced when the format string has a bad ending is
 /// kind of confusing.  This is a limitation of the `static_assertions` crate.
