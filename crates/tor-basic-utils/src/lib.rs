@@ -51,6 +51,8 @@ pub mod test_rng;
 
 pub use paste::paste;
 
+use rand::Rng;
+
 // ----------------------------------------------------------------------
 
 /// Function with the signature of `Debug::fmt` that just prints `".."`
@@ -99,6 +101,31 @@ pub trait StrExt: AsRef<str> {
     }
 }
 impl StrExt for str {}
+
+// ----------------------------------------------------------------------
+
+/// Extension trait to provide `.gen_range_checked()`
+pub trait RngExt: Rng {
+    /// Generate a random value in the given range.
+    ///
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`]  distribution type which may be faster if sampling from the same range repeatedly.
+    ///
+    /// If the supplied range is empty, returns `None`.
+    ///
+    /// (This is a non-panicking version of [`Rng::gen_range`].)
+    fn gen_range_checked<T, R>(&mut self, range: R) -> Option<T>
+    where
+        T: rand::distributions::uniform::SampleUniform,
+        R: rand::distributions::uniform::SampleRange<T>,
+    {
+        if range.is_empty() {
+            None
+        } else {
+            Some(Rng::gen_range(self, range))
+        }
+    }
+}
+impl<T: Rng> RngExt for T {}
 
 // ----------------------------------------------------------------------
 
