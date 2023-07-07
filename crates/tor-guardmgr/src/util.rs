@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime};
 /// an attempt to make some kinds of traffic analysis attacks a bit
 /// harder for an attacker who can read our state after the fact.
 pub(crate) fn randomize_time<R: Rng>(rng: &mut R, when: SystemTime, max: Duration) -> SystemTime {
-    let offset = rng.gen_range(Duration::ZERO..max);
+    let offset = rng.gen_range(Duration::ZERO..=max);
     let random = when
         .checked_sub(offset)
         .unwrap_or(SystemTime::UNIX_EPOCH)

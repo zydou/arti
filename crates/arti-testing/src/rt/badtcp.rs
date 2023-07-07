@@ -154,7 +154,7 @@ impl<R: Runtime> TcpProvider for BrokenTcpProvider<R> {
                 Ok(BreakableTcpStream::Present(conn))
             }
             Action::Fail(dur, kind) => {
-                let d = thread_rng().gen_range(Duration::from_secs(0)..dur);
+                let d = thread_rng().gen_range(Duration::from_secs(0)..=dur);
                 self.inner.sleep(d).await;
                 Err(IoError::new(kind, anyhow::anyhow!("intentional failure")))
             }
