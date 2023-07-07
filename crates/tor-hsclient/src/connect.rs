@@ -1510,6 +1510,7 @@ mod test {
             testing_rng()
         }
     }
+    #[allow(clippy::diverging_sub_expression)] // async_trait + todo!()
     #[async_trait]
     impl<R: Runtime> MockableCircPool<R> for Mocks<()> {
         type ClientCirc = Mocks<()>;
@@ -1538,6 +1539,7 @@ mod test {
             Duration::from_secs(10)
         }
     }
+    #[allow(clippy::diverging_sub_expression)] // async_trait + todo!()
     #[async_trait]
     impl MockableClientCirc for Mocks<()> {
         type DirStream = JoinReadWrite<futures::io::Cursor<Box<[u8]>>, futures::io::Sink>;

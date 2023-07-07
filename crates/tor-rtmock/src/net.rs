@@ -333,6 +333,7 @@ impl UdpProvider for MockNetProvider {
     }
 }
 
+#[allow(clippy::diverging_sub_expression)] // void::unimplemented + async_trait
 #[async_trait]
 impl UdpSocket for MockUdpSocket {
     async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)> {

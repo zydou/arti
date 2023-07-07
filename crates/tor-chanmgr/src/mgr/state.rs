@@ -555,6 +555,8 @@ mod test {
 
     #[derive(Clone, Debug, Default)]
     struct FakeChannelFactory {}
+
+    #[allow(clippy::diverging_sub_expression)] // for unimplemented!() + async_trait
     #[async_trait]
     impl AbstractChannelFactory for FakeChannelFactory {
         type Channel = FakeChannel;

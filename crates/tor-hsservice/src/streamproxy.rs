@@ -19,6 +19,7 @@ impl StreamProxy {
     // done in the configuration code?)
 }
 
+#[allow(clippy::diverging_sub_expression)] // for todo!() + async_trait.
 #[async_trait]
 impl StreamHandler for StreamProxy {
     async fn handle_request(&self, circinfo: &(), stream: ()) {
