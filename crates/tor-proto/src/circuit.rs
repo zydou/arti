@@ -455,7 +455,7 @@ impl ClientCirc {
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     #[cfg(feature = "hs-service")]
-    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hss remove
+    #[allow(unused_variables)] // TODO hss remove
     pub fn allow_stream_requests(
         &self,
         allow_commands: &[tor_cell::relaycell::RelayCmd],

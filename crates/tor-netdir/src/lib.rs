@@ -21,7 +21,6 @@
 #![deny(clippy::large_stack_arrays)]
 #![warn(clippy::manual_ok_or)]
 #![deny(clippy::missing_docs_in_private_items)]
-#![deny(clippy::missing_panics_doc)]
 #![warn(clippy::needless_borrow)]
 #![warn(clippy::needless_pass_by_value)]
 #![warn(clippy::option_option)]
@@ -728,7 +727,6 @@ impl PartialNetDir {
 
     /// Compute the hash ring(s) for this NetDir
     #[cfg(feature = "hs-common")]
-    #[allow(clippy::missing_panics_doc)]
     fn compute_rings(&mut self) {
         let params = HsDirParams::compute(&self.netdir.consensus, &self.netdir.params)
             .expect("Invalid consensus");
@@ -781,7 +779,6 @@ impl NetDir {
     /// Add `md` to this NetDir.
     ///
     /// Return true if we wanted it, and false otherwise.
-    #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     fn add_arc_microdesc(&mut self, md: Arc<Microdesc>) -> bool {
         if let Some(rsidx) = self.rsidx_by_missing.remove(md.digest()) {
             assert_eq!(self.c_relays()[rsidx].md_digest(), md.digest());
@@ -867,7 +864,6 @@ impl NetDir {
     /// Note that a `None` answer is not always permanent: if a microdescriptor
     /// is subsequently added for a relay with this ID, the ID may become usable
     /// even if it was not usable before.
-    #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     pub fn by_id<'a, T>(&self, id: T) -> Option<Relay<'_>>
     where
         T: Into<RelayIdRef<'a>> + ?Sized,
@@ -1063,7 +1059,6 @@ impl NetDir {
     /// This API can be used to find information about a relay that is listed in
     /// the current consensus, even if we don't yet have enough information
     /// (like a microdescriptor) about the relay to use it.
-    #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
     #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
     fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {

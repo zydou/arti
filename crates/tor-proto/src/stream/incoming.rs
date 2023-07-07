@@ -1,11 +1,6 @@
 //! Functionality for incoming streams, opened from the other side of a circuit.
 
-#![allow(
-    dead_code,
-    unused_variables,
-    clippy::missing_panics_doc,
-    clippy::needless_pass_by_value
-)] // TODO hss remove
+#![allow(dead_code, unused_variables, clippy::needless_pass_by_value)] // TODO hss remove
 
 use super::DataStream;
 
