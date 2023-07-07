@@ -12,6 +12,8 @@ security-sensitive purposes, because of some
 [missing security features][#98].
 Instructions for enabling it and trying it out can be found in the
 [README.md] file.
+(Note that version 1.1.6 also requires a non-default cargo feature to
+be enabled: you must build with `--features=arti/onion-service-client`.)
 
 Additionally, this version includes an experimental key manager
 implementation. Currently it's used to store the keys needed for
