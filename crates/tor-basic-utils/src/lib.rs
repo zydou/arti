@@ -42,6 +42,8 @@
 use std::collections::BinaryHeap;
 use std::fmt;
 use std::mem;
+use std::ops::{RangeInclusive, RangeToInclusive};
+use std::time::Duration;
 
 pub mod iter;
 pub mod n_key_set;
@@ -124,8 +126,53 @@ pub trait RngExt: Rng {
             Some(Rng::gen_range(self, range))
         }
     }
+
+    /// Generate a random value in the given upper-bounded-only range.
+    ///
+    /// For use with an inclusive upper-bounded-only range,
+    /// with types that implement `GenRangeInfallible`
+    /// (that necessarily then implement the appropriate `rand` traits).
+    ///
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`]  distribution type which may be faster if sampling from the same range repeatedly.
+    fn gen_range_infallible<T>(&mut self, range: RangeToInclusive<T>) -> T
+    where
+        T: GenRangeInfallible,
+    {
+        self.gen_range_checked(T::lower_bound()..=range.end)
+            .expect("GenRangeInfallible type with an empty lower_bound()..=T range")
+    }
 }
 impl<T: Rng> RngExt for T {}
+
+/// Types that can be infallibly sampled using `gen_range_infallible`
+///
+/// In addition to the supertraits, the implementor of this trait must guarantee that:
+///
+/// `<Self as GenRangeInfallible>::lower_bound() ..= UPPER`
+/// is a nonempty range for every value of `UPPER`.
+//
+// One might think that this trait is wrong because we might want to be able to
+// implement gen_range_infallible for arguments other than RangeToInclusive<T>.
+// However, double-ended ranges are inherently fallible because the actual values
+// might be in the wrong order.  Non-inclusive ranges are fallible because the
+// upper bound might be zero, unless a NonZero type is used, which seems like a further
+// complication that we probably don't want to introduce here.  That leaves lower-bounded
+// ranges, but those are very rare.
+pub trait GenRangeInfallible: rand::distributions::uniform::SampleUniform + Ord
+where
+    RangeInclusive<Self>: rand::distributions::uniform::SampleRange<Self>,
+{
+    /// The usual lower bound, for converting a `RangeToInclusive` to a `RangeInclusive`
+    ///
+    /// Only makes sense with types with a sensible lower bound, such as zero.
+    fn lower_bound() -> Self;
+}
+
+impl GenRangeInfallible for Duration {
+    fn lower_bound() -> Self {
+        Duration::ZERO
+    }
+}
 
 // ----------------------------------------------------------------------
 
