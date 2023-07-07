@@ -20,6 +20,8 @@ experimental-api = ["rpc", "__is_experimental"]
 
 rpc = ["__is_experimental"]
 
+tracing = ["dep:tracing", "static_assertions"]
+
 __is_experimental = []
 
 [dependencies]
@@ -27,6 +29,7 @@ backtrace = { version = "0.3.39", optional = true }
 derive_more = "0.99.3"
 futures = "0.3"
 once_cell = "1"
+static_assertions = { version = "1", optional = true }
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 tracing = { version = "0.1.36", optional = true }

@@ -3,6 +3,8 @@
 use crate::ErrorKind;
 
 #[doc(hidden)]
+pub use static_assertions;
+#[doc(hidden)]
 pub use tracing::{event, Level};
 
 impl ErrorKind {
@@ -13,11 +15,23 @@ impl ErrorKind {
     }
 }
 
+#[doc(hidden)]
+/// Return true if a given string has an ending that makes sense for our
+/// formats.
+pub const fn fmt_ending_ok(s: &str) -> bool {
+    // This implementation is slightly roundabout because we need this function
+    // to be const.
+    !matches!(s.as_bytes().last(), Some(b' ' | b'.' | b':'))
+}
+
 /// Log a [`Report`](crate::Report) of a provided error at a given level, or a
 /// higher level if appropriate.
 ///
 /// (If [`ErrorKind::is_always_a_warning`] returns true for the error's kind, we
 /// log it at WARN, unless this event is already at level WARN or ERROR.)
+///
+/// We require that the format string _not_ end with ' ', ',' or ':'; if it doesn't,
+/// we produce a compile-time error.
 ///
 /// # Examples
 ///
@@ -38,6 +52,9 @@ impl ErrorKind {
 ///
 /// This macro does not support the full range of syntaxes supported by
 /// [`tracing::event`].
+///
+/// The compile-time error produced when the format string has a bad ending is
+/// kind of confusing.  This is a limitation of the `static_assertions` crate.
 //
 // NOTE: We need this fancy conditional here because tracing::event! insists on
 // getting a const expression for its `Level`.  So we can do
@@ -65,6 +82,9 @@ macro_rules! event_report {
     (@raw $level:expr, $err:expr, $fmt:literal $(, $arg:expr)* $(,)?) => {
         {
             use $crate::{tracing as tr, ErrorReport as _};
+            tr::static_assertions::const_assert!(
+                tr::fmt_ending_ok($fmt)
+            );
             tr::event!(
                 $level,
                 concat!($fmt, ": {}"),
