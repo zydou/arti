@@ -137,7 +137,6 @@ where
 /// A ChannelFactory built from an optional PtMgr to use for pluggable transports, and a
 /// ChannelFactory to use for everything else.
 #[derive(Clone)]
-#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) struct CompoundFactory {
     #[cfg(feature = "pt-client")]
     /// The PtMgr to use for pluggable transports
