@@ -417,8 +417,9 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                         let new_entry = Open(OpenEntry {
                             channel: chan.clone(),
                             max_unused_duration: Duration::from_secs(
-                                rand::thread_rng().gen_range_checked(180..270).
-                                    expect("not 180 < 270 !"),
+                                rand::thread_rng()
+                                    .gen_range_checked(180..270)
+                                    .expect("not 180 < 270 !"),
                             ),
                         });
                         channel_map.insert(new_entry);

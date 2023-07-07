@@ -143,7 +143,8 @@ where
     P: Fn(&T) -> bool,
 {
     while !slice.is_empty() {
-        let idx = rng.gen_range_checked(0..slice.len())
+        let idx = rng
+            .gen_range_checked(0..slice.len())
             .expect("slice was not empty but is now empty");
         if predicate(&slice[idx]) {
             return Some(idx);
