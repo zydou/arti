@@ -72,7 +72,12 @@ impl HsDescMiddle {
         };
 
         match decrypt.decrypt(&self.encrypted) {
-            Ok(v) => Ok(v),
+            Ok(mut v) => {
+                if !v.ends_with(b"\n") {
+                    v.push(b'\n');
+                }
+                Ok(v)
+            }
             Err(_) => match (key, desc_enc_nonce) {
                 (Some(_), None) => Err(HsDescError::WrongDecryptionKey),
                 (Some(_), Some(_)) => Err(HsDescError::DecryptionFailed),
