@@ -56,10 +56,10 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
-use tor_error::ErrorReport;
+use tor_error::error_report;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, trace, warn};
 #[cfg(feature = "tor-channel-factory")]
 use {
     async_trait::async_trait,
@@ -339,7 +339,7 @@ impl<R: Runtime> PtMgr<R> {
                     Ok(true) => return,
                     Ok(false) => {}
                     Err(e) => {
-                        error!("PtReactor failed: {}", e.report());
+                        error_report!(e, "PtReactor failed");
                         return;
                     }
                 }

@@ -16,10 +16,10 @@ use rand::Rng;
 use tor_bytes::Writeable;
 use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
-use tor_error::Bug;
+use tor_error::{debug_report, warn_report, Bug};
 use tor_hscrypto::Subcredential;
 use tor_proto::circuit::handshake::hs_ntor;
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use retry_error::RetryError;
 use safelog::Sensitive;
@@ -32,7 +32,7 @@ use tor_circmgr::build::circparameters_from_netparameters;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
-use tor_error::{internal, into_internal, ErrorReport as _};
+use tor_error::{internal, into_internal};
 use tor_error::{HasRetryTime as _, RetryTime};
 use tor_hscrypto::pk::{HsBlindId, HsClientDescEncKey, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
@@ -505,11 +505,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             {
                 Ok(desc) => break desc,
                 Err(error) => {
-                    debug!(
-                        "failed hsdir desc fetch for {} from {}: {}",
+                    debug_report!(
+                        &error,
+                        "failed hsdir desc fetch for {} from {}",
                         &self.hsid,
                         &relay.id(),
-                        error.report()
                     );
                     errors.push(tor_error::Report(DescriptorError {
                         hsdir: hsdir_for_error,
@@ -903,7 +903,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     data.insert(id, IptExperience { duration, outcome });
                     Ok::<_, Bug>(())
                 })()
-                .unwrap_or_else(|e| warn!("error recording HS IPT use experience: {}", e.report()));
+                .unwrap_or_else(|e| warn_report!(e, "error recording HS IPT use experience"));
             };
 
             match outcome {
@@ -914,11 +914,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 }
                 Ok(None) => return Err(CE::Failed(errors)),
                 Err(error) => {
-                    debug!(
-                        "hs conn to {}: attempt failed: {}",
-                        &self.hsid,
-                        error.report(),
-                    );
+                    debug_report!(&error, "hs conn to {}: attempt failed", &self.hsid);
                     // Record error outcome in Data, if in fact we involved the IPT
                     // at all.  The IPT information is be retrieved from `error`,
                     // since only some of the errors implicate the introduction point.
