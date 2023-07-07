@@ -134,6 +134,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                             watcher = None;
                         }
                     }
+                    // TODO: warn_report does not work on anyhow::Error.
                     Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
                 }
             }
@@ -141,6 +142,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         };
         match iife() {
             Ok(()) => debug!("Thread exiting"),
+            // TODO: warn_report does not work on anyhow::Error.
             Err(e) => error!("Config reload thread exiting: {}", tor_error::Report(e)),
         }
     });

@@ -1,6 +1,5 @@
 //! Code to adjust process-related parameters.
 
-use tor_error::ErrorReport;
 use tracing::error;
 
 use crate::ArtiConfig;
@@ -17,7 +16,7 @@ use crate::ArtiConfig;
 pub(crate) fn use_max_file_limit(config: &ArtiConfig) {
     match rlimit::increase_nofile_limit(config.system.max_files) {
         Ok(n) => tracing::debug!("Increased process file limit to {}", n),
-        Err(e) => tracing::warn!("Error while increasing file limit: {}", e.report()),
+        Err(e) => tor_error::warn_report!(e, "Error while increasing file limit"),
     }
 }
 

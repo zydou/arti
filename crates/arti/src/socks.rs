@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
-use tor_error::ErrorReport;
+use tor_error::warn_report;
 #[cfg(feature = "rpc")]
 use tor_rpcbase as rpc;
 use tor_rtcompat::{Runtime, TcpListener};
@@ -619,7 +619,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                 info!("Listening on {:?}.", addr);
                 listeners.push(listener);
             }
-            Err(e) => warn!("Can't listen on {}: {}", addr, e.report()),
+            Err(e) => warn_report!(e, "Can't listen on {}", addr),
         }
     }
     // We weren't able to bind any ports: There's nothing to do.
@@ -649,7 +649,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                 if accept_err_is_fatal(&err) {
                     return Err(err).context("Failed to receive incoming stream on SOCKS port");
                 } else {
-                    warn!("Incoming stream failed: {}", err.report());
+                    warn_report!(err, "Incoming stream failed");
                     continue;
                 }
             }
@@ -664,6 +664,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
             let res =
                 handle_socks_conn(runtime_copy, socks_context, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
+                // TODO: warn_report doesn't work on anyhow::Error.
                 warn!("connection exited with error: {}", tor_error::Report(e));
             }
         })?;

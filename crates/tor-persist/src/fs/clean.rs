@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use tor_error::ErrorReport;
+use tor_error::warn_report;
 use tracing::warn;
 
 /// Return true if `path` looks like a filename we'd like to remove from our
@@ -57,10 +57,10 @@ pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf>
         use std::io::ErrorKind as EK;
         match err.kind() {
             EK::NotFound => {}
-            _ => warn!(
-                "Failed to scan directory {} for obsolete files: {}",
+            _ => warn_report!(
+                err,
+                "Failed to scan directory {} for obsolete files",
                 statepath.display(),
-                err.report(),
             ),
         }
     };
@@ -84,10 +84,10 @@ pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf>
                     );
                 }
                 Err(err) => {
-                    warn!(
-                        "Found obsolete file {} but could not access its modification time: {}",
+                    warn_report!(
+                        err,
+                        "Found obsolete file {} but could not access its modification time",
                         entry.path().display(),
-                        err.report(),
                     );
                 }
             }

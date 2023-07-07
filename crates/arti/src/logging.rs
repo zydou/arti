@@ -10,8 +10,8 @@ use std::str::FromStr;
 use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_config::{CfgPath, ConfigBuildError};
-use tor_error::ErrorReport;
-use tracing::{error, warn, Subscriber};
+use tor_error::warn_report;
+use tracing::{error, Subscriber};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
@@ -340,7 +340,7 @@ pub(crate) fn setup_logging(
             Err(e) => {
                 // We don't need to propagate this error; it isn't the end of
                 // the world if we were unable to disable safe logging.
-                warn!("Unable to disable safe logging: {}", e.report());
+                warn_report!(e, "Unable to disable safe logging");
                 None
             }
         }

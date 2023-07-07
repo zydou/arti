@@ -75,7 +75,7 @@ pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use scopeguard::ScopeGuard;
 use tor_circmgr::CircMgr;
 use tor_dirclient::SourceInfo;
-use tor_error::{into_internal, ErrorReport};
+use tor_error::{info_report, into_internal, warn_report};
 use tor_netdir::params::NetParameters;
 use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
@@ -503,10 +503,7 @@ impl<R: Runtime> DirMgr<R> {
                 {
                     match e {
                         Error::ManagerDropped => {}
-                        _ => warn!(
-                            "Unrecovered error while waiting for bootstrap: {}",
-                            e.report()
-                        ),
+                        _ => warn_report!(e, "Unrecovered error while waiting for bootstrap",),
                     }
                 } else if let Err(e) =
                     Self::download_forever(dirmgr_weak.clone(), &mut schedule, attempt_id, sender)
@@ -514,7 +511,7 @@ impl<R: Runtime> DirMgr<R> {
                 {
                     match e {
                         Error::ManagerDropped => {}
-                        _ => warn!("Unrecovered error while downloading: {}", e.report()),
+                        _ => warn_report!(e, "Unrecovered error while downloading"),
                     }
                 }
             })
@@ -682,7 +679,7 @@ impl<R: Runtime> DirMgr<R> {
                 if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
                         usable = true;
-                        info!("Unable to completely download a directory: {}.  Nevertheless, the directory is usable, so we'll pause for now.", err.report());
+                        info_report!(err, "Unable to completely download a directory. (Nevertheless, the directory is usable, so we'll pause for now)");
                         break 'retry_attempt;
                     }
 
@@ -698,9 +695,9 @@ impl<R: Runtime> DirMgr<R> {
                     }
 
                     let delay = retry_delay.next_delay(&mut rand::thread_rng());
-                    warn!(
-                        "Unable to download a usable directory: {}.  We will restart in {}.",
-                        err.report(),
+                    warn_report!(
+                        err,
+                        "Unable to download a usable directory. (We will restart in {})",
                         humantime::format_duration(delay),
                     );
                     {

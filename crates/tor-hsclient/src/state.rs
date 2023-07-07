@@ -19,7 +19,7 @@ use tracing::{debug, error, trace};
 use safelog::sensitive as sv;
 use tor_basic_utils::define_accessor_trait;
 use tor_circmgr::isolation::Isolation;
-use tor_error::{internal, Bug, ErrorReport as _};
+use tor_error::{debug_report, error_report, internal, Bug, ErrorReport as _};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
 use tor_rtcompat::Runtime;
@@ -474,19 +474,25 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
             match (got_error, stored) {
                 (Ok::<(), ConnError>(()), Ok::<(), Bug>(())) => {}
                 (Err(got_error), Ok(())) => {
-                    debug!("HS connection failure: {}: {}", hsid, got_error.report(),);
+                    debug_report!(got_error, "HS connection failure for {}", sv(hsid));
                 }
-                (Ok(()), Err(bug)) => error!(
-                    "internal error storing built HS circuit for {}: {}",
-                    sv(hsid),
-                    bug.report(),
-                ),
-                (Err(got_error), Err(bug)) => error!(
-                    "internal error storing HS connection error for {}: {}; {}",
-                    sv(hsid),
-                    got_error.report(),
-                    bug.report(),
-                ),
+                (Ok(()), Err(bug)) => {
+                    error_report!(
+                        bug,
+                        "internal error storing built HS circuit for {}",
+                        sv(hsid)
+                    );
+                }
+                (Err(got_error), Err(bug)) => {
+                    // We're reporting two errors, so we'll construct the event
+                    // manually.
+                    error!(
+                        "internal error storing HS connection error for {}: {}; {}",
+                        sv(hsid),
+                        got_error.report(),
+                        bug.report(),
+                    );
+                }
             };
             drop(barrier_send);
         };

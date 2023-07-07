@@ -18,7 +18,7 @@ use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
 use safelog::sensitive as sv;
-use tor_error::ErrorReport;
+use tor_error::{error_report, warn_report};
 use tor_rtcompat::{Runtime, UdpSocket};
 
 use anyhow::{anyhow, Result};
@@ -221,11 +221,7 @@ where
                 // might well do so too.  (Many variants of trust_dns_proto's ProtoErrorKind
                 // contain domain names.)  Digging into these to be more useful is tiresome,
                 // so just mark the whole response message, and error, as sensitive.
-                error!(
-                    "Failed to serialize DNS packet: {:?}: {}",
-                    sv(&response),
-                    sv(e.report())
-                );
+                error_report!(e, "Failed to serialize DNS packet: {:?}", sv(&response));
                 continue;
             }
         };
@@ -256,7 +252,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                 info!("Listening on {:?}.", addr);
                 listeners.push(listener);
             }
-            Err(e) => warn!("Can't listen on {}: {}", addr, e.report()),
+            Err(e) => warn_report!(e, "Can't listen on {}", addr),
         }
     }
     // We weren't able to bind any ports: There's nothing to do.
@@ -290,7 +286,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
             Ok(packet) => packet,
             Err(err) => {
                 // TODO move crate::socks::accept_err_is_fatal somewhere else and use it here?
-                warn!("Incoming datagram failed: {}", err.report());
+                warn_report!(err, "Incoming datagram failed");
                 continue;
             }
         };
@@ -309,6 +305,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                 )
                 .await;
                 if let Err(e) = res {
+                    // TODO: warn_report does not work on anyhow::Error.
                     warn!("connection exited with error: {}", tor_error::Report(e));
                 }
             }
