@@ -47,6 +47,7 @@ struct Inner<SpawnR, SleepR, TcpR, TlsR, UdpR> {
 impl<SpawnR, SleepR, TcpR, TlsR, UdpR> CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR> {
     /// Construct a new CompoundRuntime from its components.
     pub fn new(spawn: SpawnR, sleep: SleepR, tcp: TcpR, tls: TlsR, udp: UdpR) -> Self {
+        #[allow(clippy::arc_with_non_send_sync)]
         CompoundRuntime {
             inner: Arc::new(Inner {
                 spawn,
