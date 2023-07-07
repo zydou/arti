@@ -110,8 +110,9 @@ macro_rules! define_report_macros { {
     # $title_1:tt
     LEVEL
     # $title_2:tt
+
     $D:tt
-    $( $level:ident )*
+    $( [$($flag:tt)*] $level:ident )*
 } => { $( paste!{
     # $title_1
     #[doc = concat!("`", stringify!( [< $level:upper >] ), "`")]
@@ -132,7 +133,8 @@ macro_rules! define_report_macros { {
     #[macro_export]
     macro_rules! [< $level _report >] {
         ( $D err:expr, $D ($D rest:expr),+ $D (,)? ) => {
-            $D crate::event_report!($D crate::tracing::Level::[< $level:upper >],
+            $D crate::event_report!($($flag)*
+                                    $D crate::tracing::Level::[< $level:upper >],
                                     $D err, $D ($D rest),+)
         }
     }
@@ -142,12 +144,16 @@ define_report_macros! {
     /// Log a report for `err` at level
     LEVEL
     /// (or higher if it is a bug).
-    $ trace debug info
+
+    $ [] trace
+      [] debug
+      [] info
 }
 
 define_report_macros! {
     /// Log a report for `err` at level
     LEVEL
     ///
-    $ warn error
+    $ [@raw] warn
+      [@raw] error
 }
