@@ -11,7 +11,8 @@ use std::{
 use crate::{timeouts, CircMgr, Error, Result};
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
-use tor_error::{bad_api_usage, internal, ErrorReport};
+use tor_error::debug_report;
+use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, OwnedCircTarget};
 use tor_netdir::{NetDir, NetDirProvider, Relay, SubnetConfig};
 use tor_proto::circuit::{self, ClientCirc};
@@ -19,7 +20,7 @@ use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
 };
-use tracing::{debug, warn};
+use tracing::warn;
 
 /// The (onion-service-related) purpose for which a given circuit is going to be
 /// used.
@@ -435,10 +436,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                         n_to_launch -= 1;
                     }
                     Err(err) => {
-                        debug!(
-                            "Unable to build preemptive circuit for onion services: {}",
-                            err.report()
-                        );
+                        debug_report!(err, "Unable to build preemptive circuit for onion services");
                     }
                 }
             } else {

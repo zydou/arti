@@ -29,7 +29,7 @@ use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChannelUsage;
 use tor_config::MutCfg;
-use tor_error::{internal, AbsRetryTime, ErrorReport, HasRetryTime};
+use tor_error::{debug_report, info_report, internal, warn_report, AbsRetryTime, HasRetryTime};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -43,7 +43,7 @@ use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 use weak_table::PtrWeakHashSet;
 
 mod streams;
@@ -876,10 +876,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 }
                 Err(e) => {
                     // We couldn't pick the action!
-                    debug!(
-                        "Couldn't pick action for circuit attempt {}: {}",
+                    debug_report!(
+                        &e,
+                        "Couldn't pick action for circuit attempt {}",
                         attempt_num,
-                        e.report(),
                     );
                     e
                 }
@@ -1146,18 +1146,18 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                     x => x,
                                 };
                                 if src == streams::Source::Left {
-                                    info!(
-                                        "{} suggested we use {:?}, but restrictions failed: {}",
+                                    info_report!(
+                                        &e,
+                                        "{} suggested we use {:?}, but restrictions failed",
                                         describe_source(building, src),
                                         id,
-                                        e.report(),
                                     );
                                 } else {
-                                    debug!(
-                                        "{} suggested we use {:?}, but restrictions failed: {}",
+                                    debug_report!(
+                                        &e,
+                                        "{} suggested we use {:?}, but restrictions failed",
                                         describe_source(building, src),
                                         id,
-                                        e.report(),
                                     );
                                 }
                                 record_error(&mut retry_error, src, building, e);
@@ -1523,7 +1523,7 @@ fn spawn_expiration_task<B, R>(
             };
             cm.expire_circ(&circ_id, exp_inst);
         }) {
-            warn!("Unable to launch expiration task: {}", e.report());
+            warn_report!(e, "Unable to launch expiration task");
         }
     }
 }

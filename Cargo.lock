@@ -4362,8 +4362,10 @@ dependencies = [
  "derive_more",
  "futures",
  "once_cell",
+ "static_assertions",
  "strum",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
