@@ -8,7 +8,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::io::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -16,6 +16,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Duration;
+use tor_basic_utils::RngExt as _;
 
 /// An action that we can take upon trying to make a TCP connection.
 #[derive(Debug, Copy, Clone)]
@@ -154,7 +155,7 @@ impl<R: Runtime> TcpProvider for BrokenTcpProvider<R> {
                 Ok(BreakableTcpStream::Present(conn))
             }
             Action::Fail(dur, kind) => {
-                let d = thread_rng().gen_range(Duration::from_secs(0)..=dur);
+                let d = thread_rng().gen_range_infallible(..=dur);
                 self.inner.sleep(d).await;
                 Err(IoError::new(kind, anyhow::anyhow!("intentional failure")))
             }
