@@ -242,6 +242,9 @@ build-repro:
 
 integration-chutney:
   stage: test
+  rules:
+   # Job never runs.  See arti#810.
+   - when: never
   # we use debian 11 as this is currently what rust:latest uses. When rust:latest gets updated,
   # this should be changed to stable (and possibly shadow too).
   image: debian:11-slim
