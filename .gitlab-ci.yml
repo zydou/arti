@@ -213,8 +213,9 @@ build-repro:
 
 integration-chutney:
   stage: test
-  image: debian:stable-slim
-  allow_failure: true
+  # we use debian 11 as this is currently what rust:latest uses. When rust:latest gets updated,
+  # this should be changed to stable (and possibly shadow too).
+  image: debian:11-slim
   script:
     - ./maint/preserve -u
     - apt update
