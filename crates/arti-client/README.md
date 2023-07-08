@@ -211,6 +211,9 @@ match tor_client.connect(("example.com", 80)).await {
 * `compression` (default) -- Build support for downloading compressed
   documents. Requires a C compiler.
 * `bridge-client` -- Build with support for bridges.
+* `onion-service-client` -- Build with support for connecting to onion 
+  services. Note that this is not yet as secure as C-Tor and shouldn't be used
+  for security-sensitive purposes.
 * `pt-client` -- Build with support for pluggable transports.
 
 * `full` -- Build with all features above, along with all stable additive
@@ -257,9 +260,6 @@ implementation with another.
 * `error_detail` -- expose the `arti_client::Error` inner error type.
 * `dirfilter` -- expose the `DirFilter` API, which lets you modify a network
   directory before it is used.
-* `onion-service-client` -- build with non-working stub APIs to support connecting to
-  onion services.  (These do not work yet, and will just cause your code to
-  panic.)
 * `keymgr` -- build with non-working APIs for key management. (These do not work
   yet, and will just cause your code to panic.)
 
