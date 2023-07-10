@@ -110,7 +110,7 @@ impl StrExt for str {}
 pub trait RngExt: Rng {
     /// Generate a random value in the given range.
     ///
-    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`]  distribution type which may be faster if sampling from the same range repeatedly.
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distributions::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
     ///
     /// If the supplied range is empty, returns `None`.
     ///
@@ -162,7 +162,7 @@ pub trait RngExt: Rng {
     /// with types that implement `GenRangeInfallible`
     /// (that necessarily then implement the appropriate `rand` traits).
     ///
-    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`]  distribution type which may be faster if sampling from the same range repeatedly.
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distributions::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
     ///
     /// ### Example
     ///
