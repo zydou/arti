@@ -159,14 +159,15 @@ pub(super) enum CtrlMsg {
     },
     /// Send a given control message on this circuit, and install a control-message handler to
     /// receive responses.
-    // TODO hs naming.
     #[cfg(feature = "send-control-msg")]
     SendMsgAndInstallHandler {
-        /// The message to send
-        msg: AnyRelayCell,
+        /// The message to send, if any
+        msg: Option<AnyRelayCell>,
         /// A message handler to install.
+        ///
+        /// If this is `None`, there must already be a message handler installed
         #[educe(Debug(ignore))]
-        handler: Box<dyn MetaCellHandler + Send + 'static>,
+        handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
         /// A sender that we use to tell the caller that the message was sent
         /// and the handler installed.
         sender: oneshot::Sender<Result<()>>,
@@ -249,6 +250,25 @@ impl CircHop {
     }
 }
 
+/// Handle to use during an ongoing protocol exchange with a circuit's last hop
+///
+/// This is passed to `MsgHandler::handle_msg`.
+///
+/// See also [`ConversationInHandler`], which is a type used for the same purpose
+/// but available to the caller of `start_conversation_last_hop`
+//
+// This is the subset of the arguments to MetaCellHandler::handle_msg
+// which are needed to be able to call send_relay_cell.
+#[cfg(feature = "send-control-msg")]
+pub struct ConversationInHandler<'r, 'c, 'cc> {
+    /// Async task waker context
+    pub(super) cx: &'c mut Context<'cc>,
+    /// Reactor
+    pub(super) reactor: &'r mut Reactor,
+    /// Hop
+    pub(super) hop_num: HopNum,
+}
+
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
 /// progress.
 ///
@@ -270,6 +290,7 @@ pub(super) trait MetaCellHandler: Send {
     /// If this function returns an error, the reactor will shut down.
     fn handle_msg(
         &mut self,
+        cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition>;
@@ -284,11 +305,7 @@ pub(super) enum MetaCellDisposition {
     #[cfg(feature = "send-control-msg")]
     Consumed,
     /// The message was consumed; the handler should be uninstalled.
-    //
-    // TODO since there are no "install handler" and "uninstall handler" calls,
-    // only `send_control_message` which implicitly installs on entry and uninstalls
-    // on exit, this should be renamed to `ConversationFinished` or something.
-    UninstallHandler,
+    ConversationFinished,
     /// The message was consumed; the circuit should be closed.
     #[cfg(feature = "send-control-msg")]
     CloseCirc,
@@ -444,7 +461,7 @@ where
             Box::new(layer_back),
             &self.params,
         );
-        Ok(MetaCellDisposition::UninstallHandler)
+        Ok(MetaCellDisposition::ConversationFinished)
     }
 }
 
@@ -462,6 +479,7 @@ where
     }
     fn handle_msg(
         &mut self,
+        _cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition> {
@@ -581,7 +599,7 @@ impl Reactor {
 
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
-    pub(super) async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
+    async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
         #[allow(clippy::cognitive_complexity)]
         let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
             let mut create_message = None;
@@ -900,7 +918,12 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: UnparsedRelayCell) -> Result<CellStatus> {
+    fn handle_meta_cell(
+        &mut self,
+        cx: &mut Context<'_>,
+        hopnum: HopNum,
+        msg: UnparsedRelayCell,
+    ) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
 
         // TODO: This pattern (Check command, try to decode, map error) occurs
@@ -946,7 +969,7 @@ impl Reactor {
         if let Some(mut handler) = self.meta_handler.take() {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message
-                let ret = handler.handle_msg(msg, self);
+                let ret = handler.handle_msg(cx, msg, self);
                 trace!(
                     "{}: meta handler completed with result: {:?}",
                     self.unique_id,
@@ -958,7 +981,7 @@ impl Reactor {
                         self.meta_handler = Some(handler);
                         Ok(CellStatus::Continue)
                     }
-                    Ok(MetaCellDisposition::UninstallHandler) => Ok(CellStatus::Continue),
+                    Ok(MetaCellDisposition::ConversationFinished) => Ok(CellStatus::Continue),
                     #[cfg(feature = "send-control-msg")]
                     Ok(MetaCellDisposition::CloseCirc) => Ok(CellStatus::CleanShutdown),
                     Err(e) => Err(e),
@@ -1220,8 +1243,15 @@ impl Reactor {
                 sender,
             } => {
                 let outcome: Result<()> = (|| {
-                    self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
-                    self.set_meta_handler(handler)?;
+                    if let Some(msg) = msg {
+                        let handler = handler
+                            .as_ref()
+                            .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
+                        self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
+                    }
+                    if let Some(handler) = handler {
+                        self.set_meta_handler(handler)?;
+                    }
                     Ok(())
                 })();
                 let _ = sender.send(outcome.clone()); // don't care if receiver goes away.
@@ -1406,7 +1436,7 @@ impl Reactor {
         // If this has a reasonable streamID value of 0, it's a meta cell,
         // not meant for a particular stream.
         if streamid.is_zero() {
-            return self.handle_meta_cell(hopnum, msg);
+            return self.handle_meta_cell(cx, hopnum, msg);
         }
 
         let hop = self
@@ -1485,6 +1515,27 @@ impl Reactor {
     /// Return the hop corresponding to `hopnum`, if there is one.
     fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
         self.hops.get_mut(Into::<usize>::into(hopnum))
+    }
+}
+
+#[cfg(feature = "send-control-msg")]
+impl ConversationInHandler<'_, '_, '_> {
+    /// Send a protocol message as part of an ad-hoc exchange
+    ///
+    /// This is the within-[`MsgHandler`](super::MsgHandler)
+    /// counterpart to [`Conversation`](super::Conversation).
+    ///
+    /// It differs only in that the `send_message` function here is sync,
+    /// and takes `&mut self`.
+    //
+    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
+    //   tor-proto interface.
+    #[cfg(feature = "send-control-msg")]
+    pub fn send_message(&mut self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
+        let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
+
+        self.reactor
+            .send_relay_cell(self.cx, self.hop_num, false, msg)
     }
 }
 

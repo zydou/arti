@@ -40,7 +40,9 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{HsDirOp, NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
-use tor_proto::circuit::{CircParameters, ClientCirc, MetaCellDisposition, MsgHandler};
+use tor_proto::circuit::{
+    CircParameters, ClientCirc, ConversationInHandler, MetaCellDisposition, MsgHandler,
+};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
 use crate::proto_oneshot;
@@ -969,6 +971,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
+                _conversation: ConversationInHandler<'_, '_, '_>,
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 // The first message we expect is a RENDEZVOUS_ESTABALISHED.
@@ -977,7 +980,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         .deliver_expected_message(msg, MetaCellDisposition::Consumed)
                 } else {
                     self.rend2_tx
-                        .deliver_expected_message(msg, MetaCellDisposition::UninstallHandler)
+                        .deliver_expected_message(msg, MetaCellDisposition::ConversationFinished)
                 }
             }
         }
@@ -998,11 +1001,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         };
 
         rend_circ
-            .m_send_control_message(message.into(), handler)
+            .m_start_conversation_last_hop(Some(message.into()), handler)
             .await
             .map_err(handle_proto_error)?;
 
-        // `send_control_message` returns as soon as the control message has been sent.
+        // `start_conversation_last_hop` returns as soon as the control message has been sent.
         // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
         let _: RendezvousEstablished = rend_established_rx.recv(handle_proto_error).await?;
 
@@ -1133,10 +1136,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
+                _conversation: ConversationInHandler<'_, '_, '_>,
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 self.intro_ack_tx
-                    .deliver_expected_message(msg, MetaCellDisposition::UninstallHandler)
+                    .deliver_expected_message(msg, MetaCellDisposition::ConversationFinished)
             }
         }
         let handle_intro_proto_error = |error| FAE::IntroductionExchange { error, intro_index };
@@ -1151,7 +1155,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         );
 
         intro_circ
-            .m_send_control_message(intro1_real.into(), handler)
+            .m_start_conversation_last_hop(Some(intro1_real.into()), handler)
             .await
             .map_err(handle_intro_proto_error)?;
 
@@ -1329,7 +1333,7 @@ trait MocksForConnect<R>: Clone {
 /// Mock for `HsCircPool`
 ///
 /// Methods start with `m_` to avoid the following problem:
-/// `ClientCirc::send_control_message` (say) means
+/// `ClientCirc::start_conversation_last_hop` (say) means
 /// to use the inherent method if one exists,
 /// but will use a trait method if there isn't an inherent method.
 ///
@@ -1365,12 +1369,16 @@ trait MockableClientCirc: Debug {
     type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
     async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
 
-    /// Send a control message
-    async fn m_send_control_message(
+    /// Converse
+    async fn m_start_conversation_last_hop(
         &self,
-        msg: AnyRelayMsg,
+        msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-    ) -> tor_proto::Result<()>;
+    ) -> tor_proto::Result<Self::Conversation<'_>>;
+    /// Conversation
+    type Conversation<'r>
+    where
+        Self: 'r;
 
     /// Add a virtual hop to the circuit.
     async fn m_extend_virtual(
@@ -1418,13 +1426,14 @@ impl MockableClientCirc for ClientCirc {
     async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
         ClientCirc::begin_dir_stream(self).await
     }
-    async fn m_send_control_message(
+    async fn m_start_conversation_last_hop(
         &self,
-        msg: AnyRelayMsg,
+        msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-    ) -> tor_proto::Result<()> {
-        ClientCirc::send_control_message(self, msg, reply_handler).await
+    ) -> tor_proto::Result<Self::Conversation<'_>> {
+        ClientCirc::start_conversation_last_hop(self, msg, reply_handler).await
     }
+    type Conversation<'r> = tor_proto::circuit::Conversation<'r>;
 
     async fn m_extend_virtual(
         &self,
@@ -1554,6 +1563,7 @@ mod test {
     #[async_trait]
     impl MockableClientCirc for Mocks<()> {
         type DirStream = JoinReadWrite<futures::io::Cursor<Box<[u8]>>, futures::io::Sink>;
+        type Conversation<'r> = &'r ();
         async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
             let response = format!(
                 r#"HTTP/1.1 200 OK
@@ -1569,11 +1579,11 @@ mod test {
                 futures::io::sink(),
             ))
         }
-        async fn m_send_control_message(
+        async fn m_start_conversation_last_hop(
             &self,
-            msg: AnyRelayMsg,
+            msg: Option<AnyRelayMsg>,
             reply_handler: impl MsgHandler + Send + 'static,
-        ) -> tor_proto::Result<()> {
+        ) -> tor_proto::Result<Self::Conversation<'_>> {
             todo!()
         }
 

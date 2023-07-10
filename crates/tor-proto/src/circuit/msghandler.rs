@@ -1,5 +1,5 @@
 //! A message handler trait for use with
-//! [`ClientCirc::send_control_message`](super::ClientCirc::send_control_message).
+//! [`ClientCirc::start_conversation_last_hop`](super::ClientCirc::start_conversation_last_hop).
 //!
 //! Although this is similar to `stream::cmdcheck`, I am deliberately leaving
 //! them separate. Conceivably they should be unified at some point down the
@@ -10,13 +10,15 @@ use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
 use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 
-use super::MetaCellDisposition;
+use std::task::Context;
+
+use super::{ConversationInHandler, MetaCellDisposition};
 
 /// An object that checks whether incoming control messages are acceptable on a
 /// circuit, and delivers them to a client if so.
 ///
 /// The handler is supplied to
-/// [`ClientCirc::send_control_message`](super::ClientCirc::send_control_message).  It
+/// [`ClientCirc::start_conversation_last_hop`](super::ClientCirc::start_conversation_last_hop).  It
 /// is used to check any incoming message whose stream ID is 0, and which would
 /// otherwise not be accepted on a given circuit.
 ///
@@ -31,11 +33,18 @@ pub trait MsgHandler {
     /// delivering the message to another task via some kind of channel if
     /// further processing is needed.
     ///
-    /// In particular, the implementor should avoid any expensive computations
+    /// In particular,
+    /// if the circuit might be in use for anything else
+    /// (eg there might be concurrent data flow)
+    /// the implementor should avoid any expensive computations
     /// or highly contended locks, to avoid blocking the circuit reactor.
     ///
     /// If this function returns an error, the circuit will be closed.
-    fn handle_msg(&mut self, msg: AnyRelayMsg) -> Result<MetaCellDisposition>;
+    fn handle_msg(
+        &mut self,
+        conversation: ConversationInHandler<'_, '_, '_>,
+        msg: AnyRelayMsg,
+    ) -> Result<MetaCellDisposition>;
 }
 
 /// Wrapper for `MsgHandler` to implement `MetaCellHandler`
@@ -61,8 +70,9 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
 
     fn handle_msg(
         &mut self,
+        cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
-        _reactor: &mut super::reactor::Reactor,
+        reactor: &mut super::reactor::Reactor,
     ) -> Result<MetaCellDisposition> {
         let cell: AnyRelayCell = msg.decode().map_err(|err| Error::BytesErr {
             object: "cell for message handler",
@@ -75,6 +85,11 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
                 msg.cmd()
             )));
         }
-        self.handler.handle_msg(msg)
+        let conversation = ConversationInHandler {
+            reactor,
+            cx,
+            hop_num: self.hop,
+        };
+        self.handler.handle_msg(conversation, msg)
     }
 }
