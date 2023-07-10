@@ -166,7 +166,7 @@ rust-nightly:
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
     - rustup component add clippy
     # We check these extra warnings on CI only, since we don't want to forbid them while developing.
-    
+
     # The --cfg allows us to write #![cfg_attr(ci_arti_nightly, allow(clippy::needless_borrow))]
     # and similar, for when nightly clippy has false positives.  (There is no builtin
     # cfg flag for nightly, and a cargo "feature" would be bad with --all-features.)
