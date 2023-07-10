@@ -98,9 +98,9 @@ fi
 	set +e
 	"$cmd" proxy -c "${CHUTNEY_PATH}/net/nodes/arti.toml" -d 35353 \
 	       "${ARTI_FLAGS[@]}" &
-	pid=$!
-	echo "pid=$pid" >> tests/chutney/arti.run
-	wait "$pid"
+	arti_pid=$!
+	echo "pid=$arti_pid" >> tests/chutney/arti.run
+	wait "$arti_pid"
 	echo "result=$?" >> tests/chutney/arti.run
 ) & disown
 
@@ -117,6 +117,13 @@ for idx in $(seq 30); do
 	echo "waiting for port 9150..."
 	sleep 1
     fi
+    # verify Arti did not fail early
+    # shellcheck disable=SC1091
+    source tests/chutney/arti.run
+    pid="${pid:?}"
+    if ! kill -0 "$pid"; then
+	result="${result:?}"
+        echo "Arti failed to start with code $result"
+	exit 1
+    fi
 done
-
-
