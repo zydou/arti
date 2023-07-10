@@ -4550,6 +4550,7 @@ name = "tor-keymgr"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "downcast-rs",
  "dyn-clone",
  "fs-mistrust",
  "itertools 0.10.5",

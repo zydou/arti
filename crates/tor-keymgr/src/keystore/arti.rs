@@ -299,12 +299,13 @@ mod tests {
         let erased_kp = KeyType::Ed25519Keypair
             .parse_ssh_format_erased(key)
             .unwrap();
+
+        let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
+            panic!("failed to downcast key to ed25519::Keypair")
+        };
+
         key_store
-            .insert(
-                &*erased_kp.downcast::<ed25519::Keypair>().unwrap(),
-                &TestSpecifier,
-                KeyType::Ed25519Keypair,
-            )
+            .insert(&*key, &TestSpecifier, KeyType::Ed25519Keypair)
             .unwrap();
 
         // Found!

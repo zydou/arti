@@ -8,10 +8,10 @@ use tor_llcrypto::pk::{curve25519, ed25519};
 use crate::key_type::KeyType;
 use crate::{KeySpecifier, Result};
 
-use std::any::Any;
+use downcast_rs::{impl_downcast, Downcast};
 
 /// A type-erased key returned by a [`Keystore`].
-pub type ErasedKey = Box<dyn Any>;
+pub type ErasedKey = Box<dyn EncodableKey>;
 
 /// A generic key store.
 //
@@ -63,12 +63,14 @@ pub trait Keystore: Send + Sync + 'static {
 
 /// A key that can be serialized to, and deserialized from, a format used by a
 /// [`Keystore`](crate::Keystore).
-pub trait EncodableKey {
+pub trait EncodableKey: Downcast {
     /// The type of the key.
     fn key_type() -> KeyType
     where
         Self: Sized;
 }
+
+impl_downcast!(EncodableKey);
 
 impl EncodableKey for curve25519::StaticSecret {
     fn key_type() -> KeyType
