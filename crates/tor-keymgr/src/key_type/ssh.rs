@@ -216,7 +216,10 @@ mod tests {
     fn wrong_key_type() {
         let key_type = KeyType::Ed25519Keypair;
         let key = UnparsedOpenSshKey::new(OPENSSH_DSA.into(), PathBuf::from("/test/path"));
-        let err = key_type.parse_ssh_format_erased(key).unwrap_err();
+        let err = key_type
+            .parse_ssh_format_erased(key)
+            .map(|_| "<type erased key>")
+            .unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -232,7 +235,10 @@ mod tests {
     fn invalid_ed25519_key() {
         let key_type = KeyType::Ed25519Keypair;
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519_BAD.into(), PathBuf::from("/test/path"));
-        let err = key_type.parse_ssh_format_erased(key).unwrap_err();
+        let err = key_type
+            .parse_ssh_format_erased(key)
+            .map(|_| "<type erased key>")
+            .unwrap_err();
 
         assert_eq!(
             err.to_string(),
