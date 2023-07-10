@@ -9,11 +9,14 @@ use crate::util::impl_runtime_prelude::*;
 
 /// A wrapper Runtime that overrides the SleepProvider trait for the
 /// underlying runtime.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Adhoc)]
+#[derive_adhoc(SomeMockRuntime)]
 pub struct MockSleepRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
+    #[adhoc(mock(task, net))]
     runtime: R,
     /// A MockSleepProvider.  Time-related calls get delegated here.
+    #[adhoc(mock(sleep))]
     sleep: MockSleepProvider,
 }
 
@@ -77,13 +80,6 @@ impl<R: Runtime> MockSleepRuntime<R> {
             fut,
         }
     }
-}
-
-impl_runtime! {
-    [ <R: Runtime> ] MockSleepRuntime<R>,
-    task: runtime,
-    sleep: sleep: MockSleepProvider,
-    net: runtime: R,
 }
 
 /// A future that advances time until another future is ready to complete.
