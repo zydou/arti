@@ -1021,10 +1021,12 @@ impl<R: Runtime> TorClient<R> {
 
                 let mut hs_client_secret_keys_builder = HsClientSecretKeysBuilder::default();
                 if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
+                    debug!("Found descriptor decryption key for {hsid}");
                     hs_client_secret_keys_builder.ks_hsc_desc_enc(ks_hsc_desc_enc);
                 }
 
                 if let Some(ks_hsc_intro_auth) = ks_hsc_intro_auth {
+                    debug!("Found INTRODUCE1 signing key for {hsid}");
                     hs_client_secret_keys_builder.ks_hsc_intro_auth(ks_hsc_intro_auth);
                 }
 
