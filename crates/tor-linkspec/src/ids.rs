@@ -280,7 +280,7 @@ impl std::str::FromStr for RelayId {
             let bytes = hex::decode(s).map_err(|_| RelayIdError::BadHex)?;
             RelayId::from_type_and_bytes(RelayIdType::Rsa, &bytes)
         } else {
-            let mut v = vec![0_u8; ED25519_ID_LEN];
+            let mut v = [0_u8; ED25519_ID_LEN];
             let bytes = Base64Unpadded::decode(s, &mut v[..])?;
             RelayId::from_type_and_bytes(RelayIdType::Ed25519, bytes)
         }
