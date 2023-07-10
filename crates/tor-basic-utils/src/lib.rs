@@ -115,6 +115,34 @@ pub trait RngExt: Rng {
     /// If the supplied range is empty, returns `None`.
     ///
     /// (This is a non-panicking version of [`Rng::gen_range`].)
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// use rand::thread_rng;
+    /// use tor_basic_utils::RngExt as _;
+    //
+    // Fake plastic imitation tor_error, since that's actually higher up the stack
+    /// # #[macro_use]
+    /// # mod tor_error {
+    /// #     #[derive(Debug)]
+    /// #     pub struct Bug;
+    /// #     pub fn internal() {} // makes `use` work
+    /// # }
+    /// # macro_rules! internal { { $x:expr } => { Bug } }
+    //
+    /// use tor_error::{Bug, internal};
+    ///
+    /// fn choose(slice: &[i32]) -> Result<i32, Bug> {
+    ///     let index = thread_rng()
+    ///         .gen_range_checked(0..slice.len())
+    ///         .ok_or_else(|| internal!("empty slice"))?;
+    ///     Ok(slice[index])
+    /// }
+    ///
+    /// assert_eq!(choose(&[42]).unwrap(), 42);
+    /// let _: Bug = choose(&[]).unwrap_err();
+    /// ```
     fn gen_range_checked<T, R>(&mut self, range: R) -> Option<T>
     where
         T: rand::distributions::uniform::SampleUniform,
@@ -135,6 +163,20 @@ pub trait RngExt: Rng {
     /// (that necessarily then implement the appropriate `rand` traits).
     ///
     /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`]  distribution type which may be faster if sampling from the same range repeatedly.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use rand::thread_rng;
+    /// use tor_basic_utils::RngExt as _;
+    ///
+    /// fn stochastic_sleep(max: Duration) {
+    ///     let chosen_delay = thread_rng()
+    ///         .gen_range_infallible(..=max);
+    ///     std::thread::sleep(chosen_delay);
+    /// }
+    /// ```
     fn gen_range_infallible<T>(&mut self, range: RangeToInclusive<T>) -> T
     where
         T: GenRangeInfallible,
