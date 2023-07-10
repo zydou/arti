@@ -215,7 +215,9 @@ macro_rules! bad_api_usage {
 #[macro_export]
 macro_rules! into_internal {
     { $( $arg:tt )* } => {
+      std::convert::identity( // Hides the IEFI from clippy::redundant_closure_call
         |source| $crate::Bug::from_error($crate::ErrorKind::Internal, source, format!($($arg)*))
+      )
     }
 }
 
@@ -237,7 +239,9 @@ macro_rules! into_internal {
 #[macro_export]
 macro_rules! into_bad_api_usage {
     { $( $arg:tt )* } => {
+      std::convert::identity( // Hides the IEFI from clippy::redundant_closure_call
         |source| $crate::Bug::from_error($crate::ErrorKind::BadApiUsage, source, format!($($arg)*))
+      )
     }
 }
 
