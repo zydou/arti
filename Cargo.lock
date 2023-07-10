@@ -330,6 +330,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "tokio",
+ "tor-basic-utils",
  "tor-checkable",
  "tor-config",
  "tor-dirmgr",

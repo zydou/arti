@@ -42,6 +42,8 @@
 use std::collections::BinaryHeap;
 use std::fmt;
 use std::mem;
+use std::ops::{RangeInclusive, RangeToInclusive};
+use std::time::Duration;
 
 pub mod iter;
 pub mod n_key_set;
@@ -50,6 +52,8 @@ pub mod retry;
 pub mod test_rng;
 
 pub use paste::paste;
+
+use rand::Rng;
 
 // ----------------------------------------------------------------------
 
@@ -99,6 +103,119 @@ pub trait StrExt: AsRef<str> {
     }
 }
 impl StrExt for str {}
+
+// ----------------------------------------------------------------------
+
+/// Extension trait to provide `.gen_range_checked()`
+pub trait RngExt: Rng {
+    /// Generate a random value in the given range.
+    ///
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distributions::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
+    ///
+    /// If the supplied range is empty, returns `None`.
+    ///
+    /// (This is a non-panicking version of [`Rng::gen_range`].)
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// use rand::thread_rng;
+    /// use tor_basic_utils::RngExt as _;
+    //
+    // Fake plastic imitation tor_error, since that's actually higher up the stack
+    /// # #[macro_use]
+    /// # mod tor_error {
+    /// #     #[derive(Debug)]
+    /// #     pub struct Bug;
+    /// #     pub fn internal() {} // makes `use` work
+    /// # }
+    /// # macro_rules! internal { { $x:expr } => { Bug } }
+    //
+    /// use tor_error::{Bug, internal};
+    ///
+    /// fn choose(slice: &[i32]) -> Result<i32, Bug> {
+    ///     let index = thread_rng()
+    ///         .gen_range_checked(0..slice.len())
+    ///         .ok_or_else(|| internal!("empty slice"))?;
+    ///     Ok(slice[index])
+    /// }
+    ///
+    /// assert_eq!(choose(&[42]).unwrap(), 42);
+    /// let _: Bug = choose(&[]).unwrap_err();
+    /// ```
+    fn gen_range_checked<T, R>(&mut self, range: R) -> Option<T>
+    where
+        T: rand::distributions::uniform::SampleUniform,
+        R: rand::distributions::uniform::SampleRange<T>,
+    {
+        if range.is_empty() {
+            None
+        } else {
+            #[allow(clippy::disallowed_methods)]
+            Some(Rng::gen_range(self, range))
+        }
+    }
+
+    /// Generate a random value in the given upper-bounded-only range.
+    ///
+    /// For use with an inclusive upper-bounded-only range,
+    /// with types that implement `GenRangeInfallible`
+    /// (that necessarily then implement the appropriate `rand` traits).
+    ///
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distributions::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use rand::thread_rng;
+    /// use tor_basic_utils::RngExt as _;
+    ///
+    /// fn stochastic_sleep(max: Duration) {
+    ///     let chosen_delay = thread_rng()
+    ///         .gen_range_infallible(..=max);
+    ///     std::thread::sleep(chosen_delay);
+    /// }
+    /// ```
+    fn gen_range_infallible<T>(&mut self, range: RangeToInclusive<T>) -> T
+    where
+        T: GenRangeInfallible,
+    {
+        self.gen_range_checked(T::lower_bound()..=range.end)
+            .expect("GenRangeInfallible type with an empty lower_bound()..=T range")
+    }
+}
+impl<T: Rng> RngExt for T {}
+
+/// Types that can be infallibly sampled using `gen_range_infallible`
+///
+/// In addition to the supertraits, the implementor of this trait must guarantee that:
+///
+/// `<Self as GenRangeInfallible>::lower_bound() ..= UPPER`
+/// is a nonempty range for every value of `UPPER`.
+//
+// One might think that this trait is wrong because we might want to be able to
+// implement gen_range_infallible for arguments other than RangeToInclusive<T>.
+// However, double-ended ranges are inherently fallible because the actual values
+// might be in the wrong order.  Non-inclusive ranges are fallible because the
+// upper bound might be zero, unless a NonZero type is used, which seems like a further
+// complication that we probably don't want to introduce here.  That leaves lower-bounded
+// ranges, but those are very rare.
+pub trait GenRangeInfallible: rand::distributions::uniform::SampleUniform + Ord
+where
+    RangeInclusive<Self>: rand::distributions::uniform::SampleRange<Self>,
+{
+    /// The usual lower bound, for converting a `RangeToInclusive` to a `RangeInclusive`
+    ///
+    /// Only makes sense with types with a sensible lower bound, such as zero.
+    fn lower_bound() -> Self;
+}
+
+impl GenRangeInfallible for Duration {
+    fn lower_bound() -> Self {
+        Duration::ZERO
+    }
+}
 
 // ----------------------------------------------------------------------
 

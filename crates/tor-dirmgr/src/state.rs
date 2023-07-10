@@ -10,13 +10,13 @@
 //! [`bootstrap`](crate::bootstrap) module for functions that actually
 //! load or download directory information.
 
-use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
+use tor_basic_utils::RngExt as _;
 use tor_error::{internal, warn_report};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::authcert::UncheckedAuthCert;
@@ -1151,8 +1151,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
 /// is `lifetime`.
 fn pick_download_time(lifetime: &Lifetime) -> SystemTime {
     let (lowbound, uncertainty) = client_download_range(lifetime);
-    let zero = Duration::new(0, 0);
-    lowbound + rand::thread_rng().gen_range(zero..=uncertainty)
+    lowbound + rand::thread_rng().gen_range_infallible(..=uncertainty)
 }
 
 /// Based on the lifetime for a consensus, return the time range during which

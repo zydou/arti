@@ -1475,9 +1475,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             // TODO: In Tor, this calculation also depends on
             // stuff related to predicted ports and channel
             // padding.
-            use rand::Rng;
+            use tor_basic_utils::RngExt as _;
             let mut rng = rand::thread_rng();
-            rng.gen_range(timings.not_learning..=timings.not_learning * 2)
+            rng.gen_range_checked(timings.not_learning..=timings.not_learning * 2)
+                .expect("T .. 2x T turned out to be an empty duration range?!")
         }
     }
 }

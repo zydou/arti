@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use crate::RngExt as _;
 use rand::Rng;
 
 /// An implementation for retrying a remote operation based on a [decorrelated
@@ -76,6 +77,8 @@ impl RetryDelay {
     /// be yielded.
     ///
     /// Values are in milliseconds.
+    ///
+    /// The return value `(low, high)` is guaranteed to have `low < high`.
     fn delay_bounds(&self) -> (u32, u32) {
         let low = self.low_bound_ms;
         let high = std::cmp::max(
@@ -91,9 +94,7 @@ impl RetryDelay {
     /// to a given random number generator.
     fn next_delay_msec<R: Rng>(&mut self, rng: &mut R) -> u32 {
         let (low, high) = self.delay_bounds();
-        assert!(low < high);
-
-        let val = rng.gen_range(low..high);
+        let val = rng.gen_range_checked(low..high).expect("low as not < high");
         self.last_delay_ms = val;
         val
     }

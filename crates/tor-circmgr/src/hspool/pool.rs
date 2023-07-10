@@ -6,6 +6,7 @@ use std::{
 };
 
 use rand::Rng;
+use tor_basic_utils::RngExt as _;
 use tor_proto::circuit::ClientCirc;
 
 /// A collection of circuits used to fulfil onion-service-related requests.
@@ -142,7 +143,9 @@ where
     P: Fn(&T) -> bool,
 {
     while !slice.is_empty() {
-        let idx = rng.gen_range(0..slice.len());
+        let idx = rng
+            .gen_range_checked(0..slice.len())
+            .expect("slice was not empty but is now empty");
         if predicate(&slice[idx]) {
             return Some(idx);
         }

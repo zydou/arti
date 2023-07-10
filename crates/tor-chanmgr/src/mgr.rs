@@ -7,10 +7,10 @@ use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures::future::{FutureExt, Shared};
-use rand::Rng;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
+use tor_basic_utils::RngExt as _;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::params::NetParameters;
@@ -417,7 +417,9 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                         let new_entry = Open(OpenEntry {
                             channel: chan.clone(),
                             max_unused_duration: Duration::from_secs(
-                                rand::thread_rng().gen_range(180..270),
+                                rand::thread_rng()
+                                    .gen_range_checked(180..270)
+                                    .expect("not 180 < 270 !"),
                             ),
                         });
                         channel_map.insert(new_entry);

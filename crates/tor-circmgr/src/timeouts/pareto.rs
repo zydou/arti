@@ -657,6 +657,7 @@ mod test {
     use super::*;
     use crate::timeouts::TimeoutEstimator;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_basic_utils::RngExt as _;
 
     /// Return an action to build a 3-hop circuit.
     fn b3() -> Action {
@@ -922,11 +923,10 @@ mod test {
         // histograms, so all we really need to ddo here is make sure
         // that the histogram conversion happens.
 
-        use rand::Rng;
         let mut est = ParetoTimeoutEstimator::default();
         let mut rng = testing_rng();
         for _ in 0..1000 {
-            let d = Duration::from_millis(rng.gen_range(10..3_000));
+            let d = Duration::from_millis(rng.gen_range_checked(10..3_000).unwrap());
             est.note_hop_completed(2, d, true);
         }
 
