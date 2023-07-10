@@ -455,7 +455,7 @@ mod test {
 
         runtime.block_on(async {
             let task1 = async {
-                let mut buf = vec![0_u8; 16];
+                let mut buf = [0_u8; 16];
                 let (len, addr) = socket1.recv(&mut buf[..]).await?;
                 IoResult::Ok((buf[..len].to_vec(), addr))
             };
@@ -491,7 +491,7 @@ mod test {
                 let mut n = 0_u32;
                 loop {
                     let (mut con, _addr) = stream.next().await.unwrap()?;
-                    let mut buf = vec![0_u8; 11];
+                    let mut buf = [0_u8; 11];
                     con.read_exact(&mut buf[..]).await?;
                     n += 1;
                     if &buf[..] == b"world done!" {
