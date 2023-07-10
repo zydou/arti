@@ -11,6 +11,7 @@ export RUST_BACKTRACE=1
 # TODO: isn't there a way to set the permissions in the git repo? Tried `git
 # update-index --chmod`, but it refuses to set permissions on a directory.
 chmod 700 shadow.data.template/hosts/fileserver-onion/hs
+chmod 700 shadow.data.template/hosts/fileserver-onion-auth/hs
 
 # Run the simulation
 shadow \
@@ -25,7 +26,7 @@ shadow \
   > shadow.log
 
 # Check whether file transfers via arti inside the simulation succeeded
-for HOST in articlient articlient-bridge articlient-onion; do
+for HOST in articlient articlient-bridge articlient-onion articlient-onion-auth; do
   successes="$(grep -c stream-success shadow.data/hosts/$HOST/tgen.*.stdout || true)"
   if [ "$successes" = 10 ]
   then
