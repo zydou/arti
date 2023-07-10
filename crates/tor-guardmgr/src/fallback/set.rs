@@ -200,11 +200,9 @@ impl FallbackState {
     pub(crate) fn take_status_from(&mut self, other: FallbackState) {
         use itertools::EitherOrBoth::Both;
 
-        itertools::merge_join_by(
-            self.fallbacks.iter_mut(),
-            other.fallbacks.into_iter(),
-            |a, b| a.fallback.cmp_by_relay_ids(&b.fallback),
-        )
+        itertools::merge_join_by(self.fallbacks.iter_mut(), other.fallbacks, |a, b| {
+            a.fallback.cmp_by_relay_ids(&b.fallback)
+        })
         .for_each(|entry| {
             if let Both(entry, other) = entry {
                 debug_assert!(entry.fallback.same_relay_ids(&other.fallback));
