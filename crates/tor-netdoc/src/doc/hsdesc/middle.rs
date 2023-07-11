@@ -73,6 +73,9 @@ impl HsDescMiddle {
 
         match decrypt.decrypt(&self.encrypted) {
             Ok(mut v) => {
+                // Work around a bug in an implementation we presume to be
+                // OnionBalance: it doesn't NL-terminate the final line of the
+                // inner document.
                 if !v.ends_with(b"\n") {
                     v.push(b'\n');
                 }
