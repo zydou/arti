@@ -7,6 +7,7 @@
 #![allow(clippy::single_char_pattern)]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::unchecked_duration_subtraction)]
+#![allow(clippy::useless_vec)]
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
 #![allow(clippy::uninlined_format_args)]

@@ -215,7 +215,9 @@ macro_rules! bad_api_usage {
 #[macro_export]
 macro_rules! into_internal {
     { $( $arg:tt )* } => {
+      std::convert::identity( // Hides the IEFI from clippy::redundant_closure_call
         |source| $crate::Bug::from_error($crate::ErrorKind::Internal, source, format!($($arg)*))
+      )
     }
 }
 
@@ -237,7 +239,9 @@ macro_rules! into_internal {
 #[macro_export]
 macro_rules! into_bad_api_usage {
     { $( $arg:tt )* } => {
+      std::convert::identity( // Hides the IEFI from clippy::redundant_closure_call
         |source| $crate::Bug::from_error($crate::ErrorKind::BadApiUsage, source, format!($($arg)*))
+      )
     }
 }
 
@@ -258,6 +262,7 @@ mod test {
     #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
