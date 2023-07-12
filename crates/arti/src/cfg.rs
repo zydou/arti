@@ -487,22 +487,10 @@ mod test {
 
         declare_exceptions(
             None,
-            None, // TODO HSS TESTS (#939): Make examples for keymgr settings!
+            Some(InNew),
             FeatureDependent,
             &[
-                // The keystore settings are feature-dependent.
-                //
-                // The keystore_dir option has a different default value depending on whether the
-                // keystore feature is enabled (if disabled, it defaults to false, if enabled, it
-                // defaults to true). Moreover, if the feature is disabled, keystore_dir **cannot**
-                // be set to true.
-                //
-                // As such, this test will fail no matter which default we write in the example
-                // config (if the example sets this value to `true` and the test will fail if the
-                // keymgr feature disabled. If it's set to `false`, the test will fail if the
-                // keymgr feature is enabled).
-                //
-                // See #939
+                // Settings only available with experimental-api support
                 "storage.keystore",
             ],
         );

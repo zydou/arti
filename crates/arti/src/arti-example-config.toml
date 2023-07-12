@@ -105,6 +105,26 @@
 #cache_dir = "${ARTI_CACHE}"
 #state_dir = "${ARTI_LOCAL_DATA}"
 
+#[storage.keystore]
+# Whether the keystore is enabled.
+#
+# If the `keymgr` feature is enabled and this option is:
+#     * set to false, we will ignore the configured keystore path.
+#     * set to "auto", the configured keystore, or the default keystore, if the
+#     keystore path is not specified, will be used
+#     * set to true, the configured keystore, or the default keystore, if the
+#     keystore path is not specified, will be used
+#
+# If the `keymgr` feature is disabled and this option is:
+#     * set to false, we will ignore the configured keystore path.
+#     * set to "auto", we will ignore the configured keystore path.
+#
+# Setting this option to true when the `keymgr` feature is disabled is a
+# configuration error.
+#enabled = "auto"
+# The root directory of the arti keystore
+#path = "${ARTI_LOCAL_DATA}/keystore"
+
 # Describe how to enforce permissions on the filesystem when accessing the cache
 # and state directories.  (This does not apply to configuration files)
 [storage.permissions]
