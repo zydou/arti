@@ -94,7 +94,7 @@ rust-latest:
   image: rust:latest
   script:
     - rustup show
-    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu --features onion-service-client
+    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu
     - cargo test --verbose --target x86_64-unknown-linux-gnu
     - rustup component add clippy
     - rustup show
@@ -102,6 +102,34 @@ rust-latest:
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
   after_script:
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+    - cargo clean
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 1 hours
+  tags:
+    - amd64
+
+rust-latest-arti-extra-features:
+  stage: build
+  image: rust:latest
+  script:
+    - rustup show
+    # Build the arti binary for use in chutney and shadow integration tests.
+    #
+    # Note: we enable the `experimental-api` feature instead of `experimental`,
+    # because we don't want to build with `rpc` enabled. The `rpc` feature causes
+    # the RPC listener to try to bind to a Unix domain socket, and pathname Unix
+    # domain sockets are not currently supported by shadow.
+    #
+    # Consider enabling the rpc feature when shadow starts supporting pathname
+    # addresses, or when we add a config setting for disabling rpc.
+    - cargo build --verbose --target x86_64-unknown-linux-gnu --bin arti --features full,experimental-api,arti-client/keymgr
+  after_script:
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
+    # Save the full-featured binary under a different name to prevent it from being
+    # overwritten by the other jobs that preserve the arti binary.
+    - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
     - cargo clean
   artifacts:
     paths:
