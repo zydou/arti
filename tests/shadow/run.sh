@@ -26,9 +26,25 @@ shadow \
   > shadow.log
 
 # Check whether file transfers via arti inside the simulation succeeded
-for HOST in articlient articlient-bridge articlient-onion articlient-onion-auth; do
+for HOST in articlient articlient-bridge; do
   successes="$(grep -c stream-success shadow.data/hosts/$HOST/tgen.*.stdout || true)"
   if [ "$successes" = 10 ]
+  then
+    echo "Simulation successful"
+  else
+    echo "Failed. Only got $successes successful streams."
+    exit 1
+  fi
+done
+
+for HOST in articlient-onion articlient-onion-auth; do
+  successes="$(grep -c stream-success shadow.data/hosts/$HOST/tgen.*.stdout || true)"
+  # NOTE: For the HS client tests we only require half of the streams to succeed
+  # to work around the issue described in https://github.com/shadow/shadow/issues/2544
+  # and arti!1399.
+  #
+  # See also: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1399#note_2921505
+  if [ "$successes" -ge 5 ]
   then
     echo "Simulation successful"
   else
