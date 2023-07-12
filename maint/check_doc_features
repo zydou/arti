@@ -45,6 +45,8 @@ additional_provided['tor-proto']= [
 additional_required['tor-proto']= [
     ('CtrlMsg', 'feature = "testing"'),
     ('CreateResponse', 'feature = "testing"'),
+    # I have no idea, but empirically this stops the CI complaining -Diziet
+    ('Conversation', 'feature = "send-control-msg"'),
 ]
 
 # This is detected two times, but only on cfg_attr(docsrs) is enough

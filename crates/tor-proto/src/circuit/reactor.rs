@@ -1519,6 +1519,7 @@ impl Reactor {
 }
 
 #[cfg(feature = "send-control-msg")]
+#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 impl ConversationInHandler<'_, '_, '_> {
     /// Send a protocol message as part of an ad-hoc exchange
     ///
@@ -1530,7 +1531,6 @@ impl ConversationInHandler<'_, '_, '_> {
     //
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
-    #[cfg(feature = "send-control-msg")]
     pub fn send_message(&mut self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
         let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
 

@@ -746,12 +746,12 @@ impl ClientCirc {
 pub struct Conversation<'r>(&'r ClientCirc);
 
 #[cfg(feature = "send-control-msg")]
+#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 impl Conversation<'_> {
     /// Send a protocol message as part of an ad-hoc exchange
     ///
     /// Responses are handled by the `MsgHandler` set up
     /// when the `Conversation` was created.
-    #[cfg(feature = "send-control-msg")]
     pub async fn send_message(&self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
         self.send_internal(Some(msg), None).await
     }
