@@ -295,7 +295,7 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Obtain a channel builder which can be used to create connections to
     /// relays directly, bypassing many of the setup processes of [ChanMgr]
-    #[cfg(feature = "experimental")]
+    #[cfg(feature = "experimental-api")]
     pub fn builder(&self) -> Arc<dyn ChannelFactory + Send + Sync> {
         Arc::new(self.mgr.channels.builder())
     }
