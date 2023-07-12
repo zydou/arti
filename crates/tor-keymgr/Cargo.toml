@@ -18,19 +18,22 @@ default = []
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 
-keymgr = ["__is_experimental", "tor-error/experimental"]
+keymgr = ["__is_experimental", "tor-error/experimental", "tor-config/experimental"]
 __is_experimental = []
 full = ["fs-mistrust/full", "tor-error/full", "tor-hscrypto/full", "tor-llcrypto/full"]
 experimental = ["keymgr"]
 
 [dependencies]
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 downcast-rs = "1.2.0"
 dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.1", features = ["serde", "walkdir"] }
 itertools = "0.10.1"
+serde = { version = "1.0.103", features = ["derive"] }
 ssh-key = { version = "0.5.1", features = ["std"] }
 thiserror = "1"
+tor-config = { path = "../tor-config", version = "0.9.2" }
 tor-error = { path = "../tor-error", version = "0.5.2" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.2", features = ["keymgr"] }
