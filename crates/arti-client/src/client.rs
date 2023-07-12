@@ -601,15 +601,20 @@ impl<R: Runtime> TorClient<R> {
         };
 
         let keymgr = {
-            let key_store_dir = config.storage.expand_keystore_dir()?;
-            let permissions = config.storage.permissions();
-
             let mut stores: Vec<Box<dyn Keystore>> = vec![];
 
-            if let Some(key_store_dir) = key_store_dir {
-                let arti_store =
-                    ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
-                stores.push(Box::new(arti_store));
+            if let Some(keystore) = config.storage.keystore() {
+                let key_store_dir = keystore.expand_keystore_dir()?;
+                let permissions = config.storage.permissions();
+                // If enabled is true or set to "auto", initialize the keystore
+                //
+                // In this case "auto" means true, because experimental-api is enabled
+                // (otherwise, config.storage.keystore() would've returned None).
+                if keystore.enabled.as_bool().unwrap_or(true) {
+                    let arti_store =
+                        ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
+                    stores.push(Box::new(arti_store));
+                }
             }
 
             // TODO hs: add support for the C Tor key store

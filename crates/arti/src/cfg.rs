@@ -503,7 +503,7 @@ mod test {
                 // keymgr feature is enabled).
                 //
                 // See #939
-                "storage.keystore_dir", // we recognise this so we can reject it if
+                "storage.keystore",
             ],
         );
 
