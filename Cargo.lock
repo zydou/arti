@@ -1509,12 +1509,12 @@ dependencies = [
  "educe",
  "libc",
  "once_cell",
+ "pwd-grp",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror",
  "toml 0.7.5",
- "users",
  "walkdir",
 ]
 
@@ -2853,6 +2853,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b368fba921b0dce7e60f5e04ec15e565b3303972b42bcfde1d0713b881959eb"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "pwd-grp"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f051bd6fedf71a440d884906dd1c9b66c678e3a2882652b53c5ec8b0aa4268e4"
+dependencies = [
+ "derive-adhoc",
+ "libc",
+ "paste",
+ "thiserror",
 ]
 
 [[package]]
@@ -5119,16 +5131,6 @@ dependencies = [
  "form_urlencoded",
  "idna 0.4.0",
  "percent-encoding",
-]
-
-[[package]]
-name = "users"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24cc0f6d6f267b73e5a2cadf007ba8f9bc39c6a6f9666f8cf25ea809a153b032"
-dependencies = [
- "libc",
- "log",
 ]
 
 [[package]]

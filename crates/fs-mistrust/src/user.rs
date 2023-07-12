@@ -6,40 +6,60 @@ mod serde_support;
 use crate::Error;
 use once_cell::sync::Lazy;
 use std::{
+    collections::HashMap,
     ffi::{OsStr, OsString},
     io,
     sync::Mutex,
 };
+// TODO Unix usernames are byte strings.  OsStr and OsString are very awkward because
+// Windows env vars etc. can be WTF-16.  We should use Vec<u8> throughout, on Unix, where we can.
+use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 
-/// XXXX temporary alias
-trait PwdGrpProvider: users::Users + users::Groups {}
-impl<U: users::Users + users::Groups> PwdGrpProvider for U {}
+use pwd_grp::{PwdGrp, PwdGrpProvider};
 
-/// Cached values of user db entries we've looked up.
+/// uids and gids, convenient type alias
+type Id = u32;
+
+/// Cache for the trusted uid/gid answers
+#[derive(Default, Debug)]
+struct TrustedUsersCache<U: PwdGrpProvider> {
+    /// The passwd/group provider (possibly mocked)
+    pwd_grp: U,
+    /// Cached trusted uid determination
+    trusted_uid: HashMap<TrustedUser, Option<Id>>,
+    /// Cached trusted gid determination
+    trusted_gid: HashMap<TrustedGroup, Option<Id>>,
+}
+
+/// Cached trusted id determinations
 ///
-/// Caching here saves time, AND makes our code testable.
+/// Caching here saves time - including passwd/group lookups, which can be slow enough
+/// we don't want to do them often.
 ///
-/// Though this type has interior mutability, it isn't Sync, so we need to add a mutex.
-static CACHE: Lazy<Mutex<users::UsersCache>> = Lazy::new(|| Mutex::new(users::UsersCache::new()));
+/// It isn't 100% correct since we don't track changes to the passwd/group databases.
+/// That might not be OK everywhere, but it is OK in this application.
+static CACHE: Lazy<Mutex<TrustedUsersCache<PwdGrp>>> = Lazy::new(
+    || Mutex::new(TrustedUsersCache::default())
+);
 
 /// Convert an [`io::Error `] representing a user/group handling failure into an [`Error`]
 fn handle_pwd_error(e: io::Error) -> Error {
     Error::PasswdGroupIoError(e.into())
 }
 
-/// Like get_self_named_gid(), but use a provided user database.
+/// Obtain the gid of a group named after the current user
 fn get_self_named_gid_impl<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<u32>> {
     let Some(username) = get_own_username(userdb)? else { return Ok(None) };
 
-    let Some(group) = userdb.get_group_by_name(username.as_os_str())
+    let Some(group) = userdb.getgrnam::<Vec<u8>>(username.as_bytes())?
     else { return Ok(None) };
 
     // TODO: Perhaps we should enforce a requirement that the group contains
     // _only_ the current users.  That's kinda tricky to do, though, without
     // walking the entire user db.
 
-    Ok(if cur_groups()?.contains(&group.gid()) {
-        Some(group.gid())
+    Ok(if cur_groups()?.contains(&group.gid) {
+        Some(group.gid)
     } else {
         None
     })
@@ -53,20 +73,20 @@ fn get_self_named_gid_impl<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<u
 /// Failing that, we look for a user entry for our current UID.
 #[allow(clippy::unnecessary_wraps)] // XXXX
 fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<OsString>> {
-    let my_uid = userdb.get_current_uid();
+    let my_uid = userdb.getuid();
 
     if let Some(username) = std::env::var_os("USER") {
-        if let Some(passwd) = userdb.get_user_by_name(username.as_os_str()) {
-            if passwd.uid() == my_uid {
+        if let Some(passwd) = userdb.getpwnam::<Vec<u8>>(username.as_bytes())? {
+            if passwd.uid == my_uid {
                 return Ok(Some(username));
             }
         }
     }
 
-    if let Some(passwd) = userdb.get_user_by_uid(my_uid) {
+    if let Some(passwd) = userdb.getpwuid::<Vec<u8>>(my_uid)? {
         // This check should always pass, but let's be extra careful.
-        if passwd.uid() == my_uid {
-            return Ok(Some(passwd.name().to_owned()));
+        if passwd.uid == my_uid {
+            return Ok(Some(OsString::from_vec(passwd.name)));
         }
     }
 
@@ -84,7 +104,7 @@ fn cur_groups() -> io::Result<Vec<u32>> {
     if n_groups <= 0 {
         return Ok(Vec::new());
     }
-    let mut buf: Vec<users::gid_t> = vec![0; n_groups as usize];
+    let mut buf: Vec<Id> = vec![0; n_groups as usize];
     let n_groups2 = unsafe { libc::getgroups(buf.len() as i32, buf.as_mut_ptr()) };
     if n_groups2 <= 0 {
         return Ok(Vec::new());
@@ -94,7 +114,7 @@ fn cur_groups() -> io::Result<Vec<u32>> {
     }
     // It's not guaranteed that our current GID is necessarily one of our
     // current groups.  So, we add it.
-    let cur_gid = users::get_current_gid();
+    let cur_gid = PwdGrp.getgid();
     if !buf.contains(&cur_gid) {
         buf.push(cur_gid);
     }
@@ -171,18 +191,23 @@ impl From<&str> for TrustedUser {
 impl TrustedUser {
     /// Try to convert this `User` into an optional UID.
     pub(crate) fn get_uid(&self) -> Result<Option<u32>, Error> {
-        let userdb = CACHE.lock().expect("poisoned lock");
-        self.get_uid_impl(&*userdb)
+        let mut cache = CACHE.lock().expect("poisoned lock");
+        if let Some(got) = cache.trusted_uid.get(self) {
+            return Ok(*got);
+        }
+        let calculated = self.get_uid_impl(&cache.pwd_grp)?;
+        cache.trusted_uid.insert(self.clone(), calculated);
+        Ok(calculated)
     }
     /// As `get_uid`, but take a userdb.
     fn get_uid_impl<U: PwdGrpProvider>(&self, userdb: &U) -> Result<Option<u32>, Error> {
         match self {
             TrustedUser::None => Ok(None),
-            TrustedUser::Current => Ok(Some(userdb.get_current_uid())),
+            TrustedUser::Current => Ok(Some(userdb.getuid())),
             TrustedUser::Id(id) => Ok(Some(*id)),
             TrustedUser::Name(name) => userdb
-                .get_user_by_name(&name)
-                .map(|u| Some(u.uid()))
+                .getpwnam(name.as_bytes()).map_err(handle_pwd_error)?
+                .map(|u: pwd_grp::Passwd<Vec<u8>>| Some(u.uid))
                 .ok_or_else(|| Error::NoSuchUser(name.to_string_lossy().into_owned())),
         }
     }
@@ -250,8 +275,13 @@ impl From<&str> for TrustedGroup {
 impl TrustedGroup {
     /// Try to convert this `Group` into an optional GID.
     pub(crate) fn get_gid(&self) -> Result<Option<u32>, Error> {
-        let userdb = CACHE.lock().expect("poisoned lock");
-        self.get_gid_impl(&*userdb)
+        let mut cache = CACHE.lock().expect("poisoned lock");
+        if let Some(got) = cache.trusted_gid.get(self) {
+            return Ok(*got);
+        }
+        let calculated = self.get_gid_impl(&cache.pwd_grp)?;
+        cache.trusted_gid.insert(self.clone(), calculated);
+        Ok(calculated)
     }
     /// Like `get_gid`, but take a user db as an argument.
     fn get_gid_impl<U: PwdGrpProvider>(
@@ -263,8 +293,8 @@ impl TrustedGroup {
             TrustedGroup::SelfNamed => get_self_named_gid_impl(userdb).map_err(handle_pwd_error),
             TrustedGroup::Id(id) => Ok(Some(*id)),
             TrustedGroup::Name(name) => userdb
-                .get_group_by_name(&name)
-                .map(|u| Some(u.gid()))
+                .getgrnam(name.as_bytes()).map_err(handle_pwd_error)?
+                .map(|g: pwd_grp::Group<Vec<u8>>| Some(g.gid))
                 .ok_or_else(|| Error::NoSuchGroup(name.to_string_lossy().into_owned())),
         }
     }
@@ -283,24 +313,36 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     #![allow(clippy::useless_vec)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::unnecessary_mut_passed)] // XXXX
     use super::*;
-    use users::mock::{Group, MockUsers, User};
+    use pwd_grp::mock::MockPwdGrpProvider;
     type Id = u32;
 
-    fn mock_users() -> MockUsers {
-        MockUsers::with_current_uid(413)
+    fn mock_users() -> MockPwdGrpProvider {
+        let mock = MockPwdGrpProvider::new();
+        mock.set_uids(413.into());
+        mock
     }
-    fn add_user(mock: &mut MockUsers, uid: Id, name: &str, gid: Id) {
-        mock.add_user(User::new(uid, name, gid));
+    fn add_user(mock: &MockPwdGrpProvider, uid: Id, name: &str, gid: Id) {
+        mock.add_to_passwds([pwd_grp::Passwd::<String> {
+            name: name.into(),
+            uid,
+            gid,
+            ..pwd_grp::Passwd::blank()
+        }]);
     }
-    fn add_group(mock: &mut MockUsers, gid: Id, name: &str) {
-        mock.add_group(Group::new(gid, name));
+    fn add_group(mock: &MockPwdGrpProvider, gid: Id, name: &str) {
+        mock.add_to_groups([pwd_grp::Group::<String> {
+            name: name.into(),
+            gid,
+            ..pwd_grp::Group::blank()
+        }]);
     }
 
     #[test]
     fn groups() {
         let groups = cur_groups().unwrap();
-        let cur_gid = users::get_current_gid();
+        let cur_gid = pwd_grp::getgid();
         if groups.is_empty() {
             // Some container/VM setups forget to put the (root) user into any
             // groups at all.
@@ -314,10 +356,10 @@ mod test {
         // Here we'll do tests with our real username.  THere's not much we can
         // actually test there, but we'll try anyway.
         let cache = CACHE.lock().expect("poisoned lock");
-        let uname = get_own_username(&*cache).unwrap().expect("Running on a misconfigured host");
-        let user = users::get_user_by_name(uname.as_os_str()).unwrap();
-        assert_eq!(user.name(), uname);
-        assert_eq!(user.uid(), users::get_current_uid());
+        let uname = get_own_username(&cache.pwd_grp).unwrap().expect("Running on a misconfigured host");
+        let user = PwdGrp.getpwnam::<Vec<u8>>(uname.as_bytes()).unwrap().unwrap();
+        assert_eq!(user.name, uname.as_bytes());
+        assert_eq!(user.uid, PwdGrp.getuid());
     }
 
     #[test]
