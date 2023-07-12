@@ -1519,6 +1519,7 @@ impl Reactor {
 }
 
 #[cfg(feature = "send-control-msg")]
+#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 impl ConversationInHandler<'_, '_, '_> {
     /// Send a protocol message as part of an ad-hoc exchange
     ///

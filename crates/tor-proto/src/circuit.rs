@@ -746,6 +746,7 @@ impl ClientCirc {
 pub struct Conversation<'r>(&'r ClientCirc);
 
 #[cfg(feature = "send-control-msg")]
+#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 impl Conversation<'_> {
     /// Send a protocol message as part of an ad-hoc exchange
     ///
