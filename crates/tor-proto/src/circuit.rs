@@ -751,7 +751,6 @@ impl Conversation<'_> {
     ///
     /// Responses are handled by the `MsgHandler` set up
     /// when the `Conversation` was created.
-    #[cfg(feature = "send-control-msg")]
     pub async fn send_message(&self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
         self.send_internal(Some(msg), None).await
     }
