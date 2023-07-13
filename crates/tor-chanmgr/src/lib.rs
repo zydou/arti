@@ -319,8 +319,13 @@ impl<R: Runtime> ChanMgr<R> {
     ///
     /// Unlike [`get_or_launch`](ChanMgr::get_or_launch), this function always
     /// creates a new channel, never retries transient failure, and does not
-    /// register this channel with the `ChanMgr`.  Generally you should not use
-    /// it.
+    /// register this channel with the `ChanMgr`.  
+    ///
+    /// Generally you should not use this function; `get_or_launch` is usually a
+    /// better choice.  This function is the right choice if, for whatever
+    /// reason, you need to manage the lifetime of the channel you create, and
+    /// make sure that no other code with access to this `ChanMgr` will be able
+    /// to use the channel.
     #[cfg(feature = "experimental-api")]
     pub async fn build_unmanaged_channel(
         &self,
