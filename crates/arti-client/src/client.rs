@@ -612,8 +612,11 @@ impl<R: Runtime> TorClient<R> {
                 // (otherwise, config.storage.keystore() would've returned None).
                 if keystore.enabled.as_bool().unwrap_or(true) {
                     let arti_store =
-                        ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
+                        ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
+                    info!("Using keystore from {key_store_dir:?}");
                     stores.push(Box::new(arti_store));
+                } else {
+                    info!("Running without a keystore");
                 }
             }
 
