@@ -1,5 +1,6 @@
 //! Implementation code to make a bridge something that we can connect to and use to relay traffic.
 
+use itertools::Itertools as _;
 use tor_linkspec::{
     ChanTarget, CircTarget, HasAddrs, HasChanMethod, HasRelayIds, RelayIdRef, RelayIdType,
 };
@@ -56,6 +57,7 @@ impl<'a> BridgeRelay<'a> {
             .iter()
             .copied()
             .chain(desc.iter().flat_map(|d| d.as_ref().or_ports()))
+            .unique()
             .collect();
 
         Self {
