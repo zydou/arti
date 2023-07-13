@@ -296,9 +296,35 @@ impl<R: Runtime> ChanMgr<R> {
     /// Obtain a channel builder which can be used to create connections to
     /// relays directly, bypassing many of the setup processes of [ChanMgr]
     #[cfg(feature = "experimental-api")]
+    // TODO REMOVE THIS if we keep build_unmanaged_channel; it's not actually
+    // usable without a BootstrapReporter
     pub fn builder(&self) -> Arc<dyn ChannelFactory + Send + Sync> {
         Arc::new(self.mgr.channels.builder())
     }
+
+    /// Try to create a new, unmanaged channel to `target`.
+    ///
+    /// Unlike [`get_or_launch`](ChanMgr::get_or_launch), this function always
+    /// creates a new channel, never retries transient failure, and does not
+    /// register this channel with the `ChanMgr`.  Generally you should not use
+    /// it.
+    ///
+    /// TODO: Before we merge this we should figure out if it handles timeouts
+    /// and whether it should?
+    #[cfg(feature = "experimental-api")]
+    pub async fn build_unmanaged_channel(
+        &self,
+        target: impl tor_linkspec::IntoOwnedChanTarget,
+    ) -> Result<Channel> {
+        let target = target.to_owned();
+
+        self.mgr
+            .channels
+            .builder()
+            .connect_via_transport(&target, self.mgr.reporter.clone())
+            .await
+    }
+
     /// Watch for things that ought to change the configuration of all channels in the client
     ///
     /// Currently this handles enabling and disabling channel padding.
