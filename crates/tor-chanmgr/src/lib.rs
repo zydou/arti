@@ -96,6 +96,23 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 /// in the future.)
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
+    ///
+    /// ## How this is built
+    ///
+    /// This internal manager is parameterized over an
+    /// [`mgr::AbstractChannelFactory`], which here is instantiated with a [`factory::CompoundFactory`].
+    /// The `CompoundFactory` itself holds:
+    ///   * A `dyn` [`factory::AbstractPtMgr`] that can provide a `dyn`
+    ///     [`factory::ChannelFactory`] for each supported pluggable transport.
+    ///     This starts out as `None`, but can be replaced with [`ChanMgr::set_pt_mgr`].
+    ///     The `TorClient` code currently sets this using `tor_ptmgr::PtMgr`.
+    ///     `PtMgr` currently returns `ChannelFactory` implementations that are
+    ///     built using [`transport::proxied::ExternalProxyPlugin`], which implements
+    ///     [`transport::TransportImplHelper`], which in turn is wrapped into a
+    ///     `ChanBuilder` to implement `ChannelFactory`.
+    ///   * A `dyn` [`factory::ChannelFactory`] that it uses for everything else
+    ///     We instantiate this with a
+    ///     [`builder::ChanBuilder`] using a [`transport::default::DefaultTransport`].
     mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
 
     /// Stream of [`ConnStatus`] events.
@@ -288,17 +305,41 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Replace the transport registry with one that may know about
     /// more transports.
+    ///
+    /// Note that the [`ChannelFactory`] instances returned by `ptmgr` are
+    /// required to time-out channels that take too long to build.  You'll get
+    /// this behavior by default if the factories implement [`ChannelFactory`] using
+    /// [`transport::proxied::ExternalProxyPlugin`], which `tor-ptmgr` does.
     #[cfg(feature = "pt-client")]
     pub fn set_pt_mgr(&self, ptmgr: Arc<dyn factory::AbstractPtMgr + 'static>) {
         self.mgr.with_mut_builder(|f| f.replace_ptmgr(ptmgr));
     }
 
-    /// Obtain a channel builder which can be used to create connections to
-    /// relays directly, bypassing many of the setup processes of [ChanMgr]
+    /// Try to create a new, unmanaged channel to `target`.
+    ///
+    /// Unlike [`get_or_launch`](ChanMgr::get_or_launch), this function always
+    /// creates a new channel, never retries transient failure, and does not
+    /// register this channel with the `ChanMgr`.  
+    ///
+    /// Generally you should not use this function; `get_or_launch` is usually a
+    /// better choice.  This function is the right choice if, for whatever
+    /// reason, you need to manage the lifetime of the channel you create, and
+    /// make sure that no other code with access to this `ChanMgr` will be able
+    /// to use the channel.
     #[cfg(feature = "experimental-api")]
-    pub fn builder(&self) -> Arc<dyn ChannelFactory + Send + Sync> {
-        Arc::new(self.mgr.channels.builder())
+    pub async fn build_unmanaged_channel(
+        &self,
+        target: impl tor_linkspec::IntoOwnedChanTarget,
+    ) -> Result<Channel> {
+        let target = target.to_owned();
+
+        self.mgr
+            .channels
+            .builder()
+            .connect_via_transport(&target, self.mgr.reporter.clone())
+            .await
     }
+
     /// Watch for things that ought to change the configuration of all channels in the client
     ///
     /// Currently this handles enabling and disabling channel padding.
