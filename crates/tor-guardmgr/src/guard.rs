@@ -598,10 +598,6 @@ impl Guard {
             }
         };
 
-        // We got a definite answer, so we aren't missing a microdesc for this
-        // guard.
-        self.dir_info_missing = false;
-
         if listed_as_guard {
             // Definitely listed, so clear unlisted_since.
             self.mark_listed();
