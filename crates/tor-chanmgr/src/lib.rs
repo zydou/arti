@@ -96,6 +96,23 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 /// in the future.)
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
+    ///
+    /// ## How this is built
+    ///
+    /// This internal manager is parameterized over an
+    /// [`mgr::AbstractChannelFactory`], which here is instantiated with a [`factory::CompoundFactory`].
+    /// The `CompoundFactory` itself holds:
+    ///   * A `dyn` [`factory::AbstractPtMgr`] that can provide a `dyn`
+    ///     [`factory::ChannelFactory`] for each supported pluggable transport.
+    ///     This starts out as `None`, but can be replaced with [`ChanMgr::set_pt_mgr`].
+    ///     The `TorClient` code currently sets this using `tor_ptmgr::PtMgr`.
+    ///     `PtrMgr` currently returns `ChannelFactory` implementations that are
+    ///     built using [`transport::proxied::ExternalProxyPlugin`], which implements
+    ///     [`transport::TransportImplHelper`], which in turn is wrapped into a
+    ///     `ChanBuilder` to implement `ChannelFactory`.
+    ///   * A `dyn` [`factory::ChannelFactory`] that it uses for everything else
+    ///     it uses for everything else.  We instantiate this with a
+    ///     [`builder::ChanBuilder`] using a [`transport::default::DefaultTransport`].
     mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
 
     /// Stream of [`ConnStatus`] events.
@@ -288,6 +305,11 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Replace the transport registry with one that may know about
     /// more transports.
+    ///
+    /// Note that the [`ChannelFactory`] instances returned by `ptrmgr` are
+    /// required to time-out channels that take too long to build.  You'll get
+    /// this behavior by default if the factories implement [`ChannelFactory`] using
+    /// [`transport::proxied::ExternalProxyPlugin`], which `tor-ptrmgr` does.
     #[cfg(feature = "pt-client")]
     pub fn set_pt_mgr(&self, ptmgr: Arc<dyn factory::AbstractPtMgr + 'static>) {
         self.mgr.with_mut_builder(|f| f.replace_ptmgr(ptmgr));
