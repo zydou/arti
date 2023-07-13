@@ -74,7 +74,7 @@ use tor_rtcompat::Runtime;
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
-use crate::factory::{BootstrapReporter, ChannelFactory};
+use crate::factory::BootstrapReporter;
 pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
@@ -331,6 +331,7 @@ impl<R: Runtime> ChanMgr<R> {
         &self,
         target: impl tor_linkspec::IntoOwnedChanTarget,
     ) -> Result<Channel> {
+        use factory::ChannelFactory as _;
         let target = target.to_owned();
 
         self.mgr
