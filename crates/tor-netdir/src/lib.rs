@@ -95,6 +95,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub use err::OnionDirLookupError;
 
 use params::NetParameters;
+#[cfg(feature = "geoip")]
+use tor_geoip::{CountryCode, GeoipDb, HasCountryCode};
 
 /// Index into the consensus relays
 ///
@@ -107,7 +109,7 @@ use params::NetParameters;
 ///
 /// If you are in a part of the code which needs to work with multiple consensuses,
 /// the typechecking cannot tell if you try to index into the wrong consensus.
-#[derive(Debug, From, Into, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, From, Into, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub(crate) struct RouterStatusIdx(usize);
 
 /// Extension trait to provide index-type-safe `.c_relays()` method
@@ -347,6 +349,13 @@ pub struct NetDir {
     /// Weight values to apply to a given relay when deciding how frequently
     /// to choose it for a given role.
     weights: weight::WeightSet,
+
+    #[cfg(feature = "geoip")]
+    /// Country codes for each router in our consensus.
+    ///
+    /// This is indexed by the `RouterStatusIdx` (i.e. a router idx of zero has
+    /// the country code at position zero in this array).
+    country_codes: Vec<Option<CountryCode>>,
 }
 
 /// Collection of hidden service directories (or parameters for them)
@@ -603,6 +612,9 @@ pub struct Relay<'a> {
     rs: &'a netstatus::MdConsensusRouterStatus,
     /// A microdescriptor for this relay.
     md: &'a Microdesc,
+    /// The country code this relay is in, if we know one.
+    #[cfg(feature = "geoip")]
+    cc: Option<CountryCode>,
 }
 
 /// A relay that we haven't checked for validity or usability in
@@ -613,6 +625,9 @@ pub struct UncheckedRelay<'a> {
     rs: &'a netstatus::MdConsensusRouterStatus,
     /// A microdescriptor for this relay, if there is one.
     md: Option<&'a Microdesc>,
+    /// The country code this relay is in, if we know one.
+    #[cfg(feature = "geoip")]
+    cc: Option<CountryCode>,
 }
 
 /// A partial or full network directory that we can download
@@ -638,6 +653,33 @@ impl PartialNetDir {
     pub fn new(
         consensus: MdConsensus,
         replacement_params: Option<&netstatus::NetParams<i32>>,
+    ) -> Self {
+        Self::new_inner(
+            consensus,
+            replacement_params,
+            #[cfg(feature = "geoip")]
+            None,
+        )
+    }
+
+    /// Create a new PartialNetDir with GeoIP support.
+    ///
+    /// This does the same thing as `new()`, except the provided GeoIP database is used to add
+    /// country codes to relays.
+    #[cfg(feature = "geoip")]
+    pub fn new_with_geoip(
+        consensus: MdConsensus,
+        replacement_params: Option<&netstatus::NetParams<i32>>,
+        geoip_db: &GeoipDb,
+    ) -> Self {
+        Self::new_inner(consensus, replacement_params, Some(geoip_db))
+    }
+
+    /// Implementation of the `new()` functions.
+    fn new_inner(
+        consensus: MdConsensus,
+        replacement_params: Option<&netstatus::NetParams<i32>>,
+        #[cfg(feature = "geoip")] geoip_db: Option<&GeoipDb>,
     ) -> Self {
         let mut params = NetParameters::default();
 
@@ -672,6 +714,22 @@ impl PartialNetDir {
             .map(|(rsidx, rs)| (*rs.rsa_identity(), rsidx))
             .collect();
 
+        #[cfg(feature = "geoip")]
+        let country_codes = if let Some(db) = geoip_db {
+            consensus
+                .c_relays()
+                .iter()
+                .map(|rs| {
+                    let ret = db
+                        .lookup_country_code_multi(rs.addrs().iter().map(|x| x.ip()))
+                        .cloned();
+                    ret
+                })
+                .collect()
+        } else {
+            Default::default()
+        };
+
         #[cfg(feature = "hs-common")]
         let hsdir_rings = Arc::new({
             let params = HsDirParams::compute(&consensus, &params).expect("Invalid consensus!");
@@ -694,6 +752,8 @@ impl PartialNetDir {
             #[cfg(feature = "hs-common")]
             hsdir_rings,
             weights,
+            #[cfg(feature = "geoip")]
+            country_codes,
         };
 
         PartialNetDir {
@@ -817,7 +877,12 @@ impl NetDir {
             debug_assert_eq!(rs.md_digest(), md.digest());
         }
 
-        UncheckedRelay { rs, md }
+        UncheckedRelay {
+            rs,
+            md,
+            #[cfg(feature = "geoip")]
+            cc: self.country_codes.get(rsidx.0).copied().flatten(),
+        }
     }
 
     /// Replace the overridden parameters in this netdir with `new_replacement`.
@@ -900,7 +965,13 @@ impl NetDir {
     pub(crate) fn relay_by_rs_idx(&self, rs_idx: RouterStatusIdx) -> Option<Relay<'_>> {
         let rs = self.c_relays().get(rs_idx)?;
         let md = self.mds.get(rs_idx)?.as_deref();
-        UncheckedRelay { rs, md }.into_relay()
+        UncheckedRelay {
+            rs,
+            md,
+            #[cfg(feature = "geoip")]
+            cc: self.country_codes.get(rs_idx.0).copied().flatten(),
+        }
+        .into_relay()
     }
 
     /// Return a relay with the same identities as those in `target`, if one
@@ -1495,6 +1566,8 @@ impl<'a> UncheckedRelay<'a> {
             Some(Relay {
                 rs: self.rs,
                 md: self.md?,
+                #[cfg(feature = "geoip")]
+                cc: self.cc,
             })
         } else {
             None
@@ -1660,6 +1733,12 @@ impl<'a> HasAddrs for Relay<'a> {
         self.rs.addrs()
     }
 }
+#[cfg(feature = "geoip")]
+impl<'a> HasCountryCode for Relay<'a> {
+    fn country_code(&self) -> Option<CountryCode> {
+        self.cc
+    }
+}
 impl<'a> tor_linkspec::HasRelayIdsLegacy for Relay<'a> {
     fn ed_identity(&self) -> &Ed25519Identity {
         self.id()
@@ -1678,6 +1757,12 @@ impl<'a> HasRelayIds for UncheckedRelay<'a> {
             RelayIdType::Rsa => Some(self.rs.rsa_identity().into()),
             _ => None,
         }
+    }
+}
+#[cfg(feature = "geoip")]
+impl<'a> HasCountryCode for UncheckedRelay<'a> {
+    fn country_code(&self) -> Option<CountryCode> {
+        self.cc
     }
 }
 
@@ -2331,5 +2416,51 @@ mod test {
         assert!(family.contains(&Ed25519Identity::from([12; 32])));
         // Note that 13 doesn't get put in, even though it's listed, since it doesn't claim
         //  membership with 10.
+    }
+    #[test]
+    #[cfg(feature = "geoip")]
+    fn relay_has_country_code() {
+        let src_v6 = r#"
+        fe80:dead:beef::,fe80:dead:ffff::,US
+        fe80:feed:eeee::1,fe80:feed:eeee::2,AT
+        fe80:feed:eeee::2,fe80:feed:ffff::,DE
+        "#;
+        let db = GeoipDb::new_from_legacy_format("", src_v6).unwrap();
+
+        let netdir = construct_custom_netdir_with_geoip(
+            |pos, n| {
+                if pos == 0x01 {
+                    n.rs.add_or_port("[fe80:dead:beef::1]:42".parse().unwrap());
+                }
+                if pos == 0x02 {
+                    n.rs.add_or_port("[fe80:feed:eeee::1]:42".parse().unwrap());
+                    n.rs.add_or_port("[fe80:feed:eeee::2]:42".parse().unwrap());
+                }
+                if pos == 0x03 {
+                    n.rs.add_or_port("[fe80:dead:beef::1]:42".parse().unwrap());
+                    n.rs.add_or_port("[fe80:dead:beef::2]:42".parse().unwrap());
+                }
+            },
+            &db,
+        )
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
+        // No GeoIP data available -> None
+        let r0 = netdir.by_id(&Ed25519Identity::from([0; 32])).unwrap();
+        assert_eq!(r0.cc, None);
+
+        // Exactly one match -> Some
+        let r1 = netdir.by_id(&Ed25519Identity::from([1; 32])).unwrap();
+        assert_eq!(r1.cc.as_ref().map(|x| x.as_ref()), Some("US"));
+
+        // Conflicting matches -> None
+        let r2 = netdir.by_id(&Ed25519Identity::from([2; 32])).unwrap();
+        assert_eq!(r2.cc, None);
+
+        // Multiple agreeing matches -> Some
+        let r3 = netdir.by_id(&Ed25519Identity::from([3; 32])).unwrap();
+        assert_eq!(r3.cc.as_ref().map(|x| x.as_ref()), Some("US"));
     }
 }

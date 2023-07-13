@@ -4654,6 +4654,7 @@ dependencies = [
  "tor-checkable",
  "tor-config",
  "tor-error",
+ "tor-geoip",
  "tor-hscrypto",
  "tor-linkspec",
  "tor-llcrypto",

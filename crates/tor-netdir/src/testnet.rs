@@ -16,6 +16,8 @@ use crate::{MdDigest, MdReceiver, PartialNetDir};
 use std::iter;
 use std::net::SocketAddr;
 use std::time::{Duration, SystemTime};
+#[cfg(feature = "geoip")]
+use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
 use tor_netdoc::doc::netstatus::MdConsensus;
 use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RelayWeight, RouterStatusBuilder};
@@ -64,7 +66,36 @@ where
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
+    construct_custom_netdir_with_params_inner(
+        func,
+        params,
+        lifetime,
+        #[cfg(feature = "geoip")]
+        None,
+    )
+}
+
+/// Implementation of `construct_custom_netdir_with_params`, written this way to avoid
+/// the GeoIP argument crossing a crate API boundary.
+fn construct_custom_netdir_with_params_inner<F, P, PK>(
+    func: F,
+    params: P,
+    lifetime: Option<Lifetime>,
+    #[cfg(feature = "geoip")] geoip_db: Option<&GeoipDb>,
+) -> BuildResult<PartialNetDir>
+where
+    F: FnMut(usize, &mut NodeBuilders),
+    P: IntoIterator<Item = (PK, i32)>,
+    PK: Into<String>,
+{
     let (consensus, microdescs) = construct_custom_network(func, lifetime)?;
+    #[cfg(feature = "geoip")]
+    let mut dir = if let Some(db) = geoip_db {
+        PartialNetDir::new_with_geoip(consensus, Some(&params.into_iter().collect()), db)
+    } else {
+        PartialNetDir::new(consensus, Some(&params.into_iter().collect()))
+    };
+    #[cfg(not(feature = "geoip"))]
     let mut dir = PartialNetDir::new(consensus, Some(&params.into_iter().collect()));
     for md in microdescs {
         dir.add_microdesc(md);
@@ -79,6 +110,15 @@ where
     F: FnMut(usize, &mut NodeBuilders),
 {
     construct_custom_netdir_with_params(func, iter::empty::<(&str, _)>(), None)
+}
+
+#[cfg(feature = "geoip")]
+/// As [`construct_custom_netdir()`], but with a `GeoipDb`.
+pub fn construct_custom_netdir_with_geoip<F>(func: F, db: &GeoipDb) -> BuildResult<PartialNetDir>
+where
+    F: FnMut(usize, &mut NodeBuilders),
+{
+    construct_custom_netdir_with_params_inner(func, iter::empty::<(&str, _)>(), None, Some(db))
 }
 
 /// As [`construct_custom_network`], but do not require a
