@@ -152,7 +152,11 @@ impl AsRef<str> for CountryCode {
             //
             // (We don't use try_into here because we need to return a str that
             // points to a reference to self.)
-            unsafe { std::mem::transmute(inp) }
+            let ptr = inp.as_ptr() as *const u8;
+            let slice = unsafe { std::slice::from_raw_parts(ptr, inp.len()) };
+            slice
+                .try_into()
+                .expect("the resulting slice should have the correct length!")
         }
 
         // This shouldn't ever panic, since we shouldn't feed non-utf8 country
