@@ -71,7 +71,6 @@ fn get_self_named_gid_impl<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<u
 /// find a user db entry for that username with a UID that matches our own.
 ///
 /// Failing that, we look for a user entry for our current UID.
-#[allow(clippy::unnecessary_wraps)] // XXXX
 fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<OsString>> {
     let my_uid = userdb.getuid();
 
