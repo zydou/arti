@@ -11,6 +11,10 @@ use std::{
     sync::Mutex,
 };
 
+/// XXXX temporary alias
+trait PwdGrpProvider: users::Users + users::Groups {}
+impl<U: users::Users + users::Groups> PwdGrpProvider for U {}
+
 /// Cached values of user db entries we've looked up.
 ///
 /// Caching here saves time, AND makes our code testable.
@@ -24,7 +28,7 @@ fn handle_pwd_error(e: io::Error) -> Error {
 }
 
 /// Like get_self_named_gid(), but use a provided user database.
-fn get_self_named_gid_impl<U: users::Groups + users::Users>(userdb: &U) -> io::Result<Option<u32>> {
+fn get_self_named_gid_impl<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<u32>> {
     let Some(username) = get_own_username(userdb)? else { return Ok(None) };
 
     let Some(group) = userdb.get_group_by_name(username.as_os_str())
@@ -48,7 +52,7 @@ fn get_self_named_gid_impl<U: users::Groups + users::Users>(userdb: &U) -> io::R
 ///
 /// Failing that, we look for a user entry for our current UID.
 #[allow(clippy::unnecessary_wraps)] // XXXX
-fn get_own_username<U: users::Users>(userdb: &U) -> io::Result<Option<OsString>> {
+fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<OsString>> {
     let my_uid = userdb.get_current_uid();
 
     if let Some(username) = std::env::var_os("USER") {
@@ -171,7 +175,7 @@ impl TrustedUser {
         self.get_uid_impl(&*userdb)
     }
     /// As `get_uid`, but take a userdb.
-    fn get_uid_impl<U: users::Users>(&self, userdb: &U) -> Result<Option<u32>, Error> {
+    fn get_uid_impl<U: PwdGrpProvider>(&self, userdb: &U) -> Result<Option<u32>, Error> {
         match self {
             TrustedUser::None => Ok(None),
             TrustedUser::Current => Ok(Some(userdb.get_current_uid())),
@@ -250,7 +254,7 @@ impl TrustedGroup {
         self.get_gid_impl(&*userdb)
     }
     /// Like `get_gid`, but take a user db as an argument.
-    fn get_gid_impl<U: users::Users + users::Groups>(
+    fn get_gid_impl<U: PwdGrpProvider>(
         &self,
         userdb: &U,
     ) -> Result<Option<u32>, Error> {
