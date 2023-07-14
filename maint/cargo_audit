@@ -20,9 +20,6 @@ IGNORE=(
     #     https://github.com/clap-rs/clap/pull/4249
     #     https://github.com/rust-cli/env_logger/pull/246
     --ignore RUSTSEC-2021-0145
-    # The `users` crate (which `fs-mistrust` depends on) is unmaintained.
-    # Ignore the advisory until we figure out what to replace it with (arti#877)
-    --ignore RUSTSEC-2023-0040
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
