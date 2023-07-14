@@ -68,6 +68,10 @@ impl Keystore for ArtiNativeKeystore {
         &self.id
     }
 
+    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool> {
+        Ok(self.key_path(key_spec, key_type)?.exists())
+    }
+
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
         let path = self.key_path(key_spec, key_type)?;
 

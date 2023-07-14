@@ -210,6 +210,14 @@ mod tests {
             }
 
             impl Keystore for $name {
+                fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool> {
+                    Ok(self
+                        .inner
+                        .read()
+                        .unwrap()
+                        .contains_key(&(key_spec.arti_path()?, key_type)))
+                }
+
                 fn id(&self) -> &KeystoreId {
                     &self.id
                 }
@@ -363,6 +371,10 @@ mod tests {
             vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
         );
 
+        assert!(!mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
+
         // Insert a key into Keystore2
         mgr.insert(
             "coot".to_string(),
@@ -382,6 +394,10 @@ mod tests {
                 KeystoreSelector::Id(&KeystoreId::from_str("not_an_id_we_know_of").unwrap())
             )
             .is_err());
+        // The key still exists in Keystore2
+        assert!(mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
 
         // Try to remove the key from the default key store
         assert_eq!(
@@ -389,6 +405,11 @@ mod tests {
                 .unwrap(),
             None
         );
+
+        // The key still exists in Keystore2
+        assert!(mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
 
         // Removing from Keystore2 should succeed.
         assert_eq!(
@@ -399,5 +420,10 @@ mod tests {
             .unwrap(),
             Some(())
         );
+
+        // The key doesn't exist in Keystore2 anymore
+        assert!(!mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
     }
 }
