@@ -7,6 +7,7 @@ use crate::Error;
 use once_cell::sync::Lazy;
 use std::{
     ffi::{OsStr, OsString},
+    io,
     sync::Mutex,
 };
 
@@ -17,21 +18,27 @@ use std::{
 /// Though this type has interior mutability, it isn't Sync, so we need to add a mutex.
 static CACHE: Lazy<Mutex<users::UsersCache>> = Lazy::new(|| Mutex::new(users::UsersCache::new()));
 
-/// Like get_self_named_gid(), but use a provided user database.
-fn get_self_named_gid_impl<U: users::Groups + users::Users>(userdb: &U) -> Option<u32> {
-    let username = get_own_username(userdb)?;
+/// Convert an [`io::Error `] representing a user/group handling failure into an [`Error`]
+fn handle_pwd_error(e: io::Error) -> Error {
+    Error::PasswdGroupIoError(e.into())
+}
 
-    let group = userdb.get_group_by_name(username.as_os_str())?;
+/// Like get_self_named_gid(), but use a provided user database.
+fn get_self_named_gid_impl<U: users::Groups + users::Users>(userdb: &U) -> io::Result<Option<u32>> {
+    let Some(username) = get_own_username(userdb)? else { return Ok(None) };
+
+    let Some(group) = userdb.get_group_by_name(username.as_os_str())
+    else { return Ok(None) };
 
     // TODO: Perhaps we should enforce a requirement that the group contains
     // _only_ the current users.  That's kinda tricky to do, though, without
     // walking the entire user db.
 
-    if cur_groups().contains(&group.gid()) {
+    Ok(if cur_groups()?.contains(&group.gid()) {
         Some(group.gid())
     } else {
         None
-    }
+    })
 }
 
 /// Find our username, if possible.
@@ -40,13 +47,14 @@ fn get_self_named_gid_impl<U: users::Groups + users::Users>(userdb: &U) -> Optio
 /// find a user db entry for that username with a UID that matches our own.
 ///
 /// Failing that, we look for a user entry for our current UID.
-fn get_own_username<U: users::Users>(userdb: &U) -> Option<OsString> {
+#[allow(clippy::unnecessary_wraps)] // XXXX
+fn get_own_username<U: users::Users>(userdb: &U) -> io::Result<Option<OsString>> {
     let my_uid = userdb.get_current_uid();
 
     if let Some(username) = std::env::var_os("USER") {
         if let Some(passwd) = userdb.get_user_by_name(username.as_os_str()) {
             if passwd.uid() == my_uid {
-                return Some(username);
+                return Ok(Some(username));
             }
         }
     }
@@ -54,11 +62,11 @@ fn get_own_username<U: users::Users>(userdb: &U) -> Option<OsString> {
     if let Some(passwd) = userdb.get_user_by_uid(my_uid) {
         // This check should always pass, but let's be extra careful.
         if passwd.uid() == my_uid {
-            return Some(passwd.name().to_owned());
+            return Ok(Some(passwd.name().to_owned()));
         }
     }
 
-    None
+    Ok(None)
 }
 
 /// Return a vector of the group ID values for every group to which we belong.
@@ -66,15 +74,16 @@ fn get_own_username<U: users::Users>(userdb: &U) -> Option<OsString> {
 /// (We don't use `users::group_access_list()` here, since that function calls
 /// `getgrnam_r` on every group we belong to, when in fact we don't care what
 /// the groups are named.)
-fn cur_groups() -> Vec<u32> {
+#[allow(clippy::unnecessary_wraps)] // XXXX
+fn cur_groups() -> io::Result<Vec<u32>> {
     let n_groups = unsafe { libc::getgroups(0, std::ptr::null_mut()) };
     if n_groups <= 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let mut buf: Vec<users::gid_t> = vec![0; n_groups as usize];
     let n_groups2 = unsafe { libc::getgroups(buf.len() as i32, buf.as_mut_ptr()) };
     if n_groups2 <= 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     if n_groups2 < n_groups {
         buf.resize(n_groups2 as usize, 0);
@@ -85,7 +94,7 @@ fn cur_groups() -> Vec<u32> {
     if !buf.contains(&cur_gid) {
         buf.push(cur_gid);
     }
-    buf
+    Ok(buf)
 }
 
 /// A user that we can be configured to trust.
@@ -247,7 +256,7 @@ impl TrustedGroup {
     ) -> Result<Option<u32>, Error> {
         match self {
             TrustedGroup::None => Ok(None),
-            TrustedGroup::SelfNamed => Ok(get_self_named_gid_impl(userdb)),
+            TrustedGroup::SelfNamed => get_self_named_gid_impl(userdb).map_err(handle_pwd_error),
             TrustedGroup::Id(id) => Ok(Some(*id)),
             TrustedGroup::Name(name) => userdb
                 .get_group_by_name(&name)
@@ -275,7 +284,7 @@ mod test {
 
     #[test]
     fn groups() {
-        let groups = cur_groups();
+        let groups = cur_groups().unwrap();
         let cur_gid = users::get_current_gid();
         if groups.is_empty() {
             // Some container/VM setups forget to put the (root) user into any
@@ -290,7 +299,7 @@ mod test {
         // Here we'll do tests with our real username.  THere's not much we can
         // actually test there, but we'll try anyway.
         let cache = CACHE.lock().expect("poisoned lock");
-        let uname = get_own_username(&*cache).expect("Running on a misconfigured host");
+        let uname = get_own_username(&*cache).unwrap().expect("Running on a misconfigured host");
         let user = users::get_user_by_name(uname.as_os_str()).unwrap();
         assert_eq!(user.name(), uname);
         assert_eq!(user.uid(), users::get_current_uid());
@@ -319,20 +328,20 @@ mod test {
         db.add_user(User::new(999, &other_name, 999));
         // I'd like to add another user with the same UID and a different name,
         // but MockUsers doesn't support that.
-        let found = get_own_username(&db);
+        let found = get_own_username(&db).unwrap();
         assert_eq!(found.as_ref(), Some(&username));
 
         // Case 2: Current user in environment exists, but has the wrong uid.
         let mut db = MockUsers::with_current_uid(413);
         db.add_user(User::new(999, username_s, 999));
         db.add_user(User::new(413, &other_name, 413));
-        let found = get_own_username(&db);
+        let found = get_own_username(&db).unwrap();
         assert_eq!(found, Some(OsString::from(other_name.clone())));
 
         // Case 3: Current user in environment does not exist; no user can be found.
         let mut db = MockUsers::with_current_uid(413);
         db.add_user(User::new(999413, &other_name, 999));
-        let found = get_own_username(&db);
+        let found = get_own_username(&db).unwrap();
         assert!(found.is_none());
     }
 
@@ -342,20 +351,20 @@ mod test {
         let mut db = MockUsers::with_current_uid(413);
         db.add_user(User::new(413, "aranea", 413413));
         db.add_user(User::new(415, "notyouru!sername", 413413));
-        let found = get_own_username(&db);
+        let found = get_own_username(&db).unwrap();
         assert_eq!(found, Some(OsString::from("aranea")));
 
         // Case 2: uid not found.
         let mut db = MockUsers::with_current_uid(413);
         db.add_user(User::new(999413, "notyourn!ame", 999));
-        let found = get_own_username(&db);
+        let found = get_own_username(&db).unwrap();
         assert!(found.is_none());
     }
 
     #[test]
     fn selfnamed() {
         // check the real groups we're in, since this isn't mockable.
-        let cur_groups = cur_groups();
+        let cur_groups = cur_groups().unwrap();
         if cur_groups.is_empty() {
             // Can't actually proceed with the test unless we're in a group.
             return;
@@ -368,7 +377,7 @@ mod test {
         let mut db = MockUsers::with_current_uid(413);
         db.add_user(User::new(413, "aranea", 413413));
         db.add_group(Group::new(413413, "serket"));
-        let found = get_self_named_gid_impl(&db);
+        let found = get_self_named_gid_impl(&db).unwrap();
         assert!(found.is_none());
 
         // Case 2: we find our username and a group with the same name, but we
@@ -376,7 +385,7 @@ mod test {
         let mut db = MockUsers::with_current_uid(413);
         db.add_user(User::new(413, "aranea", 413413));
         db.add_group(Group::new(not_our_gid, "aranea"));
-        let found = get_self_named_gid_impl(&db);
+        let found = get_self_named_gid_impl(&db).unwrap();
         assert!(found.is_none());
 
         // Case 3: we find our username and a group with the same name, AND we
@@ -384,7 +393,7 @@ mod test {
         let mut db = MockUsers::with_current_uid(413);
         db.add_user(User::new(413, "aranea", 413413));
         db.add_group(Group::new(cur_groups[0], "aranea"));
-        let found = get_self_named_gid_impl(&db);
+        let found = get_self_named_gid_impl(&db).unwrap();
         assert_eq!(found, Some(cur_groups[0]));
     }
 

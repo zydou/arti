@@ -130,6 +130,10 @@ pub enum Error {
     /// A user that we were configured to trust could not be found.
     #[error("Configured with nonexistent user: {0}")]
     NoSuchUser(String),
+
+    /// Error accessing passwd/group databases or obtaining our uids/gids
+    #[error("Error accessing passwd/group databases or obtaining our uids/gids")]
+    PasswdGroupIoError(#[source] Arc<IoError>),
 }
 
 impl Error {
@@ -175,6 +179,7 @@ impl Error {
                 Error::MissingField(_) => return None,
                 Error::NoSuchGroup(_) => return None,
                 Error::NoSuchUser(_) => return None,
+                Error::PasswdGroupIoError(_) => return None,
             }
             .as_path(),
         )
@@ -199,7 +204,8 @@ impl Error {
             | Error::Io { .. }
             | Error::MissingField(_)
             | Error::NoSuchGroup(_)
-            | Error::NoSuchUser(_) => false,
+            | Error::NoSuchUser(_)
+            | Error::PasswdGroupIoError(_) => false,
 
             Error::Multiple(errs) => errs.iter().any(|e| e.is_bad_permission()),
             Error::Content(err) => err.is_bad_permission(),
