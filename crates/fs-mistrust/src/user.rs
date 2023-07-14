@@ -116,7 +116,7 @@ fn cur_groups() -> io::Result<Vec<u32>> {
 ///
 /// Non-UTF8 usernames cannot currently be represented in all serde formats.
 /// Notably, toml doesn't support them.
-#[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
+#[derive(Clone, Debug, educe::Educe, Eq, PartialEq, Hash)]
 #[educe(Default)]
 #[cfg_attr(
     feature = "serde",
@@ -191,7 +191,7 @@ impl TrustedUser {
 /// See the `serde support` section in [`TrustedUser`].  Additionally,
 /// you can represent `TrustedGroup::SelfNamed` with the string `":username"`
 /// or the map `{ special = ":username" }`.
-#[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
+#[derive(Clone, Debug, educe::Educe, Eq, PartialEq, Hash)]
 #[educe(Default)]
 #[cfg_attr(
     feature = "serde",
