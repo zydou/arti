@@ -1502,6 +1502,12 @@ impl GuardMgrInner {
                 ))
             })?;
             first_hop.lookup_bridge_circ_target(&bridges);
+
+            if usage.kind == GuardUsageKind::Data && !first_hop.contains_circ_target() {
+                return Err(PickGuardError::Internal(internal!(
+                    "Tried to return a non-circtarget guard with Data usage!"
+                )));
+            }
         }
         Ok((list_kind, first_hop))
     }
@@ -1712,6 +1718,14 @@ impl FirstHop {
                 }
             }
         }
+    }
+
+    /// Return true if this `FirstHop` contains circuit target information.
+    ///
+    /// This is true if `lookup_bridge_circ_target()` has been called, and it
+    /// successfully found the circuit target information.
+    fn contains_circ_target(&self) -> bool {
+        matches!(self.inner, FirstHopInner::Circ(_))
     }
 }
 
