@@ -281,6 +281,17 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use users::mock::{Group, MockUsers, User};
+    type Id = u32;
+
+    fn mock_users() -> MockUsers {
+        MockUsers::with_current_uid(413)
+    }
+    fn add_user(mock: &mut MockUsers, uid: Id, name: &str, gid: Id) {
+        mock.add_user(User::new(uid, name, gid));
+    }
+    fn add_group(mock: &mut MockUsers, gid: Id, name: &str) {
+        mock.add_group(Group::new(gid, name));
+    }
 
     #[test]
     fn groups() {
@@ -323,24 +334,24 @@ mod test {
         let other_name = format!("{}2", username_s);
 
         // Case 1: Current user in environment exists, though there are some distractions.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(413, username_s, 413));
-        db.add_user(User::new(999, &other_name, 999));
+        let mut db = mock_users();
+        add_user(&mut db, 413, username_s, 413);
+        add_user(&mut db, 999, &other_name, 999);
         // I'd like to add another user with the same UID and a different name,
         // but MockUsers doesn't support that.
         let found = get_own_username(&db).unwrap();
         assert_eq!(found.as_ref(), Some(&username));
 
         // Case 2: Current user in environment exists, but has the wrong uid.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(999, username_s, 999));
-        db.add_user(User::new(413, &other_name, 413));
+        let mut db = mock_users();
+        add_user(&mut db, 999, username_s, 999);
+        add_user(&mut db, 413, &other_name, 413);
         let found = get_own_username(&db).unwrap();
         assert_eq!(found, Some(OsString::from(other_name.clone())));
 
         // Case 3: Current user in environment does not exist; no user can be found.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(999413, &other_name, 999));
+        let mut db = mock_users();
+        add_user(&mut db, 999413, &other_name, 999);
         let found = get_own_username(&db).unwrap();
         assert!(found.is_none());
     }
@@ -348,15 +359,15 @@ mod test {
     #[test]
     fn username_ignoring_env() {
         // Case 1: uid is found.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(413, "aranea", 413413));
-        db.add_user(User::new(415, "notyouru!sername", 413413));
+        let mut db = mock_users();
+        add_user(&mut db, 413, "aranea", 413413);
+        add_user(&mut db, 415, "notyouru!sername", 413413);
         let found = get_own_username(&db).unwrap();
         assert_eq!(found, Some(OsString::from("aranea")));
 
         // Case 2: uid not found.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(999413, "notyourn!ame", 999));
+        let mut db = mock_users();
+        add_user(&mut db, 999413, "notyourn!ame", 999);
         let found = get_own_username(&db).unwrap();
         assert!(found.is_none());
     }
@@ -374,34 +385,34 @@ mod test {
             .expect("We are somehow in all groups 1..65535!");
 
         // Case 1: we find our username but no group with the same name.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(413, "aranea", 413413));
-        db.add_group(Group::new(413413, "serket"));
+        let mut db = mock_users();
+        add_user(&mut db, 413, "aranea", 413413);
+        add_group(&mut db, 413413, "serket");
         let found = get_self_named_gid_impl(&db).unwrap();
         assert!(found.is_none());
 
         // Case 2: we find our username and a group with the same name, but we
         // are not a member of that group.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(413, "aranea", 413413));
-        db.add_group(Group::new(not_our_gid, "aranea"));
+        let mut db = mock_users();
+        add_user(&mut db, 413, "aranea", 413413);
+        add_group(&mut db, not_our_gid, "aranea");
         let found = get_self_named_gid_impl(&db).unwrap();
         assert!(found.is_none());
 
         // Case 3: we find our username and a group with the same name, AND we
         // are indeed a member of that group.
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(413, "aranea", 413413));
-        db.add_group(Group::new(cur_groups[0], "aranea"));
+        let mut db = mock_users();
+        add_user(&mut db, 413, "aranea", 413413);
+        add_group(&mut db, cur_groups[0], "aranea");
         let found = get_self_named_gid_impl(&db).unwrap();
         assert_eq!(found, Some(cur_groups[0]));
     }
 
     #[test]
     fn lookup_id() {
-        let mut db = MockUsers::with_current_uid(413);
-        db.add_user(User::new(413, "aranea", 413413));
-        db.add_group(Group::new(33, "nepeta"));
+        let mut db = mock_users();
+        add_user(&mut db, 413, "aranea", 413413);
+        add_group(&mut db, 33, "nepeta");
 
         assert_eq!(TrustedUser::None.get_uid_impl(&db).unwrap(), None);
         assert_eq!(TrustedUser::Current.get_uid_impl(&db).unwrap(), Some(413));
