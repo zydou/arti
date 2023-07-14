@@ -290,7 +290,6 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     #![allow(clippy::useless_vec)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    #![allow(clippy::unnecessary_mut_passed)] // XXXX
     use super::*;
     use pwd_grp::mock::MockPwdGrpProvider;
     type Id = u32;
@@ -357,24 +356,24 @@ mod test {
         let other_name = format!("{}2", username_s);
 
         // Case 1: Current user in environment exists, though there are some distractions.
-        let mut db = mock_users();
-        add_user(&mut db, 413, username_s, 413);
-        add_user(&mut db, 999, &other_name, 999);
+        let db = mock_users();
+        add_user(&db, 413, username_s, 413);
+        add_user(&db, 999, &other_name, 999);
         // I'd like to add another user with the same UID and a different name,
         // but MockUsers doesn't support that.
         let found = get_own_username(&db).unwrap();
         assert_eq!(found.as_ref(), Some(&username));
 
         // Case 2: Current user in environment exists, but has the wrong uid.
-        let mut db = mock_users();
-        add_user(&mut db, 999, username_s, 999);
-        add_user(&mut db, 413, &other_name, 413);
+        let db = mock_users();
+        add_user(&db, 999, username_s, 999);
+        add_user(&db, 413, &other_name, 413);
         let found = get_own_username(&db).unwrap();
         assert_eq!(found, Some(OsString::from(other_name.clone())));
 
         // Case 3: Current user in environment does not exist; no user can be found.
-        let mut db = mock_users();
-        add_user(&mut db, 999413, &other_name, 999);
+        let db = mock_users();
+        add_user(&db, 999413, &other_name, 999);
         let found = get_own_username(&db).unwrap();
         assert!(found.is_none());
     }
@@ -382,15 +381,15 @@ mod test {
     #[test]
     fn username_ignoring_env() {
         // Case 1: uid is found.
-        let mut db = mock_users();
-        add_user(&mut db, 413, "aranea", 413413);
-        add_user(&mut db, 415, "notyouru!sername", 413413);
+        let db = mock_users();
+        add_user(&db, 413, "aranea", 413413);
+        add_user(&db, 415, "notyouru!sername", 413413);
         let found = get_own_username(&db).unwrap();
         assert_eq!(found, Some(OsString::from("aranea")));
 
         // Case 2: uid not found.
-        let mut db = mock_users();
-        add_user(&mut db, 999413, "notyourn!ame", 999);
+        let db = mock_users();
+        add_user(&db, 999413, "notyourn!ame", 999);
         let found = get_own_username(&db).unwrap();
         assert!(found.is_none());
     }
@@ -408,34 +407,34 @@ mod test {
             .expect("We are somehow in all groups 1..65535!");
 
         // Case 1: we find our username but no group with the same name.
-        let mut db = mock_users();
-        add_user(&mut db, 413, "aranea", 413413);
-        add_group(&mut db, 413413, "serket");
+        let db = mock_users();
+        add_user(&db, 413, "aranea", 413413);
+        add_group(&db, 413413, "serket");
         let found = get_self_named_gid_impl(&db).unwrap();
         assert!(found.is_none());
 
         // Case 2: we find our username and a group with the same name, but we
         // are not a member of that group.
-        let mut db = mock_users();
-        add_user(&mut db, 413, "aranea", 413413);
-        add_group(&mut db, not_our_gid, "aranea");
+        let db = mock_users();
+        add_user(&db, 413, "aranea", 413413);
+        add_group(&db, not_our_gid, "aranea");
         let found = get_self_named_gid_impl(&db).unwrap();
         assert!(found.is_none());
 
         // Case 3: we find our username and a group with the same name, AND we
         // are indeed a member of that group.
-        let mut db = mock_users();
-        add_user(&mut db, 413, "aranea", 413413);
-        add_group(&mut db, cur_groups[0], "aranea");
+        let db = mock_users();
+        add_user(&db, 413, "aranea", 413413);
+        add_group(&db, cur_groups[0], "aranea");
         let found = get_self_named_gid_impl(&db).unwrap();
         assert_eq!(found, Some(cur_groups[0]));
     }
 
     #[test]
     fn lookup_id() {
-        let mut db = mock_users();
-        add_user(&mut db, 413, "aranea", 413413);
-        add_group(&mut db, 33, "nepeta");
+        let db = mock_users();
+        add_user(&db, 413, "aranea", 413413);
+        add_group(&db, 33, "nepeta");
 
         assert_eq!(TrustedUser::None.get_uid_impl(&db).unwrap(), None);
         assert_eq!(TrustedUser::Current.get_uid_impl(&db).unwrap(), Some(413));
