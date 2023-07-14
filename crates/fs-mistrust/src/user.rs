@@ -82,7 +82,7 @@ fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<Vec<u8>>
         }
     }
 
-    if let Some(passwd) = userdb.getpwuid::<Vec<u8>>(my_uid)? {
+    if let Some(passwd) = userdb.getpwuid(my_uid)? {
         // This check should always pass, but let's be extra careful.
         if passwd.uid == my_uid {
             return Ok(Some(passwd.name));
@@ -348,25 +348,18 @@ mod test {
 
     #[test]
     fn username_from_env() {
-        let username = if let Some(username) = std::env::var_os("USER") {
-            use std::os::unix::ffi::OsStringExt as _;
-            username.into_vec()
-        } else {
-            // Can't test this without setting the environment, and we don't do that in tests.
-            return;
-        };
-        let username_s = if let Ok(u) = std::str::from_utf8(&username) {
-            u
-        } else {
-            // Can't mock usernames that aren't utf8.
-            return;
-        };
+        let Ok(username_s) = std::env::var("USER")
+        // If USER isn't set, can't test this without setting the environment,
+        // and we don't do that in tests.
+        // Likewise if USER is not UTF-8, we can't make mock usernames.
+        else { return };
+        let username = username_s.as_bytes().to_vec();
 
-        let other_name = format!("{}2", username_s);
+        let other_name = format!("{}2", &username_s);
 
         // Case 1: Current user in environment exists, though there are some distractions.
         let db = mock_users();
-        add_user(&db, 413, username_s, 413);
+        add_user(&db, 413, &username_s, 413);
         add_user(&db, 999, &other_name, 999);
         // I'd like to add another user with the same UID and a different name,
         // but MockUsers doesn't support that.
@@ -375,7 +368,7 @@ mod test {
 
         // Case 2: Current user in environment exists, but has the wrong uid.
         let db = mock_users();
-        add_user(&db, 999, username_s, 999);
+        add_user(&db, 999, &username_s, 999);
         add_user(&db, 413, &other_name, 413);
         let found = get_own_username(&db).unwrap();
         assert_eq!(found, Some(other_name.clone().into_bytes()));
