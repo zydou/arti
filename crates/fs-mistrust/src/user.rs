@@ -94,31 +94,8 @@ fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<OsString
 }
 
 /// Return a vector of the group ID values for every group to which we belong.
-///
-/// (We don't use `users::group_access_list()` here, since that function calls
-/// `getgrnam_r` on every group we belong to, when in fact we don't care what
-/// the groups are named.)
-#[allow(clippy::unnecessary_wraps)] // XXXX
 fn cur_groups() -> io::Result<Vec<u32>> {
-    let n_groups = unsafe { libc::getgroups(0, std::ptr::null_mut()) };
-    if n_groups <= 0 {
-        return Ok(Vec::new());
-    }
-    let mut buf: Vec<Id> = vec![0; n_groups as usize];
-    let n_groups2 = unsafe { libc::getgroups(buf.len() as i32, buf.as_mut_ptr()) };
-    if n_groups2 <= 0 {
-        return Ok(Vec::new());
-    }
-    if n_groups2 < n_groups {
-        buf.resize(n_groups2 as usize, 0);
-    }
-    // It's not guaranteed that our current GID is necessarily one of our
-    // current groups.  So, we add it.
-    let cur_gid = PwdGrp.getgid();
-    if !buf.contains(&cur_gid) {
-        buf.push(cur_gid);
-    }
-    Ok(buf)
+    PwdGrp.getgroups()
 }
 
 /// A user that we can be configured to trust.
