@@ -35,9 +35,8 @@ struct TrustedUsersCache<U: PwdGrpProvider> {
 ///
 /// It isn't 100% correct since we don't track changes to the passwd/group databases.
 /// That might not be OK everywhere, but it is OK in this application.
-static CACHE: Lazy<Mutex<TrustedUsersCache<PwdGrp>>> = Lazy::new(
-    || Mutex::new(TrustedUsersCache::default())
-);
+static CACHE: Lazy<Mutex<TrustedUsersCache<PwdGrp>>> =
+    Lazy::new(|| Mutex::new(TrustedUsersCache::default()));
 
 /// Convert an [`io::Error `] representing a user/group handling failure into an [`Error`]
 fn handle_pwd_error(e: io::Error) -> Error {
@@ -189,7 +188,8 @@ impl TrustedUser {
             TrustedUser::Current => Ok(Some(userdb.getuid())),
             TrustedUser::Id(id) => Ok(Some(*id)),
             TrustedUser::Name(name) => userdb
-                .getpwnam(name.as_bytes()).map_err(handle_pwd_error)?
+                .getpwnam(name.as_bytes())
+                .map_err(handle_pwd_error)?
                 .map(|u: pwd_grp::Passwd<Vec<u8>>| Some(u.uid))
                 .ok_or_else(|| Error::NoSuchUser(name.to_string_lossy().into_owned())),
         }
@@ -267,10 +267,7 @@ impl TrustedGroup {
         Ok(calculated)
     }
     /// Like `get_gid`, but take a user db as an argument.
-    fn get_gid_impl<U: PwdGrpProvider>(
-        &self,
-        userdb: &U,
-    ) -> Result<Option<u32>, Error> {
+    fn get_gid_impl<U: PwdGrpProvider>(&self, userdb: &U) -> Result<Option<u32>, Error> {
         use std::os::unix::ffi::OsStrExt as _;
 
         match self {
@@ -278,7 +275,8 @@ impl TrustedGroup {
             TrustedGroup::SelfNamed => get_self_named_gid_impl(userdb).map_err(handle_pwd_error),
             TrustedGroup::Id(id) => Ok(Some(*id)),
             TrustedGroup::Name(name) => userdb
-                .getgrnam(name.as_bytes()).map_err(handle_pwd_error)?
+                .getgrnam(name.as_bytes())
+                .map_err(handle_pwd_error)?
                 .map(|g: pwd_grp::Group<Vec<u8>>| Some(g.gid))
                 .ok_or_else(|| Error::NoSuchGroup(name.to_string_lossy().into_owned())),
         }
@@ -340,7 +338,9 @@ mod test {
         // Here we'll do tests with our real username.  THere's not much we can
         // actually test there, but we'll try anyway.
         let cache = CACHE.lock().expect("poisoned lock");
-        let uname = get_own_username(&cache.pwd_grp).unwrap().expect("Running on a misconfigured host");
+        let uname = get_own_username(&cache.pwd_grp)
+            .unwrap()
+            .expect("Running on a misconfigured host");
         let user = PwdGrp.getpwnam::<Vec<u8>>(&uname).unwrap().unwrap();
         assert_eq!(user.name, uname);
         assert_eq!(user.uid, PwdGrp.getuid());
