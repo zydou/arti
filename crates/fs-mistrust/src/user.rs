@@ -11,9 +11,6 @@ use std::{
     io,
     sync::Mutex,
 };
-// TODO Unix usernames are byte strings.  OsStr and OsString are very awkward because
-// Windows env vars etc. can be WTF-16.  We should use Vec<u8> throughout, on Unix, where we can.
-use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 
 use pwd_grp::{PwdGrp, PwdGrpProvider};
 
@@ -51,7 +48,7 @@ fn handle_pwd_error(e: io::Error) -> Error {
 fn get_self_named_gid_impl<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<u32>> {
     let Some(username) = get_own_username(userdb)? else { return Ok(None) };
 
-    let Some(group) = userdb.getgrnam::<Vec<u8>>(username.as_bytes())?
+    let Some(group) = userdb.getgrnam::<Vec<u8>>(username)?
     else { return Ok(None) };
 
     // TODO: Perhaps we should enforce a requirement that the group contains
@@ -71,11 +68,14 @@ fn get_self_named_gid_impl<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<u
 /// find a user db entry for that username with a UID that matches our own.
 ///
 /// Failing that, we look for a user entry for our current UID.
-fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<OsString>> {
+fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<Vec<u8>>> {
+    use std::os::unix::ffi::OsStringExt as _;
+
     let my_uid = userdb.getuid();
 
     if let Some(username) = std::env::var_os("USER") {
-        if let Some(passwd) = userdb.getpwnam::<Vec<u8>>(username.as_bytes())? {
+        let username = username.into_vec();
+        if let Some(passwd) = userdb.getpwnam::<Vec<u8>>(&username)? {
             if passwd.uid == my_uid {
                 return Ok(Some(username));
             }
@@ -85,7 +85,7 @@ fn get_own_username<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<OsString
     if let Some(passwd) = userdb.getpwuid::<Vec<u8>>(my_uid)? {
         // This check should always pass, but let's be extra careful.
         if passwd.uid == my_uid {
-            return Ok(Some(OsString::from_vec(passwd.name)));
+            return Ok(Some(passwd.name));
         }
     }
 
@@ -135,6 +135,11 @@ pub enum TrustedUser {
     /// Treat a user with a particular name as trusted.
     ///
     /// If there is no such user, we'll report an error.
+    //
+    // TODO change type of TrustedUser::Name.0 to Vec<u8> ? (also TrustedGroup)
+    // This is a Unix-only module.  Arguably we shouldn't be using the OsString
+    // type which is super-inconvenient and only really exists because on Windows
+    // the environment, arguments, and filenames, are WTF-16.
     Name(OsString),
 }
 
@@ -177,6 +182,8 @@ impl TrustedUser {
     }
     /// As `get_uid`, but take a userdb.
     fn get_uid_impl<U: PwdGrpProvider>(&self, userdb: &U) -> Result<Option<u32>, Error> {
+        use std::os::unix::ffi::OsStrExt as _;
+
         match self {
             TrustedUser::None => Ok(None),
             TrustedUser::Current => Ok(Some(userdb.getuid())),
@@ -264,6 +271,8 @@ impl TrustedGroup {
         &self,
         userdb: &U,
     ) -> Result<Option<u32>, Error> {
+        use std::os::unix::ffi::OsStrExt as _;
+
         match self {
             TrustedGroup::None => Ok(None),
             TrustedGroup::SelfNamed => get_self_named_gid_impl(userdb).map_err(handle_pwd_error),
@@ -332,20 +341,21 @@ mod test {
         // actually test there, but we'll try anyway.
         let cache = CACHE.lock().expect("poisoned lock");
         let uname = get_own_username(&cache.pwd_grp).unwrap().expect("Running on a misconfigured host");
-        let user = PwdGrp.getpwnam::<Vec<u8>>(uname.as_bytes()).unwrap().unwrap();
-        assert_eq!(user.name, uname.as_bytes());
+        let user = PwdGrp.getpwnam::<Vec<u8>>(&uname).unwrap().unwrap();
+        assert_eq!(user.name, uname);
         assert_eq!(user.uid, PwdGrp.getuid());
     }
 
     #[test]
     fn username_from_env() {
         let username = if let Some(username) = std::env::var_os("USER") {
-            username
+            use std::os::unix::ffi::OsStringExt as _;
+            username.into_vec()
         } else {
             // Can't test this without setting the environment, and we don't do that in tests.
             return;
         };
-        let username_s = if let Some(u) = username.to_str() {
+        let username_s = if let Ok(u) = std::str::from_utf8(&username) {
             u
         } else {
             // Can't mock usernames that aren't utf8.
@@ -368,7 +378,7 @@ mod test {
         add_user(&db, 999, username_s, 999);
         add_user(&db, 413, &other_name, 413);
         let found = get_own_username(&db).unwrap();
-        assert_eq!(found, Some(OsString::from(other_name.clone())));
+        assert_eq!(found, Some(other_name.clone().into_bytes()));
 
         // Case 3: Current user in environment does not exist; no user can be found.
         let db = mock_users();
@@ -384,7 +394,7 @@ mod test {
         add_user(&db, 413, "aranea", 413413);
         add_user(&db, 415, "notyouru!sername", 413413);
         let found = get_own_username(&db).unwrap();
-        assert_eq!(found, Some(OsString::from("aranea")));
+        assert_eq!(found, Some(b"aranea".to_vec()));
 
         // Case 2: uid not found.
         let db = mock_users();
