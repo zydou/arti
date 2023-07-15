@@ -4,12 +4,11 @@
 //! partial hash collisions using temporary memory. Equi-X modifies it to use
 //! sums instead of XOR, and chooses specific parameters.
 
-use crate::bucket_array::{BucketArrayMemory, Insert, KeyValueBucketArray};
+use crate::bucket_array::{BucketArrayMemory, Insert, KeyValueBucketArray, Uninit};
 use crate::collision::{self, PackedCollision};
 use crate::solution::{self, HashValue, Solution, SolutionArray, SolutionItem, EQUIHASH_N};
 use arrayvec::ArrayVec;
 use hashx::HashX;
-use std::alloc::{alloc, Layout};
 
 // The hash table bucket counts here are mostly constrained by the shape of
 // the Equihash tree, but the bucket capacities are somewhat arbitrary. Larger
@@ -60,17 +59,21 @@ type TempMem = BucketArrayMemory<128, 12, u16>;
 /// from leaf `(hash, index)` items and moving toward the root of the tree.
 #[derive(Copy, Clone)]
 struct SolverMemoryInner {
-    /// [`std::mem::MaybeUninit`] temporary memory for each [`collision::search()`]
+    /// Temporary memory for each [`collision::search()`]
     temp: TempMem,
     /// Memory overlay union, access controlled with mutable references
     overlay: Overlay,
-    /// [`std::mem::MaybeUninit`] temporary value memory for [`Layer0`]
+    /// Temporary value memory for [`Layer0`]
     layer0_values: Layer0ValueMem,
-    /// [`std::mem::MaybeUninit`] temporary value memory for [`Layer1`]
+    /// Temporary value memory for [`Layer1`]
     layer1_values: Layer1ValueMem,
-    /// [`std::mem::MaybeUninit`] temporary key storage memory for [`Layer1`]
+    /// Temporary key storage memory for [`Layer1`]
     layer1_keys: Layer1KeyMem,
 }
+
+/// SAFETY: We are proimising that [`SolverMemoryInner`] is
+///         made only from [`Uninit`] types like [`BucketArrayMemory`].
+unsafe impl Uninit for SolverMemoryInner {}
 
 /// As a memory optimization, some of the allocations in [`SolverMemoryInner`]
 /// are overlapped. We only use one of these at a time, checked statically
@@ -81,6 +84,24 @@ union Overlay {
     first: OverlayFirst,
     /// Layout which replaces the first once we can drop `layer0_keys`
     second: OverlaySecond,
+}
+
+impl Overlay {
+    /// Access the first overlay layout, via a mutable reference
+    fn first(&mut self) -> &mut OverlayFirst {
+        // SAFETY: This union and its members implement [`Uninit`], promising
+        //         that we can soundly create an instance out of uninitialized
+        //         or reused memory. Initialized state is controlled via a
+        //         mutable reference, and by reborrowing a union field we ensure
+        //         exclusive access using the borrow checker.
+        unsafe { &mut self.first }
+    }
+
+    /// Access the second overlay layout, via a mutable reference
+    fn second(&mut self) -> &mut OverlaySecond {
+        // SAFETY: As above, we implement [`Uninit`] and use &mut to control access
+        unsafe { &mut self.second }
+    }
 }
 
 /// First memory overlay, contains the key portion of [`Layer0`]
@@ -94,17 +115,17 @@ struct OverlayFirst {
 /// Second overlay, with both parts of Layer2
 #[derive(Copy, Clone)]
 struct OverlaySecond {
-    /// [`std::mem::MaybeUninit`] temporary key storage memory for [`Layer2`]
+    /// Temporary key storage memory for [`Layer2`]
     layer2_keys: Layer2KeyMem,
-    /// [`std::mem::MaybeUninit`] temporary value memory for [`Layer2`]
+    /// Temporary value memory for [`Layer2`]
     layer2_values: Layer2ValueMem,
 }
 
 /// Search for solutions, iterating the entire [`SolutionItem`] space and using
 /// temporary memory to locate partial sum collisions at each tree layer.
 pub(crate) fn find_solutions(func: &HashX, mem: &mut SolverMemory, results: &mut SolutionArray) {
-    // Use the first memory overlay layout
-    let overlay = unsafe { &mut mem.heap.overlay.first };
+    // Use the first memory overlay layout.
+    let overlay = mem.heap.overlay.first();
 
     // Enumerate all hash values into the first layer
     let mut layer0 = Layer0::new(&mut overlay.layer0_keys, &mut mem.heap.layer0_values);
@@ -127,7 +148,7 @@ pub(crate) fn find_solutions(func: &HashX, mem: &mut SolverMemory, results: &mut
     let layer0 = layer0.drop_key_storage();
 
     // Now switch to the second memory overlay layout.
-    let overlay = unsafe { &mut mem.heap.overlay.second };
+    let overlay = mem.heap.overlay.second();
 
     // Next Equihash layer, collisions in the low N/2 (30) bits
     let layer2_n = EQUIHASH_N / 2;
@@ -192,14 +213,7 @@ impl SolverMemory {
     /// New uninitialized memory, usable as solver temporary space.
     pub fn new() -> Self {
         Self {
-            // Allocate uninitialized memory and pass ownership to a new `Box`.
-            // `SolverMemoryInner` is a `Copy` struct made entirely out of
-            // `MaybeUninit` arrays.
-            heap: unsafe {
-                let layout = Layout::new::<SolverMemoryInner>();
-                let ptr: *mut SolverMemoryInner = std::mem::transmute(alloc(layout));
-                Box::from_raw(ptr)
-            },
+            heap: SolverMemoryInner::alloc(),
         }
     }
 }
@@ -212,14 +226,12 @@ impl Default for SolverMemory {
 
 #[cfg(test)]
 mod test {
-    use super::SolverMemory;
-
     #[test]
     fn solver_memory_size() {
         // Regression test for memory usage. Our actual memory size is very
         // similar to the original C implementation, the only difference that
         // our bucket counters are stored outside this structure.
-        let size = SolverMemory::SIZE;
+        let size = super::SolverMemory::SIZE;
         assert_eq!(size, 1_895_424);
     }
 }
