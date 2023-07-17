@@ -604,6 +604,8 @@ impl<R: Runtime> TorClient<R> {
             let mut stores: Vec<Box<dyn Keystore>> = vec![];
 
             if let Some(keystore) = config.storage.keystore() {
+                // TODO HSS: `expand_keystore_dir` shouldn't be escaping into a crate API boundary.
+                // The keystore_dir should probably be expanded at `build()` time.
                 let key_store_dir = keystore.expand_keystore_dir()?;
                 let permissions = config.storage.permissions();
                 // If enabled is true or set to "auto", initialize the keystore
