@@ -29,7 +29,7 @@ derive_more = "0.99.3"
 downcast-rs = "1.2.0"
 dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.1", features = ["serde", "walkdir"] }
-itertools = "0.10.1"
+itertools = "0.11.0"
 serde = { version = "1.0.103", features = ["derive"] }
 ssh-key = { version = "0.5.1", features = ["std"] }
 thiserror = "1"

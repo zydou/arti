@@ -4555,7 +4555,7 @@ dependencies = [
  "downcast-rs",
  "dyn-clone",
  "fs-mistrust",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "serde",
  "ssh-key",
  "tempfile",
