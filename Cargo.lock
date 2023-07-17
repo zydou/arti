@@ -154,7 +154,7 @@ dependencies = [
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools 0.11.0",
+ "itertools",
  "libc",
  "notify",
  "once_cell",
@@ -1083,9 +1083,9 @@ dependencies = [
 
 [[package]]
 name = "derive-adhoc"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bf4f1be2a84b4ba6f6443854fc9c3b8942ee3ffadadc7106fa777659a946cd4"
+checksum = "f67099c8db34a9fde66880bfccd24d6e401c0f643a04684dce963e97a25fd621"
 dependencies = [
  "derive-adhoc-macros",
  "heck",
@@ -1093,12 +1093,12 @@ dependencies = [
 
 [[package]]
 name = "derive-adhoc-macros"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a7134a81d247901c0d03ef80194867644796cd8f858e82bf1b433dfc1c35485"
+checksum = "000cc7aebd29aee731e7a8ce69426c15e2e64dd2942ce0bbdde885410c6acd3a"
 dependencies = [
  "heck",
- "itertools 0.10.5",
+ "itertools",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
@@ -2043,15 +2043,6 @@ name = "ipnet"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28b29a3cd74f0f4598934efe3aeba42bae0eb4680554128851ebbecb02af14e6"
-
-[[package]]
-name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
 
 [[package]]
 name = "itertools"
@@ -3077,9 +3068,9 @@ dependencies = [
 
 [[package]]
 name = "rlimit"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8a29d87a652dc4d43c586328706bb5cdff211f3f39a530f240b53f7221dab8e"
+checksum = "9b5b8be0bc0ef630d24f8fa836b3a3463479b2343b29f9a8fa905c71a8c7b69b"
 dependencies = [
  "libc",
 ]
@@ -4186,7 +4177,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex-literal",
- "itertools 0.11.0",
+ "itertools",
  "postage",
  "rand 0.8.5",
  "safelog",
@@ -4233,7 +4224,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime-serde",
- "itertools 0.11.0",
+ "itertools",
  "once_cell",
  "pin-project",
  "rand 0.8.5",
@@ -4272,7 +4263,7 @@ dependencies = [
  "educe",
  "either",
  "fs-mistrust",
- "itertools 0.11.0",
+ "itertools",
  "once_cell",
  "paste",
  "regex",
@@ -4324,7 +4315,7 @@ dependencies = [
  "http",
  "httparse",
  "httpdate",
- "itertools 0.11.0",
+ "itertools",
  "memchr",
  "thiserror",
  "tor-circmgr",
@@ -4359,7 +4350,7 @@ dependencies = [
  "hex-literal",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools 0.11.0",
+ "itertools",
  "memmap2",
  "once_cell",
  "paste",
@@ -4446,7 +4437,7 @@ dependencies = [
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools 0.11.0",
+ "itertools",
  "num_enum",
  "pin-project",
  "postage",
@@ -4483,7 +4474,7 @@ dependencies = [
  "either",
  "futures",
  "humantime 2.1.0",
- "itertools 0.11.0",
+ "itertools",
  "postage",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -4528,7 +4519,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools 0.11.0",
+ "itertools",
  "paste",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -4567,7 +4558,7 @@ dependencies = [
  "downcast-rs",
  "dyn-clone",
  "fs-mistrust",
- "itertools 0.10.5",
+ "itertools",
  "serde",
  "ssh-key",
  "tempfile",
@@ -4592,7 +4583,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
- "itertools 0.11.0",
+ "itertools",
  "safelog",
  "serde",
  "serde_test",
@@ -4655,7 +4646,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools 0.11.0",
+ "itertools",
  "num_enum",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -4697,7 +4688,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools 0.11.0",
+ "itertools",
  "once_cell",
  "phf",
  "rand 0.8.5",
@@ -4761,7 +4752,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "humantime 2.1.0",
- "itertools 0.11.0",
+ "itertools",
  "pin-project",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -4877,7 +4868,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime 2.1.0",
- "itertools 0.11.0",
+ "itertools",
  "pin-project",
  "rand 0.8.5",
  "slotmap",
