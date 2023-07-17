@@ -55,7 +55,7 @@ use program::Program;
 pub use err::{CompilerError, Error};
 
 /// Option for selecting a HashX runtime
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum RuntimeOption {
     /// Choose the interpreted runtime, without trying the compiler at all
@@ -64,6 +64,7 @@ pub enum RuntimeOption {
     CompileOnly,
     /// Always try the compiler first but fall back to the interpreter on error.
     /// (This is the default)
+    #[default]
     TryCompile,
 }
 
@@ -162,7 +163,7 @@ impl HashX {
 }
 
 /// Builder for creating [`HashX`] instances with custom settings
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 pub struct HashXBuilder {
     /// Current runtime() setting for this builder
     runtime: RuntimeOption,
@@ -174,9 +175,7 @@ impl HashXBuilder {
     /// Immediately calling [`Self::build()`] would be equivalent to using
     /// [`HashX::new()`].
     pub fn new() -> Self {
-        Self {
-            runtime: RuntimeOption::TryCompile,
-        }
+        Default::default()
     }
 
     /// Select a new [`RuntimeOption`]
@@ -202,11 +201,5 @@ impl HashXBuilder {
                 },
             },
         })
-    }
-}
-
-impl Default for HashXBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
