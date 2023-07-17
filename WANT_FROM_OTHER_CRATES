@@ -16,10 +16,6 @@ rust itself:
  * existential types.
  * async functions in traits (without #[async_trait]).
 
-async-rustls:
-  * upgrade to rustls 0.20
-    https://github.com/smol-rs/async-rustls/issues/8
-
 dalek-crypto:
 * Upgrade to latest version of rand crate.
 
