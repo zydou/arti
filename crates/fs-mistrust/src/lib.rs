@@ -46,6 +46,14 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// This crate used to have unsafe code to interact with various libc functions.
+// Nowadays we use pwd_grp, which is tested with miri.
+// This #[forbid] assures us that we have removed all direct unsafe libc access.
+//
+// If this crate grows some other reason to want some unsafe, it is OK to remove this,
+// subject to all the usual considerations when writing unsafe.
+#![forbid(unsafe_code)]
+
 mod dir;
 mod disable;
 mod err;
