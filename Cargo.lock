@@ -1083,9 +1083,9 @@ dependencies = [
 
 [[package]]
 name = "derive-adhoc"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bf4f1be2a84b4ba6f6443854fc9c3b8942ee3ffadadc7106fa777659a946cd4"
+checksum = "f67099c8db34a9fde66880bfccd24d6e401c0f643a04684dce963e97a25fd621"
 dependencies = [
  "derive-adhoc-macros",
  "heck",
@@ -1093,9 +1093,9 @@ dependencies = [
 
 [[package]]
 name = "derive-adhoc-macros"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a7134a81d247901c0d03ef80194867644796cd8f858e82bf1b433dfc1c35485"
+checksum = "000cc7aebd29aee731e7a8ce69426c15e2e64dd2942ce0bbdde885410c6acd3a"
 dependencies = [
  "heck",
  "itertools",
