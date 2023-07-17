@@ -43,6 +43,7 @@
 // TODO HSS: write more comprehensive documentation when the API is a bit more
 // stable
 
+pub mod config;
 mod err;
 mod key_specifier;
 

@@ -383,33 +383,6 @@ impl TryFrom<ListenItemSerde> for ListenItem {
     }
 }
 
-/// A deserializable value or bool.
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
-#[serde(untagged, bound = "T: Serialize, for<'de2> T: Deserialize<'de2>")]
-#[cfg(feature = "experimental-api")]
-pub enum ItemOrBool<T>
-where
-    T: std::fmt::Debug + Serialize,
-    for<'de2> T: Deserialize<'de2>,
-{
-    /// A `T` item.
-    Item(T),
-    /// A boolean value
-    Bool(bool),
-}
-
-#[cfg(feature = "experimental-api")]
-impl<T> Default for ItemOrBool<T>
-where
-    T: std::fmt::Debug + Serialize,
-    for<'de2> T: Deserialize<'de2>,
-{
-    fn default() -> Self {
-        Self::Bool(true)
-    }
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -435,10 +408,6 @@ mod test {
 
         #[serde(default)]
         listen: Option<Listen>,
-
-        #[cfg(feature = "experimental-api")]
-        #[serde(default)]
-        enabled_or_string: ItemOrBool<String>,
     }
 
     #[test]
@@ -586,37 +555,5 @@ mod test {
 
         chk_err_1("need actual addr/port", "did not match any variant", "true");
         chk_err("did not match any variant", r#"listen = [ [] ]"#);
-    }
-
-    #[test]
-    #[cfg(feature = "experimental-api")]
-    fn enabled_or_string() {
-        use ItemOrBool as IOB;
-
-        let chk = |iob: IOB<String>, s| {
-            let tc: TestConfigFile = toml::from_str(s).expect(s);
-            assert_eq!(
-                format!("{:?}", iob),
-                format!("{:?}", tc.enabled_or_string),
-                "{:?}",
-                s
-            );
-        };
-
-        chk(IOB::Bool(false), r#"enabled_or_string = false"#);
-        chk(IOB::Bool(true), r#"enabled_or_string = true"#);
-        chk(
-            IOB::Item("not a bool".into()),
-            r#"enabled_or_string = "not a bool""#,
-        );
-
-        let chk_e = |s| {
-            let tc: Result<TestConfigFile, _> = toml::from_str(s);
-            let _ = tc.expect_err(s);
-        };
-
-        chk_e(r#"enabled_or_string = 1"#);
-        chk_e(r#"enabled_or_string = []"#);
-        chk_e(r#"enabled_or_string = {}"#);
     }
 }

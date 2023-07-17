@@ -54,7 +54,7 @@
 # For more information, see https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html
 #console = "info"
 
-# As above, but specify filtering directives for sending trace messages to 
+# As above, but specify filtering directives for sending trace messages to
 # the journald logging system.  Empty string means not to use journald.
 #journald = ""
 
@@ -105,8 +105,28 @@
 #cache_dir = "${ARTI_CACHE}"
 #state_dir = "${ARTI_LOCAL_DATA}"
 
+#[storage.keystore]
+# Whether the keystore is enabled.
+#
+# If the `keymgr` feature is enabled and this option is:
+#     * set to false, we will ignore the configured keystore path.
+#     * set to "auto", the configured keystore, or the default keystore, if the
+#     keystore path is not specified, will be used
+#     * set to true, the configured keystore, or the default keystore, if the
+#     keystore path is not specified, will be used
+#
+# If the `keymgr` feature is disabled and this option is:
+#     * set to false, we will ignore the configured keystore path.
+#     * set to "auto", we will ignore the configured keystore path.
+#
+# Setting this option to true when the `keymgr` feature is disabled is a
+# configuration error.
+#enabled = "auto"
+# The root directory of the arti keystore
+#path = "${ARTI_LOCAL_DATA}/keystore"
+
 # Describe how to enforce permissions on the filesystem when accessing the cache
-# and state directories.  (This does not apply to configuration files) 
+# and state directories.  (This does not apply to configuration files)
 [storage.permissions]
 # If set to true, we ignore all filesystem permissions.
 #dangerously_trust_everyone = false
@@ -124,7 +144,7 @@
 # option is set to "/home/", and we are checking "/home/username/.cache", then
 # we always accept the permissions on "/" and "/home", but we check the
 # permissions on "/home/username" and "/home/username/.cache".
-# 
+#
 # (This is not the default.)
 #
 #     ignore_prefix = "/home/"
@@ -140,13 +160,13 @@
 #enabled = "auto"
 
 # What bridges (including pluggable transports) to use, in this syntax:
-#  bridges = [ 
+#  bridges = [
 #      "<IP>:<ORPort> <fingerprint> [<fingerprint> ...]",
 #      "<transport> <host>:<ORPort>|- <fingerprint> [...] [<key>=<val> ...]",
 #  ]
 #
 # For example:
-#  bridges = [ 
+#  bridges = [
 #      "192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956",
 #      "[2001:db8::3150]:8080 $0bac39417268b96b9f514e7f63fa6fb1aa788957",
 #      "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",

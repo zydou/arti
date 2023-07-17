@@ -24,11 +24,8 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
 pub use tor_guardmgr::bridge::BridgeParseError;
 
-#[cfg(feature = "experimental-api")]
-#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
-pub use tor_config::ItemOrBool;
-
 use tor_guardmgr::bridge::BridgeConfig;
+use tor_keymgr::config::arti::ArtiNativeKeystoreConfig;
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -182,59 +179,15 @@ pub struct StorageConfig {
     // TODO HSS: try to use #[serde(into / try_from)] instead (and also move the deserialization
     // code to tor-keymgr).
     #[cfg(feature = "experimental-api")] // TODO HSS: make this unconditional
-    #[builder(setter(into), default = "default_keystore_dir()")]
-    #[builder_field_attr(serde(
-        deserialize_with = "deserialize_keystore_dir",
-        default = "serde_default_keystore_dir"
-    ))]
-    keystore_dir: Option<CfgPath>,
+    #[builder(default)]
+    #[builder_field_attr(serde(default))]
+    keystore: ArtiNativeKeystoreConfig,
     /// Filesystem state to
     #[builder(sub_builder(fn_name = "build_for_arti"))]
     #[builder_field_attr(serde(default))]
     permissions: Mistrust,
 }
 impl_standard_builder! { StorageConfig }
-
-/// Deserialize the `keystore_dir` storage field.
-///
-/// NOTE: The first option is needed because of the builder, the second is the actual type of the field.
-#[cfg(all(feature = "keymgr", feature = "experimental-api"))]
-#[allow(clippy::option_option)]
-fn deserialize_keystore_dir<'de, D>(deserializer: D) -> Result<Option<Option<CfgPath>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    let cfg: ItemOrBool<CfgPath> = serde::de::Deserialize::deserialize(deserializer)?;
-
-    let cfg = match cfg {
-        ItemOrBool::Item(cfg) => Some(cfg),
-        ItemOrBool::Bool(true) => default_keystore_dir(),
-        ItemOrBool::Bool(false) => None,
-    };
-
-    Ok(Some(cfg))
-}
-
-/// Deserialize the `keystore_dir` storage field.
-///
-/// NOTE: The first option is needed because of the builder, the second is the actual type of the field.
-#[cfg(all(not(feature = "keymgr"), feature = "experimental-api"))]
-#[allow(clippy::option_option)]
-fn deserialize_keystore_dir<'de, D>(deserializer: D) -> Result<Option<Option<CfgPath>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    use serde::de::Error as _;
-
-    let cfg: ItemOrBool<CfgPath> = serde::de::Deserialize::deserialize(deserializer)?;
-
-    match cfg {
-        ItemOrBool::Item(_) | ItemOrBool::Bool(true) => Err(D::Error::custom(
-            "keystore not available unless the `keymgr` feature is enabled".to_string(),
-        )),
-        ItemOrBool::Bool(false) => Ok(None),
-    }
-}
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
@@ -244,28 +197,6 @@ fn default_cache_dir() -> CfgPath {
 /// Return the default state directory.
 fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
-}
-
-/// Return the default keystore directory.
-#[cfg(feature = "experimental-api")]
-#[allow(clippy::unnecessary_wraps)] // needed because of the type expected by the builder
-fn default_keystore_dir() -> Option<CfgPath> {
-    #[cfg(feature = "keymgr")]
-    {
-        Some(CfgPath::new("${ARTI_LOCAL_DATA}/keystore".to_owned()))
-    }
-
-    #[cfg(not(feature = "keymgr"))]
-    {
-        None
-    }
-}
-
-/// Return the default keystore directory.
-#[cfg(feature = "experimental-api")]
-#[allow(clippy::unnecessary_wraps, clippy::option_option)] // needed because of the type expected by the builder
-fn serde_default_keystore_dir() -> Option<Option<CfgPath>> {
-    Some(default_keystore_dir())
 }
 
 // TODO: the expand_* functions are very repetitive. Maybe we can generate them using a macro
@@ -289,23 +220,18 @@ impl StorageConfig {
                 problem: e.to_string(),
             })
     }
-    /// Try to expand `keystore_dir` to be a path buffer.
-    #[allow(clippy::unnecessary_wraps)] // needed because of the experimental-api branch
-    pub(crate) fn expand_keystore_dir(&self) -> Result<Option<PathBuf>, ConfigBuildError> {
+    /// Return the keystore config
+    #[allow(clippy::unnecessary_wraps)]
+    pub(crate) fn keystore(&self) -> Option<&ArtiNativeKeystoreConfig> {
         #[cfg(feature = "experimental-api")]
         {
-            self.keystore_dir
-                .as_ref()
-                .map(|dir| dir.path())
-                .transpose()
-                .map_err(|e| ConfigBuildError::Invalid {
-                    field: "keystore_dir".to_owned(),
-                    problem: e.to_string(),
-                })
+            Some(&self.keystore)
         }
 
         #[cfg(not(feature = "experimental-api"))]
-        Ok(None)
+        {
+            None
+        }
     }
     /// Return the FS permissions to use for state and cache directories.
     pub(crate) fn permissions(&self) -> &Mistrust {
