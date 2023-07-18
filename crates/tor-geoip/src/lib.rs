@@ -209,6 +209,7 @@ impl NetDefn {
 }
 
 /// A database of IP addresses to country codes.
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct GeoipDb {
     /// The IPv4 subset of the database, with v4 addresses stored as 32-bit integers.
     map_v4: RangeInclusiveMap<u32, NetDefn>,
