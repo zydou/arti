@@ -7,3 +7,5 @@ BREAKING: `KeyMgr::new` takes an extra argument (the default keystore)
 ADDED: `KeystoreSelector`
 BREAKING: `KeystoreError` now has a `boxed` function
 ADDED: an `id` function to `Keystore` trait
+BREAKING: `KeyMgr::insert` now takes an additional
+`selector: KeystoreSelector` argument

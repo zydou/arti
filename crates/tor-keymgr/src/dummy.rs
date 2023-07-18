@@ -8,7 +8,7 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{KeystoreError, Result};
+use crate::{KeystoreError, KeystoreSelector, Result};
 use tor_error::HasKind;
 
 use fs_mistrust::Mistrust;
@@ -88,7 +88,7 @@ impl KeyMgr {
     /// A dummy `insert` implementation that always fails.
     ///
     /// This function always returns an error.
-    pub fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
+    pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<()> {
         Err(Box::new(Error))
     }
 

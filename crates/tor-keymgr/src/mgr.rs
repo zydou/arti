@@ -3,7 +3,9 @@
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
 //! [`Keystore`].
 
-use crate::{EncodableKey, KeySpecifier, Keystore, KeystoreError, Result, ToEncodableKey};
+use crate::{
+    EncodableKey, KeySpecifier, Keystore, KeystoreError, KeystoreSelector, Result, ToEncodableKey,
+};
 
 use std::iter;
 use tor_error::{internal, HasKind};
@@ -94,38 +96,40 @@ impl KeyMgr {
         Ok(None)
     }
 
-    /// Insert the specified key intro the appropriate key store.
+    /// Insert `key` into the [`Keystore`] specified by `selector`.
     ///
-    /// If the key bundle of this `key` exists in one of the key stores, the key is inserted
-    /// there. Otherwise, the key is inserted into the first key store.
+    /// This function can only be used with [`KeystoreSelector::Default`] and
+    /// [`KeystoreSelector::Id`]. It returns an error if the specified `selector`
+    /// is not supported.
     ///
     /// If the key already exists, it is overwritten.
     ///
     // TODO HSS: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
-    // TODO HSS (#903): define what "key bundle" means
-    pub fn insert<K: ToEncodableKey>(&self, key: K, key_spec: &dyn KeySpecifier) -> Result<()> {
-        // TODO HSS: maybe we should designate an explicit 'primary' store instead of implicitly
-        // preferring the first one.
-        let primary_store = match self.key_stores.first() {
-            Some(store) => store,
-            None => return Err(internal!("no key stores configured").into()),
-        };
+    pub fn insert<K: ToEncodableKey>(
+        &self,
+        key: K,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+    ) -> Result<()> {
         let key = key.to_encodable_key();
 
-        let store = self
-            .key_stores
-            .iter()
-            .find_map(|s| match s.has_key_bundle(key_spec) {
-                Ok(true) => Some(Ok(s)),
-                Ok(false) => None,
-                Err(e) => Some(Err(e)),
-            })
-            .transpose()?
-            // None of the stores has the key bundle of key_spec, so we insert the key into the first
-            // store.
-            .unwrap_or(primary_store);
-
-        store.insert(&key, key_spec, K::Key::key_type())
+        match selector {
+            KeystoreSelector::Id(keystore_id) => {
+                let Some(keystore) = self.find_keystore(keystore_id) else {
+                    return Err(KeyMgrError::KeystoreNotFound(keystore_id).boxed());
+                };
+                keystore.insert(&key, key_spec, K::Key::key_type())
+            }
+            KeystoreSelector::Default => {
+                self.default_store
+                    .insert(&key, key_spec, K::Key::key_type())
+            }
+            KeystoreSelector::All => Err(KeyMgrError::UnsupportedKeystoreSelector {
+                op: "insert",
+                selector,
+            }
+            .boxed()),
+        }
     }
 
     /// Remove the specified key.
