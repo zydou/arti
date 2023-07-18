@@ -126,7 +126,7 @@ pub struct TorClient<R: Runtime> {
     ///
     /// See the [`KeyMgr`] documentation for more details.
     #[allow(dead_code)] // TODO HS remove
-    keymgr: Arc<KeyMgr>,
+    keymgr: Option<Arc<KeyMgr>>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
@@ -608,6 +608,7 @@ impl<R: Runtime> TorClient<R> {
                 // The keystore_dir should probably be expanded at `build()` time.
                 let key_store_dir = keystore.expand_keystore_dir()?;
                 let permissions = config.storage.permissions();
+
                 // If enabled is true or set to "auto", initialize the keystore
                 //
                 // In this case "auto" means true, because experimental-api is enabled
@@ -617,13 +618,17 @@ impl<R: Runtime> TorClient<R> {
                         ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
                     info!("Using keystore from {key_store_dir:?}");
                     stores.push(Box::new(arti_store));
+
+                    // TODO hs: add support for the C Tor key store
+                    Some(Arc::new(KeyMgr::new(stores)))
                 } else {
                     info!("Running without a keystore");
+                    None
                 }
+            } else {
+                info!("Running without a keystore");
+                None
             }
-
-            // TODO hs: add support for the C Tor key store
-            Arc::new(KeyMgr::new(stores))
         };
 
         runtime
@@ -1005,40 +1010,44 @@ impl<R: Runtime> TorClient<R> {
                 self.wait_for_bootstrap().await?;
                 let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
 
-                // TODO hs: use a real client id (loaded from the config)
-                let client_id = HsClientSpecifier::new("default".into())
-                    .map_err(|e| ErrorDetail::Keystore(e))?;
-                let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
-                    client_id.clone(),
-                    hsid,
-                    HsClientKeyRole::DescEnc,
-                );
-
-                // TODO hs: refactor to reduce code duplication.
-                //
-                // The code that reads ks_hsc_desc_enc and ks_hsc_intro_auth and builds the
-                // HsClientSecretKeys is very repetitive and should be refactored.
-                let ks_hsc_desc_enc = self
-                    .keymgr
-                    .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)?;
-
-                let intro_auth_key_spec =
-                    HsClientSecretKeySpecifier::new(client_id, hsid, HsClientKeyRole::IntroAuth);
-
-                let ks_hsc_intro_auth = self
-                    .keymgr
-                    .get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)?;
-
                 let mut hs_client_secret_keys_builder = HsClientSecretKeysBuilder::default();
-                if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
-                    debug!("Found descriptor decryption key for {hsid}");
-                    hs_client_secret_keys_builder.ks_hsc_desc_enc(ks_hsc_desc_enc);
-                }
 
-                if let Some(ks_hsc_intro_auth) = ks_hsc_intro_auth {
-                    debug!("Found INTRODUCE1 signing key for {hsid}");
-                    hs_client_secret_keys_builder.ks_hsc_intro_auth(ks_hsc_intro_auth);
-                }
+                if let Some(keymgr) = &self.keymgr {
+                    // TODO hs: use a real client id (loaded from the config)
+                    let client_id = HsClientSpecifier::new("default".into())
+                        .map_err(|e| ErrorDetail::Keystore(e))?;
+                    let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
+                        client_id.clone(),
+                        hsid,
+                        HsClientKeyRole::DescEnc,
+                    );
+
+                    // TODO hs: refactor to reduce code duplication.
+                    //
+                    // The code that reads ks_hsc_desc_enc and ks_hsc_intro_auth and builds the
+                    // HsClientSecretKeys is very repetitive and should be refactored.
+                    let ks_hsc_desc_enc =
+                        keymgr.get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)?;
+
+                    let intro_auth_key_spec = HsClientSecretKeySpecifier::new(
+                        client_id,
+                        hsid,
+                        HsClientKeyRole::IntroAuth,
+                    );
+
+                    let ks_hsc_intro_auth =
+                        keymgr.get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)?;
+
+                    if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
+                        debug!("Found descriptor decryption key for {hsid}");
+                        hs_client_secret_keys_builder.ks_hsc_desc_enc(ks_hsc_desc_enc);
+                    }
+
+                    if let Some(ks_hsc_intro_auth) = ks_hsc_intro_auth {
+                        debug!("Found INTRODUCE1 signing key for {hsid}");
+                        hs_client_secret_keys_builder.ks_hsc_intro_auth(ks_hsc_intro_auth);
+                    }
+                };
 
                 let hs_client_secret_keys = hs_client_secret_keys_builder
                     .build()
