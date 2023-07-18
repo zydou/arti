@@ -144,11 +144,11 @@ impl HashX {
         self.hash_to_regs(input).digest(self.register_key)[0]
     }
 
-    /// Calculate the hash function, and return it as a byte array in HashX's
-    /// canonical little-endian byte order
-    pub fn hash_to_bytes<const SIZE: usize>(&self, input: u64) -> [u8; SIZE] {
+    /// Calculate the hash function at its full output width, returning a fixed
+    /// size byte array
+    pub fn hash_to_bytes(&self, input: u64) -> [u8; Self::FULL_SIZE] {
         let words = self.hash_to_regs(input).digest(self.register_key);
-        let mut bytes = [0_u8; SIZE];
+        let mut bytes = [0_u8; Self::FULL_SIZE];
         for word in 0..words.len() {
             bytes[word * 8..(word + 1) * 8].copy_from_slice(&words[word].to_le_bytes());
         }

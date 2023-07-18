@@ -25,7 +25,7 @@ fn bench_one_runtime(c: &mut Criterion, runtime: RuntimeOption, name: &str) {
         c,
         runtime,
         &format!("{}-full-hash", name),
-        |hash_instance, input| hash_instance.hash_to_bytes::<{ HashX::FULL_SIZE }>(input),
+        |hash_instance, input| hash_instance.hash_to_bytes(input),
     );
 }
 
