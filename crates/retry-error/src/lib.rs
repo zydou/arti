@@ -41,7 +41,8 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 use std::error::Error;
-use std::fmt::{Debug, Display, Error as FmtError, Formatter};
+use std::fmt::{self, Debug, Display, Error as FmtError, Formatter};
+use std::iter;
 
 /// An error type for use when we're going to do something a few times,
 /// and they might all fail.
@@ -225,6 +226,65 @@ impl<E: Display> Display for RetryError<E> {
             }
         }
     }
+}
+
+/// Helper: formats a [`std::error::Error`] and its sources (as `"error: source"`)
+///
+/// Avoids duplication in messages by not printing messages which are
+/// wholly-contained (textually) within already-printed messages.
+///
+/// Offered as a `fmt` function:
+/// this is for use in more-convenient higher-level error handling functionality,
+/// rather than directly in application/functional code.
+///
+/// This is used by `RetryError`'s impl of `Display`,
+/// but will be useful for other error-handling situations.
+///
+/// # Example
+///
+/// ```
+/// use std::fmt::{self, Display};
+///
+/// #[derive(Debug, thiserror::Error)]
+/// #[error("some pernickety problem")]
+/// struct Pernickety;
+///
+/// #[derive(Debug, thiserror::Error)]
+/// enum ApplicationError {
+///     #[error("everything is terrible")]
+///     Terrible(#[source] Pernickety),
+/// }
+///
+/// struct Wrapper(Box<dyn std::error::Error>);
+/// impl Display for Wrapper {
+///     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+///         retry_error::fmt_error_with_sources(&*self.0, f)
+///     }
+/// }
+///
+/// let bad = Pernickety;
+/// let err = ApplicationError::Terrible(bad);
+///
+/// let printed = Wrapper(err.into()).to_string();
+/// assert_eq!(printed, "everything is terrible: some pernickety problem");
+/// ```
+pub fn fmt_error_with_sources(mut e: &dyn Error, f: &mut fmt::Formatter) -> fmt::Result {
+    let mut last = String::new();
+    let mut sep = iter::once("").chain(iter::repeat(": "));
+    loop {
+        let this = e.to_string();
+        if !last.contains(&this) {
+            write!(f, "{}{}", sep.next().expect("repeat ended"), &this)?;
+        }
+        last = this;
+
+        if let Some(ne) = e.source() {
+            e = ne;
+        } else {
+            break;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

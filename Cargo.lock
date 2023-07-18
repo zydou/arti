@@ -3065,6 +3065,7 @@ name = "retry-error"
 version = "0.4.2"
 dependencies = [
  "anyhow",
+ "thiserror",
 ]
 
 [[package]]
@@ -4421,6 +4422,7 @@ dependencies = [
  "futures",
  "once_cell",
  "paste",
+ "retry-error",
  "static_assertions",
  "strum",
  "thiserror",
