@@ -7,18 +7,21 @@ use crate::{EncodableKey, KeySpecifier, Keystore, Result, ToEncodableKey};
 
 use tor_error::internal;
 
+/// A boxed [`Keystore`].
+type BoxedKeystore = Box<dyn Keystore>;
+
 /// A key manager with several [`Keystore`]s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
 pub struct KeyMgr {
     /// The underlying persistent stores.
-    key_stores: Vec<Box<dyn Keystore>>,
+    key_stores: Vec<BoxedKeystore>,
 }
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`].
-    pub fn new(key_stores: Vec<Box<dyn Keystore>>) -> Self {
+    pub fn new(key_stores: Vec<BoxedKeystore>) -> Self {
         Self { key_stores }
     }
 
