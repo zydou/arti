@@ -600,34 +600,31 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), circpool, config, housekeeping)?
         };
 
-        let keymgr = {
-            if let Some(keystore) = config.storage.keystore() {
-                // TODO HSS: `expand_keystore_dir` shouldn't be escaping into a crate API boundary.
-                // The keystore_dir should probably be expanded at `build()` time.
-                let key_store_dir = keystore.expand_keystore_dir()?;
-                let permissions = config.storage.permissions();
+        let keymgr = if let Some(keystore) = config.storage.keystore() {
+            // TODO HSS: `expand_keystore_dir` shouldn't be escaping into a crate API boundary.
+            // The keystore_dir should probably be expanded at `build()` time.
+            let key_store_dir = keystore.expand_keystore_dir()?;
+            let permissions = config.storage.permissions();
 
-                // If enabled is true or set to "auto", initialize the keystore
-                //
-                // In this case "auto" means true, because experimental-api is enabled
-                // (otherwise, config.storage.keystore() would've returned None).
-                if keystore.enabled.as_bool().unwrap_or(true) {
-                    let mut stores: Vec<Box<dyn Keystore>> = vec![];
-                    let arti_store =
-                        ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
-                    info!("Using keystore from {key_store_dir:?}");
-                    stores.push(Box::new(arti_store));
+            // If enabled is true or set to "auto", initialize the keystore
+            //
+            // In this case "auto" means true, because experimental-api is enabled
+            // (otherwise, config.storage.keystore() would've returned None).
+            if keystore.enabled.as_bool().unwrap_or(true) {
+                let mut stores: Vec<Box<dyn Keystore>> = vec![];
+                let arti_store =
+                    ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
+                info!("Using keystore from {key_store_dir:?}");
+                stores.push(Box::new(arti_store));
 
-                    // TODO hs: add support for the C Tor key store
-                    Some(Arc::new(KeyMgr::new(stores)))
-                } else {
-                    info!("Running without a keystore");
-                    None
-                }
+                // TODO hs: add support for the C Tor key store
+                Some(Arc::new(KeyMgr::new(stores)))
             } else {
                 info!("Running without a keystore");
                 None
             }
+        } else {
+            None
         };
 
         runtime
