@@ -152,6 +152,9 @@ pub enum Error {
     Bug(#[from] Bug),
 }
 
+tor_error::define_asref_dyn_std_error!(Error);
+tor_error::define_asref_dyn_std_error!(Box<Error>);
+
 impl From<futures::channel::oneshot::Canceled> for Error {
     fn from(_: futures::channel::oneshot::Canceled) -> Error {
         Error::PendingCanceled
