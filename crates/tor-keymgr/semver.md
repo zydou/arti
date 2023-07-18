@@ -9,3 +9,4 @@ BREAKING: `KeystoreError` now has a `boxed` function
 ADDED: an `id` function to `Keystore` trait
 BREAKING: `KeyMgr::insert` now takes an additional
 `selector: KeystoreSelector` argument
+REMOVED: the `has_key_bundle` function (from the `Keystore` trait)

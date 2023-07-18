@@ -128,11 +128,6 @@ impl Keystore for ArtiNativeKeystore {
             .into()),
         }
     }
-
-    fn has_key_bundle(&self, _key_spec: &dyn KeySpecifier) -> Result<bool> {
-        // TODO HSS (#903): implement
-        Ok(true)
-    }
 }
 
 #[cfg(test)]
@@ -343,13 +338,5 @@ mod tests {
             .remove(&TestSpecifier, KeyType::Ed25519Keypair)
             .unwrap()
             .is_none());
-    }
-
-    #[test]
-    fn key_bundles() {
-        // TODO HSS TEST: implement has_key_bundle and write a proper test
-        let (key_store, _keystore_dir) = init_keystore(true);
-
-        assert!(key_store.has_key_bundle(&TestSpecifier).unwrap());
     }
 }

@@ -61,9 +61,6 @@ pub trait Keystore: Send + Sync + 'static {
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>>;
-
-    /// Check whether the key bundle associated with the specified identity is in the store.
-    fn has_key_bundle(&self, key_spec: &dyn KeySpecifier) -> Result<bool>;
 }
 
 /// A key that can be serialized to, and deserialized from, a format used by a
