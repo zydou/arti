@@ -3,3 +3,4 @@ BREAKING: `ErasedKey` (returned by `Keystore::get`) is now a type alias to
 ADDED: `config` module exposing `ArtiNativeKeystoreConfig`
 BREAKING: `ArtiNativeKeyStoreConfig` fields are now private
 ADDED: `ArtiNativeKeyStoreConfig::is_enabled` function
+BREAKING: `KeyMgr::new` takes an extra argument (the default keystore)

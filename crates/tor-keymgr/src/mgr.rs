@@ -14,15 +14,22 @@ type BoxedKeystore = Box<dyn Keystore>;
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
+//
+// TODO HSS: derive builder for KeyMgr.
 pub struct KeyMgr {
-    /// The underlying persistent stores.
+    /// The default key store.
+    default_store: BoxedKeystore,
+    /// The secondary key stores.
     key_stores: Vec<BoxedKeystore>,
 }
 
 impl KeyMgr {
-    /// Create a new [`KeyMgr`].
-    pub fn new(key_stores: Vec<BoxedKeystore>) -> Self {
-        Self { key_stores }
+    /// Create a new [`KeyMgr`] with a default [`Keystore`] and zero or more secondary [`Keystore`]s.
+    pub fn new(default_store: impl Keystore, key_stores: Vec<BoxedKeystore>) -> Self {
+        Self {
+            default_store: Box::new(default_store),
+            key_stores,
+        }
     }
 
     /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.

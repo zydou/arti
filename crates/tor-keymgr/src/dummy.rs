@@ -74,7 +74,7 @@ impl Keystore for ArtiNativeKeystore {}
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`].
-    pub fn new(_: Vec<Box<dyn Keystore>>) -> Self {
+    pub fn new(_: impl Keystore, _: Vec<Box<dyn Keystore>>) -> Self {
         Self
     }
 

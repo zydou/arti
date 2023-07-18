@@ -43,7 +43,7 @@ use {
     tor_netdir::DirEvent,
 };
 
-use tor_keymgr::{ArtiNativeKeystore, KeyMgr, Keystore};
+use tor_keymgr::{ArtiNativeKeystore, KeyMgr};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
@@ -602,7 +602,6 @@ impl<R: Runtime> TorClient<R> {
 
         let keystore = config.storage.keystore();
         let keymgr = if keystore.is_enabled() {
-            let mut stores: Vec<Box<dyn Keystore>> = vec![];
             // TODO HSS: `expand_keystore_dir` shouldn't be escaping into a crate API boundary.
             // The keystore_dir should probably be expanded at `build()` time.
             let key_store_dir = keystore.expand_keystore_dir()?;
@@ -611,10 +610,12 @@ impl<R: Runtime> TorClient<R> {
             let arti_store =
                 ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
             info!("Using keystore from {key_store_dir:?}");
-            stores.push(Box::new(arti_store));
+
+            // TODO HSS: make the default store configurable
+            let default_store = arti_store;
 
             // TODO hs: add support for the C Tor key store
-            Some(Arc::new(KeyMgr::new(stores)))
+            Some(Arc::new(KeyMgr::new(default_store, vec![])))
         } else {
             info!("Running without a keystore");
             None
