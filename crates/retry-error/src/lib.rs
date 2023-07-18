@@ -301,6 +301,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use derive_more::From;
 
     #[test]
     fn bad_parse1() {
@@ -353,13 +354,24 @@ Attempt 3: invalid IP address syntax"
     #[test]
     fn operations() {
         use std::num::ParseIntError;
-        let mut err: RetryError<ParseIntError> = RetryError::in_attempt_to("parse some integers");
+
+        #[derive(From, Clone, Debug, Eq, PartialEq)]
+        struct Wrapper(ParseIntError);
+
+        impl AsRef<dyn Error + 'static> for Wrapper {
+            fn as_ref(&self) -> &(dyn Error + 'static) {
+                &self.0
+            }
+        }
+
+        let mut err: RetryError<Wrapper> = RetryError::in_attempt_to("parse some integers");
         assert!(err.is_empty());
         assert_eq!(err.len(), 0);
         err.extend(
             vec!["not", "your", "number"]
                 .iter()
-                .filter_map(|s| s.parse::<u16>().err()),
+                .filter_map(|s| s.parse::<u16>().err())
+                .map(Wrapper),
         );
         assert!(!err.is_empty());
         assert_eq!(err.len(), 3);

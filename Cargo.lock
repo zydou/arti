@@ -3065,6 +3065,7 @@ name = "retry-error"
 version = "0.4.2"
 dependencies = [
  "anyhow",
+ "derive_more",
  "thiserror",
 ]
 
