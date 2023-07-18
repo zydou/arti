@@ -4583,6 +4583,7 @@ dependencies = [
 name = "tor-keymgr"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "derive_builder_fork_arti",
  "derive_more",
  "downcast-rs",

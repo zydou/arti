@@ -601,11 +601,7 @@ impl<R: Runtime> TorClient<R> {
         };
 
         let keystore = config.storage.keystore();
-        // If enabled is true or set to "auto", initialize the keystore
-        //
-        // In this case "auto" means true, because experimental-api is enabled
-        // (otherwise, config.storage.keystore() would've returned None).
-        let keymgr = if keystore.enabled.as_bool().unwrap_or(true) {
+        let keymgr = if keystore.is_enabled() {
             let mut stores: Vec<Box<dyn Keystore>> = vec![];
             // TODO HSS: `expand_keystore_dir` shouldn't be escaping into a crate API boundary.
             // The keystore_dir should probably be expanded at `build()` time.

@@ -17,11 +17,11 @@ use tor_config::{impl_standard_builder, BoolOrAuto};
 pub struct ArtiNativeKeystoreConfig {
     /// Whether keystore use is enabled.
     #[builder(default)]
-    pub enabled: BoolOrAuto,
+    enabled: BoolOrAuto,
 
     /// Location on disk for the Arti keystore.
     #[builder(setter(into), default = "default_keystore_dir()")]
-    pub path: CfgPath,
+    path: CfgPath,
 }
 
 impl_standard_builder! { ArtiNativeKeystoreConfig }
@@ -60,6 +60,21 @@ impl ArtiNativeKeystoreConfig {
             field: "path".to_owned(),
             problem: e.to_string(),
         })
+    }
+
+    /// Whether the keystore is enabled.
+    pub fn is_enabled(&self) -> bool {
+        let default = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "keymgr")] {
+                    true
+                } else {
+                    false
+                }
+            }
+        };
+
+        self.enabled.as_bool().unwrap_or(default)
     }
 }
 
