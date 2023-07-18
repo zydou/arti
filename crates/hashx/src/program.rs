@@ -183,9 +183,9 @@ impl Instruction {
 // program under construction
 pub(crate) type InstructionArray = ArrayVec<Instruction, NUM_INSTRUCTIONS>;
 
-/// The entire HashX program, as an array of Instruction instances
+/// Generated `HashX` program, as a list of instructions
 #[derive(Clone, Default)]
-pub(crate) struct Program {
+pub struct Program {
     /// The InstructionArray that this Program wraps
     ///
     /// InstructionArray provides storage, and this type indicates that the

@@ -1,6 +1,6 @@
 //! Define HashX's register file, and how it's created and digested
 
-use crate::siphash;
+use crate::siphash::{siphash24_ctr, SipState};
 use std::fmt;
 
 /// Number of virtual registers in the HashX machine
@@ -191,9 +191,9 @@ impl RegisterFile {
     /// Initialize a new HashX register file, given a key (derived from
     /// the seed) and the user-specified hash function input word.
     #[inline(always)]
-    pub(crate) fn new(key: siphash::State, input: u64) -> Self {
+    pub(crate) fn new(key: SipState, input: u64) -> Self {
         RegisterFile {
-            inner: siphash::siphash24_ctr(key, input),
+            inner: siphash24_ctr(key, input),
         }
     }
 
@@ -204,14 +204,14 @@ impl RegisterFile {
     /// keys again to "remove bias toward 0 caused by multiplications", and
     /// runs one siphash round on each half before recombining them.
     #[inline(always)]
-    pub(crate) fn digest(&self, key: siphash::State) -> [u64; 4] {
-        let mut x = siphash::State {
+    pub(crate) fn digest(&self, key: SipState) -> [u64; 4] {
+        let mut x = SipState {
             v0: self.inner[0].wrapping_add(key.v0),
             v1: self.inner[1].wrapping_add(key.v1),
             v2: self.inner[2],
             v3: self.inner[3],
         };
-        let mut y = siphash::State {
+        let mut y = SipState {
             v0: self.inner[4],
             v1: self.inner[5],
             v2: self.inner[6].wrapping_add(key.v2),

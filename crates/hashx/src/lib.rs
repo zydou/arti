@@ -45,14 +45,19 @@ mod constraints;
 mod err;
 mod generator;
 mod program;
+mod rand;
 mod register;
 mod scheduler;
 mod siphash;
 
-use compiler::{Architecture, Executable};
-use program::Program;
+use crate::compiler::{Architecture, Executable};
+use crate::generator::generate_program;
+use crate::program::Program;
+use rand_core::RngCore;
 
-pub use err::{CompilerError, Error};
+pub use crate::err::{CompilerError, Error};
+pub use crate::rand::SipRand;
+pub use crate::siphash::SipState;
 
 /// Option for selecting a HashX runtime
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
@@ -89,7 +94,7 @@ pub struct HashX {
     /// Half of the key material generated from seed bytes go into the random
     /// program generator, and the other half are saved here for use in each
     /// hash invocation.
-    key1: siphash::State,
+    register_key: SipState,
 
     /// A prepared randomly generated hash program.
     ///
@@ -136,13 +141,13 @@ impl HashX {
 
     /// Calculate the first 64-bit word of the hash, without converting to bytes
     pub fn hash_to_u64(&self, input: u64) -> u64 {
-        self.hash_to_regs(input).digest(self.key1)[0]
+        self.hash_to_regs(input).digest(self.register_key)[0]
     }
 
     /// Calculate the hash function, and return it as a byte array in HashX's
     /// canonical little-endian byte order
     pub fn hash_to_bytes<const SIZE: usize>(&self, input: u64) -> [u8; SIZE] {
-        let words = self.hash_to_regs(input).digest(self.key1);
+        let words = self.hash_to_regs(input).digest(self.register_key);
         let mut bytes = [0_u8; SIZE];
         for word in 0..words.len() {
             bytes[word * 8..(word + 1) * 8].copy_from_slice(&words[word].to_le_bytes());
@@ -153,7 +158,7 @@ impl HashX {
     /// Common setup for hashes with any output format
     #[inline(always)]
     fn hash_to_regs(&self, input: u64) -> register::RegisterFile {
-        let mut regs = register::RegisterFile::new(self.key1, input);
+        let mut regs = register::RegisterFile::new(self.register_key, input);
         match &self.program {
             RuntimeProgram::Interpret(program) => program.interpret(&mut regs),
             RuntimeProgram::Compiled(executable) => executable.invoke(&mut regs),
@@ -186,10 +191,31 @@ impl HashXBuilder {
 
     /// Build a [`HashX`] instance with a seed and the selected options
     pub fn build(&self, seed: &[u8]) -> Result<HashX, Error> {
-        let (key0, key1) = siphash::State::pair_from_seed(seed);
-        let program = generator::generate_program(key0)?;
+        let (key0, key1) = SipState::pair_from_seed(seed);
+        let mut rng = SipRand::new(key0);
+        self.build_from_rng(&mut rng, key1)
+    }
+
+    /// Build a [`HashX`] instance from an arbitrary [`RngCore`] and
+    /// a [`SipState`] key used for initializing the register file
+    pub fn build_from_rng<R: RngCore>(
+        &self,
+        rng: &mut R,
+        register_key: SipState,
+    ) -> Result<HashX, Error> {
+        let program = generate_program(rng)?;
+        self.build_from_program(program, register_key)
+    }
+
+    /// Build a [`HashX`] instance from an already-generated [`Program`] and
+    /// [`SipState`] key
+    ///
+    /// The program is either stored as-is or compiled, depending on the current
+    /// [`RuntimeOption`]. Requires a program as well as a [`SipState`] to be
+    /// used for initializing the register file.
+    fn build_from_program(&self, program: Program, register_key: SipState) -> Result<HashX, Error> {
         Ok(HashX {
-            key1,
+            register_key,
             program: match self.runtime {
                 RuntimeOption::InterpretOnly => RuntimeProgram::Interpret(Box::new(program)),
                 RuntimeOption::CompileOnly => {

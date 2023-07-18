@@ -2,10 +2,11 @@
 
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
 use crate::program::{Instruction, InstructionArray, Opcode, Program};
+use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
-use crate::siphash;
 use crate::Error;
+use rand_core::RngCore;
 
 /// The `model` attempts to document HashX program generation choices,
 /// separate from the main body of the program generator.
@@ -79,17 +80,19 @@ mod model {
     pub(super) const BRANCH_MASK_BIT_WEIGHT: usize = 4;
 }
 
-/// Entry point for generating a new [`Program`] using a fresh program generator.
+/// Generate a hash program from an arbitrary [`RngCore`] implementer
+///
 /// This can return [`Error::ProgramConstraints`] if the HashX post-generation
-/// program verification fails.
-pub(crate) fn generate_program(key: siphash::State) -> Result<Program, Error> {
-    Generator::new(key).generate_program()
+/// program verification fails. During normal use this will happen once per
+/// several thousand random seeds, and the caller should skip to another seed.
+pub(crate) fn generate_program<T: RngCore>(rng: &mut T) -> Result<Program, Error> {
+    Generator::new(rng).generate_program()
 }
 
 /// Internal state for the program generator
-struct Generator {
-    /// The main state of the program generator is a siphash-derived PRNG.
-    rng: siphash::Rng,
+struct Generator<'r, R: RngCore> {
+    /// The program generator wraps a random number generator, via [`RngBuffer`]
+    rng: RngBuffer<'r, R>,
 
     /// Keep track of when execution units and registers will be ready,
     /// and ultimately generate a list of candidate available registers
@@ -100,18 +103,20 @@ struct Generator {
     /// are implemented in this separate Validator module.
     validator: Validator,
 
+    /// Last [`Opcode`] chosen by an instruction selector
+    ///
     /// Some of the instruction selectors have the notion of avoiding
-    /// duplicates, but HashX designs this check based on the sequence of
+    /// duplicates, but `HashX` designs this check based on the sequence of
     /// selector results rather than the sequence of committed instructions.
     last_selector_result_op: Option<Opcode>,
 }
 
-impl Generator {
-    /// Create a fresh program generator from the corresponding siphash state
+impl<'r, R: RngCore> Generator<'r, R> {
+    /// Create a fresh program generator from a random number generator state
     #[inline(always)]
-    fn new(key: siphash::State) -> Self {
+    fn new(rng: &'r mut R) -> Self {
         Generator {
-            rng: siphash::Rng::new(key),
+            rng: RngBuffer::new(rng),
             scheduler: Scheduler::new(),
             validator: Validator::new(),
             last_selector_result_op: None,
@@ -238,10 +243,11 @@ impl Generator {
         op
     }
 
-    /// Make one attempt at instruction generation. This picks an
-    /// [`OpcodeSelector`], chooses an opcode, then finishes choosing the
-    /// opcode-specific parts of the instruction. Each of these choices affects
-    /// the [`siphash::Rng`] state, and may fail if conditions are not met.
+    /// Make one attempt at instruction generation
+    ///
+    /// This picks an [`OpcodeSelector`], chooses an opcode, then finishes
+    /// choosing the opcode-specific parts of the instruction. Each of these
+    /// choices affects the Rng state, and may fail if conditions are not met.
     #[inline(always)]
     fn instruction_gen_attempt(
         &mut self,
@@ -441,7 +447,7 @@ enum OpcodeSelector {
 impl OpcodeSelector {
     /// Apply the selector, advancing the Rng state and returning an Opcode
     #[inline(always)]
-    fn apply(&self, gen: &mut Generator) -> Opcode {
+    fn apply<R: RngCore>(&self, gen: &mut Generator<'_, R>) -> Opcode {
         match self {
             OpcodeSelector::Target => Opcode::Target,
             OpcodeSelector::Branch => Opcode::Branch,
