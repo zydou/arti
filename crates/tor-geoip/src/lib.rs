@@ -184,18 +184,14 @@ struct NetDefn {
     ///
     /// We translate the value "??" into None.
     cc: Option<CountryCode>,
-    /// The ASN, if we have one.
+    /// The ASN, if we have one. We translate the value "0" into None.
     asn: Option<NonZeroU32>,
 }
 
 impl NetDefn {
     /// Make a new `NetDefn`.
     fn new(cc: &str, asn: Option<u32>) -> Result<Self, Error> {
-        let asn = asn
-            .map(|x| x.try_into())
-            .transpose()
-            .map_err(|_| Error::BadFormat("got an ASN with value 0"))?;
-
+        let asn = NonZeroU32::new(asn.unwrap_or(0));
         let cc = cc.parse::<OptionCc>()?.into();
 
         Ok(Self { cc, asn })
