@@ -19,6 +19,11 @@ pub type ErasedKey = Box<dyn EncodableKey>;
 // perhaps other types of sensitive data). We should consider renaming this (and other Key* types)
 // to something more generic (such as `SecretStore` or `Vault`).
 pub trait Keystore: Send + Sync + 'static {
+    /// The string identifier of this key store.
+    //
+    // TODO HSS: maybe this should return a newtype that wraps a string instead.
+    fn id(&self) -> &'static str;
+
     /// Retrieve the key identified by `key_spec`.
     ///
     /// Returns `Ok(Some(key))` if the key was successfully retrieved. Returns `Ok(None)` if the

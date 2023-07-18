@@ -4,3 +4,4 @@ ADDED: `config` module exposing `ArtiNativeKeystoreConfig`
 BREAKING: `ArtiNativeKeyStoreConfig` fields are now private
 ADDED: `ArtiNativeKeyStoreConfig::is_enabled` function
 BREAKING: `KeyMgr::new` takes an extra argument (the default keystore)
+ADDED: an `id` function to `Keystore` trait

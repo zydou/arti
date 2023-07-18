@@ -15,6 +15,9 @@ use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
 
+/// The keystore ID of [`ArtiNativeKeystore`].
+const ARTI_KEYSTORE_ID: &str = "arti";
+
 /// The Arti key store.
 #[derive(Debug)]
 pub struct ArtiNativeKeystore {
@@ -59,6 +62,10 @@ impl ArtiNativeKeystore {
 }
 
 impl Keystore for ArtiNativeKeystore {
+    fn id(&self) -> &'static str {
+        ARTI_KEYSTORE_ID
+    }
+
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
         let path = self.key_path(key_spec, key_type)?;
 
