@@ -76,7 +76,7 @@ enum Attempt {
 
 // TODO: Should we declare that some error is the 'source' of this one?
 // If so, should it be the first failure?  The last?
-impl<E: Debug + Display> Error for RetryError<E> {}
+impl<E: Debug + AsRef<dyn Error>> Error for RetryError<E> {}
 
 impl<E> RetryError<E> {
     /// Create a new RetryError, with no failed attempts.
@@ -207,11 +207,14 @@ impl Display for Attempt {
     }
 }
 
-impl<E: Display> Display for RetryError<E> {
+impl<E: AsRef<dyn Error>> Display for RetryError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
         match self.n_errors {
             0 => write!(f, "Unable to {}. (No errors given)", self.doing),
-            1 => write!(f, "Unable to {}: {}", self.doing, self.errors[0].1),
+            1 => {
+                write!(f, "Unable to {}: ", self.doing)?;
+                fmt_error_with_sources(self.errors[0].1.as_ref(), f)
+            }
             n => {
                 write!(
                     f,
@@ -220,7 +223,8 @@ impl<E: Display> Display for RetryError<E> {
                 )?;
 
                 for (attempt, e) in &self.errors {
-                    write!(f, "\n{}: {}", attempt, e)?;
+                    write!(f, "\n{}: ", attempt)?;
+                    fmt_error_with_sources(e.as_ref(), f)?;
                 }
                 Ok(())
             }

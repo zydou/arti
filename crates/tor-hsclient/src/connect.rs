@@ -699,7 +699,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     .map_err(|error| FAE::UnusableIntro { error, intro_index })?;
                 // Lack of TAIT means this clone
                 let intro_target = OwnedCircTarget::from_circ_target(&intro_target);
-                Ok(UsableIntroPt {
+                Ok::<_, FailedAttemptError>(UsableIntroPt {
                     intro_index,
                     intro_desc,
                     intro_target,
@@ -709,7 +709,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .filter_map(|entry| match entry {
                 Ok(y) => Some(y),
                 Err(e) => {
-                    errors.push(tor_error::Report(e));
+                    errors.push(e);
                     None
                 }
             })
@@ -923,7 +923,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     if let Some(intro_index) = error.intro_index() {
                         store_experience(intro_index, Err(error.retry_time()));
                     }
-                    errors.push(tor_error::Report(error));
+                    errors.push(error);
                 }
             }
         }
