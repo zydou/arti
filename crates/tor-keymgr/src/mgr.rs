@@ -129,4 +129,9 @@ impl KeyMgr {
     fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
         iter::once(&self.default_store).chain(self.key_stores.iter())
     }
+
+    /// Return the [`Keystore`] with the specified `id`.
+    fn find_keystore(&self, id: &'static str) -> Option<&BoxedKeystore> {
+        self.all_stores().find(|keystore| keystore.id() == id)
+    }
 }
