@@ -12,7 +12,6 @@
 use crate::program::{Instruction, InstructionArray, Opcode};
 use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};
 use crate::scheduler::Scheduler;
-use arrayvec::ArrayVec;
 
 pub(crate) use model::{Pass, RegisterWriter};
 
@@ -279,47 +278,25 @@ pub(crate) fn opcode_pair_allowed(previous: Option<Opcode>, proposed: Opcode) ->
 }
 
 /// Map each [`RegisterId`] to an [`Option<RegisterWriter>`]
-#[derive(Debug, Clone)]
-struct RegisterWriterMap {
-    /// Array of indices in the 'writers' array for each register
-    regs: [Option<u8>; NUM_REGISTERS],
-    /// Array of RegisterWriters, indexed by the content of 'regs'
-    writers: ArrayVec<RegisterWriter, NUM_REGISTERS>,
-}
+#[derive(Default, Debug, Clone)]
+struct RegisterWriterMap([Option<RegisterWriter>; NUM_REGISTERS]);
 
 impl RegisterWriterMap {
     /// A new empty register writer map. All registers are set to None
     #[inline(always)]
     fn new() -> Self {
-        Self {
-            regs: [None; NUM_REGISTERS],
-            writers: Default::default(),
-        }
+        Default::default()
     }
 
     /// Write or overwrite the last [`RegisterWriter`] associated with `reg`
     #[inline(always)]
     fn insert(&mut self, reg: RegisterId, writer: RegisterWriter) {
-        let previous = self.regs[reg.as_usize()];
-        match previous {
-            None => {
-                let new_index = self.writers.len();
-                self.writers.push(writer);
-                self.regs[reg.as_usize()] = Some(
-                    new_index
-                        .try_into()
-                        .expect("RegisterWriterMap always uses a wide enough data type"),
-                );
-            }
-            Some(update_index) => {
-                self.writers[update_index as usize] = writer;
-            }
-        }
+        self.0[reg.as_usize()] = Some(writer);
     }
 
     /// Return the most recent mapping for 'reg', if any
     #[inline(always)]
     fn get(&self, reg: RegisterId) -> Option<&RegisterWriter> {
-        self.regs[reg.as_usize()].map(|index| &self.writers[index as usize])
+        self.0[reg.as_usize()].as_ref()
     }
 }
