@@ -5,4 +5,5 @@ BREAKING: `ArtiNativeKeyStoreConfig` fields are now private
 ADDED: `ArtiNativeKeyStoreConfig::is_enabled` function
 BREAKING: `KeyMgr::new` takes an extra argument (the default keystore)
 ADDED: `KeystoreSelector`
+BREAKING: `KeystoreError` now has a `boxed` function
 ADDED: an `id` function to `Keystore` trait

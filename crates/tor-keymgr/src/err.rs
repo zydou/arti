@@ -14,6 +14,13 @@ pub type Error = Box<dyn KeystoreError>;
 pub trait KeystoreError:
     HasKind + StdError + DynClone + fmt::Debug + fmt::Display + Send + Sync + 'static
 {
+    /// Return a boxed version of this error.
+    fn boxed(self) -> Box<Self>
+    where
+        Self: Sized,
+    {
+        Box::new(self)
+    }
 }
 
 // Generate a Clone impl for Box<dyn KeystoreError>
