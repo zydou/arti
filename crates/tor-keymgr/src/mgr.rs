@@ -68,32 +68,7 @@ impl KeyMgr {
     ///
     /// Returns Ok(None) if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
-        // Check if the requested key identity exists in any of the key stores:
-        for store in self.all_stores() {
-            let key = match store.get(key_spec, K::Key::key_type()) {
-                Ok(None) => {
-                    // The key doesn't exist in this store, so we check the next one...
-                    continue;
-                }
-                Ok(Some(k)) => k,
-                Err(e) => {
-                    // TODO HSS: we immediately return if one of the keystores is inaccessible.
-                    // Perhaps we should ignore any errors and simply poll the next store in the
-                    // list?
-                    return Err(e);
-                }
-            };
-
-            // Found it! Now try to downcast it to the right type (this should _not_ fail)...
-            let key: K::Key = key
-                .downcast::<K::Key>()
-                .map(|k| *k)
-                .map_err(|_| internal!("failed to downcast key to requested type"))?;
-
-            return Ok(Some(K::from_encodable_key(key)));
-        }
-
-        Ok(None)
+        self.get_from_store(key_spec, self.all_stores())
     }
 
     /// Insert `key` into the [`Keystore`] specified by `selector`.
@@ -150,6 +125,41 @@ impl KeyMgr {
                 }
                 res => return res,
             }
+        }
+
+        Ok(None)
+    }
+
+    /// Attempt to retrieve a key from one of the specified `stores`.
+    ///
+    /// See [`KeyMgr::get`] for more details.
+    fn get_from_store<'a, K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        stores: impl Iterator<Item = &'a BoxedKeystore>,
+    ) -> Result<Option<K>> {
+        for store in stores {
+            let key = match store.get(key_spec, K::Key::key_type()) {
+                Ok(None) => {
+                    // The key doesn't exist in this store, so we check the next one...
+                    continue;
+                }
+                Ok(Some(k)) => k,
+                Err(e) => {
+                    // TODO HSS: we immediately return if one of the keystores is inaccessible.
+                    // Perhaps we should ignore any errors and simply poll the next store in the
+                    // list?
+                    return Err(e);
+                }
+            };
+
+            // Found it! Now try to downcast it to the right type (this should _not_ fail)...
+            let key: K::Key = key
+                .downcast::<K::Key>()
+                .map(|k| *k)
+                .map_err(|_| internal!("failed to downcast key to requested type"))?;
+
+            return Ok(Some(K::from_encodable_key(key)));
         }
 
         Ok(None)
