@@ -5,6 +5,7 @@
 
 use crate::{EncodableKey, KeySpecifier, Keystore, Result, ToEncodableKey};
 
+use std::iter;
 use tor_error::internal;
 
 /// A boxed [`Keystore`].
@@ -40,7 +41,7 @@ impl KeyMgr {
     /// Returns Ok(None) if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
         // Check if the requested key identity exists in any of the key stores:
-        for store in &self.key_stores {
+        for store in self.all_stores() {
             let key = match store.get(key_spec, K::Key::key_type()) {
                 Ok(None) => {
                     // The key doesn't exist in this store, so we check the next one...
@@ -122,5 +123,10 @@ impl KeyMgr {
         }
 
         Ok(None)
+    }
+
+    /// Return an iterator over all configured stores.
+    fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
+        iter::once(&self.default_store).chain(self.key_stores.iter())
     }
 }
