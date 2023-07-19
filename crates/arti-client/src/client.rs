@@ -1016,8 +1016,8 @@ impl<R: Runtime> TorClient<R> {
                     //
                     // The code that reads ks_hsc_desc_enc and ks_hsc_intro_auth and builds the
                     // HsClientSecretKeys is very repetitive and should be refactored.
-                    let ks_hsc_desc_enc =
-                        keymgr.get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)?;
+                    let ks_hsc_desc_enc = keymgr
+                        .get::<HsClientDescEncSecretKey>(&desc_enc_key_spec, Default::default())?;
 
                     let intro_auth_key_spec = HsClientSecretKeySpecifier::new(
                         client_id,
@@ -1025,8 +1025,10 @@ impl<R: Runtime> TorClient<R> {
                         HsClientKeyRole::IntroAuth,
                     );
 
-                    let ks_hsc_intro_auth =
-                        keymgr.get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)?;
+                    let ks_hsc_intro_auth = keymgr.get::<HsClientIntroAuthKeypair>(
+                        &intro_auth_key_spec,
+                        Default::default(),
+                    )?;
 
                     if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
                         debug!("Found descriptor decryption key for {hsid}");

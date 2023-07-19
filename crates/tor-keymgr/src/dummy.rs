@@ -81,7 +81,7 @@ impl KeyMgr {
     /// A dummy `get` implementation that always behaves like the requested key is not found.
     ///
     /// This function always returns `Ok(None)`.
-    pub fn get<K>(&self, _: &dyn Any) -> Result<Option<K>> {
+    pub fn get<K>(&self, _: &dyn Any, _: KeystoreSelector) -> Result<Option<K>> {
         Ok(None)
     }
 
