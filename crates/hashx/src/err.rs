@@ -1,7 +1,9 @@
 //! Error types for the `hashx` crate
 
+use std::sync::Arc;
+
 /// Errors that could occur while building a hash function
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// A whole-program constraint in HashX failed, and this particular
@@ -15,7 +17,7 @@ pub enum Error {
 }
 
 /// Details about a compiler error
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CompilerError {
     /// The compiler was not available for this build configuration
@@ -24,5 +26,11 @@ pub enum CompilerError {
 
     /// Failed to set up the runtime environment, with a [`std::io::Error`]
     #[error("Runtime error while preparing the hash program: {0}")]
-    Runtime(#[from] std::io::Error),
+    Runtime(#[source] Arc<std::io::Error>),
+}
+
+impl From<std::io::Error> for CompilerError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Runtime(Arc::new(err))
+    }
 }

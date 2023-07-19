@@ -1,7 +1,7 @@
 //! Define error types for the `tor-hspow` crate
 
 /// Error type for the onion service proof of work subsystem
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// Solution was incorrect
@@ -33,7 +33,7 @@ pub enum Error {
 ///
 /// These errors must not be exposed to clients, who might
 /// use them to gain an advantage in computing solutions.
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SolutionError {
     /// Solution errors from the v1 protocol implementation
@@ -42,7 +42,7 @@ pub enum SolutionError {
 }
 
 /// Detailed runtime errors
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RuntimeError {
     /// Runtime errors from the v1 protocol implementation

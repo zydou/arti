@@ -1,7 +1,7 @@
 //! Error types local to the `v1` protocol implementation
 
 /// Protocol-specific ways a solution can fail verification
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SolutionError {
     /// Mismatch between [`super::SeedHead`] and [`super::Instance`]
@@ -23,7 +23,7 @@ pub enum SolutionError {
 }
 
 /// Protocol-specific runtime errors
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RuntimeError {
     /// Unexpected error or runtime compiler error from the Equi-X layer

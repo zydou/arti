@@ -3,7 +3,7 @@
 pub use hashx::Error as HashError;
 
 /// Errors applicable to constructing and verifying Equi-X puzzles
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// Errors inherited from [`hashx`]
