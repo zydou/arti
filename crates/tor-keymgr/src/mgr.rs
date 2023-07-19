@@ -188,3 +188,216 @@ impl KeyMgr {
         self.all_stores().find(|keystore| keystore.id() == id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use crate::{ArtiPath, ErasedKey, KeyType};
+    use std::collections::HashMap;
+    use std::sync::RwLock;
+
+    /// The type of "key" stored in the test key stores.
+    type TestKey = String;
+
+    impl EncodableKey for TestKey {
+        fn key_type() -> KeyType
+        where
+            Self: Sized,
+        {
+            // Dummy value
+            KeyType::Ed25519Keypair
+        }
+
+        fn to_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+            Ok(self.as_bytes().to_vec().into())
+        }
+    }
+
+    impl ToEncodableKey for TestKey {
+        type Key = TestKey;
+
+        fn to_encodable_key(self) -> Self::Key {
+            self
+        }
+
+        fn from_encodable_key(key: Self::Key) -> Self {
+            key
+        }
+    }
+
+    macro_rules! impl_keystore {
+        ($name:tt, $id:expr) => {
+            #[derive(Default)]
+            struct $name(RwLock<HashMap<(ArtiPath, KeyType), TestKey>>);
+
+            #[allow(dead_code)] // this is only dead code for Keystore1
+            impl $name {
+                fn new_boxed() -> BoxedKeystore {
+                    Box::<Self>::default()
+                }
+            }
+
+            impl Keystore for $name {
+                fn id(&self) -> &'static str {
+                    $id
+                }
+
+                fn get(
+                    &self,
+                    key_spec: &dyn KeySpecifier,
+                    key_type: KeyType,
+                ) -> Result<Option<ErasedKey>> {
+                    Ok(self
+                        .0
+                        .read()
+                        .unwrap()
+                        .get(&(key_spec.arti_path()?, key_type))
+                        .map(|k| Box::new(k.clone()) as Box<dyn EncodableKey>))
+                }
+
+                fn insert(
+                    &self,
+                    key: &dyn EncodableKey,
+                    key_spec: &dyn KeySpecifier,
+                    key_type: KeyType,
+                ) -> Result<()> {
+                    let value = String::from_utf8(key.to_bytes()?.to_vec()).unwrap();
+
+                    self.0.write().unwrap().insert(
+                        (key_spec.arti_path()?, key_type),
+                        format!("{}_{value}", self.id()),
+                    );
+
+                    Ok(())
+                }
+
+                fn remove(
+                    &self,
+                    key_spec: &dyn KeySpecifier,
+                    key_type: KeyType,
+                ) -> Result<Option<()>> {
+                    Ok(self
+                        .0
+                        .write()
+                        .unwrap()
+                        .remove(&(key_spec.arti_path()?, key_type))
+                        .map(|_| ()))
+                }
+            }
+        };
+    }
+
+    macro_rules! impl_specifier {
+        ($name:tt, $id:expr) => {
+            struct $name;
+
+            impl KeySpecifier for $name {
+                fn arti_path(&self) -> Result<ArtiPath> {
+                    ArtiPath::new($id.into())
+                }
+
+                fn ctor_path(&self) -> Option<crate::CTorPath> {
+                    None
+                }
+            }
+        };
+    }
+
+    impl_keystore!(Keystore1, "keystore1");
+    impl_keystore!(Keystore2, "keystore2");
+    impl_keystore!(Keystore3, "keystore3");
+
+    impl_specifier!(TestKeySpecifier1, "spec1");
+    impl_specifier!(TestKeySpecifier2, "spec2");
+    impl_specifier!(TestKeySpecifier3, "spec3");
+
+    #[test]
+    fn insert_and_get() {
+        let mgr = KeyMgr::new(
+            Keystore1::default(),
+            vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
+        );
+
+        // Insert a key into Keystore2
+        mgr.insert(
+            "coot".to_string(),
+            &TestKeySpecifier1,
+            KeystoreSelector::Id("keystore2"),
+        )
+        .unwrap();
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
+                .unwrap(),
+            Some("keystore2_coot".to_string())
+        );
+
+        // Insert a different key using the _same_ key specifier.
+        mgr.insert(
+            "gull".to_string(),
+            &TestKeySpecifier1,
+            KeystoreSelector::Id("keystore2"),
+        )
+        .unwrap();
+        // Check that the original value was overwritten:
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
+                .unwrap(),
+            Some("keystore2_gull".to_string())
+        );
+
+        // Insert a key into the default keystore
+        mgr.insert(
+            "moorhen".to_string(),
+            &TestKeySpecifier2,
+            KeystoreSelector::Default,
+        )
+        .unwrap();
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier2, KeystoreSelector::All)
+                .unwrap(),
+            Some("keystore1_moorhen".to_string())
+        );
+
+        // Insert the same key into all 3 key stores
+        for store in ["keystore1", "keystore2", "keystore3"] {
+            // The key doesn't exist in `store` yet.
+            assert!(mgr
+                .get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::Id(store))
+                .unwrap()
+                .is_none());
+
+            mgr.insert(
+                "cormorant".to_string(),
+                &TestKeySpecifier3,
+                KeystoreSelector::Id(store),
+            )
+            .unwrap();
+
+            // Ensure the key now exists in `store`.
+            assert_eq!(
+                mgr.get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::Id(store))
+                    .unwrap(),
+                Some(format!("{store}_cormorant"))
+            );
+        }
+
+        // The key exists in all key stores, but if no keystore_id is specified, we return the
+        // value from the first key store it is found in (in this case, Keystore1)
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::All)
+                .unwrap(),
+            Some("keystore1_cormorant".to_string())
+        );
+    }
+}
