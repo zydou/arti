@@ -306,9 +306,9 @@ impl<R: Runtime> ChanMgr<R> {
     /// Replace the transport registry with one that may know about
     /// more transports.
     ///
-    /// Note that the [`ChannelFactory`] instances returned by `ptmgr` are
+    /// Note that the [`ChannelFactory`](factory::ChannelFactory) instances returned by `ptmgr` are
     /// required to time-out channels that take too long to build.  You'll get
-    /// this behavior by default if the factories implement [`ChannelFactory`] using
+    /// this behavior by default if the factories implement [`ChannelFactory`](factory::ChannelFactory) using
     /// [`transport::proxied::ExternalProxyPlugin`], which `tor-ptmgr` does.
     #[cfg(feature = "pt-client")]
     pub fn set_pt_mgr(&self, ptmgr: Arc<dyn factory::AbstractPtMgr + 'static>) {
