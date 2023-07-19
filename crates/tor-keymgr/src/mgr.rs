@@ -120,27 +120,35 @@ impl KeyMgr {
         }
     }
 
-    /// Remove the specified key.
+    /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
     ///
-    /// If the key exists in multiple key stores, this will only remove it from the first one.
+    /// This function can only be used with [`KeystoreSelector::Default`] and
+    /// [`KeystoreSelector::Id`]. It returns an error if the specified `selector`
+    /// is not supported.
     ///
-    /// A return vaue of `Ok(None)` indicates the key doesn't exist in any of the key stores,
-    /// whereas `Ok(Some(())` means the key was successfully removed.
+    /// Returns `Ok(None)` if the key does not exist in the requested keystore.
+    /// Returns `Ok(Some(())` if the key was successfully removed.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
-    pub fn remove<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<()>> {
-        for store in &self.key_stores {
-            match store.remove(key_spec, K::Key::key_type()) {
-                Ok(None) => {
-                    // This key store doesn't have the key we're trying to remove, so we search the
-                    // next key store...
-                    continue;
-                }
-                res => return res,
+    pub fn remove<K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+    ) -> Result<Option<()>> {
+        match selector {
+            KeystoreSelector::Id(keystore_id) => {
+                let Some(keystore) = self.find_keystore(keystore_id) else {
+                    return Err(KeyMgrError::KeystoreNotFound(keystore_id).boxed());
+                };
+                keystore.remove(key_spec, K::Key::key_type())
             }
+            KeystoreSelector::Default => self.default_store.remove(key_spec, K::Key::key_type()),
+            KeystoreSelector::All => Err(KeyMgrError::UnsupportedKeystoreSelector {
+                op: "remove",
+                selector,
+            }
+            .boxed()),
         }
-
-        Ok(None)
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
@@ -398,6 +406,49 @@ mod tests {
             mgr.get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::All)
                 .unwrap(),
             Some("keystore1_cormorant".to_string())
+        );
+    }
+
+    #[test]
+    fn remove() {
+        let mgr = KeyMgr::new(
+            Keystore1::default(),
+            vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
+        );
+
+        // Insert a key into Keystore2
+        mgr.insert(
+            "coot".to_string(),
+            &TestKeySpecifier1,
+            KeystoreSelector::Id("keystore2"),
+        )
+        .unwrap();
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
+                .unwrap(),
+            Some("keystore2_coot".to_string())
+        );
+
+        // Try to remove the key from a non-existent key store
+        assert!(mgr
+            .remove::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Id("not_an_id_we_know_of")
+            )
+            .is_err());
+
+        // Try to remove the key from the default key store
+        assert_eq!(
+            mgr.remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Default)
+                .unwrap(),
+            None
+        );
+
+        // Removing from Keystore2 should succeed.
+        assert_eq!(
+            mgr.remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Id("keystore2"))
+                .unwrap(),
+            Some(())
         );
     }
 }

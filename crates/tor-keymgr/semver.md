@@ -7,7 +7,7 @@ BREAKING: `KeyMgr::new` takes an extra argument (the default keystore)
 ADDED: `KeystoreSelector`
 BREAKING: `KeystoreError` now has a `boxed` function
 ADDED: an `id` function to `Keystore` trait
-BREAKING: `KeyMgr::insert`, `KeyMgr::get` now take an additional
+BREAKING: `KeyMgr::insert`, `KeyMgr::get`, `KeyMgr::remove` now take an
 `selector: KeystoreSelector` argument
 REMOVED: the `has_key_bundle` function (from the `Keystore` trait)
 ADDED: `PartialEq`, `Eq`, `Hash` derives for `ArtiPath` and `KeyType`
