@@ -75,3 +75,16 @@ pub use dummy::*;
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Specifies which keystores a [`KeyMgr`] operation should apply to.
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum KeystoreSelector {
+    /// Try to use the keystore with the specified ID.
+    Id(&'static str),
+    /// Use the default key store.
+    #[default]
+    Default,
+    /// Use all key stores. Only supported for [`KeyMgr::get`].
+    All,
+}
