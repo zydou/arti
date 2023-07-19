@@ -41,7 +41,8 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 use std::error::Error;
-use std::fmt::{Debug, Display, Error as FmtError, Formatter};
+use std::fmt::{self, Debug, Display, Error as FmtError, Formatter};
+use std::iter;
 
 /// An error type for use when we're going to do something a few times,
 /// and they might all fail.
@@ -75,7 +76,7 @@ enum Attempt {
 
 // TODO: Should we declare that some error is the 'source' of this one?
 // If so, should it be the first failure?  The last?
-impl<E: Debug + Display> Error for RetryError<E> {}
+impl<E: Debug + AsRef<dyn Error>> Error for RetryError<E> {}
 
 impl<E> RetryError<E> {
     /// Create a new RetryError, with no failed attempts.
@@ -206,11 +207,14 @@ impl Display for Attempt {
     }
 }
 
-impl<E: Display> Display for RetryError<E> {
+impl<E: AsRef<dyn Error>> Display for RetryError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
         match self.n_errors {
             0 => write!(f, "Unable to {}. (No errors given)", self.doing),
-            1 => write!(f, "Unable to {}: {}", self.doing, self.errors[0].1),
+            1 => {
+                write!(f, "Unable to {}: ", self.doing)?;
+                fmt_error_with_sources(self.errors[0].1.as_ref(), f)
+            }
             n => {
                 write!(
                     f,
@@ -219,12 +223,72 @@ impl<E: Display> Display for RetryError<E> {
                 )?;
 
                 for (attempt, e) in &self.errors {
-                    write!(f, "\n{}: {}", attempt, e)?;
+                    write!(f, "\n{}: ", attempt)?;
+                    fmt_error_with_sources(e.as_ref(), f)?;
                 }
                 Ok(())
             }
         }
     }
+}
+
+/// Helper: formats a [`std::error::Error`] and its sources (as `"error: source"`)
+///
+/// Avoids duplication in messages by not printing messages which are
+/// wholly-contained (textually) within already-printed messages.
+///
+/// Offered as a `fmt` function:
+/// this is for use in more-convenient higher-level error handling functionality,
+/// rather than directly in application/functional code.
+///
+/// This is used by `RetryError`'s impl of `Display`,
+/// but will be useful for other error-handling situations.
+///
+/// # Example
+///
+/// ```
+/// use std::fmt::{self, Display};
+///
+/// #[derive(Debug, thiserror::Error)]
+/// #[error("some pernickety problem")]
+/// struct Pernickety;
+///
+/// #[derive(Debug, thiserror::Error)]
+/// enum ApplicationError {
+///     #[error("everything is terrible")]
+///     Terrible(#[source] Pernickety),
+/// }
+///
+/// struct Wrapper(Box<dyn std::error::Error>);
+/// impl Display for Wrapper {
+///     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+///         retry_error::fmt_error_with_sources(&*self.0, f)
+///     }
+/// }
+///
+/// let bad = Pernickety;
+/// let err = ApplicationError::Terrible(bad);
+///
+/// let printed = Wrapper(err.into()).to_string();
+/// assert_eq!(printed, "everything is terrible: some pernickety problem");
+/// ```
+pub fn fmt_error_with_sources(mut e: &dyn Error, f: &mut fmt::Formatter) -> fmt::Result {
+    let mut last = String::new();
+    let mut sep = iter::once("").chain(iter::repeat(": "));
+    loop {
+        let this = e.to_string();
+        if !last.contains(&this) {
+            write!(f, "{}{}", sep.next().expect("repeat ended"), &this)?;
+        }
+        last = this;
+
+        if let Some(ne) = e.source() {
+            e = ne;
+        } else {
+            break;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -241,6 +305,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use derive_more::From;
 
     #[test]
     fn bad_parse1() {
@@ -293,13 +358,24 @@ Attempt 3: invalid IP address syntax"
     #[test]
     fn operations() {
         use std::num::ParseIntError;
-        let mut err: RetryError<ParseIntError> = RetryError::in_attempt_to("parse some integers");
+
+        #[derive(From, Clone, Debug, Eq, PartialEq)]
+        struct Wrapper(ParseIntError);
+
+        impl AsRef<dyn Error + 'static> for Wrapper {
+            fn as_ref(&self) -> &(dyn Error + 'static) {
+                &self.0
+            }
+        }
+
+        let mut err: RetryError<Wrapper> = RetryError::in_attempt_to("parse some integers");
         assert!(err.is_empty());
         assert_eq!(err.len(), 0);
         err.extend(
             vec!["not", "your", "number"]
                 .iter()
-                .filter_map(|s| s.parse::<u16>().err()),
+                .filter_map(|s| s.parse::<u16>().err())
+                .map(Wrapper),
         );
         assert!(!err.is_empty());
         assert_eq!(err.len(), 3);

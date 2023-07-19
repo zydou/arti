@@ -50,7 +50,7 @@ pub enum ConnError {
     /// Obtained descriptor but unable to connect to hidden service due to problem with IPT or RPT
     // TODO HS is this the right name for this variant?
     #[error("Unable to connect to hidden service using any Rendezvous Point / Introduction Point")]
-    Failed(#[source] RetryError<tor_error::Report<FailedAttemptError>>),
+    Failed(#[source] RetryError<FailedAttemptError>),
 
     /// The consensus network contains no suitable hidden service directories!
     #[error("consensus contains no suitable hidden service directories")]
@@ -368,8 +368,8 @@ impl HasKind for ConnError {
 
             CE::Failed(attempts) => attempts
                 .sources()
-                .max_by_key(|attempt| FailedAttemptErrorDiscriminants::from(&attempt.0))
-                .map(|attempt| attempt.0.kind())
+                .max_by_key(|attempt| FailedAttemptErrorDiscriminants::from(*attempt))
+                .map(|attempt| attempt.kind())
                 .unwrap_or_else(|| {
                     let bug = internal!("internal error, empty CE::DescriptorDownload");
                     error!("bug: {}", bug.report());

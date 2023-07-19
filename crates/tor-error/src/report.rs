@@ -16,22 +16,9 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /// Non-generic inner function avoids code bloat
-        fn inner(mut e: &dyn StdError, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "error")?;
-            let mut last = String::new();
-            loop {
-                let this = e.to_string();
-                if !last.contains(&this) {
-                    write!(f, ": {}", &this)?;
-                }
-                last = this;
-
-                if let Some(ne) = e.source() {
-                    e = ne;
-                } else {
-                    break;
-                }
-            }
+        fn inner(e: &dyn StdError, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "error: ")?;
+            retry_error::fmt_error_with_sources(e, f)?;
             Ok(())
         }
 
