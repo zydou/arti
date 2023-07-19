@@ -11,4 +11,5 @@ BREAKING: `KeyMgr::insert`, `KeyMgr::get` now take an additional
 `selector: KeystoreSelector` argument
 REMOVED: the `has_key_bundle` function (from the `Keystore` trait)
 ADDED: `PartialEq`, `Eq`, `Hash` derives for `ArtiPath` and `KeyType`
+ADDED: a `to_bytes` function to `EncodableKey` trait
 

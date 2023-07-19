@@ -4,6 +4,7 @@ pub(crate) mod arti;
 
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
+use zeroize::Zeroizing;
 
 use crate::key_type::KeyType;
 use crate::{KeySpecifier, Result};
@@ -70,6 +71,9 @@ pub trait EncodableKey: Downcast {
     fn key_type() -> KeyType
     where
         Self: Sized;
+
+    /// The byte representation of the key.
+    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>>;
 }
 
 impl_downcast!(EncodableKey);
@@ -81,6 +85,10 @@ impl EncodableKey for curve25519::StaticSecret {
     {
         KeyType::X25519StaticSecret
     }
+
+    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
+        Ok(curve25519::StaticSecret::to_bytes(self).to_vec().into())
+    }
 }
 
 impl EncodableKey for ed25519::Keypair {
@@ -89,6 +97,10 @@ impl EncodableKey for ed25519::Keypair {
         Self: Sized,
     {
         KeyType::Ed25519Keypair
+    }
+
+    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
+        Ok(ed25519::Keypair::to_bytes(self).to_vec().into())
     }
 }
 
