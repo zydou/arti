@@ -39,7 +39,7 @@
 pub(crate) mod ssh;
 
 /// A type of key stored in the key store.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum KeyType {
     /// An Ed25519 keypair.

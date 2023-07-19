@@ -1,6 +1,7 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
 use crate::Result;
+use derive_more::{Deref, DerefMut, Display, Into};
 use tor_error::internal;
 
 /// The path of a key in the Arti key store.
@@ -16,9 +17,7 @@ use tor_error::internal;
 //
 // TODO HSS: Create an error type for ArtiPath errors instead of relying on internal!
 // TODO HSS: disallow consecutive `.` to prevent path traversal.
-#[derive(
-    Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct ArtiPath(String);
 
 /// A separator for `ArtiPath`s.
