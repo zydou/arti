@@ -64,7 +64,9 @@ impl Instance {
     }
 
     /// Start preparing a particular [`SolverInput`] for this [`Instance`],
-    /// by choosing an effort. All other settings are optional, accessed
+    /// by choosing an effort.
+    ///
+    /// All other settings are optional, accessed
     /// via builder methods on [`SolverInput`].
     pub fn with_effort(self, effort: Effort) -> SolverInput {
         SolverInput::new(self, effort)
@@ -76,12 +78,12 @@ impl Instance {
         Verifier::new(self)
     }
 
-    /// Get the [`HsBlindId`] identifying the service this puzzle is for
+    /// Get the [`HsBlindId`] identifying the service this puzzle is for.
     pub fn service(&self) -> &HsBlindId {
         &self.service
     }
 
-    /// Get the rotating random [`Seed`] used in this puzzle instance
+    /// Get the rotating random [`Seed`] used in this puzzle instance.
     pub fn seed(&self) -> &Seed {
         &self.seed
     }
@@ -94,20 +96,41 @@ impl Instance {
 /// but it makes no guarantee to actually solve any specific puzzle instance.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Solution {
-    /// Arbitrary value chosen by the solver to reach a valid solution.
+    /// Arbitrary value chosen by the solver to reach a valid solution
+    ///
     /// Services are responsible for remembering used values to prevent replay.
     nonce: Nonce,
-    /// The effort chosen by the client, verifiable due to its inclusion
-    /// in the Equi-X challenge construction.
+
+    /// The effort chosen by the client
+    ///
+    /// This is validated against the actual effort spent by the client using
+    /// a combination of two checks:
+    ///
+    /// - We can ensure the effort value here was chosen prior to successfully
+    ///   solving the Equi-X puzzle just by verifying the Equi-X proof.
+    ///   Effort values are part of the [`crate::v1::challenge::Challenge`]
+    ///   string the puzzle is constructed around.
+    ///
+    /// - We can ensure, on average, that the proper proportion of Equi-X
+    ///   solutions have been discarded. The proof and challenge are hashed,
+    ///   and the resulting digest is effectively a random variable that must
+    ///   fit within a range inversely proportional to the effort. This test
+    ///   happens in [`crate::v1::challenge::Challenge::check_effort`].
     effort: Effort,
-    /// Prefix of the Seed used in this puzzle Instance
+
+    /// Prefix of the [`Seed`] used in this puzzle Instance
+    ///
+    /// A service will normally have two active [`Seed`] values at once.
+    /// This prefix is sufficient to distinguish between them. (Services
+    /// skip seeds which would have the same prefix as the last seed.)
     seed_head: SeedHead,
+
     /// Equi-X solution which claims to prove the above effort choice
     proof: equix::Solution,
 }
 
 impl Solution {
-    /// Construct a new Solution around a well-formed [`equix::Solution`] proof
+    /// Construct a new Solution around a well-formed [`equix::Solution`] proof.
     pub(super) fn new(
         nonce: Nonce,
         effort: Effort,
@@ -122,7 +145,9 @@ impl Solution {
         }
     }
 
-    /// Try to build a [`Solution`] from an unvalidated [`SolutionByteArray`]
+    /// Try to build a [`Solution`] from an unvalidated [`SolutionByteArray`].
+    ///
+    /// This will either return a [`Solution`] or a [`SolutionError::Order`].
     pub fn try_from_bytes(
         nonce: Nonce,
         effort: Effort,

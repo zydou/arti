@@ -16,6 +16,8 @@ mod model {
     use crate::program::Opcode;
     use crate::scheduler::SubCycle;
 
+    /// Choose the next [`OpcodeSelector`].
+    ///
     /// HashX uses a repeating pattern of opcode selectors, based on the
     /// current sub_cycle timestamp simulated for instruction fetch/decode.
     /// This gives a roughly constant program layout since most instructions do
@@ -75,12 +77,14 @@ mod model {
     ];
 
     /// Masks for [`super::Instruction::Branch`] always have a constant
-    /// number of bits set. The probability of taking a branch is
-    /// approximately `1.0 / (1 << BRANCH_MASK_BIT_WEIGHT)`
+    /// number of bits set.
+    ///
+    /// The probability of taking a branch is approximately
+    /// `1.0 / (1 << BRANCH_MASK_BIT_WEIGHT)`
     pub(super) const BRANCH_MASK_BIT_WEIGHT: usize = 4;
 }
 
-/// Generate a hash program from an arbitrary [`RngCore`] implementer
+/// Generate a hash program from an arbitrary [`RngCore`] implementer.
 ///
 /// This can return [`Error::ProgramConstraints`] if the HashX post-generation
 /// program verification fails. During normal use this will happen once per
@@ -91,7 +95,7 @@ pub(crate) fn generate_program<T: RngCore>(rng: &mut T) -> Result<Program, Error
 
 /// Internal state for the program generator
 struct Generator<'r, R: RngCore> {
-    /// The program generator wraps a random number generator, via [`RngBuffer`]
+    /// The program generator wraps a random number generator, via [`RngBuffer`].
     rng: RngBuffer<'r, R>,
 
     /// Keep track of when execution units and registers will be ready,
@@ -112,7 +116,7 @@ struct Generator<'r, R: RngCore> {
 }
 
 impl<'r, R: RngCore> Generator<'r, R> {
-    /// Create a fresh program generator from a random number generator state
+    /// Create a fresh program generator from a random number generator state.
     #[inline(always)]
     fn new(rng: &'r mut R) -> Self {
         Generator {
@@ -123,9 +127,13 @@ impl<'r, R: RngCore> Generator<'r, R> {
         }
     }
 
-    /// Pick a pseudorandom register from a RegisterSet, or return `Err(())`
-    /// if the set is empty. Consumes one `u32` from the `Rng` only if the set
-    /// contains more than one item.
+    /// Pick a pseudorandom register from a RegisterSet.
+    ///
+    /// Returns `Err(())` if the set is empty. Consumes one `u32` from the `Rng`
+    /// only if the set contains more than one item.
+    ///
+    /// The choice is perfectly uniform only if the register set is a power of
+    /// two length. Uniformity is not critical here.
     #[inline(always)]
     fn select_register(&mut self, reg_options: RegisterSet) -> Result<RegisterId, ()> {
         match reg_options.len() {
@@ -145,13 +153,19 @@ impl<'r, R: RngCore> Generator<'r, R> {
         }
     }
 
-    /// Pick a pseudorandom operation from a list of at least two options
+    /// Pick a pseudorandom operation from a list of options.
+    ///
+    /// The `options` slice must be between 2 and 255 options in length.
+    /// For uniformity and efficiency it's best if the length is also a power
+    /// of two. All actual operation lists used by HashX have power-of-two
+    /// lengths.
     #[inline(always)]
     fn select_op<'a, T, const SIZE: usize>(&mut self, options: &'a [T; SIZE]) -> &'a T {
         &options[(self.rng.next_u8() as usize) % options.len()]
     }
 
     /// Generate a random u32 bit mask, with a constant number of bits set.
+    ///
     /// This uses an iterative algorithm that selects one bit at a time
     /// using a u8 from the Rng for each, discarding duplicates.
     #[inline(always)]
@@ -168,8 +182,10 @@ impl<'r, R: RngCore> Generator<'r, R> {
         result
     }
 
-    /// Generate random nonzero values, by iteratively picking a random u32,
-    /// masking it, and discarding results that would be all zero.
+    /// Generate random nonzero values.
+    ///
+    /// Iteratively picks a random u32, masking it, and discarding results that
+    /// would be all zero.
     #[inline(always)]
     fn select_nonzero_u32(&mut self, mask: u32) -> u32 {
         loop {
@@ -180,10 +196,12 @@ impl<'r, R: RngCore> Generator<'r, R> {
         }
     }
 
-    /// Generate an entire program. This generates instructions until the
-    /// state can't be advanced any further. Returns with
-    /// [`Error::ProgramConstraints`] if the program fails the HashX
-    /// whole-program checks.
+    /// Generate an entire program.
+    ///
+    /// This generates instructions until the state can't be advanced any
+    /// further. Returns with [`Error::ProgramConstraints`] if the program
+    /// fails the `HashX` whole-program checks. These constraint failures occur
+    /// in normal use, on a small fraction of seed values.
     #[inline(always)]
     fn generate_program(&mut self) -> Result<Program, Error> {
         let mut array: InstructionArray = Default::default();
@@ -206,12 +224,13 @@ impl<'r, R: RngCore> Generator<'r, R> {
         }
     }
 
-    /// Generate the next instruction. This is a multi-pass approach, starting
-    /// with a [`Pass::Original`] that normally succeeds, followed, by a
-    /// [`Pass::Retry`] with simplifications to improve success rate,
-    /// followed by a timing stall that advances the simulated cycle count
-    /// forward and tries again with the benefit of newly available registers
-    /// in the schedule.
+    /// Generate the next instruction.
+    ///
+    /// This is a multi-pass approach, starting with a [`Pass::Original`] that
+    /// normally succeeds, followed by a [`Pass::Retry`] with simplifications
+    /// to improve success rate, followed by a timing stall that advances the
+    /// simulated cycle count forward and tries again with the benefit of newly
+    /// available registers in the schedule.
     ///
     /// This only returns `Err(())` if we've hit a stopping condition for the
     /// program.
@@ -243,7 +262,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
         op
     }
 
-    /// Make one attempt at instruction generation
+    /// Make one attempt at instruction generation.
     ///
     /// This picks an [`OpcodeSelector`], chooses an opcode, then finishes
     /// choosing the opcode-specific parts of the instruction. Each of these
@@ -262,7 +281,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
     }
 
     /// Choose both a source and destination register using a normal
-    /// [`RegisterWriter`] for two-operand instructions
+    /// [`RegisterWriter`] for two-operand instructions.
     #[inline(always)]
     fn choose_src_dst_regs(
         &mut self,
@@ -306,7 +325,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
         Ok((src, dst))
     }
 
-    /// Choose a destination register only
+    /// Choose a destination register only.
     #[inline(always)]
     fn choose_dst_reg(
         &mut self,
@@ -327,7 +346,9 @@ impl<'r, R: RngCore> Generator<'r, R> {
 
     /// With an [`Opcode`] and an execution unit timing plan already in mind,
     /// generate the other pieces necessary to fully describe an
-    /// [`Instruction`]. This can fail if register selection fails.
+    /// [`Instruction`].
+    ///
+    /// This can fail if register selection fails.
     #[inline(always)]
     fn choose_instruction_with_opcode_plan(
         &mut self,
@@ -411,9 +432,10 @@ impl<'r, R: RngCore> Generator<'r, R> {
     }
 
     /// Commit all state modifications associated with a chosen instruction
-    /// that's for certain being written to the final program. Returns `Ok(())`
-    /// on success or `Err(())` if the new state is no longer valid for
-    /// program generation and we're done writing code.
+    /// that's certainly being written to the final program.
+    ///
+    /// Returns `Ok(())` on success or `Err(())` if the new state would no
+    /// longer be valid for program generation and we're done writing code.
     #[inline(always)]
     fn commit_instruction_state(
         &mut self,
@@ -445,7 +467,7 @@ enum OpcodeSelector {
 }
 
 impl OpcodeSelector {
-    /// Apply the selector, advancing the Rng state and returning an Opcode
+    /// Apply the selector, advancing the Rng state and returning an Opcode.
     #[inline(always)]
     fn apply<R: RngCore>(&self, gen: &mut Generator<'_, R>) -> Opcode {
         match self {

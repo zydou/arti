@@ -22,12 +22,14 @@ impl Architecture for Executable {
 
     fn invoke(&self, regs: &mut RegisterFile) {
         // Use the AArch64 Procedure Call Standard
+        //
         // r0..r8 -- Parameters, results, scratch
         // r9..r15 -- Temp registers
         // r16, r17 -- Temp for dynamic linker shims
         // r18 -- Platform register, avoid
         // r19..r28 -- Callee-saved
         // r29,r30 -- Frame pointer, link register
+
         let entry = self.buffer.ptr(Assembler::entry());
         let entry: extern "system" fn(*mut RegisterFile) -> () = unsafe { mem::transmute(entry) };
         entry(regs);
@@ -40,7 +42,7 @@ const BUFFER_CAPACITY: usize = 0x200 + program::NUM_INSTRUCTIONS * 16;
 /// Architecture-specific specialization of the Assembler
 type Assembler = util::Assembler<aarch64::Aarch64Relocation, BUFFER_CAPACITY>;
 
-/// Map RegisterId in our abstract program to concrete registers and addresses
+/// Map RegisterId in our abstract program to concrete registers and addresses.
 trait RegisterMapper {
     /// Map RegisterId(0)..RegisterId(7) to r1..r8
     fn x(&self) -> u32;
@@ -72,7 +74,7 @@ macro_rules! dynasm {
     }
 }
 
-/// Emit code to initialize our local variables to default values
+/// Emit code to initialize our local variables to default values.
 fn emit_init_locals(asm: &mut Assembler) {
     dynasm!(asm
         ; mov mulh_result32, wzr
@@ -81,7 +83,7 @@ fn emit_init_locals(asm: &mut Assembler) {
 }
 
 /// Emit code to move all input values from the RegisterFile into their
-/// actual hardware registers
+/// actual hardware registers.
 fn emit_load_input(asm: &mut Assembler) {
     RegisterSet::all().filter(|reg| {
         dynasm!(asm; ldr X(reg.x()), [register_file_ptr, #(reg.offset())]);
@@ -90,7 +92,7 @@ fn emit_load_input(asm: &mut Assembler) {
 }
 
 /// Emit code to move all output values from machine registers back into
-/// their RegisterFile slots
+/// their RegisterFile slots.
 fn emit_store_output(asm: &mut Assembler) {
     RegisterSet::all().filter(|reg| {
         dynasm!(asm; str X(reg.x()), [register_file_ptr, #(reg.offset())]);
@@ -98,7 +100,7 @@ fn emit_store_output(asm: &mut Assembler) {
     });
 }
 
-/// Emit a return instruction
+/// Emit a return instruction.
 fn emit_return(asm: &mut Assembler) {
     dynasm!(asm; ret);
 }
@@ -116,7 +118,7 @@ fn emit_i32_const_temp_64(asm: &mut Assembler, value: i32) {
     dynasm!(asm; movk const_temp_64, #low, lsl #0);
 }
 
-/// Load a 32-bit constant into const_temp_32, without extending
+/// Load a 32-bit constant into const_temp_32, without extending.
 fn emit_u32_const_temp_32(asm: &mut Assembler, value: u32) {
     let high = value >> 16;
     let low = value & 0xFFFF;
@@ -126,7 +128,7 @@ fn emit_u32_const_temp_32(asm: &mut Assembler, value: u32) {
     );
 }
 
-/// Emit code for a single Instruction in the hash program
+/// Emit code for a single [`Instruction`] in the hash program.
 fn emit_instruction(asm: &mut Assembler, inst: &Instruction) {
     /// Common implementation for binary operations on registers
     macro_rules! reg_op {
@@ -147,7 +149,7 @@ fn emit_instruction(asm: &mut Assembler, inst: &Instruction) {
         }
     }
 
-    /// Common implementation for wide multiply operations.
+    /// Common implementation for wide multiply operations
     ///
     /// These make a copy of the bits needed for branch comparisons later.
     ///

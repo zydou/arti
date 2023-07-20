@@ -30,6 +30,7 @@ impl Architecture for Executable {
         // Parameters: rdi rsi rdx rcx r8 r9
         // Callee save: rbx rsp rbp r12 r13 r14 r15
         // Scratch: rax rdi rsi rdx rcx r8 r9 r10 r11
+
         let entry = self.buffer.ptr(Assembler::entry());
         let entry: extern "sysv64" fn(*mut RegisterFile) -> () = unsafe { mem::transmute(entry) };
         entry(regs);
@@ -42,7 +43,7 @@ const BUFFER_CAPACITY: usize = 0x200 + program::NUM_INSTRUCTIONS * 16;
 /// Architecture-specific specialization of the Assembler
 type Assembler = util::Assembler<x64::X64Relocation, BUFFER_CAPACITY>;
 
-/// Map RegisterId in our abstract program to concrete registers and addresses
+/// Map RegisterId in our abstract program to concrete registers and addresses.
 trait RegisterMapper {
     /// Map RegisterId(0) to R8, and so on
     fn rq(&self) -> u8;
@@ -75,7 +76,7 @@ macro_rules! dynasm {
     }
 }
 
-/// Emit code to initialize our local variables to default values
+/// Emit code to initialize our local variables to default values.
 fn emit_init_locals(asm: &mut Assembler) {
     dynasm!(asm
     ; xor mulh_result64, mulh_result64
@@ -103,7 +104,7 @@ const fn stack_size() -> i32 {
     size as i32
 }
 
-/// Emit code to allocate stack space and store REGS_TO_SAVE
+/// Emit code to allocate stack space and store REGS_TO_SAVE.
 fn emit_save_regs(asm: &mut Assembler) {
     dynasm!(asm; sub rsp, stack_size());
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
@@ -112,7 +113,7 @@ fn emit_save_regs(asm: &mut Assembler) {
     }
 }
 
-/// Emit code to restore REGS_TO_SAVE and deallocate stack space
+/// Emit code to restore REGS_TO_SAVE and deallocate stack space.
 fn emit_restore_regs(asm: &mut Assembler) {
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
         let offset = (i * mem::size_of::<u64>()) as i32;
@@ -122,7 +123,7 @@ fn emit_restore_regs(asm: &mut Assembler) {
 }
 
 /// Emit code to move all input values from the RegisterFile into their
-/// actual hardware registers
+/// actual hardware registers.
 fn emit_load_input(asm: &mut Assembler) {
     RegisterSet::all().filter(|reg| {
         dynasm!(asm; mov Rq(reg.rq()), [register_file_ptr + reg.offset()]);
@@ -131,7 +132,7 @@ fn emit_load_input(asm: &mut Assembler) {
 }
 
 /// Emit code to move all output values from machine registers back into
-/// their RegisterFile slots
+/// their RegisterFile slots.
 fn emit_store_output(asm: &mut Assembler) {
     RegisterSet::all().filter(|reg| {
         dynasm!(asm; mov [register_file_ptr + reg.offset()], Rq(reg.rq()));
@@ -139,12 +140,12 @@ fn emit_store_output(asm: &mut Assembler) {
     });
 }
 
-/// Emit a return instruction
+/// Emit a return instruction.
 fn emit_return(asm: &mut Assembler) {
     dynasm!(asm; ret);
 }
 
-/// Emit code for a single Instruction in the hash program
+/// Emit code for a single [`Instruction`] in the hash program.
 fn emit_instruction(asm: &mut Assembler, inst: &Instruction) {
     /// Common implementation for binary operations on registers
     macro_rules! reg_op {

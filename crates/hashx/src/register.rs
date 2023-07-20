@@ -1,4 +1,4 @@
-//! Define HashX's register file, and how it's created and digested
+//! Define HashX's register file, and how it's created and digested.
 
 use crate::siphash::{siphash24_ctr, SipState};
 use std::fmt;
@@ -6,6 +6,8 @@ use std::fmt;
 /// Number of virtual registers in the HashX machine
 pub(crate) const NUM_REGISTERS: usize = 8;
 
+/// Register `R5`
+///
 /// Most HashX registers have no special properties, so we don't even
 /// bother naming them. Register R5 is the exception, HashX defines a
 /// specific constraint there for the benefit of x86_64 code generation.
@@ -76,15 +78,16 @@ impl RegisterSet {
         self.len
     }
 
-    /// Test if a register is contained in the set
+    /// Test if a register is contained in the set.
     #[inline(always)]
     pub(crate) fn contains(&self, id: RegisterId) -> bool {
         !self.reg_not_in_set[id.0 as usize]
     }
 
-    /// Filter this register set through a predicate. Invokes the predicate only
-    /// for registers in this set, and returns the set of registers for which it
-    /// returned true.
+    /// Filter this register set through a predicate.
+    ///
+    /// Invokes the predicate only for registers in this set, and returns the
+    /// set of registers for which it returned true.
     #[inline(always)]
     pub(crate) fn filter<P: FnMut(RegisterId) -> bool>(&self, mut predicate: P) -> Self {
         let mut result = Self {
@@ -120,7 +123,9 @@ impl RegisterSet {
     }
 
     /// Return a particular register within this set, counting from R0 to R7.
-    /// The supplied index must be less than the len() of this set.
+    ///
+    /// The supplied index must be less than the [`Self::len()`] of this set.
+    /// Panics if the index is out of range.
     #[inline(always)]
     pub(crate) fn index(&self, mut index: usize) -> RegisterId {
         if let Some(result) = self.index_impl(0, &mut index) {
@@ -165,36 +170,33 @@ impl RegisterSet {
 }
 
 /// Values for all registers in the HashX machine
+///
+/// Guaranteed to have a `repr(C)` layout that includes each register in order
+/// with no padding and no extra fields. The compiled runtime will produce
+/// functions that read or write a `RegisterFile` directly.
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[repr(C)]
-pub(crate) struct RegisterFile {
-    /// Raw register file, as a u64 array. The compiled runtime
-    /// will produce functions that read or write a RegisterFile
-    /// directly, so this must be the first item and the containing
-    /// struct must be repr(C).
-    inner: [u64; NUM_REGISTERS],
-}
+pub(crate) struct RegisterFile([u64; NUM_REGISTERS]);
 
 impl RegisterFile {
-    /// Load a word from the register file
+    /// Load a word from the register file.
     #[inline(always)]
     pub(crate) fn load(&self, id: RegisterId) -> u64 {
-        self.inner[id.as_usize()]
+        self.0[id.as_usize()]
     }
 
     /// Store a word into the register file.
     #[inline(always)]
     pub(crate) fn store(&mut self, id: RegisterId, value: u64) {
-        self.inner[id.as_usize()] = value;
+        self.0[id.as_usize()] = value;
     }
 
     /// Initialize a new HashX register file, given a key (derived from
-    /// the seed) and the user-specified hash function input word.
+    /// the seed) and the user-specified hash input word.
     #[inline(always)]
     pub(crate) fn new(key: SipState, input: u64) -> Self {
-        RegisterFile {
-            inner: siphash24_ctr(key, input),
-        }
+        RegisterFile(siphash24_ctr(key, input))
     }
 
     /// Finalize the state of the register file and generate up to 4 words of
@@ -206,16 +208,16 @@ impl RegisterFile {
     #[inline(always)]
     pub(crate) fn digest(&self, key: SipState) -> [u64; 4] {
         let mut x = SipState {
-            v0: self.inner[0].wrapping_add(key.v0),
-            v1: self.inner[1].wrapping_add(key.v1),
-            v2: self.inner[2],
-            v3: self.inner[3],
+            v0: self.0[0].wrapping_add(key.v0),
+            v1: self.0[1].wrapping_add(key.v1),
+            v2: self.0[2],
+            v3: self.0[3],
         };
         let mut y = SipState {
-            v0: self.inner[4],
-            v1: self.inner[5],
-            v2: self.inner[6].wrapping_add(key.v2),
-            v3: self.inner[7].wrapping_add(key.v3),
+            v0: self.0[4],
+            v1: self.0[5],
+            v2: self.0[6].wrapping_add(key.v2),
+            v3: self.0[7].wrapping_add(key.v3),
         };
         x.sip_round();
         y.sip_round();

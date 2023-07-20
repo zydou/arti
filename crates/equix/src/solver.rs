@@ -1,4 +1,4 @@
-//! Find Equi-X solutions
+//! Find Equi-X solutions.
 //!
 //! This is a particular instance of Equihash, a tree-structured search for
 //! partial hash collisions using temporary memory. Equi-X modifies it to use
@@ -51,7 +51,7 @@ type Layer2ValueMem = BucketArrayMemory<256, 336, u32>;
 /// Value type may hold a [`SolutionItem`] or a temporary item-in-bucket index.
 type TempMem = BucketArrayMemory<128, 12, u16>;
 
-/// Internal solver memory, inside the heap allocation.
+/// Internal solver memory, inside the heap allocation
 ///
 /// Contains exclusively [`std::mem::MaybeUninit`] members. Other than the
 /// temporary memory used between each pair of tree layers, the memory regions
@@ -75,6 +75,8 @@ struct SolverMemoryInner {
 ///         made only from [`Uninit`] types like [`BucketArrayMemory`].
 unsafe impl Uninit for SolverMemoryInner {}
 
+/// Union of overlay layouts used in solver memory
+///
 /// As a memory optimization, some of the allocations in [`SolverMemoryInner`]
 /// are overlapped. We only use one of these at a time, checked statically
 /// using a mutable borrow.

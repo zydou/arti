@@ -1,4 +1,4 @@
-//! Define the internal hash program representation used by HashX
+//! Define the internal hash program representation used by HashX.
 
 use crate::register::{RegisterFile, RegisterId};
 use arrayvec::ArrayVec;
@@ -15,7 +15,7 @@ pub(crate) const NUM_INSTRUCTIONS: usize = 512;
 /// Define the HashX virtual instruction set
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum Instruction {
-    /// 64-bit multiply two registers, discarding overflow
+    /// 64-bit multiply of two registers, discarding overflow.
     Mul {
         /// Destination register
         dst: RegisterId,
@@ -23,7 +23,7 @@ pub(crate) enum Instruction {
         src: RegisterId,
     },
 
-    /// Unsigned 64x64 to 128-bit multiply, saving only the upper half
+    /// Unsigned 64x64 to 128-bit multiply, saving only the upper half.
     ///
     /// Result is written to dst, and the low 32 bits are saved for the
     /// next Branch test.
@@ -34,7 +34,7 @@ pub(crate) enum Instruction {
         src: RegisterId,
     },
 
-    /// Signed 64x64 to 128-bit multiply, saving only the upper half
+    /// Signed 64x64 to 128-bit multiply, saving only the upper half.
     ///
     /// Result is written to dst, and the low 32 bits are saved for the
     /// next Branch test.
@@ -45,7 +45,7 @@ pub(crate) enum Instruction {
         src: RegisterId,
     },
 
-    /// Shift source register left by a constant amount, add, discard overflow
+    /// Shift source register left by a constant amount, add, discard overflow.
     AddShift {
         /// Destination register
         dst: RegisterId,
@@ -55,7 +55,7 @@ pub(crate) enum Instruction {
         left_shift: u8,
     },
 
-    /// 64-bit addition by a sign-extended 32-bit constant
+    /// 64-bit addition by a sign-extended 32-bit constant.
     AddConst {
         /// Destination register
         dst: RegisterId,
@@ -63,7 +63,7 @@ pub(crate) enum Instruction {
         src: i32,
     },
 
-    /// 64-bit subtraction (dst - src), discarding overflow
+    /// 64-bit subtraction (dst - src), discarding overflow.
     Sub {
         /// Destination register
         dst: RegisterId,
@@ -71,7 +71,7 @@ pub(crate) enum Instruction {
         src: RegisterId,
     },
 
-    /// 64-bit XOR of two registers
+    /// 64-bit XOR of two registers.
     Xor {
         /// Destination register
         dst: RegisterId,
@@ -79,7 +79,7 @@ pub(crate) enum Instruction {
         src: RegisterId,
     },
 
-    /// XOR a 64-bit register with a sign-extended 32-bit constant
+    /// XOR a 64-bit register with a sign-extended 32-bit constant.
     XorConst {
         /// Destination register
         dst: RegisterId,
@@ -87,7 +87,7 @@ pub(crate) enum Instruction {
         src: i32,
     },
 
-    /// Rotate a 64-bit register right by a constant amount
+    /// Rotate a 64-bit register right by a constant amount.
     Rotate {
         /// Destination register
         dst: RegisterId,
@@ -98,7 +98,7 @@ pub(crate) enum Instruction {
     /// Become the target for the next taken branch, if any.
     Target,
 
-    /// One-shot conditional branch to the last Target
+    /// One-shot conditional branch to the last Target.
     Branch {
         /// 32-bit branch condition mask
         ///
@@ -114,7 +114,7 @@ pub(crate) enum Instruction {
     },
 }
 
-/// An instruction operation, without any of its arguments.
+/// An instruction operation, without any of its arguments
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Opcode {
     /// Opcode for [`Instruction::Mul`]
@@ -142,7 +142,7 @@ pub(crate) enum Opcode {
 }
 
 impl Instruction {
-    /// Get this instruction's [`Opcode`]
+    /// Get this instruction's [`Opcode`].
     #[inline(always)]
     pub(crate) fn opcode(&self) -> Opcode {
         match self {
@@ -160,7 +160,7 @@ impl Instruction {
         }
     }
 
-    /// Get this instruction's destination register if any
+    /// Get this instruction's destination register, if any.
     #[inline(always)]
     pub(crate) fn destination(&self) -> Option<RegisterId> {
         match self {
@@ -180,10 +180,10 @@ impl Instruction {
 }
 
 /// Fixed-size array of instructions, either a complete program or a
-// program under construction
+/// program under construction
 pub(crate) type InstructionArray = ArrayVec<Instruction, NUM_INSTRUCTIONS>;
 
-/// Generated `HashX` program, as a list of instructions
+/// Generated `HashX` program, as a list of instructions.
 #[derive(Clone, Default)]
 pub struct Program {
     /// The InstructionArray that this Program wraps
@@ -204,7 +204,7 @@ impl fmt::Debug for Program {
 }
 
 impl Program {
-    /// Construct a finished `Program` from a list of instructions
+    /// Construct a finished `Program` from a list of instructions.
     #[inline(always)]
     pub(crate) fn new(instructions: InstructionArray) -> Self {
         Self { instructions }

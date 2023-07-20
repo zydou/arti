@@ -17,14 +17,15 @@ pub(crate) const EQUIHASH_N: usize = 60;
 /// Equihash K parameter for Equi-X, the number of tree layers
 pub(crate) const EQUIHASH_K: usize = 3;
 
-/// One item in the solution.
+/// One item in the solution
 ///
 /// The Equihash paper also calls these "indices", to reference the way they
 /// index into a space of potential hash outputs. They form the leaf nodes in
 /// a binary tree of hashes.
 pub type SolutionItem = u16;
 
-/// One hash value, computed from a [`SolutionItem`].
+/// One hash value, computed from a [`SolutionItem`]
+///
 /// Must hold [`EQUIHASH_N`] bits.
 pub(crate) type HashValue = u64;
 
@@ -41,16 +42,16 @@ pub(crate) fn item_hash(func: &HashX, item: SolutionItem) -> HashValue {
 /// the solver finds more solutions they are discarded.
 pub type SolutionArray = ArrayVec<Solution, 8>;
 
-/// A raw Item array which may or may not be a well-formed Solution
+/// A raw Item array which may or may not be a well-formed [`Solution`]
 pub type SolutionItemArray = [SolutionItem; Solution::NUM_ITEMS];
 
-/// A byte array of the right length to convert to/from a Solution
+/// A byte array of the right length to convert to/from a [`Solution`]
 pub type SolutionByteArray = [u8; Solution::NUM_BYTES];
 
 /// Potential solution to an EquiX puzzle
 ///
-/// The Solution type itself verifies the well-formedness of an EquiX solution,
-/// but not its suitability for a particular challenge string.
+/// The `Solution` type itself verifies the well-formedness of an Equi-X
+/// solution, but not its suitability for a particular challenge string.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Solution {
     /// Inner fixed-sized array of SolutionItem
@@ -78,7 +79,9 @@ impl Solution {
     }
 
     /// Build a [`Solution`] by sorting a [`SolutionItemArray`] as necessary,
-    /// without the possibility of failure. Used by the solver.
+    /// without the possibility of failure.
+    ///    
+    /// Used by the solver.
     pub(crate) fn sort_from_array(mut items: SolutionItemArray) -> Self {
         sort_into_tree_order(&mut items);
         Self { items }
@@ -98,7 +101,7 @@ impl Solution {
         Self::try_from_array(&array)
     }
 
-    /// Return the packed byte representation of this Solution
+    /// Return the packed byte representation of this Solution.
     pub fn to_bytes(&self) -> SolutionByteArray {
         let mut result: SolutionByteArray = Default::default();
         for i in 0..Self::NUM_ITEMS {
@@ -130,7 +133,7 @@ fn branches_are_sorted(left: &[SolutionItem], right: &[SolutionItem]) -> bool {
     )
 }
 
-/// Check tree ordering recursively
+/// Check tree ordering recursively.
 ///
 /// HashX uses a lexicographic ordering constraint applied at each tree level,
 /// to resolve the ambiguity that would otherwise be present between each pair
@@ -150,7 +153,7 @@ fn check_tree_order(items: &[SolutionItem]) -> bool {
     }
 }
 
-/// Sort a solution in-place into tree order
+/// Sort a solution in-place into tree order.
 #[inline(always)]
 fn sort_into_tree_order(items: &mut [SolutionItem]) {
     let len = items.len();
@@ -164,7 +167,7 @@ fn sort_into_tree_order(items: &mut [SolutionItem]) {
     }
 }
 
-/// Check hash sums recursively
+/// Check hash sums recursively.
 ///
 /// The main solution constraint in HashX is a partial sum at each tree level.
 /// The overall match required is [`EQUIHASH_N`] bits, and each subsequent tree
@@ -190,7 +193,7 @@ fn check_tree_sums(func: &HashX, items: &[SolutionItem], n_bits: usize) -> Resul
     }
 }
 
-/// Check all tree sums, using the full size defined by [`EQUIHASH_N`]
+/// Check all tree sums, using the full size defined by [`EQUIHASH_N`].
 ///
 /// This will recurse at compile-time into
 /// layered tests for 60-, 30-, and 15-bit masks.

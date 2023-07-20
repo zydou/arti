@@ -44,7 +44,7 @@ const CHALLENGE_LEN: usize = EFFORT_OFFSET + EFFORT_LEN;
 pub(super) struct Challenge([u8; CHALLENGE_LEN]);
 
 impl Challenge {
-    /// Build a new [`Challenge`]
+    /// Build a new [`Challenge`].
     ///
     /// Copies [`Instance`], [`Effort`], and [`Nonce`] values into
     /// a new byte array.
@@ -68,7 +68,7 @@ impl Challenge {
         )
     }
 
-    /// Clone the [`Seed`] portion of this challenge
+    /// Clone the [`Seed`] portion of this challenge.
     pub(super) fn seed(&self) -> Seed {
         let array: [u8; SEED_LEN] = self.0[SEED_OFFSET..(SEED_OFFSET + SEED_LEN)]
             .try_into()
@@ -76,7 +76,7 @@ impl Challenge {
         array.into()
     }
 
-    /// Clone the [`Nonce`] portion of this challenge
+    /// Clone the [`Nonce`] portion of this challenge.
     pub(super) fn nonce(&self) -> Nonce {
         let array: [u8; NONCE_LEN] = self.0[NONCE_OFFSET..(NONCE_OFFSET + NONCE_LEN)]
             .try_into()
@@ -84,7 +84,7 @@ impl Challenge {
         array.into()
     }
 
-    /// Return the [`Effort`] used in this challenge
+    /// Return the [`Effort`] used in this challenge.
     pub(super) fn effort(&self) -> Effort {
         u32::from_be_bytes(
             self.0[EFFORT_OFFSET..(EFFORT_OFFSET + EFFORT_LEN)]
@@ -94,7 +94,12 @@ impl Challenge {
         .into()
     }
 
-    /// Increment the [`Nonce`] value inside this challenge
+    /// Increment the [`Nonce`] value inside this challenge.
+    ///
+    /// Note that this will take a different amount of time depending on the
+    /// number of bytes affected. There's no timing side channel here: The
+    /// timing variation here is swamped by variation in the solver itself,
+    /// and the nonce is not a secret value.
     pub(super) fn increment_nonce(&mut self) {
         /// Wrapping increment for a serialized little endian value of arbitrary width.
         fn inc_le_bytes(slice: &mut [u8]) {
@@ -109,7 +114,7 @@ impl Challenge {
         inc_le_bytes(&mut self.0[NONCE_OFFSET..(NONCE_OFFSET + NONCE_LEN)]);
     }
 
-    /// Verify that a solution proof passes the effort test
+    /// Verify that a solution proof passes the effort test.
     ///
     /// This computes a Blake2b hash of the challenge and the serialized
     /// Equi-X solution, and tests the result against the effort encoded

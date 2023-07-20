@@ -20,7 +20,7 @@ impl SolverInput {
     /// Construct a [`SolverInput`] by wrapping an [`Instance`].
     ///
     /// This is a lower-level constructor.
-    /// Prefer [`Instance::with_effort()`]
+    /// Prefer [`Instance::with_effort()`].
     pub fn new(instance: Instance, effort: Effort) -> Self {
         SolverInput {
             instance,
@@ -30,20 +30,23 @@ impl SolverInput {
     }
 
     /// Select the HashX runtime to use for this Solver input.
-    /// By default, uses [`RuntimeOption::TryCompile`]
+    ///
+    /// By default, uses [`RuntimeOption::TryCompile`].
     pub fn runtime(&mut self, option: RuntimeOption) -> &mut Self {
         self.equix.runtime(option);
         self
     }
 
-    /// Begin solving with this input and a new random Nonce value generated
-    /// by a supplied [`Rng`]. May be parallelized if desired, by cloning
-    /// the [`SolverInput`] first.
+    /// Begin solving with this input and a new random [`Nonce`].
+    ///
+    /// Generates a new random [`Nonce`] using the provided [`Rng`].
+    /// May be parallelized if desired, by cloning the [`SolverInput`] first.
     pub fn solve<R: RngCore + CryptoRng>(self, rng: &mut R) -> Solver {
         self.solve_with_nonce(&rng.gen::<[u8; NONCE_LEN]>().into())
     }
 
     /// Begin solving with a specified [`Nonce`].
+    ///
     /// This is not generally useful, but it's great for unit tests if you'd
     /// like to skip to a deterministic location in the search.
     pub fn solve_with_nonce(self, nonce: &Nonce) -> Solver {
@@ -55,7 +58,7 @@ impl SolverInput {
     }
 }
 
-/// Make progress toward finding a [`Solution`]
+/// Make progress toward finding a [`Solution`].
 ///
 /// Each [`Solver`] instance will own about 1.8 MB of temporary memory until
 /// it is dropped. This interface supports cancelling an ongoing solve and it
@@ -71,7 +74,7 @@ pub struct Solver {
 }
 
 impl Solver {
-    /// Run the solver until it produces a [`Solution`]
+    /// Run the solver until it produces a [`Solution`].
     ///
     /// This takes a random amount of time to finish, with no possibility
     /// to cancel early. If you need cancellation, use [`Self::run_step()`]

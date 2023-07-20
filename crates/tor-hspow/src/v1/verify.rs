@@ -17,7 +17,7 @@ pub struct Verifier {
 }
 
 impl Verifier {
-    /// Construct a new [`Verifier`] by wrapping an [`Instance`]
+    /// Construct a new [`Verifier`] by wrapping an [`Instance`].
     pub fn new(instance: Instance) -> Self {
         Self {
             instance,
@@ -33,7 +33,7 @@ impl Verifier {
         self
     }
 
-    /// Check whether a solution is valid for this puzzle instance
+    /// Check whether a solution is valid for this puzzle instance.
     ///
     /// May return a [`SolutionError`] or a [`RuntimeError`]
     pub fn check(&self, solution: &Solution) -> Result<(), Error> {

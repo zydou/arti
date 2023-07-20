@@ -23,23 +23,23 @@ pub(crate) trait Shape<K: Key> {
     /// The item capacity of each bucket
     const BUCKET_CAPACITY: usize;
 
-    /// Get the range of items within a single bucket
+    /// Get the range of items within a single bucket.
     fn item_range(&self, bucket: usize) -> Range<usize>;
 
-    /// Get the key divisor, the number of buckets but as a [`Key`] instance
+    /// Get the key divisor: the number of buckets but as a [`Key`] instance.
     #[inline(always)]
     fn divisor(&self) -> K {
         K::from_bucket_index(Self::NUM_BUCKETS)
     }
 
-    /// Split a wide key into the bucket index and the remaining bits
+    /// Split a wide key into the bucket index and the remaining bits.
     #[inline(always)]
     fn split_wide_key(&self, key: K) -> (usize, K) {
         let divisor = self.divisor();
         ((key % divisor).into_bucket_index(), (key / divisor))
     }
 
-    /// Rebuild a wide key from its split components
+    /// Rebuild a wide key from its split components.
     #[inline(always)]
     fn join_wide_key(&self, bucket: usize, remainder: K) -> K {
         let divisor = self.divisor();
@@ -112,8 +112,9 @@ impl<'k, 'v, const N: usize, const CAP: usize, C: Count, K: Key, KS: KeyStorage<
         Self(mem::BucketArrayPair::new(key_mem, value_mem), PhantomData)
     }
 
-    /// Keep the counts and the value memory but drop the key memory. Returns
-    /// a new [`ValueBucketArray`].
+    /// Keep the counts and the value memory but drop the key memory.
+    ///
+    /// Returns a new [`ValueBucketArray`].
     pub(crate) fn drop_key_storage(self) -> ValueBucketArray<'v, N, CAP, C, K, V> {
         ValueBucketArray(self.0.drop_first(), self.1)
     }
@@ -131,7 +132,7 @@ impl<'v, const N: usize, const CAP: usize, C: Count, K: Key, V: Copy>
     ValueBucketArray<'v, N, CAP, C, K, V>
 {
     /// A new [`ValueBucketArray`] wraps one mutable [`BucketArrayMemory`]
-    /// reference and adds a counts array to track which items are valid
+    /// reference and adds a counts array to track which items are valid.
     pub(crate) fn new(value_mem: &'v mut BucketArrayMemory<N, CAP, V>) -> Self {
         Self(mem::BucketArray::new(value_mem), PhantomData)
     }
@@ -227,7 +228,7 @@ pub(crate) trait Count: mem::Count + TryFrom<usize> {
     /// Convert from a usize item index, panic on overflow
     #[inline(always)]
     fn from_item_index(i: usize) -> Self {
-        // Replace the original error type, to avoid propagating Debug bounds
+        // Omit the original error type, to avoid propagating Debug bounds
         // for this trait. We might be able to stop doing this once the
         // associated_type_bounds Rust feature stabilizes.
         i.try_into()
@@ -257,7 +258,9 @@ pub(crate) trait Key:
     + WrappingAdd
     + WrappingNeg
 {
-    /// Build a Key from a bucket index, panics if it is out of range
+    /// Build a Key from a bucket index.
+    ///
+    /// Panics if the index is out of range.
     #[inline(always)]
     fn from_bucket_index(i: usize) -> Self {
         i.try_into()
@@ -265,7 +268,10 @@ pub(crate) trait Key:
             .expect("Key type is always wide enough for a bucket index")
     }
 
-    /// Convert this Key back into a bucket index, panics if it is out of range
+    /// Convert this Key back into a bucket index.
+    ///
+    /// Panics if the value would not fit in a `usize`. No other range
+    /// checking on the bucket index is enforced here.
     #[inline(always)]
     fn into_bucket_index(self) -> usize {
         self.try_into()
@@ -273,7 +279,7 @@ pub(crate) trait Key:
             .expect("Key is a bucket index which always fits in a usize")
     }
 
-    /// Check if the N low bits of the key are zero
+    /// Check if the N low bits of the key are zero.
     #[inline(always)]
     fn low_bits_are_zero(self, num_bits: usize) -> bool {
         (self & ((Self::one() << num_bits) - Self::one())) == Self::zero()
@@ -309,7 +315,7 @@ pub(crate) trait KeyStorage<K>:
 where
     K: Key,
 {
-    /// Fit the indicated key into a [`KeyStorage`], wrapping if necessary
+    /// Fit the indicated key into a [`KeyStorage`], wrapping if necessary.
     ///
     /// It is normal for keys to accumulate additional insignificant bits on
     /// the left side as we compute sums.
@@ -322,7 +328,7 @@ where
     }
 
     /// Unpack this [`KeyStorage`] back into a Key type, without
-    /// changing its value
+    /// changing its value.
     #[inline(always)]
     fn into_key(self) -> K {
         self.try_into()

@@ -75,7 +75,7 @@ impl SipState {
     /// Size of the internal SipHash state
     const SIZE: usize = 32;
 
-    /// Construct a new SipHash state
+    /// Construct a new SipHash state.
     ///
     /// This takes the parameters `v0..v3` as defined in the SipHash paper.
     #[inline(always)]
@@ -83,7 +83,7 @@ impl SipState {
         Self { v0, v1, v2, v3 }
     }
 
-    /// Construct a new SipHash state directly from bytes
+    /// Construct a new SipHash state directly from bytes.
     ///
     /// This is not suitable for use with arbitrary user input, such
     /// as all zeroes. HashX always generates these initialization vectors
@@ -98,7 +98,7 @@ impl SipState {
         )
     }
 
-    /// Construct a pair of SipHash instances from a seed
+    /// Construct a pair of SipHash instances from a seed.
     ///
     /// The seed may be an arbitrary length. Takes the Blake2b hash of the seed
     /// using the correct settings for HashX, splitting the digest into two

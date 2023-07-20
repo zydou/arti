@@ -7,7 +7,7 @@ use crate::bucket_array::{
 use std::fmt::Debug;
 use std::ops::{BitAnd, BitOr, Shl, Shr};
 
-/// Look for partial sum collisions between items in one BucketArray.
+/// Look for partial sum collisions between items in one bucket array.
 ///
 /// The items in each bucket are not sorted. This uses an additional small
 /// hash table, with the supplied backing memory, to collect matches.
@@ -15,11 +15,11 @@ use std::ops::{BitAnd, BitOr, Shl, Shr};
 /// The temporary memory can have an arbitrary shape. Capacity of the
 /// buffer will affect how may potential collisions we have to discard,
 /// and bucket count will affect how much of the key we are operating on.
-/// Its value type must match the Count type of the input table, since
+/// Its value type must match the [`Count`] type of the input table, since
 /// it will store item-in-bucket indices.
 ///
-/// For each collision, calls the supplied predicate with the remaining
-/// portion of the hash sum and a [`CollisionLocation`] describing the two items.
+/// For each collision, calls the supplied predicate with the remaining portion
+/// of the hash sum and a [`CollisionLocation`] describing the two items.
 #[inline(always)]
 pub(crate) fn search<const TEMP_N: usize, const TEMP_CAP: usize, A, F, C, K, KS>(
     array: &A,
@@ -97,7 +97,7 @@ pub(crate) struct CollisionLocation {
 }
 
 impl CollisionLocation {
-    /// Return values associated with both colliding items, as a 2-element array
+    /// Return values associated with both colliding items, as a 2-element array.
     #[inline(always)]
     pub(crate) fn pair<A: ValueLookup<T> + Shape<K>, K: Key, T: Copy>(&self, array: &A) -> [T; 2] {
         [
@@ -136,19 +136,19 @@ impl<
         const ITEM_BITS: usize,
     > PackedCollision<T, BUCKET_BITS, ITEM_BITS>
 {
-    /// Construct a new [`PackedCollision`] from its inner type
+    /// Construct a new [`PackedCollision`] from its inner type.
     #[inline(always)]
     pub(crate) fn new(inner: T) -> Self {
         Self(inner)
     }
 
-    /// Unwrap this [`PackedCollision`] into its inner type
+    /// Unwrap this [`PackedCollision`] into its inner type.
     #[inline(always)]
     pub(crate) fn into_inner(self) -> T {
         self.0
     }
 
-    /// Cast to the inner type from [`usize`], with panic on overflow
+    /// Cast to the inner type from [`usize`], with panic on overflow.
     #[inline(always)]
     fn from_usize(i: usize) -> T {
         i.try_into()
@@ -156,7 +156,7 @@ impl<
             .expect("masked collision field always fits into bitfield type")
     }
 
-    /// Cast the inner type to [`usize`], with panic on overflow
+    /// Cast the inner type to [`usize`], with panic on overflow.
     #[inline(always)]
     fn to_usize(i: T) -> usize {
         i.try_into()
@@ -164,8 +164,10 @@ impl<
             .expect("masked collision field always fits in usize")
     }
 
-    /// Construct a new packed location from a [`CollisionLocation`],
-    /// packing its members into a bitfield. Panics if out of range.
+    /// Construct a new packed location from a [`CollisionLocation`].
+    ///
+    /// Packs all members into a bitfield. Panics if any of the indices
+    /// are larger than the selected field widths can represent.
     #[inline(always)]
     pub(crate) fn pack(loc: &CollisionLocation) -> Self {
         assert!(loc.first_bucket < (1 << BUCKET_BITS));
@@ -178,7 +180,7 @@ impl<
         Self(first_bucket | first_item | second_item)
     }
 
-    /// Unpack a bitfield into its [`CollisionLocation`]
+    /// Unpack a bitfield into its [`CollisionLocation`].
     #[inline(always)]
     pub(crate) fn unpack(&self) -> CollisionLocation {
         let bucket_mask = Self::from_usize((1_usize << BUCKET_BITS) - 1);

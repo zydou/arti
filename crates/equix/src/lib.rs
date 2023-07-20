@@ -75,7 +75,7 @@ impl EquiX {
         EquiXBuilder::new().build(challenge)
     }
 
-    /// Check which actual program runtime is in effect
+    /// Check which actual program runtime is in effect.
     ///
     /// By default we try to generate machine code at runtime to accelerate the
     /// hash function, but we fall back to an interpreter if this fails. The
@@ -85,12 +85,16 @@ impl EquiX {
         self.hash.runtime()
     }
 
-    /// Check a correctly ordered [`Solution`] against this particular challenge
+    /// Check a [`Solution`] against this particular challenge.
+    ///
+    /// Having a [`Solution`] instance guarantees that the order of items
+    /// has already been checked. This only needs to check hash tree sums.
+    /// Returns either `Ok` or [`Error::HashSum`].
     pub fn verify(&self, solution: &Solution) -> Result<(), Error> {
         solution::check_all_tree_sums(&self.hash, solution)
     }
 
-    /// Search for solutions using this particular challenge
+    /// Search for solutions using this particular challenge.
     ///
     /// Returns a buffer with a variable number of solutions.
     /// Memory for the solver is allocated dynamically and not reused.
@@ -99,10 +103,13 @@ impl EquiX {
         self.solve_with_memory(&mut mem)
     }
 
-    /// Search for solutions, with support for memory re-use
+    /// Search for solutions, using the provided [`SolverMemory`].
     ///
     /// Returns a buffer with a variable number of solutions.
-    /// Allows reuse of already-allocated solver memory.
+    ///
+    /// Allows re-use of solver memory. Preferred for callers which may perform
+    /// several solve operations in rapid succession, such as in the common case
+    /// of layering an effort adjustment protocol above Equi-X.
     pub fn solve_with_memory(&self, mem: &mut SolverMemory) -> SolutionArray {
         let mut result = Default::default();
         solver::find_solutions(&self.hash, mem, &mut result);
@@ -118,7 +125,7 @@ pub struct EquiXBuilder {
 }
 
 impl EquiXBuilder {
-    /// Create a new [`EquiXBuilder`] with default settings
+    /// Create a new [`EquiXBuilder`] with default settings.
     ///
     /// Immediately calling [`Self::build()`] would be equivalent to using
     /// [`EquiX::new()`].
@@ -128,14 +135,14 @@ impl EquiXBuilder {
         }
     }
 
-    /// Select a new [`RuntimeOption`]
+    /// Select a new [`RuntimeOption`].
     pub fn runtime(&mut self, runtime: RuntimeOption) -> &mut Self {
         self.hash.runtime(runtime);
         self
     }
 
     /// Build an [`EquiX`] instance with a challenge string and the
-    /// selected options
+    /// selected options.
     ///
     /// It's normal for this to fail with a [`HashError::ProgramConstraints`]
     /// for a small fraction of challenge values. Those challenges must be
@@ -147,7 +154,7 @@ impl EquiXBuilder {
         }
     }
 
-    /// Search for solutions to a particular challenge
+    /// Search for solutions to a particular challenge.
     ///
     /// Each solve invocation returns zero or more solutions.
     /// Memory for the solver is allocated dynamically and not reused.
@@ -159,12 +166,16 @@ impl EquiXBuilder {
         Ok(self.build(challenge)?.solve())
     }
 
-    /// Check a well formed Solution against a particular challenge string
+    /// Check a [`Solution`] against a particular challenge string.
+    ///
+    /// Having a [`Solution`] instance guarantees that the order of items
+    /// has already been checked. This only needs to check hash tree sums.
+    /// Returns either `Ok` or [`Error::HashSum`].
     pub fn verify(&self, challenge: &[u8], solution: &Solution) -> Result<(), Error> {
         self.build(challenge)?.verify(solution)
     }
 
-    /// Check a [`SolutionItemArray`]
+    /// Check a [`SolutionItemArray`].
     ///
     /// Returns an error if the array is not a well formed [`Solution`] or it's
     /// not suitable for the given challenge.
@@ -173,7 +184,7 @@ impl EquiXBuilder {
         self.verify(challenge, &Solution::try_from_array(array)?)
     }
 
-    /// Check a [`SolutionByteArray`]
+    /// Check a [`SolutionByteArray`].
     ///
     /// Returns an error if the array is not a well formed [`Solution`] or it's
     /// not suitable for the given challenge.
@@ -188,7 +199,7 @@ impl Default for EquiXBuilder {
     }
 }
 
-/// Search for solutions, using default [`EquiXBuilder`] options
+/// Search for solutions, using default [`EquiXBuilder`] options.
 ///
 /// Each solve invocation returns zero or more solutions.
 /// Memory for the solver is allocated dynamically and not reused.
@@ -200,14 +211,18 @@ pub fn solve(challenge: &[u8]) -> Result<SolutionArray, Error> {
     Ok(EquiX::new(challenge)?.solve())
 }
 
-/// Check a well formed [`Solution`] against a particular challenge
+/// Check a [`Solution`] against a particular challenge.
+///
+/// Having a [`Solution`] instance guarantees that the order of items
+/// has already been checked. This only needs to check hash tree sums.
+/// Returns either `Ok` or [`Error::HashSum`].
 ///
 /// Uses default [`EquiXBuilder`] options.
 pub fn verify(challenge: &[u8], solution: &Solution) -> Result<(), Error> {
     EquiX::new(challenge)?.verify(solution)
 }
 
-/// Check a [`SolutionItemArray`]
+/// Check a [`SolutionItemArray`].
 ///
 /// Returns an error if the array is not a well formed [`Solution`] or it's
 /// not suitable for the given challenge.
@@ -218,7 +233,7 @@ pub fn verify_array(challenge: &[u8], array: &SolutionItemArray) -> Result<(), E
     verify(challenge, &Solution::try_from_array(array)?)
 }
 
-/// Check a [`SolutionByteArray`]
+/// Check a [`SolutionByteArray`].
 ///
 /// Returns an error if the array is not a well formed [`Solution`] or it's
 /// not suitable for the given challenge.

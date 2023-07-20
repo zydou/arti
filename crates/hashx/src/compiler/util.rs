@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 
 pub(crate) use dynasmrt::mmap::ExecutableBuffer;
 
-/// This is our own simple replacement for [`dynasmrt::Assembler`]
+/// Our own simple replacement for [`dynasmrt::Assembler`]
 ///
 /// The default assembler in [`dynasmrt`] has a ton of features we don't need,
 /// but more importantly it will panic if it can't make its memory region
@@ -27,17 +27,17 @@ pub(crate) struct Assembler<R: Relocation, const S: usize> {
     buffer: ArrayVec<u8, S>,
     /// Address of the last "target" label, if any
     target: Option<AssemblyOffset>,
-    /// Architecture-specific relocations are applied immediately and not stored
+    /// Relocations are applied immediately and not stored.
     phantom: PhantomData<R>,
 }
 
 impl<R: Relocation, const S: usize> Assembler<R, S> {
-    /// Return the entry point as an [`AssemblyOffset`]
+    /// Return the entry point as an [`AssemblyOffset`].
     pub(crate) fn entry() -> AssemblyOffset {
         AssemblyOffset(0)
     }
 
-    /// A new assembler with a temporary buffer but no executable buffer
+    /// Make a new assembler with a temporary buffer but no executable buffer.
     pub(crate) fn new() -> Self {
         Self {
             buffer: Default::default(),
@@ -46,9 +46,11 @@ impl<R: Relocation, const S: usize> Assembler<R, S> {
         }
     }
 
-    /// Return a new [`Executable`] with the code that's been written so far
+    /// Return a new [`Executable`] with the code that's been written so far.
     ///
-    /// This may fail if we can't allocate and mprotect some executable memory.
+    /// This may fail if we can't allocate and some memory, fill it, and mark
+    /// it as executable. For example, a Linux platform with policy to restrict
+    /// `mprotect` will show runtime errors at this point.
     pub(crate) fn finalize(self) -> Result<Executable, CompilerError> {
         // We never execute code from the buffer until it's complete, and we use
         // a freshly mmap'ed buffer for each program. Because of this, we don't
@@ -66,7 +68,7 @@ impl<R: Relocation, const S: usize> Assembler<R, S> {
 }
 
 impl std::fmt::Debug for Executable {
-    /// Debug an [`Executable`] by hex-dumping its contents
+    /// Debug an [`Executable`] by hex-dumping its contents.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -77,7 +79,7 @@ impl std::fmt::Debug for Executable {
     }
 }
 
-// Reluctantly implement just enough of [`DynasmLabelApi`] for our single backward label
+// Reluctantly implement just enough of [`DynasmLabelApi`] for our single backward label.
 impl<R: Relocation, const S: usize> DynasmLabelApi for Assembler<R, S> {
     type Relocation = R;
 
@@ -98,7 +100,7 @@ impl<R: Relocation, const S: usize> DynasmLabelApi for Assembler<R, S> {
         let target = self
             .target
             .expect("generated programs always have a target before branch");
-        // Apply the relocation immediately without storing it
+        // Apply the relocation immediately without storing it.
         let loc = PatchLoc::new(self.offset(), target_offset, field_offset, ref_offset, kind);
         let buf = &mut self.buffer[loc.range(0)];
         loc.patch(buf, 0, target.0)

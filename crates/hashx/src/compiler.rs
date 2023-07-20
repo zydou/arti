@@ -23,7 +23,7 @@ mod util;
 
 /// Wrapper for a compiled program, empty when compiler support is disabled
 pub(crate) struct Executable {
-    /// Mapped memory, read-only and executable.
+    /// Mapped memory, read-only and executable
     ///
     /// On platforms with compiler support, this item is present.
     /// If the compiler is unavailable, Executable will be empty.
@@ -35,7 +35,7 @@ pub(crate) struct Executable {
 }
 
 /// Default implementation for [`Architecture`], used
-/// when the compiler is disabled or the target architecture is unsupported.
+/// when the compiler is disabled or the target architecture is unsupported
 #[cfg(any(
     not(feature = "compiler"),
     not(any(target_arch = "x86_64", target_arch = "aarch64"))
@@ -51,8 +51,10 @@ impl Architecture for Executable {
 }
 
 /// Default implementation for [`Debug`] on [`Executable`], when the compiler
-/// is currently disabled or unsupported on the target. There should never
-/// be an Executable instance in these cases.
+/// is currently disabled or unsupported on the target
+///
+/// There should never be an [`Executable`] instance in these cases.
+/// Always panics.
 #[cfg(any(
     not(feature = "compiler"),
     not(any(target_arch = "x86_64", target_arch = "aarch64"))

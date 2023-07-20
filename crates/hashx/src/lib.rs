@@ -63,9 +63,9 @@ pub use crate::siphash::SipState;
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum RuntimeOption {
-    /// Choose the interpreted runtime, without trying the compiler at all
+    /// Choose the interpreted runtime, without trying the compiler at all.
     InterpretOnly,
-    /// Choose the compiled runtime only, and fail if it experiences any errors
+    /// Choose the compiled runtime only, and fail if it experiences any errors.
     CompileOnly,
     /// Always try the compiler first but fall back to the interpreter on error.
     /// (This is the default)
@@ -89,14 +89,14 @@ pub enum Runtime {
 /// public interface, but [`std::fmt::Debug`] can describe program internals.
 #[derive(Debug)]
 pub struct HashX {
-    /// Keys used to generate an initial register state from the hash input.
+    /// Keys used to generate an initial register state from the hash input
     ///
     /// Half of the key material generated from seed bytes go into the random
     /// program generator, and the other half are saved here for use in each
     /// hash invocation.
     register_key: SipState,
 
-    /// A prepared randomly generated hash program.
+    /// A prepared randomly generated hash program
     ///
     /// In compiled runtimes this will be executable code, and in the
     /// interpreter it's a list of instructions. There is no stable API for
@@ -111,9 +111,9 @@ pub struct HashX {
 /// to store the program data.
 #[derive(Debug)]
 enum RuntimeProgram {
-    /// Select the interpreted runtime, and hold a boxed Program for it to run
+    /// Select the interpreted runtime, and hold a boxed Program for it to run.
     Interpret(Box<Program>),
-    /// Select the compiled runtime, and hold an executable code page
+    /// Select the compiled runtime, and hold an executable code page.
     Compiled(Executable),
 }
 
@@ -121,12 +121,12 @@ impl HashX {
     /// The maximum available output size for [`Self::hash_to_bytes()`]
     pub const FULL_SIZE: usize = 32;
 
-    /// Generate a new hash function with the supplied seed
+    /// Generate a new hash function with the supplied seed.
     pub fn new(seed: &[u8]) -> Result<Self, Error> {
         HashXBuilder::new().build(seed)
     }
 
-    /// Check which actual program runtime is in effect
+    /// Check which actual program runtime is in effect.
     ///
     /// By default we try to generate code at runtime to accelerate the hash
     /// function, but we fall back to an interpreter if this fails. The compiler
@@ -139,13 +139,13 @@ impl HashX {
         }
     }
 
-    /// Calculate the first 64-bit word of the hash, without converting to bytes
+    /// Calculate the first 64-bit word of the hash, without converting to bytes.
     pub fn hash_to_u64(&self, input: u64) -> u64 {
         self.hash_to_regs(input).digest(self.register_key)[0]
     }
 
     /// Calculate the hash function at its full output width, returning a fixed
-    /// size byte array
+    /// size byte array.
     pub fn hash_to_bytes(&self, input: u64) -> [u8; Self::FULL_SIZE] {
         let words = self.hash_to_regs(input).digest(self.register_key);
         let mut bytes = [0_u8; Self::FULL_SIZE];
@@ -175,7 +175,7 @@ pub struct HashXBuilder {
 }
 
 impl HashXBuilder {
-    /// Create a new [`HashXBuilder`] with default settings
+    /// Create a new [`HashXBuilder`] with default settings.
     ///
     /// Immediately calling [`Self::build()`] would be equivalent to using
     /// [`HashX::new()`].
@@ -183,13 +183,13 @@ impl HashXBuilder {
         Default::default()
     }
 
-    /// Select a new [`RuntimeOption`]
+    /// Select a new [`RuntimeOption`].
     pub fn runtime(&mut self, runtime: RuntimeOption) -> &mut Self {
         self.runtime = runtime;
         self
     }
 
-    /// Build a [`HashX`] instance with a seed and the selected options
+    /// Build a [`HashX`] instance with a seed and the selected options.
     pub fn build(&self, seed: &[u8]) -> Result<HashX, Error> {
         let (key0, key1) = SipState::pair_from_seed(seed);
         let mut rng = SipRand::new(key0);
@@ -197,7 +197,7 @@ impl HashXBuilder {
     }
 
     /// Build a [`HashX`] instance from an arbitrary [`RngCore`] and
-    /// a [`SipState`] key used for initializing the register file
+    /// a [`SipState`] key used for initializing the register file.
     pub fn build_from_rng<R: RngCore>(
         &self,
         rng: &mut R,
@@ -208,7 +208,7 @@ impl HashXBuilder {
     }
 
     /// Build a [`HashX`] instance from an already-generated [`Program`] and
-    /// [`SipState`] key
+    /// [`SipState`] key.
     ///
     /// The program is either stored as-is or compiled, depending on the current
     /// [`RuntimeOption`]. Requires a program as well as a [`SipState`] to be

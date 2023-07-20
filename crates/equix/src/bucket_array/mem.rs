@@ -49,15 +49,15 @@ use std::ops::{Add, Range};
 /// # Safety
 ///
 /// By implementing this trait, it's a guarantee that uninitialized memory
-/// may be transmuted into this type safely. It implies that the type is Copy.
-/// It should contain no bits except for MaybeUninit fields. Structs and arrays
-/// made entirely of MaybeUninit are fine.
+/// may be transmuted into this type safely. It implies that the type is `Copy`.
+/// It should contain no bits except for [`MaybeUninit`] fields. Structs and
+/// arrays made entirely of [`MaybeUninit`] are fine.
 ///
 /// This memory is always assumed to be uninitialized unless we hold a mutable
 /// reference that's associated with information about specific fields that
 /// were initialized during the reference's lifetime.
 pub(crate) unsafe trait Uninit: Copy {
-    /// Allocate new uninitialized memory, returning a new Box
+    /// Allocate new uninitialized memory, returning a new Box.
     fn alloc() -> Box<Self> {
         // SAFETY: Any type implementing Uninit guarantees that creating an
         //         instance from uninitialized memory is sound. We pass this
@@ -107,7 +107,7 @@ struct BucketState<const N: usize, const CAP: usize, C: Count> {
 }
 
 impl<const N: usize, const CAP: usize, C: Count> BucketState<N, CAP, C> {
-    /// Create a new counter store
+    /// Create a new counter store.
     ///
     /// This will happen inside the lifetime of our mutable reference
     /// to the backing store memory.
@@ -117,7 +117,7 @@ impl<const N: usize, const CAP: usize, C: Count> BucketState<N, CAP, C> {
         }
     }
 
-    /// Append a new item to a specific bucket using a writer callback
+    /// Append a new item to a specific bucket using a writer callback.
     ///
     /// The writer is invoked with an item index, after checking
     /// bucket capacity but before marking the new item as written.
@@ -137,7 +137,7 @@ impl<const N: usize, const CAP: usize, C: Count> BucketState<N, CAP, C> {
         }
     }
 
-    /// Look up the valid item range for a particular bucket
+    /// Look up the valid item range for a particular bucket.
     ///
     /// Panics if the bucket index is out of range. Item indices inside the
     /// returned range are initialized, and any outside may be uninitialized.
@@ -164,7 +164,7 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
         }
     }
 
-    /// Look up the valid item range for a particular bucket
+    /// Look up the valid item range for a particular bucket.
     ///
     /// Panics if the bucket index is out of range.
     #[inline(always)]
@@ -172,7 +172,7 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
         self.state.item_range(bucket)
     }
 
-    /// Look up the value of one item in one bucket
+    /// Look up the value of one item in one bucket.
     ///
     /// Panics if the indices are out of range.
     #[inline(always)]
@@ -183,9 +183,9 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
         unsafe { self.mem.0[bucket][item].assume_init() }
     }
 
-    /// Append a new item to a bucket
+    /// Append a new item to a bucket.
     ///
-    /// If the bucket is full, returns Err(()) and makes no changes.
+    /// If the bucket is full, returns `Err(())` and makes no changes.
     #[inline(always)]
     pub(crate) fn insert(&mut self, bucket: usize, value: A) -> Result<(), ()> {
         self.state.insert(bucket, |item| {
@@ -204,9 +204,9 @@ pub(crate) struct BucketArrayPair<
     A: Copy,
     B: Copy,
 > {
-    /// Reference to external backing memory for type A
+    /// Reference to external backing memory for type `A`
     mem_a: &'a mut BucketArrayMemory<N, CAP, A>,
-    /// Reference to external backing memory for type B
+    /// Reference to external backing memory for type `B`
     mem_b: &'b mut BucketArrayMemory<N, CAP, B>,
     /// Tracking for which items are in use within each bucket
     state: BucketState<N, CAP, C>,
@@ -227,7 +227,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
         }
     }
 
-    /// Look up the valid item range for a particular bucket
+    /// Look up the valid item range for a particular bucket.
     ///
     /// Panics if the bucket index is out of range.
     #[inline(always)]
@@ -235,7 +235,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
         self.state.item_range(bucket)
     }
 
-    /// Look up the first value for one item in one bucket
+    /// Look up the first value for one item in one bucket.
     ///
     /// Panics if the indices are out of range.
     #[inline(always)]
@@ -246,7 +246,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
         unsafe { self.mem_a.0[bucket][item].assume_init() }
     }
 
-    /// Look up the second value for one item in one bucket
+    /// Look up the second value for one item in one bucket.
     ///
     /// Panics if the indices are out of range.
     #[inline(always)]
@@ -257,7 +257,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
         unsafe { self.mem_b.0[bucket][item].assume_init() }
     }
 
-    /// Append a new item pair to a bucket
+    /// Append a new item pair to a bucket.
     ///
     /// If the bucket is full, returns Err(()) and makes no changes.
     #[inline(always)]
@@ -269,7 +269,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
     }
 
     /// Transfer the [`BucketState`] to a new single [`BucketArray`],
-    /// keeping the second half and dropping the first
+    /// keeping the second half and dropping the first.
     pub(crate) fn drop_first(self) -> BucketArray<'b, N, CAP, C, B> {
         BucketArray {
             mem: self.mem_b,

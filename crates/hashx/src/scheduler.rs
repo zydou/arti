@@ -20,7 +20,7 @@ mod model {
     /// Number of execution ports in our simulated microarchitecture
     pub(super) const NUM_EXECUTION_PORTS: usize = 3;
 
-    /// Identify one or more CPU execution ports.
+    /// Identify one or more CPU execution ports
     ///
     /// They are inspired by the Intel Ivy Bridge design and the original HashX
     /// implementation names them P5, P0, and P1.
@@ -67,7 +67,7 @@ mod model {
         }
     }
 
-    /// Break an instruction down into one or two micro-operation port sets
+    /// Break an instruction down into one or two micro-operation port sets.
     #[inline(always)]
     pub(super) fn micro_operations(op: Opcode) -> (ExecPorts, Option<ExecPorts>) {
         match op {
@@ -109,14 +109,20 @@ struct ExecPortIndex {
 /// Overall state for the simulated execution schedule
 #[derive(Debug, Default, Clone)]
 pub(crate) struct Scheduler {
-    /// Current timestamp in the schedule, in sub-cycles. Sub-cycles advance
-    /// as code is generated, modeling the time taken to fetch and decode
-    /// instructions.
+    /// Current timestamp in the schedule, in sub-cycles
+    ///
+    /// Sub-cycles advance as code is generated, modeling the time taken to
+    /// fetch and decode instructions.
     sub_cycle: SubCycle,
-    /// Current timestamp in the schedule, in cycles. Derived from sub_cycle.
+
+    /// Current timestamp in the schedule, in cycles
+    ///
+    /// Derived from sub_cycle.
     cycle: Cycle,
+
     /// State for scheduling execution by fitting micro-ops into execution ports
     exec: ExecSchedule,
+
     /// State for scheduling register access by keeping track of data latency
     data: DataSchedule,
 }
@@ -128,21 +134,25 @@ impl Scheduler {
         Default::default()
     }
 
-    /// Stall for one cycle, used when register allocation fails.
-    /// Returns Ok if we had enough time, or Err if we ran out.
+    /// Stall for one cycle.
+    ///
+    /// Used when register allocation fails.
+    /// Returns `Ok` if we had enough time, or `Err` if we ran out.
     #[inline(always)]
     pub(crate) fn stall(&mut self) -> Result<(), ()> {
         self.advance(SubCycle::PER_CYCLE as usize)
     }
 
-    /// Return the current instruction fetch/decode timestamp in sub-cycles
+    /// Return the current instruction fetch/decode timestamp in sub-cycles.
     #[inline(always)]
     pub(crate) fn instruction_stream_sub_cycle(&self) -> SubCycle {
         self.sub_cycle
     }
 
-    /// Advance forward in time by some number of sub-cycles. Stops just before
-    /// reaching the target cycle, where we stop scheduling new instructions.
+    /// Advance forward in time by some number of sub-cycles.
+    ///
+    /// Stops just before reaching `Cycle::target()`, where we stop
+    /// scheduling new instructions.
     #[inline(always)]
     fn advance(&mut self, n: usize) -> Result<(), ()> {
         let sub_cycle = self.sub_cycle.add_usize(n)?;
@@ -157,8 +167,10 @@ impl Scheduler {
     }
 
     /// Advance time forward by the modeled duration of the instruction fetch
-    /// and decode, in sub-cycles. Returns Ok if we still have enough time to
-    /// schedule more, or Err if the schedule would be full.
+    /// and decode, in sub-cycles.
+    ///
+    /// Returns Ok if we still have enough time to schedule more, or Err if the
+    /// schedule would be full.
     #[inline(always)]
     pub(crate) fn advance_instruction_stream(&mut self, op: Opcode) -> Result<(), ()> {
         self.advance(model::instruction_sub_cycle_count(op))
@@ -171,10 +183,11 @@ impl Scheduler {
         self.exec.instruction_plan(self.cycle, op)
     }
 
-    /// Commit to using a plan returned by instruction_plan(), for a particular
-    /// concrete Instruction instance. Marks as busy each execution unit cycle
-    /// specified, and updates the register latency for the instruction's
-    /// destination if it has one.
+    /// Commit to using a plan returned by [`Self::instruction_plan()`],
+    /// for a particular concrete [`Instruction`] instance.
+    ///
+    /// Marks as busy each execution unit cycle in the plan, and updates the
+    /// latency for the [`Instruction`]'s destination register if it has one.
     #[inline(always)]
     pub(crate) fn commit_instruction_plan(&mut self, plan: &InstructionPlan, inst: &Instruction) {
         self.exec.mark_instruction_busy(plan);
@@ -184,14 +197,16 @@ impl Scheduler {
         }
     }
 
-    /// Figure out which registers will be available at or before the indicated cycle
+    /// Figure out which registers will be available at or before the indicated cycle.
     #[inline(always)]
     pub(crate) fn registers_available(&self, cycle: Cycle) -> RegisterSet {
         self.data.registers_available(cycle)
     }
 
-    /// Return the overall latency, the Cycle at which we expect every register
-    /// to reach its latest simulated state.
+    /// Return the overall data latency.
+    ///
+    /// This is the Cycle at which we expect every register
+    /// to reach its final simulated state.
     #[inline(always)]
     pub(crate) fn overall_latency(&self) -> Cycle {
         self.data.overall_latency()
@@ -206,7 +221,7 @@ impl Scheduler {
 pub(crate) struct Cycle(u8);
 
 impl Cycle {
-    /// HashX will stop generating code once the issue cycle reaches this target
+    /// HashX stops generating code once the issue cycle reaches this target.
     #[inline(always)]
     fn target() -> Self {
         Cycle(
@@ -216,13 +231,13 @@ impl Cycle {
         )
     }
 
-    /// Cast this Cycle count to a usize losslessly
+    /// Cast this Cycle count to a usize losslessly.
     #[inline(always)]
     pub(crate) fn as_usize(&self) -> usize {
         self.0.into()
     }
 
-    /// Add an integer number of cycles, returning Err(()) if we reach the end
+    /// Add an integer number of cycles, returning Err(()) if we reach the end.
     #[inline(always)]
     fn add_usize(&self, n: usize) -> Result<Self, ()> {
         let result = self.as_usize() + n;
@@ -252,13 +267,13 @@ impl SubCycle {
     /// Maximum value of a sub-cycle counter, based on the schedule size
     const MAX: Self = SubCycle(model::SCHEDULE_SIZE as u16 * Self::PER_CYCLE - 1);
 
-    /// Cast this sub-cycle count into a usize losslessly
+    /// Cast this sub-cycle count into a usize losslessly.
     #[inline(always)]
     pub(crate) fn as_usize(&self) -> usize {
         self.0.into()
     }
 
-    /// Convert this sub-cycle into a full Cycle timestamp
+    /// Convert this sub-cycle into a full Cycle timestamp.
     #[inline(always)]
     fn cycle(&self) -> Cycle {
         Cycle(
@@ -328,11 +343,11 @@ impl DataSchedule {
     }
 }
 
-/// Complete execution schedule for all ports
+/// Execution schedule for all ports
 ///
-/// This is effectively a scoreboard that keeps track of which CPU units are
-/// busy when, so that we can estimate a timestamp at which each instruction
-/// will write its result.
+/// This is a scoreboard that keeps track of which CPU units are busy in which
+/// cycles, so we can estimate a timestamp at which each instruction will write
+/// its result.
 #[derive(Debug, Default, Clone)]
 struct ExecSchedule {
     /// Execution schedule (busy flags) for each port
@@ -362,7 +377,7 @@ impl ExecSchedule {
         }
     }
 
-    /// Mark the schedule busy according to a previously calculated plan
+    /// Mark the schedule busy according to a previously calculated plan.
     #[inline(always)]
     fn mark_micro_busy(&mut self, plan: MicroOpPlan) {
         self.ports[plan.port.index as usize]
@@ -371,8 +386,10 @@ impl ExecSchedule {
     }
 
     /// Calculate a timing plan describing the cycle and execution units
-    /// we could use for scheduling one entire instruction, based on its Opcode
-    /// but not its arguments.
+    /// we could use for scheduling one entire instruction.
+    ///
+    /// This takes place after the [`Opcode`] has been chosen but before
+    /// a full [`Instruction`] can be assembled.
     #[inline(always)]
     fn instruction_plan(&self, begin: Cycle, op: Opcode) -> Result<InstructionPlan, ()> {
         match model::micro_operations(op) {
@@ -403,7 +420,7 @@ impl ExecSchedule {
         }
     }
 
-    /// Mark each micro-op in an InstructionPlan as busy in the schedule
+    /// Mark each micro-op in an InstructionPlan as busy in the schedule.
     #[inline(always)]
     fn mark_instruction_busy(&mut self, plan: &InstructionPlan) {
         let (first, second) = plan.as_micro_plans();
@@ -441,13 +458,13 @@ pub(crate) struct InstructionPlan {
 }
 
 impl InstructionPlan {
-    /// Get the Cycle this whole instruction begins on
+    /// Get the Cycle this whole instruction begins on.
     #[inline(always)]
     pub(crate) fn cycle_issued(&self) -> Cycle {
         self.cycle
     }
 
-    /// Calculate the cycle this instruction is completed by
+    /// Calculate the cycle this instruction is complete by.
     #[inline(always)]
     pub(crate) fn cycle_retired(&self, op: Opcode) -> Cycle {
         self.cycle
@@ -455,7 +472,7 @@ impl InstructionPlan {
             .expect("instruction retired prior to end of schedule")
     }
 
-    /// Convert this InstructionPlan back to one or two MicroOp plans
+    /// Convert this `InstructionPlan` back to one or two [`MicroOpPlan`]s.
     #[inline(always)]
     fn as_micro_plans(&self) -> (MicroOpPlan, Option<MicroOpPlan>) {
         (
@@ -514,7 +531,9 @@ impl<const N: usize> Default for SimpleBitArray<N> {
 }
 
 impl<const N: usize> SimpleBitArray<N> {
-    /// Set or clear one bit in the array. Panics if the index is out of range.
+    /// Set or clear one bit in the array.
+    ///
+    /// Panics if the index is out of range.
     #[inline(always)]
     fn set(&mut self, index: usize, value: bool) {
         let word_size = usize::BITS as usize;
@@ -527,7 +546,9 @@ impl<const N: usize> SimpleBitArray<N> {
         }
     }
 
-    /// Get one bit from the array. Panics if the index is out of range.
+    /// Get one bit from the array.
+    ///
+    /// Panics if the index is out of range.
     #[inline(always)]
     fn get(&self, index: usize) -> bool {
         let word_size = usize::BITS as usize;

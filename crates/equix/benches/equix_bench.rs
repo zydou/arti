@@ -37,7 +37,7 @@ fn bench_solve(c: &mut Criterion, runtime: RuntimeOption, name: &str) {
 }
 
 fn bench_verify(c: &mut Criterion, runtime: RuntimeOption, name: &str) {
-    // Benchmark solution verification, from bytes
+    // Benchmark solution verification, from bytes.
     //
     // This pre-generates a set of random challenges and solutions,
     // and then selects random items from that set prior to each

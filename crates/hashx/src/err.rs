@@ -11,7 +11,7 @@ pub enum Error {
     #[error("HashX program can't be constructed for this specific seed")]
     ProgramConstraints,
 
-    /// [`crate::RuntimeOption::CompileOnly`] is in use and the compiler failed
+    /// [`crate::RuntimeOption::CompileOnly`] is in use and the compiler failed.
     #[error("HashX compiler failed and no fallback was enabled: {0}")]
     Compiler(#[from] CompilerError),
 }
@@ -20,11 +20,11 @@ pub enum Error {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CompilerError {
-    /// The compiler was not available for this build configuration
+    /// The compiler was not available for this build configuration.
     #[error("There is no HashX compiler implementation available in this configuration")]
     NotAvailable,
 
-    /// Failed to set up the runtime environment, with a [`std::io::Error`]
+    /// Failed to set up the runtime environment, with a [`std::io::Error`].
     #[error("Runtime error while preparing the hash program: {0}")]
     Runtime(#[source] Arc<std::io::Error>),
 }

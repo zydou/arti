@@ -33,13 +33,14 @@ mod model {
     /// can't be skipped for any reason.
     pub(super) const REQUIRED_MULTIPLIES: usize = 192;
 
-    /// Determine which ops count as a multiply when testing REQUIRED_MULTIPLIES
+    /// Determine which ops count when testing [`REQUIRED_MULTIPLIES`].
     #[inline(always)]
     pub(super) fn is_multiply(op: Opcode) -> bool {
         matches!(op, Opcode::Mul | Opcode::SMulH | Opcode::UMulH)
     }
 
     /// Does an instruction prohibit using the same register for source and dest?
+    ///
     /// Meaningful only for ops that have both a source and destination register.
     #[inline(always)]
     pub(super) fn disallow_src_is_dst(op: Opcode) -> bool {
@@ -60,7 +61,7 @@ mod model {
     /// the program generation process requires us to take it into account.
     pub(super) const DISALLOW_REGISTER_FOR_ADDSHIFT: RegisterId = register::R5;
 
-    /// Should a particular pair of opcodes be rejected early?
+    /// Should `proposed` be rejected as the immediate successor of `previous`?
     #[inline(always)]
     pub(super) fn disallow_opcode_pair(previous: Opcode, proposed: Opcode) -> bool {
         match proposed {
@@ -77,8 +78,10 @@ mod model {
         }
     }
 
-    /// Constraints for pairs of instructions that would be writing to the same
-    /// destination
+    /// Should `this_writer` be allowed on a register which was previously
+    /// written using `last_writer`?
+    ///
+    /// Requires the current [`Pass`].
     #[inline(always)]
     pub(super) fn writer_pair_allowed(
         pass: Pass,
@@ -131,12 +134,22 @@ mod model {
     /// constraints which won't end up in the final `Instruction`.
     #[derive(Debug, Clone, Eq, PartialEq)]
     pub(crate) enum RegisterWriter {
-        /// Special format for wide multiply.
+        /// Special format for wide multiply
+        ///
         /// HashX includes an otherwise unused phantom immediate value which
         /// can (very rarely) affect constraint selection if it collides.
+        ///
+        /// As far as I can tell this is a bug in the original implementation
+        /// but we can't change the behavior without breaking compatibility.
+        ///
+        /// The collisions are rare enough not to be a worthwhile addition
+        /// to ASIC-resistance. It seems like this was a vestigial feature
+        /// left over from immediate value matching features which were removed
+        /// during the development of HashX, but I can't be sure.
         WideMul(Opcode, u32),
 
-        /// Writer for instructions with an immediate source.
+        /// Writer for instructions with an immediate source
+        ///
         /// The specific immediate value is not used.
         ConstSource(Opcode),
 
@@ -152,8 +165,10 @@ mod model {
 #[derive(Debug, Clone)]
 pub(crate) struct Validator {
     /// For each register in the file, keep track of the instruction it was
-    /// written by. This becomes part of the constraints for destination
-    /// registers in future instructions.
+    /// written by.
+    ///
+    /// This becomes part of the constraints for
+    /// destination registers in future instructions.
     writer_map: RegisterWriterMap,
 
     /// Total multiplication operations of all types
@@ -161,7 +176,7 @@ pub(crate) struct Validator {
 }
 
 impl Validator {
-    /// Construct a new empty Validator
+    /// Construct a new empty Validator.
     #[inline(always)]
     pub(crate) fn new() -> Self {
         Self {
@@ -170,7 +185,7 @@ impl Validator {
         }
     }
 
-    /// Commit a new instruction to the validator state
+    /// Commit a new instruction to the validator state.
     #[inline(always)]
     pub(crate) fn commit_instruction(&mut self, inst: &Instruction, regw: Option<RegisterWriter>) {
         if model::is_multiply(inst.opcode()) {
@@ -185,6 +200,8 @@ impl Validator {
         }
     }
 
+    /// Is the completed program acceptable?
+    ///
     /// Once the whole program is assembled, HashX still has a chance to reject
     /// it if it fails certain criteria.
     #[inline(always)]
@@ -237,7 +254,7 @@ impl Validator {
 }
 
 /// Figure out the allowed register set for an operation, given what's available
-/// in the schedule
+/// in the schedule.
 #[inline(always)]
 pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> RegisterSet {
     // HashX defines a special case DISALLOW_REGISTER_FOR_ADDSHIFT for
@@ -261,6 +278,9 @@ pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> Regis
     }
 }
 
+/// Should `proposed` be allowed as an opcode selector output immediately
+/// following an output of `previous`?
+///
 /// Some pairs of adjacent [`Opcode`]s are rejected at the opcode selector level
 /// without causing an entire instruction generation pass to fail.
 #[inline(always)]
@@ -282,19 +302,21 @@ pub(crate) fn opcode_pair_allowed(previous: Option<Opcode>, proposed: Opcode) ->
 struct RegisterWriterMap([Option<RegisterWriter>; NUM_REGISTERS]);
 
 impl RegisterWriterMap {
-    /// A new empty register writer map. All registers are set to None
+    /// Make a new empty register writer map.
+    ///
+    /// All registers are set to None.
     #[inline(always)]
     fn new() -> Self {
         Default::default()
     }
 
-    /// Write or overwrite the last [`RegisterWriter`] associated with `reg`
+    /// Write or overwrite the last [`RegisterWriter`] associated with `reg`.
     #[inline(always)]
     fn insert(&mut self, reg: RegisterId, writer: RegisterWriter) {
         self.0[reg.as_usize()] = Some(writer);
     }
 
-    /// Return the most recent mapping for 'reg', if any
+    /// Return the most recent mapping for 'reg', if any.
     #[inline(always)]
     fn get(&self, reg: RegisterId) -> Option<&RegisterWriter> {
         self.0[reg.as_usize()].as_ref()
