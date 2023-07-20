@@ -92,6 +92,12 @@ impl Display for PtTransportName {
     }
 }
 
+impl AsRef<str> for PtTransportName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 /// These identifiers are used to indicate the built-in transport.
 ///
 /// When outputting string representations, the first (`"-"`) is used.
