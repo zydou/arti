@@ -45,7 +45,7 @@ use once_cell::sync::OnceCell;
 use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroU8, TryFromIntError};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -86,12 +86,22 @@ pub struct CountryCode {
     ///
     /// The special value `??` is excluded, since it is not a country; use
     /// `OptionCc` instead if you need to represent that.
-    inner: [u8; 2],
+    ///
+    /// We store these as NonZeroU8 so that an Option<CountryCode> only has to
+    /// take 2 bytes. This helps with alignment and storage.
+    inner: [NonZeroU8; 2],
 }
 
 impl CountryCode {
     /// Make a new `CountryCode`.
     fn new(cc_orig: &str) -> Result<Self, Error> {
+        /// Try to convert an array of 2 bytes into an array of 2 nonzero bytes.
+        #[inline]
+        fn try_cvt_to_nz(inp: [u8; 2]) -> Result<[NonZeroU8; 2], TryFromIntError> {
+            // I have confirmed that the asm here is reasonably efficient.
+            Ok([inp[0].try_into()?, inp[1].try_into()?])
+        }
+
         let cc = cc_orig.to_ascii_uppercase();
 
         let cc: [u8; 2] = cc
@@ -107,7 +117,9 @@ impl CountryCode {
             return Err(Error::NowhereNotSupported);
         }
 
-        Ok(Self { inner: cc })
+        Ok(Self {
+            inner: try_cvt_to_nz(cc).map_err(|_| Error::BadCountryCode(cc_orig.to_owned()))?,
+        })
     }
 
     /// Get the actual country code.
@@ -132,8 +144,28 @@ impl Debug for CountryCode {
 
 impl AsRef<str> for CountryCode {
     fn as_ref(&self) -> &str {
-        // This shouldn't ever panic, since we shouldn't feed bad country codes in.
-        std::str::from_utf8(&self.inner).expect("invalid country code in CountryCode")
+        /// Convert a reference to an array of 2 nonzero bytes to a reference to
+        /// an array of 2 bytes.
+        #[inline]
+        fn cvt_ref(inp: &[NonZeroU8; 2]) -> &[u8; 2] {
+            // SAFETY: Every NonZeroU8 has a layout and bit validity that is
+            // also a valid u8.  The layout of arrays is also guaranteed.
+            //
+            // (We don't use try_into here because we need to return a str that
+            // points to a reference to self.)
+            let ptr = inp.as_ptr() as *const u8;
+            let slice = unsafe { std::slice::from_raw_parts(ptr, inp.len()) };
+            slice
+                .try_into()
+                .expect("the resulting slice should have the correct length!")
+        }
+
+        // This shouldn't ever panic, since we shouldn't feed non-utf8 country
+        // codes in.
+        //
+        // In theory we could use from_utf8_unchecked, but that's probably not
+        // needed.
+        std::str::from_utf8(cvt_ref(&self.inner)).expect("invalid country code in CountryCode")
     }
 }
 
