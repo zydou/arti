@@ -38,3 +38,12 @@ pub struct ManagedTransportConfig {
     #[builder(default)]
     pub(crate) run_on_startup: bool,
 }
+
+impl ManagedTransportConfigBuilder {
+    /// Inspect the list of protcols (ie, transport names)
+    ///
+    /// If none have yet been specified, returns an empty list.
+    pub fn get_protocols(&self) -> &[PtTransportName] {
+        self.protocols.as_deref().unwrap_or_default()
+    }
+}
