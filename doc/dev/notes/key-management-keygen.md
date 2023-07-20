@@ -31,7 +31,7 @@ might look like this:
 arti keymgr generate desc_enc_key --keystore <KEYSTORE_ID> \
                                   # plus any other flags we might need
                                   --client <CLIENT_NAME>   \
-                                  --onion <HSID.ONION>     \
+                                  --service <HSID.ONION>   \
                                   --pubkey <OUT_DIR>
 ```
 
