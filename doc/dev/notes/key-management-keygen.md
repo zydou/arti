@@ -13,6 +13,9 @@ The key manager will need to be able to generate all the keys documented here.
 | `hsc_desc_enc`      | x25519  | none                          | the client's counterpart to `hss_desc_enc`                              |
 | `hsc_intro_auth`    | ed25519 | none                          | client auth key for use in the introduction protocol                    |
 
+(NOTE: The key names from the `Key` column are the formal key names from
+`rend-spec-v3` with the `KS_` prefix removed)
+
 Note: `hss_desc_enc` (used by hidden services to encrypt the inner part of their
 descriptors when client auth is enabled) is not listed here, because it is the
 public part of the `(KP_hss_desc_enc, KS_hss_desc_enc)` keypair, and Arti key
@@ -54,6 +57,9 @@ also create the corresponding public key entries in `OUT_DIR`:
 | `relaysign_ed_cert` | ed25519      | `relayid_ed`, `relaysign_ed`  | `relaysign_ed` signed by `relayid_ed`                                   |
 | `link_ed`           | ed25519      | none                          | short-term link auth key, used to authenticate the link handshake       |
 | `link_ed_cert`      | ed25519      | `relaysign_ed`, `link_ed`     | `link_ed` signed by `relaysign_ed`                                      |
+
+(NOTE: The key names from the `Key` column are the formal key names from
+`tor-spec` with the `KS_` prefix removed)
 
 
 ## Directory authority keys
