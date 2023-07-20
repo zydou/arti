@@ -5,7 +5,7 @@
 //! solve and to verify puzzles.
 
 use crate::v1::{Effort, Instance, Nonce, Seed, SolutionError, NONCE_LEN, SEED_LEN};
-use arrayvec::ArrayVec;
+use arrayvec::{ArrayVec, CapacityError};
 use blake2::{digest::consts::U4, Blake2b, Digest};
 
 /// Algorithm personalization string (P)
@@ -50,15 +50,22 @@ impl Challenge {
     /// a new byte array.
     pub(super) fn new(instance: &Instance, effort: Effort, nonce: &Nonce) -> Self {
         let mut result = ArrayVec::<u8, CHALLENGE_LEN>::new();
-        result.extend(P_STRING.iter().copied());
-        result.extend(instance.service().as_ref().iter().copied());
-        assert_eq!(result.len(), SEED_OFFSET);
-        result.extend(instance.seed().as_ref().iter().copied());
-        assert_eq!(result.len(), NONCE_OFFSET);
-        result.extend(nonce.as_ref().iter().copied());
-        assert_eq!(result.len(), EFFORT_OFFSET);
-        result.extend(effort.as_ref().to_be_bytes().into_iter());
-        Self(result.into_inner().expect("matching CHALLENGE_LEN"))
+        (|| -> Result<(), CapacityError> {
+            result.try_extend_from_slice(P_STRING)?;
+            result.try_extend_from_slice(instance.service().as_ref())?;
+            assert_eq!(result.len(), SEED_OFFSET);
+            result.try_extend_from_slice(instance.seed().as_ref())?;
+            assert_eq!(result.len(), NONCE_OFFSET);
+            result.try_extend_from_slice(nonce.as_ref())?;
+            assert_eq!(result.len(), EFFORT_OFFSET);
+            result.try_extend_from_slice(&effort.as_ref().to_be_bytes())
+        })()
+        .expect("CHALLENGE_LEN holds a full challenge string");
+        Self(
+            result
+                .into_inner()
+                .expect("challenge buffer is fully written"),
+        )
     }
 
     /// Clone the [`Seed`] portion of this challenge
