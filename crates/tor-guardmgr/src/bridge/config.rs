@@ -208,6 +208,14 @@ impl BridgeConfigBuilder {
         self.settings().push((k.into(), v.into()));
         self
     }
+
+    /// Inspect the transport name (ie, the protocol)
+    ///
+    /// Has not necessarily been validated, so not a `PtTransportName`.
+    /// If none has yet been specified, returns `None`.
+    pub fn get_transport(&self) -> Option<&str> {
+        self.transport.as_deref()
+    }
 }
 
 impl BridgeConfigBuilder {
