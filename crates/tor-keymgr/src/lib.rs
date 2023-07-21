@@ -73,5 +73,38 @@ pub use {
 #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
 pub use dummy::*;
 
+use derive_more::{AsRef, Display};
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// An identifier for a particular [`Keystore`] instance.
+//
+// TODO HSS: maybe restrict the charset of this ID
+#[derive(
+    Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Display, AsRef,
+)]
+#[serde(transparent)]
+#[non_exhaustive]
+pub struct KeystoreId(String);
+
+impl FromStr for KeystoreId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(Self(s.into()))
+    }
+}
+
+/// Specifies which keystores a [`KeyMgr`] operation should apply to.
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum KeystoreSelector<'a> {
+    /// Try to use the keystore with the specified ID.
+    Id(&'a KeystoreId),
+    /// Use the default key store.
+    #[default]
+    Default,
+}

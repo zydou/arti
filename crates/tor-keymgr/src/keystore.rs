@@ -4,9 +4,10 @@ pub(crate) mod arti;
 
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
+use zeroize::Zeroizing;
 
 use crate::key_type::KeyType;
-use crate::{KeySpecifier, Result};
+use crate::{KeySpecifier, KeystoreId, Result};
 
 use downcast_rs::{impl_downcast, Downcast};
 
@@ -19,6 +20,12 @@ pub type ErasedKey = Box<dyn EncodableKey>;
 // perhaps other types of sensitive data). We should consider renaming this (and other Key* types)
 // to something more generic (such as `SecretStore` or `Vault`).
 pub trait Keystore: Send + Sync + 'static {
+    /// An identifier for this key store instance.
+    ///
+    /// This identifier is used by some [`KeyMgr`](crate::KeyMgr) APIs to identify a specific key
+    /// store.
+    fn id(&self) -> &KeystoreId;
+
     /// Retrieve the key identified by `key_spec`.
     ///
     /// Returns `Ok(Some(key))` if the key was successfully retrieved. Returns `Ok(None)` if the
@@ -56,9 +63,6 @@ pub trait Keystore: Send + Sync + 'static {
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>>;
-
-    /// Check whether the key bundle associated with the specified identity is in the store.
-    fn has_key_bundle(&self, key_spec: &dyn KeySpecifier) -> Result<bool>;
 }
 
 /// A key that can be serialized to, and deserialized from, a format used by a
@@ -68,6 +72,9 @@ pub trait EncodableKey: Downcast {
     fn key_type() -> KeyType
     where
         Self: Sized;
+
+    /// The byte representation of the key.
+    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>>;
 }
 
 impl_downcast!(EncodableKey);
@@ -79,6 +86,10 @@ impl EncodableKey for curve25519::StaticSecret {
     {
         KeyType::X25519StaticSecret
     }
+
+    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
+        Ok(curve25519::StaticSecret::to_bytes(self).to_vec().into())
+    }
 }
 
 impl EncodableKey for ed25519::Keypair {
@@ -87,6 +98,10 @@ impl EncodableKey for ed25519::Keypair {
         Self: Sized,
     {
         KeyType::Ed25519Keypair
+    }
+
+    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
+        Ok(ed25519::Keypair::to_bytes(self).to_vec().into())
     }
 }
 

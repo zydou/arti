@@ -107,13 +107,6 @@ pub(crate) enum SshKeyError {
 
 impl KeystoreError for SshKeyError {}
 
-impl SshKeyError {
-    /// A convenience method for boxing `self`.
-    pub(crate) fn boxed(self) -> Box<Self> {
-        Box::new(self)
-    }
-}
-
 impl HasKind for SshKeyError {
     fn kind(&self) -> ErrorKind {
         ErrorKind::KeystoreCorrupted

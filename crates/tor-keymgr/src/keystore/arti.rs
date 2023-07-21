@@ -7,10 +7,11 @@ pub(crate) mod err;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{KeyType, Result};
+use crate::{KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
@@ -20,6 +21,8 @@ use fs_mistrust::{CheckedDir, Mistrust};
 pub struct ArtiNativeKeystore {
     /// The root of the key store.
     keystore_dir: CheckedDir,
+    /// The ID of this instance.
+    id: KeystoreId,
 }
 
 impl ArtiNativeKeystore {
@@ -44,7 +47,9 @@ impl ArtiNativeKeystore {
                 err: e.into(),
             })?;
 
-        Ok(Self { keystore_dir })
+        // TODO: load the keystore ID from config.
+        let id = KeystoreId::from_str("arti")?;
+        Ok(Self { keystore_dir, id })
     }
 
     /// The path on disk of the key with the specified identity and type, relative to
@@ -59,6 +64,10 @@ impl ArtiNativeKeystore {
 }
 
 impl Keystore for ArtiNativeKeystore {
+    fn id(&self) -> &KeystoreId {
+        &self.id
+    }
+
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
         let path = self.key_path(key_spec, key_type)?;
 
@@ -120,11 +129,6 @@ impl Keystore for ArtiNativeKeystore {
             }
             .into()),
         }
-    }
-
-    fn has_key_bundle(&self, _key_spec: &dyn KeySpecifier) -> Result<bool> {
-        // TODO HSS (#903): implement
-        Ok(true)
     }
 }
 
@@ -336,13 +340,5 @@ mod tests {
             .remove(&TestSpecifier, KeyType::Ed25519Keypair)
             .unwrap()
             .is_none());
-    }
-
-    #[test]
-    fn key_bundles() {
-        // TODO HSS TEST: implement has_key_bundle and write a proper test
-        let (key_store, _keystore_dir) = init_keystore(true);
-
-        assert!(key_store.has_key_bundle(&TestSpecifier).unwrap());
     }
 }

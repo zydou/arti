@@ -8,7 +8,7 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{KeystoreError, Result};
+use crate::{KeystoreError, KeystoreSelector, Result};
 use tor_error::HasKind;
 
 use fs_mistrust::Mistrust;
@@ -74,7 +74,7 @@ impl Keystore for ArtiNativeKeystore {}
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`].
-    pub fn new(_: Vec<Box<dyn Keystore>>) -> Self {
+    pub fn new(_: impl Keystore, _: Vec<Box<dyn Keystore>>) -> Self {
         Self
     }
 
@@ -88,7 +88,7 @@ impl KeyMgr {
     /// A dummy `insert` implementation that always fails.
     ///
     /// This function always returns an error.
-    pub fn insert<K>(&self, _: K, _: &dyn Any) -> Result<()> {
+    pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<()> {
         Err(Box::new(Error))
     }
 

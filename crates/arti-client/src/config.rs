@@ -222,15 +222,15 @@ impl StorageConfig {
     }
     /// Return the keystore config
     #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn keystore(&self) -> Option<&ArtiNativeKeystoreConfig> {
+    pub(crate) fn keystore(&self) -> ArtiNativeKeystoreConfig {
         #[cfg(feature = "experimental-api")]
         {
-            Some(&self.keystore)
+            self.keystore.clone()
         }
 
         #[cfg(not(feature = "experimental-api"))]
         {
-            None
+            Default::default()
         }
     }
     /// Return the FS permissions to use for state and cache directories.
