@@ -8,7 +8,7 @@ use crate::{
 };
 
 use std::iter;
-use tor_error::{internal, HasKind};
+use tor_error::{bad_api_usage, internal, HasKind};
 
 /// A boxed [`Keystore`].
 type BoxedKeystore = Box<dyn Keystore>;
@@ -76,9 +76,7 @@ impl KeyMgr {
 
         match selector {
             KeystoreSelector::Id(keystore_id) => {
-                let Some(keystore) = self.find_keystore(keystore_id) else {
-                    return Err(KeyMgrError::KeystoreNotFound(keystore_id).boxed());
-                };
+                let keystore = self.find_keystore(keystore_id)?;
                 keystore.insert(&key, key_spec, K::Key::key_type())
             }
             KeystoreSelector::Default => {
@@ -101,9 +99,7 @@ impl KeyMgr {
     ) -> Result<Option<()>> {
         match selector {
             KeystoreSelector::Id(keystore_id) => {
-                let Some(keystore) = self.find_keystore(keystore_id) else {
-                    return Err(KeyMgrError::KeystoreNotFound(keystore_id).boxed());
-                };
+                let keystore = self.find_keystore(keystore_id)?;
                 keystore.remove(key_spec, K::Key::key_type())
             }
             KeystoreSelector::Default => self.default_store.remove(key_spec, K::Key::key_type()),
@@ -151,8 +147,10 @@ impl KeyMgr {
     }
 
     /// Return the [`Keystore`] with the specified `id`.
-    fn find_keystore(&self, id: &'static str) -> Option<&BoxedKeystore> {
-        self.all_stores().find(|keystore| keystore.id() == id)
+    fn find_keystore(&self, id: &'static str) -> Result<&BoxedKeystore> {
+        self.all_stores()
+            .find(|keystore| keystore.id() == id)
+            .ok_or_else(|| bad_api_usage!("could not find keystore with ID {id}").into())
     }
 }
 
