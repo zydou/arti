@@ -64,15 +64,7 @@ impl ArtiNativeKeystoreConfig {
 
     /// Whether the keystore is enabled.
     pub fn is_enabled(&self) -> bool {
-        let default = {
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "keymgr")] {
-                    true
-                } else {
-                    false
-                }
-            }
-        };
+        let default = cfg!(feature = "keymgr");
 
         self.enabled.as_bool().unwrap_or(default)
     }
