@@ -174,7 +174,7 @@ mod tests {
 
     impl KeySpecifier for TestSpecifier {
         fn arti_path(&self) -> Result<ArtiPath> {
-            ArtiPath::new("test-specifier".into())
+            ArtiPath::new("parent1/parent2/parent3/test-specifier".into())
         }
 
         fn ctor_path(&self) -> Option<CTorPath> {
@@ -203,6 +203,10 @@ mod tests {
 
         if gen_keys {
             let key_path = key_path(&key_store, KeyType::Ed25519Keypair);
+            let parent = key_path.parent().unwrap();
+            fs::create_dir_all(parent).unwrap();
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).unwrap();
+
             fs::write(key_path, OPENSSH_ED25519).unwrap();
         }
 
@@ -253,14 +257,14 @@ mod tests {
             key_store
                 .key_path(&TestSpecifier, KeyType::Ed25519Keypair)
                 .unwrap(),
-            PathBuf::from("test-specifier.ed25519_private")
+            PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private")
         );
 
         assert_eq!(
             key_store
                 .key_path(&TestSpecifier, KeyType::X25519StaticSecret)
                 .unwrap(),
-            PathBuf::from("test-specifier.x25519_private")
+            PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private")
         );
     }
 
@@ -306,10 +310,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "not yet implemented")] // TODO HSS: remove when KeyType::to_ssh_format is implemented
     fn insert() {
         // Initialize an empty key store
-        let (key_store, _keystore_dir) = init_keystore(false);
+        let (key_store, keystore_dir) = init_keystore(false);
 
         // Not found
         assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, false);
@@ -324,12 +327,21 @@ mod tests {
             panic!("failed to downcast key to ed25519::Keypair")
         };
 
-        key_store
-            .insert(&*key, &TestSpecifier, KeyType::Ed25519Keypair)
-            .unwrap();
+        let key_spec = TestSpecifier;
+        let ed_key_type = KeyType::Ed25519Keypair;
+        let path = keystore_dir
+            .as_ref()
+            .join(key_store.key_path(&key_spec, ed_key_type).unwrap());
+
+        // The key and its parent directories don't exist yet.
+        assert!(!path.parent().unwrap().exists());
+        assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_err());
+        // insert() is supposed to create the missing directories
+        assert!(path.parent().unwrap().exists());
 
         // Found!
-        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
+        // TODO HSS: uncomment when insert() is implemented
+        //assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
     }
 
     #[test]
