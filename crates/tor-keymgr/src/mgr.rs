@@ -61,27 +61,14 @@ impl KeyMgr {
         }
     }
 
-    /// Read a key from the [`Keystore`] specified by `selector` and try to deserialize it as
-    /// `K::Key`.
+    /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
     ///
-    /// This function can be used with any [`KeystoreSelector`] .
+    /// The key returned is retrieved from the first key store that contains an entry for the given
+    /// specifier.
     ///
-    /// Returns `Ok(None)` if the requested key is not found in the keystore described by `selector`.
-    pub fn get<K: ToEncodableKey>(
-        &self,
-        key_spec: &dyn KeySpecifier,
-        selector: KeystoreSelector,
-    ) -> Result<Option<K>> {
-        match selector {
-            KeystoreSelector::Id(keystore_id) => {
-                let Some(keystore) = self.find_keystore(keystore_id) else { return Ok(None) };
-                self.get_from_store(key_spec, iter::once(keystore))
-            }
-            KeystoreSelector::Default => {
-                self.get_from_store(key_spec, iter::once(&self.default_store))
-            }
-            KeystoreSelector::All => self.get_from_store(key_spec, self.all_stores()),
-        }
+    /// Returns Ok(None) if none of the key stores have the requested key.
+    pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
+        self.get_from_store(key_spec, self.all_stores())
     }
 
     /// Insert `key` into the [`Keystore`] specified by `selector`.
@@ -345,7 +332,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
+            mgr.get::<TestKey>(&TestKeySpecifier1)
                 .unwrap(),
             Some("keystore2_coot".to_string())
         );
@@ -359,7 +346,7 @@ mod tests {
         .unwrap();
         // Check that the original value was overwritten:
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
+            mgr.get::<TestKey>(&TestKeySpecifier1)
                 .unwrap(),
             Some("keystore2_gull".to_string())
         );
@@ -372,19 +359,21 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier2, KeystoreSelector::All)
+            mgr.get::<TestKey>(&TestKeySpecifier2)
                 .unwrap(),
             Some("keystore1_moorhen".to_string())
         );
 
-        // Insert the same key into all 3 key stores
-        for store in ["keystore1", "keystore2", "keystore3"] {
-            // The key doesn't exist in `store` yet.
-            assert!(mgr
-                .get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::Id(store))
-                .unwrap()
-                .is_none());
+        // The key doesn't exist in any of the stores yet.
+        assert!(mgr
+            .get::<TestKey>(&TestKeySpecifier3)
+            .unwrap()
+            .is_none());
 
+        // Insert the same key into all 3 key stores, in reverse order of keystore priority
+        // (otherwise KeyMgr::get will return the key from the default store for each iteration and
+        // we won't be able to see the key was actually inserted in each store).
+        for store in ["keystore3", "keystore2", "keystore1"] {
             mgr.insert(
                 "cormorant".to_string(),
                 &TestKeySpecifier3,
@@ -394,7 +383,7 @@ mod tests {
 
             // Ensure the key now exists in `store`.
             assert_eq!(
-                mgr.get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::Id(store))
+                mgr.get::<TestKey>(&TestKeySpecifier3)
                     .unwrap(),
                 Some(format!("{store}_cormorant"))
             );
@@ -403,7 +392,7 @@ mod tests {
         // The key exists in all key stores, but if no keystore_id is specified, we return the
         // value from the first key store it is found in (in this case, Keystore1)
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::All)
+            mgr.get::<TestKey>(&TestKeySpecifier3)
                 .unwrap(),
             Some("keystore1_cormorant".to_string())
         );
@@ -424,7 +413,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
+            mgr.get::<TestKey>(&TestKeySpecifier1)
                 .unwrap(),
             Some("keystore2_coot".to_string())
         );
