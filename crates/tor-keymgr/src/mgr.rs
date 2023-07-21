@@ -4,40 +4,14 @@
 //! [`Keystore`].
 
 use crate::{
-    EncodableKey, KeySpecifier, Keystore, KeystoreError, KeystoreSelector, Result, ToEncodableKey,
+    EncodableKey, KeySpecifier, Keystore, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
 };
 
 use std::iter;
-use tor_error::{internal, HasKind};
+use tor_error::{bad_api_usage, internal};
 
 /// A boxed [`Keystore`].
 type BoxedKeystore = Box<dyn Keystore>;
-
-/// An error returned by [`KeyMgr`](crate::KeyMgr)'.
-#[derive(thiserror::Error, Debug, Clone)]
-enum KeyMgrError {
-    /// The requested key store was not found.
-    #[error("Could not find keystore with id {0}")]
-    KeystoreNotFound(&'static str),
-
-    /// The specified [`KeystoreSelector`](crate::KeystoreSelector) cannot be used for the
-    /// requested operation.
-    #[error("Action {op} cannot be performed with selector {selector:?}")]
-    UnsupportedKeystoreSelector {
-        /// The operation we were trying to perform
-        op: &'static str,
-        /// The [`KeystoreSelector`](crate::KeystoreSelector)
-        selector: crate::KeystoreSelector,
-    },
-}
-
-impl HasKind for KeyMgrError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        tor_error::ErrorKind::KeystoreMisuse
-    }
-}
-
-impl KeystoreError for KeyMgrError {}
 
 /// A key manager with several [`Keystore`]s.
 ///
@@ -61,34 +35,17 @@ impl KeyMgr {
         }
     }
 
-    /// Read a key from the [`Keystore`] specified by `selector` and try to deserialize it as
-    /// `K::Key`.
+    /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
     ///
-    /// This function can be used with any [`KeystoreSelector`] .
+    /// The key returned is retrieved from the first key store that contains an entry for the given
+    /// specifier.
     ///
-    /// Returns `Ok(None)` if the requested key is not found in the keystore described by `selector`.
-    pub fn get<K: ToEncodableKey>(
-        &self,
-        key_spec: &dyn KeySpecifier,
-        selector: KeystoreSelector,
-    ) -> Result<Option<K>> {
-        match selector {
-            KeystoreSelector::Id(keystore_id) => {
-                let Some(keystore) = self.find_keystore(keystore_id) else { return Ok(None) };
-                self.get_from_store(key_spec, iter::once(keystore))
-            }
-            KeystoreSelector::Default => {
-                self.get_from_store(key_spec, iter::once(&self.default_store))
-            }
-            KeystoreSelector::All => self.get_from_store(key_spec, self.all_stores()),
-        }
+    /// Returns Ok(None) if none of the key stores have the requested key.
+    pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
+        self.get_from_store(key_spec, self.all_stores())
     }
 
     /// Insert `key` into the [`Keystore`] specified by `selector`.
-    ///
-    /// This function can only be used with [`KeystoreSelector::Default`] and
-    /// [`KeystoreSelector::Id`]. It returns an error if the specified `selector`
-    /// is not supported.
     ///
     /// If the key already exists, it is overwritten.
     ///
@@ -103,28 +60,17 @@ impl KeyMgr {
 
         match selector {
             KeystoreSelector::Id(keystore_id) => {
-                let Some(keystore) = self.find_keystore(keystore_id) else {
-                    return Err(KeyMgrError::KeystoreNotFound(keystore_id).boxed());
-                };
+                let keystore = self.find_keystore(keystore_id)?;
                 keystore.insert(&key, key_spec, K::Key::key_type())
             }
             KeystoreSelector::Default => {
                 self.default_store
                     .insert(&key, key_spec, K::Key::key_type())
             }
-            KeystoreSelector::All => Err(KeyMgrError::UnsupportedKeystoreSelector {
-                op: "insert",
-                selector,
-            }
-            .boxed()),
         }
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
-    ///
-    /// This function can only be used with [`KeystoreSelector::Default`] and
-    /// [`KeystoreSelector::Id`]. It returns an error if the specified `selector`
-    /// is not supported.
     ///
     /// Returns `Ok(None)` if the key does not exist in the requested keystore.
     /// Returns `Ok(Some(())` if the key was successfully removed.
@@ -137,17 +83,10 @@ impl KeyMgr {
     ) -> Result<Option<()>> {
         match selector {
             KeystoreSelector::Id(keystore_id) => {
-                let Some(keystore) = self.find_keystore(keystore_id) else {
-                    return Err(KeyMgrError::KeystoreNotFound(keystore_id).boxed());
-                };
+                let keystore = self.find_keystore(keystore_id)?;
                 keystore.remove(key_spec, K::Key::key_type())
             }
             KeystoreSelector::Default => self.default_store.remove(key_spec, K::Key::key_type()),
-            KeystoreSelector::All => Err(KeyMgrError::UnsupportedKeystoreSelector {
-                op: "remove",
-                selector,
-            }
-            .boxed()),
         }
     }
 
@@ -192,8 +131,10 @@ impl KeyMgr {
     }
 
     /// Return the [`Keystore`] with the specified `id`.
-    fn find_keystore(&self, id: &'static str) -> Option<&BoxedKeystore> {
-        self.all_stores().find(|keystore| keystore.id() == id)
+    fn find_keystore(&self, id: &KeystoreId) -> Result<&BoxedKeystore> {
+        self.all_stores()
+            .find(|keystore| keystore.id() == id)
+            .ok_or_else(|| bad_api_usage!("could not find keystore with ID {id}").into())
     }
 }
 
@@ -213,6 +154,7 @@ mod tests {
     use super::*;
     use crate::{ArtiPath, ErasedKey, KeyType};
     use std::collections::HashMap;
+    use std::str::FromStr;
     use std::sync::RwLock;
 
     /// The type of "key" stored in the test key stores.
@@ -246,8 +188,19 @@ mod tests {
 
     macro_rules! impl_keystore {
         ($name:tt, $id:expr) => {
-            #[derive(Default)]
-            struct $name(RwLock<HashMap<(ArtiPath, KeyType), TestKey>>);
+            struct $name {
+                inner: RwLock<HashMap<(ArtiPath, KeyType), TestKey>>,
+                id: KeystoreId,
+            }
+
+            impl Default for $name {
+                fn default() -> Self {
+                    Self {
+                        inner: Default::default(),
+                        id: KeystoreId::from_str($id).unwrap(),
+                    }
+                }
+            }
 
             #[allow(dead_code)] // this is only dead code for Keystore1
             impl $name {
@@ -257,8 +210,8 @@ mod tests {
             }
 
             impl Keystore for $name {
-                fn id(&self) -> &'static str {
-                    $id
+                fn id(&self) -> &KeystoreId {
+                    &self.id
                 }
 
                 fn get(
@@ -267,7 +220,7 @@ mod tests {
                     key_type: KeyType,
                 ) -> Result<Option<ErasedKey>> {
                     Ok(self
-                        .0
+                        .inner
                         .read()
                         .unwrap()
                         .get(&(key_spec.arti_path()?, key_type))
@@ -282,7 +235,7 @@ mod tests {
                 ) -> Result<()> {
                     let value = String::from_utf8(key.to_bytes()?.to_vec()).unwrap();
 
-                    self.0.write().unwrap().insert(
+                    self.inner.write().unwrap().insert(
                         (key_spec.arti_path()?, key_type),
                         format!("{}_{value}", self.id()),
                     );
@@ -296,7 +249,7 @@ mod tests {
                     key_type: KeyType,
                 ) -> Result<Option<()>> {
                     Ok(self
-                        .0
+                        .inner
                         .write()
                         .unwrap()
                         .remove(&(key_spec.arti_path()?, key_type))
@@ -341,12 +294,11 @@ mod tests {
         mgr.insert(
             "coot".to_string(),
             &TestKeySpecifier1,
-            KeystoreSelector::Id("keystore2"),
+            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
-                .unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
             Some("keystore2_coot".to_string())
         );
 
@@ -354,13 +306,12 @@ mod tests {
         mgr.insert(
             "gull".to_string(),
             &TestKeySpecifier1,
-            KeystoreSelector::Id("keystore2"),
+            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
         )
         .unwrap();
         // Check that the original value was overwritten:
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
-                .unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
             Some("keystore2_gull".to_string())
         );
 
@@ -372,30 +323,27 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier2, KeystoreSelector::All)
-                .unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
             Some("keystore1_moorhen".to_string())
         );
 
-        // Insert the same key into all 3 key stores
-        for store in ["keystore1", "keystore2", "keystore3"] {
-            // The key doesn't exist in `store` yet.
-            assert!(mgr
-                .get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::Id(store))
-                .unwrap()
-                .is_none());
+        // The key doesn't exist in any of the stores yet.
+        assert!(mgr.get::<TestKey>(&TestKeySpecifier3).unwrap().is_none());
 
+        // Insert the same key into all 3 key stores, in reverse order of keystore priority
+        // (otherwise KeyMgr::get will return the key from the default store for each iteration and
+        // we won't be able to see the key was actually inserted in each store).
+        for store in ["keystore3", "keystore2", "keystore1"] {
             mgr.insert(
                 "cormorant".to_string(),
                 &TestKeySpecifier3,
-                KeystoreSelector::Id(store),
+                KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
             )
             .unwrap();
 
             // Ensure the key now exists in `store`.
             assert_eq!(
-                mgr.get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::Id(store))
-                    .unwrap(),
+                mgr.get::<TestKey>(&TestKeySpecifier3).unwrap(),
                 Some(format!("{store}_cormorant"))
             );
         }
@@ -403,8 +351,7 @@ mod tests {
         // The key exists in all key stores, but if no keystore_id is specified, we return the
         // value from the first key store it is found in (in this case, Keystore1)
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier3, KeystoreSelector::All)
-                .unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier3).unwrap(),
             Some("keystore1_cormorant".to_string())
         );
     }
@@ -420,12 +367,11 @@ mod tests {
         mgr.insert(
             "coot".to_string(),
             &TestKeySpecifier1,
-            KeystoreSelector::Id("keystore2"),
+            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1, KeystoreSelector::All)
-                .unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
             Some("keystore2_coot".to_string())
         );
 
@@ -433,7 +379,7 @@ mod tests {
         assert!(mgr
             .remove::<TestKey>(
                 &TestKeySpecifier1,
-                KeystoreSelector::Id("not_an_id_we_know_of")
+                KeystoreSelector::Id(&KeystoreId::from_str("not_an_id_we_know_of").unwrap())
             )
             .is_err());
 
@@ -446,8 +392,11 @@ mod tests {
 
         // Removing from Keystore2 should succeed.
         assert_eq!(
-            mgr.remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Id("keystore2"))
-                .unwrap(),
+            mgr.remove::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap())
+            )
+            .unwrap(),
             Some(())
         );
     }

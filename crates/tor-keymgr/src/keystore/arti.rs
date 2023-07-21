@@ -7,22 +7,22 @@ pub(crate) mod err;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{KeyType, Result};
+use crate::{KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
-
-/// The keystore ID of [`ArtiNativeKeystore`].
-const ARTI_KEYSTORE_ID: &str = "arti";
 
 /// The Arti key store.
 #[derive(Debug)]
 pub struct ArtiNativeKeystore {
     /// The root of the key store.
     keystore_dir: CheckedDir,
+    /// The ID of this instance.
+    id: KeystoreId,
 }
 
 impl ArtiNativeKeystore {
@@ -47,7 +47,9 @@ impl ArtiNativeKeystore {
                 err: e.into(),
             })?;
 
-        Ok(Self { keystore_dir })
+        // TODO: load the keystore ID from config.
+        let id = KeystoreId::from_str("arti")?;
+        Ok(Self { keystore_dir, id })
     }
 
     /// The path on disk of the key with the specified identity and type, relative to
@@ -62,8 +64,8 @@ impl ArtiNativeKeystore {
 }
 
 impl Keystore for ArtiNativeKeystore {
-    fn id(&self) -> &'static str {
-        ARTI_KEYSTORE_ID
+    fn id(&self) -> &KeystoreId {
+        &self.id
     }
 
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
