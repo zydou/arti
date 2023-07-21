@@ -87,7 +87,7 @@ pub struct CountryCode {
     /// The special value `??` is excluded, since it is not a country; use
     /// `OptionCc` instead if you need to represent that.
     ///
-    /// We store these as NonZeroU8 so that an Option<CountryCode> only has to
+    /// We store these as `NonZeroU8` so that an `Option<CountryCode>` only has to
     /// take 2 bytes. This helps with alignment and storage.
     inner: [NonZeroU8; 2],
 }
