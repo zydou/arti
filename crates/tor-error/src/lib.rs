@@ -242,14 +242,6 @@ pub enum ErrorKind {
     #[display(fmt = "problem with keystore filesystem permissions")]
     KeystoreFsPermissions,
 
-    /// We encountered a misuse error while trying to access a keystore.
-    ///
-    /// This happens if an access request refers to a keystore that does not exist, or if the type
-    /// of access is not supported.
-    #[cfg(feature = "experimental-api")]
-    #[display(fmt = "keystore misuse")]
-    KeystoreMisuse,
-
     /// Tor client's Rust async reactor is shutting down.
     ///
     /// This likely indicates that the reactor has encountered a fatal error, or

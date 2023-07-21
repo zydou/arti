@@ -3,31 +3,13 @@
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
 //! [`Keystore`].
 
-use crate::{
-    EncodableKey, KeySpecifier, Keystore, KeystoreError, KeystoreSelector, Result, ToEncodableKey,
-};
+use crate::{EncodableKey, KeySpecifier, Keystore, KeystoreSelector, Result, ToEncodableKey};
 
 use std::iter;
-use tor_error::{bad_api_usage, internal, HasKind};
+use tor_error::{bad_api_usage, internal};
 
 /// A boxed [`Keystore`].
 type BoxedKeystore = Box<dyn Keystore>;
-
-/// An error returned by [`KeyMgr`](crate::KeyMgr)'.
-#[derive(thiserror::Error, Debug, Clone)]
-enum KeyMgrError {
-    /// The requested key store was not found.
-    #[error("Could not find keystore with id {0}")]
-    KeystoreNotFound(&'static str),
-}
-
-impl HasKind for KeyMgrError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        tor_error::ErrorKind::KeystoreMisuse
-    }
-}
-
-impl KeystoreError for KeyMgrError {}
 
 /// A key manager with several [`Keystore`]s.
 ///
