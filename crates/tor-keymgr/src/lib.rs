@@ -85,6 +85,4 @@ pub enum KeystoreSelector {
     /// Use the default key store.
     #[default]
     Default,
-    /// Use all key stores. Only supported for [`KeyMgr::get`].
-    All,
 }

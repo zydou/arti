@@ -19,16 +19,6 @@ enum KeyMgrError {
     /// The requested key store was not found.
     #[error("Could not find keystore with id {0}")]
     KeystoreNotFound(&'static str),
-
-    /// The specified [`KeystoreSelector`](crate::KeystoreSelector) cannot be used for the
-    /// requested operation.
-    #[error("Action {op} cannot be performed with selector {selector:?}")]
-    UnsupportedKeystoreSelector {
-        /// The operation we were trying to perform
-        op: &'static str,
-        /// The [`KeystoreSelector`](crate::KeystoreSelector)
-        selector: crate::KeystoreSelector,
-    },
 }
 
 impl HasKind for KeyMgrError {
@@ -73,10 +63,6 @@ impl KeyMgr {
 
     /// Insert `key` into the [`Keystore`] specified by `selector`.
     ///
-    /// This function can only be used with [`KeystoreSelector::Default`] and
-    /// [`KeystoreSelector::Id`]. It returns an error if the specified `selector`
-    /// is not supported.
-    ///
     /// If the key already exists, it is overwritten.
     ///
     // TODO HSS: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
@@ -99,19 +85,10 @@ impl KeyMgr {
                 self.default_store
                     .insert(&key, key_spec, K::Key::key_type())
             }
-            KeystoreSelector::All => Err(KeyMgrError::UnsupportedKeystoreSelector {
-                op: "insert",
-                selector,
-            }
-            .boxed()),
         }
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
-    ///
-    /// This function can only be used with [`KeystoreSelector::Default`] and
-    /// [`KeystoreSelector::Id`]. It returns an error if the specified `selector`
-    /// is not supported.
     ///
     /// Returns `Ok(None)` if the key does not exist in the requested keystore.
     /// Returns `Ok(Some(())` if the key was successfully removed.
@@ -130,11 +107,6 @@ impl KeyMgr {
                 keystore.remove(key_spec, K::Key::key_type())
             }
             KeystoreSelector::Default => self.default_store.remove(key_spec, K::Key::key_type()),
-            KeystoreSelector::All => Err(KeyMgrError::UnsupportedKeystoreSelector {
-                op: "remove",
-                selector,
-            }
-            .boxed()),
         }
     }
 
