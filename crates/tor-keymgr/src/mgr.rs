@@ -3,7 +3,9 @@
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
 //! [`Keystore`].
 
-use crate::{EncodableKey, KeySpecifier, Keystore, KeystoreSelector, Result, ToEncodableKey};
+use crate::{
+    EncodableKey, KeySpecifier, Keystore, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
+};
 
 use std::iter;
 use tor_error::{bad_api_usage, internal};
@@ -129,7 +131,7 @@ impl KeyMgr {
     }
 
     /// Return the [`Keystore`] with the specified `id`.
-    fn find_keystore(&self, id: &'static str) -> Result<&BoxedKeystore> {
+    fn find_keystore(&self, id: &KeystoreId) -> Result<&BoxedKeystore> {
         self.all_stores()
             .find(|keystore| keystore.id() == id)
             .ok_or_else(|| bad_api_usage!("could not find keystore with ID {id}").into())
@@ -152,6 +154,7 @@ mod tests {
     use super::*;
     use crate::{ArtiPath, ErasedKey, KeyType};
     use std::collections::HashMap;
+    use std::str::FromStr;
     use std::sync::RwLock;
 
     /// The type of "key" stored in the test key stores.
@@ -185,8 +188,19 @@ mod tests {
 
     macro_rules! impl_keystore {
         ($name:tt, $id:expr) => {
-            #[derive(Default)]
-            struct $name(RwLock<HashMap<(ArtiPath, KeyType), TestKey>>);
+            struct $name {
+                inner: RwLock<HashMap<(ArtiPath, KeyType), TestKey>>,
+                id: KeystoreId,
+            }
+
+            impl Default for $name {
+                fn default() -> Self {
+                    Self {
+                        inner: Default::default(),
+                        id: KeystoreId::from_str($id).unwrap(),
+                    }
+                }
+            }
 
             #[allow(dead_code)] // this is only dead code for Keystore1
             impl $name {
@@ -196,8 +210,8 @@ mod tests {
             }
 
             impl Keystore for $name {
-                fn id(&self) -> &'static str {
-                    $id
+                fn id(&self) -> &KeystoreId {
+                    &self.id
                 }
 
                 fn get(
@@ -206,7 +220,7 @@ mod tests {
                     key_type: KeyType,
                 ) -> Result<Option<ErasedKey>> {
                     Ok(self
-                        .0
+                        .inner
                         .read()
                         .unwrap()
                         .get(&(key_spec.arti_path()?, key_type))
@@ -221,7 +235,7 @@ mod tests {
                 ) -> Result<()> {
                     let value = String::from_utf8(key.to_bytes()?.to_vec()).unwrap();
 
-                    self.0.write().unwrap().insert(
+                    self.inner.write().unwrap().insert(
                         (key_spec.arti_path()?, key_type),
                         format!("{}_{value}", self.id()),
                     );
@@ -235,7 +249,7 @@ mod tests {
                     key_type: KeyType,
                 ) -> Result<Option<()>> {
                     Ok(self
-                        .0
+                        .inner
                         .write()
                         .unwrap()
                         .remove(&(key_spec.arti_path()?, key_type))
@@ -280,7 +294,7 @@ mod tests {
         mgr.insert(
             "coot".to_string(),
             &TestKeySpecifier1,
-            KeystoreSelector::Id("keystore2"),
+            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
         )
         .unwrap();
         assert_eq!(
@@ -292,7 +306,7 @@ mod tests {
         mgr.insert(
             "gull".to_string(),
             &TestKeySpecifier1,
-            KeystoreSelector::Id("keystore2"),
+            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
         )
         .unwrap();
         // Check that the original value was overwritten:
@@ -323,7 +337,7 @@ mod tests {
             mgr.insert(
                 "cormorant".to_string(),
                 &TestKeySpecifier3,
-                KeystoreSelector::Id(store),
+                KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
             )
             .unwrap();
 
@@ -353,7 +367,7 @@ mod tests {
         mgr.insert(
             "coot".to_string(),
             &TestKeySpecifier1,
-            KeystoreSelector::Id("keystore2"),
+            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
         )
         .unwrap();
         assert_eq!(
@@ -365,7 +379,7 @@ mod tests {
         assert!(mgr
             .remove::<TestKey>(
                 &TestKeySpecifier1,
-                KeystoreSelector::Id("not_an_id_we_know_of")
+                KeystoreSelector::Id(&KeystoreId::from_str("not_an_id_we_know_of").unwrap())
             )
             .is_err());
 
@@ -378,8 +392,11 @@ mod tests {
 
         // Removing from Keystore2 should succeed.
         assert_eq!(
-            mgr.remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Id("keystore2"))
-                .unwrap(),
+            mgr.remove::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap())
+            )
+            .unwrap(),
             Some(())
         );
     }

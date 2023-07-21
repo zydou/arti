@@ -7,7 +7,7 @@ use tor_llcrypto::pk::{curve25519, ed25519};
 use zeroize::Zeroizing;
 
 use crate::key_type::KeyType;
-use crate::{KeySpecifier, Result};
+use crate::{KeySpecifier, KeystoreId, Result};
 
 use downcast_rs::{impl_downcast, Downcast};
 
@@ -20,10 +20,11 @@ pub type ErasedKey = Box<dyn EncodableKey>;
 // perhaps other types of sensitive data). We should consider renaming this (and other Key* types)
 // to something more generic (such as `SecretStore` or `Vault`).
 pub trait Keystore: Send + Sync + 'static {
-    /// The string identifier of this key store.
-    //
-    // TODO HSS: maybe this should return a newtype that wraps a string instead.
-    fn id(&self) -> &'static str;
+    /// An identifier for this key store instance.
+    ///
+    /// This identifier is used by some [`KeyMgr`](crate::KeyMgr) APIs to identify a specific key
+    /// store.
+    fn id(&self) -> &KeystoreId;
 
     /// Retrieve the key identified by `key_spec`.
     ///

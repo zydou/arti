@@ -101,9 +101,9 @@ impl FromStr for KeystoreId {
 /// Specifies which keystores a [`KeyMgr`] operation should apply to.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum KeystoreSelector {
+pub enum KeystoreSelector<'a> {
     /// Try to use the keystore with the specified ID.
-    Id(&'static str),
+    Id(&'a KeystoreId),
     /// Use the default key store.
     #[default]
     Default,
