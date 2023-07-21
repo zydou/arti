@@ -99,8 +99,19 @@ impl Keystore for ArtiNativeKeystore {
         key_type: KeyType,
     ) -> Result<()> {
         let path = self.key_path(key_spec, key_type)?;
-        let openssh_key = key_type.to_ssh_format(key)?;
 
+        // Create the parent directories as needed
+        if let Some(parent) = path.parent() {
+            self.keystore_dir.make_directory(parent).map_err(|err| {
+                ArtiNativeKeystoreError::FsMistrust {
+                    action: FilesystemAction::Write,
+                    path: parent.to_path_buf(),
+                    err: err.into(),
+                }
+            })?;
+        }
+
+        let openssh_key = key_type.to_ssh_format(key)?;
         Ok(self
             .keystore_dir
             .write_and_replace(&path, openssh_key)
