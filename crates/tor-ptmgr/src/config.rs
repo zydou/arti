@@ -40,7 +40,7 @@ pub struct ManagedTransportConfig {
 }
 
 impl ManagedTransportConfigBuilder {
-    /// Inspect the list of protcols (ie, transport names)
+    /// Inspect the list of protocols (ie, transport names)
     ///
     /// If none have yet been specified, returns an empty list.
     pub fn get_protocols(&self) -> &[PtTransportName] {
