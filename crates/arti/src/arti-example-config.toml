@@ -69,7 +69,7 @@
 
 # Whether to log sensitive information (such as target hostnames and ip addresses)
 #
-# If set to `false` (the default), such information is not logged in meessages of
+# If set to `false` (the default), such information is not logged in messages of
 # level `info` or higher.
 #log_sensitive_information = false
 
@@ -85,7 +85,7 @@
 # an odd interval of time.)
 #
 # This option can't affect the granularity of times recorded by logging systems
-# outside of arti, inluding journald.
+# outside of arti, including journald.
 #
 #time_granularity = "1s"
 
@@ -204,7 +204,7 @@
 # These are case-sensitive.
 #
 [override_net_params]
-# For example (not the eefaults):
+# For example (not the defaults):
 #     circwindow = 1000
 #     min_paths_for_circs_pct = 60
 
@@ -280,7 +280,7 @@
 #initial_predicted_ports = [80, 443]
 
 # After we see the client request a connection to a new port, how long should we
-# predict that the client will still want to have circuitsw available for that
+# predict that the client will still want to have circuits available for that
 # port?
 #prediction_lifetime = "1 hour"
 
@@ -301,7 +301,7 @@
 [channel]
 
 # Should we use reduced channel padding?  (This roughly halves the padding
-# cell frequency, and makes the padding unidrecteional, increasing the
+# cell frequency, and makes the padding unidirectional, increasing the
 # traceability of the client connections.)
 # Or disable it entirely?
 #
@@ -347,7 +347,7 @@
 # Should we allow attempts to make Tor connections to local addresses?
 #allow_local_addrs = false
 
-# Should Arti make connections to hidden serivces (.onion services) ?
+# Should Arti make connections to hidden services (.onion services) ?
 #
 # As of this implementation, Arti's onion service support lacks the
 # "vanguards" feature that Tor uses to prevent guard discovery attacks over time.

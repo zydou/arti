@@ -33,7 +33,7 @@ caret_int! {
     /// rend-spec-v3.txt \[PROCESS_INTRO].
     //
     // TODO this shouldn't live here.  It ought to be in some more general crate.
-    // But it should then also be useable in the netdoc parser.  In particular, it ought
+    // But it should then also be usable in the netdoc parser.  In particular, it ought
     // to be able to handle the *textual* values in `hsdesc/inner.rs`, and maybe
     // the ad-hocery in the routerdesc parsing too.
     struct OnionKeyType(u8) {

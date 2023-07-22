@@ -20,7 +20,7 @@
 // stored, for that HS, outside the keystore.  (IIRC C Tor does keep the client auth public keys
 // for an HS in its keystore, so we need to be compatible with that, but that doesn't necessary
 // have to be done in Arti via the keystore API.  Perhaps the "C Tor keystore" object could
-// impement both the keystore trait and an "HS client public keys" trait.)
+// implement both the keystore trait and an "HS client public keys" trait.)
 //
 // I should explain why I have this opinion:
 // Basically, (private) keystores are awkward.  They have to handle private key material, deal with

@@ -24,7 +24,7 @@ use crate::Object;
 ///
 /// Note that the concrete object type `O`
 /// is *not* represented in the type of `CastTable`;
-/// `CastTable`s are obtained and used at runtime, as part of dynamic despatch,
+/// `CastTable`s are obtained and used at runtime, as part of dynamic dispatch,
 /// so the type `O` is erased.  We work with `TypeId`s and various `&dyn ...`.
 #[derive(Default)]
 pub struct CastTable {

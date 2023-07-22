@@ -145,7 +145,7 @@ struct IptExperience {
 ///
 /// This function has a minimum of functionality, since it is the boundary
 /// between "mock connection, used for testing `state.rs`" and
-/// "mock circuit and netdir, used for testing `connnect.rs`",
+/// "mock circuit and netdir, used for testing `connect.rs`",
 /// so it is not, itself, unit-testable.
 pub(crate) async fn connect<R: Runtime>(
     connector: &HsClientConnector<R>,
@@ -170,7 +170,7 @@ pub(crate) async fn connect<R: Runtime>(
 
 /// Common context for a single request to connect to a hidden service
 ///
-/// This saves on passing this same set of (immuntable) values (or subsets thereof)
+/// This saves on passing this same set of (immutable) values (or subsets thereof)
 /// to each method in the principal functional code, everywhere.
 /// It also provides a convenient type to be `Self`.
 ///
@@ -216,7 +216,7 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     /// Receiver that will give us the RENDEZVOUS2 message.
     ///
     /// The sending ended is owned by the handler
-    /// which receives control messages on the rednezvous circuit,
+    /// which receives control messages on the rendezvous circuit,
     /// and which was installed when we sent `ESTABLISH_RENDEZVOUS`.
     ///
     /// (`RENDEZVOUS2` is the message containing the onion service's side of the handshake.)
@@ -245,7 +245,7 @@ struct UsableIntroPt<'i> {
     sort_rand: IptSortRand,
 }
 
-/// Lookup key for looking up and recording our IPT use experiencess
+/// Lookup key for looking up and recording our IPT use experiences
 ///
 /// Used to identify a relay when looking to see what happened last time we used it,
 /// and storing that information after we tried it.
@@ -432,7 +432,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
-        // Maxmimum number of hsdir connection and retrieval attempts we'll make
+        // Maximum number of hsdir connection and retrieval attempts we'll make
         let max_total_attempts = self
             .config
             .retry
@@ -622,7 +622,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         desc: &HsDesc,
         data: &mut DataIpts,
     ) -> Result<Arc<ClientCirc!(R, M)>, CE> {
-        // Maxmimum number of rendezvous/introduction attempts we'll make
+        // Maximum number of rendezvous/introduction attempts we'll make
         let max_total_attempts = self
             .config
             .retry
@@ -643,7 +643,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         // Limit on the duration of each attempt to negotiate with an introduction point
         //
-        // *Does* include establishing the ciruit.
+        // *Does* include establishing the circuit.
         let intro_timeout = self.estimate_timeout(&[
             (1, TimeoutsAction::BuildCircuit { length: HOPS }), // build circuit
             // This does some crypto too, but we don't account for that.
@@ -663,7 +663,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             //
             // What we are timing here is:
             //
-            //    INTFRODUCE2 goes from IPT to HS
+            //    INTRODUCE2 goes from IPT to HS
             //    but that happens in parallel with us waiting for INTRODUCE_ACK,
             //    which is controlled by `intro_timeout` so not pat of `ipt_rpt_timeout`.
             //    and which has to come HOPS hops.  So don't count INTRODUCE2 here.
@@ -742,7 +742,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // We retain a rendezvous we managed to set up in here.  That way if we created it, and
         // then failed before we actually needed it, we can reuse it.
         // If we exit with an error, we will waste it - but because we isolate things we do
-        // for different services, it wouldn't be reuseable anway.
+        // for different services, it wouldn't be reusable anyway.
         let mut saved_rendezvous = None;
 
         // We might consider making multiple attempts to different IPTs in in parallel,

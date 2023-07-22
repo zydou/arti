@@ -56,7 +56,7 @@ pub enum ConnError {
     #[error("consensus contains no suitable hidden service directories")]
     NoHsDirs,
 
-    /// The descriptor contained only unuseable introduction points!
+    /// The descriptor contained only unusable introduction points!
     ///
     /// This is the fault of the service, or shows incompatibility between us and them.
     #[error("hidden service has no introduction points usable by us")]

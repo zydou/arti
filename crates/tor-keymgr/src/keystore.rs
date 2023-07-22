@@ -58,7 +58,7 @@ pub trait Keystore: Send + Sync + 'static {
 
     /// Remove the specified key.
     ///
-    /// A return vaue of `Ok(None)` indicates the key doesn't exist in this key store, whereas
+    /// A return value of `Ok(None)` indicates the key doesn't exist in this key store, whereas
     /// `Ok(Some(())` means the key was successfully removed.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
