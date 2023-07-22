@@ -111,7 +111,7 @@ directories (`root_dir`, `client_dir`, `key_dir`).
 # The Arti key store.
 [keys.arti_store]
 # The root of the key store. All keys are stored somewhere in the `root_dir`
-# heirarchy
+# hierarchy
 root_dir = ""
 ```
 
@@ -152,7 +152,7 @@ key_dir = ""
 [[onion_service]]
 # This corresponds to C Tor's HiddenServiceDir option.
 hs_service_dir = "/home/bob/hs1"
-# The maximum number of syteams per rendezvous circuit.
+# The maximum number of streams per rendezvous circuit.
 #
 # This corresponds to C Tor's HiddenServiceMaxStreams.
 max_streams = 0
@@ -163,7 +163,7 @@ max_streams = 0
 [[onion_service]]
 # This corresponds to C Tor's HiddenServiceDir option.
 hs_service_dir = "/home/bob/hs2"
-# The maximum number of syteams per rendezvous circuit.
+# The maximum number of streams per rendezvous circuit.
 #
 # This corresponds to C Tor's HiddenServiceMaxStreams.
 max_streams = 9000

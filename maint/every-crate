@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run `cargo test` for every crate with the default featues
+# Run `cargo test` for every crate with the default features
 
 set -euo pipefail
 

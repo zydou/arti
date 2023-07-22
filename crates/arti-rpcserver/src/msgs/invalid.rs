@@ -1,5 +1,5 @@
 //! Variations on our message types used to give better diagnostics for
-//! unparseable requests.
+//! unparsable requests.
 
 use tor_rpcbase as rpc;
 

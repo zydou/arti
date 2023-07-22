@@ -80,7 +80,7 @@ pub(crate) struct BoxedResponse {
     /// An ID for the request that we're responding to.
     ///
     /// This is always present on a response to every valid request; it is also
-    /// present on responses to invalid requests if we could decern what their
+    /// present on responses to invalid requests if we could discern what their
     /// `id` field was. We only omit it when the request id was indeterminate.
     /// If we do that, we close the connection immediately afterwards.
     #[serde(skip_serializing_if = "Option::is_none")]

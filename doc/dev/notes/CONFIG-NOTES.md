@@ -42,7 +42,7 @@ So each `FooConfig` needs to be re-exported by `arti-client`, and semver-breakin
 
 ### Discussion
 
-To make our config loading code reuseable, in everything from a slightly extended version of `arti`, to some entirely different embedding of our Tor, code, we need to separate out:
+To make our config loading code reusable, in everything from a slightly extended version of `arti`, to some entirely different embedding of our Tor, code, we need to separate out:
 
  * Code that knows about configuration sources (how to read a file, default locations of files, how to access the command line)
 

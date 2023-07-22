@@ -98,7 +98,7 @@ release?" above.
    couldn't find.
 
    Run `maint/thanks arti-v${LAST_VERSION}`
-   to generate our list of ackowledgments;
+   to generate our list of acknowledgments;
    insert this into the changelog.
 
    Add an acknowledgement for the current sponsor(s).
@@ -152,7 +152,7 @@ before you continue!
 1. Finalize the changelog.
 
    Make sure that the date is correct.
-   Make sure that the acknoweldgments and links are correct,
+   Make sure that the acknowledgments and links are correct,
    if they might have gotten stale.
 
 2. Increase all appropriate version numbers.
@@ -270,7 +270,7 @@ since the last release.)
     3. In `.gitlab-ci.yml`,
        prepend the failing shell command with `true X X X`
        (only with the three Xs cuddled together).
-       This will cause it to not run, but "succed".
+       This will cause it to not run, but "succeed".
        The `XXXs` will cause the blocking-todos CI job to fail,
        hindering accidental merge of this branch to main.
 

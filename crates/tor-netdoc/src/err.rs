@@ -262,7 +262,7 @@ pub enum NetdocErrorKind {
     #[display(fmt = "unexpected document type")]
     BadDocumentType,
     /// We expected a kind of entry that we didn't find
-    #[display(fmt = "missing entriy")]
+    #[display(fmt = "missing entry")]
     MissingEntry,
     /// Document or section started with wrong token
     #[display(fmt = "Wrong starting token")]
