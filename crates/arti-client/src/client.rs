@@ -824,13 +824,27 @@ impl<R: Runtime> TorClient<R> {
         match how {
             tor_config::Reconfigure::AllOrNothing => {
                 // We have to check before we make any changes.
-                self.reconfigure(new_config, tor_config::Reconfigure::CheckAllOrNothing)?;
+                self.reconfigure_inner(new_config, tor_config::Reconfigure::CheckAllOrNothing)?;
             }
             tor_config::Reconfigure::CheckAllOrNothing => {}
             tor_config::Reconfigure::WarnOnFailures => {}
             _ => {}
         }
 
+        // Actually reconfigure
+        self.reconfigure_inner(new_config, how)?;
+
+        Ok(())
+    }
+
+    /// This is split out from `reconfigure` so we can do the all-or-nothing
+    /// check without recursion. the caller to this method must hold the
+    /// `reconfigure_lock`.
+    fn reconfigure_inner(
+        &self,
+        new_config: &TorClientConfig,
+        how: tor_config::Reconfigure,
+    ) -> crate::Result<()> {
         let dir_cfg = new_config.dir_mgr_config().map_err(wrap_err)?;
         let state_cfg = new_config.storage.expand_state_dir().map_err(wrap_err)?;
         let addr_cfg = &new_config.address_filter;
@@ -1365,6 +1379,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use tor_config::Reconfigure;
+
     use super::*;
     use crate::config::TorClientConfigBuilder;
     use crate::{ErrorKind, HasKind};
@@ -1479,5 +1495,22 @@ mod test {
             StreamIsolationPreference::Explicit(_) => (),
             _ => panic!("unexpected isolation: {:?}", observed.isolation),
         };
+    }
+
+    #[test]
+    fn reconfigure_all_or_nothing() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let state_dir = tempfile::tempdir().unwrap();
+            let cache_dir = tempfile::tempdir().unwrap();
+            let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
+                .build()
+                .unwrap();
+            let tor_client = TorClient::with_runtime(rt)
+                .config(cfg.clone())
+                .bootstrap_behavior(BootstrapBehavior::Manual)
+                .create_unbootstrapped()
+                .unwrap();
+            tor_client.reconfigure(&cfg, Reconfigure::AllOrNothing).unwrap();
+        });
     }
 }
