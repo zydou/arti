@@ -96,8 +96,18 @@ These are **nice-to-have** **low-level** options:
 
 `SingleHopMode`, `NonAnonymousMode`: Makes services non-anonymous.  Global.
 
+We should build these out as part of our anti-DoS mechanisms:
 
-I **do now know** how necessary this option is:
+`EnableIntroDosDefense`, `IntroDosBurstPerSec`,
+`IntroDosRatePerSec`: configure rate-limiting for how many
+introduction requests to accept at each introduction point.
+This is enforced jointly with the introduction point.
+
+`PoWDefensesEnabled` `PoWQueueRate` `PoWQueueBurst`,
+`CompiledProofOfWorkHash`: configuration for the proof-of-work
+mechanism.
+
+We can defer this indefinitely, until we need it:
 
 `PublishHidServDescriptor`: Do not publish any
 descriptors. Global. Only useful if you're having something else
