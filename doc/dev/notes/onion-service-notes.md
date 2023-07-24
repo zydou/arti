@@ -27,6 +27,12 @@ this but does not write it.
 `DIR/onion_service_non_anonymous`: present if this is a non-anonymous
 service.
 
+`DIR/ob_config`: present if this is an onion balance input; contains a
+"master onion address key" which is one level higher than the KP_hs_id
+used for the onion address of this service.  We can defer this
+until we add onionbalance support.
+
+
 It's absolutely necessary to support making `KS_hs_id` persistent, or
 we can't create the same onion service over time.  The other stuff can
 be read or written in other ways, though maintaining the current interface
