@@ -45,10 +45,13 @@ fn handle_pwd_error(e: io::Error) -> Error {
 
 /// Obtain the gid of a group named after the current user
 fn get_self_named_gid_impl<U: PwdGrpProvider>(userdb: &U) -> io::Result<Option<u32>> {
-    let Some(username) = get_own_username(userdb)? else { return Ok(None) };
+    let Some(username) = get_own_username(userdb)? else {
+        return Ok(None);
+    };
 
-    let Some(group) = userdb.getgrnam::<Vec<u8>>(username)?
-    else { return Ok(None) };
+    let Some(group) = userdb.getgrnam::<Vec<u8>>(username)? else {
+        return Ok(None);
+    };
 
     // TODO: Perhaps we should enforce a requirement that the group contains
     // _only_ the current users.  That's kinda tricky to do, though, without
@@ -352,7 +355,9 @@ mod test {
         // If USER isn't set, can't test this without setting the environment,
         // and we don't do that in tests.
         // Likewise if USER is not UTF-8, we can't make mock usernames.
-        else { return };
+        else {
+            return;
+        };
         let username = username_s.as_bytes().to_vec();
 
         let other_name = format!("{}2", &username_s);

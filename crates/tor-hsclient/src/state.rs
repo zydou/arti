@@ -596,21 +596,21 @@ impl<D: MockableConnectorData> Services<D> {
 
     /// Delete data we aren't interested in any more
     fn expire_old_data(&mut self, now: Instant) {
-        self.records.retain(|hsid, record, _table_index| match &**record {
-            ServiceState::Closed {
-                data: _,
-                last_used,
-            } => {
-                let Some(expiry_time) = last_used.checked_add(RETAIN_DATA_AFTER_LAST_USE) else { return false; };
-                now <= expiry_time
-            },
-            ServiceState::Open { .. } |
-            ServiceState::Working { .. } => true,
-            ServiceState::Dummy { .. } => {
-                error!("found dummy data during HS housekeeping, for {}", sv(hsid));
-                false
-            }
-        });
+        self.records
+            .retain(|hsid, record, _table_index| match &**record {
+                ServiceState::Closed { data: _, last_used } => {
+                    let Some(expiry_time) = last_used.checked_add(RETAIN_DATA_AFTER_LAST_USE)
+                    else {
+                        return false;
+                    };
+                    now <= expiry_time
+                }
+                ServiceState::Open { .. } | ServiceState::Working { .. } => true,
+                ServiceState::Dummy { .. } => {
+                    error!("found dummy data during HS housekeeping, for {}", sv(hsid));
+                    false
+                }
+            });
     }
 }
 
@@ -655,8 +655,12 @@ impl<D: MockableConnectorData> ServiceState<D> {
                     // If it's None, we can't rely on that to say we should expire it,
                     // since that information crossed a time when we didn't hold the lock.
 
-                    let Ok(mut guard) = connector.services() else { break };
-                    let Some(record) = guard.records.by_index_mut(table_index) else { break };
+                    let Ok(mut guard) = connector.services() else {
+                        break;
+                    };
+                    let Some(record) = guard.records.by_index_mut(table_index) else {
+                        break;
+                    };
                     let state = &mut **record;
                     let last_used = match state {
                         ServiceState::Closed { .. } => break,

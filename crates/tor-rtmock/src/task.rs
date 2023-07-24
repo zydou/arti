@@ -415,7 +415,9 @@ impl MockExecutor {
             // Take a `Awake` task off `awake` and make it `Polling`
             let (id, mut fut) = 'inner: loop {
                 let mut data = self.data.lock();
-                let Some(id) = data.schedule() else { break 'outer };
+                let Some(id) = data.schedule() else {
+                    break 'outer;
+                };
                 let Some(task) = data.tasks.get_mut(id) else {
                     trace!("MockExecutor {id:?} vanished");
                     continue;
@@ -488,7 +490,9 @@ impl Wake for ActualWaker {
     fn wake(self: Arc<Self>) {
         let mut data = self.data.lock();
         trace!("MockExecutor {:?} wake", &self.id);
-        let Some(task) = data.tasks.get_mut(self.id) else { return };
+        let Some(task) = data.tasks.get_mut(self.id) else {
+            return;
+        };
         match task.state {
             Awake => {}
             Asleep => {

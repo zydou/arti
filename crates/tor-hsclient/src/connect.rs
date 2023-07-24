@@ -793,7 +793,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 if saved_rendezvous.is_none() {
                     debug!("hs conn to {}: setting up rendezvous point", &self.hsid);
                     // Establish a rendezvous circuit.
-                    let Some(_): Option<usize> = rend_attempts.next() else { return Ok(None) };
+                    let Some(_): Option<usize> = rend_attempts.next() else {
+                        return Ok(None);
+                    };
 
                     let mut using_rend_pt = None;
                     saved_rendezvous = Some(
@@ -809,7 +811,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     );
                 }
 
-                let Some(ipt) = intro_attempts.next() else { return Ok(None) };
+                let Some(ipt) = intro_attempts.next() else {
+                    return Ok(None);
+                };
                 let intro_index = ipt.intro_index;
 
                 // We record how long things take, starting from here, as
