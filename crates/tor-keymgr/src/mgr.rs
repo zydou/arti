@@ -169,6 +169,13 @@ mod tests {
             KeyType::Ed25519Keypair
         }
 
+        fn generate(_rng: &mut dyn KeygenRng) -> Self
+        where
+            Self: Sized,
+        {
+            "generated_test_key".into()
+        }
+
         fn to_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
             Ok(self.as_bytes().to_vec().into())
         }

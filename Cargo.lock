@@ -4562,6 +4562,7 @@ dependencies = [
  "dyn-clone",
  "fs-mistrust",
  "itertools",
+ "rand 0.8.5",
  "serde",
  "ssh-key",
  "tempfile",
