@@ -4,7 +4,8 @@
 //! [`Keystore`].
 
 use crate::{
-    EncodableKey, KeySpecifier, Keystore, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
+    EncodableKey, KeySpecifier, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
+    ToEncodableKey,
 };
 
 use std::iter;
@@ -43,6 +44,32 @@ impl KeyMgr {
     /// Returns Ok(None) if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
         self.get_from_store(key_spec, self.all_stores())
+    }
+
+    /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
+    ///
+    /// If the key already exists in the specified key store, the `overwrite` flag is used to
+    /// decide whether to overwrite it with a newly generated key.
+    pub fn generate<K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+        rng: &mut dyn KeygenRng,
+        overwrite: bool,
+    ) -> Result<()> {
+        let store = match selector {
+            KeystoreSelector::Id(keystore_id) => self.find_keystore(keystore_id)?,
+            KeystoreSelector::Default => &self.default_store,
+        };
+
+        let key_type = K::Key::key_type();
+
+        if overwrite || !store.contains(key_spec, key_type)? {
+            let key = K::Key::generate(rng);
+            store.insert(&key, key_spec, key_type)
+        } else {
+            Ok(())
+        }
     }
 
     /// Insert `key` into the [`Keystore`] specified by `selector`.
@@ -156,6 +183,7 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
     use std::sync::RwLock;
+    use tor_basic_utils::test_rng::testing_rng;
 
     /// The type of "key" stored in the test key stores.
     type TestKey = String;
@@ -432,5 +460,45 @@ mod tests {
         assert!(!mgr.key_stores[0]
             .contains(&TestKeySpecifier1, TestKey::key_type())
             .unwrap());
+    }
+
+    #[test]
+    fn keygen() {
+        let mgr = KeyMgr::new(Keystore1::default(), vec![]);
+
+        mgr.insert(
+            "coot".to_string(),
+            &TestKeySpecifier1,
+            KeystoreSelector::Default,
+        )
+        .unwrap();
+
+        // Try to generate a new key (overwrite = false)
+        mgr.generate::<TestKey>(
+            &TestKeySpecifier1,
+            KeystoreSelector::Default,
+            &mut testing_rng(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
+            Some("keystore1_coot".to_string())
+        );
+
+        // Try to generate a new key (overwrite = true)
+        mgr.generate::<TestKey>(
+            &TestKeySpecifier1,
+            KeystoreSelector::Default,
+            &mut testing_rng(),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
+            Some("keystore1_generated_test_key".to_string())
+        );
     }
 }

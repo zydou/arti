@@ -4567,6 +4567,7 @@ dependencies = [
  "ssh-key",
  "tempfile",
  "thiserror",
+ "tor-basic-utils",
  "tor-config",
  "tor-error",
  "tor-hscrypto",

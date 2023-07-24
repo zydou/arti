@@ -15,3 +15,4 @@ ADDED: a `to_bytes` function to `EncodableKey` trait
 ADDED: `Keystore::contains()`
 ADDED: `KeygenRng` trait
 ADDED: `EncodableKey::generate()`
+ADDED: `KeyMgr::generate()`
