@@ -57,11 +57,7 @@ impl KeyMgr {
         rng: &mut dyn KeygenRng,
         overwrite: bool,
     ) -> Result<()> {
-        let store = match selector {
-            KeystoreSelector::Id(keystore_id) => self.find_keystore(keystore_id)?,
-            KeystoreSelector::Default => &self.default_store,
-        };
-
+        let store = self.select_keystore(&selector)?;
         let key_type = K::Key::key_type();
 
         if overwrite || !store.contains(key_spec, key_type)? {
@@ -84,17 +80,9 @@ impl KeyMgr {
         selector: KeystoreSelector,
     ) -> Result<()> {
         let key = key.to_encodable_key();
+        let store = self.select_keystore(&selector)?;
 
-        match selector {
-            KeystoreSelector::Id(keystore_id) => {
-                let keystore = self.find_keystore(keystore_id)?;
-                keystore.insert(&key, key_spec, K::Key::key_type())
-            }
-            KeystoreSelector::Default => {
-                self.default_store
-                    .insert(&key, key_spec, K::Key::key_type())
-            }
-        }
+        store.insert(&key, key_spec, K::Key::key_type())
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
@@ -108,13 +96,9 @@ impl KeyMgr {
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
     ) -> Result<Option<()>> {
-        match selector {
-            KeystoreSelector::Id(keystore_id) => {
-                let keystore = self.find_keystore(keystore_id)?;
-                keystore.remove(key_spec, K::Key::key_type())
-            }
-            KeystoreSelector::Default => self.default_store.remove(key_spec, K::Key::key_type()),
-        }
+        let store = self.select_keystore(&selector)?;
+
+        store.remove(key_spec, K::Key::key_type())
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
@@ -155,6 +139,14 @@ impl KeyMgr {
     /// Return an iterator over all configured stores.
     fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
         iter::once(&self.default_store).chain(self.key_stores.iter())
+    }
+
+    /// Return the [`Keystore`] matching the specified `selector`.
+    fn select_keystore(&self, selector: &KeystoreSelector) -> Result<&BoxedKeystore> {
+        match selector {
+            KeystoreSelector::Id(keystore_id) => self.find_keystore(keystore_id),
+            KeystoreSelector::Default => Ok(&self.default_store),
+        }
     }
 
     /// Return the [`Keystore`] with the specified `id`.
