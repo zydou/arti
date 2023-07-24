@@ -135,13 +135,10 @@ enum Anonymity {
 }
 
 struct ServiceConfig {
-   /// An arbitrary identifier used to look up this service's keys
-   /// and distinguish them from other keys.  Perhaps we don't need this?
-   ///
-   /// Alternatively, maybe each service gets its own keymgr instance
-   /// (or a some kind of a keymgr view), and uses that to look up keys
-   /// with a global name?
-   keyid: String,
+   /// An arbitrary identifier or "nickname" used to look up this service's
+   /// keys, state, configuration, etc,
+   /// and distinguish them from other services.  This is local-only.
+   nickname: String,
 
    /// Whether we want this to be a non-anonymous "single onion service".
    /// We could skip this in v1.  We should make sure that our state
