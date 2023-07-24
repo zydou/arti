@@ -182,8 +182,9 @@ impl<R: Runtime, D: MockableConnectorData> HsClientConnector<R, D> {
                 let runtime = self.runtime.clone();
                 async move {
                     while let Some(()) = prompt.next().await {
-                        let Ok(mut services) = connector.services()
-                        else { break };
+                        let Ok(mut services) = connector.services() else {
+                            break;
+                        };
 
                         // (Currently) this is "expire old data".
                         services.run_housekeeping(runtime.now());
