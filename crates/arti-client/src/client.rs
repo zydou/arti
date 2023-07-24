@@ -1510,7 +1510,9 @@ mod test {
                 .bootstrap_behavior(BootstrapBehavior::Manual)
                 .create_unbootstrapped()
                 .unwrap();
-            tor_client.reconfigure(&cfg, Reconfigure::AllOrNothing).unwrap();
+            tor_client
+                .reconfigure(&cfg, Reconfigure::AllOrNothing)
+                .unwrap();
         });
     }
 }
