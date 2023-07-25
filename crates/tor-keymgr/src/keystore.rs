@@ -3,14 +3,16 @@
 pub(crate) mod arti;
 
 pub use ssh_key::private::KeypairData as SshKeypairData;
+use ssh_key::{Algorithm, AlgorithmName};
 
 use rand::{CryptoRng, RngCore};
-use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey};
-use ssh_key::public::Ed25519PublicKey;
+use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, OpaqueKeypair};
+use ssh_key::public::{Ed25519PublicKey, OpaquePublicKey};
 use tor_error::internal;
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
+use crate::key_type::ssh::X25519_ALGORITHM_NAME;
 use crate::key_type::KeyType;
 use crate::{KeySpecifier, KeystoreId, Result};
 
@@ -113,8 +115,15 @@ impl EncodableKey for curve25519::StaticSecret {
     }
 
     fn as_ssh_keypair_data(&self) -> Result<SshKeypairData> {
-        // TODO HSS: implement when the ssh-key changes from #936 are released.
-        Err(internal!("not implemented").into())
+        let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
+            .map_err(|_| internal!("invalid algorithm name"))?;
+
+        let public = curve25519::PublicKey::from(self);
+        let ssh_public =
+            OpaquePublicKey::new(public.to_bytes().to_vec(), Algorithm::Other(algorithm_name));
+        let keypair = OpaqueKeypair::new(self.to_bytes().to_vec(), ssh_public);
+
+        Ok(SshKeypairData::Other(keypair))
     }
 }
 
