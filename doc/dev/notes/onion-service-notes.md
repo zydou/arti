@@ -47,7 +47,7 @@ Right now C tor has these options.  They're all prefixed with
 ### High-level options.
 
 Here we talk about the higher-level APIs.  These are all APIs that we
-would or could implemen _on top of_ the lower-level API I'm going to
+would or could implement _on top of_ the lower-level API I'm going to
 be discussing below.
 
 These are **must-have** **high-level** options.  (They are must-have
@@ -219,7 +219,7 @@ pub enum IntroAuth {
 /// Deliberately empty; nothing is implemented here.
 }
 
-// TODO: Use Beth's api insted.
+// TODO: Use Beth's api instead.
 enum ProofOfWork {
      EquixV1 { effort_level: usize }
 }
