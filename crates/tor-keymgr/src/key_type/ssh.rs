@@ -15,6 +15,12 @@ use zeroize::Zeroizing;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+/// The algorithm string for x25519 SSH keys.
+//
+// TODO HSS: start a protocol name registry in the torspec repo and document the usage and purpose
+// of this "protocol" name.
+pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@torproject.org";
+
 /// An unparsed OpenSSH key.
 ///
 /// Note: This is a wrapper around the contents of a file we think is an OpenSSH key. The inner
@@ -43,7 +49,7 @@ impl UnparsedOpenSshKey {
 /// SSH key algorithms.
 //
 // Note: this contains all the types supported by ssh_key, plus X25519.
-#[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
+#[derive(Clone, Debug, PartialEq, derive_more::Display)]
 pub(crate) enum SshKeyAlgorithm {
     /// Digital Signature Algorithm
     Dsa,
@@ -72,6 +78,9 @@ impl From<Algorithm> for SshKeyAlgorithm {
             Algorithm::Rsa { .. } => SshKeyAlgorithm::Rsa,
             Algorithm::SkEcdsaSha2NistP256 => SshKeyAlgorithm::SkEcdsaSha2NistP256,
             Algorithm::SkEd25519 => SshKeyAlgorithm::SkEd25519,
+            Algorithm::Other(name) if name.as_str() == X25519_ALGORITHM_NAME => {
+                SshKeyAlgorithm::X25519
+            }
             // Note: ssh_key::Algorithm is non_exhaustive, so we need this catch-all variant
             _ => SshKeyAlgorithm::Unknown(algo),
         }
