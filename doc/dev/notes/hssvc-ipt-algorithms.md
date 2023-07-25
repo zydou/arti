@@ -263,6 +263,10 @@ if and what we want to publish.
 
 ## Tuning parameters
 
+TODO: Review these tuning parameters both for value and origin.
+Some of these may be in `param-spec.txt` section "8. V3 onion service parameters"
+Some of them may be in C Tor.
+
  * N, number of IPTs to try to maintain:
    configurable, default is 3, max is 20.
    (rend-spec-v3 2.5.4 NUM_INTRO_POINT)
