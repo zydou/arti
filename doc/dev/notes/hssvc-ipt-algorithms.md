@@ -209,6 +209,8 @@ is the minimum (30 minutes).
 Otherwise, we double the lifetime each time,
 unless any IPT in the previous descriptor was declared `Faulty`,
 in which case we reset it back to the minimum.
+TODO: Perhaps we should just pick fixed short and long lifetimes instead,
+to limit distinguishability.
 
 (Rationale: if IPTs are regularly misbehaving,
 we should be cautious and limit our exposure to the damage.)
