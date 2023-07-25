@@ -51,7 +51,7 @@ lead to distinguishability ?
 
  * Attempt to establish and verify them, in parallel
 
- * Wait again the time it took to establish and verify the first one
+ * Wait a short time
    and then publish a short-lifetime descriptor listing the ones
    set up so far (this gets us some working descriptors right away)
 
@@ -190,8 +190,7 @@ The idea of what to publish is calculated as follows:
  * Unless we have at least one `Good` IPT: `Unknown`.
 
  * Otherwise: if there are IPTs in `Establishing`,
-   and they have been in `Establishing` for less than
-   twice as long as the fastest-to-establish `Good` IPT:
+   and they have been in `Establishing` only a short time [1]:
    `Unknown`; otherwise `Uncertain`.
 
 The effect is that we delay publishing an initial descriptor
@@ -209,6 +208,17 @@ in which case we reset it back to the minimum.
 
 (Rationale: if IPTs are regularly misbehaving,
 we should be cautious and limit our exposure to the damage.)
+
+[1] NOTE: We wait a "short time" between establishing our first IPT,
+and publishing an incomplete (<N) descriptor -
+this is a compromise between
+availability (publishing as soon as we have any working IPT)
+and
+exposure and hsdir load
+(which would suggest publishing only when our IPT set is stable).
+One possible strategy is to wait as long again
+as the time it took to establish our first IPT.
+Another is to somehow use our circuit timing estimator.
 
 ## Descriptor publication
 
