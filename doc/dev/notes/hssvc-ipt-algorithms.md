@@ -139,6 +139,11 @@ An IPT is removed from our records, and we give up on it,
 when it is no longer `Good` or `Establishing`
 and all descriptors that mentioned it have expired.
 
+(Until all published descriptors mentioning an IPT expire,
+we consider ourselves bound by those previously-published descriptors,
+and try to maintain the IPT.
+TODO: Allegedly this is unnecessary, but I don't see how it could be.)
+
 When we lose our circuit to an IPT,
 we look at the `ErrorKind` to try to determine
 if the fault was local (and would therefore affect all IPTs):
