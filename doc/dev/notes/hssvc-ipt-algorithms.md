@@ -86,6 +86,9 @@ rapidly churning through IPT candidates.)
 
 When we select a new IPT, we randomly choose a planned replacement time,
 after which it becomes `Retiring`.
+Additionally, any IPT becomes `Retiring`
+after it has been used for a certain number of introductions
+(c.f. C Tor `#define INTRO_POINT_MIN_LIFETIME_INTRODUCTIONS 16384`.)
 
 ## IPT states
 
