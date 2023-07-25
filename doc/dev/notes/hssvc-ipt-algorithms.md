@@ -112,7 +112,9 @@ Each IPT can be in the following states:
    (For example, the circuit to it has collapsed.)
    We will continue to try to maintain our circuit to it.
    But we won't publish it in any descriptor.
-   We will try to replace it with another IPT.
+   We will allow the re-establishment attempt to proceed,
+   but if it doesn't yield success within a reasonable time,
+   we will try to replace this IPT with another IPT.
 
  * `Retiring`:
    We have reached the IPT's planned replacement time.
