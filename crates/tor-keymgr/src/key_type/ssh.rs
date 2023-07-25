@@ -8,7 +8,7 @@ use ssh_key::Algorithm;
 
 use crate::{ErasedKey, KeyType, KeystoreError, Result};
 
-use tor_error::{ErrorKind, HasKind};
+use tor_error::{ErrorKind, HasKind, internal};
 use tor_llcrypto::pk::{curve25519, ed25519};
 use zeroize::Zeroizing;
 
@@ -166,7 +166,7 @@ impl KeyType {
         match sk.key_data() {
             KeypairData::Ed25519(key) => Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
                 .map_err(|_| {
-                    tor_error::internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
+                    internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
                 })
                 .map(Box::new)?),
             KeypairData::Other(key)
@@ -176,7 +176,7 @@ impl KeyType {
                     .private
                     .as_ref()
                     .try_into()
-                    .map_err(|_| tor_error::internal!("invalid x25519 private key"))?;
+                    .map_err(|_| internal!("invalid x25519 private key"))?;
 
                 Ok(Box::new(curve25519::StaticSecret::from(key)))
             }
