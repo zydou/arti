@@ -188,6 +188,8 @@ The possibilities are:
 The idea of what to publish is calculated as follows:
 
  * If we have at least N `Good` IPTs: `Certain`.
+   (We publish the "best" N IPTs for some definition of "best".
+   TODO: should we use the fault count?  recency?)
 
  * Unless we have at least one `Good` IPT: `Unknown`.
 
