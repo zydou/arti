@@ -33,6 +33,11 @@ Stream of introduction requests,
 done by passing an mpsc sender into the IPT Manager's constructor,
 which is simply cloned and given to each IPT Establisher.
 
+(Each IPT Establisher is told by the IPT Manager
+when a descriptor mentioning that IPT is about to be published,
+so that the IPT Establisher can reject introduction attempts
+using an unpublished IPT.)
+
 I think there are too many possible IPTs
 to maintain experience information about IPTs we used to use;
 the list of experience information would grow to the size of the network.
