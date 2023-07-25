@@ -54,13 +54,16 @@ lead to distinguishability ?
 
 (This behaviour follows from the detailed algorithm below.)
 
-## Verification and monitoring (optional)
+## Verification and monitoring (optional, probably not in v1)
 
 After ESTABLISH_INTRO,
 we attempt (via a 2nd set of circuits)
 an INTRODUCE probe, to see if the IPT is working.
 
 We do such probes periodically at random intervals.
+
+NOTE: there is a behaviour/privacy risk here,
+which should be properly considered before implementation.
 
 ## General operation, IPT selection
 
