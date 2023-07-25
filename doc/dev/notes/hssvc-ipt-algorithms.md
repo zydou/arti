@@ -247,7 +247,8 @@ We record for each hsdir what we have published.
 
 We attempt publication in the following cases:
 
- * `Certain`, if: the IPT list has changed from what was published
+ * `Certain`, if: the IPT list has changed from what was published,
+   and we haven't published a `Certain` set recently
  * `Uncertain`, if: nothing is published,
    or what is published will expire soon,
    or we haven't published since Arti was restarted
