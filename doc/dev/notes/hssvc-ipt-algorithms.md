@@ -251,6 +251,7 @@ if and what we want to publish.
    (rend-spec-v3 2.5.4 NUM_INTRO_POINT)
 
  * IPT replacement time: 4..7 days (uniform random)
+   TODO: what is the right value here?  (Should we do time-based rotation at all?)
 
  * "Soon" for "if the published descriptor will expire soon":
    10 minutes.
