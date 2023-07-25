@@ -88,6 +88,14 @@ You can build a binary (but not run it) with:
 
 The result can be found as `target/release/arti`.
 
+⚠ **Safety Note**: if you are using the default build options,
+the compiler will include filesystem path information in the
+binary that it generates.  If your path is sensitive (for example,
+because it includes your username), you will want to take steps
+to prevent this.  See [`doc/safer-build.md`](doc/safer-build.md)
+for more information.
+
+
 If you run into any trouble building the program, please have a
 look at [the troubleshooting guide](doc/TROUBLESHOOTING.md).
 
