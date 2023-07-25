@@ -9,7 +9,7 @@ use ssh_key::Algorithm;
 use crate::{ErasedKey, KeyType, KeystoreError, Result};
 
 use tor_error::{ErrorKind, HasKind};
-use tor_llcrypto::pk::{ed25519, keymanip};
+use tor_llcrypto::pk::{curve25519, ed25519};
 use zeroize::Zeroizing;
 
 use std::path::PathBuf;
@@ -170,20 +170,55 @@ impl KeyType {
     /// The caller is expected to downcast the value returned to a concrete type.
     pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO HSS: perhaps this needs to be a method on EncodableKey instead?
-        match self {
-            KeyType::Ed25519Keypair => {
-                read_ed25519_keypair(*self, key).map(|key| Box::new(key) as ErasedKey)
-            }
-            KeyType::X25519StaticSecret => {
-                // NOTE: The ssh-key crate doesn't support storing curve25519 keys in OpenSSH
-                // format. As a workaround, this type of key will be stored as ssh-ed25519 and
-                // converted back to x25519 upon retrieval.
-                let key = read_ed25519_keypair(KeyType::Ed25519Keypair, key)?;
 
-                Ok(Box::new(keymanip::convert_ed25519_to_curve25519_private(
-                    &key,
-                )))
+        let key_type = *self;
+        let sk = ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| {
+            SshKeyError::SshKeyParse {
+                // TODO: rust thinks this clone is necessary because key.path is also used below (but
+                // if we get to this point, we're going to return an error and never reach the other
+                // error handling branches where we use key.path).
+                path: key.path.clone(),
+                key_type,
+                err: e.into(),
             }
+        })?;
+
+        let wanted_key_algo = key_type.ssh_algorithm();
+
+        if SshKeyAlgorithm::from(sk.algorithm()) != wanted_key_algo {
+            return Err(SshKeyError::UnexpectedSshKeyType {
+                path: key.path,
+                wanted_key_algo,
+                found_key_algo: sk.algorithm().into(),
+            }
+            .boxed());
+        }
+
+        // Build the expected key type (i.e. convert ssh_key key types to the key types
+        // we're using internally).
+        match sk.key_data() {
+            KeypairData::Ed25519(key) => Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
+                .map_err(|_| {
+                    tor_error::internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
+                })
+                .map(Box::new)?),
+            KeypairData::Other(key)
+                if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
+            {
+                let key: [u8; 32] = key
+                    .private
+                    .as_ref()
+                    .try_into()
+                    .map_err(|_| tor_error::internal!("invalid x25519 private key"))?;
+
+                Ok(Box::new(curve25519::StaticSecret::from(key)))
+            }
+            _ => Err(SshKeyError::UnexpectedSshKeyType {
+                path: key.path,
+                wanted_key_algo,
+                found_key_algo: sk.algorithm().into(),
+            }
+            .boxed()),
         }
     }
 }
