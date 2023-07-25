@@ -262,6 +262,8 @@ if and what we want to publish.
    configurable, default is 3, max is 20.
    (rend-spec-v3 2.5.4 NUM_INTRO_POINT)
 
+ * Maximum number of IPTs including replaced faulty ones  (2N).
+
  * IPT replacement time: 4..7 days (uniform random)
    TODO: what is the right value here?  (Should we do time-based rotation at all?)
 
