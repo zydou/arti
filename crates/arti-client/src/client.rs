@@ -819,12 +819,16 @@ impl<R: Runtime> TorClient<R> {
         // safely let two threads change them at once.  If we did, then we'd
         // introduce time-of-check/time-of-use bugs in checking our configuration,
         // deciding how to change it, then applying the changes.
-        let _guard = self.reconfigure_lock.lock().expect("Poisoned lock");
+        let guard = self.reconfigure_lock.lock().expect("Poisoned lock");
 
         match how {
             tor_config::Reconfigure::AllOrNothing => {
                 // We have to check before we make any changes.
-                self.reconfigure_inner(new_config, tor_config::Reconfigure::CheckAllOrNothing)?;
+                self.reconfigure_inner(
+                    new_config,
+                    tor_config::Reconfigure::CheckAllOrNothing,
+                    &guard,
+                )?;
             }
             tor_config::Reconfigure::CheckAllOrNothing => {}
             tor_config::Reconfigure::WarnOnFailures => {}
@@ -832,7 +836,7 @@ impl<R: Runtime> TorClient<R> {
         }
 
         // Actually reconfigure
-        self.reconfigure_inner(new_config, how)?;
+        self.reconfigure_inner(new_config, how, &guard)?;
 
         Ok(())
     }
@@ -844,6 +848,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         new_config: &TorClientConfig,
         how: tor_config::Reconfigure,
+        _reconfigure_lock_guard: &std::sync::MutexGuard<'_, ()>,
     ) -> crate::Result<()> {
         let dir_cfg = new_config.dir_mgr_config().map_err(wrap_err)?;
         let state_cfg = new_config.storage.expand_state_dir().map_err(wrap_err)?;
