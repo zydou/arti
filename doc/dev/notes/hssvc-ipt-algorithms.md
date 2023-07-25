@@ -264,6 +264,7 @@ if and what we want to publish.
 ## Load balancing (and maybe failover)
 
 This is a sketch, only.
+TODO: Look at what Onion Balance does before implementing this.
 
 If it's desired to allow multiple Arti processes to serve a single HS:
 
