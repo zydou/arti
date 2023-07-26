@@ -37,8 +37,8 @@ use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
 
 use futures::channel::{mpsc, oneshot};
-use futures::Sink;
 use futures::Stream;
+use futures::{Sink, StreamExt};
 use tor_error::internal;
 
 use std::sync::{Arc, Mutex};
@@ -783,6 +783,94 @@ impl Reactor {
             })
             .await?;
         }
+        Ok(())
+    }
+
+    /// Wait for a [`CtrlMsg::Create`] to come along to set up the circuit.
+    ///
+    /// Returns an error if an unexpected `CtrlMsg` is received.
+    async fn create_firsthop(&mut self) -> std::result::Result<(), ReactorError> {
+        let Some(msg) = self.control.next().await else {
+            trace!("{}: reactor shutdown due to control drop", self.unique_id);
+            return Err(ReactorError::Shutdown);
+        };
+
+        match msg {
+            CtrlMsg::Create {
+                recv_created,
+                handshake,
+                params,
+                done,
+            } => {
+                self.handle_create(recv_created, handshake, &params, done)
+                    .await
+            }
+            CtrlMsg::Shutdown => {
+                trace!(
+                    "{}: reactor shutdown due to explicit request",
+                    self.unique_id
+                );
+
+                Err(ReactorError::Shutdown)
+            }
+            #[cfg(test)]
+            CtrlMsg::AddFakeHop {
+                fwd_lasthop,
+                rev_lasthop,
+                params,
+                done,
+            } => {
+                use crate::circuit::test::DummyCrypto;
+
+                let dummy_peer_id = OwnedChanTarget::builder()
+                    .ed_identity([4; 32].into())
+                    .rsa_identity([5; 20].into())
+                    .build()
+                    .expect("Could not construct fake hop");
+
+                let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
+                let rev = Box::new(DummyCrypto::new(rev_lasthop));
+                self.add_hop(path::HopDetail::Relay(dummy_peer_id), fwd, rev, &params);
+                let _ = done.send(Ok(()));
+
+                Ok(())
+            }
+            _ => {
+                trace!("reactor shutdown due to unexpected cell: {:?}", msg);
+
+                Err(Error::CircProto(format!("Unexpected {msg:?} cell on client circuit")).into())
+            }
+        }
+    }
+
+    /// Handle a [`CtrlMsg::Create`] message.
+    async fn handle_create(
+        &mut self,
+        recv_created: oneshot::Receiver<CreateResponse>,
+        handshake: CircuitHandshake,
+        params: &CircParameters,
+        done: ReactorResultChannel<()>,
+    ) -> std::result::Result<(), ReactorError> {
+        let ret = match handshake {
+            CircuitHandshake::CreateFast => self.create_firsthop_fast(recv_created, params).await,
+            CircuitHandshake::Ntor {
+                public_key,
+                ed_identity,
+            } => {
+                self.create_firsthop_ntor(recv_created, ed_identity, public_key, params)
+                    .await
+            }
+        };
+        let _ = done.send(ret); // don't care if sender goes away
+
+        futures::future::poll_fn(|cx| -> Poll<Result<()>> {
+            let _ = Pin::new(&mut self.channel)
+                .poll_flush(cx)
+                .map_err(|_| ChannelClosed)?;
+            Poll::Ready(Ok(()))
+        })
+        .await?;
+
         Ok(())
     }
 
