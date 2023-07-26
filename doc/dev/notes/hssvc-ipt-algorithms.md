@@ -109,15 +109,16 @@ Each IPT can be in the following states:
 
  * `Faulty`:
    The IPT has been advertised but appears to be faulty.
-   (For example, the circuit to it has collapsed.)
-   We will continue to try to maintain our circuit to it.
+   (For example, the circuit to it has collapsed
+   and could not be reestablished.)
    But we won't publish it in any descriptor.
    We will allow the re-establishment attempt to proceed,
    but if it doesn't yield success within a reasonable time,
    we will try to replace this IPT with another IPT.
 
  * `Retiring`:
-   We have reached the IPT's planned replacement time.
+   We have reached the IPT's planned replacement time,
+   or the IPT has been used for many rendezvous requests.
    (We will continue to maintain our circuit to it
    so long as descriptors with it are valid.)
 
