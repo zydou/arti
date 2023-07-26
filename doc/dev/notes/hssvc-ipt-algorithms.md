@@ -139,7 +139,7 @@ if the fault was local (and would therefore affect all IPTs):
 If our verification probe fails,
 but the circuit to the IPT appears to remain up:
 
- * If we didn't manage to build the test ciruit to the IPT,
+ * If we didn't manage to build the test circuit to the IPT,
    check the `ErrorKind`, as above.
 
  * If we managed to build the test circuit to the IPT,
@@ -245,7 +245,7 @@ if and what we want to publish.
    10 minutes.
 
  * Verification probe interval:
-   descriptor expiry time minus 15 minutess.
+   descriptor expiry time minus 15 minutes.
 
  * Backoff schedule for hsdir publication.
 
