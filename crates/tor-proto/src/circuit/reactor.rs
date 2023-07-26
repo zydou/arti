@@ -1247,7 +1247,7 @@ impl Reactor {
         }
     }
 
-    /// Handle a CtrlMsg other than Shutdown.
+    /// Handle a CtrlMsg other than Create and Shutdown.
     fn handle_control(&mut self, cx: &mut Context<'_>, msg: CtrlMsg) -> Result<()> {
         trace!("{}: reactor received {:?}", self.unique_id, msg);
         match msg {
