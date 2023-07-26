@@ -617,13 +617,7 @@ impl Reactor {
                         trace!("{}: reactor shutdown due to control drop", self.unique_id);
                         return Poll::Ready(Err(ReactorError::Shutdown));
                     }
-                    Some(CtrlMsg::Shutdown) => {
-                        trace!(
-                            "{}: reactor shutdown due to explicit request",
-                            self.unique_id
-                        );
-                        return Poll::Ready(Err(ReactorError::Shutdown));
-                    }
+                    Some(CtrlMsg::Shutdown) => return Poll::Ready(self.handle_shutdown()),
                     Some(msg) => {
                         self.handle_control(cx, msg)?;
                         did_things = true;
@@ -779,14 +773,7 @@ impl Reactor {
                 self.handle_create(recv_created, handshake, &params, done)
                     .await
             }
-            CtrlMsg::Shutdown => {
-                trace!(
-                    "{}: reactor shutdown due to explicit request",
-                    self.unique_id
-                );
-
-                Err(ReactorError::Shutdown)
-            }
+            CtrlMsg::Shutdown => self.handle_shutdown(),
             #[cfg(test)]
             CtrlMsg::AddFakeHop {
                 fwd_lasthop,
@@ -794,19 +781,7 @@ impl Reactor {
                 params,
                 done,
             } => {
-                use crate::circuit::test::DummyCrypto;
-
-                let dummy_peer_id = OwnedChanTarget::builder()
-                    .ed_identity([4; 32].into())
-                    .rsa_identity([5; 20].into())
-                    .build()
-                    .expect("Could not construct fake hop");
-
-                let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
-                let rev = Box::new(DummyCrypto::new(rev_lasthop));
-                self.add_hop(path::HopDetail::Relay(dummy_peer_id), fwd, rev, &params);
-                let _ = done.send(Ok(()));
-
+                self.handle_add_fake_hop(fwd_lasthop, rev_lasthop, &params, done);
                 Ok(())
             }
             _ => {
@@ -846,6 +821,39 @@ impl Reactor {
         .await?;
 
         Ok(())
+    }
+
+    /// Handle a [`CtrlMsg::Shutdown`] message.
+    fn handle_shutdown(&self) -> std::result::Result<(), ReactorError> {
+        trace!(
+            "{}: reactor shutdown due to explicit request",
+            self.unique_id
+        );
+
+        Err(ReactorError::Shutdown)
+    }
+
+    /// Handle a [`CtrlMsg::AddFakeHop`] message.
+    #[cfg(test)]
+    fn handle_add_fake_hop(
+        &mut self,
+        fwd_lasthop: bool,
+        rev_lasthop: bool,
+        params: &CircParameters,
+        done: ReactorResultChannel<()>,
+    ) {
+        use crate::circuit::test::DummyCrypto;
+
+        let dummy_peer_id = OwnedChanTarget::builder()
+            .ed_identity([4; 32].into())
+            .rsa_identity([5; 20].into())
+            .build()
+            .expect("Could not construct fake hop");
+
+        let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
+        let rev = Box::new(DummyCrypto::new(rev_lasthop));
+        self.add_hop(path::HopDetail::Relay(dummy_peer_id), fwd, rev, params);
+        let _ = done.send(Ok(()));
     }
 
     /// Helper: create the first hop of a circuit.
@@ -1325,20 +1333,7 @@ impl Reactor {
                 rev_lasthop,
                 params,
                 done,
-            } => {
-                use crate::circuit::test::DummyCrypto;
-
-                let dummy_peer_id = OwnedChanTarget::builder()
-                    .ed_identity([4; 32].into())
-                    .rsa_identity([5; 20].into())
-                    .build()
-                    .expect("Could not construct fake hop");
-
-                let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
-                let rev = Box::new(DummyCrypto::new(rev_lasthop));
-                self.add_hop(path::HopDetail::Relay(dummy_peer_id), fwd, rev, &params);
-                let _ = done.send(Ok(()));
-            }
+            } => self.handle_add_fake_hop(fwd_lasthop, rev_lasthop, &params, done),
             #[cfg(test)]
             CtrlMsg::QuerySendWindow { hop, done } => {
                 let _ = done.send(if let Some(hop) = self.hop_mut(hop) {
