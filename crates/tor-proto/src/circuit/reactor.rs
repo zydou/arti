@@ -600,9 +600,14 @@ impl Reactor {
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
     async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
+        if self.hops.is_empty() {
+            self.create_firsthop().await?;
+
+            return Ok(());
+        }
+
         #[allow(clippy::cognitive_complexity)]
         let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
-            let mut create_message = None;
             let mut did_things = false;
 
             // Check whether we've got a control message pending.
@@ -619,9 +624,6 @@ impl Reactor {
                         );
                         return Poll::Ready(Err(ReactorError::Shutdown));
                     }
-                    // This message requires actually blocking, so we can't handle it inside
-                    // this nonblocking poll_fn.
-                    Some(x @ CtrlMsg::Create { .. }) => create_message = Some(x),
                     Some(msg) => {
                         self.handle_control(cx, msg)?;
                         did_things = true;
@@ -746,43 +748,15 @@ impl Reactor {
             let _ = Pin::new(&mut self.channel)
                 .poll_flush(cx)
                 .map_err(|_| ChannelClosed)?;
-            if create_message.is_some() {
-                Poll::Ready(Ok(create_message))
-            } else if did_things {
-                Poll::Ready(Ok(None))
+
+            if did_things {
+                Poll::Ready(Ok(()))
             } else {
                 Poll::Pending
             }
         });
-        let create_message = fut.await?;
-        if let Some(CtrlMsg::Create {
-            recv_created,
-            handshake,
-            params,
-            done,
-        }) = create_message
-        {
-            let ret = match handshake {
-                CircuitHandshake::CreateFast => {
-                    self.create_firsthop_fast(recv_created, &params).await
-                }
-                CircuitHandshake::Ntor {
-                    public_key,
-                    ed_identity,
-                } => {
-                    self.create_firsthop_ntor(recv_created, ed_identity, public_key, &params)
-                        .await
-                }
-            };
-            let _ = done.send(ret); // don't care if sender goes away
-            futures::future::poll_fn(|cx| -> Poll<Result<()>> {
-                let _ = Pin::new(&mut self.channel)
-                    .poll_flush(cx)
-                    .map_err(|_| ChannelClosed)?;
-                Poll::Ready(Ok(()))
-            })
-            .await?;
-        }
+
+        fut.await?;
         Ok(())
     }
 
