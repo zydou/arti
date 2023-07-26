@@ -13,16 +13,18 @@ set -euo pipefail
 # interesting license combinations that involve AND may need to be given
 # in quotes.
 #
-# TODO is a temporary marker for crates that need to have a proper
-#      license assigned. This should be removed soon.
+# Note: The LGPL-3.0-only is here for the 'equix' and 'hashx' crates, which
+#       were written as Rust reimplementations of projects originally licensed
+#       under the LGPL. We'd like to use "MIT OR Apache-2.0" instead, but only
+#       if the original project's author approves.
 RECOGNIZED_LICENSES=(
     Apache-2.0
     BSD-2-Clause
     BSD-3-Clause
     CC0-1.0
     ISC
+    LGPL-3.0-only
     MIT
-    TODO
     Unicode-DFS-2016
     Unlicense
     Zlib
