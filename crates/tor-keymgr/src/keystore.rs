@@ -2,6 +2,7 @@
 
 pub(crate) mod arti;
 
+use rand::{CryptoRng, RngCore};
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
 use zeroize::Zeroizing;
@@ -14,6 +15,11 @@ use downcast_rs::{impl_downcast, Downcast};
 /// A type-erased key returned by a [`Keystore`].
 pub type ErasedKey = Box<dyn EncodableKey>;
 
+/// A random number generator for generating [`EncodableKey`]s.
+pub trait KeygenRng: RngCore + CryptoRng {}
+
+impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
+
 /// A generic key store.
 //
 // TODO HSS: eventually this will be able to store items that aren't keys (such as certificates and
@@ -25,6 +31,9 @@ pub trait Keystore: Send + Sync + 'static {
     /// This identifier is used by some [`KeyMgr`](crate::KeyMgr) APIs to identify a specific key
     /// store.
     fn id(&self) -> &KeystoreId;
+
+    /// Check if the the key identified by `key_spec` exists in this key store.
+    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool>;
 
     /// Retrieve the key identified by `key_spec`.
     ///
@@ -73,6 +82,11 @@ pub trait EncodableKey: Downcast {
     where
         Self: Sized;
 
+    /// Generate a new key of this type.
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized;
+
     /// The byte representation of the key.
     fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>>;
 }
@@ -87,6 +101,13 @@ impl EncodableKey for curve25519::StaticSecret {
         KeyType::X25519StaticSecret
     }
 
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(curve25519::StaticSecret::new(rng))
+    }
+
     fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
         Ok(curve25519::StaticSecret::to_bytes(self).to_vec().into())
     }
@@ -98,6 +119,15 @@ impl EncodableKey for ed25519::Keypair {
         Self: Sized,
     {
         KeyType::Ed25519Keypair
+    }
+
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        use tor_llcrypto::util::rand_compat::RngCompatExt;
+
+        Ok(ed25519::Keypair::generate(&mut rng.rng_compat()))
     }
 
     fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {

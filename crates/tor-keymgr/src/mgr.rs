@@ -2,9 +2,21 @@
 //!
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
 //! [`Keystore`].
+//!
+//! ## Concurrent key store access
+//!
+//! The key stores will allow concurrent modification by different processes. In
+//! order to implement this safely without locking, the key store operations (get,
+//! insert, remove) will need to be atomic.
+//!
+//! **Note**: [`KeyMgr::generate`] should **not** be used concurrently with any other `KeyMgr`
+//! operation that mutates the state of key stores, because its outcome depends on whether the
+//! selected key store [`contains`][Keystore::contains] the specified key (and thus suffers from a
+//! a TOCTOU race).
 
 use crate::{
-    EncodableKey, KeySpecifier, Keystore, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
+    EncodableKey, KeySpecifier, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
+    ToEncodableKey,
 };
 
 use std::iter;
@@ -45,6 +57,38 @@ impl KeyMgr {
         self.get_from_store(key_spec, self.all_stores())
     }
 
+    /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
+    ///
+    /// If the key already exists in the specified key store, the `overwrite` flag is used to
+    /// decide whether to overwrite it with a newly generated key.
+    ///
+    /// Returns `Ok(Some(())` if a new key was created, and `Ok(None)` otherwise.
+    ///
+    /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
+    /// mutates the key store state is **not** recommended, as it can yield surprising results! The
+    /// outcome of [`KeyMgr::generate`] depends on whether the selected key store
+    /// [`contains`][Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
+    //
+    // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
+    // overwrite any existing keys.
+    pub fn generate<K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+        rng: &mut dyn KeygenRng,
+        overwrite: bool,
+    ) -> Result<Option<()>> {
+        let store = self.select_keystore(&selector)?;
+        let key_type = K::Key::key_type();
+
+        if overwrite || !store.contains(key_spec, key_type)? {
+            let key = K::Key::generate(rng)?;
+            store.insert(&key, key_spec, key_type).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Insert `key` into the [`Keystore`] specified by `selector`.
     ///
     /// If the key already exists, it is overwritten.
@@ -57,17 +101,9 @@ impl KeyMgr {
         selector: KeystoreSelector,
     ) -> Result<()> {
         let key = key.to_encodable_key();
+        let store = self.select_keystore(&selector)?;
 
-        match selector {
-            KeystoreSelector::Id(keystore_id) => {
-                let keystore = self.find_keystore(keystore_id)?;
-                keystore.insert(&key, key_spec, K::Key::key_type())
-            }
-            KeystoreSelector::Default => {
-                self.default_store
-                    .insert(&key, key_spec, K::Key::key_type())
-            }
-        }
+        store.insert(&key, key_spec, K::Key::key_type())
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
@@ -81,13 +117,9 @@ impl KeyMgr {
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
     ) -> Result<Option<()>> {
-        match selector {
-            KeystoreSelector::Id(keystore_id) => {
-                let keystore = self.find_keystore(keystore_id)?;
-                keystore.remove(key_spec, K::Key::key_type())
-            }
-            KeystoreSelector::Default => self.default_store.remove(key_spec, K::Key::key_type()),
-        }
+        let store = self.select_keystore(&selector)?;
+
+        store.remove(key_spec, K::Key::key_type())
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
@@ -130,6 +162,14 @@ impl KeyMgr {
         iter::once(&self.default_store).chain(self.key_stores.iter())
     }
 
+    /// Return the [`Keystore`] matching the specified `selector`.
+    fn select_keystore(&self, selector: &KeystoreSelector) -> Result<&BoxedKeystore> {
+        match selector {
+            KeystoreSelector::Id(keystore_id) => self.find_keystore(keystore_id),
+            KeystoreSelector::Default => Ok(&self.default_store),
+        }
+    }
+
     /// Return the [`Keystore`] with the specified `id`.
     fn find_keystore(&self, id: &KeystoreId) -> Result<&BoxedKeystore> {
         self.all_stores()
@@ -156,6 +196,7 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
     use std::sync::RwLock;
+    use tor_basic_utils::test_rng::testing_rng;
 
     /// The type of "key" stored in the test key stores.
     type TestKey = String;
@@ -167,6 +208,13 @@ mod tests {
         {
             // Dummy value
             KeyType::Ed25519Keypair
+        }
+
+        fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
+        where
+            Self: Sized,
+        {
+            Ok("generated_test_key".into())
         }
 
         fn to_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
@@ -210,6 +258,14 @@ mod tests {
             }
 
             impl Keystore for $name {
+                fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool> {
+                    Ok(self
+                        .inner
+                        .read()
+                        .unwrap()
+                        .contains_key(&(key_spec.arti_path()?, key_type)))
+                }
+
                 fn id(&self) -> &KeystoreId {
                     &self.id
                 }
@@ -363,6 +419,10 @@ mod tests {
             vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
         );
 
+        assert!(!mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
+
         // Insert a key into Keystore2
         mgr.insert(
             "coot".to_string(),
@@ -382,6 +442,10 @@ mod tests {
                 KeystoreSelector::Id(&KeystoreId::from_str("not_an_id_we_know_of").unwrap())
             )
             .is_err());
+        // The key still exists in Keystore2
+        assert!(mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
 
         // Try to remove the key from the default key store
         assert_eq!(
@@ -389,6 +453,11 @@ mod tests {
                 .unwrap(),
             None
         );
+
+        // The key still exists in Keystore2
+        assert!(mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
 
         // Removing from Keystore2 should succeed.
         assert_eq!(
@@ -398,6 +467,51 @@ mod tests {
             )
             .unwrap(),
             Some(())
+        );
+
+        // The key doesn't exist in Keystore2 anymore
+        assert!(!mgr.key_stores[0]
+            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .unwrap());
+    }
+
+    #[test]
+    fn keygen() {
+        let mgr = KeyMgr::new(Keystore1::default(), vec![]);
+
+        mgr.insert(
+            "coot".to_string(),
+            &TestKeySpecifier1,
+            KeystoreSelector::Default,
+        )
+        .unwrap();
+
+        // Try to generate a new key (overwrite = false)
+        mgr.generate::<TestKey>(
+            &TestKeySpecifier1,
+            KeystoreSelector::Default,
+            &mut testing_rng(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
+            Some("keystore1_coot".to_string())
+        );
+
+        // Try to generate a new key (overwrite = true)
+        mgr.generate::<TestKey>(
+            &TestKeySpecifier1,
+            KeystoreSelector::Default,
+            &mut testing_rng(),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
+            Some("keystore1_generated_test_key".to_string())
         );
     }
 }

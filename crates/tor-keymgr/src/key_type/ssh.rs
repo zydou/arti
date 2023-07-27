@@ -8,7 +8,7 @@ use ssh_key::Algorithm;
 
 use crate::{EncodableKey, ErasedKey, KeyType, KeystoreError, Result};
 
-use tor_error::{ErrorKind, HasKind};
+use tor_error::{internal, ErrorKind, HasKind};
 use tor_llcrypto::pk::{ed25519, keymanip};
 use zeroize::Zeroizing;
 
@@ -183,7 +183,7 @@ impl KeyType {
     // TODO HSS: remove "allow" and choose a better name for this function
     #[allow(clippy::wrong_self_convention)]
     pub(crate) fn to_ssh_format(&self, _key: &dyn EncodableKey) -> Result<String> {
-        todo!() // TODO HSS
+        Err(internal!("not implemented").into())
     }
 }
 

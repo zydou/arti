@@ -12,4 +12,7 @@ BREAKING: `KeyMgr::insert`, `KeyMgr::remove` now take an
 REMOVED: the `has_key_bundle` function (from the `Keystore` trait)
 ADDED: `PartialEq`, `Eq`, `Hash` derives for `ArtiPath` and `KeyType`
 ADDED: a `to_bytes` function to `EncodableKey` trait
-
+ADDED: `Keystore::contains()`
+ADDED: `KeygenRng` trait
+ADDED: `EncodableKey::generate()`
+ADDED: `KeyMgr::generate()`
