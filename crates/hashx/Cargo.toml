@@ -14,6 +14,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 # by tevador here: https://github.com/tevador/equix/. The original is
 # Copyright (c) 2020 tevador <tevador@gmail.com>
 # and licensed under the terms of the LGPL version 3.0.
+#
+# If tevador is okay with it, we intend to re-license this crate as
+# MIT OR Apache-2.0. Thus, do not contribute to this crate unless you
+# are okay with these licensing terms.
 license = "LGPL-3.0-only"
 
 [features]

@@ -83,17 +83,25 @@ pub(crate) trait ValueLookup<V: Copy> {
 /// version that appears in the API and a 'storage' version that's been
 /// stripped of the data redundant with its bucket position.
 ///
-/// The validity of [`BucketArrayMemory`] entries is ensured by the combiation
+/// The validity of [`BucketArrayMemory`] entries is ensured by the combination
 /// of our mutable ref to the `BucketArrayMemory` itself and our tracking of
 /// bucket counts within the lifetime of that reference.
 pub(crate) struct KeyValueBucketArray<
+    // Lifetime for mutable reference to key storage memory
     'k,
+    // Lifetime for mutable reference to value storage memory
     'v,
+    // Number of buckets
     const N: usize,
+    // Maximum number of items per bucket
     const CAP: usize,
+    // Type for bucket item counts
     C: Count,
+    // Full size key type, used in the API and for calculating bucket indices
     K: Key,
+    // Storage type for keys, potentially smaller than `K`
     KS: KeyStorage<K>,
+    // Value type
     V: Copy,
 >(
     mem::BucketArrayPair<'k, 'v, N, CAP, C, KS, V>,
@@ -123,10 +131,20 @@ impl<'k, 'v, const N: usize, const CAP: usize, C: Count, K: Key, KS: KeyStorage<
 /// Concrete bucket array with a single [`BucketArrayMemory`] for value storage
 ///
 /// Keys are used for bucket indexing but the remainder bits are not stored.
-pub(crate) struct ValueBucketArray<'v, const N: usize, const CAP: usize, C: Count, K: Key, V: Copy>(
-    mem::BucketArray<'v, N, CAP, C, V>,
-    PhantomData<K>,
-);
+pub(crate) struct ValueBucketArray<
+    // Lifetime for mutable reference to value storage memory
+    'v,
+    // Number of buckets
+    const N: usize,
+    // Maximum number of items per bucket
+    const CAP: usize,
+    // Type for bucket item counts
+    C: Count,
+    // Full size key type, used in the API and for calculating bucket indices
+    K: Key,
+    // Value type
+    V: Copy,
+>(mem::BucketArray<'v, N, CAP, C, V>, PhantomData<K>);
 
 impl<'v, const N: usize, const CAP: usize, C: Count, K: Key, V: Copy>
     ValueBucketArray<'v, N, CAP, C, K, V>

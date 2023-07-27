@@ -72,14 +72,19 @@ pub(crate) unsafe trait Uninit: Copy {
 
 /// Backing memory for a single key or value bucket array
 ///
-/// Describes N buckets which each hold at most M items of type T.
+/// Describes `N` buckets which each hold at most `M` items of type `T`.
 ///
 /// Implements [`Uninit`]. Structs and unions made from `BucketArrayMemory`
 /// can be soundly marked as [`Uninit`].
 #[derive(Copy, Clone)]
-pub(crate) struct BucketArrayMemory<const N: usize, const M: usize, T: Copy>(
-    [[MaybeUninit<T>; M]; N],
-);
+pub(crate) struct BucketArrayMemory<
+    // Number of buckets
+    const N: usize,
+    // Number of item slots in each bucket
+    const M: usize,
+    // Item type
+    T: Copy,
+>([[MaybeUninit<T>; M]; N]);
 
 /// Implements the [`Uninit`] trait. This memory is always assumed to be
 /// uninitialized unless we hold a mutable reference paired with bucket
@@ -99,7 +104,14 @@ impl<T: Copy + Zero + One + Into<usize> + Add<Self, Output = Self>> Count for T 
 /// Tracks the number of items in each bucket. This is used by [`BucketArray`]
 /// and [`BucketArrayPair`] implementations to safely access only initialized
 /// items in the [`BucketArrayMemory`].
-struct BucketState<const N: usize, const CAP: usize, C: Count> {
+struct BucketState<
+    // Number of buckets
+    const N: usize,
+    // Maximum number of items per bucket
+    const CAP: usize,
+    // Type for bucket item counts
+    C: Count,
+> {
     /// Number of initialized items in each bucket
     ///
     /// Each bucket B's valid item range would be `(0 .. counts[B])`
@@ -148,7 +160,18 @@ impl<const N: usize, const CAP: usize, C: Count> BucketState<N, CAP, C> {
 }
 
 /// Concrete binding between one [`BucketState`] and one [`BucketArrayMemory`]
-pub(crate) struct BucketArray<'a, const N: usize, const CAP: usize, C: Count, A: Copy> {
+pub(crate) struct BucketArray<
+    // Lifetime for mutable reference to the backing memory
+    'a,
+    // Number of buckets
+    const N: usize,
+    // Maximum number of items per bucket
+    const CAP: usize,
+    // Type for bucket item counts
+    C: Count,
+    // Item type
+    A: Copy,
+> {
     /// Reference to external backing memory for type A
     mem: &'a mut BucketArrayMemory<N, CAP, A>,
     /// Tracking for which items are in use within each bucket
@@ -196,12 +219,19 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
 
 /// Concrete binding between one [`BucketState`] and a pair of [`BucketArrayMemory`]
 pub(crate) struct BucketArrayPair<
+    // Lifetime for mutable reference to the first backing memory
     'a,
+    // Lifetime for mutable reference to the second backing memory
     'b,
+    // Number of buckets
     const N: usize,
+    // Maximum number of items per bucket
     const CAP: usize,
+    // Type for bucket item counts
     C: Count,
+    // Type for items in the first backing memory
     A: Copy,
+    // Type for items in the second backing memory
     B: Copy,
 > {
     /// Reference to external backing memory for type `A`

@@ -48,7 +48,7 @@ impl<R: Relocation, const S: usize> Assembler<R, S> {
 
     /// Return a new [`Executable`] with the code that's been written so far.
     ///
-    /// This may fail if we can't allocate and some memory, fill it, and mark
+    /// This may fail if we can't allocate some memory, fill it, and mark
     /// it as executable. For example, a Linux platform with policy to restrict
     /// `mprotect` will show runtime errors at this point.
     pub(crate) fn finalize(self) -> Result<Executable, CompilerError> {
