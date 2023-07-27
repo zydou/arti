@@ -2,6 +2,17 @@
 //!
 //! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
 //! [`Keystore`].
+//!
+//! ## Concurrent key store access
+//!
+//! The key stores will allow concurrent modification by different processes. In
+//! order to implement this safely without locking, the key store operations (get,
+//! insert, remove) will need to be atomic.
+//!
+//! **Note**: [`KeyMgr::generate`] should **not** be used concurrently with any other `KeyMgr`
+//! operation that mutates the state of key stores, because its outcome depends on whether the
+//! selected key store [`contains`][Keystore::contains] the specified key (and thus suffers from a
+//! a TOCTOU race).
 
 use crate::{
     EncodableKey, KeySpecifier, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
@@ -52,6 +63,11 @@ impl KeyMgr {
     /// decide whether to overwrite it with a newly generated key.
     ///
     /// Returns `Ok(Some(())` if a new key was created, and `Ok(None)` otherwise.
+    ///
+    /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
+    /// mutates the key store state is **not** recommended, as it can yield surprising results! The
+    /// outcome of [`KeyMgr::generate`] depends on whether the selected key store
+    /// [`contains`][Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
     pub fn generate<K: ToEncodableKey>(
         &self,
         key_spec: &dyn KeySpecifier,
