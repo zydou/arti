@@ -37,8 +37,8 @@ use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
 
 use futures::channel::{mpsc, oneshot};
-use futures::Sink;
 use futures::Stream;
+use futures::{Sink, StreamExt};
 use tor_error::internal;
 
 use std::sync::{Arc, Mutex};
@@ -600,9 +600,14 @@ impl Reactor {
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
     async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
+        if self.hops.is_empty() {
+            self.wait_for_create().await?;
+
+            return Ok(());
+        }
+
         #[allow(clippy::cognitive_complexity)]
         let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
-            let mut create_message = None;
             let mut did_things = false;
 
             // Check whether we've got a control message pending.
@@ -612,16 +617,7 @@ impl Reactor {
                         trace!("{}: reactor shutdown due to control drop", self.unique_id);
                         return Poll::Ready(Err(ReactorError::Shutdown));
                     }
-                    Some(CtrlMsg::Shutdown) => {
-                        trace!(
-                            "{}: reactor shutdown due to explicit request",
-                            self.unique_id
-                        );
-                        return Poll::Ready(Err(ReactorError::Shutdown));
-                    }
-                    // This message requires actually blocking, so we can't handle it inside
-                    // this nonblocking poll_fn.
-                    Some(x @ CtrlMsg::Create { .. }) => create_message = Some(x),
+                    Some(CtrlMsg::Shutdown) => return Poll::Ready(self.handle_shutdown()),
                     Some(msg) => {
                         self.handle_control(cx, msg)?;
                         did_things = true;
@@ -746,44 +742,118 @@ impl Reactor {
             let _ = Pin::new(&mut self.channel)
                 .poll_flush(cx)
                 .map_err(|_| ChannelClosed)?;
-            if create_message.is_some() {
-                Poll::Ready(Ok(create_message))
-            } else if did_things {
-                Poll::Ready(Ok(None))
+
+            if did_things {
+                Poll::Ready(Ok(()))
             } else {
                 Poll::Pending
             }
         });
-        let create_message = fut.await?;
-        if let Some(CtrlMsg::Create {
-            recv_created,
-            handshake,
-            params,
-            done,
-        }) = create_message
-        {
-            let ret = match handshake {
-                CircuitHandshake::CreateFast => {
-                    self.create_firsthop_fast(recv_created, &params).await
-                }
-                CircuitHandshake::Ntor {
-                    public_key,
-                    ed_identity,
-                } => {
-                    self.create_firsthop_ntor(recv_created, ed_identity, public_key, &params)
-                        .await
-                }
-            };
-            let _ = done.send(ret); // don't care if sender goes away
-            futures::future::poll_fn(|cx| -> Poll<Result<()>> {
-                let _ = Pin::new(&mut self.channel)
-                    .poll_flush(cx)
-                    .map_err(|_| ChannelClosed)?;
-                Poll::Ready(Ok(()))
-            })
-            .await?;
-        }
+
+        fut.await?;
         Ok(())
+    }
+
+    /// Wait for a [`CtrlMsg::Create`] to come along to set up the circuit.
+    ///
+    /// Returns an error if an unexpected `CtrlMsg` is received.
+    async fn wait_for_create(&mut self) -> std::result::Result<(), ReactorError> {
+        let Some(msg) = self.control.next().await else {
+            trace!("{}: reactor shutdown due to control drop", self.unique_id);
+            return Err(ReactorError::Shutdown);
+        };
+
+        match msg {
+            CtrlMsg::Create {
+                recv_created,
+                handshake,
+                params,
+                done,
+            } => {
+                self.handle_create(recv_created, handshake, &params, done)
+                    .await
+            }
+            CtrlMsg::Shutdown => self.handle_shutdown(),
+            #[cfg(test)]
+            CtrlMsg::AddFakeHop {
+                fwd_lasthop,
+                rev_lasthop,
+                params,
+                done,
+            } => {
+                self.handle_add_fake_hop(fwd_lasthop, rev_lasthop, &params, done);
+                Ok(())
+            }
+            _ => {
+                trace!("reactor shutdown due to unexpected cell: {:?}", msg);
+
+                Err(Error::CircProto(format!("Unexpected {msg:?} cell on client circuit")).into())
+            }
+        }
+    }
+
+    /// Handle a [`CtrlMsg::Create`] message.
+    async fn handle_create(
+        &mut self,
+        recv_created: oneshot::Receiver<CreateResponse>,
+        handshake: CircuitHandshake,
+        params: &CircParameters,
+        done: ReactorResultChannel<()>,
+    ) -> std::result::Result<(), ReactorError> {
+        let ret = match handshake {
+            CircuitHandshake::CreateFast => self.create_firsthop_fast(recv_created, params).await,
+            CircuitHandshake::Ntor {
+                public_key,
+                ed_identity,
+            } => {
+                self.create_firsthop_ntor(recv_created, ed_identity, public_key, params)
+                    .await
+            }
+        };
+        let _ = done.send(ret); // don't care if sender goes away
+
+        futures::future::poll_fn(|cx| -> Poll<Result<()>> {
+            let _ = Pin::new(&mut self.channel)
+                .poll_flush(cx)
+                .map_err(|_| ChannelClosed)?;
+            Poll::Ready(Ok(()))
+        })
+        .await?;
+
+        Ok(())
+    }
+
+    /// Handle a [`CtrlMsg::Shutdown`] message.
+    fn handle_shutdown(&self) -> std::result::Result<(), ReactorError> {
+        trace!(
+            "{}: reactor shutdown due to explicit request",
+            self.unique_id
+        );
+
+        Err(ReactorError::Shutdown)
+    }
+
+    /// Handle a [`CtrlMsg::AddFakeHop`] message.
+    #[cfg(test)]
+    fn handle_add_fake_hop(
+        &mut self,
+        fwd_lasthop: bool,
+        rev_lasthop: bool,
+        params: &CircParameters,
+        done: ReactorResultChannel<()>,
+    ) {
+        use crate::circuit::test::DummyCrypto;
+
+        let dummy_peer_id = OwnedChanTarget::builder()
+            .ed_identity([4; 32].into())
+            .rsa_identity([5; 20].into())
+            .build()
+            .expect("Could not construct fake hop");
+
+        let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
+        let rev = Box::new(DummyCrypto::new(rev_lasthop));
+        self.add_hop(path::HopDetail::Relay(dummy_peer_id), fwd, rev, params);
+        let _ = done.send(Ok(()));
     }
 
     /// Helper: create the first hop of a circuit.
@@ -1177,7 +1247,7 @@ impl Reactor {
         }
     }
 
-    /// Handle a CtrlMsg other than Shutdown.
+    /// Handle a CtrlMsg other than Create and Shutdown.
     fn handle_control(&mut self, cx: &mut Context<'_>, msg: CtrlMsg) -> Result<()> {
         trace!("{}: reactor received {:?}", self.unique_id, msg);
         match msg {
@@ -1263,20 +1333,7 @@ impl Reactor {
                 rev_lasthop,
                 params,
                 done,
-            } => {
-                use crate::circuit::test::DummyCrypto;
-
-                let dummy_peer_id = OwnedChanTarget::builder()
-                    .ed_identity([4; 32].into())
-                    .rsa_identity([5; 20].into())
-                    .build()
-                    .expect("Could not construct fake hop");
-
-                let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
-                let rev = Box::new(DummyCrypto::new(rev_lasthop));
-                self.add_hop(path::HopDetail::Relay(dummy_peer_id), fwd, rev, &params);
-                let _ = done.send(Ok(()));
-            }
+            } => self.handle_add_fake_hop(fwd_lasthop, rev_lasthop, &params, done),
             #[cfg(test)]
             CtrlMsg::QuerySendWindow { hop, done } => {
                 let _ = done.send(if let Some(hop) = self.hop_mut(hop) {
