@@ -68,6 +68,9 @@ impl KeyMgr {
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
     /// outcome of [`KeyMgr::generate`] depends on whether the selected key store
     /// [`contains`][Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
+    //
+    // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
+    // overwrite any existing keys.
     pub fn generate<K: ToEncodableKey>(
         &self,
         key_spec: &dyn KeySpecifier,
