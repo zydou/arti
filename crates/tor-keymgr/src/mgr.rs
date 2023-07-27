@@ -50,21 +50,23 @@ impl KeyMgr {
     ///
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
     /// decide whether to overwrite it with a newly generated key.
+    ///
+    /// Returns `Ok(Some(())` if a new key was created, and `Ok(None)` otherwise.
     pub fn generate<K: ToEncodableKey>(
         &self,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
         rng: &mut dyn KeygenRng,
         overwrite: bool,
-    ) -> Result<()> {
+    ) -> Result<Option<()>> {
         let store = self.select_keystore(&selector)?;
         let key_type = K::Key::key_type();
 
         if overwrite || !store.contains(key_spec, key_type)? {
             let key = K::Key::generate(rng)?;
-            store.insert(&key, key_spec, key_type)
+            store.insert(&key, key_spec, key_type).map(Some)
         } else {
-            Ok(())
+            Ok(None)
         }
     }
 
