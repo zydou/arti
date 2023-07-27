@@ -83,7 +83,7 @@ pub trait EncodableKey: Downcast {
         Self: Sized;
 
     /// Generate a new key of this type.
-    fn generate(rng: &mut dyn KeygenRng) -> Self
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized;
 
@@ -101,11 +101,11 @@ impl EncodableKey for curve25519::StaticSecret {
         KeyType::X25519StaticSecret
     }
 
-    fn generate(rng: &mut dyn KeygenRng) -> Self
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
     {
-        curve25519::StaticSecret::new(rng)
+        Ok(curve25519::StaticSecret::new(rng))
     }
 
     fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
@@ -121,13 +121,13 @@ impl EncodableKey for ed25519::Keypair {
         KeyType::Ed25519Keypair
     }
 
-    fn generate(rng: &mut dyn KeygenRng) -> Self
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
     {
         use tor_llcrypto::util::rand_compat::RngCompatExt;
 
-        ed25519::Keypair::generate(&mut rng.rng_compat())
+        Ok(ed25519::Keypair::generate(&mut rng.rng_compat()))
     }
 
     fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {

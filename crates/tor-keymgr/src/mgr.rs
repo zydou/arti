@@ -61,7 +61,7 @@ impl KeyMgr {
         let key_type = K::Key::key_type();
 
         if overwrite || !store.contains(key_spec, key_type)? {
-            let key = K::Key::generate(rng);
+            let key = K::Key::generate(rng)?;
             store.insert(&key, key_spec, key_type)
         } else {
             Ok(())
@@ -189,11 +189,11 @@ mod tests {
             KeyType::Ed25519Keypair
         }
 
-        fn generate(_rng: &mut dyn KeygenRng) -> Self
+        fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
         where
             Self: Sized,
         {
-            "generated_test_key".into()
+            Ok("generated_test_key".into())
         }
 
         fn to_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
