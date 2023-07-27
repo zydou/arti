@@ -12,18 +12,12 @@ set -euo pipefail
 # We don't currently do a good job of understanding AND, so
 # interesting license combinations that involve AND may need to be given
 # in quotes.
-#
-# Note: The LGPL-3.0-only is here for the 'equix' and 'hashx' crates, which
-#       were written as Rust reimplementations of projects originally licensed
-#       under the LGPL. We'd like to use "MIT OR Apache-2.0" instead, but only
-#       if the original project's author approves.
 RECOGNIZED_LICENSES=(
     Apache-2.0
     BSD-2-Clause
     BSD-3-Clause
     CC0-1.0
     ISC
-    LGPL-3.0-only
     MIT
     Unicode-DFS-2016
     Unlicense
@@ -59,6 +53,16 @@ MPL_20_OK=(
     generational-arena
     dynasm
     dynasmrt
+)
+
+# List of packages allowed to use the LGPL-3.0-only license.
+#
+# We aren't including LGPL code in the general Arti dependency tree, this is
+# just meant to be a limited whitelist which allows some of our own crates
+# we are developing under the LGPL.
+LGPL_30_ONLY_OK=(
+    equix
+    hashx
 )
 
 containsElement () {
@@ -105,6 +109,14 @@ for line in $output; do
     if test "$licenses" = "MPL-2.0"; then
 	if ! containsElement "$package" "${MPL_20_OK[@]}"; then
 	    echo "$package uses MPL-2.0 but has not been allow-listed."
+	    problems=1
+	fi
+	continue
+    fi
+
+    if test "$licenses" = "LGPL-3.0-only"; then
+	if ! containsElement "$package" "${LGPL_30_ONLY_OK[@]}"; then
+	    echo "$package uses LGPL-3.0-only but has not been allow-listed."
 	    problems=1
 	fi
 	continue
