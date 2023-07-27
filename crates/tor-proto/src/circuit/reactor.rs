@@ -601,7 +601,7 @@ impl Reactor {
     /// processes one cell or control message.
     async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
         if self.hops.is_empty() {
-            self.create_firsthop().await?;
+            self.wait_for_create().await?;
 
             return Ok(());
         }
@@ -757,7 +757,7 @@ impl Reactor {
     /// Wait for a [`CtrlMsg::Create`] to come along to set up the circuit.
     ///
     /// Returns an error if an unexpected `CtrlMsg` is received.
-    async fn create_firsthop(&mut self) -> std::result::Result<(), ReactorError> {
+    async fn wait_for_create(&mut self) -> std::result::Result<(), ReactorError> {
         let Some(msg) = self.control.next().await else {
             trace!("{}: reactor shutdown due to control drop", self.unique_id);
             return Err(ReactorError::Shutdown);
