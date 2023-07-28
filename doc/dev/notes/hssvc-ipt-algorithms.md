@@ -15,7 +15,10 @@ There are three main pieces:
    Selects IPTs, creates and destroys IPT establishers,
    monitors their success/failure, etc.
    Persistent (on-disk) state:
-   current list of IPTs and their (last) states, fault counters, etc.;
+   current set of IPT Relays.
+   Optional persistent (on-disk) state:
+   current list of IPTs and their (last) states, fault counters, etc.,
+   including secret keys necessary to re-stablish that IPT;
    all previous descriptor contents (`IptSetForDescriptor`)
    issued to hsdir publisher,
    that have not yet expired.
@@ -25,7 +28,7 @@ There are three main pieces:
    Identifies the hsdirs for the relevant time periods.
    Constructs descriptors according to the IPT manager's instructions,
    and publishes them to the hsdirs.
-   Persistent (on-disk) state:
+   Persistent (on-disk) state (optional):
    which versions (`IptSetForDescriptor`) are published where.
 
 Output of the whole thing:
@@ -44,6 +47,12 @@ the list of experience information would grow to the size of the network.
 Is this true?
 If not, would recording *all* our IPT experiences
 lead to distinguishability ?
+
+Some of the persistent state is optional:
+for a persistent hidden service, we prefer to store this information,
+to improve resilience after service restarts.
+But we can work without it,
+for example when we are operating an ephemeral service.
 
 ## IPT selection and startup for a new HS, overall behaviour
 
