@@ -138,6 +138,41 @@ impl StreamMap {
         Err(Error::IdRangeFull)
     }
 
+    /// Add an entry to this map using the specified StreamId.
+    //
+    // TODO HSS: refacor this function and add_ent to reduce code duplication.
+    #[cfg(feature = "hs-service")]
+    pub(super) fn add_ent_with_id(
+        &mut self,
+        sink: mpsc::Sender<UnparsedRelayCell>,
+        rx: mpsc::Receiver<AnyRelayMsg>,
+        send_window: sendme::StreamSendWindow,
+        id: StreamId,
+        cmd_checker: AnyCmdChecker,
+    ) -> Result<()> {
+        // TODO HSS: perhaps StreamId should be a NonZeroU16.
+        if id.is_zero() {
+            return Err(Error::StreamIdZero);
+        }
+
+        let stream_ent = StreamEnt::Open {
+            sink,
+            rx,
+            send_window,
+            dropped: 0,
+            cmd_checker,
+        };
+
+        let ent = self.m.entry(id);
+        if let Entry::Vacant(_) = ent {
+            ent.or_insert(stream_ent);
+
+            Ok(())
+        } else {
+            Err(Error::IdUnavailable(id))
+        }
+    }
+
     /// Return the entry for `id` in this map, if any.
     pub(super) fn get_mut(&mut self, id: StreamId) -> Option<&mut StreamEnt> {
         self.m.get_mut(&id)
