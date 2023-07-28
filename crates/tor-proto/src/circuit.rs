@@ -72,7 +72,11 @@ use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 
 #[cfg(feature = "hs-service")]
-use tor_cell::relaycell::msg as relaymsg;
+use {
+    crate::circuit::reactor::IncomingStreamRequestContext,
+    crate::stream::{IncomingCmdChecker, IncomingStream},
+    tor_cell::relaycell::msg as relaymsg,
+};
 
 use futures::channel::{mpsc, oneshot};
 
@@ -437,13 +441,51 @@ impl ClientCirc {
     #[cfg(feature = "hs-service")]
     #[allow(unused_variables)] // TODO hss remove
     pub fn allow_stream_requests(
-        &self,
+        self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
-    ) -> Result<impl futures::Stream<Item = crate::stream::IncomingStream>> {
-        if false {
-            return Ok(futures::stream::empty()); // TODO hss remove; this is just here for type inference.
-        }
-        todo!() // TODO hss implement.
+    ) -> Result<impl futures::Stream<Item = Result<IncomingStream>>> {
+        use futures::stream::StreamExt;
+
+        /// The size of the channel receiving IncomingStreamRequestContexts.
+        // TODO HSS: decide what capacity this channel should have.
+        const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
+
+        let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
+        let (incoming_sender, incoming_receiver) = mpsc::channel(INCOMING_BUFFER);
+
+        self.control
+            .unbounded_send(CtrlMsg::AwaitStreamRequest {
+                cmd_checker,
+                incoming_sender,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        let circ = Arc::clone(self);
+        Ok(incoming_receiver.map(move |req_ctx| {
+            let IncomingStreamRequestContext {
+                req,
+                stream_id,
+                hop_num,
+                receiver,
+                msg_tx,
+            } = req_ctx;
+
+            let target = StreamTarget {
+                circ: Arc::clone(&circ),
+                tx: msg_tx,
+                hop_num,
+                stream_id,
+            };
+
+            let reader = StreamReader {
+                target: target.clone(),
+                receiver,
+                recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
+                ended: false,
+            };
+
+            Ok(IncomingStream::new(req, target, reader))
+        }))
     }
 
     /// Extend the circuit via the ntor handshake to a new target last
