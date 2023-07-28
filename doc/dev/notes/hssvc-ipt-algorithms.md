@@ -73,24 +73,37 @@ which should be properly considered before implementation.
 ## General operation, IPT selection
 
 We maintain records of each still-possibly-relevant IPT.
+(We distinguish "IPT",
+an intended or established introduction point with particular keys etc.,
+from an "IPT Relay", which is a relay at which we'll establish the IPT.)
 
-We attempt to maintain a pool of N established and verified IPTs.
-When we have fewer than N that are `Establishing` or `Good` (see below)
-and fewer than k*N overall,
-we choose a new IPT at random from the consensus.
+We attempt to maintain a pool of N established and verified IPTs,
+at N IPT Relays.
+
+When we have fewer than N IPT Relays
+that have `Establishing` or `Good` IPTs (see below)
+and fewer than k*N IPT Relays overall,
+we choose a new IPT Relay at random from the consensus
+and try to establish an IPT on it.
 
 (Rationale for the k*N limit:
 we do want to try to replace faulty IPTs, but
 we don't want an attacker to be able to provoke us into
 rapidly churning through IPT candidates.)
 
-When we select a new IPT, we randomly choose a planned replacement time,
+When we select a new IPT Relay, we randomly choose a planned replacement time,
 after which it becomes `Retiring`.
+
 Additionally, any IPT becomes `Retiring`
 after it has been used for a certain number of introductions
 (c.f. C Tor `#define INTRO_POINT_MIN_LIFETIME_INTRODUCTIONS 16384`.)
+When this happens we retain the IPT Relay,
+and make new parameters to make a new IPT at the same Relay.
 
 ## IPT states
+
+Each IPT Relay can have multiple IPTs,
+but all but one are Retiring.
 
 Each IPT can be in the following states:
 
@@ -128,13 +141,13 @@ to the IPT Manager.
 
 We also maintain for each IPT:
 
- * A fault counter
-   which is incremented each time the IPT enters the state `Faulty`.
-
  * The duration of the last or current establishment attempt.
 
  * The latest expiry time of any descriptor that mentions it
    that we published (or tried to).
+
+ * A fault counter (per IPT Relay, not per IPT)
+   which is incremented each time the IPT enters the state `Faulty`.
 
 An IPT is removed from our records, and we give up on it,
 when it is no longer `Good` or `Establishing`
@@ -147,7 +160,7 @@ TODO: Allegedly this is unnecessary, but I don't see how it could be.)
 
 When we lose our circuit to an IPT,
 we look at the `ErrorKind` to try to determine
-if the fault was local (and would therefore affect all IPTs):
+if the fault was local (and would therefore affect all relays and IPTs):
 
  * `TorAccessFailed`, `LocalNetworkError`, `ExternalToolFailed`
    and perhaps others:
@@ -281,7 +294,6 @@ Some of them may be in C Tor.
    (We may actually maintain more than this when we are have *retiring* IPTs,
    but this doesn't expose us to IPT churn since attackers can't
    force us to retire IPTs.
-   TODO: this is not actually true due to rendezvous count based retirement.)   
 
  * IPT replacement time: 4..7 days (uniform random)
    TODO: what is the right value here?  (Should we do time-based rotation at all?)
