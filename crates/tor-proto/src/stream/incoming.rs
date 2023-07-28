@@ -2,7 +2,11 @@
 
 #![allow(dead_code, unused_variables, clippy::needless_pass_by_value)] // TODO hss remove
 
-use super::DataStream;
+use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
+use crate::circuit::StreamTarget;
+use crate::{Error, Result};
+use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayCell};
+use tor_cell::restricted_msg;
 
 /// A pending request from the other end of the circuit for us to open a new
 /// stream.
@@ -18,7 +22,9 @@ pub struct IncomingStream {
     /// The message that the client sent us to begin the stream.
     request: IncomingStreamRequest,
     /// The information that we'll use to wire up the stream, if it is accepted.
-    stream: crate::circuit::StreamTarget,
+    stream: StreamTarget,
+    /// The underlying `StreamReader`.
+    reader: StreamReader,
 }
 
 /// A message that can be sent to begin a stream.
@@ -62,3 +68,54 @@ impl IncomingStream {
 
 // TODO hss: dropping an IncomingStream without accepting or rejecting it should
 // cause it to call `reject`.
+
+restricted_msg! {
+    /// The allowed incoming messages on an `IncomingStream`.
+    enum IncomingStreamMsg: RelayMsg {
+        Begin, BeginDir, Resolve,
+    }
+}
+
+/// A `CmdChecker` that enforces correctness for incoming commands on unrecognized streams that
+/// have a non-zero stream ID.
+#[derive(Debug)]
+pub(crate) struct IncomingCmdChecker {
+    /// The "begin" commands that can be received on this type of circuit:
+    ///
+    ///   * onion service circuits only accept `BEGIN`
+    ///   * all relay circuits accept `BEGIN_DIR`
+    ///   * exit relays additionally accept `BEGIN` or `RESOLVE` on relay circuits
+    ///   * once CONNECT_UDP is implemented, relays and later onion services may accept CONNECT_UDP
+    ///   as well
+    allow_commands: Vec<RelayCmd>,
+}
+
+impl IncomingCmdChecker {
+    /// Create a new boxed `IncomingCmdChecker`.
+    pub(crate) fn new_any(allow_commands: &[RelayCmd]) -> AnyCmdChecker {
+        // TODO HSS: avoid allocating a vec here
+        Box::new(Self {
+            allow_commands: allow_commands.to_vec(),
+        })
+    }
+}
+
+impl super::CmdChecker for IncomingCmdChecker {
+    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayCell) -> Result<StreamStatus> {
+        match msg.cmd() {
+            cmd if self.allow_commands.contains(&cmd) => Ok(StreamStatus::Open),
+            _ => Err(Error::StreamProto(format!(
+                "Unexpected {} on incoming stream",
+                msg.cmd()
+            ))),
+        }
+    }
+
+    fn consume_checked_msg(&mut self, msg: UnparsedRelayCell) -> Result<()> {
+        let _ = msg
+            .decode::<IncomingStreamMsg>()
+            .map_err(|err| Error::from_bytes_err(err, "invalid message on incoming stream"))?;
+
+        Ok(())
+    }
+}
