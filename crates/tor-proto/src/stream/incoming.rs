@@ -34,7 +34,7 @@ pub struct IncomingStream {
 #[non_exhaustive]
 pub enum IncomingStreamRequest {
     /// A begin cell, which requests a new data stream.
-    Begin(tor_cell::relaycell::msg::Begin),
+    Begin(msg::Begin),
     // TODO: Eventually, add a BeginDir variant
     // TODO: eventually, add a Resolve variant.
 }
@@ -47,12 +47,12 @@ impl IncomingStream {
 
     /// Accept this stream as a new [`DataStream`], and send the client a
     /// message letting them know the stream was accepted.
-    pub fn accept_data(self, message: tor_cell::relaycell::msg::Connected) -> DataStream {
+    pub fn accept_data(self, message: msg::Connected) -> DataStream {
         todo!()
     }
 
     /// Reject this request and send an error message to the client.
-    pub fn reject(self, message: tor_cell::relaycell::msg::End) {
+    pub fn reject(self, message: msg::End) {
         todo!() // TODO hss
     }
 
@@ -101,7 +101,7 @@ impl IncomingCmdChecker {
 }
 
 impl super::CmdChecker for IncomingCmdChecker {
-    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayCell) -> Result<StreamStatus> {
+    fn check_msg(&mut self, msg: &UnparsedRelayCell) -> Result<StreamStatus> {
         match msg.cmd() {
             cmd if self.allow_commands.contains(&cmd) => Ok(StreamStatus::Open),
             _ => Err(Error::StreamProto(format!(
