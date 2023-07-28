@@ -76,10 +76,10 @@ We maintain records of each still-possibly-relevant IPT.
 
 We attempt to maintain a pool of N established and verified IPTs.
 When we have fewer than N that are `Establishing` or `Good` (see below)
-and fewer than 2N overall,
+and fewer than k*N overall,
 we choose a new IPT at random from the consensus.
 
-(Rationale for the 2N limit:
+(Rationale for the k*N limit:
 we do want to try to replace faulty IPTs, but
 we don't want an attacker to be able to provoke us into
 rapidly churning through IPT candidates.)
@@ -277,7 +277,11 @@ Some of them may be in C Tor.
    configurable, default is 3, max is 20.
    (rend-spec-v3 2.5.4 NUM_INTRO_POINT)
 
- * Maximum number of IPTs including replaced faulty ones  (2N).
+ * k*N: Maximum number of IPTs including replaced faulty ones.
+   (We may actually maintain more than this when we are have *retiring* IPTs,
+   but this doesn't expose us to IPT churn since attackers can't
+   force us to retire IPTs.
+   TODO: this is not actually true due to rendezvous count based retirement.)   
 
  * IPT replacement time: 4..7 days (uniform random)
    TODO: what is the right value here?  (Should we do time-based rotation at all?)
