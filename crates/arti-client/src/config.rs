@@ -795,6 +795,51 @@ mod test {
     }
 
     #[test]
+    fn bridges_supported() {
+        /// checks that when s is processed as TOML for a client config,
+        /// the resulting number of bridges is according to `exp`
+        fn chk(exp: Result<usize, ()>, s: &str) {
+            eprintln!("----------\n{s}\n----------\n");
+            let got = (|| {
+                let cfg: toml::Value = toml::from_str(s).unwrap();
+                let cfg: TorClientConfigBuilder = cfg.try_into()?;
+                let cfg = cfg.build()?;
+                let n_bridges = cfg.bridges.bridges.len();
+                Ok::<_, anyhow::Error>(n_bridges) // anyhow is just something we can use for ?
+            })().map_err(|_| ());
+            assert_eq!(got, exp);
+        }
+
+        let chk_enabled_or_auto = |exp, bridges_toml| {
+            for enabled in [
+                r#""#,
+                r#"enabled = true"#,
+                r#"enabled = "auto""#,
+            ] {
+                chk(exp, &format!("[bridges]\n{}\n{}", enabled, bridges_toml));
+            }
+        };
+
+        let ok_1_if = |b: bool| b.then_some(1).ok_or(());
+
+        chk(Err(()), r#"
+            [bridges]
+            enabled = true
+        "#);
+
+        chk_enabled_or_auto(ok_1_if(cfg!(feature = "bridge-client")), r#"
+            bridges = ["192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956"]
+        "#);
+
+        chk_enabled_or_auto(ok_1_if(cfg!(feature = "pt-client")), r#"
+            bridges = ["obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1"]
+            [[bridges.transports]]
+            protocols = ["obfs4"]
+            path = "obfs4proxy"
+        "#);
+    }
+
+    #[test]
     fn check_default() {
         // We don't want to second-guess the directories crate too much
         // here, so we'll just make sure it does _something_ plausible.
