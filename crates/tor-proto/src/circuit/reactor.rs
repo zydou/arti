@@ -36,7 +36,10 @@ use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
 #[cfg(feature = "hs-service")]
-use crate::stream::IncomingStreamRequest;
+use {
+    crate::stream::{DataCmdChecker, IncomingStreamRequest},
+    tor_cell::relaycell::msg::Begin,
+};
 
 use futures::channel::{mpsc, oneshot};
 use futures::Stream;
@@ -156,6 +159,30 @@ pub(super) enum CtrlMsg {
         rx: mpsc::Receiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<StreamId>,
+        /// A `CmdChecker` to keep track of which message types are acceptable.
+        cmd_checker: AnyCmdChecker,
+    },
+    /// Close the specified pending incoming stream, sending the provided END message.
+    ///
+    /// A stream is said to be pending if the message for initiating the stream was received but
+    /// not has not been responded to yet.
+    ///
+    /// This should be used by responders for closing pending incoming streams initiated by the
+    /// other party on the circuit.
+    #[cfg(feature = "hs-service")]
+    ClosePendingStream {
+        /// The hop number the stream is on.
+        hop_num: HopNum,
+        /// The stream ID to send the END for.
+        stream_id: StreamId,
+        /// The END message to send.
+        message: End,
+    },
+    /// Begin accepting streams on this circuit.
+    #[cfg(feature = "hs-service")]
+    AwaitStreamRequest {
+        /// A channel for sending information about an incoming stream request.
+        incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
     },
@@ -763,7 +790,7 @@ impl Reactor {
 
             // Close the streams we said we'd close.
             for (hopn, id) in streams_to_close {
-                self.close_stream(cx, hopn, id)?;
+                self.close_stream(cx, hopn, id, None)?;
                 did_things = true;
             }
             // Send messages we said we'd send.
@@ -1350,6 +1377,28 @@ impl Reactor {
                 let ret = self.begin_stream(cx, hop_num, message, sender, rx, cmd_checker);
                 let _ = done.send(ret); // don't care if sender goes away
             }
+            #[cfg(feature = "hs-service")]
+            CtrlMsg::ClosePendingStream {
+                hop_num,
+                stream_id,
+                message,
+            } => {
+                self.close_stream(cx, hop_num, stream_id, Some(message))?;
+            }
+            #[cfg(feature = "hs-service")]
+            CtrlMsg::AwaitStreamRequest {
+                cmd_checker,
+                incoming_sender,
+            } => {
+                // TODO HSS: add a CtrlMsg for de-registering the handler.
+                // TODO HSS: ensure the handler is deregistered when the IncomingStream is dropped.
+                let handler = IncomingStreamRequestHandler {
+                    incoming_sender,
+                    cmd_checker,
+                };
+
+                self.set_incoming_stream_req_handler(handler)?;
+            }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayCell::new(stream_id, sendme.into());
@@ -1427,7 +1476,15 @@ impl Reactor {
     /// dropped.
     ///
     /// If we have not already received an END cell on this stream, send one.
-    fn close_stream(&mut self, cx: &mut Context<'_>, hopnum: HopNum, id: StreamId) -> Result<()> {
+    /// If no END cell is specified, an END cell with the reason byte set to
+    /// REASON_MISC will be sent.
+    fn close_stream(
+        &mut self,
+        cx: &mut Context<'_>,
+        hopnum: HopNum,
+        id: StreamId,
+        message: Option<End>,
+    ) -> Result<()> {
         // Mark the stream as closing.
         let hop = self.hop_mut(hopnum).ok_or_else(|| {
             Error::from(internal!(
@@ -1446,7 +1503,8 @@ impl Reactor {
         // TODO: I am about 80% sure that we only send an END cell if
         // we didn't already get an END cell.  But I should double-check!
         if should_send_end == ShouldSendEnd::Send {
-            let end_cell = AnyRelayCell::new(id, End::new_misc().into());
+            let message = message.unwrap_or_else(End::new_misc);
+            let end_cell = AnyRelayCell::new(id, message.into());
             self.send_relay_cell(cx, hopnum, false, end_cell)?;
         }
         Ok(())
