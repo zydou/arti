@@ -51,6 +51,18 @@ MPL_20_OK=(
     # This one is pending: See https://github.com/soc/option-ext/pull/4
     option-ext
     generational-arena
+    dynasm
+    dynasmrt
+)
+
+# List of packages allowed to use the LGPL-3.0-only license.
+#
+# We aren't including LGPL code in the general Arti dependency tree, this is
+# just meant to be a limited whitelist which allows some of our own crates
+# we are developing under the LGPL.
+LGPL_30_ONLY_OK=(
+    equix
+    hashx
 )
 
 containsElement () {
@@ -97,6 +109,14 @@ for line in $output; do
     if test "$licenses" = "MPL-2.0"; then
 	if ! containsElement "$package" "${MPL_20_OK[@]}"; then
 	    echo "$package uses MPL-2.0 but has not been allow-listed."
+	    problems=1
+	fi
+	continue
+    fi
+
+    if test "$licenses" = "LGPL-3.0-only"; then
+	if ! containsElement "$package" "${LGPL_30_ONLY_OK[@]}"; then
+	    echo "$package uses LGPL-3.0-only but has not been allow-listed."
 	    problems=1
 	fi
 	continue

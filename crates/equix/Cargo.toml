@@ -1,0 +1,42 @@
+[package]
+name = "equix"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Micah Elizabeth Scott <beth@torproject.org>"]
+edition = "2021"
+rust-version = "1.65"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Asymmetric function for client puzzle protocols"
+keywords = ["cryptography"]
+categories = ["cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+# This crate is a new implementation of algorithms developed and implemented
+# by tevador here: https://github.com/tevador/equix/. The original is
+# Copyright (c) 2020 tevador <tevador@gmail.com>
+# and licensed under the terms of the LGPL version 3.0.
+#
+# If tevador is okay with it, we intend to re-license this crate as
+# MIT OR Apache-2.0. Thus, do not contribute to this crate unless you
+# are okay with these licensing terms.
+license = "LGPL-3.0-only"
+
+[features]
+default = ["compiler"]
+full = ["compiler"]
+compiler = ["hashx/compiler"]
+
+[dependencies]
+arrayvec = "0.7.4"
+hashx = { path = "../hashx", version = "0.1.0", default-features = false }
+num-traits = "0.2.15"
+thiserror = "1.0.40"
+
+[dev-dependencies]
+criterion = "0.5.1"
+hex-literal = "0.4.1"
+permutohedron = "0.2.4"
+rand = "0.8.5"
+
+[[bench]]
+name = "equix_bench"
+harness = false

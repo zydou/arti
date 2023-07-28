@@ -6,6 +6,8 @@
 # Please keep this list topologically sorted by dependency relation, so
 # that every crate appears _before_ any other crate that depends on it.
 members = [
+    "crates/hashx",
+    "crates/equix",
     "crates/tor-basic-utils",
     "crates/tor-async-utils",
     "crates/caret",
@@ -24,6 +26,7 @@ members = [
     "crates/tor-protover",
     "crates/tor-bytes",
     "crates/tor-hscrypto",
+    "crates/tor-hspow",
     "crates/tor-socksproto",
     "crates/tor-checkable",
     "crates/tor-cert",
@@ -83,3 +86,9 @@ lto = "thin"
 codegen-units = 16
 opt-level = 2
 incremental = true
+
+[profile.bench]
+# For "cargo bench", which is only used by some crates.
+# Inherits release build settings, but adds full debug symbols.
+debug = 2
+strip = "none"
