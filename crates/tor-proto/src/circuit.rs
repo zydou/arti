@@ -1098,6 +1098,7 @@ mod test {
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
+    use tor_cell::relaycell::msg::BeginFlags;
     use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -1837,5 +1838,74 @@ mod test {
 
         assert!(p.set_initial_send_window(9000).is_err());
         assert_eq!(p.initial_send_window(), 500);
+    }
+
+    #[test]
+    #[cfg(feature = "hs-service")]
+    fn allow_stream_requests() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            const TEST_DATA: &[u8] = b"ping";
+
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut send) = newcirc(&rt, chan).await;
+
+            // A helper channel for coordinating the "client"/"service" interaction
+            let (tx, rx) = oneshot::channel();
+            let mut incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .unwrap();
+
+            let simulate_service = async move {
+                let stream = incoming.next().await.unwrap().unwrap();
+                let mut data_stream = stream
+                    .accept_data(relaymsg::Connected::new_empty())
+                    .await
+                    .unwrap();
+                // Notify the client task we're ready to accept DATA cells
+                tx.send(()).unwrap();
+
+                // Read the data the client sent us
+                let mut buf = [0_u8; TEST_DATA.len()];
+                data_stream.read_exact(&mut buf).await.unwrap();
+                assert_eq!(&buf, TEST_DATA);
+
+                circ
+            };
+
+            let simulate_client = async move {
+                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let begin_msg = chanmsg::Relay::from(body);
+
+                // Ensure the reactor has had a chance to run before sending the cell (otherwise it
+                // will shut down due to a CircProto error caused by the BEGIN unexpected cell).
+                // TODO HSS: replace sleep with a less flaky solution
+                rt.sleep(Duration::from_millis(100)).await;
+                // Pretend to be a client at the other end of the circuit sending a begin cell
+                send.send(ClientCircChanMsg::Relay(begin_msg))
+                    .await
+                    .unwrap();
+
+                // Wait until the service is ready to accept data
+                // TODO: we shouldn't need to wait! This is needed because the service will reject
+                // any DATA cells that aren't associated with a known stream. We need to wait until
+                // the service receives our BEGIN cell (and the reactor updates hop.map with the
+                // new stream).
+                rx.await.unwrap();
+                // Now send some data along the newly established circuit..
+                let data = relaymsg::Data::new(TEST_DATA).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Data(data))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let data_msg = chanmsg::Relay::from(body);
+
+                send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
+                send
+            };
+
+            let (_circ, _send) = futures::join!(simulate_service, simulate_client);
+        });
     }
 }
