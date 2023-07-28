@@ -38,6 +38,7 @@ let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_aut
 The key manager is an interface to one or more key stores.
 
 Supported key stores:
+
 * C Tor key store: an on-disk store that is backwards-compatible with C Tor (new
   keys are stored in the format used by C Tor, and any existing keys are
   expected to be in this format too).
