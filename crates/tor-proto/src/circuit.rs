@@ -421,7 +421,7 @@ impl ClientCirc {
     /// to create new Tor streams, and to return those pending requests in an
     /// asynchronous stream.
     ///
-    /// Ordinarily, these requests are rejected.  
+    /// Ordinarily, these requests are rejected.
     ///
     /// There can only be one stream of this type created on a given circuit at
     /// a time. If a such a stream already exists, this method will return an

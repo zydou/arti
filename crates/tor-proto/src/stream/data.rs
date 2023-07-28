@@ -238,7 +238,7 @@ struct DataStreamStatus {
     sent_end: bool,
     /// True if we have received an END message telling us to close the stream.
     received_end: bool,
-    /// True if we have received an error.  
+    /// True if we have received an error.
     ///
     /// (This is not a subset or superset of received_end; some errors are END
     /// messages but some aren't; some END messages are errors but some aren't.)
