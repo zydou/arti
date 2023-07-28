@@ -40,6 +40,19 @@ pub enum IncomingStreamRequest {
 }
 
 impl IncomingStream {
+    /// Create a new `IncomingStream`.
+    pub(crate) fn new(
+        request: IncomingStreamRequest,
+        stream: StreamTarget,
+        reader: StreamReader,
+    ) -> Self {
+        Self {
+            request,
+            stream,
+            reader,
+        }
+    }
+
     /// Return the underlying message that was used to try to begin this stream.
     pub fn request(&self) -> IncomingStreamRequest {
         todo!()
