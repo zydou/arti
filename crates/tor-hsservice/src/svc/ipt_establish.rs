@@ -51,7 +51,11 @@ impl IptEstablisher {
         circ_pool: Arc<HsCircPool<R>>,
         dirprovider: Arc<dyn NetDirProvider>,
         relay: &Relay<'_>,
-        // Not a postage::watch since we want to count `Good` to `Faulty` transitions
+        // Not a postage::watch since we want to count `Good` to `Faulty`
+        // transitions
+        //
+        // (The alternative would be to count them as part of this structure and
+        // use a postage watch.)
         //
         // bounded sender with a fixed small bound; OK to stall waiting for manager to catch up
         status: mpsc::Sender<IptStatus>,
@@ -61,6 +65,11 @@ impl IptEstablisher {
     }
 
     /// Begin accepting connections from this introduction point.
+    //
+    // TODO HSS: Perhaps we want to provide rend_reqs as part of the
+    // new() API instead.  If we do, we must make sure there's a way to
+    // turn requests on and off, so that we can say "now we have advertised this
+    // so requests are okay."
     pub(crate) fn start_accepting(&self, rend_reqs: mpsc::Sender<RendRequest>) {
         todo!()
     }
