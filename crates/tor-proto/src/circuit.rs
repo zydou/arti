@@ -436,6 +436,9 @@ impl ClientCirc {
     ///
     /// Only onion services (and eventually) exit relays should call this
     /// method.
+    //
+    // TODO HSS: this function should return an error if allow_stream_requests()
+    // was already called on this circuit.
     #[cfg(feature = "hs-service")]
     pub fn allow_stream_requests(
         self: &Arc<ClientCirc>,
@@ -1835,6 +1838,27 @@ mod test {
 
         assert!(p.set_initial_send_window(9000).is_err());
         assert_eq!(p.initial_send_window(), 500);
+    }
+
+    #[test]
+    // TODO HSS: allow_stream_requests() should return an error if
+    // the circuit already has an IncomingStream.
+    #[ignore]
+    #[cfg(feature = "hs-service")]
+    fn allow_stream_requests_twice() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, _send) = newcirc(&rt, chan).await;
+
+            let _incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .unwrap();
+
+            let incoming = circ.allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN]);
+
+            // There can only be one IncomingStream at a time on any given circuit.
+            assert!(incoming.is_err());
+        });
     }
 
     #[test]
