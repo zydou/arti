@@ -1,6 +1,16 @@
-use std::sync::Arc;
+//! Principal types for onion services.
 
-use tor_circmgr::CircMgr;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
+
+use tor_circmgr::hspool::HsCircPool;
+use tor_hscrypto::pk::HsBlindIdKey;
+use tor_keymgr::KeyMgr;
+use tor_linkspec::RelayIds;
+use tor_llcrypto::pk::curve25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
@@ -8,41 +18,113 @@ use crate::{OnionServiceStatus, Result};
 
 /// A handle to an instance of an onion service.
 //
-// TODO hss: We might want to wrap this in an Arc<Mutex<>>, and have an inner
-// structure that contains these elements.  Or we might want to refactor this in
-// some other way.
+// TODO HSS: Write more.
+//
+// (APIs should return Arc<OnionService>)
+//
+// NOTE: This might not need to be parameterized on Runtime; if we can avoid it
+// without too much trouble,  we should.
 pub struct OnionService<R: Runtime> {
-    /// Needs some kind of configuration about: what is our identity (if we know
-    /// it), is this anonymous, do we store persistent info and if so where and
-    /// how, etc.
+    /// The mutable implementation details of this onion service.
+    inner: Mutex<SvcInner<R>>,
+}
+
+/// Implementation details for an onion service.
+struct SvcInner<R: Runtime> {
+    /// Configuration information about this service.
     ///
-    /// Authorized client public keys might be here, or they might be in a
+    /// TODO HSS: Authorized client public keys might be here, or they might be in a
     /// separate structure.
-    config: (),
+    config: crate::OnionServiceConfig,
+
     /// A netdir provider to use in finding our directories and choosing our
     /// introduction points.
     netdir_provider: Arc<dyn NetDirProvider>,
-    /// A circuit manager to use in making circuits to our introduction points,
+
+    /// A keymgr used to look up our keys and store new medium-term keys.
+    keymgr: Arc<KeyMgr>,
+
+    /// A circuit pool to use in making circuits to our introduction points,
     /// HsDirs, and rendezvous points.
+    //
     // TODO hss: Maybe we can make a trait that only gives a minimal "build a
     // circuit" API from CircMgr, so that we can have this be a dyn reference
     // too?
-    circmgr: Arc<CircMgr<R>>,
-    /// Private keys in actual use for this onion service.
-    ///
-    /// TODO hss: This will need heavy refactoring.
-    ///
-    /// TODO hss: There's a separate blinded ID, certificate, and signing key
-    /// for each active time period.
-    keys: (),
-    /// Status for each active introduction point for this onion service.
-    intro_points: Vec<()>,
-    /// Status for our onion service descriptor
-    descriptor_status: (),
+    circmgr: Arc<HsCircPool<R>>,
 
-    /// Object that handles incoming streams from the client.
-    stream_handler: Arc<dyn crate::StreamHandler>,
+    /// Authentication information for descriptor encryption.
+    ///
+    /// (Our protocol defines two kinds of client authentication: in the first
+    /// type, we encrypt the descriptor to client public keys.  In the second,
+    /// we require authentictaion as part of the `INTRODUCE2` message. Only the
+    /// first type has ever been implemented.)
+    encryption_auth: Option<DescEncryptionAuth>,
+
+    /// Private keys in actual use for this onion service.
+    //
+    // TODO hss: This will need heavy refactoring.
+    //
+    // TODO hss: There's a separate blinded ID, certificate, and signing key
+    // for each active time period.
+    keys: (),
+
+    /// Status for each active introduction point for this onion service.
+    //
+    // TODO HSS: This might want to be a generational arena, and might want to be
+    // use a different map for each descriptor epoch. Feel free to refactor!
+    intro_points: Vec<IntroPointState>,
+
+    /// Status for our onion service descriptor
+    desc_status: DescUploadHistory,
 }
+
+/// Information about encryption-based authentication.
+
+struct DescEncryptionAuth {
+    /// A list of the public keys for which we should encrypt our
+    /// descriptor.
+    //
+    // TODO HSS: maybe this should instead be a place to find the keys, so that
+    // we can reload them on change?
+    //
+    // TODO HSS: maybe this should instead be part of our configuration
+    keys: Vec<curve25519::PublicKey>,
+}
+
+/// Current history and status for our descriptor uploads.
+///
+// TODO HSS: Remember, there are *multiple simultaneous variants* of our
+// descriptor. we will probably need to make this structure different.
+struct DescUploadHistory {
+    /// When did we last rebuild our descriptors?
+    last_rebuilt: Instant,
+
+    /// Each current descriptor that we need to try to maintain and upload.
+    descriptors: HashMap<HsBlindIdKey, String>,
+
+    /// Status of uploading each descriptor to each HsDir.
+    //
+    // Note that is possible that multiple descriptors will need to be uploaded
+    // to the same HsDir.  When this happens, we MUST use separate circuits to
+    // uplaod them.
+    target_status: HashMap<HsBlindIdKey, HashMap<RelayIds, RetryState>>,
+}
+
+/// State of uploading a single descriptor
+struct RetryState {
+    // TODO HSS: implement this as needed.
+}
+
+/// State of a current introduction point.
+struct IntroPointState {
+    // TODO HSS: use diziet's structures  from `hssvc-ipt-algorithms.md` once those are more settled.
+}
+
+/// Identifier for a single introduction point of an onion point.
+//
+// TODO HSS maybe use a nicer type, like a generational arena index.
+#[derive(Debug, Clone)]
+pub(crate) struct IntroPointId(RelayIds);
 
 impl<R: Runtime> OnionService<R> {
     /// Create (but do not launch) a new onion service.
