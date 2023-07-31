@@ -2,7 +2,7 @@ use criterion::{
     black_box, criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup,
     Criterion,
 };
-use hashx::{Error, HashXBuilder, RuntimeOption};
+use hashx::{Error, HashX, HashXBuilder, RuntimeOption};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::time::{Duration, Instant};
 
@@ -70,17 +70,24 @@ fn runtimes_bench_generate(group: &mut BenchmarkGroup<'_, WallTime>, runtimes: &
 }
 
 fn runtimes_bench_hash(group: &mut BenchmarkGroup<'_, WallTime>, runtimes: &[Runtime]) {
+    // Common builder for a HashX instance with a selected RuntimeOption,
+    // and all errors fatal except for ProgramConstraints.
+    #[inline(always)]
+    fn hashx_build_unwrap(option: RuntimeOption, seed: &[u8]) -> Option<HashX> {
+        match HashXBuilder::new().runtime(option).build(seed) {
+            Ok(hashx) => Some(hashx),
+            Err(Error::ProgramConstraints) => None,
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
     for r in runtimes {
         // Direct u64 result from the Rust version
         bench_hash(
             group,
             r.hashes_per_seed,
             &format!("{}-u64-hash", r.name),
-            |seed| match HashXBuilder::new().runtime(r.option).build(seed) {
-                Ok(hashx) => Some(hashx),
-                Err(Error::ProgramConstraints) => None,
-                Err(e) => panic!("{:?}", e),
-            },
+            |seed| hashx_build_unwrap(r.option, seed),
             |hashx, input| hashx.hash_to_u64(input),
         );
 
@@ -89,11 +96,7 @@ fn runtimes_bench_hash(group: &mut BenchmarkGroup<'_, WallTime>, runtimes: &[Run
             group,
             r.hashes_per_seed,
             &format!("{}-full-hash", r.name),
-            |seed| match HashXBuilder::new().runtime(r.option).build(seed) {
-                Ok(hashx) => Some(hashx),
-                Err(Error::ProgramConstraints) => None,
-                Err(e) => panic!("{:?}", e),
-            },
+            |seed| hashx_build_unwrap(r.option, seed),
             |hashx, input| hashx.hash_to_bytes(input),
         );
 
