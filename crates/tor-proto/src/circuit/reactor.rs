@@ -287,7 +287,7 @@ impl CircHop {
 /// This is passed to `MsgHandler::handle_msg`.
 ///
 /// See also [`ConversationInHandler`], which is a type used for the same purpose
-/// but available to the caller of `start_conversation_last_hop`
+/// but available to the caller of `start_conversation`
 //
 // This is the subset of the arguments to MetaCellHandler::handle_msg
 // which are needed to be able to call send_relay_cell.

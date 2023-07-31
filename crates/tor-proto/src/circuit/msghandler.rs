@@ -1,5 +1,5 @@
 //! A message handler trait for use with
-//! [`ClientCirc::start_conversation_last_hop`](super::ClientCirc::start_conversation_last_hop).
+//! [`ClientCirc::start_conversation`](super::ClientCirc::start_conversation).
 //!
 //! Although this is similar to `stream::cmdcheck`, I am deliberately leaving
 //! them separate. Conceivably they should be unified at some point down the
@@ -18,7 +18,7 @@ use super::{ConversationInHandler, MetaCellDisposition};
 /// circuit, and delivers them to a client if so.
 ///
 /// The handler is supplied to
-/// [`ClientCirc::start_conversation_last_hop`](super::ClientCirc::start_conversation_last_hop).  It
+/// [`ClientCirc::start_conversation`](super::ClientCirc::start_conversation).  It
 /// is used to check any incoming message whose stream ID is 0, and which would
 /// otherwise not be accepted on a given circuit.
 ///
