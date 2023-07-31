@@ -154,6 +154,8 @@ impl<R: Runtime> OnionService<R> {
     // changes?  Or use a publish-based watcher?
 
     /// Tell this onion service to begin running.
+    //
+    // TODO HSS: Probably return an `impl Stream<RendRequest>`.
     pub fn launch(&self) -> Result<()> {
         todo!() // TODO hss
 

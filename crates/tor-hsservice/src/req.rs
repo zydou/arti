@@ -3,11 +3,14 @@
 //! These requests are yielded on a stream, and the calling code needs to decide
 //! whether to permit or reject them.
 
+use futures::{channel::mpsc, stream::Stream};
 use std::net::SocketAddr;
 
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::pk::curve25519;
 use tor_proto::stream::DataStream;
+
+use crate::Result;
 
 /// Request to complete an introduction/rendezvous handshake.
 ///
@@ -97,4 +100,42 @@ pub struct StreamRequest {
 pub struct OnionServiceDataStream {
     /// The underlying data stream; this type is just a thin wrapper.
     inner: DataStream,
+}
+
+impl RendRequest {
+    /// Mark this request as accepted, and try to connect to the client's
+    /// provided rendezvous point.
+    ///
+    /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
+    pub async fn accept(self) -> Result<impl Stream<Item = StreamRequest>> {
+        let r: Result<mpsc::Receiver<StreamRequest>>;
+        todo!();
+        #[allow(unreachable_code)]
+        r
+    }
+    /// Reject this request.  (The client will receive no notification.)
+    ///
+    /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
+    pub async fn reject(self) -> Result<()> {
+        todo!()
+    }
+    //
+    // TODO HSS: also add various accessors
+}
+
+impl StreamRequest {
+    /// Accept this request and send the client a `CONNECTED` message.
+    pub async fn accept(self) -> Result<OnionServiceDataStream> {
+        todo!()
+    }
+    /// Reject this request, and send the client an `END` message.
+    pub async fn reject(self) -> Result<()> {
+        todo!()
+    }
+    /// Reject this request and close the rendezvous circuit entirely,
+    /// along with all other streams attached to the circuit.
+    pub fn shutdown_circuit(self) -> Result<()> {
+        todo!()
+    }
+    // TODO HSS various accessors, including for circuit.
 }

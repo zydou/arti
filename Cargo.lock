@@ -4916,6 +4916,7 @@ name = "tor-hsservice"
 version = "0.2.2"
 dependencies = [
  "async-trait",
+ "futures",
  "rand_core 0.6.4",
  "thiserror",
  "tor-circmgr",
