@@ -16,3 +16,8 @@ tor-c-equix = { git = "https://gitlab.torproject.org/tpo/core/tor.git" }
 
 [workspace]
 members = ["."]
+
+[profile.bench]
+# Inherits release build settings, but adds full debug symbols.
+debug = 2
+strip = "none"
