@@ -16,6 +16,8 @@ use tor_rtcompat::Runtime;
 
 use crate::{OnionServiceStatus, Result};
 
+mod ipt_establish;
+
 /// A handle to an instance of an onion service.
 //
 // TODO HSS: Write more.
