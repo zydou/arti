@@ -17,6 +17,7 @@ use tor_rtcompat::Runtime;
 use crate::{OnionServiceStatus, Result};
 
 mod ipt_establish;
+mod publish;
 
 /// A handle to an instance of an onion service.
 //
