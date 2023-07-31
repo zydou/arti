@@ -283,6 +283,20 @@ impl ClientCirc {
         }
     }
 
+    /// Return the [`HopNum`](crate::HopNum) of the last hop of this circuit.
+    ///
+    /// Returns an error if there is no last hop.  (This should be impossible outside of the
+    /// tor-proto crate, but within the crate it's possible to have a circuit with no hops.)
+    pub fn last_hop_num(&self) -> Result<HopNum> {
+        Ok(self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
+            .path
+            .last_hop_num()
+            .ok_or_else(|| internal!("no last hop index"))?)
+    }
+
     /// Return a description of all the hops in this circuit.
     ///
     /// This method is **deprecated** for several reasons:
