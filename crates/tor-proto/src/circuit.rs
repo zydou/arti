@@ -434,12 +434,9 @@ impl ClientCirc {
     /// a time. If a such a stream already exists, this method will return an
     /// error.
     ///
-    /// (This function is not yet implemented; right now, it will always panic.)
-    ///
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     #[cfg(feature = "hs-service")]
-    #[allow(unused_variables)] // TODO hss remove
     pub fn allow_stream_requests(
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
