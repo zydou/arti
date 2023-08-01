@@ -1,6 +1,6 @@
 [package]
 name = "tor-ptmgr"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -36,7 +36,7 @@ fs-mistrust = { version = "0.7.1", path = "../fs-mistrust" }
 futures = "0.3.14"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
-tor-chanmgr = { version = "0.9.1", path = "../tor-chanmgr", features = ["pt-client"] }
+tor-chanmgr = { version = "0.10.0", path = "../tor-chanmgr", features = ["pt-client"] }
 tor-config = { version = "0.9.2", path = "../tor-config" }
 tor-error = { version = "0.5.2", path = "../tor-error", features = ["tracing"] }
 tor-linkspec = { version = "0.8.1", path = "../tor-linkspec", features = ["pt-client"] }

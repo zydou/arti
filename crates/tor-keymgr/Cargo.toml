@@ -1,6 +1,6 @@
 [package]
 name = "tor-keymgr"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Gabriela Moldovan <gabi@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
