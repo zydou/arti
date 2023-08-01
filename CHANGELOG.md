@@ -33,6 +33,10 @@ service.
   onion services. ([#917], [!1367], [!1402])
 - The `tor-config` crate no longer exposes `ItemOrBool`, which was
   not used. ([5b97b0b2ce31b3db])
+- The [`RetryError`] type now requires that its members implement
+  `AsRef<dyn Error>`. ([36b9d11ecb122e1e])
+- The error type of [`tor_hsclent::ConnError::Failed`] has changed.
+  ([36b9d11ecb122e1e])
 
 ### Onion service development
 
