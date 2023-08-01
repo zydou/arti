@@ -49,7 +49,7 @@ service.
   in protecting onion services from denial-of-service attacks.
   Note that for now, the license on these crates is "LGPL-3.0-only";
   we hope to relicense under "MIT OR Apache-2.0" if the author
-  if the C version of this code approve.
+  of the C version of this code approves.
   ([#889], [!1368])
 
 ### Documentation
