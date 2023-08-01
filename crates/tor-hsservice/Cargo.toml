@@ -31,7 +31,7 @@ rand_core = "0.6.2"
 thiserror = "1"
 tor-circmgr = { version = "0.10.0", path = "../tor-circmgr", features = ["hs-service"] }
 tor-hscrypto = { version = "0.3.0", path = "../tor-hscrypto" }
-tor-keymgr = { version = "0.1.0", path = "../tor-keymgr" }
+tor-keymgr = { version = "0.2.0", path = "../tor-keymgr" }
 tor-linkspec = { version = "0.8.1", path = "../tor-linkspec" }
 tor-llcrypto = { version = "0.5.2", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.9.3", path = "../tor-netdir" }
