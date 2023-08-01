@@ -24,7 +24,7 @@ experimental-api = ["visibility", "__is_experimental"]
 hs-client = ["hs-common"]
 hs-service = ["hs-common", "__is_experimental"]
 hs-common = ["digest", "hex", "time", "tor-hscrypto"]
-geoip = ["tor-geoip"]
+geoip = ["tor-geoip", "__is_experimental"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
@@ -41,7 +41,7 @@ full = [
     "tor-llcrypto/full",
     "tor-netdoc/full",
     "tor-protover/full",
-    "tor-units/full",
+    "tor-units/full", "tor-geoip?/full",
 ]
 __is_experimental = []
 

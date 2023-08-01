@@ -15,7 +15,7 @@ publish = false
 
 [features]
 default = []
-full = ["tor-hscrypto/full"]
+full = ["tor-hscrypto/full", "equix/full"]
 
 [dependencies]
 arrayvec = "0.7.4"
