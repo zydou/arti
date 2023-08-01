@@ -185,6 +185,9 @@ pub(super) enum CtrlMsg {
         incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
+        // TODO HSS: add a hop_num field specifying which hop in the circuit is allowed to create
+        // streams, if any (if we find that a different hop in the circuit is attempting to create
+        // a stream we should return an error).
     },
     /// Send a given control message on this circuit, and install a control-message handler to
     /// receive responses.
