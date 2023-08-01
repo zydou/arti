@@ -583,6 +583,13 @@ pub(super) struct IncomingStreamRequestContext {
     /// The ID of the stream being requested.
     pub(super) stream_id: StreamId,
     /// The [`HopNum`].
+    //
+    // Note from @nickm (TODO HSS):
+    // "This needs to be an Option<> if we are going to eventually support non-onion-services.  For
+    // outbound messages (towards relays), there is only one hop that can send them: the client.
+    //
+    // For onion services, we might be able to enforce the HopNum earlier: we would never accept an
+    // incoming stream request from two separate hops.  (There is only one that's valid.)"
     pub(super) hop_num: HopNum,
     /// A channel for receiving messages from this stream.
     pub(super) receiver: mpsc::Receiver<UnparsedRelayCell>,
