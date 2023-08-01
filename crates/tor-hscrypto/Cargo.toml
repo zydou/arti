@@ -27,9 +27,9 @@ safelog = { path = "../safelog", version = "0.3.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 thiserror = "1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.1" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-bytes = { version = "0.7.2", path = "../tor-bytes" }
-tor-error = { version = "0.5.2", path = "../tor-error" }
+tor-error = { version = "0.5.3", path = "../tor-error" }
 tor-llcrypto = { version = "0.5.2", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
 tor-units = { path = "../tor-units", version = "0.6.1" }
 
@@ -37,4 +37,4 @@ tor-units = { path = "../tor-units", version = "0.6.1" }
 hex = "0.4"
 hex-literal = "0.4"
 humantime = "2"
-tor-basic-utils = { version = "0.7.1", path = "../tor-basic-utils" }
+tor-basic-utils = { version = "0.7.3", path = "../tor-basic-utils" }

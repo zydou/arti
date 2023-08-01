@@ -155,7 +155,7 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "arti"
-version = "1.1.6"
+version = "1.1.7"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -1703,7 +1703,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -4449,7 +4449,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "derive_more",
  "educe",
@@ -4558,7 +4558,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "humantime 2.1.0",
  "signature 1.6.4",
@@ -4611,7 +4611,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "config",
  "derive_builder_fork_arti",
@@ -4744,7 +4744,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "backtrace",
  "derive_more",
@@ -4773,7 +4773,7 @@ dependencies = [
 
 [[package]]
 name = "tor-geoip"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "derive_more",
  "once_cell",
@@ -4908,7 +4908,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "async-trait",
  "rand_core 0.6.4",
@@ -4946,7 +4946,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "base64ct",
  "by_address",
@@ -5009,7 +5009,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "bitflags 2.3.3",
  "derive_builder_fork_arti",
@@ -5048,7 +5048,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "amplify",
  "anyhow",
@@ -5093,7 +5093,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "derive_more",
  "fs-mistrust",
@@ -5168,7 +5168,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "async-trait",

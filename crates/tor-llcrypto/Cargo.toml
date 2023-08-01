@@ -66,7 +66,7 @@ cipher = "0.4.1"
 hex-literal = "0.4"
 rand = "0.8"
 serde_test = "1.0.124"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.1" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }

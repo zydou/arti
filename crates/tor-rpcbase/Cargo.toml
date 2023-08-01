@@ -23,7 +23,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_repr = "0.1.12"
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.1" }
-tor-error = { path = "../tor-error/", version = "0.5.2", features = ["rpc"] }
+tor-error = { path = "../tor-error/", version = "0.5.3", features = ["rpc"] }
 typetag = "0.2.7"
 
 [dev-dependencies]
