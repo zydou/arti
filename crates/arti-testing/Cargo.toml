@@ -21,7 +21,7 @@ full = [
     "tor-dirmgr/full",
     "tor-error/full",
     "tor-netdoc/full",
-    "tor-rtcompat/full",
+    "tor-rtcompat/full", "tor-basic-utils/full",
 ]
 
 [dependencies]
