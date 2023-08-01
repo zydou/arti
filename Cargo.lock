@@ -1549,6 +1549,7 @@ dependencies = [
  "permutohedron",
  "rand 0.8.5",
  "thiserror",
+ "visibility",
 ]
 
 [[package]]

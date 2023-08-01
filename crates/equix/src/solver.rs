@@ -4,7 +4,9 @@
 //! partial hash collisions using temporary memory. Equi-X modifies it to use
 //! sums instead of XOR, and chooses specific parameters.
 
-use crate::bucket_array::{BucketArrayMemory, Insert, KeyValueBucketArray, Uninit};
+use crate::bucket_array::{
+    hash::Insert, hash::KeyValueBucketArray, mem::BucketArrayMemory, mem::Uninit,
+};
 use crate::collision::{self, PackedCollision};
 use crate::solution::{self, HashValue, Solution, SolutionArray, SolutionItem, EQUIHASH_N};
 use arrayvec::ArrayVec;

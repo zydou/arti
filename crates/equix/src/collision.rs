@@ -1,9 +1,9 @@
 //! Utilities for representing and finding partial sum collisions in the solver
 
-use crate::bucket_array::{
-    BucketArrayMemory, Count, Insert, Key, KeyLookup, KeyStorage, Shape, ValueBucketArray,
-    ValueLookup,
+use crate::bucket_array::hash::{
+    Count, Insert, Key, KeyLookup, KeyStorage, Shape, ValueBucketArray, ValueLookup,
 };
+use crate::bucket_array::mem::BucketArrayMemory;
 use std::fmt::Debug;
 use std::ops::{BitAnd, BitOr, Shl, Shr};
 

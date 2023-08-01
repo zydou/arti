@@ -46,6 +46,10 @@ mod err;
 mod solution;
 mod solver;
 
+// Export bucket_array::mem API only to the fuzzer
+#[cfg(fuzzing)]
+pub use bucket_array::mem::{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit};
+
 use hashx::{HashX, HashXBuilder};
 
 pub use hashx::{Runtime, RuntimeOption};
