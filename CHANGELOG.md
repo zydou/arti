@@ -40,11 +40,11 @@ service.
 
 ### Onion service development
 
-- Continuted improvements to our key manager infrastructure. ([#903], [#937],
+- Continued improvements to our key manager infrastructure. ([#903], [#937],
   [#939] [#954], [!1372], [!1398], [!1399], [!1404], [!1413], [!1421], [!1433])
 - Design work and API backend designs for implementing the service
   side of onion services. ([!1422], [!1429])
-- Rust implementations of the [HashX] ASIC-resistent hash function and
+- Rust implementations of the [HashX] ASIC-resistant hash function and
   the related [EquiX] proof-of-work function, for eventual use
   in protecting onion services from denial-of-service attacks.
   Note that for now, the license on these crates is "LGPL-3.0-only";
@@ -56,7 +56,7 @@ service.
 
 - Improved documentation for how Arti is validated and released.
   ([#942], [!1366])
-- Improvement to bridge and transsport-related documentation.
+- Improvement to bridge and transport-related documentation.
   ([#706], [!1370])
 - Add documentation to explain how to build an `arti` binary that
   will not include build path details. ([#957], [!1435])
@@ -80,7 +80,7 @@ service.
   logging excessive detail that could help with traffic analysis
   attacks.  The default is one second granularity, and can be
   overridden with the `logging.time_granularity` option.  Note that
-  this granularity does not apply to systems like journald that have
+  this granularity does not apply to systems like `journald` that have
   their own ideas about how to record messages. ([#551], [!1376])
 - When logging errors, we now check whether the type of the error
   indicates a bug.  If it does, we always escalate the logging
@@ -110,7 +110,7 @@ service.
   channels that are not managed by or shared with the rest of
   Arti. ([!1374], [!1403], [!1406])
 - The [`NetDir`] API now has optional support for recording the
-  associated contry codes of its relays. ([!1364])
+  associated country codes of its relays. ([!1364])
 - Bridges no longer contain addresses twice. This prevents us from
   making unnecessary connections. ([!1409])
 - In [`fs-mistrust`], we now detect several kinds of errors related
