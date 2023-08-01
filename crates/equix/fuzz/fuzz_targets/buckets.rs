@@ -6,8 +6,8 @@
 #![no_main]
 use arbitrary::Arbitrary;
 use arrayvec::ArrayVec;
+use equix::{BucketArray, BucketArrayMemory, BucketArrayPair, Uninit};
 use libfuzzer_sys::fuzz_target;
-use equix::{BucketArray, BucketArrayPair, Uninit, BucketArrayMemory};
 use std::ops::{Bound::*, Range, RangeBounds};
 
 type BucketIdx = u8;
@@ -122,20 +122,18 @@ impl<'a, 'b, const N: usize, const CAP: usize> Sim<'a, 'b, N, CAP> {
                 }
                 self
             }
-            Op::DropFirst => {
-                match self {
-                    Sim::Pair { b, s } => {
-                        let b2 = b.drop_first();
-                        let s2 = SimulatedArray(
-                            s.0.into_iter()
-                                .map(|a| a.into_iter().map(|(_x, y)| y).collect())
-                                .collect(),
-                        );
-                        Sim::Single { b: b2, s: s2 }
-                    }
-                    single => single,
+            Op::DropFirst => match self {
+                Sim::Pair { b, s } => {
+                    let b2 = b.drop_first();
+                    let s2 = SimulatedArray(
+                        s.0.into_iter()
+                            .map(|a| a.into_iter().map(|(_x, y)| y).collect())
+                            .collect(),
+                    );
+                    Sim::Single { b: b2, s: s2 }
                 }
-            }
+                single => single,
+            },
         }
     }
 }
@@ -154,14 +152,13 @@ fuzz_target!(|ex: Vec<Op>| {
 
     // Re-use the MemLayout to run the same test inputs twice
     for _ in 0..2 {
-
-        let mut shape1: Sim<'_, '_, 7, 12> = Sim::Pair{
+        let mut shape1: Sim<'_, '_, 7, 12> = Sim::Pair {
             b: BucketArrayPair::new(&mut ml.mem1a, &mut ml.mem1b),
-            s: Default::default()
+            s: Default::default(),
         };
-        let mut shape2: Sim<'_, '_, 8, 16> = Sim::Pair{
+        let mut shape2: Sim<'_, '_, 8, 16> = Sim::Pair {
             b: BucketArrayPair::new(&mut ml.mem2a, &mut ml.mem2b),
-            s: Default::default()
+            s: Default::default(),
         };
 
         for o in &ex {
