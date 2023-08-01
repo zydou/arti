@@ -3,6 +3,144 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.7 — 1 August 2023
+
+Arti 1.1.7 focuses on maintenance, bugfixing, and cleanups to earlier
+releases.  It also lays groundwork for being able to run as an onion
+service.
+
+(Up to date through 5906c2c92e35880a4d1e69cb5b67200bd78a8a45)
+
+### Major bugfixes
+
+- We now build with onion service client support by default.  It is
+  still not enabled by default, but you no longer need any special
+  _compile-time_ options in order to be able to use it. ([#948],
+  [!1382])
+- Fix an over-strict parsing behavior that had prevented Arti
+  from connecting to onion services whose descriptors were
+  encoded by Stem. ([#952], [!1389])
+- We've fixed a bug where we incorrectly marked bridges as having
+  directory information where they did not, and tried to build
+  circuits through them without fetching descriptors. ([#638],
+  [!1408])
+- Fix a deadlock in [`TorClient::reconfigure()`]. ([!1432])
+
+### Breaking changes in lower-level crates
+
+- The [`Conversation`] API has been built as a replacement for the old
+  "control message" API on circuits, to better support the needs of
+  onion services. ([#917], [!1367], [!1402])
+- The `tor-config` crate no longer exposes `ItemOrBool`, which was
+  not used. ([5b97b0b2ce31b3db])
+- The [`RetryError`] type now requires that its members implement
+  `AsRef<dyn Error>`. ([36b9d11ecb122e1e])
+- The error type of [`tor_hsclent::ConnError::Failed`] has changed.
+  ([36b9d11ecb122e1e])
+
+### Onion service development
+
+- Continuted improvements to our key manager infrastructure. ([#903], [#937],
+  [#939] [#954], [!1372], [!1398], [!1399], [!1404], [!1413], [!1421], [!1433])
+- Design work and API backend designs for implementing the service
+  side of onion services. ([!1422], [!1429])
+- Rust implementations of the [HashX] ASIC-resistent hash function and
+  the related [EquiX] proof-of-work function, for eventual use
+  in protecting onion services from denial-of-service attacks.
+  Note that for now, the license on these crates is "LGPL-3.0-only";
+  we hope to relicense under "MIT OR Apache-2.0" if the author
+  of the C version of this code approves.
+  ([#889], [!1368])
+
+### Documentation
+
+- Improved documentation for how Arti is validated and released.
+  ([#942], [!1366])
+- Improvement to bridge and transsport-related documentation.
+  ([#706], [!1370])
+- Add documentation to explain how to build an `arti` binary that
+  will not include build path details. ([#957], [!1435])
+
+### Infrastructure
+
+- Our [Shadow] CI tests now include support for onion service clients.
+  ([!1292])
+- Our Runtime logic now has much improved support for test cases that
+  need to handle time and waiting, and more consistently generated
+  mock implementations.  This has enabled us to clean up various unit
+  tests. ([!1375], [!1378], [!1381])
+- Fix a compatibility issue that had been preventing our Chutney CI
+  tests from passing. ([c98894cebc60e223], [!1391], [!1393])
+
+### Logging improvements
+
+- We now ensure that all panics from `arti` are sent to our logs.
+  Formerly, they were only reported on stderr.  ([#921], [!1377])
+- Our logfile messages now have a configurable granularity, to avoid
+  logging excessive detail that could help with traffic analysis
+  attacks.  The default is one second granularity, and can be
+  overridden with the `logging.time_granularity` option.  Note that
+  this granularity does not apply to systems like journald that have
+  their own ideas about how to record messages. ([#551], [!1376])
+- When logging errors, we now check whether the type of the error
+  indicates a bug.  If it does, we always escalate the logging
+  severity to "warn" or higher.  ([!1379], [!1383], [!1386], [!1390])
+- When reporting errors caused by the failure of multiple retry
+  attempts, we take more care to report the source failure
+  causes. ([#958], [!1416])
+
+### Cleanups, minor features, and smaller bugfixes
+
+- Rename some mocking-related functions to avoid accidental
+  infinite-recursion bugs. ([!1365])
+- Fix or disable a series of new warnings from Clippy. ([!1369],
+  [!1394], [!1395], [!1396])
+- Our (not yet used) GeoIP code now encodes country codes
+  as two _nonzero_ bytes, which enables the [niche optimization].
+  ([!1384])
+- Our (not yet used) GeoIP code now treats zero-values ASNs
+  as indicating an unknown ASN, for compatibility with the format
+  used by the C tor implementation. ([#961], [!1417])
+- We now try to avoid using [`Rng::gen_range()`], due to the
+  possibility of panics.  We have instead added a
+  `gen_range_checked()` and a `gen_range_infallible()` call. ([#920], [!1385],
+  [!1387])
+- The `ChanMgr` API now exposes a function to build unmanaged channels,
+  in order to support external code that wants to build
+  channels that are not managed by or shared with the rest of
+  Arti. ([!1374], [!1403], [!1406])
+- The [`NetDir`] API now has optional support for recording the
+  associated contry codes of its relays. ([!1364])
+- Bridges no longer contain addresses twice. This prevents us from
+  making unnecessary connections. ([!1409])
+- In [`fs-mistrust`], we now detect several kinds of errors related
+  to failed user or group lookup. ([cdafa2ce0191f612])
+- We have migrated our Unix user info lookups from the
+  no-longer-maintained `users` crate to the new [`pwd-grp`]
+  crate. ([#877], [!1410])
+- Add accessors for several bridge-related config builder types.
+  ([!1425], [!1426])
+- Refactor handling of initial `CREATE` cells when opening a circuit,
+  to clean up our reactor loop logic a bit. ([!1441])
+
+### Removed features
+
+- We no longer publish the crate `arti-bench` to crates.io.  It has no
+  use outside of development.  ([!1371])
+- We no longer publish our as-yet-unused `tor-events` and
+  `tor-congestion` crates to crates.io.  They aren't used in the rest
+  of Arti yet. ([!1371])
+- We no longer validate our code with Clippy's `missing_panics_doc`
+  lint, since it has begun to warn about all use of `expect()`
+  in nightly. ([#950], [!1380])
+
+### Acknowledgments
+
+
+
+
+
+
 # Arti 1.1.6 — 30 June 2023
 
 Arti 1.1.6 completes the core of the work needed for a client
