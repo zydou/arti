@@ -1709,48 +1709,48 @@ impl Reactor {
             hop.map.ending_msg_received(stream_id)?;
 
             return Ok(());
-        } else {
-            let begin = msg
-                .decode::<Begin>()
-                .map_err(|e| Error::from_bytes_err(e, "Invalid Begin message"))?
-                .into_msg();
+        }
 
-            let req = IncomingStreamRequest::Begin(begin);
+        let begin = msg
+            .decode::<Begin>()
+            .map_err(|e| Error::from_bytes_err(e, "Invalid Begin message"))?
+            .into_msg();
 
-            let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
-            let (msg_tx, msg_rx) = mpsc::channel(super::CIRCUIT_BUFFER_SIZE);
+        let req = IncomingStreamRequest::Begin(begin);
 
-            let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
-            let cmd_checker = DataCmdChecker::new_connected();
-            hop.map
-                .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;
+        let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
+        let (msg_tx, msg_rx) = mpsc::channel(super::CIRCUIT_BUFFER_SIZE);
 
-            if let Err(e) = handler
-                .incoming_sender
-                .try_send(IncomingStreamRequestContext {
-                    req,
-                    stream_id,
-                    hop_num,
-                    msg_tx,
-                    receiver,
-                })
-            {
-                // TODO HSS: we should not be dropping BEGIN requests. Consider using an
-                // unbounded channel instead.
-                if e.is_full() {
-                    return Err(Error::CircProto(
-                        concat!(
-                            "Sending incoming stream request would block: ",
-                            "we are receiving too many BEGIN cells on this channel"
-                        )
-                        .into(),
-                    ));
-                } else {
-                    // TODO HSS: handle the case where the sender goes away more gracefully
-                    return Err(Error::from(internal!(
-                        "Incoming stream request receiver dropped"
-                    )));
-                }
+        let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
+        let cmd_checker = DataCmdChecker::new_connected();
+        hop.map
+            .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;
+
+        if let Err(e) = handler
+            .incoming_sender
+            .try_send(IncomingStreamRequestContext {
+                req,
+                stream_id,
+                hop_num,
+                msg_tx,
+                receiver,
+            })
+        {
+            // TODO HSS: we should not be dropping BEGIN requests. Consider using an
+            // unbounded channel instead.
+            if e.is_full() {
+                return Err(Error::CircProto(
+                    concat!(
+                        "Sending incoming stream request would block: ",
+                        "we are receiving too many BEGIN cells on this channel"
+                    )
+                    .into(),
+                ));
+            } else {
+                // TODO HSS: handle the case where the sender goes away more gracefully
+                return Err(Error::from(internal!(
+                    "Incoming stream request receiver dropped"
+                )));
             }
         }
 
