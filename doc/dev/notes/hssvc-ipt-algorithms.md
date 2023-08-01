@@ -15,7 +15,10 @@ There are three main pieces:
    Selects IPTs, creates and destroys IPT establishers,
    monitors their success/failure, etc.
    Persistent (on-disk) state:
-   current list of IPTs and their (last) states, fault counters, etc.;
+   current set of IPT Relays.
+   Optional persistent (on-disk) state:
+   current list of IPTs and their (last) states, fault counters, etc.,
+   including secret keys necessary to re-stablish that IPT;
    all previous descriptor contents (`IptSetForDescriptor`)
    issued to hsdir publisher,
    that have not yet expired.
@@ -25,7 +28,7 @@ There are three main pieces:
    Identifies the hsdirs for the relevant time periods.
    Constructs descriptors according to the IPT manager's instructions,
    and publishes them to the hsdirs.
-   Persistent (on-disk) state:
+   Persistent (on-disk) state (optional):
    which versions (`IptSetForDescriptor`) are published where.
 
 Output of the whole thing:
@@ -44,6 +47,12 @@ the list of experience information would grow to the size of the network.
 Is this true?
 If not, would recording *all* our IPT experiences
 lead to distinguishability ?
+
+Some of the persistent state is optional:
+for a persistent hidden service, we prefer to store this information,
+to improve resilience after service restarts.
+But we can work without it,
+for example when we are operating an ephemeral service.
 
 ## IPT selection and startup for a new HS, overall behaviour
 
@@ -73,24 +82,37 @@ which should be properly considered before implementation.
 ## General operation, IPT selection
 
 We maintain records of each still-possibly-relevant IPT.
+(We distinguish "IPT",
+an intended or established introduction point with particular keys etc.,
+from an "IPT Relay", which is a relay at which we'll establish the IPT.)
 
-We attempt to maintain a pool of N established and verified IPTs.
-When we have fewer than N that are `Establishing` or `Good` (see below)
-and fewer than 2N overall,
-we choose a new IPT at random from the consensus.
+We attempt to maintain a pool of N established and verified IPTs,
+at N IPT Relays.
 
-(Rationale for the 2N limit:
+When we have fewer than N IPT Relays
+that have `Establishing` or `Good` IPTs (see below)
+and fewer than k*N IPT Relays overall,
+we choose a new IPT Relay at random from the consensus
+and try to establish an IPT on it.
+
+(Rationale for the k*N limit:
 we do want to try to replace faulty IPTs, but
 we don't want an attacker to be able to provoke us into
 rapidly churning through IPT candidates.)
 
-When we select a new IPT, we randomly choose a planned replacement time,
+When we select a new IPT Relay, we randomly choose a planned replacement time,
 after which it becomes `Retiring`.
+
 Additionally, any IPT becomes `Retiring`
 after it has been used for a certain number of introductions
 (c.f. C Tor `#define INTRO_POINT_MIN_LIFETIME_INTRODUCTIONS 16384`.)
+When this happens we retain the IPT Relay,
+and make new parameters to make a new IPT at the same Relay.
 
 ## IPT states
+
+Each IPT Relay can have multiple IPTs,
+but all but one are Retiring.
 
 Each IPT can be in the following states:
 
@@ -109,15 +131,16 @@ Each IPT can be in the following states:
 
  * `Faulty`:
    The IPT has been advertised but appears to be faulty.
-   (For example, the circuit to it has collapsed.)
-   We will continue to try to maintain our circuit to it.
+   (For example, the circuit to it has collapsed
+   and could not be reestablished.)
    But we won't publish it in any descriptor.
    We will allow the re-establishment attempt to proceed,
    but if it doesn't yield success within a reasonable time,
    we will try to replace this IPT with another IPT.
 
  * `Retiring`:
-   We have reached the IPT's planned replacement time.
+   We have reached the IPT's planned replacement time,
+   or the IPT has been used for many rendezvous requests.
    (We will continue to maintain our circuit to it
    so long as descriptors with it are valid.)
 
@@ -127,13 +150,13 @@ to the IPT Manager.
 
 We also maintain for each IPT:
 
- * A fault counter
-   which is incremented each time the IPT enters the state `Faulty`.
-
  * The duration of the last or current establishment attempt.
 
  * The latest expiry time of any descriptor that mentions it
    that we published (or tried to).
+
+ * A fault counter (per IPT Relay, not per IPT)
+   which is incremented each time the IPT enters the state `Faulty`.
 
 An IPT is removed from our records, and we give up on it,
 when it is no longer `Good` or `Establishing`
@@ -146,7 +169,7 @@ TODO: Allegedly this is unnecessary, but I don't see how it could be.)
 
 When we lose our circuit to an IPT,
 we look at the `ErrorKind` to try to determine
-if the fault was local (and would therefore affect all IPTs):
+if the fault was local (and would therefore affect all relays and IPTs):
 
  * `TorAccessFailed`, `LocalNetworkError`, `ExternalToolFailed`
    and perhaps others:
@@ -276,7 +299,10 @@ Some of them may be in C Tor.
    configurable, default is 3, max is 20.
    (rend-spec-v3 2.5.4 NUM_INTRO_POINT)
 
- * Maximum number of IPTs including replaced faulty ones  (2N).
+ * k*N: Maximum number of IPTs including replaced faulty ones.
+   (We may actually maintain more than this when we are have *retiring* IPTs,
+   but this doesn't expose us to IPT churn since attackers can't
+   force us to retire IPTs.
 
  * IPT replacement time: 4..7 days (uniform random)
    TODO: what is the right value here?  (Should we do time-based rotation at all?)
