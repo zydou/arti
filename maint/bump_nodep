@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# Increment the version of one or more crates, without incrementing
+# the versions of their dependencies.
+
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+    echo "I expect a list of crates whose versions should get bumped." >&2
+    exit 1
+fi
+
+if ! git diff-index --quiet HEAD -- ; then
+    echo "Git checkout is modified; not proceding." >&2
+    exit 1
+fi
+
+: "${GIT:=git}"
+: "${CARGO:=cargo}"
+
+for cratename in "$@"; do
+    C=crates/"$cratename"/Cargo.toml
+    if [ ! -f "$C" ]; then
+       echo "Did not find $C; exiting." >&2
+       exit 1
+    fi
+done
+
+for cratename in "$@"; do
+    C=crates/"$cratename"/Cargo.toml
+    "$CARGO" set-version --bump patch -p "$cratename"
+    echo "Staging $C"
+    "$GIT" add "$C"
+    echo "Discarding other changes."
+    "$GIT" restore .
+done
+
+"$GIT" status
+

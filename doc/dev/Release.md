@@ -161,10 +161,8 @@ before you continue!
     `cargo set-version --bump {patch|minor|major} -p ${CRATE}`.
 
    For crates with non-functional changes,
-   you need to edit the Cargo.toml files.
-   We have [a ticket][#945] to automate this.
-
-[#945]: https://gitlab.torproject.org/tpo/core/arti/-/issues/945
+   you can use the `bump_nodep` script:
+    `./maint/bump_nodep crate1 crate2 crate3` ...
 
 3. Check for side effects from bumping versions!
 
