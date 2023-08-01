@@ -1,6 +1,6 @@
 [package]
 name = "tor-cert"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -25,7 +25,7 @@ digest = "0.10.0"
 signature = "1"
 thiserror = "1"
 tor-bytes = { path = "../tor-bytes", version = "0.7.2" }
-tor-checkable = { path = "../tor-checkable", version = "0.5.1" }
+tor-checkable = { path = "../tor-checkable", version = "0.5.3" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.2" }
 
 [dev-dependencies]

@@ -1,6 +1,6 @@
 [package]
 name = "arti"
-version = "1.1.6"
+version = "1.1.7"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -89,7 +89,7 @@ __is_experimental = []
 [dependencies]
 arti-rpcserver = { path = "../arti-rpcserver", version = "0.2.0", optional = true }
 anyhow = "1.0.23"
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.9.2", default-features = false }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.10.0", default-features = false }
 async-ctrlc = { version = "1.2.0", optional = true }
 backtrace = "0.3.39"
 cfg-if = "1.0.0"
@@ -97,7 +97,7 @@ clap = "3.2.20"
 config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.1" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.3" }
 futures = "0.3.14"
 humantime = "2"
 humantime-serde = "1.1.1"
@@ -116,8 +116,8 @@ thiserror = "1"
 time = "0.3.18"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
-tor-config = { path = "../tor-config", version = "0.9.2" }
-tor-error = { path = "../tor-error", version = "0.5.2", default-features = false, features = ["tracing"] }
+tor-config = { path = "../tor-config", version = "0.9.3" }
+tor-error = { path = "../tor-error", version = "0.5.3", default-features = false, features = ["tracing"] }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.1.2", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", default-features = false }
 tor-socksproto = { path = "../tor-socksproto", version = "0.7.2" }
