@@ -159,21 +159,11 @@ fn test_instance_c(op: &Arc<Op>, hashx_type: tor_c_equix::HashXType) -> TestResu
 }
 
 fn test_all_instances(op: &Arc<Op>) {
-    let ((rust_interp, rust_compiled), (c_interp, c_compiled)) = rayon::join(
-        || {
-            rayon::join(
-                || test_instance_rust(op, hashx::RuntimeOption::InterpretOnly),
-                || test_instance_rust(op, hashx::RuntimeOption::CompileOnly),
-            )
-        },
-        || {
-            rayon::join(
-                || test_instance_c(op, tor_c_equix::HashXType::HASHX_TYPE_INTERPRETED),
-                || test_instance_c(op, tor_c_equix::HashXType::HASHX_TYPE_COMPILED),
-            )
-        },
-    );
+    let rust_interp = test_instance_rust(op, hashx::RuntimeOption::InterpretOnly);
+    let rust_compiled = test_instance_rust(op, hashx::RuntimeOption::CompileOnly);
     assert_eq!(rust_interp, rust_compiled);
+    let c_interp = test_instance_c(op, tor_c_equix::HashXType::HASHX_TYPE_INTERPRETED);
+    let c_compiled = test_instance_c(op, tor_c_equix::HashXType::HASHX_TYPE_COMPILED);
     assert_eq!(c_interp, c_compiled);
     assert_eq!(rust_interp, c_interp);
 }
