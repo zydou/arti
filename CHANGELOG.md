@@ -9,8 +9,6 @@ Arti 1.1.7 focuses on maintenance, bugfixing, and cleanups to earlier
 releases.  It also lays groundwork for being able to run as an onion
 service.
 
-(Up to date through 5906c2c92e35880a4d1e69cb5b67200bd78a8a45)
-
 ### Major bugfixes
 
 - We now build with onion service client support by default.  It is
@@ -35,7 +33,7 @@ service.
   not used. ([5b97b0b2ce31b3db])
 - The [`RetryError`] type now requires that its members implement
   `AsRef<dyn Error>`. ([36b9d11ecb122e1e])
-- The error type of [`tor_hsclent::ConnError::Failed`] has changed.
+- The error type of [`tor_hsclient::ConnError::Failed`] has changed.
   ([36b9d11ecb122e1e])
 
 ### Onion service development
@@ -137,6 +135,102 @@ service.
 ### Acknowledgments
 
 
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Dimitris Apostolou, Jim Newsome, juga, Kunal Mehta,
+Micah Elizabeth Scott, Saksham Mittal, sw1tch, and Trinity Pointard.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+[!1292]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1292
+[!1364]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1364
+[!1365]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1365
+[!1366]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1366
+[!1367]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1367
+[!1368]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1368
+[!1369]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1369
+[!1370]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1370
+[!1371]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1371
+[!1372]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1372
+[!1374]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1374
+[!1375]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1375
+[!1376]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1376
+[!1377]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1377
+[!1378]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1378
+[!1379]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1379
+[!1380]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1380
+[!1381]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1381
+[!1382]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1382
+[!1383]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1383
+[!1384]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1384
+[!1385]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1385
+[!1386]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1386
+[!1387]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1387
+[!1389]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1389
+[!1390]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1390
+[!1391]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1391
+[!1393]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1393
+[!1394]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1394
+[!1395]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1395
+[!1396]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1396
+[!1398]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1398
+[!1399]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1399
+[!1402]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1402
+[!1403]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1403
+[!1404]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1404
+[!1406]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1406
+[!1408]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1408
+[!1409]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1409
+[!1410]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1410
+[!1413]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1413
+[!1416]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1416
+[!1417]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1417
+[!1421]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1421
+[!1422]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1422
+[!1425]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1425
+[!1426]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1426
+[!1429]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1429
+[!1432]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1432
+[!1433]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1433
+[!1435]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1435
+[!1441]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1441
+[#551]: https://gitlab.torproject.org/tpo/core/arti/-/issues/551
+[#638]: https://gitlab.torproject.org/tpo/core/arti/-/issues/638
+[#706]: https://gitlab.torproject.org/tpo/core/arti/-/issues/706
+[#877]: https://gitlab.torproject.org/tpo/core/arti/-/issues/877
+[#889]: https://gitlab.torproject.org/tpo/core/arti/-/issues/889
+[#903]: https://gitlab.torproject.org/tpo/core/arti/-/issues/903
+[#917]: https://gitlab.torproject.org/tpo/core/arti/-/issues/917
+[#920]: https://gitlab.torproject.org/tpo/core/arti/-/issues/920
+[#921]: https://gitlab.torproject.org/tpo/core/arti/-/issues/921
+[#937]: https://gitlab.torproject.org/tpo/core/arti/-/issues/937
+[#939]: https://gitlab.torproject.org/tpo/core/arti/-/issues/939
+[#942]: https://gitlab.torproject.org/tpo/core/arti/-/issues/942
+[#948]: https://gitlab.torproject.org/tpo/core/arti/-/issues/948
+[#950]: https://gitlab.torproject.org/tpo/core/arti/-/issues/950
+[#952]: https://gitlab.torproject.org/tpo/core/arti/-/issues/952
+[#954]: https://gitlab.torproject.org/tpo/core/arti/-/issues/954
+[#957]: https://gitlab.torproject.org/tpo/core/arti/-/issues/957
+[#958]: https://gitlab.torproject.org/tpo/core/arti/-/issues/958
+[#961]: https://gitlab.torproject.org/tpo/core/arti/-/issues/961
+[36b9d11ecb122e1e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/36b9d11ecb122e1ea82a13fa963c35e023f14d3a
+[5b97b0b2ce31b3db]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5b97b0b2ce31b3dbe1ab9cf0d33109457d1aea47
+[c98894cebc60e223]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c98894cebc60e223d9067636337b8e737d08ad51
+[cdafa2ce0191f612]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cdafa2ce0191f612342252e56dfeee86cf29e68f
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[EquiX]: https://github.com/tevador/equix/blob/master/devlog.md
+[HashX]: https://lists.torproject.org/pipermail/tor-dev/2020-June/014381.html
+[Shadow]: https://shadow.github.io/
+[Zcash Community Grants]: [Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`Conversation`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/circuit/struct.Conversation.html
+[`NetDir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/struct.NetDir.html
+[`RetryError`]: https://tpo.pages.torproject.net/core/doc/rust/retry_error/struct.RetryError.html
+[`Rng::gen_range()`]: https://docs.rs/rand/latest/rand/trait.Rng.html#method.gen_range
+[`TorClient::reconfigure()`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/struct.TorClient.html#method.reconfigure
+[`fs-mistrust`]: https://tpo.pages.torproject.net/core/doc/rust/fs_mistrust/index.html
+[`pwd-grp`]: https://docs.rs/crate/pwd-grp/latest
+[`tor_hsclient::ConnError::Failed`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/enum.ConnError.html#variant.Failed
+[niche optimization]: https://internals.rust-lang.org/t/forbidden-niche-values/14237
 
 
 
