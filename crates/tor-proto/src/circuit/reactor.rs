@@ -1705,7 +1705,11 @@ impl Reactor {
             .get_mut(Into::<usize>::into(hop_num))
             .ok_or(Error::CircuitClosed)?;
 
-        if !message_closes_stream {
+        if message_closes_stream {
+            hop.map.ending_msg_received(stream_id)?;
+
+            return Ok(());
+        } else {
             let begin = msg
                 .decode::<Begin>()
                 .map_err(|e| Error::from_bytes_err(e, "Invalid Begin message"))?
