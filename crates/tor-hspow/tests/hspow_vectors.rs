@@ -301,7 +301,7 @@ fn solve_effort10_aa_11_01() {
 fn solve_effort1k_aa_41_01() {
     solve_and_verify(
         1337_u32.into(),
-        hex!("7fffffffffffffffffffffffffffffff").into(),
+        hex!("feffffffffffffffffffffffffffffff").into(),
         hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").into(),
         hex!("4111111111111111111111111111111111111111111111111111111111111111").into(),
         hex!("01000000000000000000000000000000").into(),
