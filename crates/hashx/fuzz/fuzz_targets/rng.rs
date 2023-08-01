@@ -36,8 +36,29 @@ const NUM_HASH_INPUTS: u64 = 64;
 struct Op {
     /// Seed bytes, for HashX's Blake2b preprocessing stage.
     ///
-    /// These become seed material for the register file state, and for the
-    /// Rng values used after `rng_replacement` ends.
+    /// In normal use, this seed input to HashX provides entropy for both
+    /// the program generator and the register file initializer.
+    ///
+    /// In fuzzing, we replace the random number stream in order to test
+    /// program generation directly. This seed is still used in two places:
+    ///
+    ///  - To initialize the HashX register file, at each hash evaluation
+    ///  - In the program generator, for Rng data once `rng_values` ends
+    ///
+    /// This test isn't trying to fuzz the register file generator/digester
+    /// in any particular depth, and that code is straightforward with no
+    /// branching.
+    ///
+    /// We could avoid using the seed entirely if we initialized the register
+    /// file directly. Additionally we could avoid test-executing the program
+    /// at all if we had a way to compare the programs directly. This all
+    /// requires additional hooks into the C implementation though, and a goal
+    /// here is to fuzz the program generator with minimally invasive changes
+    /// especially to the APIs in c-tor.
+    ///
+    /// Length of this seed is somewhat arbitrary. More bits allow more register
+    /// file initial states to be representable, but we aren't optimizing this
+    /// fuzzer to test the register file.
     seed: [u8; 32],
 
     /// First hash value, anywhere in the 64-bit input space
