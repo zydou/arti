@@ -2,10 +2,12 @@
 
 pub(crate) mod arti;
 
+pub use ssh_key::private::KeypairData as SshKeypairData;
+
 use rand::{CryptoRng, RngCore};
+use tor_error::internal;
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
-use zeroize::Zeroizing;
 
 use crate::key_type::KeyType;
 use crate::{KeySpecifier, KeystoreId, Result};
@@ -87,8 +89,8 @@ pub trait EncodableKey: Downcast {
     where
         Self: Sized;
 
-    /// The byte representation of the key.
-    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>>;
+    /// Return the [`SshKeypairData`][crate::SshKeypairData] of this key.
+    fn as_ssh_keypair_data(&self) -> Result<SshKeypairData>;
 }
 
 impl_downcast!(EncodableKey);
@@ -108,8 +110,8 @@ impl EncodableKey for curve25519::StaticSecret {
         Ok(curve25519::StaticSecret::new(rng))
     }
 
-    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
-        Ok(curve25519::StaticSecret::to_bytes(self).to_vec().into())
+    fn as_ssh_keypair_data(&self) -> Result<SshKeypairData> {
+        Err(internal!("not implemented").into())
     }
 }
 
@@ -130,8 +132,8 @@ impl EncodableKey for ed25519::Keypair {
         Ok(ed25519::Keypair::generate(&mut rng.rng_compat()))
     }
 
-    fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
-        Ok(ed25519::Keypair::to_bytes(self).to_vec().into())
+    fn as_ssh_keypair_data(&self) -> Result<SshKeypairData> {
+        Err(internal!("not implemented").into())
     }
 }
 
