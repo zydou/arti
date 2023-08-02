@@ -1,0 +1,29 @@
+[package]
+name = "equix-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = { version = "1.0.1", features = ["derive"] }
+arrayvec = "0.7.4"
+libfuzzer-sys = "0.4"
+
+[dependencies.equix]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "buckets"
+path = "fuzz_targets/buckets.rs"
+test = false
+doc = false

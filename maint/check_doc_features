@@ -11,6 +11,11 @@ additional_provided = {}
 additional_required = {}
 
 
+# Not interested in the low-level interfaces we provide only for fuzzing
+additional_provided['equix'] = [
+    ('{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit}', 'fuzzing'),
+]
+
 # PreferredRuntime has a somewhat more complexe rule for existing
 additional_provided['tor-rtcompat'] = [
     ('PreferredRuntime', 'feature = "native-tls"'),

@@ -1417,6 +1417,7 @@ dependencies = [
  "num-traits",
  "permutohedron",
  "thiserror",
+ "visibility",
 ]
 
 [[package]]

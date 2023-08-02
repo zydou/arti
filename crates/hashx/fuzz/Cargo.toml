@@ -1,0 +1,27 @@
+[package]
+name = "hashx-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = { version = "1.0.1", features = ["derive"] }
+hashx = { path = "../" }
+libfuzzer-sys = "0.4"
+rand = "0.8.5"
+tor-c-equix = { git = "https://gitlab.torproject.org/tpo/core/tor.git" }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "rng"
+path = "fuzz_targets/rng.rs"
+test = false
+doc = false
