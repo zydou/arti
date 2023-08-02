@@ -113,6 +113,7 @@ impl EncodableKey for curve25519::StaticSecret {
     }
 
     fn as_ssh_keypair_data(&self) -> Result<SshKeypairData> {
+        // TODO HSS: implement when the ssh-key changes from #936 are released.
         Err(internal!("not implemented").into())
     }
 }
