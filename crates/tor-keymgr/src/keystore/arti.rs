@@ -15,6 +15,8 @@ use crate::{KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
+use ssh_key::private::PrivateKey;
+use ssh_key::LineEnding;
 
 /// The Arti key store.
 #[derive(Debug)]
@@ -111,7 +113,17 @@ impl Keystore for ArtiNativeKeystore {
             })?;
         }
 
-        let openssh_key = key_type.to_ssh_format(key)?;
+        let keypair = key.as_ssh_keypair_data()?;
+        // TODO HSS: decide what information, if any, to put in the comment
+        let comment = "";
+
+        let openssh_key = PrivateKey::new(keypair, comment)
+            .map_err(|_| tor_error::internal!("failed to create SSH private key"))?;
+
+        let openssh_key = openssh_key
+            .to_openssh(LineEnding::LF)
+            .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
+            .to_string();
         Ok(self
             .keystore_dir
             .write_and_replace(&path, openssh_key)
