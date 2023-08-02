@@ -32,11 +32,5 @@ num-traits = "0.2.15"
 thiserror = "1.0.40"
 
 [dev-dependencies]
-criterion = "0.5.1"
 hex-literal = "0.4.1"
 permutohedron = "0.2.4"
-rand = "0.8.5"
-
-[[bench]]
-name = "equix_bench"
-harness = false

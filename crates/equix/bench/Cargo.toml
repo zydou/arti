@@ -1,0 +1,23 @@
+[package]
+name = "equix-bench"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[[bench]]
+name = "equix_bench"
+harness = false
+
+[dev-dependencies]
+criterion = "0.5.1"
+equix = { path = "../" }
+rand = "0.8.5"
+tor-c-equix = { git = "https://gitlab.torproject.org/tpo/core/tor.git" }
+
+[workspace]
+members = ["."]
+
+[profile.bench]
+# Inherits release build settings, but adds full debug symbols.
+debug = 2
+strip = "none"

@@ -34,11 +34,4 @@ rand_core = "0.6.4"
 thiserror = "1.0.40"
 
 [dev-dependencies]
-criterion = "0.5.1"
 hex-literal = "0.4.1"
-rand = "0.8.5"
-
-[[bench]]
-name = "hashx_bench"
-harness = false
-
