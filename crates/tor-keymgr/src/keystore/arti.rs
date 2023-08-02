@@ -347,13 +347,12 @@ mod tests {
 
         // The key and its parent directories don't exist yet.
         assert!(!path.parent().unwrap().exists());
-        assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_err());
+        assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_ok());
         // insert() is supposed to create the missing directories
         assert!(path.parent().unwrap().exists());
 
         // Found!
-        // TODO HSS: uncomment when insert() is implemented
-        //assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
+        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
     }
 
     #[test]

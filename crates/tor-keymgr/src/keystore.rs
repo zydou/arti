@@ -5,6 +5,8 @@ pub(crate) mod arti;
 pub use ssh_key::private::KeypairData as SshKeypairData;
 
 use rand::{CryptoRng, RngCore};
+use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey};
+use ssh_key::public::Ed25519PublicKey;
 use tor_error::internal;
 use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -133,7 +135,12 @@ impl EncodableKey for ed25519::Keypair {
     }
 
     fn as_ssh_keypair_data(&self) -> Result<SshKeypairData> {
-        Err(internal!("not implemented").into())
+        let keypair = Ed25519Keypair {
+            public: Ed25519PublicKey(self.public.to_bytes()),
+            private: Ed25519PrivateKey::from_bytes(self.secret.as_bytes()),
+        };
+
+        Ok(SshKeypairData::Ed25519(keypair))
     }
 }
 
