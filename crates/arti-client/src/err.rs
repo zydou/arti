@@ -200,9 +200,16 @@ enum ErrorDetail {
     #[error("Rejecting .onion address; feature onion-service-client not compiled in")]
     OnionAddressNotSupported,
 
-    /// Onion services are supported, but we were asked to connect to one.
+    /// Onion services are not enabled, but we were asked to connect to one.
+    ///
+    /// This error occurs when Arti is built with onion service support, but
+    /// onion services are disabled via our stream preferences.
+    ///
+    /// To enable onion services, set `allow_onion_addrs` to `true` in the
+    /// `address_filter` configuration section.  Alternatively, set
+    /// `connect_to_onion_services` in your `StreamPrefs` object.
     #[cfg(feature = "onion-service-client")]
-    #[error("Rejecting .onion address; connect_to_onion_services disabled in stream preferences")]
+    #[error("Rejecting .onion address; allow_onion_addrs disabled in stream preferences")]
     OnionAddressDisabled,
 
     /// Error when trying to find the IP address of a hidden service
