@@ -1661,6 +1661,19 @@ impl Reactor {
                     hop.map.ending_msg_received(streamid)?;
                 }
             }
+            #[cfg(feature = "hs-service")]
+            Some(StreamEnt::EndSent(_))
+                if matches!(
+                    msg.cmd(),
+                    RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
+                ) =>
+            {
+                // If the other side is sending us a BEGIN but hasn't yet acknowledged our END
+                // message, just remove the old stream from the map and stop waiting for a
+                // response
+                hop.map.ending_msg_received(streamid)?;
+                self.handle_incoming_stream_request(msg, streamid, hopnum)?;
+            }
             Some(StreamEnt::EndSent(halfstream)) => {
                 // We sent an end but maybe the other side hasn't heard.
 

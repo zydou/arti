@@ -1929,4 +1929,92 @@ mod test {
             let (_circ, _send) = futures::join!(simulate_service, simulate_client);
         });
     }
+
+    #[test]
+    #[cfg(feature = "hs-service")]
+    fn accept_stream_after_reject() {
+        use tor_cell::relaycell::msg::EndReason;
+
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            const TEST_DATA: &[u8] = b"ping";
+            const STREAM_COUNT: usize = 2;
+
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut send) = newcirc(&rt, chan).await;
+
+            // A helper channel for coordinating the "client"/"service" interaction
+            let (mut tx, mut rx) = mpsc::channel(STREAM_COUNT);
+
+            let mut incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .unwrap();
+
+            let simulate_service = async move {
+                // Process 2 incoming streams
+                for i in 0..STREAM_COUNT {
+                    let mut stream = incoming.next().await.unwrap().unwrap();
+
+                    // Reject the first one
+                    if i == 0 {
+                        stream
+                            .reject(relaymsg::End::new_with_reason(EndReason::INTERNAL))
+                            .await
+                            .unwrap();
+                        // Notify the client
+                        tx.send(()).await.unwrap();
+                        continue;
+                    }
+
+                    let mut data_stream = stream
+                        .accept_data(relaymsg::Connected::new_empty())
+                        .await
+                        .unwrap();
+                    // Notify the client task we're ready to accept DATA cells
+                    tx.send(()).await.unwrap();
+
+                    // Read the data the client sent us
+                    let mut buf = [0_u8; TEST_DATA.len()];
+                    data_stream.read_exact(&mut buf).await.unwrap();
+                    assert_eq!(&buf, TEST_DATA);
+                }
+
+                circ
+            };
+
+            let simulate_client = async move {
+                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let begin_msg = chanmsg::Relay::from(body);
+
+                // Ensure the reactor has had a chance to run before sending the cell (otherwise it
+                // will shut down due to a CircProto error caused by the BEGIN unexpected cell).
+                // TODO HSS: replace sleep with a less flaky solution
+                rt.sleep(Duration::from_millis(100)).await;
+                // Pretend to be a client at the other end of the circuit sending 2 identical begin
+                // cells (the first one will be rejected by the test service).
+                for _ in 0..STREAM_COUNT {
+                    send.send(ClientCircChanMsg::Relay(begin_msg.clone()))
+                        .await
+                        .unwrap();
+
+                    // Wait until the service rejects our request
+                    rx.next().await.unwrap();
+                }
+
+                // Now send some data along the newly established circuit..
+                let data = relaymsg::Data::new(TEST_DATA).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Data(data))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let data_msg = chanmsg::Relay::from(body);
+
+                send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
+                send
+            };
+
+            let (_circ, _send) = futures::join!(simulate_service, simulate_client);
+        });
+    }
 }
