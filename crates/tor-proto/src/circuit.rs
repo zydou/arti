@@ -430,9 +430,9 @@ impl ClientCirc {
     ///
     /// Ordinarily, these requests are rejected.
     ///
-    /// There can only be one stream of this type created on a given circuit at
-    /// a time. If a such a stream already exists, this method will return an
-    /// error.
+    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit
+    /// at a time. If a such a [`Stream`](futures::Stream) already exists, this method will return
+    /// an error.
     ///
     /// Only onion services (and eventually) exit relays should call this
     /// method.
