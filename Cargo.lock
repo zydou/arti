@@ -4653,6 +4653,7 @@ dependencies = [
  "safelog",
  "serde",
  "signature 1.6.4",
+ "subtle",
  "thiserror",
  "tor-basic-utils",
  "tor-bytes",
