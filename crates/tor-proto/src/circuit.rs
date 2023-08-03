@@ -1900,8 +1900,9 @@ mod test {
                     .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
-                // Ensure the reactor has had a chance to run before sending the cell (otherwise it
-                // will shut down due to a CircProto error caused by the BEGIN unexpected cell).
+                // Ensure the reactor has had a chance to process the AwaitIncomingStream control
+                // message before sending the cell (otherwise it will shut down due to a CircProto
+                // error caused by the BEGIN unexpected cell).
                 // TODO HSS: replace sleep with a less flaky solution
                 rt.sleep(Duration::from_millis(100)).await;
                 // Pretend to be a client at the other end of the circuit sending a begin cell
@@ -1935,6 +1936,9 @@ mod test {
     fn accept_stream_after_reject() {
         use tor_cell::relaycell::msg::EndReason;
 
+        // TODO HSS: this sometimes triggers an interleaving where the rejected IncomingStream is
+        // dropped before the reactor has a chance to handle the END message sent by reject(),
+        // which causes it to actually send 2 END cells for the same stream.
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             const TEST_DATA: &[u8] = b"ping";
             const STREAM_COUNT: usize = 2;
@@ -1988,10 +1992,11 @@ mod test {
                     .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
-                // Ensure the reactor has had a chance to run before sending the cell (otherwise it
-                // will shut down due to a CircProto error caused by the BEGIN unexpected cell).
+                // Ensure the reactor has had a chance to process the AwaitIncomingStream control
+                // message before sending the cell (otherwise it will shut down due to a CircProto
+                // error caused by the BEGIN unexpected cell).
                 // TODO HSS: replace sleep with a less flaky solution
-                rt.sleep(Duration::from_millis(100)).await;
+                rt.sleep(Duration::from_millis(200)).await;
                 // Pretend to be a client at the other end of the circuit sending 2 identical begin
                 // cells (the first one will be rejected by the test service).
                 for _ in 0..STREAM_COUNT {
