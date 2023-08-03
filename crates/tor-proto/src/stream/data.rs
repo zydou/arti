@@ -238,7 +238,7 @@ struct DataStreamStatus {
     sent_end: bool,
     /// True if we have received an END message telling us to close the stream.
     received_end: bool,
-    /// True if we have received an error.  
+    /// True if we have received an error.
     ///
     /// (This is not a subset or superset of received_end; some errors are END
     /// messages but some aren't; some END messages are errors but some aren't.)
@@ -307,8 +307,30 @@ impl DataStream {
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
     pub(crate) fn new(reader: StreamReader, target: StreamTarget) -> Self {
+        Self::new_inner(reader, target, false)
+    }
+
+    /// Wrap raw stream reader and target parts as a connected DataStream.
+    ///
+    /// Unlike [`DataStream::new`], this creates a `DataStream` that does not expect to receive a
+    /// CONNECTED cell.
+    ///
+    /// This is used by hidden services, exit relays, and directory servers to accept streams.
+    #[cfg(feature = "hs-service")]
+    pub(crate) fn new_connected(reader: StreamReader, target: StreamTarget) -> Self {
+        Self::new_inner(reader, target, true)
+    }
+
+    /// The shared implementation of the `new*()` functions.
+    fn new_inner(reader: StreamReader, target: StreamTarget, connected: bool) -> Self {
         #[cfg(feature = "stream-ctrl")]
-        let status = Arc::new(Mutex::new(DataStreamStatus::default()));
+        let status = {
+            let mut data_stream_status = DataStreamStatus::default();
+            if connected {
+                data_stream_status.record_connected();
+            }
+            Arc::new(Mutex::new(data_stream_status))
+        };
         #[cfg(feature = "stream-ctrl")]
         let ctrl = Arc::new(DataStreamCtrl {
             circuit: Arc::downgrade(target.circuit()),
@@ -321,7 +343,7 @@ impl DataStream {
                 s: reader,
                 pending: Vec::new(),
                 offset: 0,
-                connected: false,
+                connected,
                 #[cfg(feature = "stream-ctrl")]
                 status: status.clone(),
             })),
@@ -896,6 +918,11 @@ impl DataReaderImpl {
 #[derive(Debug, Default)]
 pub(crate) struct DataCmdChecker {
     /// True if we have received a CONNECTED message on this stream.
+    //
+    // TODO HSS: The name of this field is misleading, because we sometimes set it to true despite
+    // not actually having received a CONNECTED message (for example, the new_connected()
+    // constructor creates a DataCmdChecker with connected_received preinitialized to true). We
+    // should rename this field to expecting_connected and reverse its meaning.
     connected_received: bool,
 }
 
@@ -946,5 +973,17 @@ impl DataCmdChecker {
     /// constructed connection.
     pub(crate) fn new_any() -> AnyCmdChecker {
         Box::<Self>::default()
+    }
+
+    /// Return a new boxed `DataCmdChecker` in a state suitable for a
+    /// connection where an initial CONNECTED cell is not expected.
+    ///
+    /// This is used by hidden services, exit relays, and directory servers
+    /// to accept streams.
+    #[cfg(feature = "hs-service")]
+    pub(crate) fn new_connected() -> AnyCmdChecker {
+        Box::new(Self {
+            connected_received: true,
+        })
     }
 }

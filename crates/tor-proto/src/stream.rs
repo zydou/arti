@@ -23,6 +23,9 @@ pub(crate) use cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 pub use data::{DataReader, DataStream, DataWriter};
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
+pub(crate) use incoming::IncomingCmdChecker;
+#[cfg(feature = "hs-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
 pub use incoming::{IncomingStream, IncomingStreamRequest};
 pub use params::StreamParameters;
 pub use raw::StreamReader;

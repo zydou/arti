@@ -71,6 +71,13 @@ use tor_cell::{
 use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 
+#[cfg(feature = "hs-service")]
+use {
+    crate::circuit::reactor::IncomingStreamRequestContext,
+    crate::stream::{IncomingCmdChecker, IncomingStream},
+    tor_cell::relaycell::msg as relaymsg,
+};
+
 use futures::channel::{mpsc, oneshot};
 
 use crate::circuit::sendme::StreamRecvWindow;
@@ -421,26 +428,64 @@ impl ClientCirc {
     /// to create new Tor streams, and to return those pending requests in an
     /// asynchronous stream.
     ///
-    /// Ordinarily, these requests are rejected.  
+    /// Ordinarily, these requests are rejected.
     ///
-    /// There can only be one stream of this type created on a given circuit at
-    /// a time. If a such a stream already exists, this method will return an
-    /// error.
-    ///
-    /// (This function is not yet implemented; right now, it will always panic.)
+    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit
+    /// at a time. If a such a [`Stream`](futures::Stream) already exists, this method will return
+    /// an error.
     ///
     /// Only onion services (and eventually) exit relays should call this
     /// method.
+    //
+    // TODO HSS: this function should return an error if allow_stream_requests()
+    // was already called on this circuit.
     #[cfg(feature = "hs-service")]
-    #[allow(unused_variables)] // TODO hss remove
     pub fn allow_stream_requests(
-        &self,
+        self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
-    ) -> Result<impl futures::Stream<Item = crate::stream::IncomingStream>> {
-        if false {
-            return Ok(futures::stream::empty()); // TODO hss remove; this is just here for type inference.
-        }
-        todo!() // TODO hss implement.
+    ) -> Result<impl futures::Stream<Item = Result<IncomingStream>>> {
+        use futures::stream::StreamExt;
+
+        /// The size of the channel receiving IncomingStreamRequestContexts.
+        // TODO HSS: decide what capacity this channel should have.
+        const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
+
+        let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
+        let (incoming_sender, incoming_receiver) = mpsc::channel(INCOMING_BUFFER);
+
+        self.control
+            .unbounded_send(CtrlMsg::AwaitStreamRequest {
+                cmd_checker,
+                incoming_sender,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        let circ = Arc::clone(self);
+        Ok(incoming_receiver.map(move |req_ctx| {
+            let IncomingStreamRequestContext {
+                req,
+                stream_id,
+                hop_num,
+                receiver,
+                msg_tx,
+            } = req_ctx;
+
+            let target = StreamTarget {
+                circ: Arc::clone(&circ),
+                tx: msg_tx,
+                hop_num,
+                stream_id,
+            };
+
+            let reader = StreamReader {
+                target: target.clone(),
+                receiver,
+                recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
+                ended: false,
+            };
+
+            Ok(IncomingStream::new(req, target, reader))
+        }))
     }
 
     /// Extend the circuit via the ntor handshake to a new target last
@@ -946,6 +991,49 @@ impl StreamTarget {
         Ok(())
     }
 
+    /// Close the pending stream that owns this StreamTarget, delivering the specified
+    /// END message.
+    ///
+    /// The StreamTarget will set the correct stream ID and pick the
+    /// right hop, but will not validate that the message is well-formed
+    /// or meaningful in context.
+    ///
+    /// Note that in many cases, the actual contents of an END message can leak unwanted
+    /// information. Please consider carefully before sending anything but an
+    /// [`End::new_misc()`](relaymsg::End::new_misc) message over a `ClientCirc`.
+    ///
+    /// In addition to sending the END message, this function also ensures
+    /// the state of the stream map entry of this stream is updated
+    /// accordingly.
+    ///
+    /// Normally, you shouldn't need to call this function, as streams are implicitly closed by the
+    /// reactor when their corresponding `StreamTarget` is droppped. The only valid use of this
+    /// function is for closing pending incoming streams (a stream is said to be pending if we have
+    /// received the message initiating the stream but have not responded to it yet).
+    ///
+    /// **NOTE**: This function should be called at most once per request. Calling it twice will
+    /// cause the reactor to panic.
+    //
+    // TODO HSS: do not panic the reactor if this function is called twice. We have 2 options:
+    //
+    //   * make StreamMap::terminate() not panic if the stream entry is already StreamEnt::EndSent
+    //   * keep the panicky StreamMap::terminate() behaviour and make this function only send the
+    //   ClosePendingStream control message if it hasn't previously sent it (we'll need to add a
+    //   sent_close_pending_stream boolean flag in StreamTarget to remember if close() has been
+    //   called before)
+    #[cfg(feature = "hs-service")]
+    pub(crate) async fn close(&self, msg: relaymsg::End) -> Result<()> {
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::ClosePendingStream {
+                stream_id: self.stream_id,
+                hop_num: self.hop_num,
+                message: msg,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+        Ok(())
+    }
+
     /// Called when a circuit-level protocol error has occurred and the
     /// circuit needs to shut down.
     pub(crate) fn protocol_error(&mut self) {
@@ -1010,6 +1098,7 @@ mod test {
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
+    use tor_cell::relaycell::msg::BeginFlags;
     use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -1749,5 +1838,188 @@ mod test {
 
         assert!(p.set_initial_send_window(9000).is_err());
         assert_eq!(p.initial_send_window(), 500);
+    }
+
+    #[test]
+    // TODO HSS: allow_stream_requests() should return an error if
+    // the circuit already has an IncomingStream.
+    #[ignore]
+    #[cfg(feature = "hs-service")]
+    fn allow_stream_requests_twice() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, _send) = newcirc(&rt, chan).await;
+
+            let _incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .unwrap();
+
+            let incoming = circ.allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN]);
+
+            // There can only be one IncomingStream at a time on any given circuit.
+            assert!(incoming.is_err());
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "hs-service")]
+    fn allow_stream_requests() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            const TEST_DATA: &[u8] = b"ping";
+
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut send) = newcirc(&rt, chan).await;
+
+            // A helper channel for coordinating the "client"/"service" interaction
+            let (tx, rx) = oneshot::channel();
+            let mut incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .unwrap();
+
+            let simulate_service = async move {
+                let stream = incoming.next().await.unwrap().unwrap();
+                let mut data_stream = stream
+                    .accept_data(relaymsg::Connected::new_empty())
+                    .await
+                    .unwrap();
+                // Notify the client task we're ready to accept DATA cells
+                tx.send(()).unwrap();
+
+                // Read the data the client sent us
+                let mut buf = [0_u8; TEST_DATA.len()];
+                data_stream.read_exact(&mut buf).await.unwrap();
+                assert_eq!(&buf, TEST_DATA);
+
+                circ
+            };
+
+            let simulate_client = async move {
+                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let begin_msg = chanmsg::Relay::from(body);
+
+                // Ensure the reactor has had a chance to process the AwaitIncomingStream control
+                // message before sending the cell (otherwise it will shut down due to a CircProto
+                // error caused by the BEGIN unexpected cell).
+                // TODO HSS: replace sleep with a less flaky solution
+                rt.sleep(Duration::from_millis(100)).await;
+                // Pretend to be a client at the other end of the circuit sending a begin cell
+                send.send(ClientCircChanMsg::Relay(begin_msg))
+                    .await
+                    .unwrap();
+
+                // Wait until the service is ready to accept data
+                // TODO: we shouldn't need to wait! This is needed because the service will reject
+                // any DATA cells that aren't associated with a known stream. We need to wait until
+                // the service receives our BEGIN cell (and the reactor updates hop.map with the
+                // new stream).
+                rx.await.unwrap();
+                // Now send some data along the newly established circuit..
+                let data = relaymsg::Data::new(TEST_DATA).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Data(data))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let data_msg = chanmsg::Relay::from(body);
+
+                send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
+                send
+            };
+
+            let (_circ, _send) = futures::join!(simulate_service, simulate_client);
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "hs-service")]
+    fn accept_stream_after_reject() {
+        use tor_cell::relaycell::msg::EndReason;
+
+        // TODO HSS: this sometimes triggers an interleaving where the rejected IncomingStream is
+        // dropped before the reactor has a chance to handle the END message sent by reject(),
+        // which causes it to actually send 2 END cells for the same stream.
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            const TEST_DATA: &[u8] = b"ping";
+            const STREAM_COUNT: usize = 2;
+
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut send) = newcirc(&rt, chan).await;
+
+            // A helper channel for coordinating the "client"/"service" interaction
+            let (mut tx, mut rx) = mpsc::channel(STREAM_COUNT);
+
+            let mut incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .unwrap();
+
+            let simulate_service = async move {
+                // Process 2 incoming streams
+                for i in 0..STREAM_COUNT {
+                    let mut stream = incoming.next().await.unwrap().unwrap();
+
+                    // Reject the first one
+                    if i == 0 {
+                        stream
+                            .reject(relaymsg::End::new_with_reason(EndReason::INTERNAL))
+                            .await
+                            .unwrap();
+                        // Notify the client
+                        tx.send(()).await.unwrap();
+                        continue;
+                    }
+
+                    let mut data_stream = stream
+                        .accept_data(relaymsg::Connected::new_empty())
+                        .await
+                        .unwrap();
+                    // Notify the client task we're ready to accept DATA cells
+                    tx.send(()).await.unwrap();
+
+                    // Read the data the client sent us
+                    let mut buf = [0_u8; TEST_DATA.len()];
+                    data_stream.read_exact(&mut buf).await.unwrap();
+                    assert_eq!(&buf, TEST_DATA);
+                }
+
+                circ
+            };
+
+            let simulate_client = async move {
+                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let begin_msg = chanmsg::Relay::from(body);
+
+                // Ensure the reactor has had a chance to process the AwaitIncomingStream control
+                // message before sending the cell (otherwise it will shut down due to a CircProto
+                // error caused by the BEGIN unexpected cell).
+                // TODO HSS: replace sleep with a less flaky solution
+                rt.sleep(Duration::from_millis(200)).await;
+                // Pretend to be a client at the other end of the circuit sending 2 identical begin
+                // cells (the first one will be rejected by the test service).
+                for _ in 0..STREAM_COUNT {
+                    send.send(ClientCircChanMsg::Relay(begin_msg.clone()))
+                        .await
+                        .unwrap();
+
+                    // Wait until the service rejects our request
+                    rx.next().await.unwrap();
+                }
+
+                // Now send some data along the newly established circuit..
+                let data = relaymsg::Data::new(TEST_DATA).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Data(data))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let data_msg = chanmsg::Relay::from(body);
+
+                send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
+                send
+            };
+
+            let (_circ, _send) = futures::join!(simulate_service, simulate_client);
+        });
     }
 }

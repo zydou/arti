@@ -35,6 +35,11 @@ use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
+#[cfg(feature = "hs-service")]
+use {
+    crate::stream::{DataCmdChecker, IncomingStreamRequest},
+    tor_cell::relaycell::msg::Begin,
+};
 
 use futures::channel::{mpsc, oneshot};
 use futures::Stream;
@@ -156,6 +161,33 @@ pub(super) enum CtrlMsg {
         done: ReactorResultChannel<StreamId>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
+    },
+    /// Close the specified pending incoming stream, sending the provided END message.
+    ///
+    /// A stream is said to be pending if the message for initiating the stream was received but
+    /// not has not been responded to yet.
+    ///
+    /// This should be used by responders for closing pending incoming streams initiated by the
+    /// other party on the circuit.
+    #[cfg(feature = "hs-service")]
+    ClosePendingStream {
+        /// The hop number the stream is on.
+        hop_num: HopNum,
+        /// The stream ID to send the END for.
+        stream_id: StreamId,
+        /// The END message to send.
+        message: End,
+    },
+    /// Begin accepting streams on this circuit.
+    #[cfg(feature = "hs-service")]
+    AwaitStreamRequest {
+        /// A channel for sending information about an incoming stream request.
+        incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
+        /// A `CmdChecker` to keep track of which message types are acceptable.
+        cmd_checker: AnyCmdChecker,
+        // TODO HSS: add a hop_num field specifying which hop in the circuit is allowed to create
+        // streams, if any (if we find that a different hop in the circuit is attempting to create
+        // a stream we should return an error).
     },
     /// Send a given control message on this circuit, and install a control-message handler to
     /// receive responses.
@@ -537,6 +569,42 @@ pub struct Reactor {
     channel_id: CircId,
     /// A handler for a meta cell, together with a result channel to notify on completion.
     meta_handler: Option<Box<dyn MetaCellHandler>>,
+    /// A handler for incoming stream requests.
+    #[cfg(feature = "hs-service")]
+    incoming_stream_req_handler: Option<IncomingStreamRequestHandler>,
+}
+
+/// Information about an incoming stream request.
+#[cfg(feature = "hs-service")]
+#[derive(Debug)]
+pub(super) struct IncomingStreamRequestContext {
+    /// The [`IncomingStreamRequest`].
+    pub(super) req: IncomingStreamRequest,
+    /// The ID of the stream being requested.
+    pub(super) stream_id: StreamId,
+    /// The [`HopNum`].
+    //
+    // Note from @nickm (TODO HSS):
+    // "This needs to be an Option<> if we are going to eventually support non-onion-services.  For
+    // outbound messages (towards relays), there is only one hop that can send them: the client.
+    //
+    // For onion services, we might be able to enforce the HopNum earlier: we would never accept an
+    // incoming stream request from two separate hops.  (There is only one that's valid.)"
+    pub(super) hop_num: HopNum,
+    /// A channel for receiving messages from this stream.
+    pub(super) receiver: mpsc::Receiver<UnparsedRelayCell>,
+    /// A channel for sending messages to be sent on this stream.
+    pub(super) msg_tx: mpsc::Sender<AnyRelayMsg>,
+}
+
+/// Data required for handling an incoming stream request.
+#[cfg(feature = "hs-service")]
+#[derive(Debug)]
+struct IncomingStreamRequestHandler {
+    /// A sender for sharing information about an incoming stream request.
+    incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
+    /// A [`AnyCmdChecker`] for validating incoming stream requests.
+    cmd_checker: AnyCmdChecker,
 }
 
 impl Reactor {
@@ -573,6 +641,8 @@ impl Reactor {
             channel_id,
             crypto_out,
             meta_handler: None,
+            #[cfg(feature = "hs-service")]
+            incoming_stream_req_handler: None,
             mutable: mutable.clone(),
         };
 
@@ -730,7 +800,7 @@ impl Reactor {
 
             // Close the streams we said we'd close.
             for (hopn, id) in streams_to_close {
-                self.close_stream(cx, hopn, id)?;
+                self.close_stream(cx, hopn, id, None)?;
                 did_things = true;
             }
             // Send messages we said we'd send.
@@ -1247,6 +1317,22 @@ impl Reactor {
         }
     }
 
+    /// Try to install a given cell handler on this circuit.
+    #[cfg(feature = "hs-service")]
+    fn set_incoming_stream_req_handler(
+        &mut self,
+        handler: IncomingStreamRequestHandler,
+    ) -> Result<()> {
+        if self.incoming_stream_req_handler.is_none() {
+            self.incoming_stream_req_handler = Some(handler);
+            Ok(())
+        } else {
+            Err(Error::from(internal!(
+                "Tried to install a BEGIN cell handler before the old one was gone."
+            )))
+        }
+    }
+
     /// Handle a CtrlMsg other than Create and Shutdown.
     fn handle_control(&mut self, cx: &mut Context<'_>, msg: CtrlMsg) -> Result<()> {
         trace!("{}: reactor received {:?}", self.unique_id, msg);
@@ -1300,6 +1386,28 @@ impl Reactor {
             } => {
                 let ret = self.begin_stream(cx, hop_num, message, sender, rx, cmd_checker);
                 let _ = done.send(ret); // don't care if sender goes away
+            }
+            #[cfg(feature = "hs-service")]
+            CtrlMsg::ClosePendingStream {
+                hop_num,
+                stream_id,
+                message,
+            } => {
+                self.close_stream(cx, hop_num, stream_id, Some(message))?;
+            }
+            #[cfg(feature = "hs-service")]
+            CtrlMsg::AwaitStreamRequest {
+                cmd_checker,
+                incoming_sender,
+            } => {
+                // TODO HSS: add a CtrlMsg for de-registering the handler.
+                // TODO HSS: ensure the handler is deregistered when the IncomingStream is dropped.
+                let handler = IncomingStreamRequestHandler {
+                    incoming_sender,
+                    cmd_checker,
+                };
+
+                self.set_incoming_stream_req_handler(handler)?;
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
@@ -1378,7 +1486,15 @@ impl Reactor {
     /// dropped.
     ///
     /// If we have not already received an END cell on this stream, send one.
-    fn close_stream(&mut self, cx: &mut Context<'_>, hopnum: HopNum, id: StreamId) -> Result<()> {
+    /// If no END cell is specified, an END cell with the reason byte set to
+    /// REASON_MISC will be sent.
+    fn close_stream(
+        &mut self,
+        cx: &mut Context<'_>,
+        hopnum: HopNum,
+        id: StreamId,
+        message: Option<End>,
+    ) -> Result<()> {
         // Mark the stream as closing.
         let hop = self.hop_mut(hopnum).ok_or_else(|| {
             Error::from(internal!(
@@ -1397,7 +1513,8 @@ impl Reactor {
         // TODO: I am about 80% sure that we only send an END cell if
         // we didn't already get an END cell.  But I should double-check!
         if should_send_end == ShouldSendEnd::Send {
-            let end_cell = AnyRelayCell::new(id, End::new_misc().into());
+            let message = message.unwrap_or_else(End::new_misc);
+            let end_cell = AnyRelayCell::new(id, message.into());
             self.send_relay_cell(cx, hopnum, false, end_cell)?;
         }
         Ok(())
@@ -1544,6 +1661,19 @@ impl Reactor {
                     hop.map.ending_msg_received(streamid)?;
                 }
             }
+            #[cfg(feature = "hs-service")]
+            Some(StreamEnt::EndSent(_))
+                if matches!(
+                    msg.cmd(),
+                    RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
+                ) =>
+            {
+                // If the other side is sending us a BEGIN but hasn't yet acknowledged our END
+                // message, just remove the old stream from the map and stop waiting for a
+                // response
+                hop.map.ending_msg_received(streamid)?;
+                self.handle_incoming_stream_request(msg, streamid, hopnum)?;
+            }
             Some(StreamEnt::EndSent(halfstream)) => {
                 // We sent an end but maybe the other side hasn't heard.
 
@@ -1551,6 +1681,14 @@ impl Reactor {
                     StreamStatus::Open => {}
                     StreamStatus::Closed => hop.map.ending_msg_received(streamid)?,
                 }
+            }
+            #[cfg(feature = "hs-service")]
+            None if matches!(
+                msg.cmd(),
+                RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
+            ) =>
+            {
+                self.handle_incoming_stream_request(msg, streamid, hopnum)?;
             }
             _ => {
                 // No stream wants this message, or ever did.
@@ -1560,6 +1698,86 @@ impl Reactor {
             }
         }
         Ok(CellStatus::Continue)
+    }
+
+    /// A helper for handling incoming stream requests.
+    #[cfg(feature = "hs-service")]
+    fn handle_incoming_stream_request(
+        &mut self,
+        msg: UnparsedRelayCell,
+        stream_id: StreamId,
+        hop_num: HopNum,
+    ) -> Result<()> {
+        let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
+            return Err(Error::CircProto(
+                "Cannot handle BEGIN cells on this circuit".into()
+            ));
+        };
+
+        let message_closes_stream = handler.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+
+        // TODO HSS: we've already looked up the `hop` in handle_relay_cell, so we shouldn't
+        // have to look it up again! However, we can't pass the `&mut hop` reference from
+        // `handle_relay_cell` to this function, because that makes Rust angry (we'd be
+        // borrowing self as mutable more than once).
+        //
+        // TODO HSS: we _could_ use self.hops.get_mut(..) instead self.hop_mut(..) inside
+        // handle_relay_cell to work around the problem described above
+        let hop = self
+            .hops
+            .get_mut(Into::<usize>::into(hop_num))
+            .ok_or(Error::CircuitClosed)?;
+
+        if message_closes_stream {
+            hop.map.ending_msg_received(stream_id)?;
+
+            return Ok(());
+        }
+
+        let begin = msg
+            .decode::<Begin>()
+            .map_err(|e| Error::from_bytes_err(e, "Invalid Begin message"))?
+            .into_msg();
+
+        let req = IncomingStreamRequest::Begin(begin);
+
+        let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
+        let (msg_tx, msg_rx) = mpsc::channel(super::CIRCUIT_BUFFER_SIZE);
+
+        let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
+        let cmd_checker = DataCmdChecker::new_connected();
+        hop.map
+            .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;
+
+        if let Err(e) = handler
+            .incoming_sender
+            .try_send(IncomingStreamRequestContext {
+                req,
+                stream_id,
+                hop_num,
+                msg_tx,
+                receiver,
+            })
+        {
+            // TODO HSS: we should not be dropping BEGIN requests. Consider using an
+            // unbounded channel instead.
+            if e.is_full() {
+                return Err(Error::CircProto(
+                    concat!(
+                        "Sending incoming stream request would block: ",
+                        "we are receiving too many BEGIN cells on this channel"
+                    )
+                    .into(),
+                ));
+            } else {
+                // TODO HSS: handle the case where the sender goes away more gracefully
+                return Err(Error::from(internal!(
+                    "Incoming stream request receiver dropped"
+                )));
+            }
+        }
+
+        Ok(())
     }
 
     /// Helper: process a destroy cell.

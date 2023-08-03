@@ -1,7 +1,7 @@
 //! Define an error type for the tor-proto crate.
 use std::{sync::Arc, time::Duration};
 use thiserror::Error;
-use tor_cell::relaycell::msg::EndReason;
+use tor_cell::relaycell::{msg::EndReason, StreamId};
 use tor_error::{ErrorKind, HasKind};
 use tor_linkspec::RelayIdType;
 
@@ -109,6 +109,12 @@ pub enum Error {
     /// Can't allocate any more circuit or stream IDs on a channel.
     #[error("Too many entries in map: can't allocate ID")]
     IdRangeFull,
+    /// Received a stream request with a stream ID that is already in use for another stream.
+    #[error("Stream ID {0} is already in use")]
+    IdUnavailable(StreamId),
+    /// Received a cell with a stream ID of zero.
+    #[error("Received a cell with a stream ID of zero")]
+    StreamIdZero,
     /// Couldn't extend a circuit because the extending relay or the
     /// target relay refused our request.
     #[error("Circuit extension refused: {0}")]
@@ -228,7 +234,9 @@ impl From<Error> for std::io::Error {
             | EncodeErr { .. }
             | ChanMismatch(_)
             | StreamProto(_)
-            | MissingId(_) => ErrorKind::InvalidData,
+            | MissingId(_)
+            | IdUnavailable(_)
+            | StreamIdZero => ErrorKind::InvalidData,
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -276,6 +284,8 @@ impl HasKind for Error {
             E::ResolveError(ResolveError::Transient) => EK::RemoteHostResolutionFailed,
             E::ResolveError(ResolveError::Unrecognized) => EK::RemoteHostResolutionFailed,
             E::MissingId(_) => EK::BadApiUsage,
+            E::IdUnavailable(_) => EK::BadApiUsage,
+            E::StreamIdZero => EK::BadApiUsage,
             E::Bug(e) => e.kind(),
         }
     }
