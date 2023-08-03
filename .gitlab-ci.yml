@@ -69,6 +69,7 @@ rust-checks:
     - ./maint/check_licenses
     - ./maint/cargo_sort
     - ./maint/check_tree
+    - ./maint/check_all_lockfiles
   cache:
     paths:
       - cargo-sort
