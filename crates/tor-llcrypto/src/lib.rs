@@ -43,4 +43,6 @@
 pub mod cipher;
 pub mod d;
 pub mod pk;
+#[cfg(feature = "hsv3-service")] // TODO HSS: Remove this feature gate
+pub mod traits;
 pub mod util;
