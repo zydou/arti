@@ -36,6 +36,8 @@ use tor_error::internal;
 
 use generic_array::GenericArray;
 
+use super::binding::CircuitBinding;
+
 /// Type for the body of a relay cell.
 #[derive(Clone, derive_more::From, derive_more::Into)]
 pub(crate) struct RelayCellBody(BoxedCellBody);
@@ -75,8 +77,8 @@ where
     B: InboundClientLayer,
 {
     /// Consume this ClientLayer and return a paired forward and reverse
-    /// crypto layer.
-    fn split(self) -> (F, B);
+    /// crypto layer, and a [`CircuitBinding`] object
+    fn split(self) -> (F, B, CircuitBinding);
 }
 
 /// Represents a relay's view of the crypto state on a given circuit.
@@ -259,6 +261,8 @@ pub(crate) type Tor1Hsv3RelayCrypto =
 /// I am calling this design `tor1`; it does not have a generally recognized
 /// name.
 pub(crate) mod tor1 {
+    use crate::crypto::binding::CIRC_BINDING_LEN;
+
     use super::*;
     use cipher::{KeyIvInit, StreamCipher};
     use digest::Digest;
@@ -298,11 +302,13 @@ pub(crate) mod tor1 {
         fwd: CryptState<SC, D>,
         /// State for en/decrypting cells sent towards the client.
         back: CryptState<SC, D>,
+        /// A circuit binding key.
+        binding: CircuitBinding,
     }
 
     impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> CryptInit for CryptStatePair<SC, D> {
         fn seed_len() -> usize {
-            SC::KeySize::to_usize() * 2 + D::OutputSize::to_usize() * 2
+            SC::KeySize::to_usize() * 2 + D::OutputSize::to_usize() * 2 + CIRC_BINDING_LEN
         }
         fn initialize(seed: &[u8]) -> Result<Self> {
             // This corresponds to the use of the KDF algorithm as described in
@@ -319,6 +325,10 @@ pub(crate) mod tor1 {
             let bdinit = &seed[dlen..dlen * 2]; // This is Db in the spec.
             let fckey = &seed[dlen * 2..dlen * 2 + keylen]; // This is Kf in the spec.
             let bckey = &seed[dlen * 2 + keylen..dlen * 2 + keylen * 2]; // this is Kb in the spec.
+            let binding_key: &[u8; CIRC_BINDING_LEN] = &seed
+                [dlen * 2 + keylen * 2..dlen * 2 + keylen * 2 + CIRC_BINDING_LEN]
+                .try_into()
+                .expect("Unable to convert a 20-byte slice to a 20-byte array!?");
             let fwd = CryptState {
                 cipher: SC::new(fckey.try_into().expect("Wrong length"), &Default::default()),
                 digest: D::new().chain_update(fdinit),
@@ -329,7 +339,8 @@ pub(crate) mod tor1 {
                 digest: D::new().chain_update(bdinit),
                 last_digest_val: GenericArray::default(),
             };
-            Ok(CryptStatePair { fwd, back })
+            let binding = CircuitBinding::from(*binding_key);
+            Ok(CryptStatePair { fwd, back, binding })
         }
     }
 
@@ -338,8 +349,8 @@ pub(crate) mod tor1 {
         SC: StreamCipher,
         D: Digest + Clone,
     {
-        fn split(self) -> (CryptState<SC, D>, CryptState<SC, D>) {
-            (self.fwd, self.back)
+        fn split(self) -> (CryptState<SC, D>, CryptState<SC, D>, CircuitBinding) {
+            (self.fwd, self.back, self.binding)
         }
     }
 
@@ -484,7 +495,7 @@ mod test {
         cc_in: &mut InboundClientCrypt,
         pair: Tor1RelayCrypto,
     ) {
-        let (outbound, inbound) = pair.split();
+        let (outbound, inbound, _) = pair.split();
         cc_out.add_layer(Box::new(outbound));
         cc_in.add_layer(Box::new(inbound));
     }
@@ -573,12 +584,13 @@ mod test {
         use digest::XofReader;
         use digest::{ExtendableOutput, Update};
 
-        const K1: &[u8; 72] =
-            b"    'My public key is in this signed x509 object', said Tom assertively.";
-        const K2: &[u8; 72] =
-            b"'Let's chart the pedal phlanges in the tomb', said Tom cryptographically";
-        const K3: &[u8; 72] =
-            b"     'Segmentation fault bugs don't _just happen_', said Tom seethingly.";
+        // (The ....s at the end here are the KH ca)
+        const K1: &[u8; 92] =
+            b"    'My public key is in this signed x509 object', said Tom assertively.      (N-PREG-VIRYL)";
+        const K2: &[u8; 92] =
+            b"'Let's chart the pedal phlanges in the tomb', said Tom cryptographically.  (PELCG-GBR-TENCU)";
+        const K3: &[u8; 92] =
+            b"     'Segmentation fault bugs don't _just happen_', said Tom seethingly.        (P-GUVAT-YL)";
 
         const SEED: &[u8;108] = b"'You mean to tell me that there's a version of Sha-3 with no limit on the output length?', said Tom shakily.";
 

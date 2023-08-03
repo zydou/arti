@@ -57,7 +57,7 @@ impl RelayProtocol {
                 let seed_needed = Tor1Hsv3RelayCrypto::seed_len();
                 let seed = keygen.expand(seed_needed)?;
                 let layer = Tor1Hsv3RelayCrypto::initialize(&seed)?;
-                let (fwd, back) = layer.split();
+                let (fwd, back, _) = layer.split();
                 let (fwd, back) = match role {
                     HandshakeRole::Initiator => (fwd, back),
                     HandshakeRole::Responder => (back, fwd),

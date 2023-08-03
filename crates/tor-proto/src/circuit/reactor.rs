@@ -490,7 +490,7 @@ where
         debug!("{}: Handshake complete; circuit extended.", self.unique_id);
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
-        let (layer_fwd, layer_back) = layer.split();
+        let (layer_fwd, layer_back, _) = layer.split();
         reactor.add_hop(
             path::HopDetail::Relay(self.peer_id.clone()),
             Box::new(layer_fwd),
@@ -991,7 +991,7 @@ impl Reactor {
 
         debug!("{}: Handshake complete; circuit created.", self.unique_id);
 
-        let (layer_fwd, layer_back) = layer.split();
+        let (layer_fwd, layer_back, _) = layer.split();
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
