@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# Everywhere we have a Cargo.lock checked into git, check that it's usable.
+#
+# This avoids doing a full `cargo check` which actually compiles the crates.
+# Our needs are closer to `cargo verify-project`, but we do want to check
+# the entire dependency tree without compiling anything.
+#
+# The approach we use now is to run `cargo tree --locked`, which catches
+# missing dependencies relatively quickly.
+#
+
+set -eu
+
+for subdir in $(git ls-files | sed -n 's/^/.\//;s/Cargo.lock$//p'); do
+    echo
+    echo "---- Checking $subdir"
+    (cd "$subdir" && cargo tree --locked > /dev/null)
+done
