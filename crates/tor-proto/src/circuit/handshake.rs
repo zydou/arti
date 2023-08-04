@@ -42,19 +42,25 @@ pub enum HandshakeRole {
     Responder,
 }
 
+/// A set of type-erased cryptographic layers to use for a single hop at a
+/// client.
+pub(crate) struct BoxedClientLayer {
+    /// The outbound cryptographic layer to use for this hop
+    pub(crate) fwd: Box<dyn OutboundClientLayer + Send>,
+    /// The inbound cryptogarphic layer to use for this hop
+    pub(crate) back: Box<dyn InboundClientLayer + Send>,
+    /// A circuit binding key for this hop.
+    pub(crate) binding: Option<CircuitBinding>,
+}
+
 impl RelayProtocol {
     /// Construct the cell-crypto layers that are needed for a given set of
     /// circuit hop parameters.
-    #[allow(clippy::type_complexity)] // XXXX
     pub(crate) fn construct_layers(
         self,
         role: HandshakeRole,
         keygen: impl KeyGenerator,
-    ) -> Result<(
-        Box<dyn OutboundClientLayer + Send>,
-        Box<dyn InboundClientLayer + Send>,
-        Option<CircuitBinding>,
-    )> {
+    ) -> Result<BoxedClientLayer> {
         match self {
             RelayProtocol::HsV3 => {
                 let seed_needed = Tor1Hsv3RelayCrypto::seed_len();
@@ -65,7 +71,11 @@ impl RelayProtocol {
                     HandshakeRole::Initiator => (fwd, back),
                     HandshakeRole::Responder => (back, fwd),
                 };
-                Ok((Box::new(fwd), Box::new(back), Some(binding)))
+                Ok(BoxedClientLayer {
+                    fwd: Box::new(fwd),
+                    back: Box::new(back),
+                    binding: Some(binding),
+                })
             }
         }
     }
