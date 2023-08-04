@@ -1053,14 +1053,20 @@ impl StreamTarget {
     //   called before)
     #[cfg(feature = "hs-service")]
     pub(crate) async fn close(&self, msg: relaymsg::End) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+
         self.circ
             .control
             .unbounded_send(CtrlMsg::ClosePendingStream {
                 stream_id: self.stream_id,
                 hop_num: self.hop_num,
                 message: msg,
+                done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
+
+        // Check whether the ClosePendingStream was processed successfully.
+        rx.await.map_err(|_| Error::CircuitClosed)??;
         Ok(())
     }
 

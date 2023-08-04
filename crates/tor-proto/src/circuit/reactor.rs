@@ -177,6 +177,8 @@ pub(super) enum CtrlMsg {
         stream_id: StreamId,
         /// The END message to send.
         message: End,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
     },
     /// Begin accepting streams on this circuit.
     #[cfg(feature = "hs-service")]
@@ -1394,8 +1396,10 @@ impl Reactor {
                 hop_num,
                 stream_id,
                 message,
+                done,
             } => {
-                self.close_stream(cx, hop_num, stream_id, Some(message))?;
+                let ret = self.close_stream(cx, hop_num, stream_id, Some(message));
+                let _ = done.send(ret); // don't care if sender goes away
             }
             #[cfg(feature = "hs-service")]
             CtrlMsg::AwaitStreamRequest {
