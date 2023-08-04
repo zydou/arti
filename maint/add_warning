@@ -10,12 +10,17 @@ import subprocess
 
 # ---------- actual list of lints to apply (or disapply) ----------
 
+# NOTE: We should NEVER have a `deny` for a built-in rustc lint.
+# It's okay to deny clippy lints, but if we deny rustc lints,
+# a future version of the compiler might refuse to build our code
+# entirely.
+
 WANT_LINTS = """
 #![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
 #![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 #![warn(noop_method_call)]
-#![deny(unreachable_pub)]
+#![warn(unreachable_pub)]
 #![warn(clippy::all)]
 #![deny(clippy::await_holding_lock)]
 #![deny(clippy::cargo_common_metadata)]
