@@ -22,6 +22,7 @@ use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
     sendme, streammap, CircParameters, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
 };
+use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
     OutboundClientLayer, RelayCellBody, Tor1RelayCrypto,
@@ -134,6 +135,7 @@ pub(super) enum CtrlMsg {
         cell_crypto: (
             Box<dyn OutboundClientLayer + Send>,
             Box<dyn InboundClientLayer + Send>,
+            Option<CircuitBinding>,
         ),
         /// A set of parameters used to configure this hop.
         params: CircParameters,
@@ -490,11 +492,12 @@ where
         debug!("{}: Handshake complete; circuit extended.", self.unique_id);
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
-        let (layer_fwd, layer_back, _) = layer.split();
+        let (layer_fwd, layer_back, binding) = layer.split();
         reactor.add_hop(
             path::HopDetail::Relay(self.peer_id.clone()),
             Box::new(layer_fwd),
             Box::new(layer_back),
+            Some(binding),
             &self.params,
         );
         Ok(MetaCellDisposition::ConversationFinished)
@@ -937,7 +940,14 @@ impl Reactor {
 
         let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
-        self.add_hop(path::HopDetail::Relay(dummy_peer_id), fwd, rev, params);
+        let binding = None;
+        self.add_hop(
+            path::HopDetail::Relay(dummy_peer_id),
+            fwd,
+            rev,
+            binding,
+            params,
+        );
         let _ = done.send(Ok(()));
     }
 
@@ -991,13 +1001,14 @@ impl Reactor {
 
         debug!("{}: Handshake complete; circuit created.", self.unique_id);
 
-        let (layer_fwd, layer_back, _) = layer.split();
+        let (layer_fwd, layer_back, binding) = layer.split();
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
             path::HopDetail::Relay(peer_id),
             Box::new(layer_fwd),
             Box::new(layer_back),
+            Some(binding),
             params,
         );
         Ok(())
@@ -1062,12 +1073,14 @@ impl Reactor {
         peer_id: path::HopDetail,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
+        binding: Option<CircuitBinding>,
         params: &CircParameters,
     ) {
         let hop = crate::circuit::reactor::CircHop::new(params.initial_send_window());
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
+        drop(binding); // XXXX
         let mut mutable = self.mutable.lock().expect("poisoned lock");
         Arc::make_mut(&mut mutable.path).push_hop(peer_id);
     }
@@ -1382,13 +1395,13 @@ impl Reactor {
                 params,
                 done,
             } => {
-                let (outbound, inbound) = cell_crypto;
+                let (outbound, inbound, binding) = cell_crypto;
 
                 // TODO HS: Perhaps this should describe the onion service, or
                 // describe why the virtual hop was added, or something?
                 let peer_id = path::HopDetail::Virtual;
 
-                self.add_hop(peer_id, outbound, inbound, &params);
+                self.add_hop(peer_id, outbound, inbound, binding, &params);
                 let _ = done.send(Ok(()));
             }
             CtrlMsg::BeginStream {

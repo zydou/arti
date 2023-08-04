@@ -591,11 +591,11 @@ impl ClientCirc {
         seed: impl handshake::KeyGenerator,
         params: CircParameters,
     ) -> Result<()> {
-        let (outbound, inbound) = protocol.construct_layers(role, seed)?;
+        let (outbound, inbound, binding) = protocol.construct_layers(role, seed)?;
 
         let (tx, rx) = oneshot::channel();
         let message = CtrlMsg::ExtendVirtual {
-            cell_crypto: (outbound, inbound),
+            cell_crypto: (outbound, inbound, binding),
             params,
             done: tx,
         };
