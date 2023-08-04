@@ -6,9 +6,9 @@
 // @@ begin lint list maintained by maint/add_warning @@
 #![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
 #![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 #![warn(noop_method_call)]
-#![deny(unreachable_pub)]
+#![warn(unreachable_pub)]
 #![warn(clippy::all)]
 #![deny(clippy::await_holding_lock)]
 #![deny(clippy::cargo_common_metadata)]
