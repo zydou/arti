@@ -465,7 +465,7 @@ impl ClientCirc {
     // TODO HSS: this function should return an error if allow_stream_requests()
     // was already called on this circuit.
     #[cfg(feature = "hs-service")]
-    pub fn allow_stream_requests(
+    pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
     ) -> Result<impl futures::Stream<Item = Result<IncomingStream>>> {
@@ -477,13 +477,18 @@ impl ClientCirc {
 
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
         let (incoming_sender, incoming_receiver) = mpsc::channel(INCOMING_BUFFER);
+        let (tx, rx) = oneshot::channel();
 
         self.control
             .unbounded_send(CtrlMsg::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
+                done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
+
+        // Check whether the AwaitStreamRequest was processed successfully.
+        rx.await.map_err(|_| Error::CircuitClosed)??;
 
         let circ = Arc::clone(self);
         Ok(incoming_receiver.map(move |req_ctx| {
@@ -1877,9 +1882,12 @@ mod test {
 
             let _incoming = circ
                 .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .await
                 .unwrap();
 
-            let incoming = circ.allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN]);
+            let incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .await;
 
             // There can only be one IncomingStream at a time on any given circuit.
             assert!(incoming.is_err());
@@ -1899,6 +1907,7 @@ mod test {
             let (tx, rx) = oneshot::channel();
             let mut incoming = circ
                 .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .await
                 .unwrap();
 
             let simulate_service = async move {
@@ -1925,11 +1934,6 @@ mod test {
                     .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
-                // Ensure the reactor has had a chance to process the AwaitIncomingStream control
-                // message before sending the cell (otherwise it will shut down due to a CircProto
-                // error caused by the BEGIN unexpected cell).
-                // TODO HSS: replace sleep with a less flaky solution
-                rt.sleep(Duration::from_millis(100)).await;
                 // Pretend to be a client at the other end of the circuit sending a begin cell
                 send.send(ClientCircChanMsg::Relay(begin_msg))
                     .await
@@ -1976,6 +1980,7 @@ mod test {
 
             let mut incoming = circ
                 .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .await
                 .unwrap();
 
             let simulate_service = async move {
@@ -2017,11 +2022,6 @@ mod test {
                     .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
-                // Ensure the reactor has had a chance to process the AwaitIncomingStream control
-                // message before sending the cell (otherwise it will shut down due to a CircProto
-                // error caused by the BEGIN unexpected cell).
-                // TODO HSS: replace sleep with a less flaky solution
-                rt.sleep(Duration::from_millis(200)).await;
                 // Pretend to be a client at the other end of the circuit sending 2 identical begin
                 // cells (the first one will be rejected by the test service).
                 for _ in 0..STREAM_COUNT {

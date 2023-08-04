@@ -185,6 +185,8 @@ pub(super) enum CtrlMsg {
         incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
         // TODO HSS: add a hop_num field specifying which hop in the circuit is allowed to create
         // streams, if any (if we find that a different hop in the circuit is attempting to create
         // a stream we should return an error).
@@ -1399,6 +1401,7 @@ impl Reactor {
             CtrlMsg::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
+                done,
             } => {
                 // TODO HSS: add a CtrlMsg for de-registering the handler.
                 // TODO HSS: ensure the handler is deregistered when the IncomingStream is dropped.
@@ -1407,7 +1410,8 @@ impl Reactor {
                     cmd_checker,
                 };
 
-                self.set_incoming_stream_req_handler(handler)?;
+                let ret = self.set_incoming_stream_req_handler(handler);
+                let _ = done.send(ret); // don't care if sender goes away
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
