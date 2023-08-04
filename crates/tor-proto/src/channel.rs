@@ -102,7 +102,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::io::{AsyncRead, AsyncWrite};
 
 use educe::Educe;
-use futures::{Sink, SinkExt};
+use futures::{FutureExt as _, Sink, SinkExt as _};
 use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -203,6 +203,9 @@ pub(crate) struct ChannelDetails {
     peer_id: OwnedChanTarget,
     /// If true, this channel is closing.
     closed: AtomicBool,
+    /// A receiver that will get a Cancelled event when the reactor is finally
+    /// dropped.
+    reactor_closed_rx: futures::future::Shared<oneshot::Receiver<void::Void>>,
     /// Since when the channel became unused.
     ///
     /// If calling `time_since_update` returns None,
@@ -404,6 +407,8 @@ impl Channel {
         unused_since.update();
 
         let mutable = MutableDetails::default();
+        let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
+        let reactor_closed_rx = reactor_closed_rx.shared();
 
         let details = ChannelDetails {
             unique_id,
@@ -411,6 +416,7 @@ impl Channel {
             closed,
             unused_since,
             clock_skew,
+            reactor_closed_rx,
             opened_at: coarsetime::Instant::now(),
             mutable: Mutex::new(mutable),
         };
@@ -428,6 +434,7 @@ impl Channel {
         let reactor = Reactor {
             control: control_rx,
             cells: cell_rx,
+            reactor_closed_tx,
             input: futures::StreamExt::fuse(stream),
             output: sink,
             circs: circmap,
@@ -662,6 +669,17 @@ impl Channel {
         Ok(())
     }
 
+    /// Return a future that will resolve once this channel has closed.
+    ///
+    /// Note that this method does not _cause_ the channel to shut down on its own.
+    ///
+    /// TODO: Perhaps this should return some kind of status indication instead
+    /// of just ().
+    #[cfg(feature = "experimental-api")]
+    pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        self.details.reactor_closed_rx.clone().map(|_| ())
+    }
+
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     ///
     /// Returns the receiver end of the control message mpsc.
@@ -737,11 +755,13 @@ fn fake_channel_details() -> Arc<ChannelDetails> {
         .rsa_identity([10_u8; 20].into())
         .build()
         .expect("Couldn't construct peer id");
+    let (_tx, rx) = oneshot::channel(); // This will make rx trigger immediately.
 
     Arc::new(ChannelDetails {
         unique_id,
         peer_id,
         closed: AtomicBool::new(false),
+        reactor_closed_rx: rx.shared(),
         unused_since,
         clock_skew: ClockSkew::None,
         opened_at: coarsetime::Instant::now(),

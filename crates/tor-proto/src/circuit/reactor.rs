@@ -548,6 +548,13 @@ pub struct Reactor {
     outbound: VecDeque<AnyChanCell>,
     /// The channel this circuit is using to send cells through.
     channel: Channel,
+    /// A oneshot sender that is used to alert other tasks when this reactor is
+    /// finally dropped.
+    ///
+    /// It is a sender for Void because we never actually want to send anything here;
+    /// we only want to generate canceled events.
+    #[allow(dead_code)] // the only purpose of this field is to be dropped.
+    reactor_closed_tx: oneshot::Sender<void::Void>,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
     // TODO: could use a SPSC channel here instead.
@@ -623,6 +630,7 @@ impl Reactor {
     ) -> (
         Self,
         mpsc::UnboundedSender<CtrlMsg>,
+        oneshot::Receiver<void::Void>,
         Arc<Mutex<MutableState>>,
     ) {
         let crypto_out = OutboundClientCrypt::new();
@@ -630,8 +638,11 @@ impl Reactor {
         let path = Arc::new(path::Path::default());
         let mutable = Arc::new(Mutex::new(MutableState { path }));
 
+        let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
+
         let reactor = Reactor {
             control: control_rx,
+            reactor_closed_tx,
             outbound: Default::default(),
             channel,
             input,
@@ -646,7 +657,7 @@ impl Reactor {
             mutable: mutable.clone(),
         };
 
-        (reactor, control_tx, mutable)
+        (reactor, control_tx, reactor_closed_rx, mutable)
     }
 
     /// Launch the reactor, and run until the circuit closes or we
