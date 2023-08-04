@@ -81,7 +81,7 @@ use {
 use futures::channel::{mpsc, oneshot};
 
 use crate::circuit::sendme::StreamRecvWindow;
-use futures::SinkExt;
+use futures::{FutureExt as _, SinkExt as _};
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
 use tor_cell::relaycell::StreamId;
@@ -162,6 +162,9 @@ pub struct ClientCirc {
     /// operations for this circuit!  All network operations should be done by
     /// the circuit reactor.
     channel: Channel,
+    /// A future that resolves to Cancelled once the reactor is shut down,
+    /// meaning that the circuit is closed.
+    reactor_closed_rx: futures::future::Shared<oneshot::Receiver<void::Void>>,
     /// For testing purposes: the CircId, for use in peek_circid().
     #[cfg(test)]
     circid: CircId,
@@ -802,6 +805,17 @@ impl ClientCirc {
     pub fn n_hops(&self) -> usize {
         self.mutable.lock().expect("poisoned lock").path.n_hops()
     }
+
+    /// Return a future that will resolve once this circuit has closed.
+    ///
+    /// Note that this method does not itself cause the circuit to shut down.
+    ///
+    /// TODO: Perhaps this should return some kind of status indication instead
+    /// of just ()
+    #[cfg(feature = "experimental-api")]
+    pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        self.reactor_closed_rx.clone().map(|_| ())
+    }
 }
 
 /// Handle to use during an ongoing protocol exchange with a circuit's last hop
@@ -864,12 +878,14 @@ impl PendingClientCirc {
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
     ) -> (PendingClientCirc, reactor::Reactor) {
-        let (reactor, control_tx, mutable) = Reactor::new(channel.clone(), id, unique_id, input);
+        let (reactor, control_tx, reactor_closed_rx, mutable) =
+            Reactor::new(channel.clone(), id, unique_id, input);
 
         let circuit = ClientCirc {
             mutable,
             unique_id,
             control: control_tx,
+            reactor_closed_rx: reactor_closed_rx.shared(),
             channel,
             #[cfg(test)]
             circid: id,

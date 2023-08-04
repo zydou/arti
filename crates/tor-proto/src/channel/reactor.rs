@@ -95,6 +95,13 @@ pub enum CtrlMsg {
 pub struct Reactor<S: SleepProvider> {
     /// A receiver for control messages from `Channel` objects.
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
+    /// A oneshot sender that is used to alert other tasks when this reactor is
+    /// finally dropped.
+    ///
+    /// It is a sender for Void because we never actually want to send anything here;
+    /// we only want to generate canceled events.
+    #[allow(dead_code)] // the only purpose of this field is to be dropped.
+    pub(super) reactor_closed_tx: oneshot::Sender<void::Void>,
     /// A receiver for cells to be sent on this reactor's sink.
     ///
     /// `Channel` objects have a sender that can send cells here.

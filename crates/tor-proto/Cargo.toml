@@ -90,6 +90,7 @@ tor-units = { path = "../tor-units", version = "0.6.1" }
 tracing = "0.1.36"
 typenum = "1.12"
 visibility = { version = "0.0.1", optional = true }
+void = "1"
 zeroize = "1"
 
 [dev-dependencies]
