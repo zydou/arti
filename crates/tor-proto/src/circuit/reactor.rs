@@ -1398,8 +1398,8 @@ impl Reactor {
                 message,
                 done,
             } => {
-                let ret = self.close_stream(cx, hop_num, stream_id, Some(message));
-                let _ = done.send(ret); // don't care if sender goes away
+                let ret = self.close_stream(cx, hop_num, stream_id, Some(message))?;
+                let _ = done.send(Ok(ret)); // don't care if sender goes away
             }
             #[cfg(feature = "hs-service")]
             CtrlMsg::AwaitStreamRequest {
@@ -1414,8 +1414,8 @@ impl Reactor {
                     cmd_checker,
                 };
 
-                let ret = self.set_incoming_stream_req_handler(handler);
-                let _ = done.send(ret); // don't care if sender goes away
+                let ret = self.set_incoming_stream_req_handler(handler)?;
+                let _ = done.send(Ok(ret)); // don't care if sender goes away
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
