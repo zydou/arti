@@ -50,6 +50,7 @@ pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
 pub use channel::params::ChannelPaddingInstructions;
+pub use crypto::cell::HopNum;
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;

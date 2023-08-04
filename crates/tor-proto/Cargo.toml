@@ -42,7 +42,7 @@ hs-client = ["hs-common"]
 hs-service = ["hs-common", "__is_experimental"]
 hs-common = ["tor-hscrypto"]
 experimental-api = ["__is_experimental"]
-# start_conversation_last_hop etc.; TODO HS should be renamed
+# start_conversation etc.; TODO HS should be renamed
 send-control-msg = ["visibility"]
 stream-ctrl = ["__is_experimental"]
 # Enable testing-only APIs.  APIs under this feature are not

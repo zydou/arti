@@ -1009,7 +1009,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .await
             .map_err(handle_proto_error)?;
 
-        // `start_conversation_last_hop` returns as soon as the control message has been sent.
+        // `start_conversation` returns as soon as the control message has been sent.
         // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
         let _: RendezvousEstablished = rend_established_rx.recv(handle_proto_error).await?;
 
@@ -1337,7 +1337,7 @@ trait MocksForConnect<R>: Clone {
 /// Mock for `HsCircPool`
 ///
 /// Methods start with `m_` to avoid the following problem:
-/// `ClientCirc::start_conversation_last_hop` (say) means
+/// `ClientCirc::start_conversation` (say) means
 /// to use the inherent method if one exists,
 /// but will use a trait method if there isn't an inherent method.
 ///
@@ -1435,7 +1435,8 @@ impl MockableClientCirc for ClientCirc {
         msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<Self::Conversation<'_>> {
-        ClientCirc::start_conversation_last_hop(self, msg, reply_handler).await
+        let last_hop = self.last_hop_num()?;
+        ClientCirc::start_conversation(self, msg, reply_handler, last_hop).await
     }
     type Conversation<'r> = tor_proto::circuit::Conversation<'r>;
 

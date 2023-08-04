@@ -6,3 +6,8 @@ BREAKING: `IncomingStreamRequest::reject` is now async, takes `&mut self`,
 and returns a `Result`
 BREAKING: `ClientCirc::allow_stream_requests` now expects `self` to be
 `&Arc<ClientCirc>`
+ADDED: `HopNum` is now public
+ADDED: `ClientCirc::last_hop_num`
+DEPRECATED: `ClientCirc::start_conversation_last_hop()`
+ADDED: `ClientCirc::start_conversation()` to eventually replace
+`ClientCirc::start_conversation_last_hop()`

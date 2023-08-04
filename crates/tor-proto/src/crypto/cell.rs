@@ -116,7 +116,7 @@ pub(crate) trait InboundClientLayer {
 ///
 /// Hop indices are zero-based: "0" denotes the first hop on the circuit.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub(crate) struct HopNum(u8);
+pub struct HopNum(u8);
 
 impl From<HopNum> for u8 {
     fn from(hop: HopNum) -> u8 {

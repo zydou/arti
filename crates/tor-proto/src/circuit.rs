@@ -283,6 +283,20 @@ impl ClientCirc {
         }
     }
 
+    /// Return the [`HopNum`](crate::HopNum) of the last hop of this circuit.
+    ///
+    /// Returns an error if there is no last hop.  (This should be impossible outside of the
+    /// tor-proto crate, but within the crate it's possible to have a circuit with no hops.)
+    pub fn last_hop_num(&self) -> Result<HopNum> {
+        Ok(self
+            .mutable
+            .lock()
+            .expect("poisoned lock")
+            .path
+            .last_hop_num()
+            .ok_or_else(|| internal!("no last hop index"))?)
+    }
+
     /// Return a description of all the hops in this circuit.
     ///
     /// This method is **deprecated** for several reasons:
@@ -325,7 +339,7 @@ impl ClientCirc {
         &self.channel
     }
 
-    /// Start an ad-hoc protocol exchange to the final hop on this circuit
+    /// Start an ad-hoc protocol exchange to the specified hop on this circuit
     ///
     /// To use this:
     ///
@@ -333,7 +347,7 @@ impl ClientCirc {
     ///     the outcome of your conversation,
     ///     and bundle it into a [`MsgHandler`].
     ///
-    ///  1. Call `start_conversation_last_hop`.
+    ///  1. Call `start_conversation`.
     ///     This will install a your handler, for incoming messages,
     ///     and send the outgoing message (if you provided one).
     ///     After that, each message on the circuit
@@ -341,7 +355,7 @@ impl ClientCirc {
     ///     is passed to your provided `reply_handler`.
     ///
     ///  2. Possibly call `send_msg` on the [`Conversation`],
-    ///     from the call site of `start_conversation_last_hop`,
+    ///     from the call site of `start_conversation`,
     ///     possibly multiple times, from time to time,
     ///     to send further desired messages to the peer.
     ///
@@ -376,7 +390,7 @@ impl ClientCirc {
     /// while the conversation is in progress.
     ///
     /// After the conversation has finished, the circuit may be extended.
-    /// Or, `start_conversation_last_hop` may be called again;
+    /// Or, `start_conversation` may be called again;
     /// but, in that case there will be a gap between the two conversations,
     /// during which no `MsgHandler` is installed,
     /// and unexpected incoming messages would close the circuit.
@@ -385,7 +399,7 @@ impl ClientCirc {
     ///
     /// ## Precise definition of the lifetime of a conversation
     ///
-    /// A conversation is in progress from entry to `start_conversation_last_hop`,
+    /// A conversation is in progress from entry to `start_conversation`,
     /// until entry to the body of the [`MsgHandler::handle_msg`]
     /// call which returns [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
     /// (*Entry* since `handle_msg` is synchronously embedded
@@ -401,11 +415,24 @@ impl ClientCirc {
     //
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
-    //
-    // TODO hs: Possibly this function should use
-    // HopNum or similar to indicate which hop we're talking to, rather than
-    // just doing "the last hop".
     #[cfg(feature = "send-control-msg")]
+    pub async fn start_conversation(
+        &self,
+        msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
+        reply_handler: impl MsgHandler + Send + 'static,
+        hop_num: HopNum,
+    ) -> Result<Conversation<'_>> {
+        let handler = Box::new(msghandler::UserMsgHandler::new(hop_num, reply_handler));
+        let conversation = Conversation(self);
+        conversation.send_internal(msg, Some(handler)).await?;
+        Ok(conversation)
+    }
+
+    /// Start an ad-hoc protocol exchange to the final hop on this circuit
+    ///
+    /// See the [`ClientCirc::start_conversation`] docs for more information.
+    #[cfg(feature = "send-control-msg")]
+    #[deprecated(since = "0.13.0", note = "Use start_conversation instead.")]
     pub async fn start_conversation_last_hop(
         &self,
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
@@ -418,10 +445,8 @@ impl ClientCirc {
             .path
             .last_hop_num()
             .ok_or_else(|| internal!("no last hop index"))?;
-        let handler = Box::new(msghandler::UserMsgHandler::new(last_hop, reply_handler));
-        let conversation = Conversation(self);
-        conversation.send_internal(msg, Some(handler)).await?;
-        Ok(conversation)
+
+        self.start_conversation(msg, reply_handler, last_hop).await
     }
 
     /// Tell this circuit to begin allowing the final hop of the circuit to try
@@ -781,7 +806,7 @@ impl ClientCirc {
 
 /// Handle to use during an ongoing protocol exchange with a circuit's last hop
 ///
-/// This is obtained from [`ClientCirc::start_conversation_last_hop`],
+/// This is obtained from [`ClientCirc::start_conversation`],
 /// and used to send messages to the last hop relay.
 ///
 /// See also [`ConversationInHandler`], which is a type used for the same purpose
@@ -803,7 +828,7 @@ impl Conversation<'_> {
 
     /// Send a `SendMsgAndInstallHandler` to the reactor and wait for the outcome
     ///
-    /// The guts of `start_conversation_last_hop` and `Conversation::send_msg`
+    /// The guts of `start_conversation` and `Conversation::send_msg`
     async fn send_internal(
         &self,
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
