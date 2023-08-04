@@ -57,12 +57,14 @@ use crate::circuit::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
 pub use crate::circuit::unique_id::UniqId;
+pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
 };
 use crate::{Error, ResolveError, Result};
+use educe::Educe;
 use tor_cell::{
     chancell::{self, msg::AnyChanMsg, CircId},
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -171,7 +173,8 @@ pub struct ClientCirc {
 }
 
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
-#[derive(Debug)]
+#[derive(Educe)]
+#[educe(Debug)]
 struct MutableState {
     /// Information about this circuit's path.
     ///
@@ -179,6 +182,16 @@ struct MutableState {
     /// client code; when we need to add a hop (which is less frequent) we use
     /// [`Arc::make_mut()`].
     path: Arc<path::Path>,
+
+    /// Circuit binding keys [q.v.][`CircuitBinding`] information for each hop
+    /// in the circuit's path.
+    ///
+    /// NOTE: Right now, there is a `CircuitBinding` for every hop.  There's a
+    /// fair chance that this will change in the future, and I don't want other
+    /// code to assume that a `CircuitBinding` _must_ exist, so I'm making this
+    /// an `Option`.
+    #[educe(Debug(ignore))]
+    binding: Vec<Option<CircuitBinding>>,
 }
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
@@ -340,6 +353,25 @@ impl ClientCirc {
     /// path.
     pub fn channel(&self) -> &Channel {
         &self.channel
+    }
+
+    /// Return the cryptographic material used to prove knowledge of a shared
+    /// secret with with `hop`.
+    ///
+    /// See [`CircuitBinding`] for more information on how this is used.
+    ///
+    /// Return None if we have no circuit binding information for the hop, or if
+    /// the hop does not exist.
+    pub fn binding_key(&self, hop: HopNum) -> Option<CircuitBinding> {
+        self.mutable
+            .lock()
+            .expect("poisoned lock")
+            .binding
+            .get::<usize>(hop.into())
+            .cloned()
+            .flatten()
+        // NOTE: I'm not thrilled to have to copy this information, but we use
+        // it very rarely, so it's not _that_ bad IMO.
     }
 
     /// Start an ad-hoc protocol exchange to the specified hop on this circuit

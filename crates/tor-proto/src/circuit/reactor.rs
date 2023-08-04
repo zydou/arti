@@ -643,7 +643,8 @@ impl Reactor {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
         let path = Arc::new(path::Path::default());
-        let mutable = Arc::new(Mutex::new(MutableState { path }));
+        let binding = Vec::new();
+        let mutable = Arc::new(Mutex::new(MutableState { path, binding }));
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
@@ -1080,9 +1081,9 @@ impl Reactor {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        drop(binding); // XXXX
         let mut mutable = self.mutable.lock().expect("poisoned lock");
         Arc::make_mut(&mut mutable.path).push_hop(peer_id);
+        mutable.binding.push(binding);
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.

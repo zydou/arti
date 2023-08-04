@@ -14,3 +14,6 @@ ADDED: `ClientCirc::start_conversation()` to eventually replace
 BREAKING: `ClientCirc::allow_stream_requests` is now async
 BREAKING: `IncomingStream::discard` now takes `mut self` instead of `self` and
 returns a `Result<(), Bug>`
+ADDED: `ClientCirc::binding_key`
+
+

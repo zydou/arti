@@ -1,7 +1,6 @@
 //! Types related to binding messages to specific circuits
 
-#![allow(dead_code, unreachable_pub)] // XXXX remove.
-
+#[cfg(feature = "hs-service")]
 use tor_hscrypto::ops::HsMacKey;
 use zeroize::Zeroizing;
 
