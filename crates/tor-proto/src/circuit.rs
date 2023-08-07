@@ -1086,6 +1086,25 @@ impl StreamTarget {
         Ok(())
     }
 
+    /// Like [`StreamTarget::close`], except this returns immediately instead of waiting for the
+    /// reactor to respond to the `ClosePendingStream` control message.
+    ///
+    /// See [`StreamTarget::close`] for more details.
+    #[cfg(feature = "hs-service")]
+    pub(crate) fn close_nonblocking(&self, msg: relaymsg::End) -> Result<()> {
+        let (tx, _rx) = oneshot::channel();
+
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::ClosePendingStream {
+                stream_id: self.stream_id,
+                hop_num: self.hop_num,
+                message: msg,
+                done: tx,
+            })
+            .map_err(|_| Error::CircuitClosed)
+    }
+
     /// Called when a circuit-level protocol error has occurred and the
     /// circuit needs to shut down.
     pub(crate) fn protocol_error(&mut self) {
