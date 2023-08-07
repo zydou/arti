@@ -411,7 +411,7 @@ where
 
         let cfg_sources = {
             let mut cfg_sources = ConfigurationSources::from_cmdline(
-                default_config_files()?,
+                default_config_files().context("identify default config file locations")?,
                 matches
                     .get_many::<OsString>("config-files")
                     .unwrap_or_default(),
