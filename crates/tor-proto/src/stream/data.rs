@@ -226,7 +226,7 @@ struct DataStreamStatus {
     /// True if we've received a CONNECTED message.
     //
     // TODO: This is redundant with `connected` in DataReaderImpl and
-    // `connected_received` in DataCmdChecker.
+    // `expecting_connected` in DataCmdChecker.
     received_connected: bool,
     /// True if we have decided to send an END message.
     //
@@ -915,15 +915,18 @@ impl DataReaderImpl {
 }
 
 /// A `CmdChecker` that enforces invariants for outbound data streams.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct DataCmdChecker {
-    /// True if we have received a CONNECTED message on this stream.
-    //
-    // TODO HSS: The name of this field is misleading, because we sometimes set it to true despite
-    // not actually having received a CONNECTED message (for example, the new_connected()
-    // constructor creates a DataCmdChecker with connected_received preinitialized to true). We
-    // should rename this field to expecting_connected and reverse its meaning.
-    connected_received: bool,
+    /// True if we are expecting to receive a CONNECTED message on this stream.
+    expecting_connected: bool,
+}
+
+impl Default for DataCmdChecker {
+    fn default() -> Self {
+        Self {
+            expecting_connected: true,
+        }
+    }
 }
 
 impl super::CmdChecker for DataCmdChecker {
@@ -934,17 +937,17 @@ impl super::CmdChecker for DataCmdChecker {
         use super::StreamStatus::*;
         match msg.cmd() {
             RelayCmd::CONNECTED => {
-                if self.connected_received {
+                if !self.expecting_connected {
                     Err(Error::StreamProto(
                         "Received CONNECTED twice on a stream.".into(),
                     ))
                 } else {
-                    self.connected_received = true;
+                    self.expecting_connected = false;
                     Ok(Open)
                 }
             }
             RelayCmd::DATA => {
-                if self.connected_received {
+                if !self.expecting_connected {
                     Ok(Open)
                 } else {
                     Err(Error::StreamProto(
@@ -983,7 +986,7 @@ impl DataCmdChecker {
     #[cfg(feature = "hs-service")]
     pub(crate) fn new_connected() -> AnyCmdChecker {
         Box::new(Self {
-            connected_received: true,
+            expecting_connected: false,
         })
     }
 }
