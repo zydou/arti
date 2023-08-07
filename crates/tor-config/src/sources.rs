@@ -25,6 +25,8 @@
 use std::ffi::OsString;
 use std::{fs, io};
 
+use void::ResultVoidExt as _;
+
 use crate::err::ConfigError;
 use crate::CmdLine;
 
@@ -146,21 +148,9 @@ impl ConfigurationSources {
         Self::default()
     }
 
-    /// Establish a [`ConfigurationSources`] the usual way from a command line and defaults
+    /// Establish a [`ConfigurationSources`] the from an infallible command line and defaults
     ///
-    /// The caller should have parsed the program's command line, and extracted (inter alia)
-    ///
-    ///  * `config_files_options`: Paths of config file(s) (or directories of `.toml` files)
-    ///  * `cmdline_toml_override_options`: Overrides ("key=value")
-    ///
-    /// The caller should also provide `default_config_files`, the default locations of the
-    /// configuration files.  This is used if no file(s) are specified on the command line.
-    ///
-    /// `mistrust` is used to check whether the configuration files have appropriate permissions.
-    ///
-    /// `ConfigurationSource::Dir`s
-    /// will be scanned for files whose name ends in `.toml`.
-    /// All those files (if any) will be read (in lexical order by filename).
+    /// Convenience method for if the default config file location(s) can be infallibly computed.
     pub fn from_cmdline<F, O>(
         default_config_files: impl IntoIterator<Item = ConfigurationSource>,
         config_files_options: impl IntoIterator<Item = F>,
@@ -169,6 +159,43 @@ impl ConfigurationSources {
     where
         F: Into<PathBuf>,
         O: Into<String>,
+    {
+        ConfigurationSources::try_from_cmdline(
+            || Ok(default_config_files),
+            config_files_options,
+            cmdline_toml_override_options,
+        )
+        .void_unwrap()
+    }
+
+    /// Establish a [`ConfigurationSources`] the usual way from a command line and defaults
+    ///
+    /// The caller should have parsed the program's command line, and extracted (inter alia)
+    ///
+    ///  * `config_files_options`: Paths of config file(s) (or directories of `.toml` files)
+    ///  * `cmdline_toml_override_options`: Overrides ("key=value")
+    ///
+    /// The caller should also provide `default_config_files`,
+    /// which returns the default locations of the configuration files.
+    /// This used if no file(s) are specified on the command line.
+    //
+    // The other inputs are always used and therefore
+    // don't need to be lifted into FnOnce() -> Result.
+    ///
+    /// `mistrust` is used to check whether the configuration files have appropriate permissions.
+    ///
+    /// `ConfigurationSource::Dir`s
+    /// will be scanned for files whose name ends in `.toml`.
+    /// All those files (if any) will be read (in lexical order by filename).
+    pub fn try_from_cmdline<F, O, DEF, E>(
+        default_config_files: impl FnOnce() -> Result<DEF, E>,
+        config_files_options: impl IntoIterator<Item = F>,
+        cmdline_toml_override_options: impl IntoIterator<Item = O>,
+    ) -> Result<Self, E>
+    where
+        F: Into<PathBuf>,
+        O: Into<String>,
+        DEF: IntoIterator<Item = ConfigurationSource>,
     {
         let mut cfg_sources = ConfigurationSources::new_empty();
 
@@ -179,7 +206,7 @@ impl ConfigurationSources {
             any_files = true;
         }
         if !any_files {
-            for default in default_config_files {
+            for default in default_config_files()? {
                 cfg_sources.push_source(default, MustRead::TolerateAbsence);
             }
         }
@@ -188,7 +215,7 @@ impl ConfigurationSources {
             cfg_sources.push_option(s);
         }
 
-        cfg_sources
+        Ok(cfg_sources)
     }
 
     /// Add `src` to the list of files or directories that we want to read configuration from.
