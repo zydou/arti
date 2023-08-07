@@ -22,16 +22,29 @@ use tor_error::internal;
 pub struct IncomingStream {
     /// The message that the client sent us to begin the stream.
     request: IncomingStreamRequest,
-    /// The information that we'll use to wire up the stream, if it is accepted.
-    stream: StreamTarget,
-    /// The underlying `StreamReader`.
-    reader: StreamReader,
+    /// The inner state, which contains the reader and writer of this stream.
+    ///
+    /// This is an `Option` because we need to be able to "take" the reader/writer of the stream
+    /// out of the `IncomingStream` to construct a [`DataStream`] in [`IncomingStream::accept_data`].
+    ///
+    /// Note: we can't move the reader/writer out of `self` because `IncomingStream` implements
+    /// `Drop` (so as a workaround we use [`Option::take`]).
+    inner: Option<IncomingStreamInner>,
     /// Whether we have rejected the stream using [`StreamTarget::close`].
     ///
     /// If set to `true`, any attempts to use this `IncomingStream` will return an error.
     is_rejected: bool,
     /// Whether we have accepted the stream using [`StreamTarget::accept_data`].
     is_accepted: bool,
+}
+
+/// The inner state of an [`IncomingStream`], which contains its reader and writer.
+#[derive(Debug)]
+struct IncomingStreamInner {
+    /// The information that we'll use to wire up the stream, if it is accepted.
+    stream: StreamTarget,
+    /// The underlying `StreamReader`.
+    reader: StreamReader,
 }
 
 /// A message that can be sent to begin a stream.
@@ -53,10 +66,10 @@ impl IncomingStream {
         stream: StreamTarget,
         reader: StreamReader,
     ) -> Self {
+        let inner = IncomingStreamInner { stream, reader };
         Self {
             request,
-            stream,
-            reader,
+            inner: Some(inner),
             is_rejected: false,
             is_accepted: false,
         }
@@ -80,11 +93,12 @@ impl IncomingStream {
         }
 
         self.is_accepted = true;
+        let mut inner = self.take_inner()?;
 
         match self.request {
             IncomingStreamRequest::Begin(_) => {
-                self.stream.send(message.into()).await?;
-                Ok(DataStream::new_connected(self.reader, self.stream))
+                inner.stream.send(message.into()).await?;
+                Ok(DataStream::new_connected(inner.reader, inner.stream))
             } // TODO HSS: return an error if the request was RESOLVE, or any other request that
               // we cannot respond with CONNECTED to
         }
@@ -97,7 +111,20 @@ impl IncomingStream {
         }
 
         self.is_rejected = true;
-        self.stream.close(message).await
+        self.mut_inner()?.stream.close(message).await
+    }
+
+    /// Like `[IncomingStream::reject`], except this uses [`StreamTarget::close_nonblocking`]
+    /// instead of [`StreamTarget::close`].
+    ///
+    /// This is used for implementing `Drop`.
+    fn reject_nonblocking(&mut self, message: msg::End) -> Result<()> {
+        if self.is_rejected {
+            return Err(internal!("IncomingStream::reject() called twice").into());
+        }
+
+        self.is_rejected = true;
+        self.mut_inner()?.stream.close_nonblocking(message)
     }
 
     /// Ignore this request without replying to the client.
@@ -108,10 +135,36 @@ impl IncomingStream {
     pub fn discard(self) {
         todo!() // TODO hss
     }
+
+    /// Take the inner state out of `IncomingStream`.
+    ///
+    /// Returns an error if `inner` is `None` (this should never happen unless we have a bug in our
+    /// code).
+    fn take_inner(&mut self) -> Result<IncomingStreamInner> {
+        self.inner
+            .take()
+            .ok_or_else(|| internal!("Cannot accept data on a stream we have consumed").into())
+    }
+
+    /// Return a mutable reference to the inner state of `IncomingStream`.
+    ///
+    /// Returns an error if `inner` is `None` (this should never happen unless we have a bug in our
+    /// code).
+    fn mut_inner(&mut self) -> Result<&mut IncomingStreamInner> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| internal!("Cannot accept data on a stream we have consumed").into())
+    }
 }
 
-// TODO hss: dropping an IncomingStream without accepting or rejecting it should
-// cause it to call `reject`.
+impl Drop for IncomingStream {
+    fn drop(&mut self) {
+        if !self.is_rejected && !self.is_accepted {
+            // Disregard any errors.
+            let _ = self.reject_nonblocking(msg::End::new_misc());
+        }
+    }
+}
 
 restricted_msg! {
     /// The allowed incoming messages on an `IncomingStream`.
