@@ -410,13 +410,13 @@ where
         }
 
         let cfg_sources = {
-            let mut cfg_sources = ConfigurationSources::from_cmdline(
-                default_config_files().context("identify default config file locations")?,
+            let mut cfg_sources = ConfigurationSources::try_from_cmdline(
+                || default_config_files().context("identify default config file locations"),
                 matches
                     .get_many::<OsString>("config-files")
                     .unwrap_or_default(),
                 override_options,
-            );
+            )?;
             cfg_sources.set_mistrust(cfg_mistrust);
             cfg_sources
         };

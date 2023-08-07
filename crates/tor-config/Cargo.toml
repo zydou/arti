@@ -46,6 +46,7 @@ toml = "0.7.2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-error = { path = "../tor-error", version = "0.5.3" }
 tracing = "0.1.36"
+void = "1"
 
 [dev-dependencies]
 config = { version = "0.13", default-features = false, features = ["toml"] }
