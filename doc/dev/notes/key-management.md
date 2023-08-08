@@ -61,7 +61,7 @@ All keys including `K_hs_id` are automatically generated as needed.
 
 `K_hs_id` is stored on disk in the default location
 within the Arti keystore.
-`K_hs_blind_id` are calculated as needed and aren't stored.)
+`K_hs_blind_id` are calculated as needed and aren't stored.
 `K_hs_desc_sign` is generated and certified as needed;
 it need not be stored
 (so service restarts might involve a new `K_hs_desc_sign`).
@@ -94,7 +94,7 @@ enforce the authentication.)
 Suppose an HSM with the following properties:
 
  * Limited number of keyslots, identified by number.
- * Requires user interaction (passphrase, toucb permission) for key use.
+ * Requires user interaction (passphrase, touch permission) for key use.
 
 User configures or specifies:
 
@@ -117,7 +117,7 @@ and specifies, for both the RSA and ED identities,
 the HSM keystore nickname and
 the keystore-specific location information (in this case, the keyslot).
 
-A separate tool provided by Arti generates the subsidary keys
+A separate tool provided by Arti generates the subsidiary keys
 `K_relaysign_*` etc., for a specified time into the future,
 using the `K_relayid_*` via the HSM keystore.
 This tool manages the interaction between the user and the HSM
