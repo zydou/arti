@@ -5,6 +5,7 @@
 use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::StreamTarget;
 use crate::{Error, Result};
+use futures::channel::oneshot;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayCell};
 use tor_cell::restricted_msg;
 use tor_error::internal;
@@ -106,25 +107,23 @@ impl IncomingStream {
 
     /// Reject this request and send an error message to the client.
     pub async fn reject(&mut self, message: msg::End) -> Result<()> {
-        if self.is_rejected {
-            return Err(internal!("IncomingStream::reject() called twice").into());
-        }
+        let rx = self.reject_inner(message)?;
 
-        self.is_rejected = true;
-        self.mut_inner()?.stream.close(message).await
+        rx.await.map_err(|_| Error::CircuitClosed)?.map(|_| ())
     }
 
-    /// Like `[IncomingStream::reject`], except this uses [`StreamTarget::close_nonblocking`]
-    /// instead of [`StreamTarget::close`].
+    /// Reject this request and send an error message to the client.
+    ///
+    /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
     ///
     /// This is used for implementing `Drop`.
-    fn reject_nonblocking(&mut self, message: msg::End) -> Result<()> {
+    fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
         if self.is_rejected {
             return Err(internal!("IncomingStream::reject() called twice").into());
         }
 
         self.is_rejected = true;
-        self.mut_inner()?.stream.close_nonblocking(message)
+        self.mut_inner()?.stream.close(message)
     }
 
     /// Ignore this request without replying to the client.
@@ -164,7 +163,7 @@ impl Drop for IncomingStream {
     fn drop(&mut self) {
         if !self.is_rejected && !self.is_accepted {
             // Disregard any errors.
-            let _ = self.reject_nonblocking(msg::End::new_misc());
+            let _ = self.reject_inner(msg::End::new_misc());
         }
     }
 }
