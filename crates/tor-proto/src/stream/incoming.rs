@@ -163,7 +163,7 @@ impl Drop for IncomingStream {
     fn drop(&mut self) {
         if !self.is_rejected && !self.is_accepted {
             // Disregard any errors.
-            let _ = self.reject_inner(msg::End::new_misc());
+            let _: Result<oneshot::Receiver<Result<()>>> = self.reject_inner(msg::End::new_misc());
         }
     }
 }
