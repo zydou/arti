@@ -806,37 +806,43 @@ mod test {
                 let cfg = cfg.build()?;
                 let n_bridges = cfg.bridges.bridges.len();
                 Ok::<_, anyhow::Error>(n_bridges) // anyhow is just something we can use for ?
-            })().map_err(|_| ());
+            })()
+            .map_err(|_| ());
             assert_eq!(got, exp);
         }
 
         let chk_enabled_or_auto = |exp, bridges_toml| {
-            for enabled in [
-                r#""#,
-                r#"enabled = true"#,
-                r#"enabled = "auto""#,
-            ] {
+            for enabled in [r#""#, r#"enabled = true"#, r#"enabled = "auto""#] {
                 chk(exp, &format!("[bridges]\n{}\n{}", enabled, bridges_toml));
             }
         };
 
         let ok_1_if = |b: bool| b.then_some(1).ok_or(());
 
-        chk(Err(()), r#"
+        chk(
+            Err(()),
+            r#"
             [bridges]
             enabled = true
-        "#);
+        "#,
+        );
 
-        chk_enabled_or_auto(ok_1_if(cfg!(feature = "bridge-client")), r#"
+        chk_enabled_or_auto(
+            ok_1_if(cfg!(feature = "bridge-client")),
+            r#"
             bridges = ["192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956"]
-        "#);
+        "#,
+        );
 
-        chk_enabled_or_auto(ok_1_if(cfg!(feature = "pt-client")), r#"
+        chk_enabled_or_auto(
+            ok_1_if(cfg!(feature = "pt-client")),
+            r#"
             bridges = ["obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1"]
             [[bridges.transports]]
             protocols = ["obfs4"]
             path = "obfs4proxy"
-        "#);
+        "#,
+        );
     }
 
     #[test]
