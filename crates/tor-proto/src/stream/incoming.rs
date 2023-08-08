@@ -48,18 +48,6 @@ struct IncomingStreamInner {
     reader: StreamReader,
 }
 
-/// A message that can be sent to begin a stream.
-//
-// TODO hss perhaps this should be made with restricted_msg!()
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum IncomingStreamRequest {
-    /// A begin cell, which requests a new data stream.
-    Begin(msg::Begin),
-    // TODO: Eventually, add a BeginDir variant
-    // TODO: eventually, add a Resolve variant.
-}
-
 impl IncomingStream {
     /// Create a new `IncomingStream`.
     pub(crate) fn new(
@@ -97,11 +85,13 @@ impl IncomingStream {
         let mut inner = self.take_inner()?;
 
         match self.request {
-            IncomingStreamRequest::Begin(_) => {
+            IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
                 inner.stream.send(message.into()).await?;
                 Ok(DataStream::new_connected(inner.reader, inner.stream))
-            } // TODO HSS: return an error if the request was RESOLVE, or any other request that
-              // we cannot respond with CONNECTED to
+            }
+            IncomingStreamRequest::Resolve(_) => {
+                Err(internal!("Cannot accept data on a RESOLVE stream").into())
+            }
         }
     }
 
@@ -170,8 +160,15 @@ impl Drop for IncomingStream {
 
 restricted_msg! {
     /// The allowed incoming messages on an `IncomingStream`.
-    enum IncomingStreamMsg: RelayMsg {
-        Begin, BeginDir, Resolve,
+    #[derive(Clone, Debug)]
+    #[non_exhaustive]
+    pub enum IncomingStreamRequest: RelayMsg {
+        /// A BEGIN message.
+        Begin,
+        /// A BEGIN_DIR message.
+        BeginDir,
+        /// A RESOLVE message.
+        Resolve,
     }
 }
 
@@ -212,7 +209,7 @@ impl super::CmdChecker for IncomingCmdChecker {
 
     fn consume_checked_msg(&mut self, msg: UnparsedRelayCell) -> Result<()> {
         let _ = msg
-            .decode::<IncomingStreamMsg>()
+            .decode::<IncomingStreamRequest>()
             .map_err(|err| Error::from_bytes_err(err, "invalid message on incoming stream"))?;
 
         Ok(())
