@@ -822,26 +822,26 @@ mod test {
         chk(
             Err(()),
             r#"
-            [bridges]
-            enabled = true
-        "#,
+                [bridges]
+                enabled = true
+            "#,
         );
 
         chk_enabled_or_auto(
             ok_1_if(cfg!(feature = "bridge-client")),
             r#"
-            bridges = ["192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956"]
-        "#,
+                bridges = ["192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956"]
+            "#,
         );
 
         chk_enabled_or_auto(
             ok_1_if(cfg!(feature = "pt-client")),
             r#"
-            bridges = ["obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1"]
-            [[bridges.transports]]
-            protocols = ["obfs4"]
-            path = "obfs4proxy"
-        "#,
+                bridges = ["obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1"]
+                [[bridges.transports]]
+                protocols = ["obfs4"]
+                path = "obfs4proxy"
+            "#,
         );
     }
 
