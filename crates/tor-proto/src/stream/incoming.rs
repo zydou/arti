@@ -35,7 +35,7 @@ pub struct IncomingStream {
     ///
     /// If set to `true`, any attempts to use this `IncomingStream` will return an error.
     is_rejected: bool,
-    /// Whether we have accepted the stream using [`StreamTarget::accept_data`].
+    /// Whether we have accepted the stream using [`IncomingStream::accept_data`].
     is_accepted: bool,
 }
 
