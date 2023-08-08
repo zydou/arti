@@ -439,7 +439,7 @@ fn validate_bridges_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigB
         (BoA::Explicit(true), []) => {
             return Err(ConfigBuildError::Inconsistent {
                 fields: ["enabled", "bridges"].map(Into::into).into_iter().collect(),
-                problem: "bridges enabled=true, but no bridges defined".into(),
+                problem: "bridges.enabled=true, but no bridges defined".into(),
             })
         }
     }
