@@ -423,7 +423,6 @@ fn validate_pt_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigBuildE
 fn validate_bridges_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigBuildError> {
     let _ = bridges; // suppresses unused variable for just that argument
 
-    #[cfg(feature = "bridge-client")]
     use BoolOrAuto as BoA;
 
     // Ideally we would run this post-build, rather than pre-build;
@@ -432,7 +431,6 @@ fn validate_bridges_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigB
     //
     // Alternatively we could have derive_builder provide `build_unvalidated`,
     // but that involves re-setting the build fn name for every field.
-    #[cfg(feature = "bridge-client")]
     match (
         bridges.enabled.unwrap_or_default(),
         bridges.bridges.bridges.as_deref().unwrap_or_default(),
