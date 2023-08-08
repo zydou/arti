@@ -18,8 +18,8 @@ Options:
   -i: Run an interactive shell after the command (if any)
   -c: Continue using data from previous runs. (By default, data is deleted.)
   -s: Skip generating a final report.
-  -f <format>: format to use when generating coverage report. one of html (default), ade,
-               lcov, coveralls, coveralls+, files, covdir, or cobertura
+  -f <format>: format to use when generating coverage report. Defaults to html.
+               See "grcov --help" for a full list of supported formats.
   -o <path>: set the output path for the coverage report (default "coverage")
 
 Notes:
