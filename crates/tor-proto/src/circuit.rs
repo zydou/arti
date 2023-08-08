@@ -1040,6 +1040,10 @@ impl StreamTarget {
     /// Close the pending stream that owns this StreamTarget, delivering the specified
     /// END message.
     ///
+    /// The stream is closed by sending a [`CtrlMsg::ClosePendingStream`] message to the reactor.
+    ///
+    /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
+    ///
     /// The StreamTarget will set the correct stream ID and pick the
     /// right hop, but will not validate that the message is well-formed
     /// or meaningful in context.
@@ -1068,7 +1072,7 @@ impl StreamTarget {
     //   sent_close_pending_stream boolean flag in StreamTarget to remember if close() has been
     //   called before)
     #[cfg(feature = "hs-service")]
-    pub(crate) async fn close(&self, msg: relaymsg::End) -> Result<()> {
+    pub(crate) fn close(&self, msg: relaymsg::End) -> Result<oneshot::Receiver<Result<()>>> {
         let (tx, rx) = oneshot::channel();
 
         self.circ
@@ -1081,9 +1085,7 @@ impl StreamTarget {
             })
             .map_err(|_| Error::CircuitClosed)?;
 
-        // Check whether the ClosePendingStream was processed successfully.
-        rx.await.map_err(|_| Error::CircuitClosed)??;
-        Ok(())
+        Ok(rx)
     }
 
     /// Called when a circuit-level protocol error has occurred and the
