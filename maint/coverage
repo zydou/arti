@@ -18,6 +18,7 @@ Suites:
 
 Notes:
   You need to have grcov and llvm-tools installed.
+  You also need the python packages bs4 and lxml for generating the HTML.
   For integration tests, you'll need chutney and tor.
 EOF
 }
@@ -30,7 +31,7 @@ cd "$TOPDIR"
 UNIT=no
 INTEGRATION=no
 
-while getopts "ch" opt ; do
+while getopts "h" opt ; do
     case "$opt" in
 	h) usage
 	   exit 0
