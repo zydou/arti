@@ -141,9 +141,12 @@ impl IncomingStream {
     /// Returns an error if `inner` is `None` (this should never happen unless we have a bug in our
     /// code).
     fn take_inner(&mut self) -> Result<IncomingStreamInner> {
-        self.inner
+        let _: &mut _ = self.mut_inner()?;
+
+        Ok(self
+            .inner
             .take()
-            .ok_or_else(|| internal!("Cannot accept data on a stream we have consumed").into())
+            .expect("inner None though we just checked it"))
     }
 
     /// Return a mutable reference to the inner state of `IncomingStream`.
@@ -153,7 +156,7 @@ impl IncomingStream {
     fn mut_inner(&mut self) -> Result<&mut IncomingStreamInner> {
         self.inner
             .as_mut()
-            .ok_or_else(|| internal!("Cannot accept data on a stream we have consumed").into())
+            .ok_or_else(|| internal!("Cannot use a stream that has already been consumed").into())
     }
 }
 
