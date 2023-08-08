@@ -141,8 +141,8 @@ impl IncomingStream {
     /// (If you drop an [`IncomingStream`] without calling `accept_data`,
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
-    pub fn discard(self) {
-        todo!() // TODO hss
+    pub fn discard(mut self) -> Result<()> {
+        self.update_state(IncomingStreamState::Discarded, "discard")
     }
 
     /// Try to update the state of this `IncomingStream` to `new_state`, returning an error if the
