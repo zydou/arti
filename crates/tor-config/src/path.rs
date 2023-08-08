@@ -71,7 +71,7 @@ pub enum CfgPathError {
     #[error("Unrecognized variable {0} in path")]
     UnknownVar(String),
     /// We couldn't construct a ProjectDirs object.
-    #[error("Can't construct project directories to resolve a path element")]
+    #[error("Couldn't determine XDG Project Directories, needed to resolve a path; probably, unable to determine HOME directory")]
     NoProjectDirs,
     /// We couldn't construct a BaseDirs object.
     #[error("Can't construct base directories to resolve a path element")]
