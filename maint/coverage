@@ -31,7 +31,7 @@ cd "$TOPDIR"
 UNIT=no
 INTEGRATION=no
 
-while getopts "ch" opt ; do
+while getopts "h" opt ; do
     case "$opt" in
 	h) usage
 	   exit 0
