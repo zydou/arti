@@ -1485,9 +1485,14 @@ impl NetDir {
             .get()
             .try_into()
             .expect("BoundedInt did not enforce bounds");
-        let spread_fetch = self
-            .params
-            .hsdir_spread_fetch
+
+        let spread = match op {
+            HsDirOp::Download => self.params.hsdir_spread_fetch,
+            #[cfg(feature = "hs-service")]
+            HsDirOp::Upload => self.params.hsdir_spread_store,
+        };
+
+        let spread = spread
             .get()
             .try_into()
             .expect("BoundedInt did not enforce bounds!");
@@ -1516,7 +1521,7 @@ impl NetDir {
             .cartesian_product(1..=n_replicas) // 1-indexed !
             .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
                 let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
-                ring.ring_items_at(hsdir_idx, spread_fetch)
+                ring.ring_items_at(hsdir_idx, spread)
             })
             .filter_map(|(_hsdir_idx, rs_idx)| {
                 // This ought not to be None but let's not panic or bail if it is
