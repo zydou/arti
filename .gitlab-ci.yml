@@ -35,6 +35,7 @@ maint-checks:
     - apt-get update && apt-get install -y python3-toml python-is-python3 git
     - ./maint/check_toposort
     - ./maint/add_warning --check
+    - ./maint/shebang
 
 # non-blocking for now, see
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/581
@@ -46,7 +47,6 @@ doc-features:
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_doc_features
-    - ./maint/shebang
 
 # This should always be in the last testing stage, so that if it fails all the other steps still run
 # But it should run before any deployument.
