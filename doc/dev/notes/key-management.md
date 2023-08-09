@@ -38,6 +38,7 @@ let sk: Option<ed25519::SecretKey> = keymgr.get::<ed25519::SecretKey>(&intro_aut
 The key manager is an interface to one or more key stores.
 
 Supported key stores:
+
 * C Tor key store: an on-disk store that is backwards-compatible with C Tor (new
   keys are stored in the format used by C Tor, and any existing keys are
   expected to be in this format too).
@@ -45,6 +46,149 @@ Supported key stores:
   format.
 
 In the future we plan to also support HSM-based key stores.
+
+## Use cases
+
+### Hidden service with on-disk keys
+
+The user makes a minimal configuration:
+they specify the nickname of the hidden serivce in the Arti configuration,
+and where to forward http(s) requests.
+
+The default Arti keystore is instantiated, and is initially empty.
+
+All keys including `K_hs_id` are automatically generated as needed.
+
+`K_hs_id` is stored on disk in the default location
+within the Arti keystore.
+`K_hs_blind_id` are calculated as needed and aren't stored.
+`K_hs_desc_sign` is generated and certified as needed;
+it need not be stored
+(so service restarts might involve a new `K_hs_desc_sign`).
+
+### Hidden service with on-disk keys, migration from C Tor
+
+The user specifies, for the service: its nickname,
+and the C Tor `HiddenServiceDirectory`.
+
+When Arti starts up, a C Tor compatibility key store is created
+(for that specific service, so one per HS if there are several).
+
+The `private_key` file is `K_hs_id`.
+Other keys (`K_hs_blind_id`, `K_hs_desc_sign`, etc.)
+are created dynamically,
+and not stored.
+(These do not have a C Tor compatibility path.)
+
+Additionally, other Arti-specific C Tor compatibility code
+reads other information from the `HiddenServiceDirectory`.
+Notably, it checks the `hostname` file,
+and reads the `client_keys` directory.
+(In the initial Arti HS release,
+perhaps Arti doesn't know how to handle C Tor `client_keys`
+and instead refuses to run on the grounds that it can't
+enforce the authentication.)
+
+### Relay with `K_relayid` in hardware (HSM)
+
+Suppose an HSM with the following properties:
+
+ * Limited number of keyslots, identified by number.
+ * Requires user interaction (passphrase, touch permission) for key use.
+
+User configures or specifies:
+
+ * The HSM, giving it a keystore name
+   (there might be several distinct keystores with the same hardware driver,
+   referring to distinct hardware tokens)
+   and details needed to find it
+ * That this Arti is supposed to be a relay.
+ * Some linkage that allows the `K_relayid_*` to be found in the HSM.
+   This must link:
+     * the HSM keystore nickname
+     * that this is for the relay keys
+     * the slots within the HSM (HSM-specific value)
+       for the `K_relayid_rsa` and `K_relayid_ed`.
+
+Perhaps the linkage is done by an entry in the HSM's config section,
+linking the `ArtiPath`s for the keys to to the HSM keyslot numbers;
+or perhaps it is done in the relay config section,
+and specifies, for both the RSA and ED identities,
+the HSM keystore nickname and
+the keystore-specific location information (in this case, the keyslot).
+
+A separate tool provided by Arti generates the subsidiary keys
+`K_relaysign_*` etc., for a specified time into the future,
+using the `K_relayid_*` via the HSM keystore.
+This tool manages the interaction between the user and the HSM
+(eg touch or passphrase).
+
+The main Arti relay process picks up those subsidiary keys
+automatically and uses them.
+It does not need to (and cannot) use the main identity key.
+
+### Ephemeral hidden service
+
+Some application that embeds Arti wishes to create an ephemeral hidden service.
+
+It chooses a nickname which is used only for logging,
+and makes the appropriate API calls to `TorClient`.
+
+Arti generates a `K_hs_id` and all subsidiary keys automatically.
+The keys are not stored anywhere.
+(Probably, the HS code knows that this is ephemeral and doesn't call the storage APIs.
+But maybe there is a dummy keystore that is always empty and which never stores anything.)
+
+### Hidden service with offline identity key
+
+There are two hosts: the online host runs the service, but has no access to `K_hs_id`.
+The offline host has `K_hs_id`.
+
+The user configures, on both hosts, the HS nickname.
+
+On the offline host the user never runs the main Arti daemon.
+Instead, they run a special hidden service offline key management tool.
+This key management tool works with *two* on-disk keystores:
+the private one (which exists only on the offline host),
+and the shared one (which exists on both).
+The private keystore contains `K_hs_id`
+(and the key is generated there if there isn't one already).
+The shared keystore contains the subsidary keys.
+
+The offline tool generates a specified number of
+`K_hs_desc_sign` for future time periods,
+and certifies them with the appropriate `K_hs_blind_id`.
+(The `K_hs_blind_id` are never stored.)
+The `K_hs_desc_sign` are stored in the shared keystore,
+each with its corresponding `descriptor-signing-key-cert`.
+
+The offline tool generates a copy of `KP_hs_id`
+and stores it in the shared keystore.
+(`KP_hs_id` is sort-of a secret, and sort-of a certificate.
+Technical note:
+the protocol in rend-spec-v3 is quite close to allowing operation
+of a hidden service whose online component *doesn't know*
+its own `.onion` address.
+But it is not quite there.)
+
+The whole shared keystore is copied
+from the offline to the online host.
+
+On the online host,
+Arti uses the provided keys and certificates.
+
+If the online Arti ends up running off the end of
+the pre-generated keys/certs,
+it knows that it shouldn't generate a new `K_hs_id`
+(even though it thinks it needs to,
+since it finds it needs to sign an absent `K_hs_desc_sign`)
+because the `KP_hs_id` is present.
+
+The user can also configure, in the online Arti,
+the `.onion` address for the service.
+This will also prevent Arti from ever generating a `K_hs_id`,
+since it would have to somehow generate the indented identity.
+(If provided, it is checked.)
 
 ## Proposed configuration changes
 
