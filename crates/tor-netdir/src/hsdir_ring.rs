@@ -5,7 +5,7 @@
 //! index every [`TimePeriod`], and every time that the shared random value in
 //! the consensus changes.  (These events are typically synchronized, for
 //! reasonable network configurations.)
-//!  
+//!
 //! Each onion service is also (semi-privately) associated with "N" positions on
 //! the ring based on its blinded ID and the current time period. When upload or
 //! downloading an onion service descriptor descriptor, we look at the ring at
