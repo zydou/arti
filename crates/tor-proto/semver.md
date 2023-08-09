@@ -12,3 +12,5 @@ DEPRECATED: `ClientCirc::start_conversation_last_hop()`
 ADDED: `ClientCirc::start_conversation()` to eventually replace
 `ClientCirc::start_conversation_last_hop()`
 BREAKING: `ClientCirc::allow_stream_requests` is now async
+BREAKING: `IncomingStream::discard` now takes `mut self` instead of `self` and
+returns a `Result<(), Bug>`

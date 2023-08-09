@@ -6,9 +6,10 @@ use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::StreamTarget;
 use crate::{Error, Result};
 use futures::channel::oneshot;
+use std::result::Result as StdResult;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayCell};
 use tor_cell::restricted_msg;
-use tor_error::internal;
+use tor_error::{internal, Bug};
 
 /// A pending request from the other end of the circuit for us to open a new
 /// stream.
@@ -31,12 +32,39 @@ pub struct IncomingStream {
     /// Note: we can't move the reader/writer out of `self` because `IncomingStream` implements
     /// `Drop` (so as a workaround we use [`Option::take`]).
     inner: Option<IncomingStreamInner>,
-    /// Whether we have rejected the stream using [`StreamTarget::close`].
-    ///
-    /// If set to `true`, any attempts to use this `IncomingStream` will return an error.
-    is_rejected: bool,
-    /// Whether we have accepted the stream using [`IncomingStream::accept_data`].
-    is_accepted: bool,
+    /// The state of the stream.
+    state: IncomingStreamState,
+}
+
+/// The state of an [`IncomingStream`].
+///
+/// Only following transitions are allowed:
+///
+/// ```ignore
+///
+///                       accept_data()  +----------+
+///                     +--------------->| Accepted |
+///                     |                +----------+
+///                     |
+/// +---------+         | reject()       +----------+
+/// | Pending |---------+--------------->| Rejected |
+/// +---------+         |                +----------+
+///                     |
+///                     | discard()      +-----------+
+///                     +--------------->| Discarded |
+///                                      +-----------+
+/// ```
+#[derive(Copy, Clone, Debug, PartialEq, Default, derive_more::Display)]
+enum IncomingStreamState {
+    /// The initial state of an [`IncomingStream`].
+    #[default]
+    Pending,
+    /// The state entered after a call to [`IncomingStream::accept_data`].
+    Accepted,
+    /// The state entered after a call to [`IncomingStream::reject`].
+    Rejected,
+    /// The state entered after a call to [`IncomingStream::discard`].
+    Discarded,
 }
 
 /// The inner state of an [`IncomingStream`], which contains its reader and writer.
@@ -59,8 +87,7 @@ impl IncomingStream {
         Self {
             request,
             inner: Some(inner),
-            is_rejected: false,
-            is_accepted: false,
+            state: IncomingStreamState::default(),
         }
     }
 
@@ -71,17 +98,14 @@ impl IncomingStream {
 
     /// Whether we have rejected this `IncomingStream` using [`IncomingStream::reject`].
     pub fn is_rejected(&self) -> bool {
-        self.is_rejected
+        self.state == IncomingStreamState::Rejected
     }
 
     /// Accept this stream as a new [`DataStream`], and send the client a
     /// message letting them know the stream was accepted.
     pub async fn accept_data(mut self, message: msg::Connected) -> Result<DataStream> {
-        if self.is_rejected {
-            return Err(internal!("Cannot accept data on a closed stream").into());
-        }
+        self.update_state(IncomingStreamState::Accepted, "accept_data")?;
 
-        self.is_accepted = true;
         let mut inner = self.take_inner()?;
 
         match self.request {
@@ -108,11 +132,8 @@ impl IncomingStream {
     ///
     /// This is used for implementing `Drop`.
     fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
-        if self.is_rejected {
-            return Err(internal!("IncomingStream::reject() called twice").into());
-        }
+        self.update_state(IncomingStreamState::Rejected, "reject_inner")?;
 
-        self.is_rejected = true;
         self.mut_inner()?.stream.close(message)
     }
 
@@ -121,8 +142,25 @@ impl IncomingStream {
     /// (If you drop an [`IncomingStream`] without calling `accept_data`,
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
-    pub fn discard(self) {
-        todo!() // TODO hss
+    pub fn discard(mut self) -> StdResult<(), Bug> {
+        self.update_state(IncomingStreamState::Discarded, "discard")
+    }
+
+    /// Try to update the state of this `IncomingStream` to `new_state`, returning an error if the
+    /// requested transition is not allowed.
+    fn update_state(&mut self, new_state: IncomingStreamState, caller: &str) -> StdResult<(), Bug> {
+        use IncomingStreamState::*;
+
+        match self.state {
+            Pending => {
+                self.state = new_state;
+                Ok(())
+            }
+            _ => Err(internal!(
+                "IncomingStream::{caller}() cannot be called on a {} stream",
+                self.state
+            )),
+        }
     }
 
     /// Take the inner state out of `IncomingStream`.
@@ -151,7 +189,7 @@ impl IncomingStream {
 
 impl Drop for IncomingStream {
     fn drop(&mut self) {
-        if !self.is_rejected && !self.is_accepted {
+        if self.state == IncomingStreamState::Pending {
             // Disregard any errors.
             let _: Result<oneshot::Receiver<Result<()>>> = self.reject_inner(msg::End::new_misc());
         }
