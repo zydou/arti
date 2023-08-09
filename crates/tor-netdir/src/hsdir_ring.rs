@@ -218,7 +218,8 @@ impl HsDirRing {
             .unwrap_or_else(|pos| pos)
     }
 
-    /// Yield `spread` items from `ring` starting with `hsdir_index`
+    /// Yield `spread` items from `ring` that satisfy the specified filter, starting with
+    /// `hsdir_index`.
     ///
     /// Wraps around once when we reach the end.
     ///
@@ -227,11 +228,13 @@ impl HsDirRing {
         &self,
         hsdir_index: HsDirIndex,
         spread: usize,
+        f: impl FnMut(&&(HsDirIndex, RouterStatusIdx)) -> bool,
     ) -> impl Iterator<Item = &(HsDirIndex, RouterStatusIdx)> {
         let pos = self.find_pos(hsdir_index);
         self.ring[pos..]
             .iter()
             .chain(&self.ring[..pos])
+            .filter(f)
             .take(spread)
     }
 

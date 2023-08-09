@@ -1521,7 +1521,7 @@ impl NetDir {
             .cartesian_product(1..=n_replicas) // 1-indexed !
             .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
                 let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
-                ring.ring_items_at(hsdir_idx, spread)
+                ring.ring_items_at(hsdir_idx, spread, |_| true)
             })
             .filter_map(|(_hsdir_idx, rs_idx)| {
                 // This ought not to be None but let's not panic or bail if it is
