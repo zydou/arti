@@ -230,18 +230,6 @@ pub enum ErrorKind {
     #[display(fmt = "could not access keystore")]
     KeystoreAccessFailed,
 
-    /// We encountered a problem with filesystem permissions within the keystore.
-    ///
-    /// This is likeliest to be caused by permissions on a file or directory
-    /// being too permissive; the next likeliest cause is that we were unable to
-    /// check the permissions on the file or directory, or on one of its
-    /// ancestors.
-    #[cfg(feature = "experimental-api")]
-    // TODO HSS: KeystoreFsPermissions
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1315#note_2916498
-    #[display(fmt = "problem with keystore filesystem permissions")]
-    KeystoreFsPermissions,
-
     /// Tor client's Rust async reactor is shutting down.
     ///
     /// This likely indicates that the reactor has encountered a fatal error, or

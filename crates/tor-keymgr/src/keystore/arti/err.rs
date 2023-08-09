@@ -62,7 +62,7 @@ impl HasKind for ArtiNativeKeystoreError {
 
         match self {
             KE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
-            KE::FsMistrust { .. } => ErrorKind::KeystoreFsPermissions,
+            KE::FsMistrust { .. } => ErrorKind::FsPermissions,
             KE::Bug(e) => e.kind(),
         }
     }
