@@ -6,9 +6,10 @@ use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::StreamTarget;
 use crate::{Error, Result};
 use futures::channel::oneshot;
+use std::result::Result as StdResult;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayCell};
 use tor_cell::restricted_msg;
-use tor_error::internal;
+use tor_error::{internal, Bug};
 
 /// A pending request from the other end of the circuit for us to open a new
 /// stream.
@@ -141,13 +142,13 @@ impl IncomingStream {
     /// (If you drop an [`IncomingStream`] without calling `accept_data`,
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
-    pub fn discard(mut self) -> Result<()> {
+    pub fn discard(mut self) -> StdResult<(), Bug> {
         self.update_state(IncomingStreamState::Discarded, "discard")
     }
 
     /// Try to update the state of this `IncomingStream` to `new_state`, returning an error if the
     /// requested transition is not allowed.
-    fn update_state(&mut self, new_state: IncomingStreamState, caller: &str) -> Result<()> {
+    fn update_state(&mut self, new_state: IncomingStreamState, caller: &str) -> StdResult<(), Bug> {
         use IncomingStreamState::*;
 
         match self.state {
@@ -158,8 +159,7 @@ impl IncomingStream {
             _ => Err(internal!(
                 "IncomingStream::{caller}() cannot be called on a {} stream",
                 self.state
-            )
-            .into()),
+            )),
         }
     }
 
