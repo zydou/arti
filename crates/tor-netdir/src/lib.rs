@@ -82,7 +82,9 @@ use typed_index_collections::{TiSlice, TiVec};
 
 #[cfg(feature = "hs-common")]
 use {
+    crate::hsdir_ring::HsDirIndex,
     itertools::Itertools,
+    std::collections::BTreeSet,
     tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
 };
 
@@ -1497,17 +1499,6 @@ impl NetDir {
             .try_into()
             .expect("BoundedInt did not enforce bounds!");
 
-        // TODO HSS We don't implement this bit of the spec (2.2.3 penultimate para):
-        //
-        //                                                        ... If any of those
-        //       nodes have already been selected for a lower-numbered replica of the
-        //       service, any nodes already chosen are disregarded (i.e. skipped over)
-        //       when choosing a replica's hsdir_spread_store nodes.
-        //
-        // This doesn't yet affect compatibility for clients, but when we
-        // implement onion services, it will create compatibility issues.  We
-        // need to fix it.
-        //
         // TODO HSS: I may be wrong here but I suspect that this function may
         // need refactoring so that it does not look at _all_ of the HsDirRings,
         // but only at the ones that corresponds to time periods for which
@@ -1519,10 +1510,29 @@ impl NetDir {
             .hsdir_rings
             .iter_for_op(op)
             .cartesian_product(1..=n_replicas) // 1-indexed !
-            .flat_map(move |(ring, replica): (&HsDirRing, u8)| {
-                let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
-                ring.ring_items_at(hsdir_idx, spread, |_| true)
-            })
+            .scan(
+                BTreeSet::new(),
+                move |selected_nodes: &mut BTreeSet<HsDirIndex>,
+                      (ring, replica): (&HsDirRing, u8)| {
+                    let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
+
+                    let items = ring
+                        .ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
+                            // According to rend-spec 2.2.3:
+                            //                                                  ... If any of those
+                            // nodes have already been selected for a lower-numbered replica of the
+                            // service, any nodes already chosen are disregarded (i.e. skipped over)
+                            // when choosing a replica's hsdir_spread_store nodes.
+                            !selected_nodes.contains(hsdir_idx)
+                        })
+                        .collect::<Vec<_>>();
+
+                    selected_nodes.extend(items.iter().map(|(hsdir_idx, _)| hsdir_idx));
+
+                    Some(items)
+                },
+            )
+            .flatten()
             .filter_map(|(_hsdir_idx, rs_idx)| {
                 // This ought not to be None but let's not panic or bail if it is
                 self.relay_by_rs_idx(*rs_idx)
@@ -1810,6 +1820,13 @@ mod test {
     use std::time::Duration;
     use tor_basic_utils::test_rng;
     use tor_linkspec::{RelayIdType, RelayIds};
+
+    #[cfg(feature = "hs-common")]
+    fn dummy_hs_blind_id() -> HsBlindId {
+        let hsid = [2, 1, 1, 1].iter().cycle().take(32).cloned().collect_vec();
+        let hsid = Ed25519Identity::new(hsid[..].try_into().unwrap());
+        HsBlindId::from(hsid)
+    }
 
     // Basic functionality for a partial netdir: Add microdescriptors,
     // then you have a netdir.
@@ -2467,5 +2484,69 @@ mod test {
         // Multiple agreeing matches -> Some
         let r3 = netdir.by_id(&Ed25519Identity::from([3; 32])).unwrap();
         assert_eq!(r3.cc.as_ref().map(|x| x.as_ref()), Some("US"));
+    }
+
+    #[test]
+    #[cfg(feature = "hs-common")]
+    fn hs_dirs_selection() {
+        use tor_basic_utils::test_rng::testing_rng;
+
+        const HSDIR_SPREAD_STORE: i32 = 6;
+        const HSDIR_SPREAD_FETCH: i32 = 2;
+        const PARAMS: [(&str, i32); 2] = [
+            ("hsdir_spread_store", HSDIR_SPREAD_STORE),
+            ("hsdir_spread_fetch", HSDIR_SPREAD_FETCH),
+        ];
+
+        let netdir: Arc<NetDir> =
+            crate::testnet::construct_custom_netdir_with_params(|_, _| {}, PARAMS, None)
+                .unwrap()
+                .unwrap_if_sufficient()
+                .unwrap()
+                .into();
+        let hsid = dummy_hs_blind_id();
+
+        const OP_RELAY_COUNT: &[(HsDirOp, usize)] = &[
+            // We can't upload to (hsdir_n_replicas * hsdir_spread_store) = 12, relays because there
+            // are only 10 relays with the HsDir flag in the consensus.
+            #[cfg(feature = "hs-service")]
+            (HsDirOp::Upload, 10),
+            (HsDirOp::Download, 4),
+        ];
+
+        for (op, relay_count) in OP_RELAY_COUNT {
+            let relays = netdir.hs_dirs(&hsid, *op, &mut testing_rng());
+
+            assert_eq!(relays.len(), *relay_count);
+
+            // There should be no duplicates (the filtering function passed to
+            // HsDirRing::ring_items_at() ensures the relays that are already in use for
+            // lower-numbered replicas aren't considered a second time for a higher-numbered
+            // replica).
+            let unique = relays
+                .iter()
+                .map(|relay| relay.ed_identity())
+                .collect::<BTreeSet<_>>();
+            assert_eq!(unique.len(), relays.len());
+        }
+
+        // TODO: come up with a test that checks that HsDirRing::ring_items_at() skips over the
+        // expected relays.
+        //
+        // For example, let's say we have the following hsdir ring:
+        //
+        //         A  -  B
+        //        /       \
+        //       F         C
+        //        \       /
+        //         E  -  D
+        //
+        // Let's also assume that:
+        //
+        //   * hsdir_spread_store = 3
+        //   * the ordering of the relays on the ring is [A, B, C, D, E, F]
+        //
+        // If we use relays [A, B, C] for replica 1, and hs_index(2) = E, then replica 2 _must_ get
+        // relays [E, F, D]. We should have a test that checks this.
     }
 }
