@@ -32,7 +32,7 @@ maint-checks:
   stage: check
   image: debian:stable-slim
   script:
-    - apt-get update && apt-get install -y python3-toml python-is-python3 git
+    - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/shebang
