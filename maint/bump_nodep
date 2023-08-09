@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Increment the version of one or more crates, without incrementing
 # the versions of their dependencies.
