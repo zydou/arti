@@ -218,12 +218,11 @@ impl HsDirRing {
             .unwrap_or_else(|pos| pos)
     }
 
-    /// Yield `spread_fetch` items from `ring` starting with `hsdir_index`
+    /// Yield `spread` items from `ring` starting with `hsdir_index`
     ///
-    /// Wraps around once when we
-    /// reach the end.
+    /// Wraps around once when we reach the end.
     ///
-    /// Yields no element more than once, even if the ring is smaller than `spread_fetch`.
+    /// Yields no element more than once, even if the ring is smaller than `spread`.
     pub(crate) fn ring_items_at(
         &self,
         hsdir_index: HsDirIndex,
