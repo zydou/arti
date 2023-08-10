@@ -90,3 +90,40 @@ fn mismatched_signing_key() {
         CertError::MissingPubKey
     );
 }
+
+#[test]
+fn expired_cert() {
+    use humantime::parse_rfc3339;
+    use std::time::Duration;
+    use tor_cert::Ed25519Cert;
+    use tor_checkable::TimeValidityError;
+    use tor_checkable::{SelfSigned, Timebound};
+
+    // The certificate in this test is taken from `testvec_certs.rs`
+
+    // This is the notion time of the certificate, exactly one day after its expiry
+    let expired_time = parse_rfc3339("2020-10-27T18:00:00Z").unwrap();
+
+    // signing cert signed with signing key, type 4, one extension.
+    let c = hex!(
+        "01 04 0006CC2A 01
+         F82294B866A31F01FC5D0DA8572850A9B929545C3266558D7D2316E3B74172B0
+         01 0020 04 00
+         DCB604DB2034B00FD16986D4ADB9D16B21CB4E4457A33DEC0F538903683E96E9
+         FF1A5203FA27F86EF7528D89A0845D2520166E340754FFEA2AAE0F612B7CE5DA
+         094A0236CDAC45034B0B6842C18E7F6B51B93A3CF7E60663B8AD061C30A62602"
+    );
+    let cert = Ed25519Cert::decode(&c[..]).unwrap();
+    let error = cert
+        .should_have_signing_key()
+        .unwrap()
+        .check_signature()
+        .unwrap()
+        .check_valid_at(&expired_time)
+        .unwrap_err();
+
+    assert_eq!(
+        error,
+        TimeValidityError::Expired(Duration::from_secs(60 * 60 * 24))
+    );
+}
