@@ -205,4 +205,18 @@ mod test {
         }
         assert!(cert.signing_key() == Some(&keypair.public.into()));
     }
+
+    #[test]
+    fn unrecognized_ext() {
+        use hex_literal::hex;
+        use tor_bytes::Reader;
+
+        let mut reader = Reader::from_slice(&hex!("0001 2A 00 2A"));
+        let ext: CertExt = reader.extract().unwrap();
+
+        let mut encoded: Vec<u8> = Vec::new();
+        encoded.write(&ext).unwrap();
+
+        assert_eq!(encoded, hex!("0001 2A 00 2A"));
+    }
 }
