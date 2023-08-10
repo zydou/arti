@@ -121,6 +121,7 @@ impl Ed25519CertConstructor {
             signed_with,
         } = self;
 
+        // As long as there is no setter for Ed25519Cert::signed_with, this is unreachable
         if let Some(Some(signer)) = &signed_with {
             if *signer != skey.public_key().into() {
                 return Err(CertEncodeError::KeyMismatch);
