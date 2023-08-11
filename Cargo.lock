@@ -4628,8 +4628,10 @@ dependencies = [
 name = "tor-hsservice"
 version = "0.2.3"
 dependencies = [
+ "async-broadcast",
  "async-trait",
  "derive-adhoc",
+ "derive_builder_fork_arti",
  "derive_more",
  "educe",
  "futures",
@@ -4648,17 +4650,21 @@ dependencies = [
  "tor-basic-utils",
  "tor-bytes",
  "tor-cell",
+ "tor-cert",
  "tor-circmgr",
  "tor-config",
+ "tor-dirclient",
  "tor-error",
  "tor-hscrypto",
  "tor-keymgr",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",
+ "tor-netdoc",
  "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-units",
  "tracing",
  "void",
 ]
