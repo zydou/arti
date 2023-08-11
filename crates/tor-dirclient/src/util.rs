@@ -16,6 +16,7 @@ pub(crate) fn encode_request(req: &http::Request<()>) -> String {
         )
         .unwrap();
     }
+    // TODO HSS encode the body
     s.push_str("\r\n");
     s
 }

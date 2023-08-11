@@ -580,7 +580,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .await
             .map_err(DescriptorErrorDetail::Stream)?;
 
-        let response = tor_dirclient::download(self.runtime, &request, &mut stream, None)
+        let response = tor_dirclient::send_request(self.runtime, &request, &mut stream, None)
             .await
             .map_err(|dir_error| match dir_error {
                 tor_dirclient::Error::RequestFailed(rfe) => DescriptorErrorDetail::from(rfe.error),
