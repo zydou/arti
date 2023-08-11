@@ -48,6 +48,7 @@ mod keys;
 mod req;
 mod status;
 mod svc;
+mod timeout_track;
 
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, FatalError, StartupError};

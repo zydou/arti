@@ -4629,8 +4629,10 @@ name = "tor-hsservice"
 version = "0.2.3"
 dependencies = [
  "async-trait",
+ "derive-adhoc",
  "educe",
  "futures",
+ "itertools",
  "once_cell",
  "postage",
  "rand 0.8.5",
