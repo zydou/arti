@@ -24,11 +24,40 @@ use itertools::Itertools;
 
 use crate::err::RequestError;
 
+/// The body of an [`http::Request`] made by a `Requestable` implementation.
+pub trait StringBody {
+    /// The string representation of the request body.
+    ///
+    /// Bodies consisting of binary data are not supported.
+    fn str(&self) -> &str;
+}
+
+impl StringBody for () {
+    fn str(&self) -> &str {
+        ""
+    }
+}
+
+impl StringBody for String {
+    fn str(&self) -> &str {
+        self.as_ref()
+    }
+}
+
+impl StringBody for &str {
+    fn str(&self) -> &str {
+        self
+    }
+}
+
 /// A request for an object that can be served over the Tor directory system.
 pub trait Requestable {
+    /// The body type of the [`http::Request`].
+    type Body: StringBody;
+
     /// Build an [`http::Request`] from this Requestable, if
     /// it is well-formed.
-    fn make_request(&self) -> Result<http::Request<()>>;
+    fn make_request(&self) -> Result<http::Request<Self::Body>>;
 
     /// Return true if partial downloads are potentially useful.  This
     /// is true for request types where we're going to be downloading
@@ -190,6 +219,8 @@ impl Default for ConsensusRequest {
 }
 
 impl Requestable for ConsensusRequest {
+    type Body = ();
+
     fn make_request(&self) -> Result<http::Request<()>> {
         // Build the URL.
         let mut uri = "/tor/status-vote/current/consensus".to_string();
@@ -273,6 +304,8 @@ impl AuthCertRequest {
 }
 
 impl Requestable for AuthCertRequest {
+    type Body = ();
+
     fn make_request(&self) -> Result<http::Request<()>> {
         if self.ids.is_empty() {
             return Err(RequestError::EmptyRequest);
@@ -343,6 +376,8 @@ impl MicrodescRequest {
 }
 
 impl Requestable for MicrodescRequest {
+    type Body = ();
+
     fn make_request(&self) -> Result<http::Request<()>> {
         let d_encode_b64 = |d: &[u8; 32]| Base64Unpadded::encode_string(&d[..]);
         let ids = digest_list_stringify(&self.digests, d_encode_b64, "-")
@@ -418,6 +453,8 @@ impl RouterDescRequest {
 
 #[cfg(feature = "routerdesc")]
 impl Requestable for RouterDescRequest {
+    type Body = ();
+
     fn make_request(&self) -> Result<http::Request<()>> {
         let mut uri = "/tor/server/".to_string();
 
@@ -484,6 +521,8 @@ impl RoutersOwnDescRequest {
 
 #[cfg(feature = "routerdesc")]
 impl Requestable for RoutersOwnDescRequest {
+    type Body = ();
+
     fn make_request(&self) -> Result<http::Request<()>> {
         let uri = "/tor/server/authority.z";
         let req = http::Request::builder().method("GET").uri(uri);
@@ -530,6 +569,8 @@ impl HsDescDownloadRequest {
 
 #[cfg(feature = "hs-client")]
 impl Requestable for HsDescDownloadRequest {
+    type Body = ();
+
     fn make_request(&self) -> Result<http::Request<()>> {
         let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
         // We hardcode version 3 here; if we ever have a v4 onion service

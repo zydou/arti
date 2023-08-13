@@ -2,8 +2,10 @@
 
 use std::fmt::Write;
 
+use crate::request::StringBody;
+
 /// Encode an HTTP request in a quick and dirty HTTP 1.0 format.
-pub(crate) fn encode_request(req: &http::Request<()>) -> String {
+pub(crate) fn encode_request<B: StringBody>(req: &http::Request<B>) -> String {
     let mut s = format!("{} {} HTTP/1.0\r\n", req.method(), req.uri());
 
     for (key, val) in req.headers().iter() {
@@ -16,8 +18,8 @@ pub(crate) fn encode_request(req: &http::Request<()>) -> String {
         )
         .unwrap();
     }
-    // TODO HSS encode the body
     s.push_str("\r\n");
+    s.push_str(req.body().str());
     s
 }
 
