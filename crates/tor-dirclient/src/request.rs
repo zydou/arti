@@ -589,6 +589,52 @@ impl Requestable for HsDescDownloadRequest {
         self.max_len
     }
 }
+
+/// A request to upload a hidden service descriptor
+///
+/// rend-spec-v3 2.2.6
+#[derive(Debug, Clone)]
+#[cfg(feature = "hs-service")]
+pub struct HsDescUploadRequest(String);
+
+#[cfg(feature = "hs-service")]
+impl HsDescUploadRequest {
+    /// Construct a request for uploading a single onion service descriptor.
+    pub fn new(hsdesc: String) -> Self {
+        HsDescUploadRequest(hsdesc)
+    }
+}
+
+#[cfg(feature = "hs-service")]
+impl Requestable for HsDescUploadRequest {
+    type Body = String;
+
+    fn make_request(&self) -> Result<http::Request<Self::Body>> {
+        /// The upload URI.
+        const URI: &str = "/tor/hs/3/publish";
+
+        let req = http::Request::builder().method("POST").uri(URI);
+        let req = add_common_headers(req);
+        // TODO HSS: we shouldn't have to clone here!
+        Ok(req.body(self.0.clone())?)
+    }
+
+    // TODO HSS: the name of this function doesn't make sense in this case.
+    // Perhaps it should be renamed to `partial_response_ok()`.
+    fn partial_docs_ok(&self) -> bool {
+        false
+    }
+
+    fn max_response_len(&self) -> usize {
+        // We expect the response body to be empty
+        //
+        // TODO HSS: perhaps we shouldn't? In the case of an error response, do we expect the body
+        // to contain e.g. an explanation for the error? If so, we should document this behaviour
+        // in rend-spec.
+        0
+    }
+}
+
 /// List the encodings we accept
 fn encodings() -> String {
     #[allow(unused_mut)]

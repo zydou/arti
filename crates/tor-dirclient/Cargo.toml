@@ -16,6 +16,8 @@ default = ["xz", "zstd"]
 
 # Enable support for hidden service descriptor downloads.
 hs-client = ["tor-hscrypto"]
+# Enable support for uploading hidden service descriptor downloads.
+hs-service = ["tor-hscrypto"]
 
 xz = ["async-compression/xz"]
 zstd = ["async-compression/zstd"]
@@ -24,6 +26,7 @@ routerdesc = []
 
 full = [
     "hs-client",
+    "hs-service",
     "xz",
     "zstd",
     "routerdesc",
