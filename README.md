@@ -212,9 +212,13 @@ get our project manager to sign off on them.
    * [x] Pluggable transports
    * [and more...?](https://gitlab.torproject.org/tpo/core/arti/-/milestones/10)
 
- * Arti 1.2.0: Onion service support (timeframe TBD)
+ * Arti ~1.2.0: [Onion service]() support (Goal: End of 2023)
+   * [x] [Client support](https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Basic%20Client) (for connecting to onion services)
+   * [ ] [Service support](https://gitlab.torproject.org/tpo/core/arti/-/issues/?sort=created_date&state=opened&label_name%5B%5D=Onion%20Services%3A%20Basic%20Service&first_page_size=100) (for running onion services)
+   * [ ] [Full security features](https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security) (for production-ready quality)
 
- * Arti 2.0.0: Feature parity with C tor as a client (timeframe TBD)
+ * Arti ~2.0.0: Feature parity with C tor as a client (Goal: Mid 2024)
+   * [some possible details...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/9#tab-issues)
 
  * Arti ?.?.?: Relay support
 
