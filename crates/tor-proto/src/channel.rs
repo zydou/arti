@@ -205,6 +205,7 @@ pub(crate) struct ChannelDetails {
     closed: AtomicBool,
     /// A receiver that will get a Cancelled event when the reactor is finally
     /// dropped.
+    #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
     reactor_closed_rx: futures::future::Shared<oneshot::Receiver<void::Void>>,
     /// Since when the channel became unused.
     ///
