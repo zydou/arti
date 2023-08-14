@@ -29,23 +29,23 @@ pub trait StringBody {
     /// The string representation of the request body.
     ///
     /// Bodies consisting of binary data are not supported.
-    fn str(&self) -> &str;
+    fn as_str(&self) -> &str;
 }
 
 impl StringBody for () {
-    fn str(&self) -> &str {
+    fn as_str(&self) -> &str {
         ""
     }
 }
 
 impl StringBody for String {
-    fn str(&self) -> &str {
+    fn as_str(&self) -> &str {
         self.as_ref()
     }
 }
 
 impl StringBody for &str {
-    fn str(&self) -> &str {
+    fn as_str(&self) -> &str {
         self
     }
 }

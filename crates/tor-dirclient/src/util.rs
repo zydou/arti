@@ -19,7 +19,7 @@ pub(crate) fn encode_request<B: StringBody>(req: &http::Request<B>) -> String {
         .unwrap();
     }
     s.push_str("\r\n");
-    s.push_str(req.body().str());
+    s.push_str(req.body().as_str());
     s
 }
 
@@ -42,7 +42,7 @@ mod test {
     struct TestBody;
 
     impl StringBody for TestBody {
-        fn str(&self) -> &str {
+        fn as_str(&self) -> &str {
             "hello"
         }
     }
