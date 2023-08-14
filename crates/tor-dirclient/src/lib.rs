@@ -140,6 +140,22 @@ fn should_retire_circ(result: &Result<DirResponse>) -> bool {
     }
 }
 
+/// Fetch a Tor directory object from a provided stream.
+#[deprecated(since = "0.8.1", note = "Use send_request instead.")]
+pub async fn download<R, S, SP>(
+    runtime: &SP,
+    req: &R,
+    stream: &mut S,
+    source: Option<SourceInfo>,
+) -> Result<DirResponse>
+where
+    R: request::Requestable + ?Sized,
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+    SP: SleepProvider,
+{
+    send_request(runtime, req, stream, source).await
+}
+
 /// Fetch or upload a Tor directory object using the provided stream.
 ///
 /// To do this, we send a simple HTTP/1.0 request for the described
