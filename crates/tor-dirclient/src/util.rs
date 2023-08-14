@@ -61,7 +61,10 @@ mod test {
     fn format() {
         fn chk_format<B: StringBody + Clone>(body: B, expected_body: &str) {
             let req = build_request(body.clone(), &[]);
-            assert_eq!(encode_request(&req), format!("GET /index.html HTTP/1.0\r\n\r\n{expected_body}"));
+            assert_eq!(
+                encode_request(&req),
+                format!("GET /index.html HTTP/1.0\r\n\r\n{expected_body}")
+            );
 
             let req = build_request(body, &[("X-Marsupial", "Opossum")]);
             assert_eq!(
