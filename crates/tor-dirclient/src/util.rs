@@ -38,6 +38,15 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    #[derive(Copy, Clone, Debug)]
+    struct TestBody;
+
+    impl StringBody for TestBody {
+        fn str(&self) -> &str {
+            "hello"
+        }
+    }
+
     fn build_request<B: StringBody>(body: B, headers: &[(&str, &str)]) -> http::Request<B> {
         let mut builder = http::Request::builder().method("GET").uri("/index.html");
 
@@ -50,13 +59,18 @@ mod test {
 
     #[test]
     fn format() {
-        let req = build_request((), &[]);
-        assert_eq!(encode_request(&req), "GET /index.html HTTP/1.0\r\n\r\n");
+        fn chk_format<B: StringBody + Clone>(body: B, expected_body: &str) {
+            let req = build_request(body.clone(), &[]);
+            assert_eq!(encode_request(&req), format!("GET /index.html HTTP/1.0\r\n\r\n{expected_body}"));
 
-        let req = build_request((), &[("X-Marsupial", "Opossum")]);
-        assert_eq!(
-            encode_request(&req),
-            "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n"
-        );
+            let req = build_request(body, &[("X-Marsupial", "Opossum")]);
+            assert_eq!(
+                encode_request(&req),
+                format!("GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n{expected_body}")
+            );
+        }
+
+        chk_format((), "");
+        chk_format(TestBody, "hello");
     }
 }
