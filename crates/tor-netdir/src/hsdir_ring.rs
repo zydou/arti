@@ -223,6 +223,11 @@ impl HsDirRing {
     ///
     /// Wraps around once when we reach the end.
     ///
+    /// The specified filter function `f` is applied to each item, and determines whether the item
+    /// should be yielded or not. This filtering functionality is used by [`NetDir::hs_dirs`] to
+    /// prevent nodes that have already been selected for a lowered-numbered replica to be
+    /// considered again when choosing `spread` nodes for a higher-numbered replicas.
+    ///
     /// Yields no element more than once, even if the ring is smaller than `spread`.
     pub(crate) fn ring_items_at(
         &self,
