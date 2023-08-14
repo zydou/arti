@@ -216,7 +216,11 @@ impl<R: Runtime> mockable::MockableAPI<R> for () {
             .await
             .map_err(|dce| match dce {
                 tor_dirclient::Error::RequestFailed(re) => Error::RequestFailed(re),
-                _ => internal!("tor_dirclient::send_request gave non-RequestFailed {:?}", dce).into(),
+                _ => internal!(
+                    "tor_dirclient::send_request gave non-RequestFailed {:?}",
+                    dce
+                )
+                .into(),
             })?;
         let output = response.into_output_string()?;
         Ok(Some(output))
