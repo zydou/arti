@@ -1,5 +1,4 @@
 //! Mid-level cryptographic operations used in the onion service protocol.
-
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::util::ct::CtByteArray;
 
@@ -25,6 +24,22 @@ pub fn hs_mac(key: &[u8], msg: &[u8]) -> CtByteArray<HS_MAC_LEN> {
     hasher.update(msg);
     let a: [u8; HS_MAC_LEN] = hasher.finalize().into();
     a.into()
+}
+
+/// Reference to a slice of bytes usable to compute the [`hs_mac`] function.
+#[derive(Copy, Clone, derive_more::From)]
+pub struct HsMacKey<'a>(&'a [u8]);
+
+impl<'a> tor_llcrypto::traits::ShortMac<HS_MAC_LEN> for HsMacKey<'a> {
+    fn mac(&self, input: &[u8]) -> CtByteArray<HS_MAC_LEN> {
+        hs_mac(self.0, input)
+    }
+
+    fn validate(&self, input: &[u8], mac: &[u8; HS_MAC_LEN]) -> subtle::Choice {
+        use subtle::ConstantTimeEq;
+        let m = hs_mac(self.0, input);
+        m.as_ref().ct_eq(mac)
+    }
 }
 
 #[cfg(test)]

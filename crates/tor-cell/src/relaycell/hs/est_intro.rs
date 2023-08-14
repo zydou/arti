@@ -3,9 +3,10 @@
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_error::bad_api_usage;
-use tor_hscrypto::ops::{hs_mac, HS_MAC_LEN};
+use tor_hscrypto::ops::{HsMacKey, HS_MAC_LEN};
 use tor_llcrypto::{
     pk::ed25519::{self, Ed25519Identity, ED25519_SIGNATURE_LEN},
+    traits::ShortMac as _,
     util::ct::CtByteArray,
 };
 use tor_units::BoundedInt32;
@@ -279,10 +280,10 @@ impl EstablishIntroDetails {
     /// The MAC key is derived from the circuit handshake between the onion
     /// service and the introduction point.  The Ed25519 keypair must match the
     /// one given as the auth_key for this body.
-    pub fn sign_and_encode(
+    pub fn sign_and_encode<'a>(
         self,
         keypair: &ed25519::Keypair,
-        mac_key: &[u8],
+        mac_key: impl Into<HsMacKey<'a>>,
     ) -> crate::Result<Vec<u8>> {
         use tor_llcrypto::pk::ed25519::Signer;
         if Ed25519Identity::from(&keypair.public) != self.auth_key {
@@ -292,7 +293,8 @@ impl EstablishIntroDetails {
         let mut output = Vec::new();
 
         output.write(&self)?;
-        let mac = hs_mac(mac_key, &output[..]);
+        let mac_key: HsMacKey<'_> = mac_key.into();
+        let mac = mac_key.mac(&output[..]);
         output.write(&mac)?;
         let signature = {
             let mut signed_material = Vec::from(SIG_PREFIX);
@@ -346,20 +348,17 @@ impl EstablishIntro {
     ///
     /// On success, return the [`EstablishIntroDetails`] describing how to function
     /// as an introduction point for this service.  On failure, return an error.
-    pub fn check_and_unwrap(
+    pub fn check_and_unwrap<'a>(
         self,
-        mac_key: &[u8],
+        mac_key: impl Into<HsMacKey<'a>>,
     ) -> std::result::Result<EstablishIntroDetails, EstablishIntroSigError> {
         use tor_llcrypto::pk::ValidatableSignature;
-        // There is a timing side-channel here where, if an attacker wants, they
-        // could tell which of the two fields was incorrect.  But that shouldn't
-        // be exploitable for anything.
-        //
-        // TODO use subtle here anyway, perhaps?
-        if hs_mac(mac_key, &self.mac_plaintext) != self.handshake_auth {
-            return Err(EstablishIntroSigError::Invalid);
-        }
-        if !self.sig.is_valid() {
+
+        let mac_key: HsMacKey<'_> = mac_key.into();
+        let mac_okay = mac_key.validate(&self.mac_plaintext, &self.handshake_auth);
+        let sig_okay = self.sig.is_valid();
+
+        if !(bool::from(mac_okay) & sig_okay) {
             return Err(EstablishIntroSigError::Invalid);
         }
 

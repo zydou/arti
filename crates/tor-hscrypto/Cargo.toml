@@ -13,7 +13,14 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = ["safelog/full", "tor-basic-utils/full", "tor-bytes/full", "tor-llcrypto/full", "tor-units/full", "tor-error/full"]
+full = [
+    "safelog/full",
+    "tor-basic-utils/full",
+    "tor-bytes/full",
+    "tor-llcrypto/full",
+    "tor-units/full",
+    "tor-error/full",
+]
 
 [dependencies]
 data-encoding = "2.3.1"                                                                                    # want MSVC i686 build fix, data-encoding/issues/33
@@ -26,6 +33,7 @@ rand_core = "0.6.2"
 safelog = { path = "../safelog", version = "0.3.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
+subtle = "2"
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-bytes = { version = "0.7.2", path = "../tor-bytes" }
