@@ -20,6 +20,14 @@ IGNORE=(
     #     https://github.com/clap-rs/clap/pull/4249
     #     https://github.com/rust-cli/env_logger/pull/246
     --ignore RUSTSEC-2021-0145
+    # This is an API vulnerability in ed25519-dalek v1.x.x, to the
+    # extent that it does not force you to store private and public
+    # keys as a single keypair.
+    #
+    # We have desigend our APIs to work around this, and believe we
+    # are not affected.  We should eventually upgrade to
+    # ed25519-dalek >= 2, however.
+    --ignore RUSTSEC-2022-0093
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
