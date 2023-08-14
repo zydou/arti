@@ -38,20 +38,22 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    fn build_request<B: StringBody>(body: B, headers: &[(&str, &str)]) -> http::Request<B> {
+        let mut builder = http::Request::builder().method("GET").uri("/index.html");
+
+        for (name, value) in headers {
+            builder = builder.header(*name, *value);
+        }
+
+        builder.body(body).unwrap()
+    }
+
     #[test]
     fn format() {
-        let req = http::Request::builder()
-            .method("GET")
-            .uri("/index.html")
-            .body(())
-            .unwrap();
+        let req = build_request((), &[]);
         assert_eq!(encode_request(&req), "GET /index.html HTTP/1.0\r\n\r\n");
-        let req = http::Request::builder()
-            .method("GET")
-            .uri("/index.html")
-            .header("X-Marsupial", "Opossum")
-            .body(())
-            .unwrap();
+
+        let req = build_request((), &[("X-Marsupial", "Opossum")]);
         assert_eq!(
             encode_request(&req),
             "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n"
