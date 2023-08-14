@@ -11,8 +11,8 @@
 #![allow(clippy::useless_vec)]
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-use anyhow::Result;
-use tokio_crate as tokio;
+#[cfg(feature = "pt-client")]
+use {anyhow::Result, tokio_crate as tokio};
 
 #[cfg(feature = "pt-client")]
 #[tokio::main]

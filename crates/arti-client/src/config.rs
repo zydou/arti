@@ -6,10 +6,9 @@ use derive_builder::Builder;
 use derive_more::AsRef;
 use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::time::Duration;
 pub use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 pub use tor_config::convert_helper_via_multi_line_list_builder;
@@ -367,8 +366,10 @@ impl_standard_builder! { BridgesConfig }
 ///
 /// If we do and their transports don't exist, we have a problem
 fn validate_pt_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigBuildError> {
-    // These are all the protocols that the user has defined
+    use std::collections::HashSet;
+    use std::str::FromStr;
 
+    // These are all the protocols that the user has defined
     let mut protocols_defined: HashSet<PtTransportName> = HashSet::new();
     if let Some(transportlist) = bridges.opt_transports() {
         for protocols in transportlist.iter() {
@@ -465,6 +466,7 @@ fn bridges_enabled(enabled: BoolOrAuto, bridges: &[impl Sized]) -> bool {
 
     #[cfg(not(feature = "bridge-client"))]
     {
+        let _ = (enabled, bridges);
         false
     }
 }
