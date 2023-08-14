@@ -712,7 +712,7 @@ impl TorClientConfigBuilder {
             use tor_keymgr::config::arti::ArtiNativeKeystoreConfigBuilder;
 
             let mut sub_builder = ArtiNativeKeystoreConfigBuilder::default();
-            let keystore_dir = format!("{}/keystore", state_dir.as_ref().display());
+            let keystore_dir = state_dir.as_ref().join("keystore");
             sub_builder.path(CfgPath::new_literal(keystore_dir));
             // This shouldn't fail, but if it does, we use the ArtiNativeKeystoreConfig
             // defaults.
