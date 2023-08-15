@@ -28,7 +28,12 @@ use tor_rtcompat::Runtime;
 use crate::RendRequest;
 
 /// Handle onto the task which is establishing and maintaining one IPT
-pub(crate) struct IptEstablisher {}
+pub(crate) struct IptEstablisher {
+    /// A stream of events that is produced whenever we have a change in the
+    /// IptStatus for this intro point.  Note that this stream is potentially
+    /// lossy.
+    status_events: postage::watch::Receiver<IptStatus>,
+}
 
 /// When the `IptEstablisher` is dropped it is torn down
 ///
@@ -98,14 +103,6 @@ impl IptEstablisher {
         circ_pool: Arc<HsCircPool<R>>,
         dirprovider: Arc<dyn NetDirProvider>,
         relay: &Relay<'_>,
-        // Not a postage::watch since we want to count `Good` to `Faulty`
-        // transitions
-        //
-        // (The alternative would be to count them as part of this structure and
-        // use a postage watch.)
-        //
-        // bounded sender with a fixed small bound; OK to stall waiting for manager to catch up
-        status: mpsc::Sender<IptStatus>,
         // TODO HSS: this needs to take some configuration
     ) -> Result<Self, IptError> {
         todo!()
@@ -154,6 +151,12 @@ pub(crate) struct IptStatus {
     ///
     /// TODO HSS Make that file unneeded.
     pub(crate) status: IptStatusStatus,
+
+    /// How many times have we transitioned into a Faulty state?
+    ///
+    /// (This is not the same as the total number of failed attempts, since it
+    /// does not count times we retry from a Faulty state.)
+    pub(crate) n_faults: u32,
 
     /// The current status of whether this introduction point circuit wants to be
     /// retired based on having processed too many requests.

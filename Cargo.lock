@@ -4682,6 +4682,7 @@ version = "0.2.3"
 dependencies = [
  "async-trait",
  "futures",
+ "postage",
  "rand_core 0.6.4",
  "thiserror",
  "tor-cell",
