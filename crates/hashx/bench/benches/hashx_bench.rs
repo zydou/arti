@@ -1,3 +1,6 @@
+//! This is a wallclock time microbenchmark for C and Rust implementations
+//! of HashX using the Criterion framework.
+
 use criterion::{
     black_box, criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup,
     Criterion,

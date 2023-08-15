@@ -404,6 +404,7 @@ version = "0.0.0"
 dependencies = [
  "criterion",
  "hashx",
+ "iai",
  "rand",
  "tor-c-equix",
 ]
@@ -419,6 +420,12 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "iai"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71a816c97c42258aa5834d07590b718b4c9a598944cd39a52dc25b351185d678"
 
 [[package]]
 name = "is-terminal"
