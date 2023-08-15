@@ -192,7 +192,7 @@ mod tests {
     #![allow(clippy::useless_vec)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ErasedKey, KeyType, SshKeypairData};
+    use crate::{ArtiPath, ErasedKey, KeyType};
     use std::collections::HashMap;
     use std::str::FromStr;
     use std::sync::RwLock;
@@ -217,9 +217,11 @@ mod tests {
             Ok("generated_test_key".into())
         }
 
-        fn as_ssh_keypair_data(&self) -> Result<SshKeypairData> {
+        fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData> {
             // (Ab)use the encrypted variant for testing purposes
-            Ok(SshKeypairData::Encrypted(self.as_bytes().to_vec()))
+            Ok(ssh_key::private::KeypairData::Encrypted(
+                self.as_bytes().to_vec(),
+            ))
         }
     }
 
