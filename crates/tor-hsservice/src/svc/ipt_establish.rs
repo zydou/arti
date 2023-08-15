@@ -13,7 +13,7 @@ use futures::{
     StreamExt as _,
 };
 use tor_cell::relaycell::{
-    hs::est_intro::EstablishIntroDetails,
+    hs::est_intro::{self, EstablishIntroDetails},
     msg::{AnyRelayMsg, IntroEstablished, Introduce2},
     RelayMsg as _,
 };
@@ -164,6 +164,18 @@ tor_cell::restricted_msg! {
      }
 }
 
+/// A set of extensions to send with our `ESTABLISH_INTRO` message.
+///
+/// NOTE: we eventually might want to support unrecognized extensions.  But
+/// that's potentially troublesome, since the set of extensions we sent might
+/// have an affect on how we validate the reply.
+#[derive(Clone, Debug)]
+pub(crate) struct EstIntroExtensionSet {
+    /// Parameters related to rate-limiting to prevent denial-of-service
+    /// attacks.
+    dos_params: Option<est_intro::DosParams>,
+}
+
 /// Try, once, to make a circuit to a single relay and establish an introduction
 /// point there.
 ///
@@ -173,10 +185,7 @@ async fn establish_intro_once<R, T>(
     netdir_provider: Arc<dyn NetDirProvider>,
     target: T,
     ipt_sid_keypair: &HsIntroPtSessionIdKeypair,
-    // TODO HSS: Take other extensions.  Ideally we would take not only
-    // DoSParams, but a full IntoIterator<Item=EstablishIntroExt> or ExtList.
-    // But both of those types are private in tor-cell.  We should consider
-    // whether that's what we want.
+    extensions: &EstIntroExtensionSet,
 ) -> Result<(), IptError>
 where
     R: Runtime,
@@ -198,13 +207,13 @@ where
 
     let establish_intro = {
         let ipt_sid_id = ipt_sid_keypair.as_ref().public.into();
-        let details = EstablishIntroDetails::new(ipt_sid_id);
+        let mut details = EstablishIntroDetails::new(ipt_sid_id);
+        if let Some(dos_params) = &extensions.dos_params {
+            details.set_extension_dos(dos_params.clone());
+        }
         let circuit_binding_key = circuit
             .binding_key(intro_pt_hop)
             .ok_or(internal!("No binding key for introduction point!?"))?;
-        if false {
-            // TODO HSS: Insert extensions as needed.
-        }
         let body: Vec<u8> = details
             .sign_and_encode(ipt_sid_keypair.as_ref(), circuit_binding_key.hs_mac())
             .map_err(IptError::CreateEstablishIntro)?;
