@@ -4655,6 +4655,7 @@ dependencies = [
  "fs-mistrust",
  "itertools",
  "rand 0.8.5",
+ "sec1",
  "serde",
  "ssh-key",
  "tempfile",
