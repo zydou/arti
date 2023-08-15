@@ -1,14 +1,14 @@
 //! Dynamically emitted HashX assembly code for aarch64 targets
 
 use crate::compiler::{util, Architecture, Executable};
-use crate::program::{self, Instruction, InstructionArray};
+use crate::program::{self, Instruction};
 use crate::register::{RegisterFile, RegisterId};
 use crate::CompilerError;
 use dynasmrt::{aarch64, DynasmApi, DynasmLabelApi};
 use std::mem;
 
 impl Architecture for Executable {
-    fn compile(program: &InstructionArray) -> Result<Self, CompilerError> {
+    fn compile(program: &[Instruction]) -> Result<Self, CompilerError> {
         let mut asm = Assembler::new();
         emit_load_input(&mut asm);
         emit_init_locals(&mut asm);

@@ -1,14 +1,14 @@
 //! Dynamically emitted HashX assembly code for x86_64 targets
 
 use crate::compiler::{util, Architecture, Executable};
-use crate::program::{self, Instruction, InstructionArray};
+use crate::program::{self, Instruction};
 use crate::register::{RegisterFile, RegisterId};
 use crate::CompilerError;
 use dynasmrt::{x64, x64::Rq, DynasmApi, DynasmLabelApi, Register};
 use std::mem;
 
 impl Architecture for Executable {
-    fn compile(program: &InstructionArray) -> Result<Self, CompilerError> {
+    fn compile(program: &[Instruction]) -> Result<Self, CompilerError> {
         let mut asm = Assembler::new();
         emit_save_regs(&mut asm);
         emit_load_input(&mut asm);

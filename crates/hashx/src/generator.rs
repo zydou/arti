@@ -1,7 +1,7 @@
 //! Pseudorandom generator for hash programs and parts thereof
 
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
-use crate::program::{Instruction, InstructionArray, Opcode, Program};
+use crate::program::{Instruction, Opcode};
 use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
@@ -84,17 +84,8 @@ mod model {
     pub(super) const BRANCH_MASK_BIT_WEIGHT: usize = 4;
 }
 
-/// Generate a hash program from an arbitrary [`RngCore`] implementer.
-///
-/// This can return [`Error::ProgramConstraints`] if the HashX post-generation
-/// program verification fails. During normal use this will happen once per
-/// several thousand random seeds, and the caller should skip to another seed.
-pub(crate) fn generate_program<T: RngCore>(rng: &mut T) -> Result<Program, Error> {
-    Generator::new(rng).generate_program()
-}
-
-/// Internal state for the program generator
-struct Generator<'r, R: RngCore> {
+/// Program generator
+pub(crate) struct Generator<'r, R: RngCore> {
     /// The program generator wraps a random number generator, via [`RngBuffer`].
     rng: RngBuffer<'r, R>,
 
@@ -118,7 +109,7 @@ struct Generator<'r, R: RngCore> {
 impl<'r, R: RngCore> Generator<'r, R> {
     /// Create a fresh program generator from a random number generator state.
     #[inline(always)]
-    fn new(rng: &'r mut R) -> Self {
+    pub(crate) fn new(rng: &'r mut R) -> Self {
         Generator {
             rng: RngBuffer::new(rng),
             scheduler: Scheduler::new(),
@@ -198,30 +189,28 @@ impl<'r, R: RngCore> Generator<'r, R> {
 
     /// Generate an entire program.
     ///
-    /// This generates instructions until the state can't be advanced any
-    /// further. Returns with [`Error::ProgramConstraints`] if the program
-    /// fails the `HashX` whole-program checks. These constraint failures occur
-    /// in normal use, on a small fraction of seed values.
+    /// Generates instructions into a provided [`Vec`] until the generator
+    /// state can't be advanced any further. Runs the whole-program validator.
+    /// Returns with [`Error::ProgramConstraints`] if the program fails these
+    /// checks. This happens in normal use on a small fraction of seed values.
     #[inline(always)]
-    fn generate_program(&mut self) -> Result<Program, Error> {
-        let mut array: InstructionArray = Default::default();
-        while array.len() < array.capacity() {
+    pub(crate) fn generate_program(&mut self, output: &mut Vec<Instruction>) -> Result<(), Error> {
+        assert!(output.is_empty());
+        while output.len() < output.capacity() {
             match self.generate_instruction() {
                 Err(()) => break,
                 Ok((inst, regw)) => {
                     let state_advance = self.commit_instruction_state(&inst, regw);
-                    array.push(inst);
+                    output.push(inst);
                     if let Err(()) = state_advance {
                         break;
                     }
                 }
             }
         }
-        let result = self.validator.check_whole_program(&self.scheduler, &array);
-        match result {
-            Err(()) => Err(Error::ProgramConstraints),
-            Ok(()) => Ok(Program::new(array)),
-        }
+        self.validator
+            .check_whole_program(&self.scheduler, output)
+            .map_err(|()| Error::ProgramConstraints)
     }
 
     /// Generate the next instruction.

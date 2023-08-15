@@ -9,7 +9,7 @@
 //! Generating correct HashX output depends on applying exactly the right
 //! constraints.
 
-use crate::program::{Instruction, InstructionArray, Opcode};
+use crate::program::{Instruction, Opcode};
 use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};
 use crate::scheduler::Scheduler;
 
@@ -221,7 +221,7 @@ impl Validator {
     pub(crate) fn check_whole_program(
         &self,
         scheduler: &Scheduler,
-        instructions: &InstructionArray,
+        instructions: &[Instruction],
     ) -> Result<(), ()> {
         if instructions.len() == model::REQUIRED_INSTRUCTIONS
             && scheduler.overall_latency().as_usize() == model::REQUIRED_OVERALL_RESULT_AT_CYCLE
