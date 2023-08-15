@@ -81,6 +81,10 @@ pub(crate) enum IptError {
     // Circuit,...
     ReceiveAck,
 
+    /// We received an invalid INTRO_ESTABLISHED message.
+    #[error("Got an invalid INTRO_ESTABLISHED message")]
+    BadEstablished,
+
     /// We encountered a programming error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -122,7 +126,7 @@ impl IptEstablisher {
 /// `hssvc-ipt-algorithms.md`.
 ///
 /// TODO HSS Make that file unneeded.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum IptStatusStatus {
     /// We are (re)establishing our connection to the IPT
     ///
@@ -139,11 +143,11 @@ pub(crate) enum IptStatusStatus {
 /// `Err(IptWantsToRetire)` indicates that the IPT Establisher wants to retire this IPT
 ///
 /// This happens when the IPT has had (too) many rendezvous requests.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct IptWantsToRetire;
 
 /// The current status of an introduction point.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct IptStatus {
     /// The current state of this introduction point as defined by
     /// `hssvc-ipt-algorithms.md`.
@@ -251,7 +255,11 @@ where
 
     let established = established_rx.await.map_err(|_| IptError::ReceiveAck)?;
 
-    // TODO HSS: handle all the extension data in the established field.
+    if established.iter_extensions().next().is_some() {
+        // We do not support any extensions from the introduction point; if it
+        // sent  us any, that's a protocol violation.
+        return Err(IptError::BadEstablished);
+    }
 
     // TODO HSS: Return the introduce_rx stream along with any related types.
     // Or should we have taken introduce_tx as an argument?  (@diziet endorses
