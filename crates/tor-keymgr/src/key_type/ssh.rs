@@ -241,6 +241,9 @@ mod tests {
     const OPENSSH_ED25519: &[u8] = include_bytes!("../../testdata/ed25519_openssh.private");
     const OPENSSH_ED25519_BAD: &[u8] = include_bytes!("../../testdata/ed25519_openssh_bad.private");
     const OPENSSH_DSA: &[u8] = include_bytes!("../../testdata/dsa_openssh.private");
+    const OPENSSH_X25519: &[u8] = include_bytes!("../../testdata/x25519_openssh.private");
+    const OPENSSH_X25519_UNKNOWN_ALGORITHM: &[u8] =
+        include_bytes!("../../testdata/x25519_openssh_unknown_algorithm.private");
 
     #[test]
     fn wrong_key_type() {
@@ -283,5 +286,32 @@ mod tests {
         let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
 
         assert!(erased_key.downcast::<ed25519::Keypair>().is_ok());
+    }
+
+    #[test]
+    fn x25519_key() {
+        let key_type = KeyType::X25519StaticSecret;
+        let key = UnparsedOpenSshKey::new(OPENSSH_X25519.into(), PathBuf::from("/dummy/path"));
+        let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
+
+        assert!(erased_key.downcast::<curve25519::StaticSecret>().is_ok());
+    }
+
+    #[test]
+    fn invalid_x25519_key() {
+        let key_type = KeyType::X25519StaticSecret;
+        let key = UnparsedOpenSshKey::new(
+            OPENSSH_X25519_UNKNOWN_ALGORITHM.into(),
+            PathBuf::from("/dummy/path"),
+        );
+        let err = key_type
+            .parse_ssh_format_erased(key)
+            .map(|_| "<type erased key>")
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Unexpected OpenSSH key type: wanted X25519, found pangolin@torproject.org"
+        );
     }
 }
