@@ -23,7 +23,7 @@ use tor_cell::relaycell::{
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{internal, into_internal};
 use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
-use tor_linkspec::CircTarget;
+use tor_linkspec::OwnedCircTarget;
 use tor_netdir::{NetDir, NetDirProvider, Relay};
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::Runtime;
@@ -186,9 +186,32 @@ pub(crate) struct EstIntroExtensionSet {
     dos_params: Option<est_intro::DosParams>,
 }
 
+/// Implementation structure for the task that implements an IptEstablisher.
+struct IptEstablisherReactor<R: Runtime> {
+    /// A pool used to create circuits to the introduction point.
+    pool: Arc<HsCircPool<R>>,
+    /// A provider used to select the other relays in the circuit.
+    netdir_provider: Arc<dyn NetDirProvider>,
+    /// The target introduction point.
+    ///
+    /// TODO: Should this instead be an identity that we look up in the netdir
+    /// provider?
+    target: OwnedCircTarget,
+    /// The keypair to use when establishing the introduction point.
+    ///
+    /// Knowledge of this private key prevents anybody else from impersonating
+    /// us to the introduction point.
+    ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+    /// The extensions to use when establishing the introduction point.
+    ///
+    /// TODO: Should this be able to change over time if we re-establish this
+    /// intro point?
+    extensions: EstIntroExtensionSet,
+}
+
 /// An open session with a single introduction point.
 //
-// TODO: I've used Ipt and IntroPt  in this module; maybe we shouldn't.
+// TODO: I've used Ipt and IntroPt in this module; maybe we shouldn't.
 pub(crate) struct IntroPtSession {
     /// The circuit to the introduction point, on which we're receiving
     /// Introduce2 messages.
@@ -207,26 +230,18 @@ pub(crate) struct IntroPtSession {
     // ClientCirc::wait_for_close, if we stabilize it.
 }
 
+#[rustfmt::skip]
+impl<R:Runtime> IptEstablisherReactor<R> {
 /// Try, once, to make a circuit to a single relay and establish an introduction
 /// point there.
 ///
 /// Does not retry.  Does not time out except via `HsCircPool`.
-async fn establish_intro_once<R, T>(
-    pool: Arc<HsCircPool<R>>,
-    netdir_provider: Arc<dyn NetDirProvider>,
-    target: T,
-    ipt_sid_keypair: &HsIntroPtSessionIdKeypair,
-    extensions: &EstIntroExtensionSet,
-) -> Result<IntroPtSession, IptError>
-where
-    R: Runtime,
-    T: CircTarget,
-{
+async fn establish_intro_once(&self) -> Result<IntroPtSession, IptError> {
     let circuit = {
         let netdir =
-            wait_for_netdir(netdir_provider.as_ref(), tor_netdir::Timeliness::Timely).await?;
+            wait_for_netdir(self.netdir_provider.as_ref(), tor_netdir::Timeliness::Timely).await?;
         let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
-        pool.get_or_launch_specific(netdir.as_ref(), kind, target)
+        self.pool.get_or_launch_specific(netdir.as_ref(), kind, self.target.clone())
             .await
             .map_err(IptError::BuildCircuit)?
         // note that netdir is dropped here, to avoid holding on to it any
@@ -237,16 +252,16 @@ where
         .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
 
     let establish_intro = {
-        let ipt_sid_id = ipt_sid_keypair.as_ref().public.into();
+        let ipt_sid_id = self.ipt_sid_keypair.as_ref().public.into();
         let mut details = EstablishIntroDetails::new(ipt_sid_id);
-        if let Some(dos_params) = &extensions.dos_params {
+        if let Some(dos_params) = &self.extensions.dos_params {
             details.set_extension_dos(dos_params.clone());
         }
         let circuit_binding_key = circuit
             .binding_key(intro_pt_hop)
             .ok_or(internal!("No binding key for introduction point!?"))?;
         let body: Vec<u8> = details
-            .sign_and_encode(ipt_sid_keypair.as_ref(), circuit_binding_key.hs_mac())
+            .sign_and_encode(self.ipt_sid_keypair.as_ref(), circuit_binding_key.hs_mac())
             .map_err(IptError::CreateEstablishIntro)?;
 
         // TODO HSS: This is ugly, but it is the sensible way to munge the above
@@ -292,6 +307,7 @@ where
         intro_circ: circuit,
         introduce_rx,
     })
+}
 }
 
 /// Get a NetDir from `provider`, waiting until one exists.
