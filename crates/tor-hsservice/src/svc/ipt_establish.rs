@@ -230,84 +230,87 @@ pub(crate) struct IntroPtSession {
     // ClientCirc::wait_for_close, if we stabilize it.
 }
 
-#[rustfmt::skip]
-impl<R:Runtime> IptEstablisherReactor<R> {
-/// Try, once, to make a circuit to a single relay and establish an introduction
-/// point there.
-///
-/// Does not retry.  Does not time out except via `HsCircPool`.
-async fn establish_intro_once(&self) -> Result<IntroPtSession, IptError> {
-    let circuit = {
-        let netdir =
-            wait_for_netdir(self.netdir_provider.as_ref(), tor_netdir::Timeliness::Timely).await?;
-        let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
-        self.pool.get_or_launch_specific(netdir.as_ref(), kind, self.target.clone())
+impl<R: Runtime> IptEstablisherReactor<R> {
+    /// Try, once, to make a circuit to a single relay and establish an introduction
+    /// point there.
+    ///
+    /// Does not retry.  Does not time out except via `HsCircPool`.
+    async fn establish_intro_once(&self) -> Result<IntroPtSession, IptError> {
+        let circuit = {
+            let netdir = wait_for_netdir(
+                self.netdir_provider.as_ref(),
+                tor_netdir::Timeliness::Timely,
+            )
+            .await?;
+            let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
+            self.pool
+                .get_or_launch_specific(netdir.as_ref(), kind, self.target.clone())
+                .await
+                .map_err(IptError::BuildCircuit)?
+            // note that netdir is dropped here, to avoid holding on to it any
+            // longer than necessary.
+        };
+        let intro_pt_hop = circuit
+            .last_hop_num()
+            .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
+
+        let establish_intro = {
+            let ipt_sid_id = self.ipt_sid_keypair.as_ref().public.into();
+            let mut details = EstablishIntroDetails::new(ipt_sid_id);
+            if let Some(dos_params) = &self.extensions.dos_params {
+                details.set_extension_dos(dos_params.clone());
+            }
+            let circuit_binding_key = circuit
+                .binding_key(intro_pt_hop)
+                .ok_or(internal!("No binding key for introduction point!?"))?;
+            let body: Vec<u8> = details
+                .sign_and_encode(self.ipt_sid_keypair.as_ref(), circuit_binding_key.hs_mac())
+                .map_err(IptError::CreateEstablishIntro)?;
+
+            // TODO HSS: This is ugly, but it is the sensible way to munge the above
+            // body into a format that AnyRelayCell will accept without doing a
+            // redundant parse step.
+            //
+            // One alternative would be allowing start_conversation to take an `impl
+            // RelayMsg` rather than an AnyRelayMsg.
+            //
+            // Or possibly, when we feel like it, we could rename one or more of
+            // these "Unrecognized"s to Unparsed or Uninterpreted.  If we do that, however, we'll
+            // potentially face breaking changes up and down our crate stack.
+            AnyRelayMsg::Unrecognized(tor_cell::relaycell::msg::Unrecognized::new(
+                tor_cell::relaycell::RelayCmd::ESTABLISH_INTRO,
+                body,
+            ))
+        };
+
+        let (established_tx, established_rx) = oneshot::channel();
+        let (introduce_tx, introduce_rx) = mpsc::unbounded();
+
+        let handler = IptMsgHandler {
+            established_tx: Some(established_tx),
+            introduce_tx,
+        };
+        let conversation = circuit
+            .start_conversation(Some(establish_intro), handler, intro_pt_hop)
             .await
-            .map_err(IptError::BuildCircuit)?
-        // note that netdir is dropped here, to avoid holding on to it any
-        // longer than necessary.
-    };
-    let intro_pt_hop = circuit
-        .last_hop_num()
-        .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
+            .map_err(IptError::SendEstablishIntro)?;
+        // At this point, we have `await`ed for the Conversation to exist, so we know
+        // that the message was sent.  We have to wait for any actual `established`
+        // message, though.
 
-    let establish_intro = {
-        let ipt_sid_id = self.ipt_sid_keypair.as_ref().public.into();
-        let mut details = EstablishIntroDetails::new(ipt_sid_id);
-        if let Some(dos_params) = &self.extensions.dos_params {
-            details.set_extension_dos(dos_params.clone());
+        let established = established_rx.await.map_err(|_| IptError::ReceiveAck)?;
+
+        if established.iter_extensions().next().is_some() {
+            // We do not support any extensions from the introduction point; if it
+            // sent  us any, that's a protocol violation.
+            return Err(IptError::BadEstablished);
         }
-        let circuit_binding_key = circuit
-            .binding_key(intro_pt_hop)
-            .ok_or(internal!("No binding key for introduction point!?"))?;
-        let body: Vec<u8> = details
-            .sign_and_encode(self.ipt_sid_keypair.as_ref(), circuit_binding_key.hs_mac())
-            .map_err(IptError::CreateEstablishIntro)?;
 
-        // TODO HSS: This is ugly, but it is the sensible way to munge the above
-        // body into a format that AnyRelayCell will accept without doing a
-        // redundant parse step.
-        //
-        // One alternative would be allowing start_conversation to take an `impl
-        // RelayMsg` rather than an AnyRelayMsg.
-        //
-        // Or possibly, when we feel like it, we could rename one or more of
-        // these "Unrecognized"s to Unparsed or Uninterpreted.  If we do that, however, we'll
-        // potentially face breaking changes up and down our crate stack.
-        AnyRelayMsg::Unrecognized(tor_cell::relaycell::msg::Unrecognized::new(
-            tor_cell::relaycell::RelayCmd::ESTABLISH_INTRO,
-            body,
-        ))
-    };
-
-    let (established_tx, established_rx) = oneshot::channel();
-    let (introduce_tx, introduce_rx) = mpsc::unbounded();
-
-    let handler = IptMsgHandler {
-        established_tx: Some(established_tx),
-        introduce_tx,
-    };
-    let conversation = circuit
-        .start_conversation(Some(establish_intro), handler, intro_pt_hop)
-        .await
-        .map_err(IptError::SendEstablishIntro)?;
-    // At this point, we have `await`ed for the Conversation to exist, so we know
-    // that the message was sent.  We have to wait for any actual `established`
-    // message, though.
-
-    let established = established_rx.await.map_err(|_| IptError::ReceiveAck)?;
-
-    if established.iter_extensions().next().is_some() {
-        // We do not support any extensions from the introduction point; if it
-        // sent  us any, that's a protocol violation.
-        return Err(IptError::BadEstablished);
+        Ok(IntroPtSession {
+            intro_circ: circuit,
+            introduce_rx,
+        })
     }
-
-    Ok(IntroPtSession {
-        intro_circ: circuit,
-        introduce_rx,
-    })
-}
 }
 
 /// Get a NetDir from `provider`, waiting until one exists.
