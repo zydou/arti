@@ -40,5 +40,6 @@ tor-llcrypto = { version = "0.5.2", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.9.3", path = "../tor-netdir" }
 tor-proto = { version = "0.12.0", path = "../tor-proto", features = ["hs-service", "send-control-msg"] }
 tor-rtcompat = { version = "0.9.1", path = "../tor-rtcompat" }
+tracing = "0.1.36"
 
 [dev-dependencies]
