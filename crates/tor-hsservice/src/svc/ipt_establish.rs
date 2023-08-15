@@ -9,7 +9,10 @@
 use std::sync::Arc;
 
 use futures::{
-    channel::{mpsc, oneshot},
+    channel::{
+        mpsc::{self, UnboundedReceiver},
+        oneshot,
+    },
     StreamExt as _,
 };
 use tor_cell::relaycell::{
@@ -22,7 +25,7 @@ use tor_error::{internal, into_internal};
 use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
 use tor_linkspec::CircTarget;
 use tor_netdir::{NetDir, NetDirProvider, Relay};
-use tor_proto::circuit::{ConversationInHandler, MetaCellDisposition};
+use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::Runtime;
 
 use crate::RendRequest;
@@ -183,6 +186,27 @@ pub(crate) struct EstIntroExtensionSet {
     dos_params: Option<est_intro::DosParams>,
 }
 
+/// An open session with a single introduction point.
+//
+// TODO: I've used Ipt and IntroPt  in this module; maybe we shouldn't.
+pub(crate) struct IntroPtSession {
+    /// The circuit to the introduction point, on which we're receiving
+    /// Introduce2 messages.
+    intro_circ: Arc<ClientCirc>,
+
+    /// The stream that will receive Introduce2 messages.
+    ///
+    /// TODO: we'll likely want to refactor this.  @diziet favors having
+    /// `establish_intro_once` take a Sink as an argument, but I think that we
+    /// may need to keep this separate so that we can keep the ability to
+    /// start/stop the stream of Introduce2 messages, and/or detect when it's
+    /// closed.  If we don't need to do that, we can refactor.
+    introduce_rx: UnboundedReceiver<Introduce2>,
+    // TODO HSS: How shall we know if the other side has closed the circuit?  We
+    // can either wait for introduce_rx to close, or we can use
+    // ClientCirc::wait_for_close, if we stabilize it.
+}
+
 /// Try, once, to make a circuit to a single relay and establish an introduction
 /// point there.
 ///
@@ -193,7 +217,7 @@ async fn establish_intro_once<R, T>(
     target: T,
     ipt_sid_keypair: &HsIntroPtSessionIdKeypair,
     extensions: &EstIntroExtensionSet,
-) -> Result<(), IptError>
+) -> Result<IntroPtSession, IptError>
 where
     R: Runtime,
     T: CircTarget,
@@ -264,16 +288,10 @@ where
         return Err(IptError::BadEstablished);
     }
 
-    // TODO HSS: Return the introduce_rx stream along with any related types.
-    // Or should we have taken introduce_tx as an argument?  (@diziet endorses
-    // the "take it as an argument" idea.)
-
-    // TODO HSS: Return the circuit too, of course.
-
-    // TODO HSS: How shall we know if the other side has closed the circuit?  We could wait
-    // for introduce_rx.next() to yield None, but that will only work if we use
-    // one mpsc::Sender per circuit...
-    todo!()
+    Ok(IntroPtSession {
+        intro_circ: circuit,
+        introduce_rx,
+    })
 }
 
 /// Get a NetDir from `provider`, waiting until one exists.
