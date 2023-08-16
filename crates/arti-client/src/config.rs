@@ -685,17 +685,42 @@ impl TorClientConfig {
 impl TorClientConfigBuilder {
     /// Returns a `TorClientConfigBuilder` using the specified state and cache directories.
     ///
-    /// All other configuration options are set to their defaults.
+    /// All other configuration options are set to their defaults, except `storage.keystore.path`,
+    /// which is derived from the specified state directory.
     pub fn from_directories<P, Q>(state_dir: P, cache_dir: Q) -> Self
     where
         P: AsRef<Path>,
         Q: AsRef<Path>,
     {
         let mut builder = Self::default();
+
         builder
             .storage()
             .cache_dir(CfgPath::new_literal(cache_dir.as_ref()))
             .state_dir(CfgPath::new_literal(state_dir.as_ref()));
+
+        // Derive the keystore path from `state_dir`
+        //
+        // TODO HSS: perhaps the default `keystore_dir` should more generally be derived from
+        // `state_dir`.
+        //
+        // Note this will involve writing a custom deserializer for StorageConfig (if
+        // `storage.keystore.path` is missing from the config, it will need to be initialized using
+        // the value we deserialized for `storage.state_dir` rather than a static default value).
+        #[cfg(feature = "experimental-api")]
+        {
+            use tor_keymgr::config::arti::ArtiNativeKeystoreConfigBuilder;
+
+            let mut sub_builder = ArtiNativeKeystoreConfigBuilder::default();
+            let keystore_dir = state_dir.as_ref().join("keystore");
+            sub_builder.path(CfgPath::new_literal(keystore_dir));
+            // This shouldn't fail, but if it does, we use the ArtiNativeKeystoreConfig
+            // defaults.
+            let keystore = sub_builder.build().unwrap_or_default();
+
+            builder.storage().keystore(keystore);
+        };
+
         builder
     }
 }
@@ -973,5 +998,18 @@ mod test {
         for (test_case, expected) in test_cases.iter() {
             chk(&from_toml(test_case), *expected);
         }
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-api")]
+    fn from_directories_keystore_dir() {
+        let builder =
+            TorClientConfigBuilder::from_directories("/home/bob/state", "/home/bob/cache");
+        let client_cfg = builder.build().unwrap();
+
+        assert_eq!(
+            client_cfg.storage.keystore.expand_keystore_dir().unwrap(),
+            PathBuf::from("/home/bob/state/keystore")
+        );
     }
 }
