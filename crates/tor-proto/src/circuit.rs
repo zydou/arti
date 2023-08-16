@@ -1186,7 +1186,6 @@ mod test {
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
-    use tor_cell::relaycell::msg::BeginFlags;
     use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -1955,6 +1954,8 @@ mod test {
     #[test]
     #[cfg(feature = "hs-service")]
     fn allow_stream_requests() {
+        use tor_cell::relaycell::msg::BeginFlags;
+
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             const TEST_DATA: &[u8] = b"ping";
 
@@ -2021,6 +2022,7 @@ mod test {
     #[test]
     #[cfg(feature = "hs-service")]
     fn accept_stream_after_reject() {
+        use tor_cell::relaycell::msg::BeginFlags;
         use tor_cell::relaycell::msg::EndReason;
 
         // TODO HSS: this sometimes triggers an interleaving where the rejected IncomingStream is
