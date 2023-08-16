@@ -166,6 +166,7 @@ pub struct ClientCirc {
     channel: Channel,
     /// A future that resolves to Cancelled once the reactor is shut down,
     /// meaning that the circuit is closed.
+    #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
     reactor_closed_rx: futures::future::Shared<oneshot::Receiver<void::Void>>,
     /// For testing purposes: the CircId, for use in peek_circid().
     #[cfg(test)]

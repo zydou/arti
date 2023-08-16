@@ -1724,6 +1724,7 @@ impl FirstHop {
     ///
     /// This is true if `lookup_bridge_circ_target()` has been called, and it
     /// successfully found the circuit target information.
+    #[cfg(feature = "bridge-client")]
     fn contains_circ_target(&self) -> bool {
         matches!(self.inner, FirstHopInner::Circ(_))
     }
