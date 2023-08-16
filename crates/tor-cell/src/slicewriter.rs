@@ -15,7 +15,7 @@ use tor_bytes::Writer;
 #[non_exhaustive]
 #[derive(Clone, Debug, Error)]
 pub(crate) enum SliceWriterError {
-    /// We've
+    /// We've tried to write more than would fit into a fixed-size slice
     #[error("Tried to write more than would fit into a fixed-size slice.")]
     Truncated,
 }
