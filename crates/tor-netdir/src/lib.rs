@@ -82,7 +82,6 @@ use typed_index_collections::{TiSlice, TiVec};
 
 #[cfg(feature = "hs-common")]
 use {
-    crate::hsdir_ring::HsDirIndex,
     itertools::Itertools,
     std::collections::HashSet,
     tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
@@ -1510,10 +1509,10 @@ impl NetDir {
             .hsdir_rings
             .iter_for_op(op)
             .cartesian_product(1..=n_replicas) // 1-indexed !
-            .scan(
-                HashSet::new(),
-                move |selected_nodes: &mut HashSet<HsDirIndex>,
-                      (ring, replica): (&HsDirRing, u8)| {
+            .flat_map({
+                let mut selected_nodes = HashSet::new();
+
+                move |(ring, replica): (&HsDirRing, u8)| {
                     let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
 
                     let items = ring
@@ -1527,10 +1526,9 @@ impl NetDir {
                         })
                         .collect::<Vec<_>>();
 
-                    Some(items)
-                },
-            )
-            .flatten()
+                    items
+                }
+            })
             .filter_map(|(_hsdir_idx, rs_idx)| {
                 // This ought not to be None but let's not panic or bail if it is
                 self.relay_by_rs_idx(*rs_idx)
