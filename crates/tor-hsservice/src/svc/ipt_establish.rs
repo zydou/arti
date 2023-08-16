@@ -33,10 +33,6 @@ use crate::RendRequest;
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {
-    /// A stream of events that is produced whenever we have a change in the
-    /// IptStatus for this intro point.  Note that this stream is potentially
-    /// lossy.
-    status_events: postage::watch::Receiver<IptStatus>,
 }
 
 /// When the `IptEstablisher` is dropped it is torn down
@@ -133,12 +129,17 @@ impl IptEstablisher {
     /// Try to set up, and maintain, an IPT at `Relay`
     ///
     /// Rendezvous requests will be rejected
+    ///
+    /// Also returns
+    /// a stream of events that is produced whenever we have a change in the
+    /// IptStatus for this intro point.  Note that this stream is potentially
+    /// lossy.
     pub(crate) fn new<R: Runtime>(
         circ_pool: Arc<HsCircPool<R>>,
         dirprovider: Arc<dyn NetDirProvider>,
         relay: &Relay<'_>,
         // TODO HSS: this needs to take some configuration
-    ) -> Result<Self, IptError> {
+    ) -> Result<(Self, postage::watch::Receiver<IptStatus>), IptError> {
         todo!()
     }
 
