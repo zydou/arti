@@ -24,32 +24,6 @@ use itertools::Itertools;
 
 use crate::err::RequestError;
 
-/// The body of an [`http::Request`] made by a `Requestable` implementation.
-pub trait StringBody {
-    /// The string representation of the request body.
-    ///
-    /// Bodies consisting of binary data are not supported.
-    fn as_str(&self) -> &str;
-}
-
-impl StringBody for () {
-    fn as_str(&self) -> &str {
-        ""
-    }
-}
-
-impl StringBody for String {
-    fn as_str(&self) -> &str {
-        self.as_ref()
-    }
-}
-
-impl StringBody for &str {
-    fn as_str(&self) -> &str {
-        self
-    }
-}
-
 /// A request for an object that can be served over the Tor directory system.
 pub trait Requestable {
     /// Build an [`http::Request`] from this Requestable, if
