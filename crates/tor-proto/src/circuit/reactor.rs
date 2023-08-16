@@ -1743,7 +1743,7 @@ impl Reactor {
     ) -> Result<()> {
         let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
-                "Cannot handle BEGIN cells on this circuit".into()
+                "Cannot handle BEGIN cells on this circuit".into(),
             ));
         };
 
