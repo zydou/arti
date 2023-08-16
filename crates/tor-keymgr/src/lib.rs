@@ -65,8 +65,9 @@ pub use key_specifier::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
 pub use {
     key_type::KeyType,
     keystore::arti::ArtiNativeKeystore,
-    keystore::{EncodableKey, ErasedKey, KeygenRng, Keystore, SshKeypairData, ToEncodableKey},
+    keystore::{EncodableKey, ErasedKey, KeygenRng, Keystore, ToEncodableKey},
     mgr::KeyMgr,
+    ssh_key,
 };
 
 #[cfg(not(feature = "keymgr"))]

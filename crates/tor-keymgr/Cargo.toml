@@ -31,8 +31,18 @@ dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.3", features = ["serde", "walkdir"] }
 itertools = "0.11.0"
 rand = "0.8"
+# TODO HSS: this is not actually a direct dependency of tor-keymgr. It is added
+# here to satisfy the minimal-versions check, which would otherwise fail, as
+# ssh-key has a hard dependency on 0.7.3.
+
+# Adding `-p sec1:0.7.3` to the update command from in
+# maint/downgrade_dependencies doesn't work because cargo isn't won't be able
+# select sec1@0.7.3 after downgrading the dependencies.
+#
+# See https://github.com/RustCrypto/SSH/issues/153
+sec1 = "0.7.3"
 serde = { version = "1.0.103", features = ["derive"] }
-ssh-key = { version = "0.5.1", features = ["std"] }
+ssh-key = { version = "0.6.0", features = ["std"] }
 thiserror = "1"
 tor-config = { path = "../tor-config", version = "0.9.3" }
 tor-error = { path = "../tor-error", version = "0.5.3" }
