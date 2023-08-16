@@ -48,21 +48,21 @@ mod test {
 
     #[test]
     fn format() {
-        fn chk_format(body: String) {
-            let req = build_request(body.clone(), &[]);
+        fn chk_format(body: &str) {
+            let req = build_request(body.to_string(), &[]);
             assert_eq!(
                 encode_request(&req),
                 format!("GET /index.html HTTP/1.0\r\n\r\n{body}")
             );
 
-            let req = build_request(body.clone(), &[("X-Marsupial", "Opossum")]);
+            let req = build_request(body.to_string(), &[("X-Marsupial", "Opossum")]);
             assert_eq!(
                 encode_request(&req),
                 format!("GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n{body}")
             );
         }
 
-        chk_format(Default::default());
-        chk_format("hello".into());
+        chk_format("");
+        chk_format("hello");
     }
 }
