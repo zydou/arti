@@ -601,7 +601,7 @@ impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
     }
 
     fn dangerously_assume_timely(self) -> Ed25519Cert {
-        self.cert
+        self.cert.dangerously_assume_timely()
     }
 }
 
