@@ -84,7 +84,7 @@ pub(crate) enum ClientRequest {
 
 impl ClientRequest {
     /// Turn a ClientRequest into a Requestable.
-    pub(crate) fn as_requestable(&self) -> &(dyn request::Requestable<Body = ()> + Send + Sync) {
+    pub(crate) fn as_requestable(&self) -> &(dyn request::Requestable + Send + Sync) {
         use ClientRequest::*;
         match self {
             Consensus(a) => a,

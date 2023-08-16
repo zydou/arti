@@ -2,10 +2,8 @@
 
 use std::fmt::Write;
 
-use crate::request::StringBody;
-
 /// Encode an HTTP request in a quick and dirty HTTP 1.0 format.
-pub(crate) fn encode_request<B: StringBody>(req: &http::Request<B>) -> String {
+pub(crate) fn encode_request(req: &http::Request<String>) -> String {
     let mut s = format!("{} {} HTTP/1.0\r\n", req.method(), req.uri());
 
     for (key, val) in req.headers().iter() {
@@ -19,7 +17,7 @@ pub(crate) fn encode_request<B: StringBody>(req: &http::Request<B>) -> String {
         .unwrap();
     }
     s.push_str("\r\n");
-    s.push_str(req.body().as_str());
+    s.push_str(req.body());
     s
 }
 
@@ -38,16 +36,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    #[derive(Copy, Clone, Debug)]
-    struct TestBody;
-
-    impl StringBody for TestBody {
-        fn as_str(&self) -> &str {
-            "hello"
-        }
-    }
-
-    fn build_request<B: StringBody>(body: B, headers: &[(&str, &str)]) -> http::Request<B> {
+    fn build_request(body: String, headers: &[(&str, &str)]) -> http::Request<String> {
         let mut builder = http::Request::builder().method("GET").uri("/index.html");
 
         for (name, value) in headers {
@@ -59,21 +48,21 @@ mod test {
 
     #[test]
     fn format() {
-        fn chk_format<B: StringBody + Clone>(body: B, expected_body: &str) {
+        fn chk_format(body: String) {
             let req = build_request(body.clone(), &[]);
             assert_eq!(
                 encode_request(&req),
-                format!("GET /index.html HTTP/1.0\r\n\r\n{expected_body}")
+                format!("GET /index.html HTTP/1.0\r\n\r\n{body}")
             );
 
-            let req = build_request(body, &[("X-Marsupial", "Opossum")]);
+            let req = build_request(body.clone(), &[("X-Marsupial", "Opossum")]);
             assert_eq!(
                 encode_request(&req),
-                format!("GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n{expected_body}")
+                format!("GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n{body}")
             );
         }
 
-        chk_format((), "");
-        chk_format(TestBody, "hello");
+        chk_format(Default::default());
+        chk_format("hello".into());
     }
 }
