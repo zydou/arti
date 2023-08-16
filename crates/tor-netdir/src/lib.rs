@@ -84,7 +84,7 @@ use typed_index_collections::{TiSlice, TiVec};
 use {
     crate::hsdir_ring::HsDirIndex,
     itertools::Itertools,
-    std::collections::BTreeSet,
+    std::collections::HashSet,
     tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
 };
 
@@ -1511,8 +1511,8 @@ impl NetDir {
             .iter_for_op(op)
             .cartesian_product(1..=n_replicas) // 1-indexed !
             .scan(
-                BTreeSet::new(),
-                move |selected_nodes: &mut BTreeSet<HsDirIndex>,
+                HashSet::new(),
+                move |selected_nodes: &mut HashSet<HsDirIndex>,
                       (ring, replica): (&HsDirRing, u8)| {
                     let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
 
@@ -2526,7 +2526,7 @@ mod test {
             let unique = relays
                 .iter()
                 .map(|relay| relay.ed_identity())
-                .collect::<BTreeSet<_>>();
+                .collect::<HashSet<_>>();
             assert_eq!(unique.len(), relays.len());
         }
 
