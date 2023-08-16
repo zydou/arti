@@ -32,8 +32,7 @@ use tracing::debug;
 use crate::RendRequest;
 
 /// Handle onto the task which is establishing and maintaining one IPT
-pub(crate) struct IptEstablisher {
-}
+pub(crate) struct IptEstablisher {}
 
 /// When the `IptEstablisher` is dropped it is torn down
 ///
