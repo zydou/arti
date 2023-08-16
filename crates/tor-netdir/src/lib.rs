@@ -1523,11 +1523,9 @@ impl NetDir {
                             // nodes have already been selected for a lower-numbered replica of the
                             // service, any nodes already chosen are disregarded (i.e. skipped over)
                             // when choosing a replica's hsdir_spread_store nodes.
-                            !selected_nodes.contains(hsdir_idx)
+                            selected_nodes.insert(*hsdir_idx)
                         })
                         .collect::<Vec<_>>();
-
-                    selected_nodes.extend(items.iter().map(|(hsdir_idx, _)| hsdir_idx));
 
                     Some(items)
                 },
