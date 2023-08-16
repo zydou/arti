@@ -18,6 +18,7 @@ use crate::{OnionServiceStatus, Result};
 
 mod ipt_establish;
 mod publish;
+mod rend_handshake;
 
 /// A handle to an instance of an onion service.
 //
