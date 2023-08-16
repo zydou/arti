@@ -79,7 +79,7 @@ pub type RequestResult<T> = std::result::Result<T, RequestError>;
 /// constructed using `dirinfo`.
 ///
 /// For more fine-grained control over the circuit and stream used,
-/// construct them yourself, and then call [`download`] instead.
+/// construct them yourself, and then call [`send_request`] instead.
 ///
 /// # TODO
 ///
@@ -122,7 +122,7 @@ where
 
     // TODO: Perhaps we want separate timeouts for each phase of this.
     // For now, we just use higher-level timeouts in `dirmgr`.
-    let r = download(runtime, req, &mut stream, Some(source.clone())).await;
+    let r = send_request(runtime, req, &mut stream, Some(source.clone())).await;
 
     if should_retire_circ(&r) {
         retire_circ(&circ_mgr, &source, "Partial response");
@@ -141,6 +141,22 @@ fn should_retire_circ(result: &Result<DirResponse>) -> bool {
 }
 
 /// Fetch a Tor directory object from a provided stream.
+#[deprecated(since = "0.8.1", note = "Use send_request instead.")]
+pub async fn download<R, S, SP>(
+    runtime: &SP,
+    req: &R,
+    stream: &mut S,
+    source: Option<SourceInfo>,
+) -> Result<DirResponse>
+where
+    R: request::Requestable + ?Sized,
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+    SP: SleepProvider,
+{
+    send_request(runtime, req, stream, source).await
+}
+
+/// Fetch or upload a Tor directory object using the provided stream.
 ///
 /// To do this, we send a simple HTTP/1.0 request for the described
 /// object in `req` over `stream`, and then wait for a response.  In
@@ -158,7 +174,7 @@ fn should_retire_circ(result: &Result<DirResponse>) -> bool {
 /// The only error variant returned is [`Error::RequestFailed`].
 // TODO: should the error return type change to `RequestFailedError`?
 // If so, that would simplify some code in_dirmgr::bridgedesc.
-pub async fn download<R, S, SP>(
+pub async fn send_request<R, S, SP>(
     runtime: &SP,
     req: &R,
     stream: &mut S,
@@ -660,7 +676,7 @@ mod test {
             ) = futures::join!(
                 async {
                     // Run the download function.
-                    let r = download(&rt, &req, &mut s1, None).await;
+                    let r = send_request(&rt, &req, &mut s1, None).await;
                     s1.close().await.map_err(|error| {
                         Error::RequestFailed(RequestFailedError {
                             source: None,
@@ -703,7 +719,7 @@ mod test {
     }
 
     #[test]
-    fn test_download() -> RequestResult<()> {
+    fn test_send_request() -> RequestResult<()> {
         let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
 
         let (response, request) = run_download_test(

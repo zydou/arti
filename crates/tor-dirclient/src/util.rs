@@ -3,7 +3,7 @@
 use std::fmt::Write;
 
 /// Encode an HTTP request in a quick and dirty HTTP 1.0 format.
-pub(crate) fn encode_request(req: &http::Request<()>) -> String {
+pub(crate) fn encode_request(req: &http::Request<String>) -> String {
     let mut s = format!("{} {} HTTP/1.0\r\n", req.method(), req.uri());
 
     for (key, val) in req.headers().iter() {
@@ -17,6 +17,7 @@ pub(crate) fn encode_request(req: &http::Request<()>) -> String {
         .unwrap();
     }
     s.push_str("\r\n");
+    s.push_str(req.body());
     s
 }
 
@@ -35,23 +36,33 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    fn build_request(body: String, headers: &[(&str, &str)]) -> http::Request<String> {
+        let mut builder = http::Request::builder().method("GET").uri("/index.html");
+
+        for (name, value) in headers {
+            builder = builder.header(*name, *value);
+        }
+
+        builder.body(body).unwrap()
+    }
+
     #[test]
     fn format() {
-        let req = http::Request::builder()
-            .method("GET")
-            .uri("/index.html")
-            .body(())
-            .unwrap();
-        assert_eq!(encode_request(&req), "GET /index.html HTTP/1.0\r\n\r\n");
-        let req = http::Request::builder()
-            .method("GET")
-            .uri("/index.html")
-            .header("X-Marsupial", "Opossum")
-            .body(())
-            .unwrap();
-        assert_eq!(
-            encode_request(&req),
-            "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n"
-        );
+        fn chk_format(body: &str) {
+            let req = build_request(body.to_string(), &[]);
+            assert_eq!(
+                encode_request(&req),
+                format!("GET /index.html HTTP/1.0\r\n\r\n{body}")
+            );
+
+            let req = build_request(body.to_string(), &[("X-Marsupial", "Opossum")]);
+            assert_eq!(
+                encode_request(&req),
+                format!("GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n\r\n{body}")
+            );
+        }
+
+        chk_format("");
+        chk_format("hello");
     }
 }

@@ -28,7 +28,7 @@ use crate::err::RequestError;
 pub trait Requestable {
     /// Build an [`http::Request`] from this Requestable, if
     /// it is well-formed.
-    fn make_request(&self) -> Result<http::Request<()>>;
+    fn make_request(&self) -> Result<http::Request<String>>;
 
     /// Return true if partial downloads are potentially useful.  This
     /// is true for request types where we're going to be downloading
@@ -190,7 +190,7 @@ impl Default for ConsensusRequest {
 }
 
 impl Requestable for ConsensusRequest {
-    fn make_request(&self) -> Result<http::Request<()>> {
+    fn make_request(&self) -> Result<http::Request<String>> {
         // Build the URL.
         let mut uri = "/tor/status-vote/current/consensus".to_string();
         match self.flavor {
@@ -225,7 +225,7 @@ impl Requestable for ConsensusRequest {
             req = req.header("X-Or-Diff-From-Consensus", &ids);
         }
 
-        Ok(req.body(())?)
+        Ok(req.body(String::new())?)
     }
 
     fn partial_docs_ok(&self) -> bool {
@@ -273,7 +273,7 @@ impl AuthCertRequest {
 }
 
 impl Requestable for AuthCertRequest {
-    fn make_request(&self) -> Result<http::Request<()>> {
+    fn make_request(&self) -> Result<http::Request<String>> {
         if self.ids.is_empty() {
             return Err(RequestError::EmptyRequest);
         }
@@ -296,7 +296,7 @@ impl Requestable for AuthCertRequest {
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req);
 
-        Ok(req.body(())?)
+        Ok(req.body(String::new())?)
     }
 
     fn partial_docs_ok(&self) -> bool {
@@ -343,7 +343,7 @@ impl MicrodescRequest {
 }
 
 impl Requestable for MicrodescRequest {
-    fn make_request(&self) -> Result<http::Request<()>> {
+    fn make_request(&self) -> Result<http::Request<String>> {
         let d_encode_b64 = |d: &[u8; 32]| Base64Unpadded::encode_string(&d[..]);
         let ids = digest_list_stringify(&self.digests, d_encode_b64, "-")
             .ok_or(RequestError::EmptyRequest)?;
@@ -352,7 +352,7 @@ impl Requestable for MicrodescRequest {
 
         let req = add_common_headers(req);
 
-        Ok(req.body(())?)
+        Ok(req.body(String::new())?)
     }
 
     fn partial_docs_ok(&self) -> bool {
@@ -418,7 +418,7 @@ impl RouterDescRequest {
 
 #[cfg(feature = "routerdesc")]
 impl Requestable for RouterDescRequest {
-    fn make_request(&self) -> Result<http::Request<()>> {
+    fn make_request(&self) -> Result<http::Request<String>> {
         let mut uri = "/tor/server/".to_string();
 
         match self.requested_descriptors {
@@ -438,7 +438,7 @@ impl Requestable for RouterDescRequest {
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req);
 
-        Ok(req.body(())?)
+        Ok(req.body(String::new())?)
     }
 
     fn partial_docs_ok(&self) -> bool {
@@ -484,12 +484,12 @@ impl RoutersOwnDescRequest {
 
 #[cfg(feature = "routerdesc")]
 impl Requestable for RoutersOwnDescRequest {
-    fn make_request(&self) -> Result<http::Request<()>> {
+    fn make_request(&self) -> Result<http::Request<String>> {
         let uri = "/tor/server/authority.z";
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req);
 
-        Ok(req.body(())?)
+        Ok(req.body(String::new())?)
     }
 
     fn partial_docs_ok(&self) -> bool {
@@ -530,14 +530,14 @@ impl HsDescDownloadRequest {
 
 #[cfg(feature = "hs-client")]
 impl Requestable for HsDescDownloadRequest {
-    fn make_request(&self) -> Result<http::Request<()>> {
+    fn make_request(&self) -> Result<http::Request<String>> {
         let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
         // We hardcode version 3 here; if we ever have a v4 onion service
         // descriptor, it will need a different kind of Request.
         let uri = format!("/tor/hs/3/{}", hsid);
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req);
-        Ok(req.body(())?)
+        Ok(req.body(String::new())?)
     }
 
     fn partial_docs_ok(&self) -> bool {
@@ -548,6 +548,50 @@ impl Requestable for HsDescDownloadRequest {
         self.max_len
     }
 }
+
+/// A request to upload a hidden service descriptor
+///
+/// rend-spec-v3 2.2.6
+#[derive(Debug, Clone)]
+#[cfg(feature = "hs-service")]
+pub struct HsDescUploadRequest(String);
+
+#[cfg(feature = "hs-service")]
+impl HsDescUploadRequest {
+    /// Construct a request for uploading a single onion service descriptor.
+    pub fn new(hsdesc: String) -> Self {
+        HsDescUploadRequest(hsdesc)
+    }
+}
+
+#[cfg(feature = "hs-service")]
+impl Requestable for HsDescUploadRequest {
+    fn make_request(&self) -> Result<http::Request<String>> {
+        /// The upload URI.
+        const URI: &str = "/tor/hs/3/publish";
+
+        let req = http::Request::builder().method("POST").uri(URI);
+        let req = add_common_headers(req);
+        // TODO HSS: we shouldn't have to clone here!
+        Ok(req.body(self.0.clone())?)
+    }
+
+    // TODO HSS: the name of this function doesn't make sense in this case.
+    // Perhaps it should be renamed to `partial_response_ok()`.
+    fn partial_docs_ok(&self) -> bool {
+        false
+    }
+
+    fn max_response_len(&self) -> usize {
+        // We expect the response body to be empty
+        //
+        // TODO HSS: perhaps we shouldn't? In the case of an error response, do we expect the body
+        // to contain e.g. an explanation for the error? If so, we should document this behaviour
+        // in rend-spec.
+        0
+    }
+}
+
 /// List the encodings we accept
 fn encodings() -> String {
     #[allow(unused_mut)]
