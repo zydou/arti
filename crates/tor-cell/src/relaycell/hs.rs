@@ -310,7 +310,8 @@ decl_extension_group! {
     ///
     /// (Currently, no extensions of this type are recognized)
     #[derive(Debug,Clone)]
-    enum IntroEstablishedExt [ IntroEstablishedExtType ] {
+    #[non_exhaustive]
+    pub enum IntroEstablishedExt [ IntroEstablishedExtType ] {
     }
 }
 
@@ -326,6 +327,11 @@ impl IntroEstablished {
     /// Create a new IntroEstablished message.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Return an iterator over the extensions declared in this message.
+    pub fn iter_extensions(&self) -> impl Iterator<Item = &IntroEstablishedExt> {
+        self.extensions.iter()
     }
 }
 

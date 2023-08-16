@@ -102,7 +102,7 @@ impl<T: ExtGroup> ExtList<T> {
     }
 }
 
-/// An unrecognized extension for some HS-related message.
+/// An unrecognized or unencoded extension for some HS-related message.
 #[derive(Clone, Debug)]
 pub struct UnrecognizedExt<ID> {
     /// The field type ID for this extension.
@@ -147,7 +147,8 @@ macro_rules! decl_extension_group {
             $( $(#[$cmeta])*
                $case($case),
             )*
-            /// An extension of a type we do not recognize.
+            /// An extension of a type we do not recognize, or which we have not
+            /// encoded.
             Unrecognized(UnrecognizedExt<$type_id>)
         }
         impl Readable for $id {
