@@ -121,6 +121,7 @@ impl Ed25519CertConstructor {
             signed_with,
         } = self;
 
+        // As long as there is no setter for Ed25519Cert::signed_with, this is unreachable
         if let Some(Some(signer)) = &signed_with {
             if *signer != skey.public_key().into() {
                 return Err(CertEncodeError::KeyMismatch);
@@ -204,5 +205,19 @@ mod test {
             panic!("wrong key type");
         }
         assert!(cert.signing_key() == Some(&keypair.public.into()));
+    }
+
+    #[test]
+    fn unrecognized_ext() {
+        use hex_literal::hex;
+        use tor_bytes::Reader;
+
+        let mut reader = Reader::from_slice(&hex!("0001 2A 00 2A"));
+        let ext: CertExt = reader.extract().unwrap();
+
+        let mut encoded: Vec<u8> = Vec::new();
+        encoded.write(&ext).unwrap();
+
+        assert_eq!(encoded, hex!("0001 2A 00 2A"));
     }
 }
