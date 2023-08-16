@@ -41,7 +41,7 @@ use crate::{NetDir, RouterStatusIdx};
 ///
 /// Note that this is _not_ an index into any array; it is instead an index into
 /// a space of possible values in a (virtual!) ring of 2^256 elements.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, AsRef)]
+#[derive(Copy, Clone, Eq, Hash, PartialEq, Ord, PartialOrd, AsRef)]
 pub(crate) struct HsDirIndex(#[as_ref] [u8; 32]);
 
 impl_debug_hex! { HsDirIndex .0 }
