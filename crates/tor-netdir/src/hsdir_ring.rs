@@ -5,7 +5,7 @@
 //! index every [`TimePeriod`], and every time that the shared random value in
 //! the consensus changes.  (These events are typically synchronized, for
 //! reasonable network configurations.)
-//!  
+//!
 //! Each onion service is also (semi-privately) associated with "N" positions on
 //! the ring based on its blinded ID and the current time period. When upload or
 //! downloading an onion service descriptor descriptor, we look at the ring at
@@ -41,7 +41,7 @@ use crate::{NetDir, RouterStatusIdx};
 ///
 /// Note that this is _not_ an index into any array; it is instead an index into
 /// a space of possible values in a (virtual!) ring of 2^256 elements.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, AsRef)]
+#[derive(Copy, Clone, Eq, Hash, PartialEq, Ord, PartialOrd, AsRef)]
 pub(crate) struct HsDirIndex(#[as_ref] [u8; 32]);
 
 impl_debug_hex! { HsDirIndex .0 }
@@ -218,21 +218,28 @@ impl HsDirRing {
             .unwrap_or_else(|pos| pos)
     }
 
-    /// Yield `spread_fetch` items from `ring` starting with `hsdir_index`
+    /// Yield `spread` items from `ring` that satisfy the specified filter, starting with
+    /// `hsdir_index`.
     ///
-    /// Wraps around once when we
-    /// reach the end.
+    /// Wraps around once when we reach the end.
     ///
-    /// Yields no element more than once, even if the ring is smaller than `spread_fetch`.
+    /// The specified filter function `f` is applied to each item, and determines whether the item
+    /// should be yielded or not. This filtering functionality is used by [`NetDir::hs_dirs`] to
+    /// prevent nodes that have already been selected for a lowered-numbered replica to be
+    /// considered again when choosing `spread` nodes for a higher-numbered replicas.
+    ///
+    /// Yields no element more than once, even if the ring is smaller than `spread`.
     pub(crate) fn ring_items_at(
         &self,
         hsdir_index: HsDirIndex,
         spread: usize,
+        f: impl FnMut(&&(HsDirIndex, RouterStatusIdx)) -> bool,
     ) -> impl Iterator<Item = &(HsDirIndex, RouterStatusIdx)> {
         let pos = self.find_pos(hsdir_index);
         self.ring[pos..]
             .iter()
             .chain(&self.ring[..pos])
+            .filter(f)
             .take(spread)
     }
 
