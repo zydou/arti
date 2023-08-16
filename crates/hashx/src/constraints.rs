@@ -85,31 +85,19 @@ mod model {
     #[inline(always)]
     pub(super) fn writer_pair_allowed(
         pass: Pass,
-        last_writer: Option<&RegisterWriter>,
-        this_writer: &RegisterWriter,
+        last_writer: RegisterWriter,
+        this_writer: RegisterWriter,
     ) -> bool {
         match (last_writer, this_writer) {
             // HashX disallows back-to-back 64-bit multiplies on the
             // same destination register in Pass::Original but permits
             // them on the retry if the source register isn't identical.
-            (
-                Some(RegisterWriter::RegSource(Opcode::Mul, _)),
-                RegisterWriter::RegSource(Opcode::Mul, _),
-            ) if matches!(pass, Pass::Original) => false,
-
-            // Add/Sub from the same source register can't be paired
-            // with each other. (They might cancel out)
-            (
-                Some(RegisterWriter::RegSource(Opcode::AddShift, last_src)),
-                RegisterWriter::RegSource(Opcode::Sub, this_src),
-            ) if this_src == last_src => false,
-            (
-                Some(RegisterWriter::RegSource(Opcode::Sub, last_src)),
-                RegisterWriter::RegSource(Opcode::AddShift, this_src),
-            ) if this_src == last_src => false,
+            (RegisterWriter::Mul(_), RegisterWriter::Mul(_)) if matches!(pass, Pass::Original) => {
+                false
+            }
 
             // Other pairings are allowed if the writer info differs at all.
-            (last_writer, this_writer) => last_writer != Some(this_writer),
+            (last_writer, this_writer) => last_writer != this_writer,
         }
     }
 
@@ -132,29 +120,57 @@ mod model {
     /// This is conceptually similar to storing the last [`super::Instruction`]
     /// that wrote to a register, but HashX sometimes needs information for
     /// constraints which won't end up in the final `Instruction`.
-    #[derive(Debug, Clone, Eq, PartialEq)]
+    ///
+    /// We've chosen the encoding to minimize the code size in
+    /// writer_pair_allowed. Most pairwise comparisons can just be a register
+    /// equality test.
+    ///
+    /// The instructions here fall into three categories which use their own
+    /// format for encoding arguments:
+    ///
+    ///  - Wide Multiply, extra u32
+    ///
+    ///    UMulH and SMulH use an additional otherwise unused 32-bit value
+    ///    from the Rng when considering writer collisions.
+    ///
+    ///    As far as I can tell this is a bug in the original implementation
+    ///    but we can't change the behavior without breaking compatibility.
+    ///
+    ///    The collisions are rare enough not to be a worthwhile addition
+    ///    to ASIC-resistance. It seems like this was a vestigial feature
+    ///    left over from immediate value matching features which were removed
+    ///    during the development of HashX, but I can't be sure.
+    ///
+    ///  - Constant source
+    ///
+    ///    Only considers the opcode itself, not the specific immediate value.
+    ///
+    ///  - Register source
+    ///
+    ///    Considers the source register, collapses add/subtract into one op.
+    ///
+    #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
     pub(crate) enum RegisterWriter {
-        /// Special format for wide multiply
-        ///
-        /// HashX includes an otherwise unused phantom immediate value which
-        /// can (very rarely) affect constraint selection if it collides.
-        ///
-        /// As far as I can tell this is a bug in the original implementation
-        /// but we can't change the behavior without breaking compatibility.
-        ///
-        /// The collisions are rare enough not to be a worthwhile addition
-        /// to ASIC-resistance. It seems like this was a vestigial feature
-        /// left over from immediate value matching features which were removed
-        /// during the development of HashX, but I can't be sure.
-        WideMul(Opcode, u32),
-
-        /// Writer for instructions with an immediate source
-        ///
-        /// The specific immediate value is not used.
-        ConstSource(Opcode),
-
-        /// Writer for instructions with register source, unique by source register
-        RegSource(Opcode, RegisterId),
+        /// Register not written yet
+        #[default]
+        None,
+        /// Register source writer for [`super::Instruction::Mul`]
+        Mul(RegisterId),
+        /// Wide multiply writer for [`super::Instruction::UMulH`]
+        UMulH(u32),
+        /// Wide multiply writer for [`super::Instruction::SMulH`]
+        SMulH(u32),
+        /// Register source writer for [`super::Instruction::AddShift`]
+        /// and [`super::Instruction::Sub`]
+        AddSub(RegisterId),
+        /// Constant source writer for [`super::Instruction::AddConst`]
+        AddConst,
+        /// Register source writer for [`super::Instruction::Xor`]
+        Xor(RegisterId),
+        /// Constant source writer for [`super::Instruction::XorConst`]
+        XorConst,
+        /// Constant source writer for [`super::Instruction::Rotate`]
+        Rotate,
     }
 }
 
@@ -187,16 +203,13 @@ impl Validator {
 
     /// Commit a new instruction to the validator state.
     #[inline(always)]
-    pub(crate) fn commit_instruction(&mut self, inst: &Instruction, regw: Option<RegisterWriter>) {
+    pub(crate) fn commit_instruction(&mut self, inst: &Instruction, regw: RegisterWriter) {
         if model::is_multiply(inst.opcode()) {
             self.multiply_count += 1;
         }
         match inst.destination() {
-            None => assert!(regw.is_none()),
-            Some(dst) => self.writer_map.insert(
-                dst,
-                regw.expect("instructions with destination always have a RegisterWriter"),
-            ),
+            None => debug_assert_eq!(regw, RegisterWriter::None),
+            Some(dst) => self.writer_map.insert(dst, regw),
         }
     }
 
@@ -228,7 +241,7 @@ impl Validator {
         available: RegisterSet,
         op: Opcode,
         pass: Pass,
-        writer_info: &RegisterWriter,
+        writer_info: RegisterWriter,
         src: Option<RegisterId>,
     ) -> RegisterSet {
         available.filter(
@@ -297,9 +310,9 @@ pub(crate) fn opcode_pair_allowed(previous: Option<Opcode>, proposed: Opcode) ->
     }
 }
 
-/// Map each [`RegisterId`] to an [`Option<RegisterWriter>`]
+/// Map each [`RegisterId`] to an [`RegisterWriter`]
 #[derive(Default, Debug, Clone)]
-struct RegisterWriterMap([Option<RegisterWriter>; NUM_REGISTERS]);
+struct RegisterWriterMap([RegisterWriter; NUM_REGISTERS]);
 
 impl RegisterWriterMap {
     /// Make a new empty register writer map.
@@ -313,12 +326,12 @@ impl RegisterWriterMap {
     /// Write or overwrite the last [`RegisterWriter`] associated with `reg`.
     #[inline(always)]
     fn insert(&mut self, reg: RegisterId, writer: RegisterWriter) {
-        self.0[reg.as_usize()] = Some(writer);
+        self.0[reg.as_usize()] = writer;
     }
 
     /// Return the most recent mapping for 'reg', if any.
     #[inline(always)]
-    fn get(&self, reg: RegisterId) -> Option<&RegisterWriter> {
-        self.0[reg.as_usize()].as_ref()
+    fn get(&self, reg: RegisterId) -> RegisterWriter {
+        self.0[reg.as_usize()]
     }
 }

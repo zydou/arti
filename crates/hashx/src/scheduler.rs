@@ -189,7 +189,7 @@ impl Scheduler {
     /// Marks as busy each execution unit cycle in the plan, and updates the
     /// latency for the [`Instruction`]'s destination register if it has one.
     #[inline(always)]
-    pub(crate) fn commit_instruction_plan(&mut self, plan: &InstructionPlan, inst: &Instruction) {
+    pub(crate) fn commit_instruction_plan(&mut self, plan: InstructionPlan, inst: &Instruction) {
         self.exec.mark_instruction_busy(plan);
         if let Some(dst) = inst.destination() {
             self.data
@@ -422,7 +422,7 @@ impl ExecSchedule {
 
     /// Mark each micro-op in an InstructionPlan as busy in the schedule.
     #[inline(always)]
-    fn mark_instruction_busy(&mut self, plan: &InstructionPlan) {
+    fn mark_instruction_busy(&mut self, plan: InstructionPlan) {
         let (first, second) = plan.as_micro_plans();
         self.mark_micro_busy(first);
         if let Some(second) = second {
@@ -447,7 +447,7 @@ struct MicroOpPlan {
 ///
 /// This is defined as either one or two micro-operations
 /// scheduled on the same cycle.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) struct InstructionPlan {
     /// The Cycle this whole instruction begins on
     cycle: Cycle,
