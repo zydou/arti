@@ -10,8 +10,6 @@ use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::pk::curve25519;
 use tor_proto::stream::DataStream;
 
-use crate::Result;
-
 /// Request to complete an introduction/rendezvous handshake.
 ///
 /// A request of this kind indicates that a client has asked permission to
@@ -107,8 +105,8 @@ impl RendRequest {
     /// provided rendezvous point.
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    pub async fn accept(self) -> Result<impl Stream<Item = StreamRequest>> {
-        let r: Result<mpsc::Receiver<StreamRequest>>;
+    pub async fn accept(self) -> crate::Result<impl Stream<Item = StreamRequest>> {
+        let r: crate::Result<mpsc::Receiver<StreamRequest>>;
         todo!();
         #[allow(unreachable_code)]
         r
@@ -116,7 +114,7 @@ impl RendRequest {
     /// Reject this request.  (The client will receive no notification.)
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    pub async fn reject(self) -> Result<()> {
+    pub async fn reject(self) -> crate::Result<()> {
         todo!()
     }
     //
@@ -125,16 +123,16 @@ impl RendRequest {
 
 impl StreamRequest {
     /// Accept this request and send the client a `CONNECTED` message.
-    pub async fn accept(self) -> Result<OnionServiceDataStream> {
+    pub async fn accept(self) -> crate::Result<OnionServiceDataStream> {
         todo!()
     }
     /// Reject this request, and send the client an `END` message.
-    pub async fn reject(self) -> Result<()> {
+    pub async fn reject(self) -> crate::Result<()> {
         todo!()
     }
     /// Reject this request and close the rendezvous circuit entirely,
     /// along with all other streams attached to the circuit.
-    pub fn shutdown_circuit(self) -> Result<()> {
+    pub fn shutdown_circuit(self) -> crate::Result<()> {
         todo!()
     }
     // TODO HSS various accessors, including for circuit.
