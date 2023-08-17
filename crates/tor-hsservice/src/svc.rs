@@ -191,7 +191,7 @@ impl<R: Runtime> OnionService<R> {
     ///
     /// You can also shut down an onion service completely by dropping the last
     /// Clone of it.
-    pub fn stop(&self) -> crate::Result<()> {
+    pub fn stop(&self) {
         todo!() // TODO hss
     }
 }
