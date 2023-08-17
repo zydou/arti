@@ -811,6 +811,21 @@ pub(super) mod test {
     }
 
     #[test]
+    fn connect_missing_netinfo() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let mut buf = Vec::new();
+            buf.extend_from_slice(VERSIONS);
+            buf.extend_from_slice(NOCERTS);
+            let err = connect_err(buf, rt.clone()).await;
+            assert!(matches!(err, Error::HandshakeProto(_)));
+            assert_eq!(
+                format!("{}", err),
+                "Handshake protocol violation: Missing netinfo or closed stream"
+            );
+        });
+    }
+
+    #[test]
     fn connect_misplaced_cell() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             let mut buf = Vec::new();
