@@ -886,6 +886,78 @@ impl NetDir {
         }
     }
 
+    /// Return the value of the hsdir_n_replicas param.
+    #[cfg(feature = "hs-common")]
+    fn n_replicas(&self) -> u8 {
+        self.params
+            .hsdir_n_replicas
+            .get()
+            .try_into()
+            .expect("BoundedInt did not enforce bounds")
+    }
+
+    /// Return the spread parameter for the specified `op`.
+    #[cfg(feature = "hs-common")]
+    fn spread(&self, op: HsDirOp) -> usize {
+        let spread = match op {
+            HsDirOp::Download => self.params.hsdir_spread_fetch,
+            #[cfg(feature = "hs-service")]
+            HsDirOp::Upload => self.params.hsdir_spread_store,
+        };
+
+        spread
+            .get()
+            .try_into()
+            .expect("BoundedInt did not enforce bounds!")
+    }
+
+    /// Select `spread` hsdir relays for the specified `hsid` from a given `ring`.
+    ///
+    /// Algorithm:
+    ///
+    /// for idx in 1..=n_replicas:
+    ///       - let H = hsdir_ring::onion_service_index(id, replica, rand,
+    ///         period).
+    ///       - Find the position of H within hsdir_ring.
+    ///       - Take elements from hsdir_ring starting at that position,
+    ///         adding them to Dirs until we have added `spread` new elements
+    ///         that were not there before.
+    #[cfg(feature = "hs-common")]
+    fn select_hsdirs<'h, 'r: 'h>(
+        &'r self,
+        hsid: &'h HsBlindId,
+        ring: &'h HsDirRing,
+        spread: usize,
+    ) -> impl Iterator<Item = Relay<'r>> + 'h {
+        let n_replicas = self.n_replicas();
+
+        (1..=n_replicas) // 1-indexed !
+            .flat_map({
+                let mut selected_nodes = HashSet::new();
+
+                move |replica: u8| {
+                    let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
+
+                    let items = ring
+                        .ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
+                            // According to rend-spec 2.2.3:
+                            //                                                  ... If any of those
+                            // nodes have already been selected for a lower-numbered replica of the
+                            // service, any nodes already chosen are disregarded (i.e. skipped over)
+                            // when choosing a replica's hsdir_spread_store nodes.
+                            selected_nodes.insert(*hsdir_idx)
+                        })
+                        .collect::<Vec<_>>();
+
+                    items
+                }
+            })
+            .filter_map(move |(_hsdir_idx, rs_idx)| {
+                // This ought not to be None but let's not panic or bail if it is
+                self.relay_by_rs_idx(*rs_idx)
+            })
+    }
+
     /// Replace the overridden parameters in this netdir with `new_replacement`.
     ///
     /// After this function is done, the netdir's parameters will be those in
