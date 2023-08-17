@@ -85,6 +85,7 @@ use {
     itertools::Itertools,
     std::collections::HashSet,
     tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
+    tor_error::{internal, Bug},
 };
 
 pub use err::Error;
@@ -1518,6 +1519,107 @@ impl NetDir {
             .iter()
             .map(HsDirRing::time_period)
             .collect()
+    }
+
+    /// Return the relays in this network directory that will be used as hidden service directories
+    ///
+    /// These are suitable to retrieve a given onion service's descriptor at a given time period.
+    #[cfg(feature = "hs-common")]
+    pub fn hs_dirs_download<'r, R>(
+        &'r self,
+        (hsid, period): (&HsBlindId, TimePeriod),
+        rng: &mut R,
+    ) -> std::result::Result<Vec<Relay<'r>>, Bug>
+    where
+        R: rand::Rng,
+    {
+        // Algorithm:
+        //
+        // 1. Determine which HsDirRing to use, based on the time period.
+        // 2. Find the shared random value that's associated with that HsDirRing.
+        // 3. Choose spread = the parameter `hsdir_spread_fetch`
+        // 4. Let n_replicas = the parameter `hsdir_n_replicas`.
+        // 5. Initialize Dirs = []
+        // 6. for idx in 1..=n_replicas:
+        //       - let H = hsdir_ring::onion_service_index(id, replica, rand,
+        //         period).
+        //       - Find the position of H within hsdir_ring.
+        //       - Take elements from hsdir_ring starting at that position,
+        //         adding them to Dirs until we have added `spread` new elements
+        //         that were not there before.
+        // 7. Shuffle Dirs
+        // 8. return Dirs.
+
+        let spread = self.spread(HsDirOp::Download);
+
+        // When downloading, only look at relays on current ring.
+        let ring = &self.hsdir_rings.current;
+
+        if ring.params().time_period != period {
+            return Err(internal!(
+                "our current ring is not associated with the requested time period!"
+            ));
+        }
+
+        let mut hs_dirs = self.select_hsdirs(hsid, ring, spread).collect_vec();
+
+        // When downloading, the order of the returned relays is random.
+        hs_dirs.shuffle(rng);
+
+        Ok(hs_dirs)
+    }
+
+    /// Return the relays in this network directory that will be used as hidden service directories
+    ///
+    /// Returns the relays that are suitable for storing a given onion service's descriptors at the
+    /// given time periods.
+    #[cfg(feature = "hs-service")]
+    pub fn hs_dirs_upload<'r>(
+        &'r self,
+        hsids: &'r [(&'r HsBlindId, TimePeriod)],
+    ) -> std::result::Result<impl Iterator<Item = (TimePeriod, Relay<'r>)>, Bug> {
+        // Algorithm:
+        //
+        // 1. Choose spread = the parameter `hsdir_spread_store`
+        // 2. for (id, period) in hsids:
+        //   - Determine which HsDirRing to use, based on the time period.
+        //   - Find the shared random value that's associated with that HsDirRing.
+        //   - Let n_replicas = the parameter `hsdir_n_replicas`.
+        //   - Initialize Dirs = []
+        //   - for idx in 1..=n_replicas:
+        //       - let H = hsdir_ring::onion_service_index(id, replica, rand,
+        //         period).
+        //       - Find the position of H within hsdir_ring.
+        //       - Take elements from hsdir_ring starting at that position,
+        //         adding them to Dirs until we have added `spread` new elements
+        //         that were not there before.
+        // 3. return Dirs.
+        let spread = self.spread(HsDirOp::Upload);
+
+        // For each HsBlindId, determine which HsDirRing to use.
+        let mut rings = self
+            .hsdir_rings
+            .iter()
+            .flat_map(|ring| hsids.iter().map(move |(hsid, period)| (ring, hsid, period)))
+            .filter_map(move |(ring, hsid, period)| {
+                // Make sure the ring matches the TP of the hsid it's matched with.
+                (ring.params().time_period == *period).then_some((ring, hsid, period))
+            });
+
+        if hsids
+            .iter()
+            .all(|(_hsid, period)| rings.any(|(_, _, tp)| tp == period))
+        {
+            return Err(internal!(
+                "some of the specified time periods do not have an associated ring"
+            ));
+        };
+
+        // Now that we've matched each `hsid` with the ring associated with its TP, we can start
+        // selecting replicas from each ring.
+        Ok(rings.flat_map(move |(ring, hsid, period)| {
+            iter::repeat(*period).zip(self.select_hsdirs(hsid, ring, spread))
+        }))
     }
 
     /// Return the relays in this network directory that will be used as hidden service directories
