@@ -38,7 +38,7 @@ use tor_hscrypto::pk::{HsBlindId, HsClientDescEncKey, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_netdir::{HsDirOp, NetDir, Relay};
+use tor_netdir::{NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
 use tor_proto::circuit::{
     CircParameters, ClientCirc, ConversationInHandler, MetaCellDisposition, MsgHandler,
@@ -468,11 +468,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             // Seems to be not valid now.  Try to fetch a fresh one.
         }
 
-        let hs_dirs = self.netdir.hs_dirs(
-            &self.hs_blind_id,
-            HsDirOp::Download,
+        let hs_dirs = self.netdir.hs_dirs_download(
+            (&self.hs_blind_id, self.netdir.hs_time_period()),
             &mut self.mocks.thread_rng(),
-        );
+        )?;
 
         trace!(
             "HS desc fetch for {}, using {} hsdirs",
@@ -848,7 +847,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         FAE::IntroductionTimeout { intro_index }
                     })?
                     // TODO: Maybe try, once, to extend-and-reuse the intro circuit.
-                    // 
+                    //
 	            // If the introduction fails, the introduction circuit is in principle
                     // still usable.  We believe that in this case, C Tor extends the intro
 	            // circuit by one hop to the next IPT to try.  That saves on building a

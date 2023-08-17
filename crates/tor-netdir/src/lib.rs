@@ -84,8 +84,8 @@ use typed_index_collections::{TiSlice, TiVec};
 use {
     itertools::Itertools,
     std::collections::HashSet,
-    tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
     tor_error::{internal, Bug},
+    tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
 };
 
 pub use err::Error;
