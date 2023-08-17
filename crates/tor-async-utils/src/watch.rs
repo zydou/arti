@@ -69,8 +69,18 @@ pub trait DropNotifyEofSignallable {
     /// Generate the EOF value
     fn eof() -> Self;
 
-    /// Does this value indicate EOF
-    fn is_eof(&self) -> bool;
+    /// Does this value indicate EOF?
+    ///
+    /// ### Deprecated
+    ///
+    /// This method is deprecated.
+    /// It should not be called, or defined, in new programs.
+    /// It is not required by [`DropNotifyWatchSender`].
+    /// The provided implementation always returns `false`.
+    #[deprecated]
+    fn is_eof(&self) -> bool {
+        false
+    }
 }
 
 impl<T> DropNotifyEofSignallable for Option<T> {
