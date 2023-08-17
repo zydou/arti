@@ -4634,6 +4634,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "thiserror",
+ "tor-async-utils",
  "tor-bytes",
  "tor-cell",
  "tor-circmgr",
