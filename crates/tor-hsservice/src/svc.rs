@@ -17,6 +17,7 @@ use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
 use crate::OnionServiceStatus;
+use crate::StartupError;
 
 mod ipt_establish;
 mod publish;
@@ -161,7 +162,7 @@ impl<R: Runtime> OnionService<R> {
     /// Tell this onion service to begin running.
     //
     // TODO HSS: Probably return an `impl Stream<RendRequest>`.
-    pub fn launch(&self) -> crate::Result<()> {
+    pub fn launch(&self) -> Result<(), StartupError> {
         todo!() // TODO hss
 
         // This needs to launch at least the following tasks:

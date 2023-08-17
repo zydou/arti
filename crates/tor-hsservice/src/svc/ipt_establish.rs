@@ -29,6 +29,7 @@ use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition}
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 
+use crate::FatalError;
 use crate::RendRequest;
 
 /// Handle onto the task which is establishing and maintaining one IPT
@@ -138,7 +139,7 @@ impl IptEstablisher {
         dirprovider: Arc<dyn NetDirProvider>,
         relay: &Relay<'_>,
         // TODO HSS: this needs to take some configuration
-    ) -> Result<(Self, postage::watch::Receiver<IptStatus>), IptError> {
+    ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
         todo!()
     }
 
