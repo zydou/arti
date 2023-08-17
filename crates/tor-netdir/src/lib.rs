@@ -266,6 +266,7 @@ impl From<u64> for RelayWeight {
 
 /// An operation for which we might be requesting a hidden service directory.
 #[derive(Copy, Clone, Debug, PartialEq)]
+// TODO HSS: make this pub(crate) once NetDir::hs_dirs is removed
 #[non_exhaustive]
 pub enum HsDirOp {
     /// Uploading an onion service descriptor.
@@ -1633,6 +1634,8 @@ impl NetDir {
     ///
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
+    //
+    // TODO HSS: make HsDirOp pub(crate) once this is removed
     #[cfg(feature = "hs-common")]
     #[deprecated(note = "Use hs_dirs_upload or hs_dirs_download instead")]
     pub fn hs_dirs<'r, R>(&'r self, hsid: &HsBlindId, op: HsDirOp, rng: &mut R) -> Vec<Relay<'r>>
