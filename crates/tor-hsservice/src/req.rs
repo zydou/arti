@@ -6,6 +6,7 @@
 use futures::{channel::mpsc, stream::Stream};
 use std::net::SocketAddr;
 
+use tor_error::Bug;
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::pk::curve25519;
 use tor_proto::stream::DataStream;
@@ -114,7 +115,8 @@ impl RendRequest {
     /// Reject this request.  (The client will receive no notification.)
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    pub async fn reject(self) -> crate::Result<()> {
+    /// TODO HSS: Should this really be fallible?  How might it fail?
+    pub async fn reject(self) -> Result<(), Bug> {
         todo!()
     }
     //
@@ -127,12 +129,14 @@ impl StreamRequest {
         todo!()
     }
     /// Reject this request, and send the client an `END` message.
-    pub async fn reject(self) -> crate::Result<()> {
+    /// TODO HSS: Should this really be fallible?  How might it fail?
+    pub async fn reject(self) -> Result<(), Bug> {
         todo!()
     }
     /// Reject this request and close the rendezvous circuit entirely,
     /// along with all other streams attached to the circuit.
-    pub fn shutdown_circuit(self) -> crate::Result<()> {
+    /// TODO HSS: Should this really be fallible?  How might it fail?
+    pub fn shutdown_circuit(self) -> Result<(), Bug> {
         todo!()
     }
     // TODO HSS various accessors, including for circuit.

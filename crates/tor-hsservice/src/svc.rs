@@ -7,6 +7,7 @@ use std::{
 };
 
 use tor_circmgr::hspool::HsCircPool;
+use tor_error::Bug;
 use tor_hscrypto::pk::HsBlindIdKey;
 use tor_keymgr::KeyMgr;
 use tor_linkspec::RelayIds;
@@ -145,7 +146,7 @@ impl<R: Runtime> OnionService<R> {
     }
 
     /// Tell this onion service about some new short-term keys it can use.
-    pub fn add_keys(&self, keys: ()) -> crate::Result<()> {
+    pub fn add_keys(&self, keys: ()) -> Result<(), Bug> {
         todo!() // TODO hss
     }
 
