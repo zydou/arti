@@ -1634,6 +1634,7 @@ impl NetDir {
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     #[cfg(feature = "hs-common")]
+    #[deprecated(note = "Use hs_dirs_upload or hs_dirs_download instead")]
     pub fn hs_dirs<'r, R>(&'r self, hsid: &HsBlindId, op: HsDirOp, rng: &mut R) -> Vec<Relay<'r>>
     where
         R: rand::Rng,
@@ -2658,6 +2659,7 @@ mod test {
 
     #[test]
     #[cfg(feature = "hs-common")]
+    #[allow(deprecated)]
     fn hs_dirs_selection() {
         use tor_basic_utils::test_rng::testing_rng;
 
