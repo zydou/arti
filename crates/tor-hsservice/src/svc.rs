@@ -7,6 +7,7 @@ use std::{
 };
 
 use tor_circmgr::hspool::HsCircPool;
+use tor_config::ReconfigureError;
 use tor_error::Bug;
 use tor_hscrypto::pk::HsBlindIdKey;
 use tor_keymgr::KeyMgr;
@@ -141,7 +142,7 @@ impl<R: Runtime> OnionService<R> {
     /// (Not everything can be changed here. At the very least we'll need to say
     /// that the identity of a service is fixed. We might want to make the
     /// storage  backing this, and the anonymity status, unchangeable.)
-    pub fn reconfigure(&self, new_config: ()) -> crate::Result<()> {
+    pub fn reconfigure(&self, new_config: ()) -> Result<(), ReconfigureError> {
         todo!() // TODO hss
     }
 

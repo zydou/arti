@@ -4635,6 +4635,7 @@ dependencies = [
  "thiserror",
  "tor-cell",
  "tor-circmgr",
+ "tor-config",
  "tor-error",
  "tor-hscrypto",
  "tor-keymgr",
