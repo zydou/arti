@@ -292,8 +292,7 @@ impl<'n> ItemEncoder<'n> {
             }
             let data = {
                 let mut bytes = vec![];
-                data.write_into(&mut bytes)
-                    .map_err(EncodeError::always_bug)?;
+                data.write_into(&mut bytes).map_err(EncodeError::from)?;
                 Base64::encode_string(&bytes)
             };
             let mut data = &data[..];
