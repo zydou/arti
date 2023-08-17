@@ -81,10 +81,21 @@ impl EncodeError {
     /// Use when any encoding error is a bug.
     //
     // TODO: should this be a `From` impl or would that be too error-prone?
+    #[deprecated(note = "please use the `From<EncodeError>` trait for `Bug` instead")]
     pub fn always_bug(self) -> Bug {
         match self {
             EncodeError::Bug(bug) => bug,
             EncodeError::BadLengthValue => into_internal!("EncodingError")(self),
+        }
+    }
+}
+
+// This trait is used to convert any encoding error into a bug
+impl From<EncodeError> for Bug {
+    fn from(error: EncodeError) -> Bug {
+        match error {
+            EncodeError::Bug(bug) => bug,
+            EncodeError::BadLengthValue => into_internal!("EncodingError")(error),
         }
     }
 }
