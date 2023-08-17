@@ -111,6 +111,23 @@ impl Introduce2 {
             msg,
         }
     }
+
+    /// Return the bytes used to transmit `header`.
+    ///
+    /// (This data is used as part of the handshake.)
+    pub fn encoded_header(&self) -> &[u8] {
+        &self.encoded_header[..]
+    }
+    /// Return the parsed header of this message.
+    pub fn header(&self) -> &IntroduceHeader {
+        &self.msg.header
+    }
+    /// Return the encrypted body of this message.
+    ///
+    /// (This body is decrypted as part of the handshake.)
+    pub fn encrypted_body(&self) -> &[u8] {
+        &self.msg.encrypted[..]
+    }
 }
 
 caret_int! {

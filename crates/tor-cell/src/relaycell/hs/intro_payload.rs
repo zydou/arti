@@ -168,4 +168,19 @@ impl IntroduceHandshakePayload {
             link_specifiers,
         }
     }
+
+    /// Return the rendezvous cookie specified in this handshake payload.
+    pub fn cookie(&self) -> &RendCookie {
+        &self.cookie
+    }
+
+    /// Return the provided onion key for the specified rendezvous point
+    pub fn onion_key(&self) -> &OnionKey {
+        &self.onion_key
+    }
+
+    /// Return the provided link specifiers for the specified rendezvous point.
+    pub fn link_specifiers(&self) -> &[EncodedLinkSpec] {
+        &self.link_specifiers[..]
+    }
 }
