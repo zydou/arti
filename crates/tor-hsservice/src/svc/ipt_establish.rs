@@ -10,7 +10,7 @@ use std::{sync::Arc, time::Duration};
 
 use futures::{
     channel::{mpsc, oneshot},
-    StreamExt as _,
+    Future, StreamExt as _,
 };
 use safelog::Redactable as _;
 use tor_cell::relaycell::{
@@ -312,9 +312,6 @@ const DELAY_ON_FAILURE: Duration = Duration::new(2, 0); // TODO use stochastic j
 
 impl<R: Runtime> Reactor<R> {
     /// Run forever, keeping an introduction point established.
-    ///
-    /// TODO: If we're running this in its own task, we'll want some way to
-    /// cancel it.
     async fn keep_intro_established(
         &self,
         mut status_tx: postage::watch::Sender<IptStatus>,
@@ -335,8 +332,8 @@ impl<R: Runtime> Reactor<R> {
                         self.target.display_relay_ids().redacted()
                     );
 
-                    // TODO HSS: let session continue until it dies, actually
-                    // implementing it.
+                    // Wait for the session to be closed.
+                    session.wait_for_close().await;
                 }
                 Err(e @ IptError::IntroPointNotListed) => {
                     // The network directory didn't include this relay.  Wait
@@ -441,6 +438,13 @@ impl<R: Runtime> Reactor<R> {
         Ok(IntroPtSession {
             intro_circ: circuit,
         })
+    }
+}
+
+impl IntroPtSession {
+    /// Wait for this introduction point session to be closed.
+    fn wait_for_close(&self) -> impl Future<Output = ()> {
+        self.intro_circ.wait_for_close()
     }
 }
 
