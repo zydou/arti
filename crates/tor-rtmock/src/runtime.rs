@@ -173,6 +173,31 @@ impl MockRuntime {
     pub fn jump_to(&self, new_wallclock: SystemTime) {
         self.sleep.jump_to(new_wallclock);
     }
+
+    /// Return the amount of virtual time until the next timeout
+    /// should elapse.
+    ///
+    /// If there are no more timeouts, return None.
+    ///
+    /// If the next
+    /// timeout should elapse right now, return Some(0).
+    /// However, if other tasks are proceeding,
+    /// typically in that situation those other tasks will wake,
+    /// so a `Some(0)` return won't be visible.
+    /// In test cases, detect immediate timeouts by detecting
+    /// what your task does after the timeout occurs.
+    ///
+    /// Likewise whether this function returns `None` or `Some(...)`
+    /// can depend on whether tasks have actually yet polled various futures.
+    /// The answer should be correct after
+    /// [`progress_until_stalled`](Self::progress_until_stalled).
+    //
+    // The corresponding method on MockSleepProvider is still only pub(crate),
+    // mostly because I think's very hard (or maybe impossible) to use correctly,
+    // other than as part of the implementation, without `progress_until_stalled`.
+    pub fn time_until_next_timeout(&self) -> Option<Duration> {
+        self.sleep.time_until_next_timeout()
+    }
 }
 
 impl MockRuntimeBuilder {
