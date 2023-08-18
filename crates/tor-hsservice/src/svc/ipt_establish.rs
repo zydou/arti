@@ -6,7 +6,10 @@
 
 #![allow(clippy::needless_pass_by_value)] // TODO HSS remove
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use futures::{
     channel::{mpsc, oneshot},
@@ -34,7 +37,10 @@ use crate::FatalError;
 pub(crate) struct IptEstablisher {
     /// A oneshot sender that notifies the running task that it's time to shut
     /// down.
-    terminate_tx: oneshot::Sender<()>,
+    terminate_tx: Option<oneshot::Sender<()>>,
+
+    /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
+    state: Arc<Mutex<EstablisherState>>,
 }
 
 /// When the `IptEstablisher` is dropped it is torn down
@@ -51,7 +57,12 @@ pub(crate) struct IptEstablisher {
 ///  * `IptStatusStatus::Faulty` will be indicated
 impl Drop for IptEstablisher {
     fn drop(&mut self) {
-        todo!()
+        // Make sure no more requests are accepted once this returns
+        self.state.lock().expect("posioned lock").accepting_requests = RequestDisposition::Shutdown;
+        // Tell the reactor to shut down.
+        if let Some(sender) = self.terminate_tx.take() {
+            let _ignore = sender.send(()); // If the reactor is already dead, that's ok.
+        }
     }
 }
 
@@ -136,7 +147,7 @@ impl IptError {
 impl IptEstablisher {
     /// Try to set up, and maintain, an IPT at `target`.
     ///
-    /// Rendezvous requests will be rejected (TODO HSS not yet true.)
+    /// Rendezvous requests will be rejected
     ///
     /// Also returns
     /// a stream of events that is produced whenever we have a change in the
@@ -162,6 +173,16 @@ impl IptEstablisher {
         target: RelayIds,
         ipt_sid_keypair: HsIntroPtSessionIdKeypair,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
+        let state = Arc::new(Mutex::new(EstablisherState {
+            // TODO HSS: There is a potential race condition here if we create a
+            // second IptEstablisher with the same ipt_sid_keypair as we had
+            // advertised before.  No matter how quickly we call
+            // accept_requests, there's a chance that the reactor task will
+            // establish an introduction point first, and it will send us some
+            // already pending requests.
+            accepting_requests: RequestDisposition::NotAdvertised,
+        }));
+
         let reactor = Reactor {
             runtime: runtime.clone(),
             pool,
@@ -171,6 +192,7 @@ impl IptEstablisher {
             introduce_tx,
             // TODO HSS This should come from the configuration.
             extensions: EstIntroExtensionSet { dos_params: None },
+            state: state.clone(),
         };
 
         let (status_tx, status_rx) = postage::watch::channel_with(IptStatus::new());
@@ -192,19 +214,21 @@ impl IptEstablisher {
                 spawning: "introduction point establisher",
                 cause: Arc::new(e),
             })?;
-
-        let establisher = IptEstablisher { terminate_tx };
+        let establisher = IptEstablisher {
+            terminate_tx: Some(terminate_tx),
+            state,
+        };
         Ok((establisher, status_rx))
     }
 
-    /// Begin accepting connections from this introduction point.
-    //
-    // TODO HSS: we must make sure there's a way to
-    // turn requests on and off, so that we can say "now we have advertised this
-    // so requests are okay."
+    /// Begin accepting requests from this introduction point.
+    ///
+    /// If any introduction requests are sent before we have called this method,
+    /// they are treated as an error and our connection to this introduction
+    /// point is closed.
     pub(crate) fn start_accepting(&self) {
-        // TODO XXXXX IMPLEMENT ME.
-        todo!()
+        self.state.lock().expect("poisoned lock").accepting_requests =
+            RequestDisposition::Advertised;
     }
 }
 
@@ -231,6 +255,25 @@ pub(crate) enum IptStatusStatus {
 /// This happens when the IPT has had (too) many rendezvous requests.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct IptWantsToRetire;
+
+/// State shared between the IptEstablisher and the Reactor.
+struct EstablisherState {
+    /// True if we are accepting requests right now.
+    accepting_requests: RequestDisposition,
+}
+
+/// Current state of an introduction point; determines what we want to do with
+/// any incoming messages.
+#[derive(Copy, Clone, Debug)]
+enum RequestDisposition {
+    /// We are not yet advertised: the message handler should complain if it
+    /// gets any requests and shut down.
+    NotAdvertised,
+    /// We are advertised: the message handler should pass along any requests
+    Advertised,
+    /// We are shutting down cleanly: the message handler should exit but not complain.
+    Shutdown,
+}
 
 /// The current status of an introduction point.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -355,6 +398,9 @@ struct Reactor<R: Runtime> {
     /// ability to receive messages from a given into point; so that we can see
     /// which intro point gave us a message, and so forth.
     introduce_tx: mpsc::Sender<Introduce2>,
+
+    /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
+    state: Arc<Mutex<EstablisherState>>,
 }
 
 /// An open session with a single introduction point.
@@ -480,6 +526,7 @@ impl<R: Runtime> Reactor<R> {
         let handler = IptMsgHandler {
             established_tx: Some(established_tx),
             introduce_tx: self.introduce_tx.clone(),
+            state: self.state.clone(),
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -572,7 +619,6 @@ async fn wait_for_netdir_to_list(
 ///
 /// This, like all MsgHandlers, is installed at the circuit's reactor, and used
 /// to handle otherwise unrecognized message types.
-#[derive(Debug)]
 struct IptMsgHandler {
     /// A oneshot sender used to report our IntroEstablished message.
     ///
@@ -583,6 +629,9 @@ struct IptMsgHandler {
     //
     // TODO: See notes on introduce_tx above.
     introduce_tx: mpsc::Sender<Introduce2>,
+
+    /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
+    state: Arc<Mutex<EstablisherState>>,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
@@ -613,6 +662,18 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                         "Received an INTRODUCE2 message before INTRO_ESTABLISHED".into(),
                     ));
                 }
+                let disp = self.state.lock().expect("poisoned lock").accepting_requests;
+                match disp {
+                    RequestDisposition::NotAdvertised => {
+                        return Err(tor_proto::Error::CircProto(
+                            "Received an INTRODUCE2 message before we were accepting requests!"
+                                .into(),
+                        ))
+                    }
+                    RequestDisposition::Shutdown => return Ok(MetaCellDisposition::CloseCirc),
+                    RequestDisposition::Advertised => {}
+                }
+
                 match self.introduce_tx.try_send(introduce2) {
                     Ok(()) => Ok(()),
                     Err(e) => {
