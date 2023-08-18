@@ -10,7 +10,8 @@ use std::{sync::Arc, time::Duration};
 
 use futures::{
     channel::{mpsc, oneshot},
-    Future, StreamExt as _,
+    task::SpawnExt as _,
+    Future, FutureExt as _, StreamExt as _,
 };
 use safelog::Redactable as _;
 use tor_cell::relaycell::{
@@ -28,10 +29,13 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 
 use crate::FatalError;
-use crate::RendRequest;
 
 /// Handle onto the task which is establishing and maintaining one IPT
-pub(crate) struct IptEstablisher {}
+pub(crate) struct IptEstablisher {
+    /// A oneshot sender that notifies the running task that it's time to shut
+    /// down.
+    terminate_tx: oneshot::Sender<()>,
+}
 
 /// When the `IptEstablisher` is dropped it is torn down
 ///
@@ -130,9 +134,9 @@ impl IptError {
 }
 
 impl IptEstablisher {
-    /// Try to set up, and maintain, an IPT at `Relay`
+    /// Try to set up, and maintain, an IPT at `target`.
     ///
-    /// Rendezvous requests will be rejected
+    /// Rendezvous requests will be rejected (TODO HSS not yet true.)
     ///
     /// Also returns
     /// a stream of events that is produced whenever we have a change in the
@@ -141,23 +145,65 @@ impl IptEstablisher {
     ///
     /// The returned `watch::Receiver` will yield `Faulty`
     /// if the IPT establisher is shut down (or crashes).
-    // TODO HSS wrap the watch::Sender in DropNotifyWatchSender to ensure ^ drop behaviour
+    // TODO HSS wrap the watch::Sender in DropNotifyWatchSender to ensure ^ drop
+    // behaviour
+    // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
-        circ_pool: Arc<HsCircPool<R>>,
-        dirprovider: Arc<dyn NetDirProvider>,
-        relay: RelayIds,
-        // TODO HSS: this needs to take some configuration
+        runtime: R,
+        pool: Arc<HsCircPool<R>>,
+        netdir_provider: Arc<dyn NetDirProvider>,
+        // TODO HSS: Probably this should be a stream of RendRequest or of some
+        // intermediary type.  That is
+        // not currently possible, though, since RendRequest as it stands does
+        // not really fit well.
+        introduce_tx: mpsc::Sender<Introduce2>,
+        // TODO HSS: Should this and the following elements be part of some
+        // configuration object?
+        target: RelayIds,
+        ipt_sid_keypair: HsIntroPtSessionIdKeypair,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
-        todo!()
+        let reactor = Reactor {
+            runtime: runtime.clone(),
+            pool,
+            netdir_provider,
+            target,
+            ipt_sid_keypair,
+            introduce_tx,
+            // TODO HSS This should come from the configuration.
+            extensions: EstIntroExtensionSet { dos_params: None },
+        };
+
+        let (status_tx, status_rx) = postage::watch::channel_with(IptStatus::new());
+        let (terminate_tx, mut terminate_rx) = oneshot::channel::<()>();
+
+        runtime
+            .spawn(async move {
+                futures::select!(
+                    terminated = terminate_rx => {
+                        let _ = terminated; // we want to shut down on send _or_ drop.
+                    }
+                    outcome = reactor.keep_intro_established(status_tx).fuse() =>  {
+                        // TODO HSS: probably we should report this outcome.
+                        let _ = outcome;
+                    }
+                );
+            })
+            .map_err(|e| FatalError::Spawn {
+                spawning: "introduction point establisher",
+                cause: Arc::new(e),
+            })?;
+
+        let establisher = IptEstablisher { terminate_tx };
+        Ok((establisher, status_rx))
     }
 
     /// Begin accepting connections from this introduction point.
     //
-    // TODO HSS: Perhaps we want to provide rend_reqs as part of the
-    // new() API instead.  If we do, we must make sure there's a way to
+    // TODO HSS: we must make sure there's a way to
     // turn requests on and off, so that we can say "now we have advertised this
     // so requests are okay."
-    pub(crate) fn start_accepting(&self, rend_reqs: mpsc::Sender<RendRequest>) {
+    pub(crate) fn start_accepting(&self) {
+        // TODO XXXXX IMPLEMENT ME.
         todo!()
     }
 }
@@ -230,6 +276,16 @@ impl IptStatus {
         }
     }
 
+    /// Return an `IptStatus` representing an establisher that has not yet taken
+    /// any action.
+    fn new() -> Self {
+        Self {
+            status: IptStatusStatus::Establishing,
+            n_faults: 0,
+            wants_to_retire: Ok(()),
+        }
+    }
+
     /// Produce an `IptStatus` representing a shut down or crashed establisher
     fn new_terminated() -> Self {
         IptStatus {
@@ -237,6 +293,12 @@ impl IptStatus {
             n_faults: u32::MAX,
             wants_to_retire: Err(IptWantsToRetire), // we don't know, but this is safe
         }
+    }
+}
+
+impl Default for IptStatus {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
