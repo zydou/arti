@@ -2,7 +2,7 @@
 
 use crate::compiler::{util, Architecture, Executable};
 use crate::program::{self, Instruction, InstructionArray};
-use crate::register::{RegisterFile, RegisterId, RegisterSet};
+use crate::register::{RegisterFile, RegisterId};
 use crate::CompilerError;
 use dynasmrt::{x64, x64::Rq, DynasmApi, DynasmLabelApi, Register};
 use std::mem;
@@ -125,19 +125,17 @@ fn emit_restore_regs(asm: &mut Assembler) {
 /// Emit code to move all input values from the RegisterFile into their
 /// actual hardware registers.
 fn emit_load_input(asm: &mut Assembler) {
-    RegisterSet::all().filter(|reg| {
+    for reg in RegisterId::all() {
         dynasm!(asm; mov Rq(reg.rq()), [register_file_ptr + reg.offset()]);
-        true
-    });
+    }
 }
 
 /// Emit code to move all output values from machine registers back into
 /// their RegisterFile slots.
 fn emit_store_output(asm: &mut Assembler) {
-    RegisterSet::all().filter(|reg| {
+    for reg in RegisterId::all() {
         dynasm!(asm; mov [register_file_ptr + reg.offset()], Rq(reg.rq()));
-        true
-    });
+    }
 }
 
 /// Emit a return instruction.

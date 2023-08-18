@@ -135,7 +135,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
     /// The choice is perfectly uniform only if the register set is a power of
     /// two length. Uniformity is not critical here.
     #[inline(always)]
-    fn select_register(&mut self, reg_options: RegisterSet) -> Result<RegisterId, ()> {
+    fn select_register(&mut self, reg_options: &RegisterSet) -> Result<RegisterId, ()> {
         match reg_options.len() {
             0 => Err(()),
             1 => Ok(reg_options.index(0)),
@@ -271,10 +271,25 @@ impl<'r, R: RngCore> Generator<'r, R> {
     fn instruction_gen_attempt(&mut self, pass: Pass) -> Result<(Instruction, RegisterWriter), ()> {
         let op = self.choose_opcode(pass);
         let plan = self.scheduler.instruction_plan(op)?;
-        let (inst, regw) = self.choose_instruction_with_opcode_plan(op, pass, plan)?;
-        assert_eq!(inst.opcode(), op);
-        self.scheduler.commit_instruction_plan(plan, &inst);
+        let (inst, regw) = self.choose_instruction_with_opcode_plan(op, pass, &plan)?;
+        debug_assert_eq!(inst.opcode(), op);
+        self.scheduler.commit_instruction_plan(&plan, &inst);
         Ok((inst, regw))
+    }
+
+    /// Choose only a source register, depending on the opcode and timing plan
+    #[inline(never)]
+    fn choose_src_reg(
+        &mut self,
+        op: Opcode,
+        timing_plan: &InstructionPlan,
+    ) -> Result<RegisterId, ()> {
+        let src_set = RegisterSet::from_filter(|src| {
+            self.scheduler
+                .register_available(src, timing_plan.cycle_issued())
+        });
+        let src_set = constraints::src_registers_allowed(src_set, op);
+        self.select_register(&src_set)
     }
 
     /// Choose both a source and destination register using a normal
@@ -285,18 +300,11 @@ impl<'r, R: RngCore> Generator<'r, R> {
         op: Opcode,
         pass: Pass,
         writer_info_fn: fn(RegisterId) -> RegisterWriter,
-        timing_plan: InstructionPlan,
+        timing_plan: &InstructionPlan,
     ) -> Result<(RegisterId, RegisterId, RegisterWriter), ()> {
-        let avail_set = self
-            .scheduler
-            .registers_available(timing_plan.cycle_issued());
-        let src_set = constraints::src_registers_allowed(avail_set, op);
-        let src = self.select_register(src_set)?;
+        let src = self.choose_src_reg(op, timing_plan)?;
         let writer_info = writer_info_fn(src);
-        let dst_set =
-            self.validator
-                .dst_registers_allowed(avail_set, op, pass, writer_info, Some(src));
-        let dst = self.select_register(dst_set)?;
+        let dst = self.choose_dst_reg(op, pass, writer_info, Some(src), timing_plan)?;
         Ok((src, dst, writer_info))
     }
 
@@ -309,37 +317,32 @@ impl<'r, R: RngCore> Generator<'r, R> {
         op: Opcode,
         pass: Pass,
         writer_info: RegisterWriter,
-        timing_plan: InstructionPlan,
+        timing_plan: &InstructionPlan,
     ) -> Result<(RegisterId, RegisterId), ()> {
-        let avail_set = self
-            .scheduler
-            .registers_available(timing_plan.cycle_issued());
-        let src_set = constraints::src_registers_allowed(avail_set, op);
-        let src = self.select_register(src_set)?;
-        let dst_set =
-            self.validator
-                .dst_registers_allowed(avail_set, op, pass, writer_info, Some(src));
-        let dst = self.select_register(dst_set)?;
+        let src = self.choose_src_reg(op, timing_plan)?;
+        let dst = self.choose_dst_reg(op, pass, writer_info, Some(src), timing_plan)?;
         Ok((src, dst))
     }
 
-    /// Choose a destination register only.
-    #[inline(always)]
+    /// Choose a destination register only, using source and writer info
+    /// as well as the current state of the validator.
+    #[inline(never)]
     fn choose_dst_reg(
         &mut self,
         op: Opcode,
         pass: Pass,
         writer_info: RegisterWriter,
-        timing_plan: InstructionPlan,
+        src: Option<RegisterId>,
+        timing_plan: &InstructionPlan,
     ) -> Result<RegisterId, ()> {
-        let avail_set = self
-            .scheduler
-            .registers_available(timing_plan.cycle_issued());
-        let dst_set = self
-            .validator
-            .dst_registers_allowed(avail_set, op, pass, writer_info, None);
-        let dst = self.select_register(dst_set)?;
-        Ok(dst)
+        let dst_set = RegisterSet::from_filter(|dst| {
+            self.scheduler
+                .register_available(dst, timing_plan.cycle_issued())
+                && self
+                    .validator
+                    .dst_register_allowed(dst, op, pass, writer_info, src)
+        });
+        self.select_register(&dst_set)
     }
 
     /// With an [`Opcode`] and an execution unit timing plan already in mind,
@@ -352,7 +355,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
         &mut self,
         op: Opcode,
         pass: Pass,
-        plan: InstructionPlan,
+        plan: &InstructionPlan,
     ) -> Result<(Instruction, RegisterWriter), ()> {
         Ok(match op {
             Opcode::Target => (Instruction::Target, RegisterWriter::None),
@@ -411,21 +414,21 @@ impl<'r, R: RngCore> Generator<'r, R> {
             Opcode::AddConst => {
                 let regw = RegisterWriter::AddConst;
                 let src = self.select_nonzero_u32(u32::MAX) as i32;
-                let dst = self.choose_dst_reg(op, pass, regw, plan)?;
+                let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
                 (Instruction::AddConst { src, dst }, regw)
             }
 
             Opcode::XorConst => {
                 let regw = RegisterWriter::XorConst;
                 let src = self.select_nonzero_u32(u32::MAX) as i32;
-                let dst = self.choose_dst_reg(op, pass, regw, plan)?;
+                let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
                 (Instruction::XorConst { src, dst }, regw)
             }
 
             Opcode::Rotate => {
                 let regw = RegisterWriter::Rotate;
                 let right_rotate: u8 = self.select_nonzero_u32(63) as u8;
-                let dst = self.choose_dst_reg(op, pass, regw, plan)?;
+                let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
                 (Instruction::Rotate { dst, right_rotate }, regw)
             }
         })

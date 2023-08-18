@@ -5,7 +5,7 @@
 //! avoid stalls.
 
 use crate::program::{Instruction, Opcode};
-use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};
+use crate::register::{RegisterId, NUM_REGISTERS};
 
 /// Scheduling information for each opcode
 mod model {
@@ -189,7 +189,7 @@ impl Scheduler {
     /// Marks as busy each execution unit cycle in the plan, and updates the
     /// latency for the [`Instruction`]'s destination register if it has one.
     #[inline(always)]
-    pub(crate) fn commit_instruction_plan(&mut self, plan: InstructionPlan, inst: &Instruction) {
+    pub(crate) fn commit_instruction_plan(&mut self, plan: &InstructionPlan, inst: &Instruction) {
         self.exec.mark_instruction_busy(plan);
         if let Some(dst) = inst.destination() {
             self.data
@@ -197,10 +197,10 @@ impl Scheduler {
         }
     }
 
-    /// Figure out which registers will be available at or before the indicated cycle.
+    /// Look up if a register will be available at or before the indicated cycle.
     #[inline(always)]
-    pub(crate) fn registers_available(&self, cycle: Cycle) -> RegisterSet {
-        self.data.registers_available(cycle)
+    pub(crate) fn register_available(&self, reg: RegisterId, cycle: Cycle) -> bool {
+        self.data.register_available(reg, cycle)
     }
 
     /// Return the overall data latency.
@@ -323,13 +323,10 @@ impl DataSchedule {
         self.latencies[dst.as_usize()] = cycle;
     }
 
-    /// Figure out which registers will be available at or before the indicated cycle
+    /// Look up if a register will be available at or before the indicated cycle.
     #[inline(always)]
-    fn registers_available(&self, cycle: Cycle) -> RegisterSet {
-        RegisterSet::all().filter(
-            #[inline(always)]
-            |reg| self.latencies[reg.as_usize()] <= cycle,
-        )
+    fn register_available(&self, reg: RegisterId, cycle: Cycle) -> bool {
+        self.latencies[reg.as_usize()] <= cycle
     }
 
     /// Return the overall latency, the [`Cycle`] at which we expect
@@ -422,7 +419,7 @@ impl ExecSchedule {
 
     /// Mark each micro-op in an InstructionPlan as busy in the schedule.
     #[inline(always)]
-    fn mark_instruction_busy(&mut self, plan: InstructionPlan) {
+    fn mark_instruction_busy(&mut self, plan: &InstructionPlan) {
         let (first, second) = plan.as_micro_plans();
         self.mark_micro_busy(first);
         if let Some(second) = second {

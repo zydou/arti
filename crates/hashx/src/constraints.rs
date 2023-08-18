@@ -233,36 +233,31 @@ impl Validator {
         }
     }
 
-    /// Figure out the allowed set of destination registers for an op after its
-    /// source is known, using the current state of the validator.
+    /// Check whether a destination register is actually allowed for an op after
+    /// its source is known, using the current state of the validator.
     #[inline(always)]
-    pub(crate) fn dst_registers_allowed(
+    pub(crate) fn dst_register_allowed(
         &self,
-        available: RegisterSet,
+        dst: RegisterId,
         op: Opcode,
         pass: Pass,
         writer_info: RegisterWriter,
         src: Option<RegisterId>,
-    ) -> RegisterSet {
-        available.filter(
-            #[inline(always)]
-            |dst| {
-                // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
-                // be used as destination for AddShift.
-                if op == Opcode::AddShift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
-                    return false;
-                }
+    ) -> bool {
+        // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
+        // be used as destination for AddShift.
+        if op == Opcode::AddShift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
+            return false;
+        }
 
-                // A few instructions disallow choosing src and dst as the same
-                if model::disallow_src_is_dst(op) && src == Some(dst) {
-                    return false;
-                }
+        // A few instructions disallow choosing src and dst as the same
+        if model::disallow_src_is_dst(op) && src == Some(dst) {
+            return false;
+        }
 
-                // Additional constraints are written on the pair of previous and
-                // current instructions with the same destination.
-                model::writer_pair_allowed(pass, self.writer_map.get(dst), writer_info)
-            },
-        )
+        // Additional constraints are written on the pair of previous and
+        // current instructions with the same destination.
+        model::writer_pair_allowed(pass, self.writer_map.get(dst), writer_info)
     }
 }
 
@@ -282,7 +277,7 @@ pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> Regis
         && available.contains(model::DISALLOW_REGISTER_FOR_ADDSHIFT)
         && available.len() == 2
     {
-        available.filter(
+        RegisterSet::from_filter(
             #[inline(always)]
             |reg| reg == model::DISALLOW_REGISTER_FOR_ADDSHIFT,
         )
