@@ -413,9 +413,6 @@ pub(crate) struct IntroPtSession {
     intro_circ: Arc<ClientCirc>,
 }
 
-/// How long to allow for an introduction point to get established?
-const ESTABLISH_TIMEOUT: Duration = Duration::new(10, 0); // TODO use a better timeout, taken from circuit estimator.
-
 /// How long to wait after a single failure.
 const DELAY_ON_FAILURE: Duration = Duration::new(2, 0); // TODO use stochastic jitter.
 
@@ -427,12 +424,6 @@ impl<R: Runtime> Reactor<R> {
     ) -> Result<(), IptError> {
         loop {
             status_tx.borrow_mut().note_attempt();
-            let outcome = self
-                .runtime
-                .timeout(ESTABLISH_TIMEOUT, self.establish_intro_once())
-                .await
-                .unwrap_or(Err(IptError::EstablishTimeout));
-
             match self.establish_intro_once().await {
                 Ok(session) => {
                     status_tx.borrow_mut().note_open();
@@ -538,7 +529,17 @@ impl<R: Runtime> Reactor<R> {
         // that the message was sent.  We have to wait for any actual `established`
         // message, though.
 
-        let established = established_rx.await.map_err(|_| IptError::ReceiveAck)?;
+        let ack_timeout = self
+            .pool
+            .estimate_timeout(&tor_circmgr::timeouts::Action::RoundTrip {
+                length: circuit.n_hops(),
+            });
+        let established = self
+            .runtime
+            .timeout(ack_timeout, established_rx)
+            .await
+            .map_err(|_| IptError::EstablishTimeout)?
+            .map_err(|_| IptError::ReceiveAck)?;
 
         if established.iter_extensions().next().is_some() {
             // We do not support any extensions from the introduction point; if it
