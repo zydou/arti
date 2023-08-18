@@ -10,7 +10,10 @@ use tor_cell::relaycell::{
     msg::{Introduce2, Rendezvous1},
     RelayMsg as _,
 };
-use tor_circmgr::hspool::{HsCircKind, HsCircPool};
+use tor_circmgr::{
+    build::circparameters_from_netparameters,
+    hspool::{HsCircKind, HsCircPool},
+};
 use tor_error::into_internal;
 use tor_linkspec::OwnedCircTarget;
 use tor_netdir::NetDirProvider;
@@ -187,12 +190,7 @@ impl IntroRequest {
         // the fault of the rend_point?
 
         // We'll need parameters to extend the virtual hop.
-        //
-        // TODO HSS: We'll probably want to swipe this function from
-        // tor-hsclient as well.
-        //
-        // let params = circparameters_from_netparameters(netdir.params());
-        let params = tor_proto::circuit::CircParameters::default(); // TODO HSS replace.
+        let params = circparameters_from_netparameters(netdir.params());
 
         // We won't need the netdir any longer; stop holding the reference.
         drop(netdir);
