@@ -17,6 +17,7 @@ use futures::{
     Future, FutureExt as _, StreamExt as _,
 };
 use safelog::Redactable as _;
+use tor_async_utils::DropNotifyWatchSender;
 use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
     msg::{AnyRelayMsg, IntroEstablished, Introduce2},
@@ -156,8 +157,6 @@ impl IptEstablisher {
     ///
     /// The returned `watch::Receiver` will yield `Faulty`
     /// if the IPT establisher is shut down (or crashes).
-    // TODO HSS wrap the watch::Sender in DropNotifyWatchSender to ensure ^ drop
-    // behaviour
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
         runtime: R,
@@ -197,6 +196,7 @@ impl IptEstablisher {
 
         let (status_tx, status_rx) = postage::watch::channel_with(IptStatus::new());
         let (terminate_tx, mut terminate_rx) = oneshot::channel::<()>();
+        let status_tx = DropNotifyWatchSender::new(status_tx);
 
         runtime
             .spawn(async move {
@@ -422,7 +422,7 @@ impl<R: Runtime> Reactor<R> {
     /// Run forever, keeping an introduction point established.
     async fn keep_intro_established(
         &self,
-        mut status_tx: postage::watch::Sender<IptStatus>,
+        mut status_tx: DropNotifyWatchSender<IptStatus>,
     ) -> Result<(), IptError> {
         loop {
             status_tx.borrow_mut().note_attempt();
