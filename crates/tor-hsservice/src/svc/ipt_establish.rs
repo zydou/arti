@@ -6,10 +6,7 @@
 
 #![allow(clippy::needless_pass_by_value)] // TODO HSS remove
 
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::sync::{Arc, Mutex};
 
 use futures::{
     channel::{mpsc, oneshot},
@@ -413,15 +410,13 @@ pub(crate) struct IntroPtSession {
     intro_circ: Arc<ClientCirc>,
 }
 
-/// How long to wait after a single failure.
-const DELAY_ON_FAILURE: Duration = Duration::new(2, 0); // TODO use stochastic jitter.
-
 impl<R: Runtime> Reactor<R> {
     /// Run forever, keeping an introduction point established.
     async fn keep_intro_established(
         &self,
         mut status_tx: DropNotifyWatchSender<IptStatus>,
     ) -> Result<(), IptError> {
+        let mut retry_delay = tor_basic_utils::retry::RetryDelay::from_msec(1000);
         loop {
             status_tx.borrow_mut().note_attempt();
             match self.establish_intro_once().await {
@@ -431,6 +426,9 @@ impl<R: Runtime> Reactor<R> {
                         "Successfully established introduction point with {}",
                         self.target.display_relay_ids().redacted()
                     );
+                    // Now that we've succeeded, we can stop backing off for our
+                    // next attempt.
+                    retry_delay.reset();
 
                     // Wait for the session to be closed.
                     session.wait_for_close().await;
@@ -451,7 +449,8 @@ impl<R: Runtime> Reactor<R> {
                         "Problem establishing introduction point with {}",
                         self.target.display_relay_ids().redacted()
                     );
-                    self.runtime.sleep(DELAY_ON_FAILURE).await;
+                    let retry_after = retry_delay.next_delay(&mut rand::thread_rng());
+                    self.runtime.sleep(retry_after).await;
                 }
             }
         }

@@ -4638,6 +4638,7 @@ dependencies = [
  "safelog",
  "thiserror",
  "tor-async-utils",
+ "tor-basic-utils",
  "tor-bytes",
  "tor-cell",
  "tor-circmgr",
