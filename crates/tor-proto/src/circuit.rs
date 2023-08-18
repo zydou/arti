@@ -838,7 +838,7 @@ impl ClientCirc {
     /// do, they will stop working after you call this function.
     ///
     /// It's not necessary to call this method if you're just done
-    /// with a circuit: the channel should close on its own once nothing
+    /// with a circuit: the circuit should close on its own once nothing
     /// is using it any more.
     pub fn terminate(&self) {
         let _ = self.control.unbounded_send(CtrlMsg::Shutdown);
