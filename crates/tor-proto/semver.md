@@ -15,5 +15,6 @@ BREAKING: `ClientCirc::allow_stream_requests` is now async
 BREAKING: `IncomingStream::discard` now takes `mut self` instead of `self` and
 returns a `Result<(), Bug>`
 ADDED: `ClientCirc::binding_key`
+BREAKING: `ClientCirc::allow_stream_requests` now also takes a `HopNum` argument
 
 

@@ -504,6 +504,7 @@ impl ClientCirc {
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
+        hop_num: HopNum,
     ) -> Result<impl futures::Stream<Item = Result<IncomingStream>>> {
         use futures::stream::StreamExt;
 
@@ -519,6 +520,7 @@ impl ClientCirc {
             .unbounded_send(CtrlMsg::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
+                hop_num,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1939,12 +1941,18 @@ mod test {
             let (circ, _send) = newcirc(&rt, chan).await;
 
             let _incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await
                 .unwrap();
 
             let incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await;
 
             // There can only be one IncomingStream at a time on any given circuit.
@@ -1966,7 +1974,10 @@ mod test {
             // A helper channel for coordinating the "client"/"service" interaction
             let (tx, rx) = oneshot::channel();
             let mut incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await
                 .unwrap();
 
@@ -2040,7 +2051,10 @@ mod test {
             let (mut tx, mut rx) = mpsc::channel(STREAM_COUNT);
 
             let mut incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await
                 .unwrap();
 

@@ -191,9 +191,8 @@ pub(super) enum CtrlMsg {
         cmd_checker: AnyCmdChecker,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
-        // TODO HSS: add a hop_num field specifying which hop in the circuit is allowed to create
-        // streams, if any (if we find that a different hop in the circuit is attempting to create
-        // a stream we should return an error).
+        /// The hop that is allowed to create streams.
+        hop_num: HopNum,
     },
     /// Send a given control message on this circuit, and install a control-message handler to
     /// receive responses.
@@ -619,6 +618,8 @@ struct IncomingStreamRequestHandler {
     incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
     /// A [`AnyCmdChecker`] for validating incoming stream requests.
     cmd_checker: AnyCmdChecker,
+    /// The hop to expect incoming stream requests from.
+    hop_num: HopNum,
 }
 
 impl Reactor {
@@ -1430,6 +1431,7 @@ impl Reactor {
             CtrlMsg::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
+                hop_num,
                 done,
             } => {
                 // TODO HSS: add a CtrlMsg for de-registering the handler.
@@ -1437,6 +1439,7 @@ impl Reactor {
                 let handler = IncomingStreamRequestHandler {
                     incoming_sender,
                     cmd_checker,
+                    hop_num,
                 };
 
                 let ret = self.set_incoming_stream_req_handler(handler)?;
@@ -1746,6 +1749,15 @@ impl Reactor {
                 "Cannot handle BEGIN cells on this circuit".into(),
             ));
         };
+
+        if hop_num != handler.hop_num {
+            return Err(Error::CircProto(
+                format!(
+                    "Expecting incoming streams from {}, but received {} cell from unexpected hop {hop_num}",
+                    handler.hop_num, msg.cmd()
+                )
+            ));
+        }
 
         let message_closes_stream = handler.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
