@@ -2122,4 +2122,48 @@ mod test {
             let (_circ, _send) = futures::join!(simulate_service, simulate_client);
         });
     }
+
+    #[test]
+    #[cfg(feature = "hs-service")]
+    fn incoming_stream_bad_hop() {
+        use tor_cell::relaycell::msg::BeginFlags;
+
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            /// Expect the originator of the BEGIN cell to be hop 1.
+            const EXPECTED_HOP: u8 = 1;
+
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut send) = newcirc(&rt, chan).await;
+
+            // Expect to receive incoming streams from hop EXPECTED_HOP
+            let mut incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], EXPECTED_HOP.into())
+                .await
+                .unwrap();
+
+            let simulate_service = async move {
+                // The originator of the cell is actually the last hop on the circuit, not hop 1,
+                // so we expect the reactor to shut down.
+                assert!(incoming.next().await.is_none());
+                circ
+            };
+
+            let simulate_client = async move {
+                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let begin_msg = chanmsg::Relay::from(body);
+
+                // Pretend to be a client at the other end of the circuit sending a begin cell
+                send.send(ClientCircChanMsg::Relay(begin_msg))
+                    .await
+                    .unwrap();
+
+                send
+            };
+
+            let (_circ, _send) = futures::join!(simulate_service, simulate_client);
+        });
+    }
 }
