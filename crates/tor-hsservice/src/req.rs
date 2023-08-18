@@ -6,11 +6,12 @@
 use futures::{channel::mpsc, stream::Stream};
 use std::net::SocketAddr;
 
+use tor_error::Bug;
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::pk::curve25519;
 use tor_proto::stream::DataStream;
 
-use crate::Result;
+use crate::ClientError;
 
 /// Request to complete an introduction/rendezvous handshake.
 ///
@@ -107,8 +108,8 @@ impl RendRequest {
     /// provided rendezvous point.
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    pub async fn accept(self) -> Result<impl Stream<Item = StreamRequest>> {
-        let r: Result<mpsc::Receiver<StreamRequest>>;
+    pub async fn accept(self) -> Result<impl Stream<Item = StreamRequest>, ClientError> {
+        let r: Result<mpsc::Receiver<StreamRequest>, ClientError>;
         todo!();
         #[allow(unreachable_code)]
         r
@@ -116,7 +117,8 @@ impl RendRequest {
     /// Reject this request.  (The client will receive no notification.)
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    pub async fn reject(self) -> Result<()> {
+    /// TODO HSS: Should this really be fallible?  How might it fail?
+    pub async fn reject(self) -> Result<(), Bug> {
         todo!()
     }
     //
@@ -125,16 +127,18 @@ impl RendRequest {
 
 impl StreamRequest {
     /// Accept this request and send the client a `CONNECTED` message.
-    pub async fn accept(self) -> Result<OnionServiceDataStream> {
+    pub async fn accept(self) -> Result<OnionServiceDataStream, ClientError> {
         todo!()
     }
     /// Reject this request, and send the client an `END` message.
-    pub async fn reject(self) -> Result<()> {
+    /// TODO HSS: Should this really be fallible?  How might it fail?
+    pub async fn reject(self) -> Result<(), Bug> {
         todo!()
     }
     /// Reject this request and close the rendezvous circuit entirely,
     /// along with all other streams attached to the circuit.
-    pub fn shutdown_circuit(self) -> Result<()> {
+    /// TODO HSS: Should this really be fallible?  How might it fail?
+    pub fn shutdown_circuit(self) -> Result<(), Bug> {
         todo!()
     }
     // TODO HSS various accessors, including for circuit.

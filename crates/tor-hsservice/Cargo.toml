@@ -35,6 +35,7 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.1.1" }
 tor-bytes = { version = "*", path = "../tor-bytes" }
 tor-cell = { version = "0.12.1", path = "../tor-cell", features = ["hs"] }
 tor-circmgr = { version = "0.10.0", path = "../tor-circmgr", features = ["hs-service"] }
+tor-config = { version = "0.9.3", path = "../tor-config" }
 tor-error = { version = "0.5.3", path = "../tor-error" }
 tor-hscrypto = { version = "0.3.0", path = "../tor-hscrypto" }
 tor-keymgr = { version = "0.2.0", path = "../tor-keymgr" }

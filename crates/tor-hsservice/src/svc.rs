@@ -7,6 +7,8 @@ use std::{
 };
 
 use tor_circmgr::hspool::HsCircPool;
+use tor_config::ReconfigureError;
+use tor_error::Bug;
 use tor_hscrypto::pk::HsBlindIdKey;
 use tor_keymgr::KeyMgr;
 use tor_linkspec::RelayIds;
@@ -14,7 +16,8 @@ use tor_llcrypto::pk::curve25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::{OnionServiceStatus, Result};
+use crate::OnionServiceStatus;
+use crate::StartupError;
 
 mod ipt_establish;
 mod publish;
@@ -141,12 +144,12 @@ impl<R: Runtime> OnionService<R> {
     /// (Not everything can be changed here. At the very least we'll need to say
     /// that the identity of a service is fixed. We might want to make the
     /// storage  backing this, and the anonymity status, unchangeable.)
-    pub fn reconfigure(&self, new_config: ()) -> Result<()> {
+    pub fn reconfigure(&self, new_config: ()) -> Result<(), ReconfigureError> {
         todo!() // TODO hss
     }
 
     /// Tell this onion service about some new short-term keys it can use.
-    pub fn add_keys(&self, keys: ()) -> Result<()> {
+    pub fn add_keys(&self, keys: ()) -> Result<(), Bug> {
         todo!() // TODO hss
     }
 
@@ -160,7 +163,7 @@ impl<R: Runtime> OnionService<R> {
     /// Tell this onion service to begin running.
     //
     // TODO HSS: Probably return an `impl Stream<RendRequest>`.
-    pub fn launch(&self) -> Result<()> {
+    pub fn launch(&self) -> Result<(), StartupError> {
         todo!() // TODO hss
 
         // This needs to launch at least the following tasks:
@@ -192,7 +195,7 @@ impl<R: Runtime> OnionService<R> {
     ///
     /// You can also shut down an onion service completely by dropping the last
     /// Clone of it.
-    pub fn stop(&self) -> Result<()> {
+    pub fn stop(&self) {
         todo!() // TODO hss
     }
 }

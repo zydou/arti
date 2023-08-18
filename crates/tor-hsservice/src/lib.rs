@@ -50,13 +50,10 @@ mod status;
 mod svc;
 
 pub use config::OnionServiceConfig;
-pub use err::Error;
+pub use err::{ClientError, FatalError, StartupError};
 pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
 pub use svc::OnionService;
-
-/// A Result type describing an onion service operation.
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// The level of anonymity that an onion service should try to run with.
 #[derive(Debug, Default, Copy, Clone)]
