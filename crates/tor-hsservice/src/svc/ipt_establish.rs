@@ -23,8 +23,8 @@ use tor_cell::relaycell::{
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{debug_report, internal, into_internal};
 use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
-use tor_linkspec::{ChanTarget as _, OwnedCircTarget};
-use tor_netdir::{NetDir, NetDirProvider, Relay};
+use tor_linkspec::{ChanTarget as _, OwnedCircTarget, RelayIds};
+use tor_netdir::{NetDir, NetDirProvider};
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
@@ -136,7 +136,7 @@ impl IptEstablisher {
     pub(crate) fn new<R: Runtime>(
         circ_pool: Arc<HsCircPool<R>>,
         dirprovider: Arc<dyn NetDirProvider>,
-        relay: &Relay<'_>,
+        relay: RelayIds,
         // TODO HSS: this needs to take some configuration
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), IptError> {
         todo!()
