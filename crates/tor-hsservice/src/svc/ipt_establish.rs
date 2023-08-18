@@ -15,6 +15,7 @@ use futures::{
     },
     StreamExt as _,
 };
+use safelog::Redactable as _;
 use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
     msg::{AnyRelayMsg, IntroEstablished, Introduce2},
@@ -23,7 +24,7 @@ use tor_cell::relaycell::{
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{debug_report, internal, into_internal};
 use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
-use tor_linkspec::{ChanTarget as _, OwnedCircTarget, RelayIds};
+use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider};
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
@@ -64,6 +65,11 @@ pub(crate) enum IptError {
     /// netdir we asked for.
     #[error("Network directory provider is shutting down")]
     NetdirProviderShutdown,
+
+    /// When we tried to establish this introduction point, we found that the
+    /// netdir didn't list it.
+    #[error("Introduction point not listed in network directory")]
+    IntroPointNotListed,
 
     /// We encountered an error while building a circuit to an intro point.
     #[error("Unable to build circuit to introduction point")]
@@ -106,6 +112,7 @@ impl tor_error::HasKind for IptError {
         match self {
             E::NoNetdir(_) => EK::BootstrapRequired, // TODO HSS maybe not right.
             E::NetdirProviderShutdown => EK::ArtiShuttingDown,
+            E::IntroPointNotListed => EK::TorDirectoryError, // TODO HSS Not correct kind.
             E::BuildCircuit(e) => e.kind(),
             E::EstablishTimeout => EK::TorNetworkTimeout, // TODO HSS right?
             E::SendEstablishIntro(e) => e.kind(),
@@ -271,10 +278,7 @@ struct Reactor<R: Runtime> {
     /// A provider used to select the other relays in the circuit.
     netdir_provider: Arc<dyn NetDirProvider>,
     /// The target introduction point.
-    ///
-    /// TODO: Should this instead be an identity that we look up in the netdir
-    /// provider?
-    target: OwnedCircTarget,
+    target: RelayIds,
     /// The keypair to use when establishing the introduction point.
     ///
     /// Knowledge of this private key prevents anybody else from impersonating
@@ -336,18 +340,27 @@ impl<R: Runtime> Reactor<R> {
                     status_tx.borrow_mut().note_open();
                     debug!(
                         "Successfully established introduction point with {}",
-                        self.target.display_chan_target()
+                        self.target.display_relay_ids().redacted()
                     );
 
                     // TODO HSS: let session continue until it dies, actually
                     // implementing it.
+                }
+                Err(e @ IptError::IntroPointNotListed) => {
+                    // The network directory didn't include this relay.  Wait
+                    // until it does.
+                    //
+                    // TODO HSS: Perhaps we should distinguish possible error cases
+                    // here?  See notes in `wait_for_netdir_to_list`.
+                    status_tx.borrow_mut().note_error(&e);
+                    wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
                 }
                 Err(e) => {
                     status_tx.borrow_mut().note_error(&e);
                     debug_report!(
                         e,
                         "Problem establishing introduction point with {}",
-                        self.target.display_chan_target()
+                        self.target.display_relay_ids().redacted()
                     );
                     self.runtime.sleep(DELAY_ON_FAILURE).await;
                 }
@@ -366,9 +379,13 @@ impl<R: Runtime> Reactor<R> {
                 tor_netdir::Timeliness::Timely,
             )
             .await?;
+            let circ_target = netdir
+                .by_ids(&self.target)
+                .ok_or(IptError::IntroPointNotListed)?;
+
             let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
             self.pool
-                .get_or_launch_specific(netdir.as_ref(), kind, self.target.clone())
+                .get_or_launch_specific(netdir.as_ref(), kind, circ_target)
                 .await
                 .map_err(IptError::BuildCircuit)?
             // note that netdir is dropped here, to avoid holding on to it any
@@ -462,6 +479,35 @@ async fn wait_for_netdir(
             None => {
                 return Err(IptError::NetdirProviderShutdown);
             }
+        }
+    }
+}
+
+/// Wait until `provider` lists `target`.
+async fn wait_for_netdir_to_list(
+    provider: &dyn NetDirProvider,
+    target: &RelayIds,
+) -> Result<(), IptError> {
+    let mut events = provider.events();
+    loop {
+        // See if the desired relay is in the netdir.
+        //
+        // We do this before waiting for any events, to avoid race conditions.
+        {
+            let netdir = wait_for_netdir(provider, tor_netdir::Timeliness::Timely).await?;
+            // TODO HSS: Perhaps we should distinguish Some(false) from None.
+            //
+            // Some(false) means "this relay is definitely not in the current
+            // network directory" and None means "waiting for more info on this
+            // network directory"
+            if netdir.ids_listed(target) == Some(true) {
+                return Ok(());
+            }
+        }
+        // We didn't find the relay; wait for the provider to have a new netdir.
+        if events.next().await.is_none() {
+            // The event stream is closed; the provider has shut down.
+            return Err(IptError::NetdirProviderShutdown);
         }
     }
 }

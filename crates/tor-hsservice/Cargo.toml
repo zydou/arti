@@ -30,6 +30,7 @@ futures = "0.3.14"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8.5"
 rand_core = "0.6.2"
+safelog = { path = "../safelog", version = "0.3.3" }
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.1" }
 tor-bytes = { version = "*", path = "../tor-bytes" }
