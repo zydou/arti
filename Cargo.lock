@@ -4632,6 +4632,7 @@ dependencies = [
  "derive-adhoc",
  "educe",
  "futures",
+ "humantime 2.1.0",
  "itertools",
  "once_cell",
  "postage",
@@ -4653,6 +4654,7 @@ dependencies = [
  "tor-netdir",
  "tor-proto",
  "tor-rtcompat",
+ "tor-rtmock",
  "tracing",
  "void",
 ]

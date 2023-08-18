@@ -355,11 +355,11 @@ define_PartialOrd_via_cmp! { TrackingSystemTimeNow, SystemTime, }
 fn instant_cmp(earliest: &InstantEarliest, threshold: Instant, t: Instant) -> Ordering {
     let Some(d) = t.checked_duration_since(threshold) else {
         earliest.set(Some(Duration::ZERO));
-        return Ordering::Less;
+        return Ordering::Greater;
     };
 
     TrackingInstantNow::update_inner(earliest, d);
-    d.cmp(&Duration::ZERO)
+    Duration::ZERO.cmp(&d)
 }
 
 impl TrackingInstantNow {
@@ -427,5 +427,202 @@ impl TrackingNow {
     /// `.checked_sub()` method on [`TrackingSystemTimeNow`].
     pub fn checked_sub(&self, offset: Duration) -> Option<TrackingInstantOffsetNow> {
         self.instant.checked_sub(offset)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    #![allow(clippy::needless_pass_by_value)] // TODO hoist into standard lint block
+
+    use super::*;
+    use futures::channel::oneshot;
+    use std::future::Future;
+    use tor_rtcompat::BlockOn;
+    use tor_rtmock::MockRuntime;
+
+    fn parse_rfc3339(s: &str) -> SystemTime {
+        humantime::parse_rfc3339(s).unwrap()
+    }
+
+    fn earliest_systemtime() -> SystemTime {
+        parse_rfc3339("1993-11-01T00:00:00Z")
+    }
+
+    fn check_orderings<TT, T>(tt: &TT, earliest: T, middle: T, later: T)
+    where
+        TT: PartialOrd<T>,
+        T: PartialOrd<TT>,
+    {
+        assert!(*tt > earliest);
+        assert!(*tt >= earliest);
+        assert!(earliest < *tt);
+        assert!(earliest <= *tt);
+        assert!(*tt == middle);
+        assert!(middle == *tt);
+        assert!(*tt < later);
+        assert!(*tt <= later);
+        assert!(later > *tt);
+        assert!(later >= *tt);
+    }
+
+    fn test_systemtimes() -> (SystemTime, SystemTime, SystemTime) {
+        (
+            earliest_systemtime(),
+            parse_rfc3339("1994-11-01T00:00:00Z"),
+            parse_rfc3339("1995-11-01T00:00:00Z"),
+        )
+    }
+
+    #[test]
+    fn arith_systemtime() {
+        let (earliest, middle, later) = test_systemtimes();
+
+        {
+            let tt = TrackingSystemTimeNow::new(middle);
+            assert_eq!(tt.earliest(), None);
+        }
+        {
+            let tt = TrackingSystemTimeNow::new(middle);
+            assert_eq!(tt.cmp(earliest), Ordering::Greater);
+            assert_eq!(tt.earliest(), Some(earliest));
+        }
+        {
+            let tt = TrackingSystemTimeNow::new(middle);
+            assert_eq!(tt.cmp(later), Ordering::Less);
+            assert_eq!(tt.earliest(), Some(later));
+        }
+        {
+            let tt = TrackingSystemTimeNow::new(middle);
+            check_orderings(&tt, earliest, middle, later);
+            assert_eq!(tt.earliest(), Some(earliest));
+        }
+    }
+
+    #[test]
+    fn arith_instant_combined() {
+        // Subtracting 1Ms gives us some headroom, since we don't want to underflow
+        let earliest = Instant::now() + Duration::from_secs(1000000);
+        let middle_d = Duration::from_secs(200);
+        let middle = earliest + middle_d;
+        let later_d = Duration::from_secs(300);
+        let later = middle + later_d;
+
+        {
+            let tt = TrackingInstantNow::new(middle);
+            assert_eq!(tt.shortest(), None);
+        }
+        {
+            let tt = TrackingInstantNow::new(middle);
+            assert_eq!(tt.cmp(earliest), Ordering::Greater);
+            assert_eq!(tt.shortest(), Some(Duration::ZERO));
+        }
+        {
+            let tt = TrackingInstantNow::new(middle);
+            check_orderings(&tt, earliest, middle, later);
+            assert_eq!(tt.shortest(), Some(Duration::ZERO));
+        }
+        {
+            let tt = TrackingInstantNow::new(middle);
+            let off = tt.checked_sub(Duration::from_secs(700)).expect("underflow");
+            assert!(off < earliest); // (200-700) vs 0
+            assert_eq!(tt.shortest(), Some(Duration::from_secs(500)));
+        }
+        {
+            let tt = TrackingInstantNow::new(middle);
+            let off = tt.checked_sub(Duration::ZERO).unwrap();
+            check_orderings(&off, earliest, middle, later);
+            assert_eq!(tt.shortest(), Some(Duration::ZERO));
+        }
+
+        let (earliest_st, middle_st, later_st) = test_systemtimes();
+        {
+            let tt = TrackingNow::new(middle, middle_st);
+            let off = tt.checked_sub(Duration::ZERO).unwrap();
+            check_orderings(&tt, earliest, middle, later);
+            check_orderings(&off, earliest, middle, later);
+            check_orderings(&tt, earliest_st, middle_st, later_st);
+            assert_eq!(tt.instant().clone().shortest(), Some(Duration::ZERO));
+            assert_eq!(tt.system_time().clone().earliest(), Some(earliest_st));
+        }
+    }
+
+    fn test_sleeper<WF>(
+        expected_wait: Option<Duration>,
+        wait_for_timeout: impl FnOnce(MockRuntime) -> WF + Send + 'static,
+    ) where
+        WF: Future<Output = ()> + Send + 'static,
+    {
+        let runtime = MockRuntime::new();
+        runtime.clone().block_on(async move {
+            // prevent underflow of Instant in case we started very recently
+            runtime.advance(Duration::from_secs(1000000)).await;
+            // set SystemTime to a known value
+            runtime.jump_to(earliest_systemtime());
+
+            let (tx, mut rx) = oneshot::channel();
+
+            runtime.mock_task().spawn_identified("timeout task", {
+                let runtime = runtime.clone();
+                async move {
+                    wait_for_timeout(runtime.clone()).await;
+                    tx.send(()).unwrap();
+                }
+            });
+
+            runtime.mock_task().progress_until_stalled().await;
+
+            if expected_wait == Some(Duration::ZERO) {
+                assert_eq!(rx.try_recv().unwrap(), Some(()));
+            } else {
+                let actual_wait = runtime.time_until_next_timeout();
+                assert_eq!(actual_wait, expected_wait);
+            }
+        });
+    }
+
+    fn test_sleeper_combined(
+        expected_wait: Option<Duration>,
+        update_tt: impl FnOnce(&MockRuntime, &TrackingNow) + Send + 'static,
+    ) {
+        test_sleeper(expected_wait, |rt| async move {
+            let tt = TrackingNow::now(&rt);
+            update_tt(&rt, &tt);
+            tt.wait_for_earliest(&rt).await;
+        });
+    }
+
+    #[test]
+    fn sleeps() {
+        let s = earliest_systemtime();
+        let d = Duration::from_secs(42);
+
+        test_sleeper_combined(None, |_rt, _tt| {});
+        test_sleeper_combined(Some(Duration::ZERO), move |rt, tt| {
+            assert!(*tt > (s - d));
+        });
+        test_sleeper_combined(Some(d), move |rt, tt| {
+            assert!(*tt < (s + d));
+        });
+
+        test_sleeper_combined(Some(Duration::ZERO), move |rt, tt| {
+            let i = rt.now();
+            assert!(*tt > (i - d));
+        });
+        test_sleeper_combined(Some(d), move |rt, tt| {
+            let i = rt.now();
+            assert!(*tt < (i + d));
+        });
     }
 }
