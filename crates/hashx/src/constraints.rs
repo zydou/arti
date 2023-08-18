@@ -39,7 +39,7 @@ mod model {
         matches!(op, Opcode::Mul | Opcode::SMulH | Opcode::UMulH)
     }
 
-    /// Does an instruction prohibit using the same register for source and dest?
+    /// Does an instruction prohibit using the same register for src and dst?
     ///
     /// Meaningful only for ops that have both a source and destination register.
     #[inline(always)]
@@ -233,31 +233,67 @@ impl Validator {
         }
     }
 
-    /// Check whether a destination register is actually allowed for an op after
+    /// Begin checking which destination registers are allowed for an op after
     /// its source is known, using the current state of the validator.
+    ///
+    /// Returns a DstRegisterChecker which can be used to test each specific
+    /// destination RegisterId quickly.
     #[inline(always)]
-    pub(crate) fn dst_register_allowed(
+    pub(crate) fn dst_registers_allowed(
         &self,
-        dst: RegisterId,
         op: Opcode,
         pass: Pass,
         writer_info: RegisterWriter,
         src: Option<RegisterId>,
-    ) -> bool {
+    ) -> DstRegisterChecker<'_> {
+        DstRegisterChecker {
+            pass,
+            writer_info,
+            writer_map: &self.writer_map,
+            op_is_add_shift: op == Opcode::AddShift,
+            disallow_equal: if model::disallow_src_is_dst(op) {
+                src
+            } else {
+                None
+            },
+        }
+    }
+}
+
+/// State information returned by [`Validator::dst_registers_allowed`]
+#[derive(Debug, Clone)]
+pub(crate) struct DstRegisterChecker<'v> {
+    /// Is this the original or retry pass?
+    pass: Pass,
+    /// Reference to a table of [`RegisterWriter`] information for each register
+    writer_map: &'v RegisterWriterMap,
+    /// The new [`RegisterWriter`] under consideration
+    writer_info: RegisterWriter,
+    /// Was this [`Opcode::AddShift`]?
+    op_is_add_shift: bool,
+    /// Optionally disallow one matching register, used to implement [`model::disallow_src_is_dst`]
+    disallow_equal: Option<RegisterId>,
+}
+
+impl<'v> DstRegisterChecker<'v> {
+    /// Check a single destination register for usability, using context from
+    /// [`Validator::dst_registers_allowed`]
+    #[inline(always)]
+    pub(crate) fn check(&self, dst: RegisterId) -> bool {
         // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
         // be used as destination for AddShift.
-        if op == Opcode::AddShift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
+        if self.op_is_add_shift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
             return false;
         }
 
         // A few instructions disallow choosing src and dst as the same
-        if model::disallow_src_is_dst(op) && src == Some(dst) {
+        if Some(dst) == self.disallow_equal {
             return false;
         }
 
         // Additional constraints are written on the pair of previous and
         // current instructions with the same destination.
-        model::writer_pair_allowed(pass, self.writer_map.get(dst), writer_info)
+        model::writer_pair_allowed(self.pass, self.writer_map.get(dst), self.writer_info)
     }
 }
 
@@ -267,7 +303,7 @@ impl Validator {
 pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> RegisterSet {
     // HashX defines a special case DISALLOW_REGISTER_FOR_ADDSHIFT for
     // destination registers, and it also includes a look-ahead
-    // condition here in source register allocation to prevent the dest
+    // condition here in source register allocation to prevent the dst
     // allocation from getting stuck as often. If we have only two
     // remaining registers for AddShift and one is the disallowed reg,
     // HashX defines that the random choice is short-circuited early

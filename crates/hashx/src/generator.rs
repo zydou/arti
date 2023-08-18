@@ -324,12 +324,13 @@ impl<'r, R: RngCore> Generator<'r, R> {
         src: Option<RegisterId>,
         timing_plan: &InstructionPlan,
     ) -> Result<RegisterId, ()> {
+        let validator = self
+            .validator
+            .dst_registers_allowed(op, pass, writer_info, src);
         let dst_set = RegisterSet::from_filter(|dst| {
             self.scheduler
                 .register_available(dst, timing_plan.cycle_issued())
-                && self
-                    .validator
-                    .dst_register_allowed(dst, op, pass, writer_info, src)
+                && validator.check(dst)
         });
         self.select_register(&dst_set)
     }
