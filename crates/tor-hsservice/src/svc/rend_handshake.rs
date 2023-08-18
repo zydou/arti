@@ -38,7 +38,7 @@ pub(crate) enum IntroRequestError {
     InvalidHandshake(#[source] tor_proto::Error),
 
     /// The decrypted payload of the Introduce2 message could not be parsed.
-    #[error("Could not parse INTRODUCE1 payload")]
+    #[error("Could not parse INTRODUCE2 payload")]
     InvalidPayload(#[source] tor_bytes::Error),
 
     /// We weren't able to build a ChanTarget from the Introduce2 message.
