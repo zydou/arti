@@ -31,6 +31,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.8.5"
 rand_core = "0.6.2"
 thiserror = "1"
+tor-async-utils = { path = "../tor-async-utils", version = "0.1.1" }
 tor-bytes = { version = "*", path = "../tor-bytes" }
 tor-cell = { version = "0.12.1", path = "../tor-cell", features = ["hs"] }
 tor-circmgr = { version = "0.10.0", path = "../tor-circmgr", features = ["hs-service"] }

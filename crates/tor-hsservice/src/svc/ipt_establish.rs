@@ -133,6 +133,10 @@ impl IptEstablisher {
     /// a stream of events that is produced whenever we have a change in the
     /// IptStatus for this intro point.  Note that this stream is potentially
     /// lossy.
+    ///
+    /// The returned `watch::Receiver` will yield `Faulty`
+    /// if the IPT establisher is shut down (or crashes).
+    // TODO HSS wrap the watch::Sender in DropNotifyWatchSender to ensure ^ drop behaviour
     pub(crate) fn new<R: Runtime>(
         circ_pool: Arc<HsCircPool<R>>,
         dirprovider: Arc<dyn NetDirProvider>,
@@ -219,6 +223,21 @@ impl IptStatus {
             self.n_faults += 1;
             self.status = Faulty;
         }
+    }
+
+    /// Produce an `IptStatus` representing a shut down or crashed establisher
+    fn new_terminated() -> Self {
+        IptStatus {
+            status: IptStatusStatus::Faulty,
+            n_faults: u32::MAX,
+            wants_to_retire: Err(IptWantsToRetire), // we don't know, but this is safe
+        }
+    }
+}
+
+impl tor_async_utils::DropNotifyEofSignallable for IptStatus {
+    fn eof() -> IptStatus {
+        IptStatus::new_terminated()
     }
 }
 
