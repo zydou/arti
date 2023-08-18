@@ -3,15 +3,17 @@
 //! These requests are yielded on a stream, and the calling code needs to decide
 //! whether to permit or reject them.
 
-use futures::{channel::mpsc, stream::Stream};
+use futures::{channel::mpsc, Stream};
 use std::net::SocketAddr;
+use tor_cell::relaycell::msg::Introduce2;
 
 use tor_error::Bug;
-use tor_linkspec::OwnedChanTarget;
-use tor_llcrypto::pk::curve25519;
-use tor_proto::stream::DataStream;
+use tor_proto::{circuit::handshake::hs_ntor::HsNtorServiceInput, stream::DataStream};
 
-use crate::ClientError;
+use crate::{
+    svc::{rend_handshake, IntroPointId},
+    ClientError,
+};
 
 /// Request to complete an introduction/rendezvous handshake.
 ///
@@ -24,32 +26,21 @@ use crate::ClientError;
 /// `RENDEZVOUS1` message.
 #[derive(Debug)]
 pub struct RendRequest {
-    /// Which introduction point gave us this request?
-    from_intro_point: crate::svc::IntroPointId,
+    /// The introduction point that sent this request.
+    intro_point: IntroPointId,
 
-    /// What proof-of-work did the client send us?
-    proof_of_work_provided: Option<ProofOfWork>,
+    /// The message as received from the remote introduction point.
+    raw: Introduce2,
 
-    /// Information about the rendezvous point that the client wanted us to
-    /// connect to.
-    rend_pt: RendPt,
-    //
-    // TODO HSS: We'll also need additional information to actually complete the
-    // request, maybe including a Weak<OnionService>, or maybe including a
-    // oneshot::Sender.
-}
-
-/// Information needed to complete a rendezvous handshake.
-#[derive(Debug, Clone)]
-struct RendPt {
-    /// The location and identity of the rendezvous point.
-    location: OwnedChanTarget,
-    /// The public Ntor key for the rendezvous point.
-    ntor_key: curve25519::PublicKey,
-    /// Cryptographic state to use when completing the handshake.
+    /// The introduce2 message that we've decrypted and processed.
     ///
-    /// TODO HSS: This is not at all final, and should be refactored freely.
-    handshake: HandshakeState,
+    /// We do not compute this immediately upon receiving the Introduce2 cell,
+    /// since there is a bit of cryptography involved and we don't want to add
+    /// any extra latency to the message handler.
+    ///
+    /// TODO: This also contains `raw`, which is maybe not so great; it would be
+    /// neat to implement more efficiently.
+    expanded: once_cell::unsync::OnceCell<rend_handshake::IntroRequest>,
 }
 
 /// The cryptographic state needed to complete an introduce/rendezvous
@@ -104,6 +95,29 @@ pub struct OnionServiceDataStream {
 }
 
 impl RendRequest {
+    /// Construct a new RendRequest from its parts.
+    pub(crate) fn new(source: IntroPointId, msg: Introduce2) -> Self {
+        Self {
+            intro_point: source,
+            raw: msg,
+            expanded: Default::default(),
+        }
+    }
+
+    /// Try to return a reference to the intro_request, creating it if it did
+    /// not previously exist.
+    ///
+    // TODO HSS: Perhaps we need to have an Arc<HsNtorServiceInput> as a member
+    // of this type instead of an argument here.
+    fn intro_request(
+        &self,
+        keys: &HsNtorServiceInput,
+    ) -> Result<&rend_handshake::IntroRequest, rend_handshake::IntroRequestError> {
+        self.expanded.get_or_try_init(|| {
+            rend_handshake::IntroRequest::decrypt_from_introduce2(self.raw.clone(), keys)
+        })
+    }
+
     /// Mark this request as accepted, and try to connect to the client's
     /// provided rendezvous point.
     ///
@@ -119,7 +133,8 @@ impl RendRequest {
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
     /// TODO HSS: Should this really be fallible?  How might it fail?
     pub async fn reject(self) -> Result<(), Bug> {
-        todo!()
+        // nothing to do.
+        Ok(())
     }
     //
     // TODO HSS: also add various accessors

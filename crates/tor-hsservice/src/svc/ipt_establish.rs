@@ -20,7 +20,7 @@ use safelog::Redactable as _;
 use tor_async_utils::DropNotifyWatchSender;
 use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
-    msg::{AnyRelayMsg, IntroEstablished, Introduce2},
+    msg::{AnyRelayMsg, IntroEstablished},
     RelayMsg as _,
 };
 use tor_circmgr::hspool::HsCircPool;
@@ -32,7 +32,9 @@ use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition}
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 
-use crate::FatalError;
+use crate::{FatalError, RendRequest};
+
+use super::IntroPointId;
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {
@@ -162,11 +164,8 @@ impl IptEstablisher {
         runtime: R,
         pool: Arc<HsCircPool<R>>,
         netdir_provider: Arc<dyn NetDirProvider>,
-        // TODO HSS: Probably this should be a stream of RendRequest or of some
-        // intermediary type.  That is
-        // not currently possible, though, since RendRequest as it stands does
-        // not really fit well.
-        introduce_tx: mpsc::Sender<Introduce2>,
+        introduce_tx: mpsc::Sender<RendRequest>,
+        intro_pt_id: IntroPointId,
         // TODO HSS: Should this and the following elements be part of some
         // configuration object?
         target: RelayIds,
@@ -186,6 +185,7 @@ impl IptEstablisher {
             runtime: runtime.clone(),
             pool,
             netdir_provider,
+            intro_pt_id,
             target,
             ipt_sid_keypair,
             introduce_tx,
@@ -379,6 +379,11 @@ struct Reactor<R: Runtime> {
     pool: Arc<HsCircPool<R>>,
     /// A provider used to select the other relays in the circuit.
     netdir_provider: Arc<dyn NetDirProvider>,
+    /// Identifier for the intro point.
+    ///
+    /// TODO HSS: I am assuming that this type will be a unique identifier, and
+    /// will change whenever RelayIds and/or HsIntroPtSessionIdKeypair changes.
+    intro_pt_id: IntroPointId,
     /// The target introduction point.
     target: RelayIds,
     /// The keypair to use when establishing the introduction point.
@@ -393,11 +398,7 @@ struct Reactor<R: Runtime> {
     extensions: EstIntroExtensionSet,
 
     /// The stream that will receive INTRODUCE2 messages.
-    ///
-    /// TODO HSS: we may want to refactor this so that we can turn on/off the
-    /// ability to receive messages from a given into point; so that we can see
-    /// which intro point gave us a message, and so forth.
-    introduce_tx: mpsc::Sender<Introduce2>,
+    introduce_tx: mpsc::Sender<RendRequest>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
     state: Arc<Mutex<EstablisherState>>,
@@ -527,6 +528,7 @@ impl<R: Runtime> Reactor<R> {
             established_tx: Some(established_tx),
             introduce_tx: self.introduce_tx.clone(),
             state: self.state.clone(),
+            intro_pt_id: self.intro_pt_id.clone(),
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -625,13 +627,16 @@ struct IptMsgHandler {
     /// If this is None, then we already sent an IntroEstablished and we shouldn't
     /// send any more.
     established_tx: Option<oneshot::Sender<IntroEstablished>>,
+
     /// A channel used to report Introduce2 messages.
-    //
-    // TODO: See notes on introduce_tx above.
-    introduce_tx: mpsc::Sender<Introduce2>,
+    introduce_tx: mpsc::Sender<RendRequest>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
     state: Arc<Mutex<EstablisherState>>,
+
+    /// Unique identifier for the introduction point (including the current
+    /// keys).  Used to tag requests.
+    intro_pt_id: IntroPointId,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
@@ -674,7 +679,8 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     RequestDisposition::Advertised => {}
                 }
 
-                match self.introduce_tx.try_send(introduce2) {
+                let request = RendRequest::new(self.intro_pt_id.clone(), introduce2);
+                match self.introduce_tx.try_send(request) {
                     Ok(()) => Ok(()),
                     Err(e) => {
                         if e.is_disconnected() {

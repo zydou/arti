@@ -21,7 +21,7 @@ use crate::StartupError;
 
 mod ipt_establish;
 mod publish;
-mod rend_handshake;
+pub(crate) mod rend_handshake;
 
 /// A handle to an instance of an onion service.
 //
