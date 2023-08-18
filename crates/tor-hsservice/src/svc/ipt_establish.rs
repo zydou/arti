@@ -9,10 +9,7 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::{
-    channel::{
-        mpsc::{self, UnboundedReceiver},
-        oneshot,
-    },
+    channel::{mpsc, oneshot},
     StreamExt as _,
 };
 use safelog::Redactable as _;
@@ -289,6 +286,13 @@ struct Reactor<R: Runtime> {
     /// TODO: Should this be able to change over time if we re-establish this
     /// intro point?
     extensions: EstIntroExtensionSet,
+
+    /// The stream that will receive INTRODUCE2 messages.
+    ///
+    /// TODO HSS: we may want to refactor this so that we can turn on/off the
+    /// ability to receive messages from a given into point; so that we can see
+    /// which intro point gave us a message, and so forth.
+    introduce_tx: mpsc::Sender<Introduce2>,
 }
 
 /// An open session with a single introduction point.
@@ -298,18 +302,6 @@ pub(crate) struct IntroPtSession {
     /// The circuit to the introduction point, on which we're receiving
     /// Introduce2 messages.
     intro_circ: Arc<ClientCirc>,
-
-    /// The stream that will receive Introduce2 messages.
-    ///
-    /// TODO: we'll likely want to refactor this.  @diziet favors having
-    /// `establish_intro_once` take a Sink as an argument, but I think that we
-    /// may need to keep this separate so that we can keep the ability to
-    /// start/stop the stream of Introduce2 messages, and/or detect when it's
-    /// closed.  If we don't need to do that, we can refactor.
-    introduce_rx: UnboundedReceiver<Introduce2>,
-    // TODO HSS: How shall we know if the other side has closed the circuit?  We
-    // can either wait for introduce_rx to close, or we can use
-    // ClientCirc::wait_for_close, if we stabilize it.
 }
 
 /// How long to allow for an introduction point to get established?
@@ -425,11 +417,10 @@ impl<R: Runtime> Reactor<R> {
         };
 
         let (established_tx, established_rx) = oneshot::channel();
-        let (introduce_tx, introduce_rx) = mpsc::unbounded();
 
         let handler = IptMsgHandler {
             established_tx: Some(established_tx),
-            introduce_tx,
+            introduce_tx: self.introduce_tx.clone(),
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -449,7 +440,6 @@ impl<R: Runtime> Reactor<R> {
 
         Ok(IntroPtSession {
             intro_circ: circuit,
-            introduce_rx,
         })
     }
 }
@@ -525,14 +515,8 @@ struct IptMsgHandler {
     established_tx: Option<oneshot::Sender<IntroEstablished>>,
     /// A channel used to report Introduce2 messages.
     //
-    // TODO HSS: I don't like having this be unbounded, but `handle_msg` can't
-    // block.  On the other hand maybe we can just discard excessive introduce2
-    // messages if we're under high load?  I think that's what C tor does,
-    // especially when under DoS conditions.
-    //
-    // See discussion at
-    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
-    introduce_tx: mpsc::UnboundedSender<Introduce2>,
+    // TODO: See notes on introduce_tx above.
+    introduce_tx: mpsc::Sender<Introduce2>,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
@@ -563,7 +547,27 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                         "Received an INTRODUCE2 message before INTRO_ESTABLISHED".into(),
                     ));
                 }
-                self.introduce_tx.unbounded_send(introduce2).map_err(|_| ())
+                match self.introduce_tx.try_send(introduce2) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        if e.is_disconnected() {
+                            // The receiver is disconnected, meaning that
+                            // messages from this intro point are no longer
+                            // wanted.  Close the circuit.
+                            Err(())
+                        } else {
+                            // The receiver is full; we have no real option but
+                            // to drop the request like C-tor does when the
+                            // backlog is too large.
+                            //
+                            // See discussion at
+                            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
+                            //
+                            // TODO HSS: record when this happens.
+                            Ok(())
+                        }
+                    }
+                }
             }
         } == Err(())
         {
