@@ -212,13 +212,13 @@ impl IntroRequest {
             .await
             .map_err(E::VirtualHop)?;
 
-        let _virtual_hop = circuit
+        let virtual_hop = circuit
             .last_hop_num()
             .map_err(into_internal!("Circuit with no virtual hop"))?;
 
         // Accept begins from that virtual hop
         let stream_requests = circuit
-            .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+            .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], virtual_hop)
             .await
             .map_err(E::AcceptBegins)?
             .boxed();

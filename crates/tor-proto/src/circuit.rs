@@ -504,6 +504,7 @@ impl ClientCirc {
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
+        hop_num: HopNum,
     ) -> Result<impl futures::Stream<Item = Result<IncomingStream>>> {
         use futures::stream::StreamExt;
 
@@ -519,6 +520,7 @@ impl ClientCirc {
             .unbounded_send(CtrlMsg::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
+                hop_num,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1939,12 +1941,18 @@ mod test {
             let (circ, _send) = newcirc(&rt, chan).await;
 
             let _incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await
                 .unwrap();
 
             let incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await;
 
             // There can only be one IncomingStream at a time on any given circuit.
@@ -1966,7 +1974,10 @@ mod test {
             // A helper channel for coordinating the "client"/"service" interaction
             let (tx, rx) = oneshot::channel();
             let mut incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await
                 .unwrap();
 
@@ -2040,7 +2051,10 @@ mod test {
             let (mut tx, mut rx) = mpsc::channel(STREAM_COUNT);
 
             let mut incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN])
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    circ.last_hop_num().unwrap(),
+                )
                 .await
                 .unwrap();
 
@@ -2102,6 +2116,50 @@ mod test {
                 let data_msg = chanmsg::Relay::from(body);
 
                 send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
+                send
+            };
+
+            let (_circ, _send) = futures::join!(simulate_service, simulate_client);
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "hs-service")]
+    fn incoming_stream_bad_hop() {
+        use tor_cell::relaycell::msg::BeginFlags;
+
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            /// Expect the originator of the BEGIN cell to be hop 1.
+            const EXPECTED_HOP: u8 = 1;
+
+            let (chan, _rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut send) = newcirc(&rt, chan).await;
+
+            // Expect to receive incoming streams from hop EXPECTED_HOP
+            let mut incoming = circ
+                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], EXPECTED_HOP.into())
+                .await
+                .unwrap();
+
+            let simulate_service = async move {
+                // The originator of the cell is actually the last hop on the circuit, not hop 1,
+                // so we expect the reactor to shut down.
+                assert!(incoming.next().await.is_none());
+                circ
+            };
+
+            let simulate_client = async move {
+                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
+                    .encode(&mut testing_rng())
+                    .unwrap();
+                let begin_msg = chanmsg::Relay::from(body);
+
+                // Pretend to be a client at the other end of the circuit sending a begin cell
+                send.send(ClientCircChanMsg::Relay(begin_msg))
+                    .await
+                    .unwrap();
+
                 send
             };
 
