@@ -10,15 +10,24 @@ use std::mem;
 impl Architecture for Executable {
     fn compile(program: &[Instruction]) -> Result<Self, CompilerError> {
         let mut asm = Assembler::new();
-        emit_save_regs(&mut asm);
-        emit_load_input(&mut asm);
-        emit_init_locals(&mut asm);
-        for inst in program {
-            emit_instruction(&mut asm, inst);
+        {
+            emit_save_regs(&mut asm);
+            emit_load_input(&mut asm);
+            emit_init_locals(&mut asm);
+            debug_assert_eq!(asm.len(), PROLOGUE_SIZE);
         }
-        emit_store_output(&mut asm);
-        emit_restore_regs(&mut asm);
-        emit_return(&mut asm);
+        for inst in program {
+            let prev_len = asm.len();
+            emit_instruction(&mut asm, inst);
+            debug_assert!(asm.len() - prev_len <= INSTRUCTION_SIZE_LIMIT);
+        }
+        {
+            let prev_len = asm.len();
+            emit_store_output(&mut asm);
+            emit_restore_regs(&mut asm);
+            emit_return(&mut asm);
+            debug_assert_eq!(asm.len() - prev_len, EPILOGUE_SIZE);
+        }
         asm.finalize()
     }
 
@@ -37,8 +46,19 @@ impl Architecture for Executable {
     }
 }
 
-/// Architecture-specific capacity for the temporary output buffer
-const BUFFER_CAPACITY: usize = 0x200 + program::NUM_INSTRUCTIONS * 16;
+/// Architecture-specific fixed prologue size
+const PROLOGUE_SIZE: usize = 0x68;
+
+/// Architecture-specific fixed epilogue size
+const EPILOGUE_SIZE: usize = 0x60;
+
+/// Architecture-specific maximum size for one instruction
+const INSTRUCTION_SIZE_LIMIT: usize = 0x11;
+
+/// Capacity for the temporary output buffer, before code is copied into
+/// a long-lived allocation that can be made executable.
+const BUFFER_CAPACITY: usize =
+    PROLOGUE_SIZE + EPILOGUE_SIZE + program::NUM_INSTRUCTIONS * INSTRUCTION_SIZE_LIMIT;
 
 /// Architecture-specific specialization of the Assembler
 type Assembler = util::Assembler<x64::X64Relocation, BUFFER_CAPACITY>;
@@ -52,9 +72,12 @@ trait RegisterMapper {
 }
 
 impl RegisterMapper for RegisterId {
+    #[inline(always)]
     fn rq(&self) -> u8 {
         8 + (self.as_usize() as u8)
     }
+
+    #[inline(always)]
     fn offset(&self) -> i32 {
         (self.as_usize() * mem::size_of::<u64>()) as i32
     }
@@ -77,7 +100,8 @@ macro_rules! dynasm {
 }
 
 /// Emit code to initialize our local variables to default values.
-fn emit_init_locals(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_init_locals<A: DynasmApi>(asm: &mut A) {
     dynasm!(asm
     ; xor mulh_result64, mulh_result64
     ; xor branch_prohibit_flag, branch_prohibit_flag
@@ -105,7 +129,8 @@ const fn stack_size() -> i32 {
 }
 
 /// Emit code to allocate stack space and store REGS_TO_SAVE.
-fn emit_save_regs(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_save_regs<A: DynasmApi>(asm: &mut A) {
     dynasm!(asm; sub rsp, stack_size());
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
         let offset = (i * mem::size_of::<u64>()) as i32;
@@ -114,7 +139,8 @@ fn emit_save_regs(asm: &mut Assembler) {
 }
 
 /// Emit code to restore REGS_TO_SAVE and deallocate stack space.
-fn emit_restore_regs(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_restore_regs<A: DynasmApi>(asm: &mut A) {
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
         let offset = (i * mem::size_of::<u64>()) as i32;
         dynasm!(asm; mov Rq(*reg as u8), [rsp + offset]);
@@ -124,7 +150,8 @@ fn emit_restore_regs(asm: &mut Assembler) {
 
 /// Emit code to move all input values from the RegisterFile into their
 /// actual hardware registers.
-fn emit_load_input(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_load_input<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
         dynasm!(asm; mov Rq(reg.rq()), [register_file_ptr + reg.offset()]);
     }
@@ -132,18 +159,21 @@ fn emit_load_input(asm: &mut Assembler) {
 
 /// Emit code to move all output values from machine registers back into
 /// their RegisterFile slots.
-fn emit_store_output(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_store_output<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
         dynasm!(asm; mov [register_file_ptr + reg.offset()], Rq(reg.rq()));
     }
 }
 
 /// Emit a return instruction.
-fn emit_return(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_return<A: DynasmApi>(asm: &mut A) {
     dynasm!(asm; ret);
 }
 
 /// Emit code for a single [`Instruction`] in the hash program.
+#[inline(always)]
 fn emit_instruction(asm: &mut Assembler, inst: &Instruction) {
     /// Common implementation for binary operations on registers
     macro_rules! reg_op {

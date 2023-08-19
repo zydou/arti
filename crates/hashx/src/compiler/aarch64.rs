@@ -10,13 +10,22 @@ use std::mem;
 impl Architecture for Executable {
     fn compile(program: &[Instruction]) -> Result<Self, CompilerError> {
         let mut asm = Assembler::new();
-        emit_load_input(&mut asm);
-        emit_init_locals(&mut asm);
-        for inst in program {
-            emit_instruction(&mut asm, inst);
+        {
+            emit_load_input(&mut asm);
+            emit_init_locals(&mut asm);
+            debug_assert_eq!(asm.len(), PROLOGUE_SIZE);
         }
-        emit_store_output(&mut asm);
-        emit_return(&mut asm);
+        for inst in program {
+            let prev_len = asm.len();
+            emit_instruction(&mut asm, inst);
+            debug_assert!(asm.len() - prev_len <= INSTRUCTION_SIZE_LIMIT);
+        }
+        {
+            let prev_len = asm.len();
+            emit_store_output(&mut asm);
+            emit_return(&mut asm);
+            debug_assert_eq!(asm.len() - prev_len, EPILOGUE_SIZE);
+        }
         asm.finalize()
     }
 
@@ -36,8 +45,19 @@ impl Architecture for Executable {
     }
 }
 
-/// Architecture-specific capacity for the temporary output buffer
-const BUFFER_CAPACITY: usize = 0x200 + program::NUM_INSTRUCTIONS * 16;
+/// Architecture-specific fixed prologue size
+const PROLOGUE_SIZE: usize = 0x28;
+
+/// Architecture-specific fixed epilogue size
+const EPILOGUE_SIZE: usize = 0x24;
+
+/// Architecture-specific maximum size for one instruction
+const INSTRUCTION_SIZE_LIMIT: usize = 0x18;
+
+/// Capacity for the temporary output buffer, before code is copied into
+/// a long-lived allocation that can be made executable.
+const BUFFER_CAPACITY: usize =
+    PROLOGUE_SIZE + EPILOGUE_SIZE + program::NUM_INSTRUCTIONS * INSTRUCTION_SIZE_LIMIT;
 
 /// Architecture-specific specialization of the Assembler
 type Assembler = util::Assembler<aarch64::Aarch64Relocation, BUFFER_CAPACITY>;
@@ -51,9 +71,12 @@ trait RegisterMapper {
 }
 
 impl RegisterMapper for RegisterId {
+    #[inline(always)]
     fn x(&self) -> u32 {
         1 + (self.as_usize() as u32)
     }
+
+    #[inline(always)]
     fn offset(&self) -> u32 {
         (self.as_usize() * mem::size_of::<u64>()) as u32
     }
@@ -75,7 +98,8 @@ macro_rules! dynasm {
 }
 
 /// Emit code to initialize our local variables to default values.
-fn emit_init_locals(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_init_locals<A: DynasmApi>(asm: &mut A) {
     dynasm!(asm
         ; mov mulh_result32, wzr
         ; mov branch_prohibit_flag, wzr
@@ -84,7 +108,8 @@ fn emit_init_locals(asm: &mut Assembler) {
 
 /// Emit code to move all input values from the RegisterFile into their
 /// actual hardware registers.
-fn emit_load_input(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_load_input<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
         dynasm!(asm; ldr X(reg.x()), [register_file_ptr, #(reg.offset())]);
     }
@@ -92,20 +117,23 @@ fn emit_load_input(asm: &mut Assembler) {
 
 /// Emit code to move all output values from machine registers back into
 /// their RegisterFile slots.
-fn emit_store_output(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_store_output<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
         dynasm!(asm; str X(reg.x()), [register_file_ptr, #(reg.offset())]);
     }
 }
 
 /// Emit a return instruction.
-fn emit_return(asm: &mut Assembler) {
+#[inline(always)]
+fn emit_return<A: DynasmApi>(asm: &mut A) {
     dynasm!(asm; ret);
 }
 
 /// Load a sign extended 32-bit constant into the const_temp_64
 /// register, using a movz/movn and movk pair.
-fn emit_i32_const_temp_64(asm: &mut Assembler, value: i32) {
+#[inline(always)]
+fn emit_i32_const_temp_64<A: DynasmApi>(asm: &mut A, value: i32) {
     let high = (value >> 16) as u32;
     let low = (value & 0xFFFF) as u32;
     if value < 0 {
@@ -117,7 +145,8 @@ fn emit_i32_const_temp_64(asm: &mut Assembler, value: i32) {
 }
 
 /// Load a 32-bit constant into const_temp_32, without extending.
-fn emit_u32_const_temp_32(asm: &mut Assembler, value: u32) {
+#[inline(always)]
+fn emit_u32_const_temp_32<A: DynasmApi>(asm: &mut A, value: u32) {
     let high = value >> 16;
     let low = value & 0xFFFF;
     dynasm!(asm
@@ -127,6 +156,7 @@ fn emit_u32_const_temp_32(asm: &mut Assembler, value: u32) {
 }
 
 /// Emit code for a single [`Instruction`] in the hash program.
+#[inline(always)]
 fn emit_instruction(asm: &mut Assembler, inst: &Instruction) {
     /// Common implementation for binary operations on registers
     macro_rules! reg_op {

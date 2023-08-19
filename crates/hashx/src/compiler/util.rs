@@ -33,14 +33,22 @@ pub(crate) struct Assembler<R: Relocation, const S: usize> {
 
 impl<R: Relocation, const S: usize> Assembler<R, S> {
     /// Return the entry point as an [`AssemblyOffset`].
+    #[inline(always)]
     pub(crate) fn entry() -> AssemblyOffset {
         AssemblyOffset(0)
     }
 
+    /// Size of the code stored so far, in bytes
+    #[inline(always)]
+    pub(crate) fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
     /// Make a new assembler with a temporary buffer but no executable buffer.
+    #[inline(always)]
     pub(crate) fn new() -> Self {
         Self {
-            buffer: Default::default(),
+            buffer: ArrayVec::new(),
             target: None,
             phantom: PhantomData,
         }
@@ -51,6 +59,7 @@ impl<R: Relocation, const S: usize> Assembler<R, S> {
     /// This may fail if we can't allocate some memory, fill it, and mark
     /// it as executable. For example, a Linux platform with policy to restrict
     /// `mprotect` will show runtime errors at this point.
+    #[inline(always)]
     pub(crate) fn finalize(self) -> Result<Executable, CompilerError> {
         // We never execute code from the buffer until it's complete, and we use
         // a freshly mmap'ed buffer for each program. Because of this, we don't
@@ -83,11 +92,13 @@ impl std::fmt::Debug for Executable {
 impl<R: Relocation, const S: usize> DynasmLabelApi for Assembler<R, S> {
     type Relocation = R;
 
+    #[inline(always)]
     fn local_label(&mut self, name: &'static str) {
         debug_assert_eq!(name, "target");
         self.target = Some(self.offset());
     }
 
+    #[inline(always)]
     fn backward_relocation(
         &mut self,
         name: &'static str,
@@ -154,12 +165,14 @@ impl<R: Relocation, const S: usize> DynasmLabelApi for Assembler<R, S> {
 }
 
 impl<R: Relocation, const S: usize> Extend<u8> for Assembler<R, S> {
+    #[inline(always)]
     fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
         self.buffer.extend(iter);
     }
 }
 
 impl<'a, R: Relocation, const S: usize> Extend<&'a u8> for Assembler<R, S> {
+    #[inline(always)]
     fn extend<T: IntoIterator<Item = &'a u8>>(&mut self, iter: T) {
         for byte in iter {
             self.buffer.push(*byte);
@@ -168,20 +181,17 @@ impl<'a, R: Relocation, const S: usize> Extend<&'a u8> for Assembler<R, S> {
 }
 
 impl<R: Relocation, const S: usize> DynasmApi for Assembler<R, S> {
+    #[inline(always)]
     fn offset(&self) -> AssemblyOffset {
         AssemblyOffset(self.buffer.len())
     }
 
+    #[inline(always)]
     fn push(&mut self, byte: u8) {
         self.buffer.push(byte);
     }
 
-    fn align(&mut self, alignment: usize, with: u8) {
-        let offset = self.buffer.len() % alignment;
-        if offset != 0 {
-            for _ in offset..alignment {
-                self.buffer.push(with);
-            }
-        }
+    fn align(&mut self, _alignment: usize, _with: u8) {
+        unreachable!();
     }
 }
