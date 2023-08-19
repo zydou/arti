@@ -4,7 +4,7 @@ use crate::compiler::{util, Architecture, Executable};
 use crate::program::{self, Instruction};
 use crate::register::{RegisterFile, RegisterId};
 use crate::CompilerError;
-use dynasmrt::{x64, x64::Rq, DynasmApi, DynasmLabelApi, Register};
+use dynasmrt::{x64, x64::Rq, DynasmApi, DynasmLabelApi};
 use std::mem;
 
 impl Architecture for Executable {
@@ -109,7 +109,7 @@ fn emit_save_regs(asm: &mut Assembler) {
     dynasm!(asm; sub rsp, stack_size());
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
         let offset = (i * mem::size_of::<u64>()) as i32;
-        dynasm!(asm; mov [rsp + offset], Rq(reg.code()));
+        dynasm!(asm; mov [rsp + offset], Rq(*reg as u8));
     }
 }
 
@@ -117,7 +117,7 @@ fn emit_save_regs(asm: &mut Assembler) {
 fn emit_restore_regs(asm: &mut Assembler) {
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
         let offset = (i * mem::size_of::<u64>()) as i32;
-        dynasm!(asm; mov Rq(reg.code()), [rsp + offset]);
+        dynasm!(asm; mov Rq(*reg as u8), [rsp + offset]);
     }
     dynasm!(asm; add rsp, stack_size());
 }
