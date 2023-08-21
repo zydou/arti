@@ -21,6 +21,11 @@ macro_rules! mk_rust { { $runtime_option:ident } => { {
     builder
 } } }
 
+/// Return a C `HashX` whose `HashXType` is `$hashx_type`
+macro_rules! mk_c_equix { { $hashx_type:ident } => { {
+    tor_c_equix::HashX::new(tor_c_equix::HashXType::$hashx_type)
+} } }
+
 fn generate_interp_1000x() {
     let builder = mk_rust!(InterpretOnly);
     for s in 0_u32..1000_u32 {
@@ -29,7 +34,7 @@ fn generate_interp_1000x() {
 }
 
 fn generate_interp_1000x_c() {
-    let mut ctx = tor_c_equix::HashX::new(tor_c_equix::HashXType::HASHX_TYPE_INTERPRETED);
+    let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
     for s in 0_u32..1000_u32 {
         let _ = black_box(ctx.make(black_box(&s.to_be_bytes())));
     }
@@ -43,7 +48,7 @@ fn generate_compiled_1000x() {
 }
 
 fn generate_compiled_1000x_c() {
-    let mut ctx = tor_c_equix::HashX::new(tor_c_equix::HashXType::HASHX_TYPE_COMPILED);
+    let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
     for s in 0_u32..1000_u32 {
         let _ = black_box(ctx.make(black_box(&s.to_be_bytes())));
     }
@@ -58,7 +63,7 @@ fn interp_u64_hash_1000x() {
 }
 
 fn interp_8b_hash_1000x_c() {
-    let mut ctx = tor_c_equix::HashX::new(tor_c_equix::HashXType::HASHX_TYPE_INTERPRETED);
+    let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
     assert_eq!(ctx.make(b"abc"), tor_c_equix::HashXResult::HASHX_OK);
     for i in 0_u64..1000_u64 {
         let _ = black_box(ctx.exec(black_box(i)));
@@ -74,7 +79,7 @@ fn compiled_u64_hash_100000x() {
 }
 
 fn compiled_8b_hash_100000x_c() {
-    let mut ctx = tor_c_equix::HashX::new(tor_c_equix::HashXType::HASHX_TYPE_COMPILED);
+    let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
     assert_eq!(ctx.make(b"abc"), tor_c_equix::HashXResult::HASHX_OK);
     for i in 0_u64..100000_u64 {
         let _ = black_box(ctx.exec(black_box(i)));
