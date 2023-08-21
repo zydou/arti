@@ -26,31 +26,38 @@ macro_rules! mk_c_equix { { $hashx_type:ident } => { {
     tor_c_equix::HashX::new(tor_c_equix::HashXType::$hashx_type)
 } } }
 
+/// Helper, alias for `u32::to_be_bytes`
+//
+// Unfortunately, we can't just `use u32::to_be_bytes`.
+fn u32be(s: u32) -> [u8; 4] {
+    s.to_be_bytes()
+}
+
 fn generate_interp_1000x() {
     let builder = mk_rust!(InterpretOnly);
     for s in 0_u32..1000_u32 {
-        let _ = black_box(builder.build(black_box(&s.to_be_bytes())));
+        let _ = black_box(builder.build(black_box(&u32be(s))));
     }
 }
 
 fn generate_interp_1000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
     for s in 0_u32..1000_u32 {
-        let _ = black_box(ctx.make(black_box(&s.to_be_bytes())));
+        let _ = black_box(ctx.make(black_box(&u32be(s))));
     }
 }
 
 fn generate_compiled_1000x() {
     let builder = mk_rust!(CompileOnly);
     for s in 0_u32..1000_u32 {
-        let _ = black_box(builder.build(black_box(&s.to_be_bytes())));
+        let _ = black_box(builder.build(black_box(&u32be(s))));
     }
 }
 
 fn generate_compiled_1000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
     for s in 0_u32..1000_u32 {
-        let _ = black_box(ctx.make(black_box(&s.to_be_bytes())));
+        let _ = black_box(ctx.make(black_box(&u32be(s))));
     }
 }
 
