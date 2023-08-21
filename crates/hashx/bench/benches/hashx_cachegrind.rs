@@ -11,9 +11,18 @@
 
 use iai::black_box;
 
-fn generate_interp_1000x() {
+/// Return a Rust `HashBuilder` whose `RuntimeOption` is `$runtime_option`
+//
+// This and mk_c_equix are macros rather than a function because it avoids us
+// having to import RuntimeOption::*, etc. or clutter the calls with a local alias.
+macro_rules! mk_rust { { $runtime_option:ident } => { {
     let mut builder = hashx::HashXBuilder::new();
-    builder.runtime(hashx::RuntimeOption::InterpretOnly);
+    builder.runtime(hashx::RuntimeOption::$runtime_option);
+    builder
+} } }
+
+fn generate_interp_1000x() {
+    let builder = mk_rust!(InterpretOnly);
     for s in 0_u32..1000_u32 {
         let _ = black_box(builder.build(black_box(&s.to_be_bytes())));
     }
@@ -27,8 +36,7 @@ fn generate_interp_1000x_c() {
 }
 
 fn generate_compiled_1000x() {
-    let mut builder = hashx::HashXBuilder::new();
-    builder.runtime(hashx::RuntimeOption::CompileOnly);
+    let builder = mk_rust!(CompileOnly);
     for s in 0_u32..1000_u32 {
         let _ = black_box(builder.build(black_box(&s.to_be_bytes())));
     }
@@ -42,8 +50,7 @@ fn generate_compiled_1000x_c() {
 }
 
 fn interp_u64_hash_1000x() {
-    let mut builder = hashx::HashXBuilder::new();
-    builder.runtime(hashx::RuntimeOption::InterpretOnly);
+    let builder = mk_rust!(InterpretOnly);
     let hashx = builder.build(b"abc").unwrap();
     for i in 0_u64..1000_u64 {
         let _ = black_box(hashx.hash_to_u64(black_box(i)));
@@ -59,8 +66,7 @@ fn interp_8b_hash_1000x_c() {
 }
 
 fn compiled_u64_hash_100000x() {
-    let mut builder = hashx::HashXBuilder::new();
-    builder.runtime(hashx::RuntimeOption::CompileOnly);
+    let builder = mk_rust!(CompileOnly);
     let hashx = builder.build(b"abc").unwrap();
     for i in 0_u64..100000_u64 {
         let _ = black_box(hashx.hash_to_u64(black_box(i)));
