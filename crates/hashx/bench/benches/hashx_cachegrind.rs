@@ -47,6 +47,9 @@ macro_rules! bench_loop { {
     }
 } }
 
+/// Convenience alias to reduce clutter in actual benchmarks
+const C_HASHX_OK: tor_c_equix::ffi::hashx_result = tor_c_equix::HashXResult::HASHX_OK;
+
 /// Helper, alias for `u32::to_be_bytes`
 //
 // Unfortunately, we can't just `use u32::to_be_bytes`.
@@ -82,7 +85,7 @@ fn interp_u64_hash_1000x() {
 
 fn interp_8b_hash_1000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
-    assert_eq!(ctx.make(b"abc"), tor_c_equix::HashXResult::HASHX_OK);
+    assert_eq!(ctx.make(b"abc"), C_HASHX_OK);
     bench_loop! { i, 1000_u64 => ctx.exec(i) }
 }
 
@@ -94,7 +97,7 @@ fn compiled_u64_hash_100000x() {
 
 fn compiled_8b_hash_100000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
-    assert_eq!(ctx.make(b"abc"), tor_c_equix::HashXResult::HASHX_OK);
+    assert_eq!(ctx.make(b"abc"), C_HASHX_OK);
     bench_loop! { i, 100000_u64 => ctx.exec(i) }
 }
 
