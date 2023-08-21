@@ -1605,15 +1605,17 @@ impl NetDir {
         let mut rings = self
             .hsdir_rings
             .iter()
-            .flat_map(move |ring| hsids_clone.clone().map(move |(hsid, period)| (ring, hsid, period)))
+            .flat_map(move |ring| {
+                hsids_clone
+                    .clone()
+                    .map(move |(hsid, period)| (ring, hsid, period))
+            })
             .filter_map(move |(ring, hsid, period)| {
                 // Make sure the ring matches the TP of the hsid it's matched with.
                 (ring.params().time_period == period).then_some((ring, hsid, period))
             });
 
-        if hsids
-            .all(|(_hsid, period)| rings.any(|(_, _, tp)| tp == period))
-        {
+        if hsids.all(|(_hsid, period)| rings.any(|(_, _, tp)| tp == period)) {
             return Err(internal!(
                 "some of the specified time periods do not have an associated ring"
             ));
