@@ -238,9 +238,9 @@ mod test {
 
         assert_eq!(hs_desc, "create2-formats 1234\n");
 
-        let link_specs1 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 1234)];
-        let link_specs2 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
-        let link_specs3 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8901)];
+        let link_specs1 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 1234)];
+        let link_specs2 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
+        let link_specs3 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8901)];
 
         let mut rng = Config::Deterministic.into_rng();
         let intros = &[
@@ -318,7 +318,7 @@ eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
 
         let intros = &[create_intro_point_descriptor(
             &mut Config::Deterministic.into_rng(),
-            link_specifiers,
+            &link_specifiers,
         )];
 
         // A descriptor for a location-hidden service with an introduction point with too many link
@@ -337,7 +337,7 @@ eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
     #[test]
     fn inner_hsdesc_intro_auth() {
         let mut rng = Config::Deterministic.into_rng().rng_compat();
-        let link_specs = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
+        let link_specs = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
         let intros = &[create_intro_point_descriptor(&mut rng, link_specs)];
         let auth = SmallVec::from([IntroAuthType::Ed25519, IntroAuthType::Ed25519]);
 

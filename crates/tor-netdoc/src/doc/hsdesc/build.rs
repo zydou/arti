@@ -284,7 +284,7 @@ mod test {
 
     pub(super) fn create_intro_point_descriptor<R: RngCore + CryptoRng>(
         rng: &mut R,
-        link_specifiers: Vec<LinkSpec>,
+        link_specifiers: &[LinkSpec],
     ) -> IntroPointDesc {
         let link_specifiers = link_specifiers
             .iter()
