@@ -4,7 +4,7 @@ mod inner;
 mod middle;
 mod outer;
 
-use crate::doc::hsdesc::IntroAuthType;
+use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
 use crate::NetdocBuilder;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
@@ -21,7 +21,7 @@ use smallvec::SmallVec;
 use std::borrow::{Borrow, Cow};
 use std::time::SystemTime;
 
-use self::inner::{HsDescInner, IntroPointDesc};
+use self::inner::HsDescInner;
 use self::middle::HsDescMiddle;
 use self::outer::HsDescOuter;
 
@@ -286,6 +286,12 @@ mod test {
         rng: &mut R,
         link_specifiers: Vec<LinkSpec>,
     ) -> IntroPointDesc {
+        let link_specifiers = link_specifiers
+            .iter()
+            .map(|link_spec| link_spec.encode())
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
         IntroPointDesc {
             link_specifiers,
             ipt_ntor_key: create_curve25519_pk(rng),
@@ -354,7 +360,9 @@ mod test {
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng().rng_compat();
         let intro_points = vec![IntroPointDesc {
-            link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)],
+            link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)
+                .encode()
+                .unwrap()],
             ipt_ntor_key: create_curve25519_pk(&mut rng),
             ipt_sid_key: ed25519::Keypair::generate(&mut rng).public.into(),
             svc_ntor_key: create_curve25519_pk(&mut rng).into(),
