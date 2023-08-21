@@ -485,6 +485,27 @@ impl ClientCirc {
         self.start_conversation(msg, reply_handler, last_hop).await
     }
 
+    /// Send an ad-hoc message to a given hop on the circuit, without expecting
+    /// a reply.
+    #[cfg(feature = "send-control-msg")]
+    pub async fn send_raw_msg(
+        &self,
+        msg: tor_cell::relaycell::msg::AnyRelayMsg,
+        hop_num: HopNum,
+    ) -> Result<()> {
+        let (sender, receiver) = oneshot::channel();
+        let ctrl_msg = CtrlMsg::SendMsg {
+            hop_num,
+            msg,
+            sender,
+        };
+        self.control
+            .unbounded_send(ctrl_msg)
+            .map_err(|_| Error::CircuitClosed)?;
+
+        receiver.await.map_err(|_| Error::CircuitClosed)?
+    }
+
     /// Tell this circuit to begin allowing the final hop of the circuit to try
     /// to create new Tor streams, and to return those pending requests in an
     /// asynchronous stream.

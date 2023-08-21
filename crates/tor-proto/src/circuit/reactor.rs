@@ -194,6 +194,17 @@ pub(super) enum CtrlMsg {
         /// The hop that is allowed to create streams.
         hop_num: HopNum,
     },
+    /// Send a given control message on this circuit.
+    #[cfg(feature = "send-control-msg")]
+    SendMsg {
+        /// The hop to receive this message.
+        hop_num: HopNum,
+        /// The message to send.
+        msg: AnyRelayMsg,
+        /// A sender that we use to tell the caller that the message was sent
+        /// and the handler installed.
+        sender: oneshot::Sender<Result<()>>,
+    },
     /// Send a given control message on this circuit, and install a control-message handler to
     /// receive responses.
     #[cfg(feature = "send-control-msg")]
@@ -1449,6 +1460,17 @@ impl Reactor {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayCell::new(stream_id, sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
+            }
+            #[cfg(feature = "send-control-msg")]
+            CtrlMsg::SendMsg {
+                hop_num,
+                msg,
+                sender,
+            } => {
+                let cell = AnyRelayCell::new(0.into(), msg);
+                let outcome = self.send_relay_cell(cx, hop_num, false, cell);
+                let _ = sender.send(outcome.clone()); // don't care if receiver goes away.
+                outcome?;
             }
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsgAndInstallHandler {
