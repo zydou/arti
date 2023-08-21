@@ -927,7 +927,7 @@ impl NetDir {
     #[cfg(feature = "hs-common")]
     fn select_hsdirs<'h, 'r: 'h>(
         &'r self,
-        hsid: &'h HsBlindId,
+        hsid: HsBlindId,
         ring: &'h HsDirRing,
         spread: usize,
     ) -> impl Iterator<Item = Relay<'r>> + 'h {
@@ -938,7 +938,7 @@ impl NetDir {
                 let mut selected_nodes = HashSet::new();
 
                 move |replica: u8| {
-                    let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
+                    let hsdir_idx = hsdir_ring::service_hsdir_index(&hsid, replica, ring.params());
 
                     let items = ring
                         .ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
@@ -1528,7 +1528,7 @@ impl NetDir {
     #[cfg(feature = "hs-common")]
     pub fn hs_dirs_download<'r, R>(
         &'r self,
-        (hsid, period): (&HsBlindId, TimePeriod),
+        (hsid, period): (HsBlindId, TimePeriod),
         rng: &mut R,
     ) -> std::result::Result<Vec<Relay<'r>>, Bug>
     where
@@ -1580,7 +1580,7 @@ impl NetDir {
         mut hsids: I,
     ) -> std::result::Result<impl Iterator<Item = (TimePeriod, Relay<'r>)>, Bug>
     where
-        I: Iterator<Item = (&'r HsBlindId, TimePeriod)> + Clone + 'r,
+        I: Iterator<Item = (HsBlindId, TimePeriod)> + Clone + 'r,
     {
         // Algorithm:
         //
