@@ -26,6 +26,27 @@ macro_rules! mk_c_equix { { $hashx_type:ident } => { {
     tor_c_equix::HashX::new(tor_c_equix::HashXType::$hashx_type)
 } } }
 
+/// Evaluate `$eval` binding `$loopvar` to `0..$max`
+///
+/// Applies `black_box` to inputs and outputs.
+///
+/// If `$loopvar_map` is supplied, it is a function applied to $loopvar
+/// to convert from the integer loop variable, to whatever more useful type is needed.
+//
+// We expect $loopvar_map:ident even though a closure would be suitable, mostly because
+// we expect the actual benchmark cases to want to use a short alias like `u32be`
+macro_rules! bench_loop { {
+    $loopvar:ident, $max:expr $(, $loopvar_map:ident )? => $eval:expr
+} => {
+    for raw_i in 0..$max {
+        let $loopvar = black_box(raw_i);
+        $(
+            let $loopvar = $loopvar_map($loopvar);
+        )?
+        let _ = black_box($eval);
+    }
+} }
+
 /// Helper, alias for `u32::to_be_bytes`
 //
 // Unfortunately, we can't just `use u32::to_be_bytes`.
@@ -35,62 +56,46 @@ fn u32be(s: u32) -> [u8; 4] {
 
 fn generate_interp_1000x() {
     let builder = mk_rust!(InterpretOnly);
-    for s in 0_u32..1000_u32 {
-        let _ = black_box(builder.build(black_box(&u32be(s))));
-    }
+    bench_loop! { s, 1000_u32, u32be => builder.build(&s) }
 }
 
 fn generate_interp_1000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
-    for s in 0_u32..1000_u32 {
-        let _ = black_box(ctx.make(black_box(&u32be(s))));
-    }
+    bench_loop! { s, 1000_u32, u32be => ctx.make(&s) }
 }
 
 fn generate_compiled_1000x() {
     let builder = mk_rust!(CompileOnly);
-    for s in 0_u32..1000_u32 {
-        let _ = black_box(builder.build(black_box(&u32be(s))));
-    }
+    bench_loop! { s, 1000_u32, u32be => builder.build(&s) }
 }
 
 fn generate_compiled_1000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
-    for s in 0_u32..1000_u32 {
-        let _ = black_box(ctx.make(black_box(&u32be(s))));
-    }
+    bench_loop! { s, 1000_u32, u32be => ctx.make(&s) }
 }
 
 fn interp_u64_hash_1000x() {
     let builder = mk_rust!(InterpretOnly);
     let hashx = builder.build(b"abc").unwrap();
-    for i in 0_u64..1000_u64 {
-        let _ = black_box(hashx.hash_to_u64(black_box(i)));
-    }
+    bench_loop! { i, 1000_u64 => hashx.hash_to_u64(i) }
 }
 
 fn interp_8b_hash_1000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
     assert_eq!(ctx.make(b"abc"), tor_c_equix::HashXResult::HASHX_OK);
-    for i in 0_u64..1000_u64 {
-        let _ = black_box(ctx.exec(black_box(i)));
-    }
+    bench_loop! { i, 1000_u64 => ctx.exec(i) }
 }
 
 fn compiled_u64_hash_100000x() {
     let builder = mk_rust!(CompileOnly);
     let hashx = builder.build(b"abc").unwrap();
-    for i in 0_u64..100000_u64 {
-        let _ = black_box(hashx.hash_to_u64(black_box(i)));
-    }
+    bench_loop! { i, 100000_u64 => hashx.hash_to_u64(i) }
 }
 
 fn compiled_8b_hash_100000x_c() {
     let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
     assert_eq!(ctx.make(b"abc"), tor_c_equix::HashXResult::HASHX_OK);
-    for i in 0_u64..100000_u64 {
-        let _ = black_box(ctx.exec(black_box(i)));
-    }
+    bench_loop! { i, 100000_u64 => ctx.exec(i) }
 }
 
 iai::main!(
