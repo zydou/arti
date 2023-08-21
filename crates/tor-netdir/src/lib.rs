@@ -1600,17 +1600,12 @@ impl NetDir {
         // 3. return Dirs.
         let spread = self.spread(HsDirOp::Upload);
 
-        let hsids_clone = hsids.clone();
         // For each HsBlindId, determine which HsDirRing to use.
         let mut rings = self
             .hsdir_rings
             .iter()
-            .flat_map(move |ring| {
-                hsids_clone
-                    .clone()
-                    .map(move |(hsid, period)| (ring, hsid, period))
-            })
-            .filter_map(move |(ring, hsid, period)| {
+            .cartesian_product(hsids.clone())
+            .filter_map(move |(ring, (hsid, period))| {
                 // Make sure the ring matches the TP of the hsid it's matched with.
                 (ring.params().time_period == period).then_some((ring, hsid, period))
             });
