@@ -8,9 +8,14 @@ edition = "2021"
 name = "hashx_bench"
 harness = false
 
+[[bench]]
+name = "hashx_cachegrind"
+harness = false
+
 [dev-dependencies]
 criterion = "0.5.1"
 hashx = { path = "../" }
+iai = "0.1.1"
 rand = "0.8.5"
 tor-c-equix = { git = "https://gitlab.torproject.org/tpo/core/tor.git" }
 
