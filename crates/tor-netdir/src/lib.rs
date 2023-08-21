@@ -1575,10 +1575,13 @@ impl NetDir {
     /// Returns the relays that are suitable for storing a given onion service's descriptors at the
     /// given time periods.
     #[cfg(feature = "hs-service")]
-    pub fn hs_dirs_upload<'r>(
+    pub fn hs_dirs_upload<'r, I>(
         &'r self,
-        hsids: &'r [(&'r HsBlindId, TimePeriod)],
-    ) -> std::result::Result<impl Iterator<Item = (TimePeriod, Relay<'r>)>, Bug> {
+        mut hsids: I,
+    ) -> std::result::Result<impl Iterator<Item = (TimePeriod, Relay<'r>)>, Bug>
+    where
+        I: Iterator<Item = (&'r HsBlindId, TimePeriod)> + Clone + 'r,
+    {
         // Algorithm:
         //
         // 1. Choose spread = the parameter `hsdir_spread_store`
@@ -1597,18 +1600,18 @@ impl NetDir {
         // 3. return Dirs.
         let spread = self.spread(HsDirOp::Upload);
 
+        let hsids_clone = hsids.clone();
         // For each HsBlindId, determine which HsDirRing to use.
         let mut rings = self
             .hsdir_rings
             .iter()
-            .flat_map(|ring| hsids.iter().map(move |(hsid, period)| (ring, hsid, period)))
+            .flat_map(move |ring| hsids_clone.clone().map(move |(hsid, period)| (ring, hsid, period)))
             .filter_map(move |(ring, hsid, period)| {
                 // Make sure the ring matches the TP of the hsid it's matched with.
-                (ring.params().time_period == *period).then_some((ring, hsid, period))
+                (ring.params().time_period == period).then_some((ring, hsid, period))
             });
 
         if hsids
-            .iter()
             .all(|(_hsid, period)| rings.any(|(_, _, tp)| tp == period))
         {
             return Err(internal!(
@@ -1619,7 +1622,7 @@ impl NetDir {
         // Now that we've matched each `hsid` with the ring associated with its TP, we can start
         // selecting replicas from each ring.
         Ok(rings.flat_map(move |(ring, hsid, period)| {
-            iter::repeat(*period).zip(self.select_hsdirs(hsid, ring, spread))
+            iter::repeat(period).zip(self.select_hsdirs(hsid, ring, spread))
         }))
     }
 
