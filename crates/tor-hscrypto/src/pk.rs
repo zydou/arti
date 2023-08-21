@@ -402,6 +402,13 @@ impl TryFrom<HsBlindId> for HsBlindIdKey {
         ed25519::PublicKey::from_bytes(value.0.as_ref()).map(HsBlindIdKey)
     }
 }
+
+impl From<&HsBlindIdKeypair> for HsBlindIdKey {
+    fn from(value: &HsBlindIdKeypair) -> Self {
+        HsBlindIdKey(value.0.public)
+    }
+}
+
 impl From<HsBlindIdKey> for HsBlindId {
     fn from(value: HsBlindIdKey) -> Self {
         value.id()
