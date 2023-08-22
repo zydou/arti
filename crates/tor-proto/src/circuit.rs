@@ -411,6 +411,9 @@ impl ClientCirc {
     /// Your handler will remain installed and able to process incoming messages
     /// until it returns `ConversationFinished`.
     ///
+    /// (If you don't want to accept any replies at all, it may be
+    /// simpler to use [`ClientCirc::send_raw_msg`].)
+    ///
     /// Note that it is quite possible to use this function to violate the tor
     /// protocol; most users of this API will not need to call it.  It is used
     /// to implement most of the onion service handshake.
@@ -487,6 +490,9 @@ impl ClientCirc {
 
     /// Send an ad-hoc message to a given hop on the circuit, without expecting
     /// a reply.
+    ///
+    /// (If you want to handle one or more possible replies, see
+    /// [`ClientCirc::start_conversation`].)
     #[cfg(feature = "send-control-msg")]
     pub async fn send_raw_msg(
         &self,
