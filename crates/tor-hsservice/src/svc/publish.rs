@@ -10,7 +10,7 @@ use tor_rtcompat::Runtime;
 /// A handle for the Hsdir Publisher for an onion service.
 ///
 /// This handle represents a set of tasks that identify the hsdirs for each
-/// releavant time period, construct descriptors, publish them, and keep them
+/// relevant time period, construct descriptors, publish them, and keep them
 /// up-to-date.
 pub(crate) struct Publisher {
     // TODO HSS: Write the contents here.

@@ -52,7 +52,7 @@ In the future we plan to also support HSM-based key stores.
 ### Hidden service with on-disk keys
 
 The user makes a minimal configuration:
-they specify the nickname of the hidden serivce in the Arti configuration,
+they specify the nickname of the hidden service in the Arti configuration,
 and where to forward http(s) requests.
 
 The default Arti keystore is instantiated, and is initially empty.
@@ -153,7 +153,7 @@ the private one (which exists only on the offline host),
 and the shared one (which exists on both).
 The private keystore contains `K_hs_id`
 (and the key is generated there if there isn't one already).
-The shared keystore contains the subsidary keys.
+The shared keystore contains the subsidiary keys.
 
 The offline tool generates a specified number of
 `K_hs_desc_sign` for future time periods,

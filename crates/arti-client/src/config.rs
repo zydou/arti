@@ -415,7 +415,7 @@ fn validate_pt_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigBuildE
 
     Err(ConfigBuildError::Inconsistent {
         fields: ["bridges.bridges", "bridges.transports"].map(Into::into).into_iter().collect(),
-        problem: "Bridges configured, but all bridges unuseable due to lack of corresponding pluggable transport in `[bridges.transports]`".into(),
+        problem: "Bridges configured, but all bridges unusable due to lack of corresponding pluggable transport in `[bridges.transports]`".into(),
     })
 }
 

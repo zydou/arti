@@ -220,7 +220,7 @@ enum ErrorDetail {
     ///
     /// `TorAddrError::InvalidHostname` should not appear here;
     /// use `ErrorDetail::InvalidHostname` instead.
-    // TODO this is a violation of the "make invalid states unrepresentable" princkple,
+    // TODO this is a violation of the "make invalid states unrepresentable" principle,
     // but maybe that doesn't matter too much here?
     #[error("Could not parse target address")]
     Address(crate::address::TorAddrError),

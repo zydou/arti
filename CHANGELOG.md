@@ -779,7 +779,7 @@ a library (unless they want to).  We have an early version of this
 protocol implemented, but it does not yet expose any useful
 functionality.
 
-Arti 1.1.4 also increases our MSRV (Minumum Supported Rust Version)
+Arti 1.1.4 also increases our MSRV (Minimum Supported Rust Version)
 to Rust 1.65, in accordance with our [MSRV Policy], and renames a
 few other inconsistently-named APIs.
 
@@ -1261,7 +1261,7 @@ our process below.
 
 - When logging an error at severity `info` or higher, we now (sometimes)
   include a full report of the error's sources. Previously we only
-  logged the higest-level error, which often lacked enough detail to
+  logged the highest-level error, which often lacked enough detail to
   make a full diagnosis. This work will be completed in a subsequent
   release.([!936])
 - When asked via SOCKS to resolve an address that is already an IP

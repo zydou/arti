@@ -1121,7 +1121,7 @@ impl StreamTarget {
     /// accordingly.
     ///
     /// Normally, you shouldn't need to call this function, as streams are implicitly closed by the
-    /// reactor when their corresponding `StreamTarget` is droppped. The only valid use of this
+    /// reactor when their corresponding `StreamTarget` is dropped. The only valid use of this
     /// function is for closing pending incoming streams (a stream is said to be pending if we have
     /// received the message initiating the stream but have not responded to it yet).
     ///

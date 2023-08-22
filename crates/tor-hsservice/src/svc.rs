@@ -113,7 +113,7 @@ struct DescUploadHistory {
     //
     // Note that is possible that multiple descriptors will need to be uploaded
     // to the same HsDir.  When this happens, we MUST use separate circuits to
-    // uplaod them.
+    // upload them.
     target_status: HashMap<HsBlindIdKey, HashMap<RelayIds, RetryState>>,
 }
 

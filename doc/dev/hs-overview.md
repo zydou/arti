@@ -155,7 +155,7 @@ logic as the service.
     between them. 
 
 Now, at last, the client has received the service's handshake over the expected
-circuit. The client complets the handshake, to get a set of shared encryption
+circuit. The client completes the handshake, to get a set of shared encryption
 keys with the service.  Now the client and service have a pair of joined
 circuits, and a set of encryption material to use to communicate.
 
