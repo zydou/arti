@@ -190,6 +190,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     // We use "serial_test" to make sure that our tests here run one at a time,
