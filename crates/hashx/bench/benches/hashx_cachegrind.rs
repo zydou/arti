@@ -20,10 +20,10 @@ macro_rules! mk_rust { { $builder:ident = $runtime_option:ident } => {
     $builder.runtime(hashx::RuntimeOption::$runtime_option);
 } }
 
-/// Return a C `HashX` whose `HashXType` is `$hashx_type`
-macro_rules! mk_c_equix { { $hashx_type:ident } => { {
-    tor_c_equix::HashX::new(tor_c_equix::HashXType::$hashx_type)
-} } }
+/// Bind a C `HashX` whose `HashXType` is `$hashx_type` to `$ctx`
+macro_rules! mk_c_equix { { $ctx:ident = $hashx_type:ident } => {
+    let mut $ctx = tor_c_equix::HashX::new(tor_c_equix::HashXType::$hashx_type);
+} }
 
 /// Evaluate `$eval` binding `$loopvar` to `0..$max`
 ///
@@ -62,7 +62,7 @@ fn generate_interp_1000x() {
 }
 
 fn generate_interp_1000x_c() {
-    let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
+    mk_c_equix!(ctx = HASHX_TYPE_INTERPRETED);
     bench_loop! { s, 1000_u32, u32be => ctx.make(&s) }
 }
 
@@ -72,7 +72,7 @@ fn generate_compiled_1000x() {
 }
 
 fn generate_compiled_1000x_c() {
-    let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
+    mk_c_equix!(ctx = HASHX_TYPE_COMPILED);
     bench_loop! { s, 1000_u32, u32be => ctx.make(&s) }
 }
 
@@ -83,7 +83,7 @@ fn interp_u64_hash_1000x() {
 }
 
 fn interp_8b_hash_1000x_c() {
-    let mut ctx = mk_c_equix!(HASHX_TYPE_INTERPRETED);
+    mk_c_equix!(ctx = HASHX_TYPE_INTERPRETED);
     assert_eq!(ctx.make(b"abc"), C_HASHX_OK);
     bench_loop! { i, 1000_u64 => ctx.exec(i) }
 }
@@ -95,7 +95,7 @@ fn compiled_u64_hash_100000x() {
 }
 
 fn compiled_8b_hash_100000x_c() {
-    let mut ctx = mk_c_equix!(HASHX_TYPE_COMPILED);
+    mk_c_equix!(ctx = HASHX_TYPE_COMPILED);
     assert_eq!(ctx.make(b"abc"), C_HASHX_OK);
     bench_loop! { i, 100000_u64 => ctx.exec(i) }
 }
