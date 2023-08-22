@@ -289,6 +289,7 @@ mod test {
     use itertools::{chain, EitherOrBoth, Itertools};
     use regex::Regex;
     use std::collections::HashSet;
+    use std::fmt::Write as _;
     use std::iter;
     use std::time::Duration;
     use tor_config::load::{ConfigResolveError, ResolutionResults};
@@ -639,10 +640,10 @@ mod test {
                 .collect_vec();
 
             if !reports.is_empty() {
-                let reports = reports
-                    .iter()
-                    .map(|(k, s)| format!("  {}: {}\n", s, k))
-                    .collect::<String>();
+                let reports = reports.iter().fold(String::new(), |mut out, (k, s)| {
+                    writeln!(out, "  {}: {}", s, k).unwrap();
+                    out
+                });
 
                 panic!(
                     r"
