@@ -512,7 +512,7 @@ mod test {
 
     #[test]
     fn arith_instant_combined() {
-        // Subtracting 1Ms gives us some headroom, since we don't want to underflow
+        // Adding 1Ms gives us some headroom, since we don't want to underflow
         let earliest = Instant::now() + Duration::from_secs(1000000);
         let middle_d = Duration::from_secs(200);
         let middle = earliest + middle_d;
