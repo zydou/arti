@@ -1,10 +1,10 @@
 //! This module exposes helpers for working with types that implement
-//! [`RangeBounds`](std::ops::RangeBounds).
+//! [`RangeBounds`].
 
 use std::cmp::{self, Ord};
 use std::ops::{Bound, RangeBounds};
 
-/// An extension trait for [`RangeBounds`](std::ops::RangeBounds).
+/// An extension trait for [`RangeBounds`].
 pub trait RangeBoundsExt<T>: RangeBounds<T> {
     /// Compute the intersection of two `RangeBound`s.
     ///

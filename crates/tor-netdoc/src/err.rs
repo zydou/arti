@@ -281,7 +281,7 @@ pub enum NetdocErrorKind {
     EmptyLine,
 }
 
-/// The underlying source for an [`Error`](crate::Error).
+/// The underlying source for an [`Error`](struct@Error).
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum NetdocErrorSource {
