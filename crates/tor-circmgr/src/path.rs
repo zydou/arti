@@ -7,6 +7,8 @@ pub mod dirpath;
 pub mod exitpath;
 
 use tor_error::bad_api_usage;
+#[cfg(feature = "geoip")]
+use tor_geoip::{CountryCode, HasCountryCode};
 use tor_guardmgr::fallback::FallbackDir;
 use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::Relay;
@@ -153,6 +155,17 @@ impl<'a> TorPath<'a> {
     pub(crate) fn exit_policy(&self) -> Option<ExitPolicy> {
         self.exit_relay().and_then(|r| match r {
             MaybeOwnedRelay::Relay(r) => Some(ExitPolicy::from_relay(r)),
+            MaybeOwnedRelay::Owned(_) => None,
+        })
+    }
+
+    /// Return the country code of the final relay in this path, if this is a
+    /// path for use with exit circuits with an exit taken from the network
+    /// directory.
+    #[cfg(feature = "geoip")]
+    pub(crate) fn country_code(&self) -> Option<CountryCode> {
+        self.exit_relay().and_then(|r| match r {
+            MaybeOwnedRelay::Relay(r) => r.country_code(),
             MaybeOwnedRelay::Owned(_) => None,
         })
     }

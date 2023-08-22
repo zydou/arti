@@ -6,6 +6,8 @@ use rand::Rng;
 use std::time::SystemTime;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{bad_api_usage, internal};
+#[cfg(feature = "geoip")]
+use tor_geoip::{CountryCode, HasCountryCode};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIdSet};
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
@@ -13,8 +15,22 @@ use tor_rtcompat::Runtime;
 
 /// Internal representation of PathBuilder.
 enum ExitPathBuilderInner<'a> {
-    /// Request a path that allows exit to the given `TargetPort]`s.
+    /// Request a path that allows exit to the given `TargetPort`s.
     WantsPorts(Vec<TargetPort>),
+
+    /// Request a path that allows exit with a relay in the given country.
+    // TODO GEOIP: refactor this builder to allow conjunction!
+    // See discussion here:
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1537#note_2942218
+    #[cfg(feature = "geoip")]
+    ExitInCountry {
+        /// The country to exit in.
+        country: CountryCode,
+        /// Some target ports to use (works like `WantsPorts`).
+        ///
+        /// HACK(eta): This is a horrible hack to work around the lack of conjunction.
+        ports: Vec<TargetPort>,
+    },
 
     /// Request a path that allows exit to _any_ port.
     AnyExit {
@@ -56,6 +72,24 @@ impl<'a> ExitPathBuilder<'a> {
         }
         Self {
             inner: ExitPathBuilderInner::WantsPorts(ports),
+            compatible_with: None,
+        }
+    }
+
+    #[cfg(feature = "geoip")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
+    /// Create a new builder that will try to get an exit relay in `country`,
+    /// containing all the ports in `ports`.
+    ///
+    /// If the list of ports is empty, it is disregarded.
+    // TODO GEOIP: this method is hacky, and should be refactored.
+    pub fn in_given_country(
+        country: CountryCode,
+        wantports: impl IntoIterator<Item = TargetPort>,
+    ) -> Self {
+        let ports: Vec<TargetPort> = wantports.into_iter().collect();
+        Self {
+            inner: ExitPathBuilderInner::ExitInCountry { country, ports },
             compatible_with: None,
         }
     }
@@ -114,6 +148,8 @@ impl<'a> ExitPathBuilder<'a> {
     ) -> Result<Relay<'a>> {
         let mut can_share = FilterCount::default();
         let mut correct_ports = FilterCount::default();
+        #[allow(unused_mut)]
+        let mut correct_country = FilterCount::default();
         match &self.inner {
             ExitPathBuilderInner::AnyExit { strict } => {
                 let exit = netdir.pick_relay(rng, WeightRole::Exit, |r| {
@@ -126,6 +162,7 @@ impl<'a> ExitPathBuilder<'a> {
                         return Err(Error::NoExit {
                             can_share,
                             correct_ports,
+                            correct_country,
                         })
                     }
                     (None, false) => {}
@@ -147,8 +184,22 @@ impl<'a> ExitPathBuilder<'a> {
                     .ok_or(Error::NoExit {
                         can_share,
                         correct_ports,
+                        correct_country,
                     })
             }
+            #[cfg(feature = "geoip")]
+            ExitPathBuilderInner::ExitInCountry { country, ports } => Ok(netdir
+                .pick_relay(rng, WeightRole::Exit, |r| {
+                    can_share.count(relays_can_share_circuit_opt(r, guard, config))
+                        && correct_ports.count(ports.iter().all(|p| p.is_supported_by(r)))
+                        && correct_country
+                            .count(r.country_code().map(|x| x == *country).unwrap_or(false))
+                })
+                .ok_or(Error::NoExit {
+                    can_share,
+                    correct_ports,
+                    correct_country,
+                })?),
 
             #[cfg(feature = "hs-common")]
             ExitPathBuilderInner::AnyRelay => netdir
@@ -158,6 +209,7 @@ impl<'a> ExitPathBuilder<'a> {
                 .ok_or(Error::NoExit {
                     can_share,
                     correct_ports,
+                    correct_country,
                 }),
 
             ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
@@ -168,6 +220,7 @@ impl<'a> ExitPathBuilder<'a> {
                 .ok_or(Error::NoExit {
                     can_share,
                     correct_ports,
+                    correct_country,
                 })?),
 
             ExitPathBuilderInner::ChosenExit(exit_relay) => {

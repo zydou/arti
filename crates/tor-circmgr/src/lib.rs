@@ -90,6 +90,8 @@ use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
 use safelog::sensitive as sv;
+#[cfg(feature = "geoip")]
+use tor_geoip::CountryCode;
 pub use tor_guardmgr::{ExternalActivity, FirstHopId};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
@@ -390,6 +392,9 @@ impl<R: Runtime> CircMgr<R> {
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
         ports: &[TargetPort],
         isolation: StreamIsolation,
+        // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
+        //             additive. The function should be refactored to be builder-like.
+        #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
     ) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
         let time = Instant::now();
@@ -404,7 +409,13 @@ impl<R: Runtime> CircMgr<R> {
             }
         }
         let ports = ports.iter().map(Clone::clone).collect();
-        let usage = TargetCircUsage::Exit { ports, isolation };
+        #[cfg(not(feature = "geoip"))]
+        let country_code = None;
+        let usage = TargetCircUsage::Exit {
+            ports,
+            isolation,
+            country_code,
+        };
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
 

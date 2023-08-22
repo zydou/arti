@@ -69,3 +69,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(feature = "experimental-api")]
 pub use builder::DirProviderBuilder;
+
+#[cfg(feature = "geoip")]
+#[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
+pub use tor_geoip::CountryCode;

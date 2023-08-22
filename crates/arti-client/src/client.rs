@@ -55,6 +55,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
 use crate::{status, util, TorClientBuilder};
+#[cfg(feature = "geoip")]
+use tor_geoip::CountryCode;
 use tor_rtcompat::scheduler::TaskHandle;
 use tracing::{debug, info};
 
@@ -204,6 +206,14 @@ pub struct StreamPrefs {
     isolation: StreamIsolationPreference,
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
+    // TODO GEOIP Ideally this would be unconditional, with CountryCode maybe being Void
+    // This probably applies in many other places, so probably:   git grep 'cfg.*geoip'
+    // and consider each one with a view to making it unconditional.  Background:
+    //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1537#note_2935256
+    //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1537#note_2942214
+    #[cfg(feature = "geoip")]
+    /// A country to restrict the exit relay's location to.
+    country_code: Option<CountryCode>,
     /// Whether to try to make connections to onion services.
     ///
     /// `Auto` means to use the client configuration.
@@ -281,6 +291,29 @@ impl StreamPrefs {
     /// connections.
     pub fn ipv4_only(&mut self) -> &mut Self {
         self.ip_ver_pref = IpVersionPreference::Ipv4Only;
+        self
+    }
+
+    /// Indicate that a stream should appear to come from the given country.
+    ///
+    /// When this option is set, we will only pick exit relays that
+    /// have an IP address that matches the country in our GeoIP database.
+    #[cfg(feature = "geoip")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
+    pub fn exit_country(&mut self, country_code: CountryCode) -> &mut Self {
+        self.country_code = Some(country_code);
+        self
+    }
+
+    /// Indicate that we don't care which country a stream appears to come from.
+    ///
+    /// This is available even in the case where GeoIP support is compiled out,
+    /// to make things easier.
+    pub fn any_exit_country(&mut self) -> &mut Self {
+        #[cfg(feature = "geoip")]
+        {
+            self.country_code = None;
+        }
         self
     }
 
@@ -1259,7 +1292,13 @@ impl<R: Runtime> TorClient<R> {
 
         let circ = self
             .circmgr
-            .get_or_launch_exit(dir.as_ref().into(), exit_ports, self.isolation(prefs))
+            .get_or_launch_exit(
+                dir.as_ref().into(),
+                exit_ports,
+                self.isolation(prefs),
+                #[cfg(feature = "geoip")]
+                prefs.country_code,
+            )
             .await
             .map_err(|cause| ErrorDetail::ObtainExitCircuit {
                 cause,

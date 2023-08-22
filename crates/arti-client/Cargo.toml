@@ -78,6 +78,7 @@ experimental = [
     "dirfilter",
     "experimental-api",
     "error_detail",
+    "geoip",
     "rpc",
     "tor-proto/experimental",
     "tor-cell/experimental",
@@ -96,6 +97,7 @@ experimental = [
 experimental-api = ["__is_experimental"]
 dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 error_detail = ["__is_experimental"]
+geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 onion-service-client = ["tor-hsclient", "tor-hscrypto"]
 rpc = ["tor-rpcbase", "__is_experimental"]
 
@@ -127,6 +129,7 @@ tor-circmgr = { path = "../tor-circmgr", version = "0.10.0" }
 tor-config = { path = "../tor-config", version = "0.9.4" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.11.1", default-features = false, features = ["mmap"] }
 tor-error = { path = "../tor-error", version = "0.5.4", features = ["tracing"] }
+tor-geoip = { path = "../tor-geoip", version = "0.1.0", optional = true }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.10.1" }
 tor-hsclient = { path = "../tor-hsclient", version = "0.4.1", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.2", optional = true }
