@@ -21,7 +21,7 @@ use tor_cell::relaycell::{
     RelayMsg as _,
 };
 use tor_circmgr::hspool::HsCircPool;
-use tor_error::{debug_report, internal, into_internal};
+use tor_error::{bad_api_usage, debug_report, internal, into_internal};
 use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider};
@@ -148,16 +148,18 @@ impl IptError {
 impl IptEstablisher {
     /// Try to set up, and maintain, an IPT at `target`.
     ///
-    /// Rendezvous requests will be rejected
+    /// Rendezvous requests will be rejected or accepted
+    /// depending on the value of `accepting_requests`
+    /// (which must be `Advertised` or `NotAdvertised`).
     ///
-    /// Also returns
-    /// a stream of events that is produced whenever we have a change in the
-    /// IptStatus for this intro point.  Note that this stream is potentially
-    /// lossy.
+    /// Also returns a stream of events that is produced whenever we have a
+    /// change in the IptStatus for this intro point.  Note that this stream is
+    /// potentially lossy.
     ///
-    /// The returned `watch::Receiver` will yield `Faulty`
-    /// if the IPT establisher is shut down (or crashes).
+    /// The returned `watch::Receiver` will yield `Faulty` if the IPT
+    /// establisher is shut down (or crashes).
     // TODO HSS rename to "launch" since it starts the task?
+    #[allow(clippy::too_many_arguments)] // TODO HSS refactor.
     pub(crate) fn new<R: Runtime>(
         runtime: R,
         pool: Arc<HsCircPool<R>>,
@@ -168,16 +170,16 @@ impl IptEstablisher {
         // configuration object?
         target: RelayIds,
         ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+        accepting_requests: RequestDisposition,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
-        let state = Arc::new(Mutex::new(EstablisherState {
-            // TODO HSS: There is a potential race condition here if we create a
-            // second IptEstablisher with the same ipt_sid_keypair as we had
-            // advertised before.  No matter how quickly we call
-            // accept_requests, there's a chance that the reactor task will
-            // establish an introduction point first, and it will send us some
-            // already pending requests.
-            accepting_requests: RequestDisposition::NotAdvertised,
-        }));
+        if matches!(accepting_requests, RequestDisposition::Shutdown) {
+            return Err(bad_api_usage!(
+                "Tried to create a IptEstablisher that that was already shutting down?"
+            )
+            .into());
+        }
+
+        let state = Arc::new(Mutex::new(EstablisherState { accepting_requests }));
 
         let reactor = Reactor {
             runtime: runtime.clone(),
@@ -264,7 +266,7 @@ struct EstablisherState {
 /// Current state of an introduction point; determines what we want to do with
 /// any incoming messages.
 #[derive(Copy, Clone, Debug)]
-enum RequestDisposition {
+pub(crate) enum RequestDisposition {
     /// We are not yet advertised: the message handler should complain if it
     /// gets any requests and shut down.
     NotAdvertised,
