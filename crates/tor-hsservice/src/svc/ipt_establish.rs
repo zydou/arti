@@ -28,6 +28,7 @@ use tor_netdir::{NetDir, NetDirProvider};
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
+use void::{ResultVoidErrExt as _, Void};
 
 use crate::{FatalError, RendRequest};
 
@@ -37,7 +38,7 @@ use super::IntroPointId;
 pub(crate) struct IptEstablisher {
     /// A oneshot sender that notifies the running task that it's time to shut
     /// down.
-    terminate_tx: Option<oneshot::Sender<()>>,
+    terminate_tx: oneshot::Sender<Void>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
     state: Arc<Mutex<EstablisherState>>,
@@ -60,9 +61,9 @@ impl Drop for IptEstablisher {
         // Make sure no more requests are accepted once this returns
         self.state.lock().expect("posioned lock").accepting_requests = RequestDisposition::Shutdown;
         // Tell the reactor to shut down.
-        if let Some(sender) = self.terminate_tx.take() {
-            let _ignore = sender.send(()); // If the reactor is already dead, that's ok.
-        }
+        //
+        // (When terminate_tx is dropped, it will send an error to the
+        // corresponding terminate_rx.)
     }
 }
 
@@ -192,14 +193,15 @@ impl IptEstablisher {
         };
 
         let (status_tx, status_rx) = postage::watch::channel_with(IptStatus::new());
-        let (terminate_tx, mut terminate_rx) = oneshot::channel::<()>();
+        let (terminate_tx, mut terminate_rx) = oneshot::channel::<Void>();
         let status_tx = DropNotifyWatchSender::new(status_tx);
 
         runtime
             .spawn(async move {
                 futures::select!(
                     terminated = terminate_rx => {
-                        let _ = terminated; // we want to shut down on send _or_ drop.
+                        // Only Err is possible, but the compiler can't tell that.
+                        let oneshot::Canceled = terminated.void_unwrap_err();
                     }
                     outcome = reactor.keep_intro_established(status_tx).fuse() =>  {
                         // TODO HSS: probably we should report this outcome.
@@ -212,7 +214,7 @@ impl IptEstablisher {
                 cause: Arc::new(e),
             })?;
         let establisher = IptEstablisher {
-            terminate_tx: Some(terminate_tx),
+            terminate_tx,
             state,
         };
         Ok((establisher, status_rx))

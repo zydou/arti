@@ -4652,6 +4652,7 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tracing",
+ "void",
 ]
 
 [[package]]
