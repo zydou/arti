@@ -587,6 +587,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             }
         }
 
+        // TODO HSS break this function into two, here
+
         //---------- tell the publisher what to announce ----------
 
         let very_recently: Option<TrackingInstantOffsetNow> = (|| {
