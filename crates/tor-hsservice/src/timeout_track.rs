@@ -25,7 +25,7 @@
 //!
 //! The types are:
 //!
-//!  * [`TrackingNow`]: tracks timeouts based on both [`SystemTime` and `Instant`],
+//!  * [`TrackingNow`]: tracks timeouts based on both [`SystemTime`] and [`Instant`],
 //!  * [`TrackingSystemTimeNow`]: tracks timeouts based on [`SystemTime`]
 //!  * [`TrackingInstantNow`]: tracks timeouts based on [`Instant`]
 //!  * [`TrackingInstantOffsetNow`]: `InstantTrackingNow` but with an offset applied
