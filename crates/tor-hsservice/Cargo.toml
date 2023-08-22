@@ -26,12 +26,16 @@ full = [
 
 [dependencies]
 async-trait = "0.1.54"
+educe = "0.4.6"
 futures = "0.3.14"
+once_cell = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8.5"
 rand_core = "0.6.2"
+safelog = { path = "../safelog", version = "0.3.3" }
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.1" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-bytes = { version = "*", path = "../tor-bytes" }
 tor-cell = { version = "0.12.1", path = "../tor-cell", features = ["hs"] }
 tor-circmgr = { version = "0.10.0", path = "../tor-circmgr", features = ["hs-service"] }
@@ -42,8 +46,13 @@ tor-keymgr = { version = "0.2.0", path = "../tor-keymgr" }
 tor-linkspec = { version = "0.8.1", path = "../tor-linkspec", features = ["verbatim", "decode"] }
 tor-llcrypto = { version = "0.5.2", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.9.3", path = "../tor-netdir", features = ["hs-service"] }
-tor-proto = { version = "0.12.0", path = "../tor-proto", features = ["hs-service", "send-control-msg"] }
+tor-proto = { version = "0.12.0", path = "../tor-proto", features = [
+    "experimental-api",
+    "hs-service",
+    "send-control-msg",
+] }
 tor-rtcompat = { version = "0.9.1", path = "../tor-rtcompat" }
 tracing = "0.1.36"
+void = "1"
 
 [dev-dependencies]

@@ -4629,12 +4629,16 @@ name = "tor-hsservice"
 version = "0.2.3"
 dependencies = [
  "async-trait",
+ "educe",
  "futures",
+ "once_cell",
  "postage",
  "rand 0.8.5",
  "rand_core 0.6.4",
+ "safelog",
  "thiserror",
  "tor-async-utils",
+ "tor-basic-utils",
  "tor-bytes",
  "tor-cell",
  "tor-circmgr",
@@ -4648,6 +4652,7 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tracing",
+ "void",
 ]
 
 [[package]]

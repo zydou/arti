@@ -6,34 +6,43 @@
 
 #![allow(clippy::needless_pass_by_value)] // TODO HSS remove
 
-use std::{sync::Arc, time::Duration};
+use std::sync::{Arc, Mutex};
 
 use futures::{
-    channel::{
-        mpsc::{self, UnboundedReceiver},
-        oneshot,
-    },
-    StreamExt as _,
+    channel::{mpsc, oneshot},
+    task::SpawnExt as _,
+    Future, FutureExt as _, StreamExt as _,
 };
+use safelog::Redactable as _;
+use tor_async_utils::DropNotifyWatchSender;
 use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
-    msg::{AnyRelayMsg, IntroEstablished, Introduce2},
+    msg::{AnyRelayMsg, IntroEstablished},
     RelayMsg as _,
 };
 use tor_circmgr::hspool::HsCircPool;
-use tor_error::{debug_report, internal, into_internal};
+use tor_error::{bad_api_usage, debug_report, internal, into_internal};
 use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
-use tor_linkspec::{ChanTarget as _, OwnedCircTarget, RelayIds};
+use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider};
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
+use void::{ResultVoidErrExt as _, Void};
 
-use crate::FatalError;
-use crate::RendRequest;
+use crate::{FatalError, RendRequest};
+
+use super::IntroPointId;
 
 /// Handle onto the task which is establishing and maintaining one IPT
-pub(crate) struct IptEstablisher {}
+pub(crate) struct IptEstablisher {
+    /// A oneshot sender that notifies the running task that it's time to shut
+    /// down.
+    terminate_tx: oneshot::Sender<Void>,
+
+    /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
+    state: Arc<Mutex<EstablisherState>>,
+}
 
 /// When the `IptEstablisher` is dropped it is torn down
 ///
@@ -49,7 +58,18 @@ pub(crate) struct IptEstablisher {}
 ///  * `IptStatusStatus::Faulty` will be indicated
 impl Drop for IptEstablisher {
     fn drop(&mut self) {
-        todo!()
+        // Make sure no more requests are accepted once this returns.
+        //
+        // TODO HSS: Note that if we didn't care about the "no more rendezvous
+        // requests will be accepted" requirement, we could do away with this
+        // code and the corresponding check for `RequestDisposition::Shutdown` in
+        // `IptMsgHandler::handle_msg`.)
+        self.state.lock().expect("posioned lock").accepting_requests = RequestDisposition::Shutdown;
+
+        // Tell the reactor to shut down... by doing nothing.
+        //
+        // (When terminate_tx is dropped, it will send an error to the
+        // corresponding terminate_rx.)
     }
 }
 
@@ -64,6 +84,11 @@ pub(crate) enum IptError {
     /// netdir we asked for.
     #[error("Network directory provider is shutting down")]
     NetdirProviderShutdown,
+
+    /// When we tried to establish this introduction point, we found that the
+    /// netdir didn't list it.
+    #[error("Introduction point not listed in network directory")]
+    IntroPointNotListed,
 
     /// We encountered an error while building a circuit to an intro point.
     #[error("Unable to build circuit to introduction point")]
@@ -106,6 +131,7 @@ impl tor_error::HasKind for IptError {
         match self {
             E::NoNetdir(_) => EK::BootstrapRequired, // TODO HSS maybe not right.
             E::NetdirProviderShutdown => EK::ArtiShuttingDown,
+            E::IntroPointNotListed => EK::TorDirectoryError, // TODO HSS Not correct kind.
             E::BuildCircuit(e) => e.kind(),
             E::EstablishTimeout => EK::TorNetworkTimeout, // TODO HSS right?
             E::SendEstablishIntro(e) => e.kind(),
@@ -126,35 +152,90 @@ impl IptError {
 }
 
 impl IptEstablisher {
-    /// Try to set up, and maintain, an IPT at `Relay`
+    /// Try to set up, and maintain, an IPT at `target`.
     ///
-    /// Rendezvous requests will be rejected
+    /// Rendezvous requests will be rejected or accepted
+    /// depending on the value of `accepting_requests`
+    /// (which must be `Advertised` or `NotAdvertised`).
     ///
-    /// Also returns
-    /// a stream of events that is produced whenever we have a change in the
-    /// IptStatus for this intro point.  Note that this stream is potentially
-    /// lossy.
+    /// Also returns a stream of events that is produced whenever we have a
+    /// change in the IptStatus for this intro point.  Note that this stream is
+    /// potentially lossy.
     ///
-    /// The returned `watch::Receiver` will yield `Faulty`
-    /// if the IPT establisher is shut down (or crashes).
-    // TODO HSS wrap the watch::Sender in DropNotifyWatchSender to ensure ^ drop behaviour
+    /// The returned `watch::Receiver` will yield `Faulty` if the IPT
+    /// establisher is shut down (or crashes).
+    // TODO HSS rename to "launch" since it starts the task?
+    #[allow(clippy::too_many_arguments)] // TODO HSS refactor.
     pub(crate) fn new<R: Runtime>(
-        circ_pool: Arc<HsCircPool<R>>,
-        dirprovider: Arc<dyn NetDirProvider>,
-        relay: RelayIds,
-        // TODO HSS: this needs to take some configuration
+        runtime: R,
+        pool: Arc<HsCircPool<R>>,
+        netdir_provider: Arc<dyn NetDirProvider>,
+        introduce_tx: mpsc::Sender<RendRequest>,
+        intro_pt_id: IntroPointId,
+        // TODO HSS: Should this and the following elements be part of some
+        // configuration object?
+        target: RelayIds,
+        ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+        accepting_requests: RequestDisposition,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
-        todo!()
+        if matches!(accepting_requests, RequestDisposition::Shutdown) {
+            return Err(bad_api_usage!(
+                "Tried to create a IptEstablisher that that was already shutting down?"
+            )
+            .into());
+        }
+
+        let state = Arc::new(Mutex::new(EstablisherState { accepting_requests }));
+
+        let reactor = Reactor {
+            runtime: runtime.clone(),
+            pool,
+            netdir_provider,
+            intro_pt_id,
+            target,
+            ipt_sid_keypair,
+            introduce_tx,
+            // TODO HSS This should come from the configuration.
+            extensions: EstIntroExtensionSet { dos_params: None },
+            state: state.clone(),
+        };
+
+        let (status_tx, status_rx) = postage::watch::channel_with(IptStatus::new());
+        let (terminate_tx, mut terminate_rx) = oneshot::channel::<Void>();
+        let status_tx = DropNotifyWatchSender::new(status_tx);
+
+        runtime
+            .spawn(async move {
+                futures::select_biased!(
+                    terminated = terminate_rx => {
+                        // Only Err is possible, but the compiler can't tell that.
+                        let oneshot::Canceled = terminated.void_unwrap_err();
+                    }
+                    outcome = reactor.keep_intro_established(status_tx).fuse() =>  {
+                        // TODO HSS: probably we should report this outcome.
+                        let _ = outcome;
+                    }
+                );
+            })
+            .map_err(|e| FatalError::Spawn {
+                spawning: "introduction point establisher",
+                cause: Arc::new(e),
+            })?;
+        let establisher = IptEstablisher {
+            terminate_tx,
+            state,
+        };
+        Ok((establisher, status_rx))
     }
 
-    /// Begin accepting connections from this introduction point.
-    //
-    // TODO HSS: Perhaps we want to provide rend_reqs as part of the
-    // new() API instead.  If we do, we must make sure there's a way to
-    // turn requests on and off, so that we can say "now we have advertised this
-    // so requests are okay."
-    pub(crate) fn start_accepting(&self, rend_reqs: mpsc::Sender<RendRequest>) {
-        todo!()
+    /// Begin accepting requests from this introduction point.
+    ///
+    /// If any introduction requests are sent before we have called this method,
+    /// they are treated as an error and our connection to this introduction
+    /// point is closed.
+    pub(crate) fn start_accepting(&self) {
+        self.state.lock().expect("poisoned lock").accepting_requests =
+            RequestDisposition::Advertised;
     }
 }
 
@@ -181,6 +262,25 @@ pub(crate) enum IptStatusStatus {
 /// This happens when the IPT has had (too) many rendezvous requests.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct IptWantsToRetire;
+
+/// State shared between the IptEstablisher and the Reactor.
+struct EstablisherState {
+    /// True if we are accepting requests right now.
+    accepting_requests: RequestDisposition,
+}
+
+/// Current state of an introduction point; determines what we want to do with
+/// any incoming messages.
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum RequestDisposition {
+    /// We are not yet advertised: the message handler should complain if it
+    /// gets any requests and shut down.
+    NotAdvertised,
+    /// We are advertised: the message handler should pass along any requests
+    Advertised,
+    /// We are shutting down cleanly: the message handler should exit but not complain.
+    Shutdown,
+}
 
 /// The current status of an introduction point.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -226,6 +326,16 @@ impl IptStatus {
         }
     }
 
+    /// Return an `IptStatus` representing an establisher that has not yet taken
+    /// any action.
+    fn new() -> Self {
+        Self {
+            status: IptStatusStatus::Establishing,
+            n_faults: 0,
+            wants_to_retire: Ok(()),
+        }
+    }
+
     /// Produce an `IptStatus` representing a shut down or crashed establisher
     fn new_terminated() -> Self {
         IptStatus {
@@ -233,6 +343,12 @@ impl IptStatus {
             n_faults: u32::MAX,
             wants_to_retire: Err(IptWantsToRetire), // we don't know, but this is safe
         }
+    }
+}
+
+impl Default for IptStatus {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -270,11 +386,13 @@ struct Reactor<R: Runtime> {
     pool: Arc<HsCircPool<R>>,
     /// A provider used to select the other relays in the circuit.
     netdir_provider: Arc<dyn NetDirProvider>,
-    /// The target introduction point.
+    /// Identifier for the intro point.
     ///
-    /// TODO: Should this instead be an identity that we look up in the netdir
-    /// provider?
-    target: OwnedCircTarget,
+    /// TODO HSS: I am assuming that this type will be a unique identifier, and
+    /// will change whenever RelayIds and/or HsIntroPtSessionIdKeypair changes.
+    intro_pt_id: IntroPointId,
+    /// The target introduction point.
+    target: RelayIds,
     /// The keypair to use when establishing the introduction point.
     ///
     /// Knowledge of this private key prevents anybody else from impersonating
@@ -285,6 +403,12 @@ struct Reactor<R: Runtime> {
     /// TODO: Should this be able to change over time if we re-establish this
     /// intro point?
     extensions: EstIntroExtensionSet,
+
+    /// The stream that will receive INTRODUCE2 messages.
+    introduce_tx: mpsc::Sender<RendRequest>,
+
+    /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
+    state: Arc<Mutex<EstablisherState>>,
 }
 
 /// An open session with a single introduction point.
@@ -294,62 +418,49 @@ pub(crate) struct IntroPtSession {
     /// The circuit to the introduction point, on which we're receiving
     /// Introduce2 messages.
     intro_circ: Arc<ClientCirc>,
-
-    /// The stream that will receive Introduce2 messages.
-    ///
-    /// TODO: we'll likely want to refactor this.  @diziet favors having
-    /// `establish_intro_once` take a Sink as an argument, but I think that we
-    /// may need to keep this separate so that we can keep the ability to
-    /// start/stop the stream of Introduce2 messages, and/or detect when it's
-    /// closed.  If we don't need to do that, we can refactor.
-    introduce_rx: UnboundedReceiver<Introduce2>,
-    // TODO HSS: How shall we know if the other side has closed the circuit?  We
-    // can either wait for introduce_rx to close, or we can use
-    // ClientCirc::wait_for_close, if we stabilize it.
 }
-
-/// How long to allow for an introduction point to get established?
-const ESTABLISH_TIMEOUT: Duration = Duration::new(10, 0); // TODO use a better timeout, taken from circuit estimator.
-
-/// How long to wait after a single failure.
-const DELAY_ON_FAILURE: Duration = Duration::new(2, 0); // TODO use stochastic jitter.
 
 impl<R: Runtime> Reactor<R> {
     /// Run forever, keeping an introduction point established.
-    ///
-    /// TODO: If we're running this in its own task, we'll want some way to
-    /// cancel it.
     async fn keep_intro_established(
         &self,
-        mut status_tx: postage::watch::Sender<IptStatus>,
+        mut status_tx: DropNotifyWatchSender<IptStatus>,
     ) -> Result<(), IptError> {
+        let mut retry_delay = tor_basic_utils::retry::RetryDelay::from_msec(1000);
         loop {
             status_tx.borrow_mut().note_attempt();
-            let outcome = self
-                .runtime
-                .timeout(ESTABLISH_TIMEOUT, self.establish_intro_once())
-                .await
-                .unwrap_or(Err(IptError::EstablishTimeout));
-
             match self.establish_intro_once().await {
                 Ok(session) => {
                     status_tx.borrow_mut().note_open();
                     debug!(
                         "Successfully established introduction point with {}",
-                        self.target.display_chan_target()
+                        self.target.display_relay_ids().redacted()
                     );
+                    // Now that we've succeeded, we can stop backing off for our
+                    // next attempt.
+                    retry_delay.reset();
 
-                    // TODO HSS: let session continue until it dies, actually
-                    // implementing it.
+                    // Wait for the session to be closed.
+                    session.wait_for_close().await;
+                }
+                Err(e @ IptError::IntroPointNotListed) => {
+                    // The network directory didn't include this relay.  Wait
+                    // until it does.
+                    //
+                    // TODO HSS: Perhaps we should distinguish possible error cases
+                    // here?  See notes in `wait_for_netdir_to_list`.
+                    status_tx.borrow_mut().note_error(&e);
+                    wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
                 }
                 Err(e) => {
                     status_tx.borrow_mut().note_error(&e);
                     debug_report!(
                         e,
                         "Problem establishing introduction point with {}",
-                        self.target.display_chan_target()
+                        self.target.display_relay_ids().redacted()
                     );
-                    self.runtime.sleep(DELAY_ON_FAILURE).await;
+                    let retry_after = retry_delay.next_delay(&mut rand::thread_rng());
+                    self.runtime.sleep(retry_after).await;
                 }
             }
         }
@@ -366,9 +477,13 @@ impl<R: Runtime> Reactor<R> {
                 tor_netdir::Timeliness::Timely,
             )
             .await?;
+            let circ_target = netdir
+                .by_ids(&self.target)
+                .ok_or(IptError::IntroPointNotListed)?;
+
             let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
             self.pool
-                .get_or_launch_specific(netdir.as_ref(), kind, self.target.clone())
+                .get_or_launch_specific(netdir.as_ref(), kind, circ_target)
                 .await
                 .map_err(IptError::BuildCircuit)?
             // note that netdir is dropped here, to avoid holding on to it any
@@ -408,11 +523,12 @@ impl<R: Runtime> Reactor<R> {
         };
 
         let (established_tx, established_rx) = oneshot::channel();
-        let (introduce_tx, introduce_rx) = mpsc::unbounded();
 
         let handler = IptMsgHandler {
             established_tx: Some(established_tx),
-            introduce_tx,
+            introduce_tx: self.introduce_tx.clone(),
+            state: self.state.clone(),
+            intro_pt_id: self.intro_pt_id.clone(),
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -422,7 +538,17 @@ impl<R: Runtime> Reactor<R> {
         // that the message was sent.  We have to wait for any actual `established`
         // message, though.
 
-        let established = established_rx.await.map_err(|_| IptError::ReceiveAck)?;
+        let ack_timeout = self
+            .pool
+            .estimate_timeout(&tor_circmgr::timeouts::Action::RoundTrip {
+                length: circuit.n_hops(),
+            });
+        let established = self
+            .runtime
+            .timeout(ack_timeout, established_rx)
+            .await
+            .map_err(|_| IptError::EstablishTimeout)?
+            .map_err(|_| IptError::ReceiveAck)?;
 
         if established.iter_extensions().next().is_some() {
             // We do not support any extensions from the introduction point; if it
@@ -432,8 +558,14 @@ impl<R: Runtime> Reactor<R> {
 
         Ok(IntroPtSession {
             intro_circ: circuit,
-            introduce_rx,
         })
+    }
+}
+
+impl IntroPtSession {
+    /// Wait for this introduction point session to be closed.
+    fn wait_for_close(&self) -> impl Future<Output = ()> {
+        self.intro_circ.wait_for_close()
     }
 }
 
@@ -466,27 +598,55 @@ async fn wait_for_netdir(
     }
 }
 
+/// Wait until `provider` lists `target`.
+async fn wait_for_netdir_to_list(
+    provider: &dyn NetDirProvider,
+    target: &RelayIds,
+) -> Result<(), IptError> {
+    let mut events = provider.events();
+    loop {
+        // See if the desired relay is in the netdir.
+        //
+        // We do this before waiting for any events, to avoid race conditions.
+        {
+            let netdir = wait_for_netdir(provider, tor_netdir::Timeliness::Timely).await?;
+            // TODO HSS: Perhaps we should distinguish Some(false) from None.
+            //
+            // Some(false) means "this relay is definitely not in the current
+            // network directory" and None means "waiting for more info on this
+            // network directory"
+            if netdir.ids_listed(target) == Some(true) {
+                return Ok(());
+            }
+        }
+        // We didn't find the relay; wait for the provider to have a new netdir.
+        if events.next().await.is_none() {
+            // The event stream is closed; the provider has shut down.
+            return Err(IptError::NetdirProviderShutdown);
+        }
+    }
+}
+
 /// MsgHandler type to implement a conversation with an introduction point.
 ///
 /// This, like all MsgHandlers, is installed at the circuit's reactor, and used
 /// to handle otherwise unrecognized message types.
-#[derive(Debug)]
 struct IptMsgHandler {
     /// A oneshot sender used to report our IntroEstablished message.
     ///
     /// If this is None, then we already sent an IntroEstablished and we shouldn't
     /// send any more.
     established_tx: Option<oneshot::Sender<IntroEstablished>>,
+
     /// A channel used to report Introduce2 messages.
-    //
-    // TODO HSS: I don't like having this be unbounded, but `handle_msg` can't
-    // block.  On the other hand maybe we can just discard excessive introduce2
-    // messages if we're under high load?  I think that's what C tor does,
-    // especially when under DoS conditions.
-    //
-    // See discussion at
-    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
-    introduce_tx: mpsc::UnboundedSender<Introduce2>,
+    introduce_tx: mpsc::Sender<RendRequest>,
+
+    /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
+    state: Arc<Mutex<EstablisherState>>,
+
+    /// Unique identifier for the introduction point (including the current
+    /// keys).  Used to tag requests.
+    intro_pt_id: IntroPointId,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
@@ -517,7 +677,40 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                         "Received an INTRODUCE2 message before INTRO_ESTABLISHED".into(),
                     ));
                 }
-                self.introduce_tx.unbounded_send(introduce2).map_err(|_| ())
+                let disp = self.state.lock().expect("poisoned lock").accepting_requests;
+                match disp {
+                    RequestDisposition::NotAdvertised => {
+                        return Err(tor_proto::Error::CircProto(
+                            "Received an INTRODUCE2 message before we were accepting requests!"
+                                .into(),
+                        ))
+                    }
+                    RequestDisposition::Shutdown => return Ok(MetaCellDisposition::CloseCirc),
+                    RequestDisposition::Advertised => {}
+                }
+
+                let request = RendRequest::new(self.intro_pt_id.clone(), introduce2);
+                match self.introduce_tx.try_send(request) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        if e.is_disconnected() {
+                            // The receiver is disconnected, meaning that
+                            // messages from this intro point are no longer
+                            // wanted.  Close the circuit.
+                            Err(())
+                        } else {
+                            // The receiver is full; we have no real option but
+                            // to drop the request like C-tor does when the
+                            // backlog is too large.
+                            //
+                            // See discussion at
+                            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
+                            //
+                            // TODO HSS: record when this happens.
+                            Ok(())
+                        }
+                    }
+                }
             }
         } == Err(())
         {

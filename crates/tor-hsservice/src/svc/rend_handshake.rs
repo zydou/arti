@@ -92,6 +92,8 @@ pub(crate) enum EstablishSessionError {
 /// To accept this request, call its
 /// [`establish_session`](IntroRequest::establish_session) method.
 /// To reject this request, simply drop it.
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub(crate) struct IntroRequest {
     /// The introduce2 message itself. We keep this in case we want to look at
     /// the outer header.
@@ -99,6 +101,7 @@ pub(crate) struct IntroRequest {
 
     /// The key generator we'll use to derive our shared keys with the client when
     /// creating a virtual hop.
+    #[educe(Debug(ignore))]
     key_gen: HsNtorHkdfKeyGenerator,
 
     /// The RENDEZVOUS1 message we'll send to the rendezvous point.
@@ -130,6 +133,8 @@ impl IntroRequest {
     /// Try to decrypt an incoming Introduce2 request, using the set of keys provided.
     pub(crate) fn decrypt_from_introduce2(
         req: Introduce2,
+        // TODO HSS: Perhaps this should be wrapped in a a crate-local type that
+        // could later hold other kinds of handshake info.
         keys: &HsNtorServiceInput,
     ) -> Result<Self, IntroRequestError> {
         use IntroRequestError as E;
