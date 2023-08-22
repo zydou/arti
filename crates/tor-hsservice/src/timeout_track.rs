@@ -316,6 +316,7 @@ impl TrackingSystemTimeNow {
     /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
     ///
     /// (Equivalent to comparing with `t` but discarding the answer.)
+    /// TODO HSS add a test case
     pub fn update(&self, t: SystemTime) {
         Self::update_inner(&self.earliest, t);
     }
@@ -325,11 +326,13 @@ impl TrackingInstantNow {
     /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
     ///
     /// Equivalent to comparing with `t` but discarding the answer.
+    /// TODO HSS make this pub and test it
     fn update_abs(&self, t: Instant) {
         self.update_rel(t.checked_duration_since(self.now).unwrap_or_default());
     }
 
     /// Update the "earliest timeout" notion, to ensure it's at no later than `d` from now
+    /// TODO HSS make this pub and test it
     fn update_rel(&self, d: Duration) {
         Self::update_inner(&self.earliest, d);
     }
