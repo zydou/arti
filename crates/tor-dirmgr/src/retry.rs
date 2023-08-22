@@ -1,7 +1,7 @@
 //! Configure timers for a timer for retrying a single failed fetch or object.
 //!
 //! For a more information on the algorithm, see
-//! [`RetryDelay`](tor_basic_utils::retry::RetryDelay).
+//! [`RetryDelay`].
 
 use std::num::{NonZeroU32, NonZeroU8};
 use std::time::Duration;

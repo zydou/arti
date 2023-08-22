@@ -23,7 +23,7 @@ use tor_hscrypto::pk::HsId;
 /// error it is.
 ///
 /// Note that although this type implements that standard
-/// [`Error`](std::error::Error) trait, the output of that trait's methods are
+/// [`Error`](trait@std::error::Error) trait, the output of that trait's methods are
 /// not covered by semantic versioning.  Specifically: you should not rely on
 /// the specific output of `Display`, `Debug`, or `Error::source()` when run on
 /// this type; it may change between patch versions without notification.
@@ -108,7 +108,7 @@ pub_if_error_detail! {
 ///
 /// Instead of looking at the type, you try to should use the
 /// [`kind`](`tor_error::HasKind::kind`) trait method to distinguish among
-/// different kinds of [`Error`](crate::Error).  If that doesn't provide enough information
+/// different kinds of [`Error`](struct@crate::Error).  If that doesn't provide enough information
 /// for your use case, please let us know.
 #[cfg_attr(docsrs, doc(cfg(feature = "error_detail")))]
 #[cfg_attr(test, derive(strum::EnumDiscriminants))]

@@ -300,7 +300,7 @@ impl ClientCirc {
         }
     }
 
-    /// Return the [`HopNum`](crate::HopNum) of the last hop of this circuit.
+    /// Return the [`HopNum`] of the last hop of this circuit.
     ///
     /// Returns an error if there is no last hop.  (This should be impossible outside of the
     /// tor-proto crate, but within the crate it's possible to have a circuit with no hops.)

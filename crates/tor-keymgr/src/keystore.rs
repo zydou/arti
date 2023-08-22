@@ -79,7 +79,7 @@ pub trait Keystore: Send + Sync + 'static {
 }
 
 /// A key that can be serialized to, and deserialized from, a format used by a
-/// [`Keystore`](crate::Keystore).
+/// [`Keystore`].
 pub trait EncodableKey: Downcast {
     /// The type of the key.
     fn key_type() -> KeyType
