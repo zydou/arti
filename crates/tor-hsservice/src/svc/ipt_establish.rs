@@ -58,9 +58,15 @@ pub(crate) struct IptEstablisher {
 ///  * `IptStatusStatus::Faulty` will be indicated
 impl Drop for IptEstablisher {
     fn drop(&mut self) {
-        // Make sure no more requests are accepted once this returns
+        // Make sure no more requests are accepted once this returns.
+        //
+        // TODO HSS: Note that if we didn't care about the "no more rendezvous
+        // requests will be accepted" requirement, we could do away with this
+        // code and the corresponding check for `RequestDisposition::Shutdown` in
+        // `IptMsgHandler::handle_msg`.)
         self.state.lock().expect("posioned lock").accepting_requests = RequestDisposition::Shutdown;
-        // Tell the reactor to shut down.
+
+        // Tell the reactor to shut down... by doing nothing.
         //
         // (When terminate_tx is dropped, it will send an error to the
         // corresponding terminate_rx.)
