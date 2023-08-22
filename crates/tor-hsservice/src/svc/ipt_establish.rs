@@ -198,7 +198,7 @@ impl IptEstablisher {
 
         runtime
             .spawn(async move {
-                futures::select!(
+                futures::select_biased!(
                     terminated = terminate_rx => {
                         // Only Err is possible, but the compiler can't tell that.
                         let oneshot::Canceled = terminated.void_unwrap_err();
