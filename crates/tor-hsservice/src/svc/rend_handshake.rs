@@ -15,7 +15,10 @@ use tor_circmgr::{
     hspool::{HsCircKind, HsCircPool},
 };
 use tor_error::into_internal;
-use tor_linkspec::OwnedCircTarget;
+use tor_linkspec::{
+    decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget as _,
+    OwnedChanTargetBuilder, OwnedCircTarget,
+};
 use tor_netdir::NetDirProvider;
 use tor_proto::{
     circuit::{
@@ -30,6 +33,7 @@ use tor_rtcompat::Runtime;
 /// An error produced while trying to process an introduction request we have
 /// received from a client via an introduction point.
 #[derive(Debug, Clone, thiserror::Error)]
+#[allow(clippy::enum_variant_names)] // TODO HSS
 pub(crate) enum IntroRequestError {
     /// The handshake (e.g. hs_ntor) in the Introduce2 message was invalid and
     /// could not be completed.
@@ -37,8 +41,12 @@ pub(crate) enum IntroRequestError {
     InvalidHandshake(#[source] tor_proto::Error),
 
     /// The decrypted payload of the Introduce2 message could not be parsed.
-    #[error("Could not parse INTRODUCE1 payload")]
+    #[error("Could not parse INTRODUCE2 payload")]
     InvalidPayload(#[source] tor_bytes::Error),
+
+    /// We weren't able to build a ChanTarget from the Introduce2 message.
+    #[error("Invalid link specifiers in INTRODUCE2 payload")]
+    InvalidLinkSpecs(#[source] tor_linkspec::decode::ChanTargetDecodeError),
 }
 
 /// An error produced while trying to connect to a rendezvous point and open a
@@ -65,6 +73,12 @@ pub(crate) enum EstablishSessionError {
     /// We encountered an error while sending the rendezvous1 message.
     #[error("Could not send RENDEZVOUS1 message")]
     SendRendezvous(#[source] tor_proto::Error),
+    /// The client sent us a rendezvous point with an impossible set of identities.
+    ///
+    /// (For example, it gave us `(Ed1, Rsa1)`, but in the network directory `Ed1` is
+    /// associated with `Rsa2`.)
+    #[error("Impossible combination of identities for rendezvous point")]
+    ImpossibleIds(#[source] tor_netdir::RelayLookupError),
     /// An internal error occurred.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -94,6 +108,10 @@ pub(crate) struct IntroRequest {
 
     /// The decrypted and parsed body of the introduce2 message.
     intro_payload: IntroduceHandshakePayload,
+
+    /// The (in progress) ChanTarget that we'll use to build a circuit target
+    /// for connecting to the rendezvous point.
+    chan_target: OwnedChanTargetBuilder,
 }
 
 /// An open session with a single client.
@@ -132,6 +150,14 @@ impl IntroRequest {
             payload
         };
 
+        // We build the OwnedChanTargetBuilder now, so that we can detect any
+        // problems here earlier.
+        let chan_target = OwnedChanTargetBuilder::from_encoded_linkspecs(
+            Strictness::Standard,
+            intro_payload.link_specifiers(),
+        )
+        .map_err(E::InvalidLinkSpecs)?;
+
         let rend1_msg = Rendezvous1::new(*intro_payload.cookie(), rend1_body);
 
         Ok(IntroRequest {
@@ -139,6 +165,7 @@ impl IntroRequest {
             key_gen,
             rend1_msg,
             intro_payload,
+            chan_target,
         })
     }
 
@@ -147,7 +174,6 @@ impl IntroRequest {
     /// To do so, we open a circuit to the client's chosen rendezvous point,
     /// send it a RENDEZVOUS1 message, and wait for incoming BEGIN messages from
     /// the client.
-    #[allow(unreachable_code)] // TODO HSS remove.
     pub(crate) async fn establish_session<R: Runtime>(
         self,
         hs_pool: HsCircPool<R>,
@@ -163,22 +189,37 @@ impl IntroRequest {
 
         // Try to construct a CircTarget for rendezvous point based on the
         // intro_payload.
-        //
-        // TODO: Maybe we should have tried to do this earlier?  But to do so we
-        // would have needed a netdir before.  That suggest in turn that maybe
-        // circtarget_from_pieces needs a different interface.
-        let rend_point: OwnedCircTarget = {
+        let rend_point = {
+            // TODO HSS: We might have checked for a recognized onion key type earlier.
             let ntor_onion_key = match self.intro_payload.onion_key() {
                 OnionKey::NtorOnionKey(ntor_key) => ntor_key,
                 _ => return Err(E::UnsupportedOnionKey),
             };
+            let mut bld = OwnedCircTarget::builder();
+            *bld.chan_target() = self.chan_target;
 
-            // TODO HSS: this function needs to be exposed. currently it is only
-            // in relay_info.rs in tor_hsclient, where it can't be used.
-            //
-            // circtarget_from_pieces(self.intro_payload.link_specifiers(),
-            //                       ntor_onion_key, &netdir)?
-            todo!()
+            // TODO HSS: This block is very similar to circtarget_from_pieces in
+            // relay_info.rs.
+            // Is there a clean way to refactor this?
+            let protocols = {
+                let chan_target = bld.chan_target().build().map_err(into_internal!(
+                    "from_encoded_linkspecs gave an invalid output"
+                ))?;
+                match netdir
+                    .by_ids_detailed(&chan_target)
+                    .map_err(E::ImpossibleIds)?
+                {
+                    Some(relay) => relay.protovers().clone(),
+                    None => netdir.relay_protocol_status().required_protocols().clone(),
+                }
+            };
+            bld.protocols(protocols);
+            bld.ntor_onion_key(*ntor_onion_key);
+            VerbatimLinkSpecCircTarget::new(
+                bld.build()
+                    .map_err(into_internal!("Failed to construct a valid circtarget"))?,
+                self.intro_payload.link_specifiers().into(),
+            )
         };
 
         // Open circuit to rendezvous point.

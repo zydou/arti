@@ -27,12 +27,8 @@ fn circtarget_from_pieces(
     let mut bld = OwnedCircTarget::builder();
     // Decode the link specifiers and use them to find out what we can about
     // this relay.
-    let linkspecs_decoded = linkspecs
-        .iter()
-        .map(|ls| ls.parse())
-        .collect::<Result<Vec<_>, _>>()?;
     *bld.chan_target() =
-        OwnedChanTargetBuilder::from_linkspecs(Strictness::Standard, &linkspecs_decoded[..])?;
+        OwnedChanTargetBuilder::from_encoded_linkspecs(Strictness::Standard, linkspecs)?;
     // Look up the relay in the directory, to see:
     //    1) if it is flatly impossible,
     //    2) what subprotocols we should assume it implements.

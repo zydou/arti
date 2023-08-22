@@ -7,7 +7,7 @@
 
 use std::net::SocketAddr;
 
-use crate::{LinkSpec, OwnedChanTargetBuilder, RelayIdType};
+use crate::{EncodedLinkSpec, LinkSpec, OwnedChanTargetBuilder, RelayIdType};
 use itertools::Itertools as _;
 
 /// A rule for how strictly to parse a list of LinkSpecifiers when converting it into
@@ -82,6 +82,22 @@ impl OwnedChanTargetBuilder {
             .addrs(addrs);
         Ok(builder)
     }
+
+    /// As `from_linkspecs`, but take a list of encoded linkspecs and fail if
+    /// any are known to be ill-formed.
+    pub fn from_encoded_linkspecs(
+        strictness: Strictness,
+        linkspecs: &[EncodedLinkSpec],
+    ) -> Result<Self, ChanTargetDecodeError> {
+        // Decode the link specifiers and use them to find out what we can about
+        // this relay.
+        let linkspecs_decoded = linkspecs
+            .iter()
+            .map(|ls| ls.parse())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ChanTargetDecodeError::MisformedLinkSpec)?;
+        Self::from_linkspecs(strictness, &linkspecs_decoded)
+    }
 }
 
 /// An error that occurred while constructing a `ChanTarget` from a set of link
@@ -98,6 +114,9 @@ pub enum ChanTargetDecodeError {
     /// A required address type was missing.
     #[error("Missing a required address type")]
     MissingAddr,
+    /// Couldn't parse a provided linkspec of recognized type.
+    #[error("Mis-formatted link specifier")]
+    MisformedLinkSpec(#[source] tor_bytes::Error),
 }
 
 #[cfg(test)]
