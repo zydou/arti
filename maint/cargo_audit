@@ -28,6 +28,19 @@ IGNORE=(
     # are not affected.  We should eventually upgrade to
     # ed25519-dalek >= 2, however.
     --ignore RUSTSEC-2022-0093
+    # This is a DOS vulnerability against rustls-webpki (only some versions)
+    # and webpki (all versions) where some cert chains can cause
+    # ridiculous CPU usage.
+    #
+    # We've upgraded our rustls-webpki usage, but webpki (which is
+    # unmaintained) is still used by tls-api, which we use from
+    # arti-hyper.
+    #
+    # I've opened https://github.com/stepancheg/rust-tls-api/issues/45
+    # for this issue, but I'm not sure whether `tls-api` is maintained.
+    #
+    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/1016
+    --ignore RUSTSEC-2023-0052
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
