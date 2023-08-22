@@ -37,11 +37,11 @@ macro_rules! mk_c_equix { { $ctx:ident = $hashx_type:ident } => {
 macro_rules! bench_loop { {
     $loopvar:ident, $max:expr $(, $loopvar_map:ident )? => $eval:expr
 } => {
-    for raw_i in 0..$max {
-        let $loopvar = black_box(raw_i);
+    for $loopvar in 0..$max {
         $(
             let $loopvar = $loopvar_map($loopvar);
         )?
+        let $loopvar = black_box($loopvar);
         let _ = black_box($eval);
     }
 } }
