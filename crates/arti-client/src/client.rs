@@ -1023,8 +1023,8 @@ impl<R: Runtime> TorClient<R> {
 
                 if let Some(keymgr) = &self.keymgr {
                     // TODO hs: use a real client id (loaded from the config)
-                    let client_id = HsClientSpecifier::new("default".into())
-                        .map_err(|e| ErrorDetail::Keystore(e))?;
+                    let client_id =
+                        HsClientSpecifier::new("default".into()).map_err(ErrorDetail::Keystore)?;
                     let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
                         client_id.clone(),
                         hsid,
