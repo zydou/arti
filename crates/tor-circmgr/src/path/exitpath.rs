@@ -359,6 +359,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::unchecked_duration_subtraction)]
     #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::path::{assert_same_path_when_owned, MaybeOwnedRelay, OwnedPath, TorPathInner};
