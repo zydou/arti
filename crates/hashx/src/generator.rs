@@ -1,8 +1,8 @@
 //! Pseudorandom generator for hash programs and parts thereof
 
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
-use crate::program::{Instruction, Opcode};
 use crate::program::NUM_INSTRUCTIONS;
+use crate::program::{Instruction, Opcode};
 use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
@@ -138,10 +138,7 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
             slice
         };
 
-        FixedCapacityVec {
-            slice,
-            len: 0,
-        }
+        FixedCapacityVec { slice, len: 0 }
     }
 
     #[inline]
@@ -267,7 +264,10 @@ impl<'r, R: RngCore> Generator<'r, R> {
     /// Returns with [`Error::ProgramConstraints`] if the program fails these
     /// checks. This happens in normal use on a small fraction of seed values.
     #[inline(always)]
-    pub(crate) fn generate_program(&mut self, output: &mut FixedCapacityVec<Instruction, NUM_INSTRUCTIONS>) -> Result<(), Error> {
+    pub(crate) fn generate_program(
+        &mut self,
+        output: &mut FixedCapacityVec<Instruction, NUM_INSTRUCTIONS>,
+    ) -> Result<(), Error> {
         assert!(output.is_empty());
         while !output.is_full() {
             match self.generate_instruction() {
