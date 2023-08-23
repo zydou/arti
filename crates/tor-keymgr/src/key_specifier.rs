@@ -2,6 +2,7 @@
 
 use crate::Result;
 use derive_more::{Deref, DerefMut, Display, Into};
+use serde::{Deserialize, Serialize};
 use tor_error::internal;
 
 /// The path of a key in the Arti key store.
@@ -50,6 +51,8 @@ impl ArtiPath {
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
 #[derive(Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
 pub struct ArtiPathComponent(String);
 
 impl ArtiPathComponent {
@@ -205,5 +208,27 @@ mod test {
         let path = format!("a{SEP}client{SEP}key.private");
         check_valid!(ArtiPath, &path, true);
         check_valid!(ArtiPathComponent, &path, false);
+    }
+
+    #[test]
+    fn serde() {
+        // TODO HSS clone-and-hack with tor_hsservice::::nickname::test::serde
+        // perhaps there should be some utility in tor-basic-utils for testing
+        // validated string newtypes, or something
+        #[derive(Serialize, Deserialize, Debug)]
+        struct T {
+            n: ArtiPathComponent,
+        }
+        let j = serde_json::from_str(r#"{ "n": "x" }"#).unwrap();
+        let t: T = serde_json::from_value(j).unwrap();
+        assert_eq!(&t.n.to_string(), "x");
+
+        assert_eq!(&serde_json::to_string(&t).unwrap(), r#"{"n":"x"}"#);
+
+        let j = serde_json::from_str(r#"{ "n": "!" }"#).unwrap();
+        let e = serde_json::from_value::<T>(j).unwrap_err();
+        // TODO HSS this is the wrong error message, this might not be a bug;
+        // it could be bad config or something
+        assert!(e.to_string().contains("internal error"), "wrong msg {e:?}");
     }
 }

@@ -1,6 +1,7 @@
 //! `HsNickname` module itself is private, but `HsNickname` etc. are re-exported
 
 use derive_more::{Display, From, Into};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use tor_keymgr::ArtiPathComponent;
@@ -19,6 +20,8 @@ use tor_keymgr::ArtiPathComponent;
 /// (These are the same rules as [`tor_keymgr::ArtiPathComponent`]
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 #[derive(Display, From, Into)]
+#[derive(Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
 pub struct HsNickname(ArtiPathComponent);
 
 /// Local nickname for Tor Hidden Service (`.onion` service) was syntactically invalid
@@ -84,5 +87,23 @@ mod test {
         assert_eq!(HsNickname::new("b.".into()), Err(InvalidNickname {}));
         assert_eq!(HsNickname::new("_c".into()), Err(InvalidNickname {}));
         assert_eq!(&HsNickname::new("x".into()).unwrap().to_string(), "x");
+    }
+
+    #[test]
+    fn serde() {
+        // TODO HSS clone-and-hack with tor_keymgr::::key_specifier::test::serde
+        #[derive(Serialize, Deserialize, Debug)]
+        struct T {
+            n: HsNickname,
+        }
+        let j = serde_json::from_str(r#"{ "n": "x" }"#).unwrap();
+        let t: T = serde_json::from_value(j).unwrap();
+        assert_eq!(&t.n.to_string(), "x");
+
+        assert_eq!(&serde_json::to_string(&t).unwrap(), r#"{"n":"x"}"#);
+
+        let j = serde_json::from_str(r#"{ "n": "!" }"#).unwrap();
+        let e = serde_json::from_value::<T>(j).unwrap_err();
+        assert!(e.to_string().contains("Invalid syntax"), "wrong msg {e:?}");
     }
 }
