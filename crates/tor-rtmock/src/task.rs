@@ -277,8 +277,8 @@ impl MockExecutor {
     pub fn spawn_identified(
         &self,
         desc: impl Display,
-        fut: impl Future<Output = ()> + Send + Sync + 'static,
-    ) -> impl Debug + Clone + Send + Sync + 'static {
+        fut: impl Future<Output = ()> + Send + 'static,
+    ) -> impl Debug + Clone + Send + 'static {
         self.spawn_internal(desc.to_string(), FutureObj::from(Box::new(fut)))
     }
 

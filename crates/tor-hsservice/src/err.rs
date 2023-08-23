@@ -16,7 +16,26 @@ use tor_error::Bug;
 /// retrying things as necessary.
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
-pub enum StartupError {}
+pub enum StartupError {
+    /// Unable to spawn task
+    //
+    // TODO too many types have an open-coded version of FooError::Spawn
+    // Instead we should:
+    //  * Have tor_rtcompat provide a SpawnError struct which contains the task identifier
+    //  * Have tor_rtcompat provide a spawn method that takes an identifier
+    //    (and which passes that identifier to runtimes that support such a thing,
+    //    including our own mock spawner)
+    //  * Change every crate's task spawning and error handling to use the new things
+    //    (breaking changes to the error type, unless we retain unused compat error variants)
+    #[error("Unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
+}
 
 /// An error which occurs trying to communicate with a particular client
 ///

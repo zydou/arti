@@ -19,8 +19,8 @@ use tor_rtcompat::Runtime;
 use crate::OnionServiceStatus;
 use crate::StartupError;
 
-mod ipt_establish;
-mod publish;
+pub(crate) mod ipt_establish;
+pub(crate) mod publish;
 pub(crate) mod rend_handshake;
 
 /// A handle to an instance of an onion service.
