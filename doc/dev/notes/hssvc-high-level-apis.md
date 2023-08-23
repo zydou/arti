@@ -61,6 +61,16 @@ pow_queue_rate = [ 100, 500 ]
 # Disable the compiled hashx backend for proof-of-work.
 disable_pow_compilation = false
 
+# Descriptor-based client authentication.  If this is set
+# to any array, even an empty one, then authentication is required.
+encrypt_descriptor = [
+    'curve25519:aaaaaaa', # A given public key can be put in the config.
+    'dir:/path/to/dir', # A directory full of keys can be listed.
+]
+# Note that you can also give a singleton, as in:
+# encrypt_descriptor = 'dir:/path/to/dir".
+
+
 # This option configures port relaying, which is the only option
 # available at the CLI for actually implementing an onion service.
 #
@@ -117,6 +127,7 @@ pub struct OnionSvcConfig {
     enabled: bool,
     rate_limits: RateLimitConfig,
     pow: ProofOfWorkConfig,
+    encrypt_descriptor: Option<DescEncryption>
 
     // Note that this doesn't include proxy configuration
     // at this level, since that's not part of the onion
@@ -138,6 +149,15 @@ pub struct ProofOfWorkCOnfig {
     enable: bool,
     queue_rate: Option<TokenBucketConfig>,
     disable_compilation: bool
+}
+
+pub struct DescEncryption {
+    authorized_client: Vec<AuthorizedClient>,
+}
+
+pub enum AuthorizedClient {
+    DirectoryOfKeys(PathBuf),
+    Curve25519Key(curve25519::PublicKey),
 }
 
 mod proxy {
