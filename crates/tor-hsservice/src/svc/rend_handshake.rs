@@ -8,7 +8,6 @@ use futures::{stream::BoxStream, StreamExt as _};
 use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
-    RelayMsg as _,
 };
 use tor_circmgr::{
     build::circparameters_from_netparameters,
@@ -268,31 +267,14 @@ impl IntroRequest {
             .boxed();
 
         // Send the RENDEZVOUS1 message.
-        let _converation: tor_proto::circuit::Conversation<'_> = circuit
-            .start_conversation(Some(self.rend1_msg.into()), RejectMessages, last_real_hop)
+        circuit
+            .send_raw_msg(self.rend1_msg.into(), last_real_hop)
             .await
             .map_err(E::SendRendezvous)?;
-        // TODO: We don't actually expect any reply at all; start_conversation
-        // may be excessive. See #1010
 
         Ok(OpenSession {
             stream_requests,
             circuit,
         })
-    }
-}
-
-/// A MessageHandler that closes the circuit whenever it gets a reply.
-struct RejectMessages;
-impl tor_proto::circuit::MsgHandler for RejectMessages {
-    fn handle_msg(
-        &mut self,
-        _conversation: tor_proto::circuit::ConversationInHandler<'_, '_, '_>,
-        msg: tor_cell::relaycell::msg::AnyRelayMsg,
-    ) -> tor_proto::Result<tor_proto::circuit::MetaCellDisposition> {
-        Err(tor_proto::Error::CircProto(format!(
-            "Received unexpected message {} from rendezvous point",
-            msg.cmd()
-        )))
     }
 }
