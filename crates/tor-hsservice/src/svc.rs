@@ -1,5 +1,7 @@
 //! Principal types for onion services.
 
+mod netdir;
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},

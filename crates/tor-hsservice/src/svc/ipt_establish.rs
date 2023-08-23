@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use futures::{
     channel::{mpsc, oneshot},
     task::SpawnExt as _,
-    Future, FutureExt as _, StreamExt as _,
+    Future, FutureExt as _,
 };
 use safelog::Redactable as _;
 use tor_async_utils::DropNotifyWatchSender;
@@ -24,7 +24,7 @@ use tor_circmgr::hspool::HsCircPool;
 use tor_error::{bad_api_usage, debug_report, internal, into_internal};
 use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
-use tor_netdir::{NetDir, NetDirProvider};
+use tor_netdir::NetDirProvider;
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
@@ -32,6 +32,7 @@ use void::{ResultVoidErrExt as _, Void};
 
 use crate::{FatalError, RendRequest};
 
+use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
 use super::IntroPointId;
 
 /// Handle onto the task which is establishing and maintaining one IPT
@@ -82,8 +83,8 @@ pub(crate) enum IptError {
 
     /// The network directory provider is shutting down without giving us the
     /// netdir we asked for.
-    #[error("Network directory provider is shutting down")]
-    NetdirProviderShutdown,
+    #[error("{0}")]
+    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
 
     /// When we tried to establish this introduction point, we found that the
     /// netdir didn't list it.
@@ -130,7 +131,7 @@ impl tor_error::HasKind for IptError {
         use IptError as E;
         match self {
             E::NoNetdir(_) => EK::BootstrapRequired, // TODO HSS maybe not right.
-            E::NetdirProviderShutdown => EK::ArtiShuttingDown,
+            E::NetdirProviderShutdown(_) => EK::ArtiShuttingDown,
             E::IntroPointNotListed => EK::TorDirectoryError, // TODO HSS Not correct kind.
             E::BuildCircuit(e) => e.kind(),
             E::EstablishTimeout => EK::TorNetworkTimeout, // TODO HSS right?
@@ -589,64 +590,6 @@ impl IntroPtSession {
     /// Wait for this introduction point session to be closed.
     fn wait_for_close(&self) -> impl Future<Output = ()> {
         self.intro_circ.wait_for_close()
-    }
-}
-
-/// Get a NetDir from `provider`, waiting until one exists.
-///
-/// TODO: perhaps this function would be more generally useful if it were not here?
-async fn wait_for_netdir(
-    provider: &dyn NetDirProvider,
-    timeliness: tor_netdir::Timeliness,
-) -> Result<Arc<NetDir>, IptError> {
-    if let Ok(nd) = provider.netdir(timeliness) {
-        return Ok(nd);
-    }
-
-    let mut stream = provider.events();
-    loop {
-        // We need to retry `provider.netdir()` before waiting for any stream events, to
-        // avoid deadlock.
-        //
-        // TODO HSS: propagate _some_ possible errors here.
-        if let Ok(nd) = provider.netdir(timeliness) {
-            return Ok(nd);
-        }
-        match stream.next().await {
-            Some(_) => {}
-            None => {
-                return Err(IptError::NetdirProviderShutdown);
-            }
-        }
-    }
-}
-
-/// Wait until `provider` lists `target`.
-async fn wait_for_netdir_to_list(
-    provider: &dyn NetDirProvider,
-    target: &RelayIds,
-) -> Result<(), IptError> {
-    let mut events = provider.events();
-    loop {
-        // See if the desired relay is in the netdir.
-        //
-        // We do this before waiting for any events, to avoid race conditions.
-        {
-            let netdir = wait_for_netdir(provider, tor_netdir::Timeliness::Timely).await?;
-            // TODO HSS: Perhaps we should distinguish Some(false) from None.
-            //
-            // Some(false) means "this relay is definitely not in the current
-            // network directory" and None means "waiting for more info on this
-            // network directory"
-            if netdir.ids_listed(target) == Some(true) {
-                return Ok(());
-            }
-        }
-        // We didn't find the relay; wait for the provider to have a new netdir.
-        if events.next().await.is_none() {
-            // The event stream is closed; the provider has shut down.
-            return Err(IptError::NetdirProviderShutdown);
-        }
     }
 }
 
