@@ -7,6 +7,7 @@
 use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::doc::hsdesc::IntroAuthType;
+use crate::doc::hsdesc::IntroPointDesc;
 use crate::NetdocBuilder;
 
 use rand::CryptoRng;
@@ -14,11 +15,8 @@ use rand::RngCore;
 use tor_bytes::{EncodeError, Writer};
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::{bad_api_usage, into_bad_api_usage};
-use tor_hscrypto::pk::HsIntroPtSessionIdKey;
-use tor_hscrypto::pk::HsSvcNtorKey;
-use tor_linkspec::LinkSpec;
+use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public;
-use tor_llcrypto::pk::{curve25519, ed25519};
 
 use base64ct::{Base64, Encoding};
 
@@ -46,32 +44,6 @@ pub(super) struct HsDescInner<'a> {
     pub(super) intro_auth_key_cert_expiry: SystemTime,
     /// The expiration time of an introduction point encryption key certificate.
     pub(super) intro_enc_key_cert_expiry: SystemTime,
-}
-
-/// Information in an onion service descriptor about a single introduction point.
-///
-/// TODO HSS: Move out of tor-netdoc: this is a general-purpose representation of an introduction
-/// point, not merely an intermediate representation for decoding/encoding. There may be other
-/// types that need to be factored out tor-netdoc for the same reason.
-#[derive(Debug, Clone)]
-pub struct IntroPointDesc {
-    /// A list of link specifiers needed to extend a circuit to the introduction point.
-    ///
-    /// These can include public keys and network addresses.
-    pub(crate) link_specifiers: Vec<LinkSpec>,
-    /// The key used to extend a circuit _to the introduction point_, using the
-    /// ntor or ntor3 handshakes.  (`KP_ntor`)
-    pub(crate) ipt_ntor_key: curve25519::PublicKey,
-    /// A key used to identify the onion service at this introduction point.
-    /// (`KP_hs_ipt_sid`)
-    pub(crate) ipt_sid_key: HsIntroPtSessionIdKey,
-    /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
-    /// service_ when using this introduction point.
-    ///
-    /// The onion service uses a separate key of this type with each
-    /// introduction point as part of its strategy for preventing replay
-    /// attacks.
-    pub(crate) svc_ntor_key: HsSvcNtorKey,
 }
 
 impl<'a> NetdocBuilder for HsDescInner<'a> {
@@ -266,9 +238,9 @@ mod test {
 
         assert_eq!(hs_desc, "create2-formats 1234\n");
 
-        let link_specs1 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 1234)];
-        let link_specs2 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
-        let link_specs3 = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8901)];
+        let link_specs1 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 1234)];
+        let link_specs2 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
+        let link_specs3 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8901)];
 
         let mut rng = Config::Deterministic.into_rng();
         let intros = &[
@@ -346,7 +318,7 @@ eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
 
         let intros = &[create_intro_point_descriptor(
             &mut Config::Deterministic.into_rng(),
-            link_specifiers,
+            &link_specifiers,
         )];
 
         // A descriptor for a location-hidden service with an introduction point with too many link
@@ -365,7 +337,7 @@ eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
     #[test]
     fn inner_hsdesc_intro_auth() {
         let mut rng = Config::Deterministic.into_rng().rng_compat();
-        let link_specs = vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
+        let link_specs = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
         let intros = &[create_intro_point_descriptor(&mut rng, link_specs)];
         let auth = SmallVec::from([IntroAuthType::Ed25519, IntroAuthType::Ed25519]);
 
