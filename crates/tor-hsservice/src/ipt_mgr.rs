@@ -32,7 +32,7 @@ use tor_rtcompat::Runtime;
 use crate::svc::ipt_establish;
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
 use crate::{FatalError, OnionServiceConfig, RendRequest, StartupError};
-use ipt_establish::{IptEstablisher, IptStatus, IptStatusStatus, IptWantsToRetire};
+use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
 
 use IptStatusStatus as ISS;
 use TrackedStatus as TS;
@@ -305,12 +305,22 @@ impl IptRelay {
     /// Make a new introduction point at this relay
     ///
     /// It becomes the current IPT.
+    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn make_new_ipt<R: Runtime, M: Mockable<R>>(
         &mut self,
         imm: &Immutable<R>,
         mockable: &mut M,
     ) -> Result<(), FatalError> {
-        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, self.relay.clone())?;
+        let params = IptParameters {
+            netdir_provider: imm.dirprovider.clone(),
+            introduce_tx: imm.output_rend_reqs.clone(),
+            // TODO HSS IntroPointId lacks a constructor and maybe should change anyway
+            intro_pt_id: todo!(),
+            target: self.relay.clone(),
+            ipt_sid_keypair: todo!(), // TODO HSS
+            accepting_requests: todo!(), // TODO HSS
+        };
+        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
@@ -735,7 +745,7 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
     fn make_new_ipt(
         &mut self,
         imm: &Immutable<R>,
-        relay: RelayIds,
+        params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
 
     /// Call `Publisher::new_intro_points`
@@ -755,21 +765,15 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         rand::thread_rng()
     }
 
-    #[allow(unreachable_code)] // TODO HSS remove
     fn make_new_ipt(
         &mut self,
         imm: &Immutable<R>,
-        relay: RelayIds,
+        params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
         IptEstablisher::new(
             imm.runtime.clone(),
+            params,
             self.circ_pool.clone(),
-            imm.dirprovider.clone(),
-            imm.output_rend_reqs.clone(),
-            todo!(), // TODO HSS IntroPointId lacks a constructor and maybe should change anyway
-            relay,
-            todo!(), // TODO HSS keypair ought to be provided by our caller
-            todo!(), // TODO HSS RequestDisposition ought to be provided by our caller
         )
     }
 }

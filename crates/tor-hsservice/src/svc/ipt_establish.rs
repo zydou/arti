@@ -151,6 +151,27 @@ impl IptError {
     }
 }
 
+/// Parameters for an introduction point
+///
+/// Consumed by `IptEstablisher::new`.
+/// Primarily serves as a convenient way to bundle the many arguments required.
+///
+/// Does not include:
+///  * The runtime (which would force this struct to have a type parameter)
+///  * The circuit builder (leaving this out makes it possible to use this
+///    struct during mock execution, where we don't call `IptEstablisher::new`).
+#[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
+pub(crate) struct IptParameters {
+    pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
+    pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
+    pub(crate) intro_pt_id: IntroPointId,
+    // TODO HSS: Should this and the following elements be part of some
+    // configuration object?
+    pub(crate) target: RelayIds,
+    pub(crate) ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+    pub(crate) accepting_requests: RequestDisposition,
+}
+
 impl IptEstablisher {
     /// Try to set up, and maintain, an IPT at `target`.
     ///
@@ -165,19 +186,21 @@ impl IptEstablisher {
     /// The returned `watch::Receiver` will yield `Faulty` if the IPT
     /// establisher is shut down (or crashes).
     // TODO HSS rename to "launch" since it starts the task?
-    #[allow(clippy::too_many_arguments)] // TODO HSS refactor.
     pub(crate) fn new<R: Runtime>(
         runtime: R,
+        params: IptParameters,
         pool: Arc<HsCircPool<R>>,
-        netdir_provider: Arc<dyn NetDirProvider>,
-        introduce_tx: mpsc::Sender<RendRequest>,
-        intro_pt_id: IntroPointId,
-        // TODO HSS: Should this and the following elements be part of some
-        // configuration object?
-        target: RelayIds,
-        ipt_sid_keypair: HsIntroPtSessionIdKeypair,
-        accepting_requests: RequestDisposition,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
+        // This exhaustive deconstruction ensures that we don't
+        // accidentally forget to handle any of our inputs.
+        let IptParameters {
+            netdir_provider,
+            introduce_tx,
+            intro_pt_id,
+            target,
+            ipt_sid_keypair,
+            accepting_requests,
+        } = params;
         if matches!(accepting_requests, RequestDisposition::Shutdown) {
             return Err(bad_api_usage!(
                 "Tried to create a IptEstablisher that that was already shutting down?"
