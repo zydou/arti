@@ -1,6 +1,6 @@
 //! Define the internal hash program representation used by HashX.
 
-use crate::generator::Generator;
+use crate::generator::{Generator, FixedCapacityVec};
 use crate::register::{RegisterFile, RegisterId};
 use crate::Error;
 use rand_core::RngCore;
@@ -203,9 +203,9 @@ impl Program {
     /// will happen once per several thousand random seeds, and the caller
     /// should skip to another seed.
     pub(crate) fn generate<T: RngCore>(rng: &mut T) -> Result<Self, Error> {
-        let mut instructions = Vec::with_capacity(NUM_INSTRUCTIONS);
+        let mut instructions = FixedCapacityVec::new();
         Generator::new(rng).generate_program(&mut instructions)?;
-        Ok(Program(instructions.into_boxed_slice().try_into().unwrap()))
+        Ok(Program(instructions.into_boxed_array()))
     }
 
     /// Reference implementation for `Program` behavior

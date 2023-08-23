@@ -2,11 +2,13 @@
 
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
 use crate::program::{Instruction, Opcode};
+use crate::program::NUM_INSTRUCTIONS;
 use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
 use crate::Error;
 use rand_core::RngCore;
+use std::mem::{self, MaybeUninit};
 
 /// The `model` attempts to document HashX program generation choices,
 /// separate from the main body of the program generator.
@@ -106,6 +108,77 @@ pub(crate) struct Generator<'r, R: RngCore> {
     last_selector_result_op: Option<Opcode>,
 }
 
+pub(crate) struct FixedCapacityVec<T, const N: usize> {
+    /// Data
+    ///
+    /// **SAFETY**: see `len`.
+    slice: Box<[MaybeUninit<T>; N]>,
+
+    /// Initialised portion
+    ///
+    /// **SAFETY**:
+    /// Every element of slice in 0..len must be initialised.
+    len: usize,
+}
+
+impl<T, const N: usize> FixedCapacityVec<T, N> {
+    #[inline]
+    pub(crate) fn new() -> Self {
+        // We really want Box::new_uninit() but that's unstable
+        let slice = unsafe {
+            use std::alloc::Layout;
+
+            type Array<T, const N: usize> = [MaybeUninit<T>; N];
+            // SAFETY: the Layout is good since we got it from Layout::new
+            let slice: *mut u8 = std::alloc::alloc(Layout::new::<Array<T, N>>());
+            let slice: *mut Array<T, N> = slice as _;
+            // SAFETY: the pointer is properly aligned and valid since we got it from alloc
+            // SAFETY: value is valid Array despite not being initialised because MaybeUninit
+            let slice: Box<Array<T, N>> = Box::from_raw(slice);
+            slice
+        };
+
+        FixedCapacityVec {
+            slice,
+            len: 0,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline]
+    pub(crate) fn is_full(&self) -> bool {
+        self.len == N
+    }
+
+    #[inline]
+    pub(crate) fn push(&mut self, item: T) {
+        let ent = &mut self.slice[self.len]; // panics if out of bounds
+        *ent = MaybeUninit::new(item);
+        self.len += 1;
+    }
+
+    #[inline]
+    pub(crate) fn into_boxed_array(self) -> Box<[T; N]> {
+        assert!(self.len == N);
+        unsafe {
+            // SAFETY
+            // We have checked that every element is initialised
+            let slice: Box<[MaybeUninit<T>; N]> = self.slice;
+            let array: Box<[T; N]> = mem::transmute(slice);
+            array
+        }
+    }
+}
+
 impl<'r, R: RngCore> Generator<'r, R> {
     /// Create a fresh program generator from a random number generator state.
     #[inline(always)]
@@ -194,9 +267,9 @@ impl<'r, R: RngCore> Generator<'r, R> {
     /// Returns with [`Error::ProgramConstraints`] if the program fails these
     /// checks. This happens in normal use on a small fraction of seed values.
     #[inline(always)]
-    pub(crate) fn generate_program(&mut self, output: &mut Vec<Instruction>) -> Result<(), Error> {
+    pub(crate) fn generate_program(&mut self, output: &mut FixedCapacityVec<Instruction, NUM_INSTRUCTIONS>) -> Result<(), Error> {
         assert!(output.is_empty());
-        while output.len() < output.capacity() {
+        while !output.is_full() {
             match self.generate_instruction() {
                 Err(()) => break,
                 Ok((inst, regw)) => {
