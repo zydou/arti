@@ -1,8 +1,8 @@
 //! Dynamically emitted HashX assembly code for x86_64 targets
 
 use crate::compiler::{util, Architecture, Executable};
-use crate::program::{self, Instruction};
 use crate::program::NUM_INSTRUCTIONS;
+use crate::program::{self, Instruction};
 use crate::register::{RegisterFile, RegisterId};
 use crate::CompilerError;
 use dynasmrt::{x64, x64::Rq, DynasmApi, DynasmLabelApi};

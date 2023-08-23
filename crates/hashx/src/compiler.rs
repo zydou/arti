@@ -7,8 +7,8 @@
 //! `Executable` wraps a mmap buffer from the `dynasmrt` crate and the
 //! `Architecture` is implemented in a CPU-specific way.
 
-use crate::{program::Instruction, register::RegisterFile, CompilerError};
 use crate::program::NUM_INSTRUCTIONS;
+use crate::{program::Instruction, register::RegisterFile, CompilerError};
 
 #[cfg(all(feature = "compiler", target_arch = "x86_64"))]
 mod x86_64;
