@@ -182,8 +182,8 @@ impl Instruction {
 }
 
 /// Generated `HashX` program, as a boxed slice of instructions
-#[derive(Clone, Default)]
-pub struct Program(Box<[Instruction]>);
+#[derive(Clone)]
+pub struct Program(Box<[Instruction; NUM_INSTRUCTIONS]>);
 
 impl fmt::Debug for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -205,7 +205,7 @@ impl Program {
     pub(crate) fn generate<T: RngCore>(rng: &mut T) -> Result<Self, Error> {
         let mut instructions = Vec::with_capacity(NUM_INSTRUCTIONS);
         Generator::new(rng).generate_program(&mut instructions)?;
-        Ok(Program(instructions.into_boxed_slice()))
+        Ok(Program(instructions.into_boxed_slice().try_into().unwrap()))
     }
 
     /// Reference implementation for `Program` behavior
@@ -306,6 +306,6 @@ impl Program {
 impl<'a> From<&'a Program> for &'a [Instruction] {
     #[inline(always)]
     fn from(prog: &'a Program) -> Self {
-        &prog.0
+        &prog.0[..]
     }
 }
