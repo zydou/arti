@@ -21,7 +21,9 @@ use std::fmt::Debug;
 use std::io::Result as IoResult;
 use std::pin::Pin;
 #[cfg(any(feature = "stream-ctrl", feature = "experimental-api"))]
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::Arc;
+#[cfg(feature = "stream-ctrl")]
+use std::sync::{Mutex, Weak};
 
 use educe::Educe;
 
