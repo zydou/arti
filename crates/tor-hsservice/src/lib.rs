@@ -46,6 +46,7 @@ mod config;
 mod err;
 mod ipt_mgr;
 mod keys;
+mod nickname;
 mod req;
 mod status;
 mod svc;
@@ -53,6 +54,7 @@ mod timeout_track;
 
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, FatalError, StartupError};
+pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
 pub use svc::OnionService;
