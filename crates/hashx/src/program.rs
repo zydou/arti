@@ -309,9 +309,9 @@ impl Program {
     }
 }
 
-impl<'a> From<&'a Program> for &'a [Instruction] {
+impl<'a> From<&'a Program> for &'a [Instruction; NUM_INSTRUCTIONS] {
     #[inline(always)]
     fn from(prog: &'a Program) -> Self {
-        &prog.0[..]
+        &prog.0
     }
 }
