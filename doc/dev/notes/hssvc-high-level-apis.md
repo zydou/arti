@@ -27,6 +27,11 @@ name = "example"
 # to turn services on and off.
 enabled = true
 
+# I had thought of calling this is_single_onion_service but I am
+# frightened to make this too easy to set by accident.  Honestly
+# I would prefer that its name be even scarier.
+is_non_anonymous = false
+
 ####
 # These options are about setting limits on concurrency and
 # introdution rate.
