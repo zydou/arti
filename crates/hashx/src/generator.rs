@@ -1,7 +1,7 @@
 //! Pseudorandom generator for hash programs and parts thereof
 
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
-use crate::program::{Instruction, InstructionArray, Opcode, Program};
+use crate::program::{Instruction, Opcode};
 use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
@@ -84,17 +84,8 @@ mod model {
     pub(super) const BRANCH_MASK_BIT_WEIGHT: usize = 4;
 }
 
-/// Generate a hash program from an arbitrary [`RngCore`] implementer.
-///
-/// This can return [`Error::ProgramConstraints`] if the HashX post-generation
-/// program verification fails. During normal use this will happen once per
-/// several thousand random seeds, and the caller should skip to another seed.
-pub(crate) fn generate_program<T: RngCore>(rng: &mut T) -> Result<Program, Error> {
-    Generator::new(rng).generate_program()
-}
-
-/// Internal state for the program generator
-struct Generator<'r, R: RngCore> {
+/// Program generator
+pub(crate) struct Generator<'r, R: RngCore> {
     /// The program generator wraps a random number generator, via [`RngBuffer`].
     rng: RngBuffer<'r, R>,
 
@@ -118,7 +109,7 @@ struct Generator<'r, R: RngCore> {
 impl<'r, R: RngCore> Generator<'r, R> {
     /// Create a fresh program generator from a random number generator state.
     #[inline(always)]
-    fn new(rng: &'r mut R) -> Self {
+    pub(crate) fn new(rng: &'r mut R) -> Self {
         Generator {
             rng: RngBuffer::new(rng),
             scheduler: Scheduler::new(),
@@ -135,7 +126,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
     /// The choice is perfectly uniform only if the register set is a power of
     /// two length. Uniformity is not critical here.
     #[inline(always)]
-    fn select_register(&mut self, reg_options: RegisterSet) -> Result<RegisterId, ()> {
+    fn select_register(&mut self, reg_options: &RegisterSet) -> Result<RegisterId, ()> {
         match reg_options.len() {
             0 => Err(()),
             1 => Ok(reg_options.index(0)),
@@ -198,30 +189,28 @@ impl<'r, R: RngCore> Generator<'r, R> {
 
     /// Generate an entire program.
     ///
-    /// This generates instructions until the state can't be advanced any
-    /// further. Returns with [`Error::ProgramConstraints`] if the program
-    /// fails the `HashX` whole-program checks. These constraint failures occur
-    /// in normal use, on a small fraction of seed values.
+    /// Generates instructions into a provided [`Vec`] until the generator
+    /// state can't be advanced any further. Runs the whole-program validator.
+    /// Returns with [`Error::ProgramConstraints`] if the program fails these
+    /// checks. This happens in normal use on a small fraction of seed values.
     #[inline(always)]
-    fn generate_program(&mut self) -> Result<Program, Error> {
-        let mut array: InstructionArray = Default::default();
-        while array.len() < array.capacity() {
+    pub(crate) fn generate_program(&mut self, output: &mut Vec<Instruction>) -> Result<(), Error> {
+        assert!(output.is_empty());
+        while output.len() < output.capacity() {
             match self.generate_instruction() {
                 Err(()) => break,
                 Ok((inst, regw)) => {
                     let state_advance = self.commit_instruction_state(&inst, regw);
-                    array.push(inst);
+                    output.push(inst);
                     if let Err(()) = state_advance {
                         break;
                     }
                 }
             }
         }
-        let result = self.validator.check_whole_program(&self.scheduler, &array);
-        match result {
-            Err(()) => Err(Error::ProgramConstraints),
-            Ok(()) => Ok(Program::new(array)),
-        }
+        self.validator
+            .check_whole_program(&self.scheduler, output)
+            .map_err(|()| Error::ProgramConstraints)
     }
 
     /// Generate the next instruction.
@@ -235,7 +224,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
     /// This only returns `Err(())` if we've hit a stopping condition for the
     /// program.
     #[inline(always)]
-    fn generate_instruction(&mut self) -> Result<(Instruction, Option<RegisterWriter>), ()> {
+    fn generate_instruction(&mut self) -> Result<(Instruction, RegisterWriter), ()> {
         loop {
             if let Ok(result) = self.instruction_gen_attempt(Pass::Original) {
                 return Ok(result);
@@ -268,16 +257,28 @@ impl<'r, R: RngCore> Generator<'r, R> {
     /// choosing the opcode-specific parts of the instruction. Each of these
     /// choices affects the Rng state, and may fail if conditions are not met.
     #[inline(always)]
-    fn instruction_gen_attempt(
-        &mut self,
-        pass: Pass,
-    ) -> Result<(Instruction, Option<RegisterWriter>), ()> {
+    fn instruction_gen_attempt(&mut self, pass: Pass) -> Result<(Instruction, RegisterWriter), ()> {
         let op = self.choose_opcode(pass);
         let plan = self.scheduler.instruction_plan(op)?;
         let (inst, regw) = self.choose_instruction_with_opcode_plan(op, pass, &plan)?;
-        assert_eq!(inst.opcode(), op);
+        debug_assert_eq!(inst.opcode(), op);
         self.scheduler.commit_instruction_plan(&plan, &inst);
         Ok((inst, regw))
+    }
+
+    /// Choose only a source register, depending on the opcode and timing plan
+    #[inline(never)]
+    fn choose_src_reg(
+        &mut self,
+        op: Opcode,
+        timing_plan: &InstructionPlan,
+    ) -> Result<RegisterId, ()> {
+        let src_set = RegisterSet::from_filter(|src| {
+            self.scheduler
+                .register_available(src, timing_plan.cycle_issued())
+        });
+        let src_set = constraints::src_registers_allowed(src_set, op);
+        self.select_register(&src_set)
     }
 
     /// Choose both a source and destination register using a normal
@@ -287,18 +288,12 @@ impl<'r, R: RngCore> Generator<'r, R> {
         &mut self,
         op: Opcode,
         pass: Pass,
+        writer_info_fn: fn(RegisterId) -> RegisterWriter,
         timing_plan: &InstructionPlan,
     ) -> Result<(RegisterId, RegisterId, RegisterWriter), ()> {
-        let avail_set = self
-            .scheduler
-            .registers_available(timing_plan.cycle_issued());
-        let src_set = constraints::src_registers_allowed(avail_set, op);
-        let src = self.select_register(src_set)?;
-        let writer_info = RegisterWriter::RegSource(op, src);
-        let dst_set =
-            self.validator
-                .dst_registers_allowed(avail_set, op, pass, &writer_info, Some(src));
-        let dst = self.select_register(dst_set)?;
+        let src = self.choose_src_reg(op, timing_plan)?;
+        let writer_info = writer_info_fn(src);
+        let dst = self.choose_dst_reg(op, pass, writer_info, Some(src), timing_plan)?;
         Ok((src, dst, writer_info))
     }
 
@@ -310,38 +305,34 @@ impl<'r, R: RngCore> Generator<'r, R> {
         &mut self,
         op: Opcode,
         pass: Pass,
-        writer_info: &RegisterWriter,
+        writer_info: RegisterWriter,
         timing_plan: &InstructionPlan,
     ) -> Result<(RegisterId, RegisterId), ()> {
-        let avail_set = self
-            .scheduler
-            .registers_available(timing_plan.cycle_issued());
-        let src_set = constraints::src_registers_allowed(avail_set, op);
-        let src = self.select_register(src_set)?;
-        let dst_set =
-            self.validator
-                .dst_registers_allowed(avail_set, op, pass, writer_info, Some(src));
-        let dst = self.select_register(dst_set)?;
+        let src = self.choose_src_reg(op, timing_plan)?;
+        let dst = self.choose_dst_reg(op, pass, writer_info, Some(src), timing_plan)?;
         Ok((src, dst))
     }
 
-    /// Choose a destination register only.
-    #[inline(always)]
+    /// Choose a destination register only, using source and writer info
+    /// as well as the current state of the validator.
+    #[inline(never)]
     fn choose_dst_reg(
         &mut self,
         op: Opcode,
         pass: Pass,
-        writer_info: &RegisterWriter,
+        writer_info: RegisterWriter,
+        src: Option<RegisterId>,
         timing_plan: &InstructionPlan,
     ) -> Result<RegisterId, ()> {
-        let avail_set = self
-            .scheduler
-            .registers_available(timing_plan.cycle_issued());
-        let dst_set = self
+        let validator = self
             .validator
-            .dst_registers_allowed(avail_set, op, pass, writer_info, None);
-        let dst = self.select_register(dst_set)?;
-        Ok(dst)
+            .dst_registers_allowed(op, pass, writer_info, src);
+        let dst_set = RegisterSet::from_filter(|dst| {
+            self.scheduler
+                .register_available(dst, timing_plan.cycle_issued())
+                && validator.check(dst)
+        });
+        self.select_register(&dst_set)
     }
 
     /// With an [`Opcode`] and an execution unit timing plan already in mind,
@@ -355,78 +346,80 @@ impl<'r, R: RngCore> Generator<'r, R> {
         op: Opcode,
         pass: Pass,
         plan: &InstructionPlan,
-    ) -> Result<(Instruction, Option<RegisterWriter>), ()> {
+    ) -> Result<(Instruction, RegisterWriter), ()> {
         Ok(match op {
-            Opcode::Target => (Instruction::Target, None),
+            Opcode::Target => (Instruction::Target, RegisterWriter::None),
 
             Opcode::Branch => (
                 Instruction::Branch {
                     mask: self.select_constant_weight_bit_mask(model::BRANCH_MASK_BIT_WEIGHT),
                 },
-                None,
+                RegisterWriter::None,
             ),
 
             Opcode::UMulH => {
-                let regw = RegisterWriter::WideMul(op, self.rng.next_u32());
-                let (src, dst) =
-                    self.choose_src_dst_regs_with_writer_info(op, pass, &regw, plan)?;
-                (Instruction::UMulH { src, dst }, Some(regw))
+                let regw = RegisterWriter::UMulH(self.rng.next_u32());
+                let (src, dst) = self.choose_src_dst_regs_with_writer_info(op, pass, regw, plan)?;
+                (Instruction::UMulH { src, dst }, regw)
             }
 
             Opcode::SMulH => {
-                let regw = RegisterWriter::WideMul(op, self.rng.next_u32());
-                let (src, dst) =
-                    self.choose_src_dst_regs_with_writer_info(op, pass, &regw, plan)?;
-                (Instruction::SMulH { src, dst }, Some(regw))
+                let regw = RegisterWriter::SMulH(self.rng.next_u32());
+                let (src, dst) = self.choose_src_dst_regs_with_writer_info(op, pass, regw, plan)?;
+                (Instruction::SMulH { src, dst }, regw)
             }
 
             Opcode::Mul => {
-                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, plan)?;
-                (Instruction::Mul { src, dst }, Some(regw))
+                let regw = RegisterWriter::Mul;
+                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, regw, plan)?;
+                (Instruction::Mul { src, dst }, regw)
             }
 
             Opcode::Sub => {
-                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, plan)?;
-                (Instruction::Sub { src, dst }, Some(regw))
+                let regw = RegisterWriter::AddSub;
+                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, regw, plan)?;
+                (Instruction::Sub { src, dst }, regw)
             }
 
             Opcode::Xor => {
-                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, plan)?;
-                (Instruction::Xor { src, dst }, Some(regw))
+                let regw = RegisterWriter::Xor;
+                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, regw, plan)?;
+                (Instruction::Xor { src, dst }, regw)
             }
 
             Opcode::AddShift => {
+                let regw = RegisterWriter::AddSub;
                 let left_shift = (self.rng.next_u32() & 3) as u8;
-                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, plan)?;
+                let (src, dst, regw) = self.choose_src_dst_regs(op, pass, regw, plan)?;
                 (
                     Instruction::AddShift {
                         src,
                         dst,
                         left_shift,
                     },
-                    Some(regw),
+                    regw,
                 )
             }
 
             Opcode::AddConst => {
-                let regw = RegisterWriter::ConstSource(op);
+                let regw = RegisterWriter::AddConst;
                 let src = self.select_nonzero_u32(u32::MAX) as i32;
-                let dst = self.choose_dst_reg(op, pass, &regw, plan)?;
-                (Instruction::AddConst { src, dst }, Some(regw))
+                let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
+                (Instruction::AddConst { src, dst }, regw)
             }
 
             Opcode::XorConst => {
-                let regw = RegisterWriter::ConstSource(op);
+                let regw = RegisterWriter::XorConst;
                 let src = self.select_nonzero_u32(u32::MAX) as i32;
-                let dst = self.choose_dst_reg(op, pass, &regw, plan)?;
-                (Instruction::XorConst { src, dst }, Some(regw))
+                let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
+                (Instruction::XorConst { src, dst }, regw)
             }
 
             Opcode::Rotate => {
-                let regw = RegisterWriter::ConstSource(op);
+                let regw = RegisterWriter::Rotate;
                 let right_rotate: u8 = self.select_nonzero_u32(63) as u8;
-                let dst = self.choose_dst_reg(op, pass, &regw, plan)?;
-                (Instruction::Rotate { dst, right_rotate }, Some(regw))
+                let dst = self.choose_dst_reg(op, pass, regw, None, plan)?;
+                (Instruction::Rotate { dst, right_rotate }, regw)
             }
         })
     }
@@ -440,7 +433,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
     fn commit_instruction_state(
         &mut self,
         inst: &Instruction,
-        regw: Option<RegisterWriter>,
+        regw: RegisterWriter,
     ) -> Result<(), ()> {
         self.validator.commit_instruction(inst, regw);
         self.scheduler.advance_instruction_stream(inst.opcode())

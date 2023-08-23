@@ -1,6 +1,7 @@
 //! Define HashX's register file, and how it's created and digested.
 
 use crate::siphash::{siphash24_ctr, SipState};
+use arrayvec::ArrayVec;
 use std::fmt;
 
 /// Number of virtual registers in the HashX machine
@@ -29,6 +30,12 @@ impl RegisterId {
     pub(crate) fn as_usize(&self) -> usize {
         self.0 as usize
     }
+
+    /// Create an iterator over all RegisterId
+    #[inline(always)]
+    pub(crate) fn all() -> impl Iterator<Item = RegisterId> {
+        (0_u8..(NUM_REGISTERS as u8)).map(RegisterId)
+    }
 }
 
 /// Identify a set of RegisterIds
@@ -36,15 +43,10 @@ impl RegisterId {
 /// This could be done compactly as a u8 bitfield for storage purposes, but
 /// in our program generator this is never stored long-term. Instead, we want
 /// something the optimizer can reason about as effectively as possible, and
-/// let's inline as much as possible in order to resolve special cases in
-/// the program generator at compile time.
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub(crate) struct RegisterSet {
-    /// Number of registers in the set
-    len: usize,
-    /// Array indexed by register Id, indicating registers we've excluded
-    reg_not_in_set: [bool; 8],
-}
+/// we want to optimize for an index() implementation that doesn't branch.
+/// This uses a fixed-capacity array of registers in-set, always sorted.
+#[derive(Default, Clone, Eq, PartialEq)]
+pub(crate) struct RegisterSet(ArrayVec<RegisterId, NUM_REGISTERS>);
 
 impl fmt::Debug for RegisterSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -60,66 +62,29 @@ impl fmt::Debug for RegisterSet {
 }
 
 impl RegisterSet {
-    /// Construct the set of all registers.
-    ///
-    /// This is the main way to construct a new RegisterId, starting with
-    /// all available registers and filtering them repeatedly.
-    #[inline(always)]
-    pub(crate) fn all() -> Self {
-        Self {
-            len: NUM_REGISTERS,
-            reg_not_in_set: Default::default(),
-        }
-    }
-
     /// Number of registers still contained in this set
     #[inline(always)]
     pub(crate) fn len(&self) -> usize {
-        self.len
+        self.0.len()
     }
 
     /// Test if a register is contained in the set.
     #[inline(always)]
     pub(crate) fn contains(&self, id: RegisterId) -> bool {
-        !self.reg_not_in_set[id.0 as usize]
+        self.0.contains(&id)
     }
 
-    /// Filter this register set through a predicate.
-    ///
-    /// Invokes the predicate only for registers in this set, and returns the
-    /// set of registers for which it returned true.
+    /// Build a new RegisterSet from each register for which a predicate
+    /// function returns `true`.
     #[inline(always)]
-    pub(crate) fn filter<P: FnMut(RegisterId) -> bool>(&self, mut predicate: P) -> Self {
-        let mut result = Self {
-            len: 0,
-            reg_not_in_set: Default::default(),
-        };
-        self.filter_impl(0, &mut predicate, &mut result);
-        self.filter_impl(1, &mut predicate, &mut result);
-        self.filter_impl(2, &mut predicate, &mut result);
-        self.filter_impl(3, &mut predicate, &mut result);
-        self.filter_impl(4, &mut predicate, &mut result);
-        self.filter_impl(5, &mut predicate, &mut result);
-        self.filter_impl(6, &mut predicate, &mut result);
-        self.filter_impl(7, &mut predicate, &mut result);
-        result
-    }
-
-    /// Internal implementation to be unrolled by `filter`
-    #[inline(always)]
-    fn filter_impl<P: FnMut(RegisterId) -> bool>(
-        &self,
-        id: usize,
-        predicate: &mut P,
-        result: &mut Self,
-    ) {
-        if self.reg_not_in_set[id] {
-            result.reg_not_in_set[id] = true;
-        } else if predicate(RegisterId(id as u8)) {
-            result.len += 1;
-        } else {
-            result.reg_not_in_set[id] = true;
+    pub(crate) fn from_filter<P: FnMut(RegisterId) -> bool>(mut predicate: P) -> Self {
+        let mut result: Self = Default::default();
+        for r in RegisterId::all() {
+            if predicate(r) {
+                result.0.push(r);
+            }
         }
+        result
     }
 
     /// Return a particular register within this set, counting from R0 to R7.
@@ -127,45 +92,8 @@ impl RegisterSet {
     /// The supplied index must be less than the [`Self::len()`] of this set.
     /// Panics if the index is out of range.
     #[inline(always)]
-    pub(crate) fn index(&self, mut index: usize) -> RegisterId {
-        if let Some(result) = self.index_impl(0, &mut index) {
-            return result;
-        }
-        if let Some(result) = self.index_impl(1, &mut index) {
-            return result;
-        }
-        if let Some(result) = self.index_impl(2, &mut index) {
-            return result;
-        }
-        if let Some(result) = self.index_impl(3, &mut index) {
-            return result;
-        }
-        if let Some(result) = self.index_impl(4, &mut index) {
-            return result;
-        }
-        if let Some(result) = self.index_impl(5, &mut index) {
-            return result;
-        }
-        if let Some(result) = self.index_impl(6, &mut index) {
-            return result;
-        }
-        if let Some(result) = self.index_impl(7, &mut index) {
-            return result;
-        }
-        unreachable!();
-    }
-
-    /// Internal implementation to be unrolled by `index`
-    #[inline(always)]
-    fn index_impl(&self, id: usize, index: &mut usize) -> Option<RegisterId> {
-        if self.reg_not_in_set[id] {
-            None
-        } else if *index == 0 {
-            Some(RegisterId(id as u8))
-        } else {
-            *index -= 1;
-            None
-        }
+    pub(crate) fn index(&self, index: usize) -> RegisterId {
+        self.0[index]
     }
 }
 
@@ -222,31 +150,5 @@ impl RegisterFile {
         x.sip_round();
         y.sip_round();
         [x.v0 ^ y.v0, x.v1 ^ y.v1, x.v2 ^ y.v2, x.v3 ^ y.v3]
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::RegisterSet;
-
-    #[test]
-    fn register_set() {
-        let r = RegisterSet::all().filter(|_reg| true);
-        assert_eq!(r.len(), 8);
-        assert_eq!(r.index(7).as_usize(), 7);
-        assert_eq!(r.index(0).as_usize(), 0);
-        let r = r.filter(|reg| (reg.as_usize() & 1) != 0);
-        assert_eq!(r.len(), 4);
-        assert_eq!(r.index(0).as_usize(), 1);
-        assert_eq!(r.index(1).as_usize(), 3);
-        assert_eq!(r.index(2).as_usize(), 5);
-        assert_eq!(r.index(3).as_usize(), 7);
-        let r = r.filter(|reg| (reg.as_usize() & 2) != 0);
-        assert_eq!(r.index(0).as_usize(), 3);
-        assert_eq!(r.index(1).as_usize(), 7);
-        let r = r.filter(|_reg| true);
-        assert_eq!(r.len(), 2);
-        let r = r.filter(|_reg| false);
-        assert_eq!(r.len(), 0);
     }
 }

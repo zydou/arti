@@ -5,7 +5,7 @@
 //! avoid stalls.
 
 use crate::program::{Instruction, Opcode};
-use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};
+use crate::register::{RegisterId, NUM_REGISTERS};
 
 /// Scheduling information for each opcode
 mod model {
@@ -197,10 +197,10 @@ impl Scheduler {
         }
     }
 
-    /// Figure out which registers will be available at or before the indicated cycle.
+    /// Look up if a register will be available at or before the indicated cycle.
     #[inline(always)]
-    pub(crate) fn registers_available(&self, cycle: Cycle) -> RegisterSet {
-        self.data.registers_available(cycle)
+    pub(crate) fn register_available(&self, reg: RegisterId, cycle: Cycle) -> bool {
+        self.data.register_available(reg, cycle)
     }
 
     /// Return the overall data latency.
@@ -323,13 +323,10 @@ impl DataSchedule {
         self.latencies[dst.as_usize()] = cycle;
     }
 
-    /// Figure out which registers will be available at or before the indicated cycle
+    /// Look up if a register will be available at or before the indicated cycle.
     #[inline(always)]
-    fn registers_available(&self, cycle: Cycle) -> RegisterSet {
-        RegisterSet::all().filter(
-            #[inline(always)]
-            |reg| self.latencies[reg.as_usize()] <= cycle,
-        )
+    fn register_available(&self, reg: RegisterId, cycle: Cycle) -> bool {
+        self.latencies[reg.as_usize()] <= cycle
     }
 
     /// Return the overall latency, the [`Cycle`] at which we expect
@@ -447,7 +444,7 @@ struct MicroOpPlan {
 ///
 /// This is defined as either one or two micro-operations
 /// scheduled on the same cycle.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) struct InstructionPlan {
     /// The Cycle this whole instruction begins on
     cycle: Cycle,

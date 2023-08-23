@@ -51,7 +51,6 @@ mod scheduler;
 mod siphash;
 
 use crate::compiler::{Architecture, Executable};
-use crate::generator::generate_program;
 use crate::program::Program;
 use rand_core::RngCore;
 
@@ -111,8 +110,8 @@ pub struct HashX {
 /// to store the program data.
 #[derive(Debug)]
 enum RuntimeProgram {
-    /// Select the interpreted runtime, and hold a boxed Program for it to run.
-    Interpret(Box<Program>),
+    /// Select the interpreted runtime, and hold a Program for it to run.
+    Interpret(Program),
     /// Select the compiled runtime, and hold an executable code page.
     Compiled(Executable),
 }
@@ -203,7 +202,7 @@ impl HashXBuilder {
         rng: &mut R,
         register_key: SipState,
     ) -> Result<HashX, Error> {
-        let program = generate_program(rng)?;
+        let program = Program::generate(rng)?;
         self.build_from_program(program, register_key)
     }
 
@@ -217,13 +216,13 @@ impl HashXBuilder {
         Ok(HashX {
             register_key,
             program: match self.runtime {
-                RuntimeOption::InterpretOnly => RuntimeProgram::Interpret(Box::new(program)),
+                RuntimeOption::InterpretOnly => RuntimeProgram::Interpret(program),
                 RuntimeOption::CompileOnly => {
                     RuntimeProgram::Compiled(Architecture::compile((&program).into())?)
                 }
                 RuntimeOption::TryCompile => match Architecture::compile((&program).into()) {
                     Ok(exec) => RuntimeProgram::Compiled(exec),
-                    Err(_) => RuntimeProgram::Interpret(Box::new(program)),
+                    Err(_) => RuntimeProgram::Interpret(program),
                 },
             },
         })

@@ -1,7 +1,9 @@
 //! Define the internal hash program representation used by HashX.
 
+use crate::generator::Generator;
 use crate::register::{RegisterFile, RegisterId};
-use arrayvec::ArrayVec;
+use crate::Error;
+use rand_core::RngCore;
 use std::fmt;
 use std::ops::BitXor;
 
@@ -179,24 +181,14 @@ impl Instruction {
     }
 }
 
-/// Fixed-size array of instructions, either a complete program or a
-/// program under construction
-pub(crate) type InstructionArray = ArrayVec<Instruction, NUM_INSTRUCTIONS>;
-
-/// Generated `HashX` program, as a list of instructions.
+/// Generated `HashX` program, as a boxed slice of instructions
 #[derive(Clone, Default)]
-pub struct Program {
-    /// The InstructionArray that this Program wraps
-    ///
-    /// InstructionArray provides storage, and this type indicates that the
-    /// program should be a well-formed HashX function.
-    instructions: InstructionArray,
-}
+pub struct Program(Box<[Instruction]>);
 
 impl fmt::Debug for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Program {{")?;
-        for (addr, inst) in self.instructions.iter().enumerate() {
+        for (addr, inst) in self.0.iter().enumerate() {
             writeln!(f, " [{:3}]: {:?}", addr, inst)?;
         }
         write!(f, "}}")
@@ -204,10 +196,16 @@ impl fmt::Debug for Program {
 }
 
 impl Program {
-    /// Construct a finished `Program` from a list of instructions.
-    #[inline(always)]
-    pub(crate) fn new(instructions: InstructionArray) -> Self {
-        Self { instructions }
+    /// Generate a new `Program` from an arbitrary [`RngCore`] implementer
+    ///
+    /// This can return [`Error::ProgramConstraints`] if the HashX
+    /// post-generation program verification fails. During normal use this
+    /// will happen once per several thousand random seeds, and the caller
+    /// should skip to another seed.
+    pub(crate) fn generate<T: RngCore>(rng: &mut T) -> Result<Self, Error> {
+        let mut instructions = Vec::with_capacity(NUM_INSTRUCTIONS);
+        Generator::new(rng).generate_program(&mut instructions)?;
+        Ok(Program(instructions.into_boxed_slice()))
     }
 
     /// Reference implementation for `Program` behavior
@@ -254,9 +252,9 @@ impl Program {
             }};
         }
 
-        while program_counter < self.instructions.len() {
+        while program_counter < self.0.len() {
             let next_pc = program_counter + 1;
-            program_counter = match &self.instructions[program_counter] {
+            program_counter = match &self.0[program_counter] {
                 Instruction::Target => {
                     branch_target = Some(program_counter);
                     next_pc
@@ -305,9 +303,9 @@ impl Program {
     }
 }
 
-impl<'a> From<&'a Program> for &'a InstructionArray {
+impl<'a> From<&'a Program> for &'a [Instruction] {
     #[inline(always)]
     fn from(prog: &'a Program) -> Self {
-        &prog.instructions
+        &prog.0
     }
 }

@@ -9,7 +9,7 @@
 //! Generating correct HashX output depends on applying exactly the right
 //! constraints.
 
-use crate::program::{Instruction, InstructionArray, Opcode};
+use crate::program::{Instruction, Opcode};
 use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};
 use crate::scheduler::Scheduler;
 
@@ -39,7 +39,7 @@ mod model {
         matches!(op, Opcode::Mul | Opcode::SMulH | Opcode::UMulH)
     }
 
-    /// Does an instruction prohibit using the same register for source and dest?
+    /// Does an instruction prohibit using the same register for src and dst?
     ///
     /// Meaningful only for ops that have both a source and destination register.
     #[inline(always)]
@@ -85,31 +85,19 @@ mod model {
     #[inline(always)]
     pub(super) fn writer_pair_allowed(
         pass: Pass,
-        last_writer: Option<&RegisterWriter>,
-        this_writer: &RegisterWriter,
+        last_writer: RegisterWriter,
+        this_writer: RegisterWriter,
     ) -> bool {
         match (last_writer, this_writer) {
             // HashX disallows back-to-back 64-bit multiplies on the
             // same destination register in Pass::Original but permits
             // them on the retry if the source register isn't identical.
-            (
-                Some(RegisterWriter::RegSource(Opcode::Mul, _)),
-                RegisterWriter::RegSource(Opcode::Mul, _),
-            ) if matches!(pass, Pass::Original) => false,
-
-            // Add/Sub from the same source register can't be paired
-            // with each other. (They might cancel out)
-            (
-                Some(RegisterWriter::RegSource(Opcode::AddShift, last_src)),
-                RegisterWriter::RegSource(Opcode::Sub, this_src),
-            ) if this_src == last_src => false,
-            (
-                Some(RegisterWriter::RegSource(Opcode::Sub, last_src)),
-                RegisterWriter::RegSource(Opcode::AddShift, this_src),
-            ) if this_src == last_src => false,
+            (RegisterWriter::Mul(_), RegisterWriter::Mul(_)) if matches!(pass, Pass::Original) => {
+                false
+            }
 
             // Other pairings are allowed if the writer info differs at all.
-            (last_writer, this_writer) => last_writer != Some(this_writer),
+            (last_writer, this_writer) => last_writer != this_writer,
         }
     }
 
@@ -132,29 +120,57 @@ mod model {
     /// This is conceptually similar to storing the last [`super::Instruction`]
     /// that wrote to a register, but HashX sometimes needs information for
     /// constraints which won't end up in the final `Instruction`.
-    #[derive(Debug, Clone, Eq, PartialEq)]
+    ///
+    /// We've chosen the encoding to minimize the code size in
+    /// writer_pair_allowed. Most pairwise comparisons can just be a register
+    /// equality test.
+    ///
+    /// The instructions here fall into three categories which use their own
+    /// format for encoding arguments:
+    ///
+    ///  - Wide Multiply, extra u32
+    ///
+    ///    UMulH and SMulH use an additional otherwise unused 32-bit value
+    ///    from the Rng when considering writer collisions.
+    ///
+    ///    As far as I can tell this is a bug in the original implementation
+    ///    but we can't change the behavior without breaking compatibility.
+    ///
+    ///    The collisions are rare enough not to be a worthwhile addition
+    ///    to ASIC-resistance. It seems like this was a vestigial feature
+    ///    left over from immediate value matching features which were removed
+    ///    during the development of HashX, but I can't be sure.
+    ///
+    ///  - Constant source
+    ///
+    ///    Only considers the opcode itself, not the specific immediate value.
+    ///
+    ///  - Register source
+    ///
+    ///    Considers the source register, collapses add/subtract into one op.
+    ///
+    #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
     pub(crate) enum RegisterWriter {
-        /// Special format for wide multiply
-        ///
-        /// HashX includes an otherwise unused phantom immediate value which
-        /// can (very rarely) affect constraint selection if it collides.
-        ///
-        /// As far as I can tell this is a bug in the original implementation
-        /// but we can't change the behavior without breaking compatibility.
-        ///
-        /// The collisions are rare enough not to be a worthwhile addition
-        /// to ASIC-resistance. It seems like this was a vestigial feature
-        /// left over from immediate value matching features which were removed
-        /// during the development of HashX, but I can't be sure.
-        WideMul(Opcode, u32),
-
-        /// Writer for instructions with an immediate source
-        ///
-        /// The specific immediate value is not used.
-        ConstSource(Opcode),
-
-        /// Writer for instructions with register source, unique by source register
-        RegSource(Opcode, RegisterId),
+        /// Register not written yet
+        #[default]
+        None,
+        /// Register source writer for [`super::Instruction::Mul`]
+        Mul(RegisterId),
+        /// Wide multiply writer for [`super::Instruction::UMulH`]
+        UMulH(u32),
+        /// Wide multiply writer for [`super::Instruction::SMulH`]
+        SMulH(u32),
+        /// Register source writer for [`super::Instruction::AddShift`]
+        /// and [`super::Instruction::Sub`]
+        AddSub(RegisterId),
+        /// Constant source writer for [`super::Instruction::AddConst`]
+        AddConst,
+        /// Register source writer for [`super::Instruction::Xor`]
+        Xor(RegisterId),
+        /// Constant source writer for [`super::Instruction::XorConst`]
+        XorConst,
+        /// Constant source writer for [`super::Instruction::Rotate`]
+        Rotate,
     }
 }
 
@@ -187,16 +203,13 @@ impl Validator {
 
     /// Commit a new instruction to the validator state.
     #[inline(always)]
-    pub(crate) fn commit_instruction(&mut self, inst: &Instruction, regw: Option<RegisterWriter>) {
+    pub(crate) fn commit_instruction(&mut self, inst: &Instruction, regw: RegisterWriter) {
         if model::is_multiply(inst.opcode()) {
             self.multiply_count += 1;
         }
         match inst.destination() {
-            None => assert!(regw.is_none()),
-            Some(dst) => self.writer_map.insert(
-                dst,
-                regw.expect("instructions with destination always have a RegisterWriter"),
-            ),
+            None => debug_assert_eq!(regw, RegisterWriter::None),
+            Some(dst) => self.writer_map.insert(dst, regw),
         }
     }
 
@@ -208,7 +221,7 @@ impl Validator {
     pub(crate) fn check_whole_program(
         &self,
         scheduler: &Scheduler,
-        instructions: &InstructionArray,
+        instructions: &[Instruction],
     ) -> Result<(), ()> {
         if instructions.len() == model::REQUIRED_INSTRUCTIONS
             && scheduler.overall_latency().as_usize() == model::REQUIRED_OVERALL_RESULT_AT_CYCLE
@@ -220,36 +233,67 @@ impl Validator {
         }
     }
 
-    /// Figure out the allowed set of destination registers for an op after its
-    /// source is known, using the current state of the validator.
+    /// Begin checking which destination registers are allowed for an op after
+    /// its source is known, using the current state of the validator.
+    ///
+    /// Returns a DstRegisterChecker which can be used to test each specific
+    /// destination RegisterId quickly.
     #[inline(always)]
     pub(crate) fn dst_registers_allowed(
         &self,
-        available: RegisterSet,
         op: Opcode,
         pass: Pass,
-        writer_info: &RegisterWriter,
+        writer_info: RegisterWriter,
         src: Option<RegisterId>,
-    ) -> RegisterSet {
-        available.filter(
-            #[inline(always)]
-            |dst| {
-                // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
-                // be used as destination for AddShift.
-                if op == Opcode::AddShift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
-                    return false;
-                }
-
-                // A few instructions disallow choosing src and dst as the same
-                if model::disallow_src_is_dst(op) && src == Some(dst) {
-                    return false;
-                }
-
-                // Additional constraints are written on the pair of previous and
-                // current instructions with the same destination.
-                model::writer_pair_allowed(pass, self.writer_map.get(dst), writer_info)
+    ) -> DstRegisterChecker<'_> {
+        DstRegisterChecker {
+            pass,
+            writer_info,
+            writer_map: &self.writer_map,
+            op_is_add_shift: op == Opcode::AddShift,
+            disallow_equal: if model::disallow_src_is_dst(op) {
+                src
+            } else {
+                None
             },
-        )
+        }
+    }
+}
+
+/// State information returned by [`Validator::dst_registers_allowed`]
+#[derive(Debug, Clone)]
+pub(crate) struct DstRegisterChecker<'v> {
+    /// Is this the original or retry pass?
+    pass: Pass,
+    /// Reference to a table of [`RegisterWriter`] information for each register
+    writer_map: &'v RegisterWriterMap,
+    /// The new [`RegisterWriter`] under consideration
+    writer_info: RegisterWriter,
+    /// Was this [`Opcode::AddShift`]?
+    op_is_add_shift: bool,
+    /// Optionally disallow one matching register, used to implement [`model::disallow_src_is_dst`]
+    disallow_equal: Option<RegisterId>,
+}
+
+impl<'v> DstRegisterChecker<'v> {
+    /// Check a single destination register for usability, using context from
+    /// [`Validator::dst_registers_allowed`]
+    #[inline(always)]
+    pub(crate) fn check(&self, dst: RegisterId) -> bool {
+        // One register specified by DISALLOW_REGISTER_FOR_ADDSHIFT can't
+        // be used as destination for AddShift.
+        if self.op_is_add_shift && dst == model::DISALLOW_REGISTER_FOR_ADDSHIFT {
+            return false;
+        }
+
+        // A few instructions disallow choosing src and dst as the same
+        if Some(dst) == self.disallow_equal {
+            return false;
+        }
+
+        // Additional constraints are written on the pair of previous and
+        // current instructions with the same destination.
+        model::writer_pair_allowed(self.pass, self.writer_map.get(dst), self.writer_info)
     }
 }
 
@@ -259,7 +303,7 @@ impl Validator {
 pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> RegisterSet {
     // HashX defines a special case DISALLOW_REGISTER_FOR_ADDSHIFT for
     // destination registers, and it also includes a look-ahead
-    // condition here in source register allocation to prevent the dest
+    // condition here in source register allocation to prevent the dst
     // allocation from getting stuck as often. If we have only two
     // remaining registers for AddShift and one is the disallowed reg,
     // HashX defines that the random choice is short-circuited early
@@ -269,7 +313,7 @@ pub(crate) fn src_registers_allowed(available: RegisterSet, op: Opcode) -> Regis
         && available.contains(model::DISALLOW_REGISTER_FOR_ADDSHIFT)
         && available.len() == 2
     {
-        available.filter(
+        RegisterSet::from_filter(
             #[inline(always)]
             |reg| reg == model::DISALLOW_REGISTER_FOR_ADDSHIFT,
         )
@@ -297,9 +341,9 @@ pub(crate) fn opcode_pair_allowed(previous: Option<Opcode>, proposed: Opcode) ->
     }
 }
 
-/// Map each [`RegisterId`] to an [`Option<RegisterWriter>`]
+/// Map each [`RegisterId`] to an [`RegisterWriter`]
 #[derive(Default, Debug, Clone)]
-struct RegisterWriterMap([Option<RegisterWriter>; NUM_REGISTERS]);
+struct RegisterWriterMap([RegisterWriter; NUM_REGISTERS]);
 
 impl RegisterWriterMap {
     /// Make a new empty register writer map.
@@ -313,12 +357,12 @@ impl RegisterWriterMap {
     /// Write or overwrite the last [`RegisterWriter`] associated with `reg`.
     #[inline(always)]
     fn insert(&mut self, reg: RegisterId, writer: RegisterWriter) {
-        self.0[reg.as_usize()] = Some(writer);
+        self.0[reg.as_usize()] = writer;
     }
 
     /// Return the most recent mapping for 'reg', if any.
     #[inline(always)]
-    fn get(&self, reg: RegisterId) -> Option<&RegisterWriter> {
-        self.0[reg.as_usize()].as_ref()
+    fn get(&self, reg: RegisterId) -> RegisterWriter {
+        self.0[reg.as_usize()]
     }
 }
