@@ -18,9 +18,9 @@ use tor_keymgr::ArtiPathComponent;
 /// (but punctuation is not allowed at the start or end).
 ///
 /// (These are the same rules as [`tor_keymgr::ArtiPathComponent`]
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-#[derive(Display, From, Into)]
-#[derive(Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Display, From, Into, Serialize, Deserialize,
+)]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(ArtiPathComponent);
 

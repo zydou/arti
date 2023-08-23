@@ -48,10 +48,20 @@ impl ArtiPath {
 //
 // TODO HSS: disallow consecutive `.` to prevent path traversal.
 #[derive(
-    Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
+    Clone,
+    Debug,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::Into,
+    derive_more::Display,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
 )]
-#[derive(Hash, Eq, PartialEq, Ord, PartialOrd)]
-#[derive(Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct ArtiPathComponent(String);
 
