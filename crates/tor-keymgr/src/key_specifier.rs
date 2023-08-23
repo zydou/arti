@@ -27,6 +27,7 @@ impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
+    // TODO HSS this function (and validate_str) should have a bespoke error type
     pub fn new(inner: String) -> Result<Self> {
         if let Some(e) = inner
             .split(PATH_SEP)
@@ -48,6 +49,7 @@ impl ArtiPath {
 #[derive(
     Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::Into, derive_more::Display,
 )]
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ArtiPathComponent(String);
 
 impl ArtiPathComponent {
@@ -81,6 +83,19 @@ impl ArtiPathComponent {
         }
 
         Ok(())
+    }
+}
+
+impl TryFrom<String> for ArtiPathComponent {
+    type Error = crate::Error; // TODO HSS should be bespoke error type
+    fn try_from(s: String) -> Result<ArtiPathComponent> {
+        Self::new(s)
+    }
+}
+
+impl AsRef<str> for ArtiPathComponent {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
