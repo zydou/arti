@@ -2,10 +2,18 @@
 
 #![allow(clippy::needless_pass_by_value)] // TODO HSS REMOVE.
 
+mod err;
+
 use std::sync::Arc;
 
+use tor_circmgr::hspool::HsCircPool;
+use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
+
+use crate::OnionServiceConfig;
+
+use err::PublisherError;
 
 /// A handle for the Hsdir Publisher for an onion service.
 ///
@@ -27,10 +35,6 @@ pub(crate) struct Publisher {
     dir_provider: Arc<dyn NetDirProvider>,
 }
 
-/// An error from creating or talkign with a Publisher.
-#[derive(Clone, Debug, thiserror::Error)]
-pub(crate) enum PublisherError {}
-
 impl Publisher {
     /// Create and launch a new publisher.
     ///
@@ -38,10 +42,14 @@ impl Publisher {
     /// and will therefore not upload any descriptors.
     ///
     #[allow(clippy::unnecessary_wraps)] // TODO HSS REMOVE
-    pub(crate) fn new<R: Runtime>(
+    pub(crate) async fn new<R: Runtime>(
         runtime: R,
+        hsid: HsId,
         dir_provider: Arc<dyn NetDirProvider>,
+        circpool: Arc<HsCircPool<R>>,
+        config: OnionServiceConfig,
     ) -> Result<Self, PublisherError> {
+
         // TODO: Do we really want to launch now, or later?
         Ok(Self { dir_provider })
     }
