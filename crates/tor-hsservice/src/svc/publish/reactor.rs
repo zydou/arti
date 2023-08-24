@@ -33,6 +33,11 @@ use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, Ipt};
 
 /// The upload rate-limiting threshold.
+///
+/// Before initiating an upload, the reactor checks if the last upload was at least
+/// `UPLOAD_RATE_LIM_THRESHOLD` seconds ago. If so, it uploads the descriptor to all HsDirs that
+/// need it. If not, it schedules the upload to happen `UPLOAD_RATE_LIM_THRESHOLD` seconds from the
+/// current time.
 //
 // TODO HSS: this value is probably not right.
 const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
