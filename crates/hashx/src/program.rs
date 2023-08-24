@@ -1,9 +1,9 @@
 //! Define the internal hash program representation used by HashX.
 
-use crate::FixedCapacityVec;
 use crate::generator::Generator;
 use crate::register::{RegisterFile, RegisterId};
 use crate::Error;
+use crate::FixedCapacityVec;
 use rand_core::RngCore;
 use std::fmt;
 use std::ops::BitXor;
@@ -206,7 +206,12 @@ impl Program {
     pub(crate) fn generate<T: RngCore>(rng: &mut T) -> Result<Self, Error> {
         let mut instructions = FixedCapacityVec::new();
         Generator::new(rng).generate_program(&mut instructions)?;
-        Ok(Program(instructions.try_into().map_err(|_|()).expect("wrong length!")))
+        Ok(Program(
+            instructions
+                .try_into()
+                .map_err(|_| ())
+                .expect("wrong length!"),
+        ))
     }
 
     /// Reference implementation for `Program` behavior

@@ -1,13 +1,13 @@
 //! Pseudorandom generator for hash programs and parts thereof
 
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
-use crate::FixedCapacityVec;
 use crate::program::NUM_INSTRUCTIONS;
 use crate::program::{Instruction, Opcode};
 use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
 use crate::Error;
+use crate::FixedCapacityVec;
 use rand_core::RngCore;
 
 /// The `model` attempts to document HashX program generation choices,

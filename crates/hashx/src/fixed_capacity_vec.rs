@@ -128,7 +128,8 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
     #[inline]
     // TODO there should be a panic-free try_push
     pub(crate) fn push(&mut self, item: T) {
-        self.push_inner(item).expect("pushing to a full FixedCapacityVec");
+        self.push_inner(item)
+            .expect("pushing to a full FixedCapacityVec");
     }
 
     // TODO there should be pop and try_pop
@@ -246,7 +247,7 @@ mod test {
         assert!(!v.is_empty());
 
         println!("conversion to boxed array");
-        let v: Box<[T; N]> = v.try_into().map_err(|_|()).expect("not into boxed array");
+        let v: Box<[T; N]> = v.try_into().map_err(|_| ()).expect("not into boxed array");
 
         println!("drop boxed array");
         drop(v);
