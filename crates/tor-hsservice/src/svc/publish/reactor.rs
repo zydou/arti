@@ -411,9 +411,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
     /// Maybe update our list of HsDirs.
     async fn handle_consensus_change(&self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
-        self.recompute_hs_dirs(&netdir).await?;
+        let _old: Arc<NetDir> = self.replace_netdir(Arc::clone(&netdir)).await;
 
-        let _old: Arc<NetDir> = self.replace_netdir(netdir).await;
+        self.recompute_hs_dirs(&netdir).await?;
 
         Ok(())
     }
