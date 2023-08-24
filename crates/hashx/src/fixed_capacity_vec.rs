@@ -12,6 +12,9 @@ use std::mem::{self, MaybeUninit};
 ///
 /// All of the following types store only the actual buffer on the heap,
 /// and they are interconvertible without copying the data.
+//
+// TODO ^ not actually quite true; we should impl Into<Vec< >>
+// TODO ^ not actually quite true; we should impl TryFrom<Vec< >>
 ///
 /// | Type          | Size and representation (as eg on stack)  | Full? | Mutability           |
 /// |---------------|-----------------------------------------|----------|---------------|
@@ -19,6 +22,12 @@ use std::mem::{self, MaybeUninit};
 /// | `Box<[T]>`    | 2 words: pointer, length = capacity | always | length fixed at runtime |
 /// | `FixedCapacityVec<[T; N]>` | 2 words: pointer, length | maybe | appendable, but capacity fixed at compile time |
 /// | `Box<[T; N]>` | 1 word: pointer                    | always | length fixed at compile time |
+//
+// TODO we should impl Default
+// TODO we should impl Deref and DerefMut to [T]
+// TODO there should be from_raw_parts and into_raw_parts
+// TODO we should impl Drop ! XXXX
+// TODO we should impl Clone, Debug, Hash, Eq, Serialize, ...
 pub(crate) struct FixedCapacityVec<T, const N: usize> {
     /// Data
     ///
@@ -77,11 +86,14 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
     ///
     /// Panics if the `FixedCapacityVec` is full, ie if it already contains `N` elements
     #[inline]
+    // TODO there should be a panic-free try_push
     pub(crate) fn push(&mut self, item: T) {
         let ent = &mut self.slice[self.len]; // panics if out of bounds
         *ent = MaybeUninit::new(item);
         self.len += 1;
     }
+
+    // TODO there should be pop and try_pop
 }
 
 /// Convert a full `FixedCapacityVec` into a boxed array.
