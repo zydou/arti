@@ -189,7 +189,8 @@ impl TimePeriodContext {
 
     /// Recompute the HsDirs for this time period.
     fn recompute_hs_dirs(&mut self, netdir: &Arc<NetDir>) -> Result<(), ReactorError> {
-        self.hs_dirs = Self::compute_hsdirs(self.period, self.blind_id, netdir, self.hs_dirs.iter())?;
+        self.hs_dirs =
+            Self::compute_hsdirs(self.period, self.blind_id, netdir, self.hs_dirs.iter())?;
 
         Ok(())
     }
