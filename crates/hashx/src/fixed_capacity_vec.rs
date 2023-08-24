@@ -76,7 +76,7 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
         FixedCapacityVec { data, len: 0 }
     }
 
-    // Return the `Layout` for our `data` pointer allocation
+    /// Return the `Layout` for our `data` pointer allocation
     fn layout() -> Layout {
         Layout::new::<[T; N]>()
     }
@@ -112,8 +112,7 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
         }
         unsafe {
             // SAFETY now len is within bounds and the pointer is aligned
-            // len can't be more than would imply isize, since N can't, so the conversion is fine
-            self.data.offset(self.len as isize).write(item);
+            self.data.add(self.len).write(item);
             // SAFETY now that the value is written, we can say it's there
             self.len += 1;
         }
@@ -255,7 +254,7 @@ mod test {
 
     #[test]
     fn api_i32() {
-        test_api(|| 42i32);
+        test_api(|| 42_i32);
     }
 
     use std::cell::RefCell;
