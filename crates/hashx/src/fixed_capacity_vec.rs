@@ -58,16 +58,23 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
         *ent = MaybeUninit::new(item);
         self.len += 1;
     }
+}
+
+impl<T, const N: usize> TryFrom<FixedCapacityVec<T, N>> for Box<[T; N]> {
+    type Error = FixedCapacityVec<T, N>;
 
     #[inline]
-    pub(crate) fn into_boxed_array(self) -> Box<[T; N]> {
-        assert!(self.len == N);
-        unsafe {
-            // SAFETY
-            // We have checked that every element is initialised
-            let slice: Box<[MaybeUninit<T>; N]> = self.slice;
-            let array: Box<[T; N]> = mem::transmute(slice);
-            array
+    fn try_from(fcvec: FixedCapacityVec<T, N>) -> Result<Box<[T; N]>, FixedCapacityVec<T, N>> {
+        if fcvec.len == N {
+            Ok(unsafe {
+                // SAFETY
+                // We have checked that every element is initialised
+                let slice: Box<[MaybeUninit<T>; N]> = fcvec.slice;
+                let array: Box<[T; N]> = mem::transmute(slice);
+                array
+            })
+        } else {
+            Err(fcvec)
         }
     }
 }

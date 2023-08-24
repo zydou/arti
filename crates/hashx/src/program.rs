@@ -206,7 +206,7 @@ impl Program {
     pub(crate) fn generate<T: RngCore>(rng: &mut T) -> Result<Self, Error> {
         let mut instructions = FixedCapacityVec::new();
         Generator::new(rng).generate_program(&mut instructions)?;
-        Ok(Program(instructions.into_boxed_array()))
+        Ok(Program(instructions.try_into().map_err(|_|()).expect("wrong length!")))
     }
 
     /// Reference implementation for `Program` behavior
