@@ -130,6 +130,9 @@ struct Inner {
     ///
     /// Note: this may be partially built. Use [`DescriptorBuilder::validate`] to check if it is
     /// complete.
+    ///
+    /// This field is only expected to be incomplete on startup. Once the introduction points are
+    /// established, we should have enough information to generate and upload the descriptor.
     descriptor: DescriptorBuilder,
     /// The onion service config.
     config: OnionServiceConfig,
