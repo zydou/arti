@@ -31,7 +31,7 @@ use tor_rtcompat::Runtime;
 
 use crate::svc::ipt_establish;
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
-use crate::{FatalError, OnionServiceConfig, RendRequest, StartupError};
+use crate::{FatalError, HsNickname, OnionServiceConfig, RendRequest, StartupError};
 use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
 
 use IptStatusStatus as ISS;
@@ -44,9 +44,6 @@ const IPT_RELAY_ROTATION_TIME: RangeInclusive<Duration> = {
     const DAY: u64 = 86400;
     Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
 };
-
-/// TODO HSS make HsNickname a newtype, somewhere more central, and document it properly
-type HsNickname = String;
 
 /// Persistent local identifier for an introduction point
 ///
