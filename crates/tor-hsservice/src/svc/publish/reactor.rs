@@ -7,7 +7,7 @@ use std::iter;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use async_broadcast::{broadcast, Receiver, Sender};
+use async_broadcast::{broadcast, Receiver, RecvError, Sender};
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::lock::Mutex;
@@ -397,7 +397,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 let event = event.ok_or(ReactorError::ShuttingDown)?;
                 self.handle_event(event).await?;
             },
-            _ = self.schedule_upload_rx.recv().fuse() => {
+            res = self.schedule_upload_rx.recv().fuse() => {
+                let _: () = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
+
                 // Time to reattempt a previously rate-limited upload
                 self.upload_all().await?;
             }
