@@ -4,6 +4,21 @@
 
 use std::mem::{self, MaybeUninit};
 
+/// Like `Vec` with a capacity fixed at compile time
+///
+/// When full, can be converted without copying into `Box<[T; N]>`, using `TryFrom`.
+///
+/// ### Comparison with related data types
+///
+/// All of the following types store only the actual buffer on the heap,
+/// and they are interconvertible without copying the data.
+///
+/// | Type          | Size and representation (as eg on stack)  | Full? | Mutability           |
+/// |---------------|-----------------------------------------|----------|---------------|
+/// | `Vec`         | 3 words: pointer, length, capacity | maybe | indefinitely appendable |
+/// | `Box<[T]>`    | 2 words: pointer, length = capacity | always | length fixed at runtime |
+/// | `FixedCapacityVec<[T; N]>` | 2 words: pointer, length | maybe | appendable, but capacity fixed at compile time |
+/// | `Box<[T; N]>` | 1 word: pointer                    | always | length fixed at compile time |
 pub(crate) struct FixedCapacityVec<T, const N: usize> {
     /// Data
     ///
@@ -18,6 +33,7 @@ pub(crate) struct FixedCapacityVec<T, const N: usize> {
 }
 
 impl<T, const N: usize> FixedCapacityVec<T, N> {
+    /// Create a new empty `FixedCapacityVec`, capable of holding up to `N` values of type `T`
     #[inline]
     pub(crate) fn new() -> Self {
         // We really want Box::new_uninit() but that's unstable
@@ -37,21 +53,29 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
         FixedCapacityVec { slice, len: 0 }
     }
 
+    /// Return the number of values stored so far
     #[inline]
     pub(crate) fn len(&self) -> usize {
         self.len
     }
 
+    /// Returns `true` iff the `FixedCapacityVec` is empty
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Returns `true` iff the `FixedCapacityVec` is full - ie, it has `N` elements
     #[inline]
     pub(crate) fn is_full(&self) -> bool {
         self.len == N
     }
 
+    /// Append an element
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `FixedCapacityVec` is full, ie if it already contains `N` elements
     #[inline]
     pub(crate) fn push(&mut self, item: T) {
         let ent = &mut self.slice[self.len]; // panics if out of bounds
@@ -60,6 +84,9 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
     }
 }
 
+/// Convert a full `FixedCapacityVec` into a boxed array.
+///
+/// If the `FixedCapacityVec` isn't full, it is returned as the `Err`
 impl<T, const N: usize> TryFrom<FixedCapacityVec<T, N>> for Box<[T; N]> {
     type Error = FixedCapacityVec<T, N>;
 
