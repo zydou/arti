@@ -2,7 +2,8 @@
 //!
 //! TODO should probably become a crate?  We could miri it etc.
 
-use std::mem::{self, MaybeUninit};
+use std::alloc::{self, Layout};
+use std::{mem, ptr};
 
 /// Like `Vec` with a capacity fixed at compile time
 ///
@@ -26,18 +27,24 @@ use std::mem::{self, MaybeUninit};
 // TODO we should impl Default
 // TODO we should impl Deref and DerefMut to [T]
 // TODO there should be from_raw_parts and into_raw_parts
-// TODO we should impl Drop ! XXXX
 // TODO we should impl Clone, Debug, Hash, Eq, Serialize, ...
 pub(crate) struct FixedCapacityVec<T, const N: usize> {
     /// Data
     ///
-    /// **SAFETY**: see `len`.
-    slice: Box<[MaybeUninit<T>; N]>,
+    /// ### SAFETY
+    ///
+    /// Every element of data in 0..len must always be initialised.
+    ///
+    /// Always a valid, properly aligned, heap pointer to a `[T; N]`;
+    /// except, during deconstruction it may be null.
+    /// (Deconstruction means methods that consume the `FixedCapacityVec`;
+    /// these must typically hand ownership of the allocation to someone else,
+    /// but our `Drop::drop` impl will of course still run after that.)
+    data: *mut T,
 
     /// Initialised portion
     ///
-    /// **SAFETY**:
-    /// Every element of slice in 0..len must be initialised.
+    /// **SAFETY**: See `data`
     len: usize,
 }
 
@@ -46,20 +53,19 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
     #[inline]
     pub(crate) fn new() -> Self {
         // We really want Box::new_uninit() but that's unstable
-        let slice = unsafe {
-            use std::alloc::Layout;
-
-            type Array<T, const N: usize> = [MaybeUninit<T>; N];
+        let data = unsafe {
             // SAFETY: the Layout is good since we got it from Layout::new
-            let slice: *mut u8 = std::alloc::alloc(Layout::new::<Array<T, N>>());
-            let slice: *mut Array<T, N> = slice as _;
-            // SAFETY: the pointer is properly aligned and valid since we got it from alloc
-            // SAFETY: value is valid Array despite not being initialised because MaybeUninit
-            let slice: Box<Array<T, N>> = Box::from_raw(slice);
-            slice
+            let data: *mut u8 = alloc::alloc(Self::layout());
+            let data: *mut T = data as _;
+            data
         };
 
-        FixedCapacityVec { slice, len: 0 }
+        FixedCapacityVec { data, len: 0 }
+    }
+
+    // Return the `Layout` for our `data` pointer allocation
+    fn layout() -> Layout {
+        Layout::new::<[T; N]>()
     }
 
     /// Return the number of values stored so far
@@ -88,12 +94,45 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
     #[inline]
     // TODO there should be a panic-free try_push
     pub(crate) fn push(&mut self, item: T) {
-        let ent = &mut self.slice[self.len]; // panics if out of bounds
-        *ent = MaybeUninit::new(item);
-        self.len += 1;
+        unsafe {
+            assert!(self.len < N);
+            // SAFETY now len is within bounds and the pointer is aligned
+            // len can't be more than would imply isize, since N can't, so the conversion is fine
+            self.data.offset(self.len as isize).write(item);
+            // SAFETY now that the value is written, we can say it's there
+            self.len += 1;
+        }
     }
 
     // TODO there should be pop and try_pop
+}
+
+impl<T, const N: usize> Drop for FixedCapacityVec<T, N> {
+    #[inline]
+    fn drop(&mut self) {
+        if !self.data.is_null() {
+            unsafe {
+                // SAFETY
+                //
+                // We are maybe in a deconstructor, but we have checked len and data,
+                // so data is valid and aligned and elements up to len are initialised.
+                //
+                // We are about to break the invariants!  This is OK, because it cannot
+                // be observed by anyone: we have &mut Self, so no-one else can see it,
+                // and even if a panic unwinds from here, `self` will no longer be considered
+                // valid by the language.
+                if mem::needs_drop::<T>() {
+                    let data: *mut [T] = ptr::slice_from_raw_parts_mut(self.data, self.len);
+                    // This causes the supposedly-valid portion of data to become totally
+                    // invalid, breaking the invariants.  See above.
+                    ptr::drop_in_place(data);
+                }
+                // SAFETY: this causes self.data to become totally invalid, breaking
+                // the invariants.  That's OK; see above.
+                alloc::dealloc(self.data as _, Self::layout());
+            }
+        }
+    }
 }
 
 /// Convert a full `FixedCapacityVec` into a boxed array.
@@ -103,14 +142,19 @@ impl<T, const N: usize> TryFrom<FixedCapacityVec<T, N>> for Box<[T; N]> {
     type Error = FixedCapacityVec<T, N>;
 
     #[inline]
-    fn try_from(fcvec: FixedCapacityVec<T, N>) -> Result<Box<[T; N]>, FixedCapacityVec<T, N>> {
+    fn try_from(mut fcvec: FixedCapacityVec<T, N>) -> Result<Box<[T; N]>, FixedCapacityVec<T, N>> {
         if fcvec.len == N {
             Ok(unsafe {
                 // SAFETY
+                // We are about to make ptr invalid so we must zero len
+                fcvec.len = 0;
+                let data: *mut T = mem::replace(&mut fcvec.data, ptr::null_mut());
+                // It always was such a valid pointer
+                let data: *mut [T; N] = data as _;
                 // We have checked that every element is initialised
-                let slice: Box<[MaybeUninit<T>; N]> = fcvec.slice;
-                let array: Box<[T; N]> = mem::transmute(slice);
-                array
+                // The pointer isn't null since *we* are the deconstructor
+                let data: Box<[T; N]> = Box::from_raw(data);
+                data
             })
         } else {
             Err(fcvec)
