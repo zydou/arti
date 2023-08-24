@@ -411,9 +411,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
     /// Maybe update our list of HsDirs.
     async fn handle_consensus_change(&self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
-        let _old: Arc<NetDir> = self.replace_netdir(Arc::clone(&netdir)).await;
+        let _old: Arc<NetDir> = self.replace_netdir(netdir).await;
 
-        self.recompute_hs_dirs(&netdir).await?;
+        self.recompute_hs_dirs().await?;
 
         Ok(())
     }
@@ -424,12 +424,16 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Recompute the HsDirs for both the current and the previous time period.
-    async fn recompute_hs_dirs(&self, netdir: &Arc<NetDir>) -> Result<(), ReactorError> {
+    async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
-        inner.current_period.recompute_hs_dirs(netdir)?;
+        // We need to clone netdir here, because we can't immutably borrow it while calling
+        // recompute_hs_dirs (which mutably borrows from inner)
+        let netdir = Arc::clone(&inner.netdir);
+
+        inner.current_period.recompute_hs_dirs(&netdir)?;
 
         if let Some(previous_period) = inner.previous_period.as_mut() {
-            previous_period.recompute_hs_dirs(netdir)?;
+            previous_period.recompute_hs_dirs(&netdir)?;
         }
 
         Ok(())
