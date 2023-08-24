@@ -9,7 +9,7 @@
 //! Generating correct HashX output depends on applying exactly the right
 //! constraints.
 
-use crate::generator::FixedCapacityVec;
+use crate::FixedCapacityVec;
 use crate::program::NUM_INSTRUCTIONS;
 use crate::program::{Instruction, Opcode};
 use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};

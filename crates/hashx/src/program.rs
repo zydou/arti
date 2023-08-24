@@ -1,6 +1,7 @@
 //! Define the internal hash program representation used by HashX.
 
-use crate::generator::{FixedCapacityVec, Generator};
+use crate::FixedCapacityVec;
+use crate::generator::Generator;
 use crate::register::{RegisterFile, RegisterId};
 use crate::Error;
 use rand_core::RngCore;
