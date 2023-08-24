@@ -183,19 +183,19 @@ impl TimePeriodContext {
         Ok(Self {
             period,
             blind_id,
-            hs_dirs: Self::fetch_hsdirs(period, blind_id, netdir, iter::empty())?,
+            hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, iter::empty())?,
         })
     }
 
     /// Recompute the HsDirs for this time period.
     fn recompute_hs_dirs(&mut self, netdir: &Arc<NetDir>) -> Result<(), ReactorError> {
-        self.hs_dirs = Self::fetch_hsdirs(self.period, self.blind_id, netdir, self.hs_dirs.iter())?;
+        self.hs_dirs = Self::compute_hsdirs(self.period, self.blind_id, netdir, self.hs_dirs.iter())?;
 
         Ok(())
     }
 
     /// Recompute the HsDirs for this time period.
-    fn fetch_hsdirs<'r>(
+    fn compute_hsdirs<'r>(
         period: TimePeriod,
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
