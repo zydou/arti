@@ -86,6 +86,27 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
         self.len == N
     }
 
+    /// Try to append an element
+    ///
+    /// If the `FixedCapacityVec` is full, ie if it already contains `N` elements,
+    /// returns `Err`.
+    #[inline]
+    // TODO there should be a panic-free try_push public API that returns the item,
+    // But that has to be separate from this, because that complicates the optimisation
+    fn push_inner(&mut self, item: T) -> Result<(), ()> {
+        if self.len >= N {
+            return Err(());
+        }
+        unsafe {
+            // SAFETY now len is within bounds and the pointer is aligned
+            // len can't be more than would imply isize, since N can't, so the conversion is fine
+            self.data.offset(self.len as isize).write(item);
+            // SAFETY now that the value is written, we can say it's there
+            self.len += 1;
+        }
+        Ok(())
+    }
+
     /// Append an element
     ///
     /// # Panics
@@ -94,14 +115,7 @@ impl<T, const N: usize> FixedCapacityVec<T, N> {
     #[inline]
     // TODO there should be a panic-free try_push
     pub(crate) fn push(&mut self, item: T) {
-        unsafe {
-            assert!(self.len < N);
-            // SAFETY now len is within bounds and the pointer is aligned
-            // len can't be more than would imply isize, since N can't, so the conversion is fine
-            self.data.offset(self.len as isize).write(item);
-            // SAFETY now that the value is written, we can say it's there
-            self.len += 1;
-        }
+        self.push_inner(item).expect("pushing to a full FixedCapacityVec");
     }
 
     // TODO there should be pop and try_pop
