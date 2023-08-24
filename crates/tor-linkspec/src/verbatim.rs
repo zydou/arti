@@ -9,6 +9,7 @@ use crate::{ChanTarget, CircTarget, EncodedLinkSpec, HasAddrs, HasChanMethod, Ha
 /// Onion services and their clients use this type of target when telling a
 /// relay to extend a circuit to a target relay (an introduction point or
 /// rendezvous point) chosen by some other party.
+#[derive(Clone, Debug)]
 pub struct VerbatimLinkSpecCircTarget<T> {
     /// The underlying CircTarget
     target: T,

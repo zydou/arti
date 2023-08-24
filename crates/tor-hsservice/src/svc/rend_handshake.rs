@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use futures::{stream::BoxStream, StreamExt as _};
+use retry_error::RetryError;
 use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
@@ -59,9 +60,9 @@ pub(crate) enum EstablishSessionError {
     /// Got an onion key with an unrecognized type (not ntor).
     #[error("Received an unsupported type of onion key")]
     UnsupportedOnionKey,
-    /// Encountered an error while trying to build a circuit to the rendezvous point.
+    /// Unable to build a circuit to the rendezvous point.
     #[error("Could not establish circuit to rendezvous point")]
-    RendCirc(#[source] tor_circmgr::Error),
+    RendCirc(#[source] RetryError<tor_circmgr::Error>),
     /// Encountered a failure while trying to add a virtual hop to the circuit.
     #[error("Could not add virtual hop to circuit")]
     VirtualHop(#[source] tor_proto::Error),
@@ -226,13 +227,30 @@ impl IntroRequest {
             )
         };
 
+        let max_n_attempts = netdir.params().hs_service_rendezvous_failures_max;
+        let mut circuit = None;
+        let mut retry_err: RetryError<tor_circmgr::Error> =
+            RetryError::in_attempt_to("Establish a circuit to a rendezvous point");
+
         // Open circuit to rendezvous point.
-        let circuit = hs_pool
-            .get_or_launch_specific(&netdir, HsCircKind::SvcRend, rend_point)
-            .await
-            .map_err(E::RendCirc)?;
-        // TODO HSS: Maybe we should retry a couple of time if the failure is not
-        // the fault of the rend_point?
+        for _attempt in 1..=max_n_attempts.into() {
+            match hs_pool
+                .get_or_launch_specific(&netdir, HsCircKind::SvcRend, rend_point.clone())
+                .await
+            {
+                Ok(circ) => {
+                    circuit = Some(circ);
+                    break;
+                }
+                Err(e) => {
+                    retry_err.push(e);
+                    // Note that we do not sleep on errors: if there is any
+                    // error that will be solved by waiting, it would probably
+                    // require waiting too long to satisfy the client.
+                }
+            }
+        }
+        let circuit = circuit.ok_or_else(|| E::RendCirc(retry_err))?;
 
         // We'll need parameters to extend the virtual hop.
         let params = circparameters_from_netparameters(netdir.params());
