@@ -48,6 +48,19 @@ pub(crate) struct FixedCapacityVec<T, const N: usize> {
     len: usize,
 }
 
+/// Implement `$trait` if `T: $trait`
+macro_rules! impl_traits_if_T { { $( $trait:path $(, $unsafe:tt )?; )* } => { $(
+    $( $unsafe )? impl<T: $trait, const N: usize> $trait for FixedCapacityVec<T, N> {}
+)* } }
+
+// (Vec implements all of these with the same bounds as we do)
+impl_traits_if_T! {
+    Send, unsafe;
+    Sync, unsafe;
+    std::panic::UnwindSafe;
+    std::panic::RefUnwindSafe;
+}
+
 impl<T, const N: usize> FixedCapacityVec<T, N> {
     /// Create a new empty `FixedCapacityVec`, capable of holding up to `N` values of type `T`
     #[inline]
