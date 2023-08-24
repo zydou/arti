@@ -247,6 +247,8 @@ impl TimePeriodContext {
 }
 
 /// An event that needs to be handled by the publisher [`Reactor`].
+///
+/// These are triggered by calling the various methods of [`Publisher`](super::Publisher).
 pub(super) enum Event {
     /// The introduction points of this service have changed.
     NewIntroPoints(Vec<Ipt>),
@@ -263,6 +265,14 @@ pub(super) enum Event {
     /// A new time period started.
     TimePeriodChange((HsBlindId, TimePeriod)),
     // TODO HSS: do we need a shutdown event for explicitly shutting down the reactor?
+
+    // Note: the reactor responds to other types of external events too, which do not have
+    // a corresponding `Event` variant. These are:
+    //
+    //   * consensus changes, handled in [`Reactor::handle_consensus_change`]
+    //   * handling deferred uploads: sometimes the reactor will defer an upload (for example, due
+    //   to rate-limiting). Whenever this happens, the reactor notifies its "reminder task" to
+    //   remind it to execute the upload at a later point
 }
 
 /// A reactor error
