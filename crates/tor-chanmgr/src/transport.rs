@@ -5,7 +5,7 @@ use futures::{AsyncRead, AsyncWrite};
 use tor_linkspec::OwnedChanTarget;
 
 pub(crate) mod default;
-pub(crate) mod proxied;
+pub mod proxied;
 
 pub(crate) use default::DefaultTransport;
 

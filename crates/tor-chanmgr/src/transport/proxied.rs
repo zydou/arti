@@ -40,7 +40,7 @@ use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 /// Information about what proxy protocol to use, and how to use it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
-pub(crate) enum Protocol {
+pub enum Protocol {
     /// Connect via SOCKS 4, SOCKS 4a, or SOCKS 5.
     Socks(SocksVersion, SocksAuth),
 }
@@ -410,7 +410,7 @@ where
 /// authentication.
 // NOTE(eta): I am very unsure of the logic in here.
 #[cfg(feature = "pt-client")]
-fn settings_to_protocol(vers: SocksVersion, s: String) -> Result<Protocol, ProxyError> {
+pub fn settings_to_protocol(vers: SocksVersion, s: String) -> Result<Protocol, ProxyError> {
     let mut bytes: Vec<_> = s.into();
     Ok(if bytes.is_empty() {
         Protocol::Socks(vers, SocksAuth::NoAuth)

@@ -46,7 +46,10 @@ pub mod ipc;
 
 use crate::config::ManagedTransportConfig;
 use crate::err::PtError;
-use crate::ipc::{PluggableTransport, PtClientMethod, PtParameters};
+use crate::ipc::{
+    sealed::PluggableTransportPrivate, PluggableClientTransport, PluggableTransport,
+    PtClientMethod, PtClientParameters, PtCommonParameters,
+};
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use futures::channel::oneshot;
 use futures::stream::FuturesUnordered;
@@ -94,14 +97,14 @@ enum PtReactorMessage {
 }
 
 /// The result of a spawn attempt: the list of transports the spawned binary covers, and the result.
-type SpawnResult = (Vec<PtTransportName>, err::Result<PluggableTransport>);
+type SpawnResult = (Vec<PtTransportName>, err::Result<PluggableClientTransport>);
 
 /// Background reactor to handle managing pluggable transport binaries.
 struct PtReactor<R> {
     /// Runtime.
     rt: R,
     /// Currently running pluggable transport binaries.
-    running: Vec<PluggableTransport>,
+    running: Vec<PluggableClientTransport>,
     /// A map of asked-for transports.
     ///
     /// If a transport name has an entry, we will append any additional requests for that entry.
@@ -148,7 +151,7 @@ impl<R: Runtime> PtReactor<R> {
     fn handle_spawned(
         &mut self,
         covers: Vec<PtTransportName>,
-        result: err::Result<PluggableTransport>,
+        result: err::Result<PluggableClientTransport>,
     ) {
         match result {
             Err(e) => {
@@ -184,7 +187,7 @@ impl<R: Runtime> PtReactor<R> {
     }
 
     /// Called to remove a pluggable transport from the shared state.
-    fn remove_pt(&self, pt: PluggableTransport) {
+    fn remove_pt(&self, pt: PluggableClientTransport) {
         let mut state = self.state.write().expect("ptmgr state poisoned");
         for transport in pt.transport_methods().keys() {
             state.cmethods.remove(transport);
@@ -381,7 +384,7 @@ async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
     cfg: ManagedTransportConfig,
-) -> Result<PluggableTransport, PtError> {
+) -> Result<PluggableClientTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
     let binary_path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {
         path: cfg.path,
@@ -399,13 +402,22 @@ async fn spawn_from_config<R: Runtime>(
     })?;
 
     // FIXME(eta): make the rest of these parameters configurable
-    let pt_params = PtParameters::builder()
+    let pt_common_params = PtCommonParameters::builder()
         .state_location(new_state_dir)
+        .build()
+        .expect("PtCommonParameters constructed incorrectly");
+
+    let pt_client_params = PtClientParameters::builder()
         .transports(cfg.protocols)
         .build()
-        .expect("PtParameters constructed incorrectly");
+        .expect("PtClientParameters constructed incorrectly");
 
-    let mut pt = PluggableTransport::new(binary_path, cfg.arguments, pt_params);
+    let mut pt = PluggableClientTransport::new(
+        binary_path,
+        cfg.arguments,
+        pt_common_params,
+        pt_client_params,
+    );
     pt.launch(rt).await?;
     Ok(pt)
 }
