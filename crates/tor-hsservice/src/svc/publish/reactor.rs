@@ -188,6 +188,14 @@ impl TimePeriodContext {
     }
 
     /// Recompute the HsDirs for this time period.
+    ///
+    /// This function should be called whenever there the consensus/NetDir changes.
+    ///
+    /// Note: Our set of HsDirs for this time period only changes if the new consensus:
+    ///
+    ///   * removes relays that we're currently using as HsDirs, or
+    ///   * adds or removes relays in a way that changes our starting index for selecting
+    ///   `spread_store` HsDirs on the hash ring (`hs_service_index`)
     fn recompute_hs_dirs(&mut self, netdir: &Arc<NetDir>) -> Result<(), ReactorError> {
         self.hs_dirs =
             Self::compute_hsdirs(self.period, self.blind_id, netdir, self.hs_dirs.iter())?;
