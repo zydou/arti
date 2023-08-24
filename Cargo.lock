@@ -3766,9 +3766,9 @@ dependencies = [
 
 [[package]]
 name = "ssh-key"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b0a17fec6ea344bfa1cda3aed2f0696fddc6295cfcc8c454a3bf58b8ffaabeb"
+checksum = "728fdf5286c394f12d83eaad51190af629aade5494813ce6b57f7425f1ca51b7"
 dependencies = [
  "p256",
  "p384",
@@ -4673,7 +4673,6 @@ dependencies = [
  "fs-mistrust",
  "itertools",
  "rand 0.8.5",
- "sec1",
  "serde",
  "serde_json",
  "ssh-key",
