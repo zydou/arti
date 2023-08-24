@@ -201,7 +201,7 @@ impl TimePeriodContext {
         netdir: &Arc<NetDir>,
         mut old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
     ) -> Result<Vec<(RelayIds, DescriptorStatus)>, ReactorError> {
-        let hs_dirs = netdir.hs_dirs_upload(iter::once((blind_id, period)))?;
+        let hs_dirs = netdir.hs_dirs_upload([(blind_id, period)].into_iter())?;
 
         Ok(hs_dirs
             .map(|(_, hs_dir)| {
