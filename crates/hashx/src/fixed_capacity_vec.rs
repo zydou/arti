@@ -176,3 +176,108 @@ impl<T, const N: usize> TryFrom<FixedCapacityVec<T, N>> for Box<[T; N]> {
     }
 }
 
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use std::fmt::Debug;
+
+    const N: usize = 10;
+    const H: usize = 5;
+
+    type Fv<T> = FixedCapacityVec<T, N>;
+
+    fn test_api<T: Debug>(mut f: impl FnMut() -> T) {
+        println!("make empty");
+        let mut v = Fv::<T>::new();
+        assert_eq!(v.len(), 0);
+        assert!(v.is_empty());
+        assert!(!v.is_full());
+
+        println!("fill 0..{H}");
+        for i in 0..H {
+            v.push(f());
+            assert_eq!(v.len(), i + 1);
+        }
+        assert!(!v.is_empty());
+        assert!(!v.is_full());
+
+        println!("fail conversion to boxed array");
+        let v: Fv<T> = Box::<[T; N]>::try_from(v).unwrap_err();
+        assert_eq!(v.len(), H);
+
+        println!("drop 0..{H}");
+        drop(v);
+
+        println!("make empty (2)");
+        let mut v = Fv::<T>::new();
+
+        println!("fill 0..{N}");
+        for _i in 0..N {
+            v.push(f());
+        }
+        let () = v.push_inner(f()).unwrap_err();
+
+        assert_eq!(v.len(), N);
+        assert!(v.is_full());
+        assert!(!v.is_empty());
+
+        println!("conversion to boxed array");
+        let v: Box<[T; N]> = v.try_into().map_err(|_|()).expect("not into boxed array");
+
+        println!("drop boxed array");
+        drop(v);
+    }
+
+    #[test]
+    fn api_i32() {
+        test_api(|| 42i32);
+    }
+
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    #[derive(Debug)]
+    struct HasDrop {
+        index: usize,
+        counted: Rc<RefCell<usize>>,
+    }
+    impl Drop for HasDrop {
+        fn drop(&mut self) {
+            println!("dropping {}", self.index);
+            *self.counted.borrow_mut() -= 1;
+        }
+    }
+
+    #[test]
+    fn api_has_drop() {
+        let counted = Rc::new(RefCell::new(0));
+        let mut next_index = 0;
+
+        test_api(|| {
+            let index = {
+                let mut counted = counted.borrow_mut();
+                *counted += 1;
+                next_index += 1;
+                next_index
+            };
+            println!("creating {}", index);
+            HasDrop {
+                index,
+                counted: counted.clone(),
+            }
+        });
+
+        assert_eq!(*counted.borrow(), 0);
+    }
+}
