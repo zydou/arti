@@ -150,12 +150,11 @@ struct Inner {
     descriptor: DescriptorBuilder,
     /// The onion service config.
     config: OnionServiceConfig,
-    // TODO HSS: instead of using current_period/previous_period, use NetDir::hs_all_time_periods
-    // to get all relevant time periods.
-    /// State specific to the current time period.
-    current_period: TimePeriodContext,
-    /// State specific to the previous time period.
-    previous_period: Option<TimePeriodContext>,
+    /// The relevant time periods.
+    ///
+    /// This includes the current time period, as well as any other time periods we need to be
+    /// publishing descriptors for.
+    time_periods: Vec<TimePeriodContext>,
     /// Our most up to date netdir.
     netdir: Arc<NetDir>,
     /// The timestamp of our last upload.
@@ -335,13 +334,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             .expect("failed to recover ed25519 public key from hsid?!");
         let netdir = wait_for_netdir(dir_provider.as_ref(), Timeliness::Timely).await?;
 
-        // TODO HSS: figure out how to compute the initial time period!
-        let period = todo!();
-
-        let (blind_id, _subcredential) = hsid_key
-            .compute_blinded_key(period)
-            .expect("failed to compute blinded key?!"); // TODO HSS: perhaps this should be an Err
-        let current_period = TimePeriodContext::new(period, blind_id.into(), &netdir)?;
+        let time_periods = Self::compute_time_periods(&netdir, &hsid_key)?;
 
         // There will be at most one pending upload.
         let (pending_upload_tx, _) = broadcast(1);
@@ -349,8 +342,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         let inner = Inner {
             descriptor: DescriptorBuilder::default(),
-            current_period,
-            previous_period: None,
+            time_periods,
             config,
             netdir,
             last_uploaded: None,
@@ -456,18 +448,33 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         todo!()
     }
 
-    /// Recompute the HsDirs for both the current and the previous time period.
+    /// Recompute the HsDirs for all relevant time periods.
     async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
         let inner = &mut *inner;
 
-        inner.current_period.recompute_hs_dirs(&inner.netdir)?;
-
-        if let Some(previous_period) = inner.previous_period.as_mut() {
-            previous_period.recompute_hs_dirs(&inner.netdir)?;
+        for period in inner.time_periods.iter_mut() {
+            period.recompute_hs_dirs(&inner.netdir)?;
         }
 
         Ok(())
+    }
+
+    /// Compute the [`TimePeriodContext`]s for the time periods from the specified [`NetDir`].
+    fn compute_time_periods(
+        netdir: &Arc<NetDir>,
+        hsid_key: &HsIdKey,
+    ) -> Result<Vec<TimePeriodContext>, ReactorError> {
+        netdir
+            .hs_all_time_periods()
+            .iter()
+            .map(|period| {
+                let (blind_id, _subcredential) = hsid_key
+                    .compute_blinded_key(*period)
+                    .expect("failed to compute blinded key?!"); // TODO HSS: perhaps this should be an Err
+                TimePeriodContext::new(*period, blind_id.into(), netdir)
+            })
+            .collect::<Result<Vec<TimePeriodContext>, ReactorError>>()
     }
 
     /// Replace the old netdir with the new, returning the old.
@@ -535,11 +542,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     // TODO HSS: when addressing this, consider the points raised here:
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1545#note_2935673
     async fn upload_all(&self) -> Result<(), ReactorError> {
-        let last_uploaded = self.inner.lock().await.last_uploaded;
+        let mut inner = self.inner.lock().await;
         let now = SystemTime::now();
 
         // Check if we should rate-limit this upload.
-        if let Some(last_uploaded) = last_uploaded {
+        if let Some(last_uploaded) = inner.last_uploaded {
             let duration_since_upload = last_uploaded
                 .duration_since(now)
                 .unwrap_or(Duration::from_secs(0));
@@ -550,7 +557,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         }
 
         // Check we have enough information to generate the descriptor before proceeding.
-        let hsdesc = match self.inner.lock().await.descriptor.build() {
+        let hsdesc = match inner.descriptor.build() {
             Ok(desc) => desc,
             Err(e) => {
                 // TODO HSS:
@@ -567,10 +574,14 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             }
         };
 
-        self.upload_for_time_period(&hsdesc, true).await?;
-        self.upload_for_time_period(&hsdesc, false).await?;
+        let netdir = Arc::clone(&inner.netdir);
+        for period in inner.time_periods.iter_mut() {
+            // `inner` is an async-aware mutex so we can hold it across this await point
+            self.upload_for_time_period(&hsdesc, period, &netdir)
+                .await?;
+        }
 
-        self.inner.lock().await.last_uploaded = Some(SystemTime::now());
+        inner.last_uploaded = Some(SystemTime::now());
 
         Ok(())
     }
@@ -600,20 +611,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     async fn upload_for_time_period(
         &self,
         hsdesc: &Descriptor,
-        current: bool,
+        context: &mut TimePeriodContext,
+        netdir: &Arc<NetDir>,
     ) -> Result<(), ReactorError> {
-        let mut inner = self.inner.lock().await;
-
-        // First, grab the time period-specific context.
-        let context = if current {
-            &mut inner.current_period
-        } else if let Some(previous_period) = inner.previous_period.as_mut() {
-            previous_period
-        } else {
-            // Nothing to do
-            return Ok(());
-        };
-
         // Figure out which HsDirs we need to upload the descriptor to (some of them might already
         // have our latest descriptor, so we filter them out).
         let hs_dirs = context
@@ -638,7 +638,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         // In addition, we might want `Reactor::upload_all` to execute asynchronously (i.e. in a
         // background task), as opposed to blocking the reactor loop until the upload is complete.
         for (relay_ids, status) in hs_dirs {
-            let Some(hsdir) = inner.netdir.by_ids(&*relay_ids) else {
+            let Some(hsdir) = netdir.by_ids(&*relay_ids) else {
                 // This should never happen (all of our relay_ids are from the stored netdir).
                 return Err(internal!(
                     "tried to upload descriptor to relay not found in consensus?"
@@ -646,8 +646,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 .into());
             };
 
-            // `inner` is an async-aware mutex so we can hold it across this await point
-            self.upload_descriptor_with_retries(hsdesc, inner.netdir, &hsdir)
+            self.upload_descriptor_with_retries(hsdesc, netdir, &hsdir)
                 .await?;
 
             // We successfully uploaded the descriptor to this HsDir, so we now mark it as clean
@@ -716,7 +715,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     async fn upload_descriptor_with_retries(
         &self,
         _hsdesc: String,
-        _netdir: Arc<NetDir>,
+        _netdir: &Arc<NetDir>,
         _hsdir: &Relay<'_>,
     ) -> Result<(), ReactorError> {
         todo!();
