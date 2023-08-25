@@ -98,6 +98,7 @@ pub enum WeightRole {
     BeginDir,
     /// Selecting a relay with no additional weight beyond its bandwidth.
     Unweighted,
+    // TODO HSS add HsRend here too, and use it in tor-hsclient
     /// Selecting a relay for use as a hidden service introduction point
     HsIntro,
 }
