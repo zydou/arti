@@ -45,6 +45,14 @@ const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
 /// The entrypoint is [`Reactor::run`].
+//
+// TODO HSS: We need to make sure we don't end up reuploading an identical descriptor
+// Upon receiving an `Event`, the publisher shouldn't update its `DescriptorBuilder` or mark the
+// descriptor dirty unless it actually changed.
+//
+// If the value of the `DescriptorBuilder` field the `Event` would've updated is the same as the
+// new one read from the `Event`, the publisher should simply not update it (or mark the descriptor
+// dirty).
 #[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
 pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     /// The runtime.
@@ -63,6 +71,11 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     /// The mutable inner state,
     inner: Arc<Mutex<Inner>>,
     /// A channel for receiving events.
+    // TODO HSS: should this be unbounded? Doesn't this mean we risk our memory usage blowing up
+    // under certain conditions?
+    //
+    // Also, if the IPT manager makes a multiple updates, we don't want to process them in order: we
+    // only care about the latest IPTs! Perhaps this should be a postage::watch channel instead
     rx: mpsc::UnboundedReceiver<Event>,
     /// A channel for the telling the upload reminder task when to remind us we need to upload
     /// some descriptors.
@@ -136,6 +149,8 @@ struct Inner {
     descriptor: DescriptorBuilder,
     /// The onion service config.
     config: OnionServiceConfig,
+    // TODO HSS: instead of using current_period/previous_period, use NetDir::hs_all_time_periods
+    // to get all relevant time periods.
     /// State specific to the current time period.
     current_period: TimePeriodContext,
     /// State specific to the previous time period.
@@ -143,6 +158,10 @@ struct Inner {
     /// Our most up to date netdir.
     netdir: Arc<NetDir>,
     /// The timestamp of our last upload.
+    ///
+    /// Note: This is only used for deciding when to reschedule a rate-limited upload. It is _not_
+    /// used for retrying failed uploads (these are handled internally by
+    /// [`Reactor::upload_descriptor_with_retries`]).
     //
     // TODO HSS: maybe we should implement rate-limiting on a per-hsdir basis? It's probably not
     // necessary though.
@@ -444,6 +463,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         self.recompute_hs_dirs().await?;
 
+        // TODO HSS: upload the descriptors.
+
         Ok(())
     }
 
@@ -490,6 +511,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         inner.descriptor.ipts(ipts);
 
+        // TODO HSS: upload the descriptors.
+
         Ok(())
     }
 
@@ -509,6 +532,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Handle the start of a new time period.
+    ///
+    /// TODO HSS: should we immediately reupload our descriptors if this happens? Should we "batch"
+    /// descriptor changes, or should we eagerly upload whenever something changes?
     async fn handle_new_tp(
         &self,
         hsid: HsBlindId,
@@ -525,6 +551,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     ///
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
     /// to happen N minutes from now.
+    ///
+    /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
+    /// well as in what cases this will return an error).
     //
     // TODO HSS: what is N?
     //
@@ -532,6 +561,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     // uploads complete? How would that work - if, during an upload, we receive an event telling us
     // to update the descriptor, do we cancel the existing upload tasks, or do we let them carry
     // on?
+    //
+    // TODO HSS: when addressing this, consider the points raised here:
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1545#note_2935673
     async fn upload_all(&self) -> Result<(), ReactorError> {
         let last_uploaded = self.inner.lock().await.last_uploaded;
         let now = SystemTime::now();
@@ -570,6 +602,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Upload the descriptor for the current or previous time period.
+    ///
+    /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
+    /// well as in what cases this will return an error).
     //
     // TODO HSS: perhaps `current` should be an enum rather than a bool
     #[allow(unreachable_code)] // TODO HSS: remove
@@ -603,11 +638,28 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 desc.build_sign(self.hsid_key, blind_id_kp, context.period, &mut rng)?;
             }
             Err(e) => {
+                // TODO HSS:
+                // This can only happen if, for some reason, we decide to call the upload function
+                // before receiving our first NewIpts event (the intro points are the only piece of
+                // information we need from the "outside", AFAICT).
+                //
+                // I think this should never happen: we shouldn't start an upload unless we have
+                // enough information to build the descriptor (if we do get here, it's a bug).
+                //
+                // Instead of skipping the upload, we should be returning an internal! error.
                 trace!(hsid=%self.hsid, "not enough information to build descriptor, skipping upload: {e}");
                 return Ok(());
             }
         };
 
+        // TODO HSS: this should be rewritten to upload the descriptor to each HsDir in parallel
+        // (the uploads are currently sequential).
+        //
+        // We will probably want to spawn a task for each upload, and join_all(upload_tasks) before
+        // returning from this function.
+        //
+        // In addition, we might want `Reactor::upload_all` to execute asynchronously (i.e. in a
+        // background task), as opposed to blocking the reactor loop until the upload is complete.
         for (relay_ids, status) in hs_dirs {
             let Some(hsdir) = inner.netdir.by_ids(&*relay_ids) else {
                 // This should never happen (all of our relay_ids are from the stored netdir).
@@ -630,6 +682,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Upload a descriptor to the specified HSDir.
+    ///
+    /// If an upload fails, this returns an `Err`. This function does not handle retries. It is up
+    /// to the caller to retry on failure.
     async fn upload_descriptor(
         &self,
         hsdesc: String,
@@ -679,6 +734,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Upload a descriptor to the specified HSDir, retrying if appropriate.
+    ///
+    /// TODO HSS: document the retry logic when we implement it.
     async fn upload_descriptor_with_retries(
         &self,
         _hsdesc: String,
