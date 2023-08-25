@@ -167,12 +167,6 @@ impl From<HopNum> for usize {
     }
 }
 
-impl std::fmt::Display for HopNum {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        (self.0 + 1).fmt(f)
-    }
-}
-
 /// A client's view of the cryptographic state for an entire
 /// constructed circuit, as used for sending cells.
 pub(crate) struct OutboundClientCrypt {

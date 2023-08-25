@@ -1131,7 +1131,7 @@ impl Reactor {
             debug!(
                 "{}: Truncated from hop {}. Reason: {} [{}]",
                 self.unique_id,
-                hopnum,
+                hopnum.display(),
                 reason.human_str(),
                 reason
             );
@@ -1174,7 +1174,7 @@ impl Reactor {
                 Err(Error::CircProto(format!(
                     "Unexpected {} cell from hop {} on client circuit",
                     msg.cmd(),
-                    hopnum,
+                    hopnum.display(),
                 )))
             }
         } else {
@@ -1193,7 +1193,7 @@ impl Reactor {
         // it's called from the reactor task and errors will propagate there.
         let hop = self
             .hop_mut(hopnum)
-            .ok_or_else(|| Error::CircProto(format!("Couldn't find {} hop", hopnum)))?;
+            .ok_or_else(|| Error::CircProto(format!("Couldn't find hop {}", hopnum.display())))?;
 
         let auth: Option<[u8; 20]> = match msg.into_tag() {
             Some(v) => {
@@ -1290,17 +1290,17 @@ impl Reactor {
         //            sent out in the order they were passed to encrypt().)
         if c_t_w {
             let hop_num = Into::<usize>::into(hop);
-            let hop = &mut self.hops[hop_num];
-            if hop.sendwindow.window() == 0 {
+            let circhop = &mut self.hops[hop_num];
+            if circhop.sendwindow.window() == 0 {
                 // Send window is empty! Push this cell onto the hop's outbound queue, and it'll
                 // get sent later.
                 trace!(
                     "{}: having to use onto hop {} queue for cell: {:?}",
                     self.unique_id,
-                    hop_num,
+                    hop.display(),
                     cell
                 );
-                hop.outbound.push_back((early, cell));
+                circhop.outbound.push_back((early, cell));
                 return Ok(());
             }
         }
@@ -1775,8 +1775,8 @@ impl Reactor {
         if hop_num != handler.hop_num {
             return Err(Error::CircProto(
                 format!(
-                    "Expecting incoming streams from {}, but received {} cell from unexpected hop {hop_num}",
-                    handler.hop_num, msg.cmd()
+                    "Expecting incoming streams from {}, but received {} cell from unexpected hop {}",
+                    handler.hop_num.display(), msg.cmd(), hop_num.display()
                 )
             ));
         }
