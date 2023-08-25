@@ -102,6 +102,16 @@ pub trait HasRelayIds {
         })
     }
 
+    /// Return true if this object has any relay ID that `other` has.
+    ///
+    /// This is symmetrical:
+    /// it returns true if the two objects have any overlap in their identities.
+    fn has_any_relay_id_from<T: HasRelayIds + ?Sized>(&self, other: &T) -> bool {
+        RelayIdType::all_types().filter_map(|key_type| {
+            Some((self.identity(key_type)?, other.identity(key_type)?))
+        }).any(|(self_id, other_id)| self_id == other_id)
+    }
+
     /// Compare this object to another HasRelayIds.
     ///
     /// Objects are sorted by Ed25519 identities, with ties decided by RSA
@@ -364,6 +374,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::RelayIds;
     use hex_literal::hex;
     use std::net::IpAddr;
     use tor_llcrypto::pk::{self, ed25519::Ed25519Identity, rsa::RsaIdentity};
@@ -522,6 +533,62 @@ mod test {
             b(Some(ed1), None),
             b(Some(ed1), Some(rsa1)),
         ]);
+    }
+
+    #[test]
+    fn compare_id_sets() {
+        // TODO somehow nicely unify these repeated predefined examples
+        let ed1 = hex!("0a54686973206973207468652043656e7472616c205363727574696e697a6572").into();
+        let rsa1 = hex!("2e2e2e0a4974206973206d7920726573706f6e73").into();
+        let rsa2 = RsaIdentity::from(hex!("5468617420686176656e2774206265656e207061"));
+
+        let both1 = RelayIds::builder()
+            .ed_identity(ed1)
+            .rsa_identity(rsa1)
+            .build()
+            .unwrap();
+        let mixed = RelayIds::builder()
+            .ed_identity(ed1)
+            .rsa_identity(rsa2)
+            .build()
+            .unwrap();
+        let ed1 = RelayIds::builder().ed_identity(ed1).build().unwrap();
+        let rsa1 = RelayIds::builder().rsa_identity(rsa1).build().unwrap();
+        let rsa2 = RelayIds::builder().rsa_identity(rsa2).build().unwrap();
+
+        fn chk_equal(v: &impl HasRelayIds) {
+            assert!(v.same_relay_ids(v));
+            assert!(v.has_all_relay_ids_from(v));
+            assert!(v.has_any_relay_id_from(v));
+        }
+        fn chk_strict_subset(bigger: &impl HasRelayIds, smaller: &impl HasRelayIds) {
+            assert!(!bigger.same_relay_ids(smaller));
+            assert!(bigger.has_all_relay_ids_from(smaller));
+            assert!(bigger.has_any_relay_id_from(smaller));
+            assert!(!smaller.same_relay_ids(bigger));
+            assert!(!smaller.has_all_relay_ids_from(bigger));
+            assert!(smaller.has_any_relay_id_from(bigger));
+        }
+        fn chk_nontrivially_overlapping_one_way(a: &impl HasRelayIds, b: &impl HasRelayIds) {
+            assert!(!a.same_relay_ids(b));
+            assert!(!a.has_all_relay_ids_from(b));
+            assert!(a.has_any_relay_id_from(b));
+        }
+        fn chk_nontrivially_overlapping(a: &impl HasRelayIds, b: &impl HasRelayIds) {
+            chk_nontrivially_overlapping_one_way(a, b);
+            chk_nontrivially_overlapping_one_way(b, a);
+        }
+
+        chk_equal(&ed1);
+        chk_equal(&rsa1);
+        chk_equal(&both1);
+
+        chk_strict_subset(&both1, &ed1);
+        chk_strict_subset(&both1, &rsa1);
+        chk_strict_subset(&mixed, &ed1);
+        chk_strict_subset(&mixed, &rsa2);
+
+        chk_nontrivially_overlapping(&both1, &mixed);
     }
 
     #[test]
