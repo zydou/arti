@@ -117,6 +117,9 @@ pub(crate) trait InboundClientLayer {
 /// Type to store hop indices on a circuit.
 ///
 /// Hop indices are zero-based: "0" denotes the first hop on the circuit.
+///
+/// Note: `HopNum`s are displayed as 1-indexed values (the string representation of the first hop
+/// is `"1"`).
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct HopNum(u8);
 
@@ -140,7 +143,7 @@ impl From<HopNum> for usize {
 
 impl std::fmt::Display for HopNum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        self.0.fmt(f)
+        (self.0 + 1).fmt(f)
     }
 }
 
