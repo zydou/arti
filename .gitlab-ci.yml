@@ -30,7 +30,7 @@ shellcheck:
 
 maint-checks:
   stage: check
-  image: debian:stable-slim
+  image: debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_toposort
@@ -42,7 +42,7 @@ maint-checks:
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
 doc-features:
   stage: check
-  image: debian:stable-slim
+  image: debian:bookworm-slim
   allow_failure: true
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
@@ -52,7 +52,7 @@ doc-features:
 # But it should run before any deployument.
 blocking-todos:
   stage: test
-  image: debian:stable-slim
+  image: debian:bookworm-slim
   script:
     - apt update && apt install -y git
     - ./maint/check_todos
@@ -427,7 +427,7 @@ pages:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
   stage: deploy
-  image: debian:stable-slim
+  image: debian:bookworm-slim
   script:
     - apt update && apt install -y git
     # Export report as website, while keeping the existing public page
