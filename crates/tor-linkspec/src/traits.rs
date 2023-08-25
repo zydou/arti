@@ -107,9 +107,9 @@ pub trait HasRelayIds {
     /// This is symmetrical:
     /// it returns true if the two objects have any overlap in their identities.
     fn has_any_relay_id_from<T: HasRelayIds + ?Sized>(&self, other: &T) -> bool {
-        RelayIdType::all_types().filter_map(|key_type| {
-            Some((self.identity(key_type)?, other.identity(key_type)?))
-        }).any(|(self_id, other_id)| self_id == other_id)
+        RelayIdType::all_types()
+            .filter_map(|key_type| Some((self.identity(key_type)?, other.identity(key_type)?)))
+            .any(|(self_id, other_id)| self_id == other_id)
     }
 
     /// Compare this object to another HasRelayIds.
