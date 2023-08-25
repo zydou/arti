@@ -1773,12 +1773,12 @@ impl Reactor {
         };
 
         if hop_num != handler.hop_num {
-            return Err(Error::CircProto(
-                format!(
-                    "Expecting incoming streams from {}, but received {} cell from unexpected hop {}",
-                    handler.hop_num.display(), msg.cmd(), hop_num.display()
-                )
-            ));
+            return Err(Error::CircProto(format!(
+                "Expecting incoming streams from {}, but received {} cell from unexpected hop {}",
+                handler.hop_num.display(),
+                msg.cmd(),
+                hop_num.display()
+            )));
         }
 
         let message_closes_stream = handler.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
