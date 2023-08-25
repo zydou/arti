@@ -98,6 +98,8 @@ pub enum WeightRole {
     BeginDir,
     /// Selecting a relay with no additional weight beyond its bandwidth.
     Unweighted,
+    /// Selecting a relay for use as a hidden service introduction point
+    HsIntro,
 }
 
 /// Description for how to weight a single kind of relay for each WeightRole.
@@ -155,6 +157,7 @@ impl RelayWeight {
             WeightRole::Middle => self.as_middle,
             WeightRole::Exit => self.as_exit,
             WeightRole::BeginDir => self.as_dir,
+            WeightRole::HsIntro => self.as_middle, // TODO SPEC is this right?
             WeightRole::Unweighted => 1,
         }
     }

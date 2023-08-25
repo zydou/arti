@@ -1816,6 +1816,13 @@ impl<'a> Relay<'a> {
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
+    /// Return true if this relay is a potential HS introduction point
+    // TODO HSS there should be a call site for is_hs_intro_point, from (eventually) pick_relay
+    // But I couldn't follow the weight/pick logic easily, so I wasn't sure where to put it.
+    #[cfg(feature = "hs-service")] // TODO HSS maybe expose this unconditionally?
+    pub fn is_hs_intro_point(&self) -> bool {
+        true // TODO HSS / TODO SPEC is every relay really a potential intro point?
+    }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
     ///
