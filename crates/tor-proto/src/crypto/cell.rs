@@ -117,11 +117,37 @@ pub(crate) trait InboundClientLayer {
 /// Type to store hop indices on a circuit.
 ///
 /// Hop indices are zero-based: "0" denotes the first hop on the circuit.
-///
-/// Note: `HopNum`s are displayed as 1-indexed values (the string representation of the first hop
-/// is `"1"`).
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct HopNum(u8);
+
+impl HopNum {
+    /// Return an object that implements [`Display`](std::fmt::Display) for printing `HopNum`s.
+    ///
+    /// This will display the `HopNum` as a 1-indexed value (the string representation of the first
+    /// hop is `"#1"`).
+    ///
+    /// To display the zero-based underlying representation of the `HopNum`, use
+    /// [`Debug`](std::fmt::Debug).
+    pub fn display(&self) -> HopNumDisplay {
+        HopNumDisplay(*self)
+    }
+}
+
+/// A helper for displaying [`HopNum`]s.
+///
+/// The [`Display`](std::fmt::Display) of this type displays the `HopNum` as a 1-based index
+/// prefixed with the number sign (`#`). For example, the string representation of the first hop is
+/// `"#1"`.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct HopNumDisplay(HopNum);
+
+impl std::fmt::Display for HopNumDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let hop_num: u8 = self.0.into();
+
+        write!(f, "#{}", hop_num + 1)
+    }
+}
 
 impl From<HopNum> for u8 {
     fn from(hop: HopNum) -> u8 {
@@ -631,6 +657,16 @@ mod test {
                 assert_eq!(cell.as_ref(), &expected[..]);
                 j += 1;
             }
+        }
+    }
+
+    #[test]
+    fn hop_num_display() {
+        for i in 0..10 {
+            let hop_num = HopNum::from(i);
+            let expect = format!("#{}", i + 1);
+
+            assert_eq!(expect, hop_num.display().to_string());
         }
     }
 }

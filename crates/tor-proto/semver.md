@@ -17,4 +17,4 @@ returns a `Result<(), Bug>`
 ADDED: `ClientCirc::binding_key`
 BREAKING: `ClientCirc::allow_stream_requests` now also takes a `HopNum` argument
 ADDED: ClientCirc::send_raw_msg
-
+ADDED: `HopNumDisplay`
