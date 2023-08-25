@@ -72,8 +72,7 @@ rust-checks:
     - ./maint/check_all_lockfiles
   cache:
     paths:
-      - cargo-sort
-      - cargo-license
+      - cache
 
 cargo-audit:
   # This can start to fail even when our code doesn't change.
@@ -88,7 +87,7 @@ cargo-audit:
     - ./maint/cargo_audit
   cache:
     paths:
-      - cargo-audit
+      - cache
 
 rust-latest:
   stage: build
@@ -192,7 +191,7 @@ coverage:
     - cargo clean
   cache:
     paths:
-      - grcov
+      - cache
   artifacts:
     reports:
       coverage_report:
@@ -407,7 +406,7 @@ coverage-aggregated:
     - cargo clean
   cache:
     paths:
-      - grcov
+      - cache
   artifacts:
     paths:
       - coverage
