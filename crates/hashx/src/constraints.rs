@@ -9,23 +9,21 @@
 //! Generating correct HashX output depends on applying exactly the right
 //! constraints.
 
-use crate::program::NUM_INSTRUCTIONS;
-use crate::program::{Instruction, Opcode};
+use crate::program::{Instruction, InstructionVec, Opcode};
 use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};
 use crate::scheduler::Scheduler;
-use crate::FixedCapacityVec;
 
 pub(crate) use model::{Pass, RegisterWriter};
 
 /// The `model` attempts to document what the HashX constraints are, separate
 /// from the process of implementing those constraints.
 mod model {
-    use crate::program::Opcode;
+    use crate::program::{Opcode, NUM_INSTRUCTIONS};
     use crate::register::{self, RegisterId};
 
     /// Programs require an exact number of instructions. (The instruction
     /// buffer must have filled without any of the other stopping conditions)
-    pub(super) const REQUIRED_INSTRUCTIONS: usize = 512;
+    pub(super) const REQUIRED_INSTRUCTIONS: usize = NUM_INSTRUCTIONS;
 
     /// Programs require an exact overall data latency, represented as the
     /// simulated cycle at which the last register write completes.
@@ -223,7 +221,7 @@ impl Validator {
     pub(crate) fn check_whole_program(
         &self,
         scheduler: &Scheduler,
-        instructions: &FixedCapacityVec<Instruction, NUM_INSTRUCTIONS>,
+        instructions: &InstructionVec,
     ) -> Result<(), ()> {
         if instructions.len() == model::REQUIRED_INSTRUCTIONS
             && scheduler.overall_latency().as_usize() == model::REQUIRED_OVERALL_RESULT_AT_CYCLE

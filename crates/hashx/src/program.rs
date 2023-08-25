@@ -15,6 +15,12 @@ use std::ops::BitXor;
 /// whole-program constraint tests.
 pub(crate) const NUM_INSTRUCTIONS: usize = 512;
 
+/// Type alias for a full-size array of [`Instruction`]s
+pub(crate) type InstructionArray = [Instruction; NUM_INSTRUCTIONS];
+
+/// Type alias for a [`FixedCapacityVec`] that can build [`InstructionArray`]s
+pub(crate) type InstructionVec = FixedCapacityVec<Instruction, NUM_INSTRUCTIONS>;
+
 /// Define the HashX virtual instruction set
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum Instruction {
@@ -182,9 +188,9 @@ impl Instruction {
     }
 }
 
-/// Generated `HashX` program, as a boxed slice of instructions
+/// Generated `HashX` program, as a boxed array of instructions
 #[derive(Clone)]
-pub struct Program(Box<[Instruction; NUM_INSTRUCTIONS]>);
+pub struct Program(Box<InstructionArray>);
 
 impl fmt::Debug for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -309,7 +315,7 @@ impl Program {
     }
 }
 
-impl<'a> From<&'a Program> for &'a [Instruction; NUM_INSTRUCTIONS] {
+impl<'a> From<&'a Program> for &'a InstructionArray {
     #[inline(always)]
     fn from(prog: &'a Program) -> Self {
         &prog.0
