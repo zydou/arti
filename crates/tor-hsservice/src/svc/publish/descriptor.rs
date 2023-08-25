@@ -6,7 +6,7 @@ use derive_builder::Builder;
 use rand_core::{CryptoRng, RngCore};
 
 use tor_cert::Ed25519Cert;
-use tor_error::{internal, Bug};
+use tor_error::Bug;
 use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
@@ -66,12 +66,7 @@ pub(super) struct Descriptor {
     revision_counter: RevisionCounter,
 }
 
-impl DescriptorBuilder {
-    /// Check whether we have enough information to build this descriptor.
-    pub(crate) fn validate(&self) -> Result<(), Bug> {
-        todo!()
-    }
-
+impl Descriptor {
     /// Build the descriptor.
     ///
     /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
@@ -90,15 +85,7 @@ impl DescriptorBuilder {
         /// The CREATE handshake type we support.
         const CREATE2_FORMATS: &[u32] = &[1, 2];
 
-        if self.validate().is_err() {
-            return Err(internal!("tried to build descriptor from incomplete data"));
-        }
-
-        let desc = self
-            .build()
-            .map_err(|_| internal!("failed to build descriptor"))?;
-
-        let intro_points = desc
+        let intro_points = self
             .ipts
             .iter()
             .map(Self::build_intro_point_desc)
@@ -119,14 +106,14 @@ impl DescriptorBuilder {
             .hs_desc_sign_cert_expiry(hs_desc_sign_cert.expiry())
             .create2_formats(CREATE2_FORMATS)
             .auth_required(auth_required)
-            .is_single_onion_service(desc.is_single_onion_service)
+            .is_single_onion_service(self.is_single_onion_service)
             .intro_points(&intro_points[..])
-            .intro_auth_key_cert_expiry(desc.intro_auth_key_cert.expiry())
-            .intro_enc_key_cert_expiry(desc.intro_enc_key_cert.expiry())
+            .intro_auth_key_cert_expiry(self.intro_auth_key_cert.expiry())
+            .intro_enc_key_cert_expiry(self.intro_enc_key_cert.expiry())
             .lifetime(DESC_DEFAULT_LIFETIME.into())
-            .revision_counter(desc.revision_counter) // TODO HSS
+            .revision_counter(self.revision_counter) // TODO HSS
             .subcredential(subcredential)
-            .auth_clients(&desc.auth_clients)
+            .auth_clients(&self.auth_clients)
             .build_sign(rng)?)
     }
 

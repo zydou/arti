@@ -597,17 +597,12 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             .filter(|(_relay_id, status)| *status == DescriptorStatus::Dirty);
 
         // Check we have enough information to generate the descriptor before proceeding.
-        let hsdesc = match inner.descriptor.validate() {
-            Ok(()) => {
+        let hsdesc = match inner.descriptor.build() {
+            Ok(desc) => {
                 let blind_id_kp = todo!();
                 let mut rng = self.mockable.thread_rng();
 
-                inner.descriptor.build_sign(
-                    self.hsid_key,
-                    blind_id_kp,
-                    context.period,
-                    &mut rng,
-                )?;
+                desc.build_sign(self.hsid_key, blind_id_kp, context.period, &mut rng)?;
             }
             Err(e) => {
                 trace!(hsid=%self.hsid, "not enough information to build descriptor, skipping upload: {e}");
