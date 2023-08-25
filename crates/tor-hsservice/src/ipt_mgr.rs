@@ -487,8 +487,11 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             )
             .ok_or(ChooseIptError::TooFewUsableRelays)?;
 
+        let retirement = rng
+            .gen_range_checked(IPT_RELAY_ROTATION_TIME)
             .ok_or_else(|| internal!("IPT_RELAY_ROTATION_TIME range was empty!"))?;
-        let retirement = now.checked_add(retirement)
+        let retirement = now
+            .checked_add(retirement)
             .ok_or(ChooseIptError::TimeOverflow)?;
 
         let relay = IptRelay {
@@ -641,7 +644,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             if n_good_ish_relays < self.target_n_intro_points()
                 && self.state.relays.len() < self.max_n_intro_relays()
             {
-                self.state.choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
+                self.state
+                    .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
                     .expect("BUG"); // TODO HSS handle error from choosing IPT relay, and retry
                 return CONTINUE;
             }
