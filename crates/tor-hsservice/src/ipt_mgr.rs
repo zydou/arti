@@ -479,11 +479,11 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                 tor_netdir::WeightRole::HsIntro,
                 // TODO HSS should we apply any other conditions to the selected IPT?
                 |new| {
-                    new.is_hs_intro_point() &&
-                    !self
-                        .relays
-                        .iter()
-                        .any(|existing| new.has_any_relay_id_from(&existing.relay))
+                    new.is_hs_intro_point()
+                        && !self
+                            .relays
+                            .iter()
+                            .any(|existing| new.has_any_relay_id_from(&existing.relay))
                 },
             )
             .ok_or(ChooseIptError::TooFewUsableRelays)?;
