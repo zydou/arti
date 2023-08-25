@@ -59,8 +59,14 @@ impl<R: Relocation, const S: usize> Assembler<R, S> {
     /// This may fail if we can't allocate some memory, fill it, and mark
     /// it as executable. For example, a Linux platform with policy to restrict
     /// `mprotect` will show runtime errors at this point.
+    ///
+    /// Performance note: Semantically it makes more sense to consume the
+    /// `Assember` instance here, passing it by value. This can result in a
+    /// memcpy that doesn't optimize out, which is a dramatic increase to
+    /// the memory bandwidth required in compilation. We avoid that extra
+    /// copy by only passing a reference.
     #[inline(always)]
-    pub(crate) fn finalize(self) -> Result<Executable, CompilerError> {
+    pub(crate) fn finalize(&self) -> Result<Executable, CompilerError> {
         // We never execute code from the buffer until it's complete, and we use
         // a freshly mmap'ed buffer for each program. Because of this, we don't
         // need to explicitly clear the icache even on platforms that would
