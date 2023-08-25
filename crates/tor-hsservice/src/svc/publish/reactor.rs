@@ -455,14 +455,12 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Recompute the HsDirs for both the current and the previous time period.
     async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
-        // We need to clone netdir here, because we can't immutably borrow it while calling
-        // recompute_hs_dirs (which mutably borrows from inner)
-        let netdir = Arc::clone(&inner.netdir);
+        let inner = &mut *inner;
 
-        inner.current_period.recompute_hs_dirs(&netdir)?;
+        inner.current_period.recompute_hs_dirs(&inner.netdir)?;
 
         if let Some(previous_period) = inner.previous_period.as_mut() {
-            previous_period.recompute_hs_dirs(&netdir)?;
+            previous_period.recompute_hs_dirs(&inner.netdir)?;
         }
 
         Ok(())
