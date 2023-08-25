@@ -265,7 +265,19 @@ impl HsIdKey {
         let secret = b"";
         let h = self.blinding_factor(secret, cur_period);
 
-        let blinded_key = keymanip::blind_pubkey(&self.0, h)?;
+        let blinded_key = keymanip::blind_pubkey(&self.0, h)?.into();
+        // rend-spec-v3 section 2.1
+        let subcredential = self.compute_subcredential(&blinded_key, cur_period);
+
+        Ok((blinded_key, subcredential))
+    }
+
+    /// Given a time period and a blinded public key, compute the subcredential.
+    pub fn compute_subcredential(
+        &self,
+        blinded_key: &HsBlindIdKey,
+        cur_period: TimePeriod,
+    ) -> crate::Subcredential {
         // rend-spec-v3 section 2.1
         let subcredential_bytes: [u8; 32] = {
             // N_hs_subcred = H("subcredential" | N_hs_cred | blinded-public-key).
@@ -280,11 +292,11 @@ impl HsIdKey {
             let mut h = Sha3_256::new();
             h.update(b"subcredential");
             h.update(n_hs_cred);
-            h.update(blinded_key.as_bytes());
+            h.update(blinded_key.as_ref());
             h.finalize().into()
         };
 
-        Ok((blinded_key.into(), subcredential_bytes.into()))
+        subcredential_bytes.into()
     }
 
     /// Compute the 32-byte "blinding factor" used to compute blinded public
@@ -390,6 +402,13 @@ impl TryFrom<HsBlindId> for HsBlindIdKey {
         ed25519::PublicKey::from_bytes(value.0.as_ref()).map(HsBlindIdKey)
     }
 }
+
+impl From<&HsBlindIdKeypair> for HsBlindIdKey {
+    fn from(value: &HsBlindIdKeypair) -> Self {
+        HsBlindIdKey(value.0.public)
+    }
+}
+
 impl From<HsBlindIdKey> for HsBlindId {
     fn from(value: HsBlindIdKey) -> Self {
         value.id()

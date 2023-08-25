@@ -2,10 +2,25 @@
 
 #![allow(clippy::needless_pass_by_value)] // TODO HSS REMOVE.
 
-use std::sync::Arc;
+mod descriptor;
+mod err;
+mod reactor;
 
+use futures::channel::mpsc;
+use futures::task::SpawnExt;
+use std::sync::Arc;
+use tracing::error;
+
+use tor_circmgr::hspool::HsCircPool;
+use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
+
+use crate::OnionServiceConfig;
+
+use descriptor::Ipt;
+use err::PublisherError;
+use reactor::{Event, Reactor, ReactorError, ReactorState};
 
 /// A handle for the Hsdir Publisher for an onion service.
 ///
@@ -21,29 +36,39 @@ pub(crate) struct Publisher {
     //
     // Some of these contents may actually wind up belonging to a reactor
     // task.
-    //
-    /// A source for new network directories that we use to determine
-    /// our HsDirs.
-    dir_provider: Arc<dyn NetDirProvider>,
+    /// A channel for sending `Event`s to the reactor.
+    tx: mpsc::UnboundedSender<Event>,
 }
-
-/// An error from creating or talkign with a Publisher.
-#[derive(Clone, Debug, thiserror::Error)]
-pub(crate) enum PublisherError {}
 
 impl Publisher {
     /// Create and launch a new publisher.
     ///
     /// When it launches, it will know no keys or introduction points,
     /// and will therefore not upload any descriptors.
-    ///
-    #[allow(clippy::unnecessary_wraps)] // TODO HSS REMOVE
-    pub(crate) fn new<R: Runtime>(
+    pub(crate) async fn new<R: Runtime>(
         runtime: R,
+        hsid: HsId,
         dir_provider: Arc<dyn NetDirProvider>,
+        circpool: Arc<HsCircPool<R>>,
+        config: OnionServiceConfig,
     ) -> Result<Self, PublisherError> {
+        let (tx, rx) = mpsc::unbounded();
+        let state = ReactorState::new(circpool);
+        let Ok(reactor) =
+            Reactor::new(runtime.clone(), hsid, dir_provider, state, config, rx).await
+        else {
+            error!("failed to create reactor");
+            panic!();
+        };
+
         // TODO: Do we really want to launch now, or later?
-        Ok(Self { dir_provider })
+        runtime
+            .spawn(async move {
+                let _result: Result<(), ReactorError> = reactor.run().await;
+            })
+            .map_err(|e| PublisherError::from_spawn("publisher reactor task", e))?;
+
+        Ok(Self { tx })
     }
 
     /// Inform this publisher that its set of keys has changed.
@@ -51,15 +76,17 @@ impl Publisher {
     /// TODO HSS: Either this needs to take new keys as an argument, or there
     /// needs to be a source of keys (including public keys) in Publisher.
     pub(crate) fn new_hs_keys(&self, keys: ()) {
-        todo!()
+        // TODO HSS: handle/return the error
+        let _ = self.tx.unbounded_send(Event::NewKeys(()));
     }
 
     /// Inform this publisher that  the set of introduction points has changed.
     ///
     /// TODO HSS: Either this needs to take new intropoints as an argument,
     /// or there needs to be a source of intro points in the Publisher.
-    pub(crate) fn new_intro_points(&self, ipts: ()) {
-        todo!()
+    pub(crate) fn new_intro_points(&self, ipts: Vec<Ipt>) {
+        // TODO HSS: handle/return the error
+        let _ = self.tx.unbounded_send(Event::NewIntroPoints(ipts));
     }
 
     /// Return our current status.
@@ -96,3 +123,5 @@ pub(crate) struct PublisherStatus {
 
 // While any hsdir does not have the latest version of its any descriptor:
 // upload it.  Retry with usual timeouts on failure."
+
+// TODO HSS: tests
