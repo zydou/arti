@@ -2,9 +2,15 @@
 
 set -euo pipefail
 
+cache_dir=cache/"$CI_JOB_IMAGE"
+
+mkdir -p "$cache_dir"
+
 for cmd in "$@"; do
-    if cp "$cmd" "$CARGO_HOME"/bin/; then continue; fi
+    cache="$cache_dir/$cmd"
+
+    if cp "$cache" "$CARGO_HOME"/bin/; then continue; fi
 
     cargo install "$cmd"
-    cp -v "$CARGO_HOME/bin/$cmd" .
+    cp -v "$CARGO_HOME/bin/$cmd" "$cache"
 done
