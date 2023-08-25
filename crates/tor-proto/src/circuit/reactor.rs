@@ -1506,8 +1506,8 @@ impl Reactor {
                     Ok(hop.sendwindow.window_and_expected_tags())
                 } else {
                     Err(Error::from(internal!(
-                        "received QuerySendWindow for unknown hop {:?}",
-                        hop
+                        "received QuerySendWindow for unknown hop {}",
+                        hop.display()
                     )))
                 });
             }
@@ -1532,7 +1532,7 @@ impl Reactor {
     ) -> Result<StreamId> {
         let hop = self
             .hop_mut(hopnum)
-            .ok_or_else(|| Error::from(internal!("No such hop {:?}", hopnum)))?;
+            .ok_or_else(|| Error::from(internal!("No such hop {}", hopnum.display())))?;
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
         let r = hop.map.add_ent(sender, rx, send_window, cmd_checker)?;
         let cell = AnyRelayCell::new(r, message);
