@@ -183,8 +183,7 @@ coverage:
   stage: test
   image: rust:latest
   script:
-    - apt-get update && apt-get install -y python3-pip python3-setuptools
-    - pip3 install beautifulsoup4 lxml
+    - apt-get update && apt-get install -y python3-pip python3-setuptools python3-bs4 python3-lxml
     - rustup component add llvm-tools
     - ./maint/via-cargo-install-in-ci grcov
     # Generate report
@@ -398,9 +397,7 @@ coverage-aggregated:
   image: rust:latest
   needs: []
   script:
-    - apt update && apt install -y tor python3 python3-pip python3-setuptools curl
-    # install deps for report generation
-    - pip3 install beautifulsoup4 lxml
+    - apt update && apt install -y tor python3 python3-pip python3-setuptools curl python3-bs4 python3-lxml
     - rustup component add llvm-tools
     - cp grcov $CARGO_HOME/bin/ || cargo install grcov
     - cp $CARGO_HOME/bin/grcov .
