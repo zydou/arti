@@ -1,19 +1,47 @@
 //! Configuration logic for onion service reverse proxy.
 
+use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, path::PathBuf, str::FromStr};
+use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 
 /// Configuration for a reverse proxy running for a single onion service.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Builder)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ProxyConfig {
     /// A list of rules to apply to incoming requests.  If no rule
     /// matches, we take the DestroyCircuit action.
-    proxy_ports: Vec<ProxyRule>,
+    #[builder(sub_builder, setter(custom))]
+    proxy_ports: ProxyRuleList,
+}
+
+define_list_builder_accessors! {
+   struct ProxyConfigBuilder {
+       pub proxy_ports: [ProxyRule],
+   }
+}
+
+/// Helper to define builder for ProxyConfig.
+type ProxyRuleList = Vec<ProxyRule>;
+
+define_list_builder_helper! {
+   pub struct ProxyRuleListBuilder {
+       pub(crate) values: [ProxyRule],
+   }
+   built: ProxyRuleList = values;
+   default = vec![];
+   item_build: |value| Ok(value.clone());
 }
 
 /// A single rule in a `ProxyConfig`.
 ///
 /// Rules take the form of, "When this pattern matches, take this action."
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+// TODO HSS: we might someday want to accept structs here as well, so that
+// we can add per-rule fields if we need to.  We can make that an option if/when
+// it comes up, however.
+#[serde(from = "ProxyRuleAsTuple", into = "ProxyRuleAsTuple")]
 pub struct ProxyRule {
     /// Any connections to a port matching this pattern match this rule.
     source: ProxyPattern,
@@ -21,8 +49,30 @@ pub struct ProxyRule {
     target: ProxyTarget,
 }
 
+/// Helper type used to (de)serialize ProxyRule.
+type ProxyRuleAsTuple = (ProxyPattern, ProxyTarget);
+impl From<ProxyRuleAsTuple> for ProxyRule {
+    fn from(value: ProxyRuleAsTuple) -> Self {
+        Self {
+            source: value.0,
+            target: value.1,
+        }
+    }
+}
+impl From<ProxyRule> for ProxyRuleAsTuple {
+    fn from(value: ProxyRule) -> Self {
+        (value.source, value.target)
+    }
+}
+impl ProxyRule {
+    /// Create a new ProxyRule mapping `source` to `target`.
+    pub fn new(source: ProxyPattern, target: ProxyTarget) -> Self {
+        Self { source, target }
+    }
+}
+
 /// A set of ports to use when checking how to handle a port.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde_with::DeserializeFromStr, serde_with::SerializeDisplay)]
 pub struct ProxyPattern(ProxyPatternInner);
 
 /// Implementation type for `ProxyPattern`.
@@ -112,7 +162,7 @@ impl ProxyPatternInner {
 }
 
 /// An action to take upon receiving an incoming request.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde_with::DeserializeFromStr, serde_with::SerializeDisplay)]
 #[non_exhaustive]
 pub enum ProxyTarget {
     /// Close the circuit immediately with an error.
@@ -297,5 +347,20 @@ mod test {
             T::from_str("128.256.cats.and.dogs"),
             Err(PCE::InvalidTargetAddr(_))
         ));
+    }
+
+    #[test]
+    fn deserialize() {
+        let ex = r#"{
+            "proxy_ports": [
+                [ "443", "127.0.0.1:11443" ],
+                [ "80", "ignore" ],
+                [ "*", "destroy" ]
+            ]
+        }"#;
+        let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
+        let cfg = bld.build().unwrap();
+        assert_eq!(cfg.proxy_ports.len(), 3);
+        // TODO HSS: test actual values.
     }
 }

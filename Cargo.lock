@@ -4628,7 +4628,12 @@ dependencies = [
 name = "tor-hsrproxy"
 version = "0.1.0"
 dependencies = [
+ "derive_builder_fork_arti",
+ "serde",
+ "serde_json",
+ "serde_with",
  "thiserror",
+ "tor-config",
 ]
 
 [[package]]
