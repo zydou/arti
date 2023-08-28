@@ -42,6 +42,7 @@
 
 #![allow(dead_code, unused_variables)] // TODO hss remove.
 
+mod anon_level;
 pub mod config;
 mod err;
 mod ipt_mgr;
@@ -52,24 +53,10 @@ mod status;
 mod svc;
 mod timeout_track;
 
+pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, FatalError, StartupError};
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
 pub use svc::OnionService;
-
-/// The level of anonymity that an onion service should try to run with.
-#[derive(Debug, Default, Copy, Clone)]
-#[non_exhaustive]
-pub enum Anonymity {
-    /// Try to keep the location of the onion service private.
-    #[default]
-    Anonymous,
-    /// Do not try to keep the location of the onion service private.
-    ///
-    /// (This is implemented using our "single onion service" design.)
-    //
-    // TODO HSS: We may want to put this behind a feature?
-    DangerouslyNonAnonymous,
-}
