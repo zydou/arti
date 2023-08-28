@@ -4,6 +4,11 @@
 Here are some notes about high level api/ui design for onion services,
 and what it might look like.
 
+2023-08-28
+
+See [!1541](https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1541)
+for comments on this note.
+
 # Top CLI level: the `arti` CLI tool.
 
 I'm imagining that the configuration looks something like this:
@@ -70,6 +75,8 @@ encrypt_descriptor = [
 # Note that you can also give a singleton, as in:
 # encrypt_descriptor = 'dir:/path/to/dir".
 
+# Set the number of introduction points to try to use for the onion service.
+num_intro_points = 3
 
 # This option configures port relaying, which is the only option
 # available at the CLI for actually implementing an onion service.
