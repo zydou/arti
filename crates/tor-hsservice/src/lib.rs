@@ -42,7 +42,7 @@
 
 #![allow(dead_code, unused_variables)] // TODO hss remove.
 
-mod config;
+pub mod config;
 mod err;
 mod ipt_mgr;
 mod keys;
