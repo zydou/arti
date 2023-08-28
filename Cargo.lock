@@ -4625,6 +4625,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-hsrproxy"
+version = "0.1.0"
+
+[[package]]
 name = "tor-hsservice"
 version = "0.2.3"
 dependencies = [
