@@ -1,0 +1,21 @@
+[package]
+name = "download-manager"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+arti-client = { git="https://gitlab.torproject.org/tpo/core/arti/", features = [ "bridge-client", "pt-client" ] }
+arti-hyper = { git="https://gitlab.torproject.org/tpo/core/arti/", features = ["default"]}
+tokio = { version = "1.7", features = ["full"] }
+hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
+tls-api = "0.9.0"
+tls-api-native-tls = "0.9.0"
+tor-rtcompat = { git="https://gitlab.torproject.org/tpo/core/arti/" }
+tracing = "0.1"
+tracing-subscriber = "0.2.0"
+futures = "0.3.28"
+thiserror = "1.0.44"
+anyhow = "1.0.72"
+sha2 = "0.10.7"
