@@ -33,6 +33,7 @@ use tor_linkspec::EncodedLinkSpec;
 use tor_llcrypto::pk::curve25519;
 use tor_units::IntegerMinutes;
 
+use derive_builder::Builder;
 use smallvec::SmallVec;
 
 use std::result::Result as StdResult;
@@ -129,6 +130,8 @@ pub enum IntroAuthType {
 /// Information in an onion service descriptor about a single
 /// introduction point.
 #[derive(Debug, Clone, amplify::Getters)]
+#[derive(Builder)]
+#[builder(pattern = "owned")] // mirrors HsDescBuilder
 pub struct IntroPointDesc {
     /// The list of link specifiers needed to extend a circuit to the introduction point.
     ///
@@ -137,15 +140,19 @@ pub struct IntroPointDesc {
     /// Note that we do not enforce the presence of any link specifiers here;
     /// this means that you can't assume that an `IntroPointDesc` is a meaningful
     /// `ChanTarget` without some processing.
+    //
+    // The builder setter takes a `Vec` directly.  This seems fine.
     #[getter(skip)]
     link_specifiers: Vec<EncodedLinkSpec>,
 
     /// The key to be used to extend a circuit _to the introduction point_, using the
     /// ntor or ntor3 handshakes.  (`KP_ntor`)
+    #[builder(setter(name = "ipt_kp_ntor"))] // TODO rename the internal variable too
     ipt_ntor_key: curve25519::PublicKey,
 
     /// The key to be used to identify the onion service at this introduction point.
     /// (`KP_hs_ipt_sid`)
+    #[builder(setter(name = "kp_hs_ipt_sid"))] // TODO rename the internal variable too
     ipt_sid_key: HsIntroPtSessionIdKey,
 
     /// `KP_hss_ntor`, the key used to encrypt a handshake _to the onion
@@ -154,6 +161,7 @@ pub struct IntroPointDesc {
     /// The onion service uses a separate key of this type with each
     /// introduction point as part of its strategy for preventing replay
     /// attacks.
+    #[builder(setter(name = "kp_hss_ntor"))] // TODO rename the internal variable too
     svc_ntor_key: HsSvcNtorKey,
 }
 
@@ -418,6 +426,11 @@ impl tor_error::HasKind for HsDescError {
 }
 
 impl IntroPointDesc {
+    /// Start building a description of an intro point
+    pub fn builder() -> IntroPointDescBuilder {
+        IntroPointDescBuilder::default()
+    }
+
     /// The list of link specifiers needed to extend a circuit to the introduction point.
     ///
     /// These can include public keys and network addresses.
