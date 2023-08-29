@@ -510,6 +510,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Otherwise, it returns the time in the future when further work ought to be done:
     /// i.e., the time of the earliest timeout or planned future state change -
     /// as a [`TrackingNow`].
+    ///
+    /// In that case, the caller must call `compute_iptsetstatus_publish`,
+    /// since the IPT set etc. may have changed.
     fn idempotently_progress_things_now(&mut self) -> Result<Option<TrackingNow>, FatalError> {
         /// Return value which means "we changed something, please run me again"
         ///
@@ -594,8 +597,20 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             }
         }
 
-        // TODO HSS break this function into two, here
+        //---------- caller (run_once) will update publisher, and wait ----------
 
+        Ok(Some(now))
+    }
+
+    /// Compute the IPT set to publish, and inform the publisher
+    ///
+    /// `now` is current time and also the earliest wakeup,
+    /// which we are in the process of planning.
+    /// The noted earliest wakeup can be updated by this function,
+    /// for example, with a future time at which the IPT set ought to be published
+    /// (eg, the status goes from Unknown to Uncertain).
+    #[allow(clippy::unnecessary_wraps)] // for regularity
+    fn compute_iptsetstatus_publish(&self, now: &TrackingNow) -> Result<(), FatalError> {
         //---------- tell the publisher what to announce ----------
 
         let very_recently: Option<TrackingInstantOffsetNow> = (|| {
@@ -659,9 +674,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // TODO HSS store persistent state
 
-        //---------- we didn't do anything - wait for something to happen ----------
-
-        Ok(Some(now))
+        Ok(())
     }
 
     /// Run one iteration of the loop
@@ -670,6 +683,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// or, if there's nothing to be done, wait until there *is* something to do.
     async fn run_once(&mut self) -> Result<ShutdownStatus, FatalError> {
         if let Some(now) = self.idempotently_progress_things_now()? {
+            self.compute_iptsetstatus_publish(&now)?;
+
             select_biased! {
                 () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
                 shutdown = &mut self.state.shutdown => return Ok(shutdown.void_unwrap_err().into()),
