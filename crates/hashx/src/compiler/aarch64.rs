@@ -1,15 +1,14 @@
 //! Dynamically emitted HashX assembly code for aarch64 targets
 
 use crate::compiler::{util, Architecture, Executable};
-use crate::program::NUM_INSTRUCTIONS;
-use crate::program::{self, Instruction};
+use crate::program::{Instruction, InstructionArray, NUM_INSTRUCTIONS};
 use crate::register::{RegisterFile, RegisterId};
 use crate::CompilerError;
 use dynasmrt::{aarch64, DynasmApi, DynasmLabelApi};
 use std::mem;
 
 impl Architecture for Executable {
-    fn compile(program: &[Instruction; NUM_INSTRUCTIONS]) -> Result<Self, CompilerError> {
+    fn compile(program: &InstructionArray) -> Result<Self, CompilerError> {
         let mut asm = Assembler::new();
         {
             emit_load_input(&mut asm);
@@ -58,7 +57,7 @@ const INSTRUCTION_SIZE_LIMIT: usize = 0x18;
 /// Capacity for the temporary output buffer, before code is copied into
 /// a long-lived allocation that can be made executable.
 const BUFFER_CAPACITY: usize =
-    PROLOGUE_SIZE + EPILOGUE_SIZE + program::NUM_INSTRUCTIONS * INSTRUCTION_SIZE_LIMIT;
+    PROLOGUE_SIZE + EPILOGUE_SIZE + NUM_INSTRUCTIONS * INSTRUCTION_SIZE_LIMIT;
 
 /// Architecture-specific specialization of the Assembler
 type Assembler = util::Assembler<aarch64::Aarch64Relocation, BUFFER_CAPACITY>;

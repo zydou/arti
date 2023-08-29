@@ -1,13 +1,11 @@
 //! Pseudorandom generator for hash programs and parts thereof
 
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
-use crate::program::NUM_INSTRUCTIONS;
-use crate::program::{Instruction, Opcode};
+use crate::program::{Instruction, InstructionVec, Opcode};
 use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
 use crate::Error;
-use crate::FixedCapacityVec;
 use rand_core::RngCore;
 
 /// The `model` attempts to document HashX program generation choices,
@@ -196,10 +194,7 @@ impl<'r, R: RngCore> Generator<'r, R> {
     /// Returns with [`Error::ProgramConstraints`] if the program fails these
     /// checks. This happens in normal use on a small fraction of seed values.
     #[inline(always)]
-    pub(crate) fn generate_program(
-        &mut self,
-        output: &mut FixedCapacityVec<Instruction, NUM_INSTRUCTIONS>,
-    ) -> Result<(), Error> {
+    pub(crate) fn generate_program(&mut self, output: &mut InstructionVec) -> Result<(), Error> {
         assert!(output.is_empty());
         while !output.is_full() {
             match self.generate_instruction() {
