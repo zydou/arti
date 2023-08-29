@@ -87,9 +87,6 @@ impl Publisher {
     }
 
     /// Inform this publisher that  the set of introduction points may have changed.
-    ///
-    /// TODO HSS: Either this needs to take new intropoints as an argument,
-    /// or there needs to be a source of intro points in the Publisher.
     pub(crate) fn new_intro_points(&self, ipts: IptSet) {
         // TODO HSS: handle/return the error
         let _ = self.tx.unbounded_send(Event::NewIntroPoints(ipts));
