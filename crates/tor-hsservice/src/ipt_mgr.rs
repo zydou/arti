@@ -484,8 +484,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Iterate over the current IPTs in `Good` state
     fn good_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
-        self.current_ipts()
-            .filter(|(_ir, ipt)| ipt.is_good())
+        self.current_ipts().filter(|(_ir, ipt)| ipt.is_good())
     }
 }
 
