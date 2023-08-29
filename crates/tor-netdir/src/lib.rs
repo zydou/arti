@@ -1826,7 +1826,7 @@ impl<'a> Relay<'a> {
     #[cfg(feature = "hs-service")] // TODO HSS maybe expose this unconditionally?
     pub fn is_hs_intro_point(&self) -> bool {
         true // TODO HSS / TODO SPEC is every relay really a potential intro point?
-        // TODO HSS check the stable flag?
+             // TODO HSS check the stable flag?
     }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
