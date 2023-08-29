@@ -203,6 +203,9 @@ enum TrackedStatus {
         ///
         /// Can only be `Err` in strange situations.
         time_to_establish: Result<Duration, ()>,
+
+        /// Details, from the Establisher
+        details: ipt_establish::GoodIptDetails,
     },
 }
 
@@ -527,7 +530,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
 
         ipt.status_last = match update {
             ISS::Establishing => TS::Establishing { started: now() },
-            ISS::Good => {
+            ISS::Good(details) => {
                 let time_to_establish = match &ipt.status_last {
                     TS::Establishing { started, .. } => {
                         // return () at end of ok_or_else closure, for clarity
@@ -542,7 +545,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                         Err(())
                     }
                 };
-                TS::Good { time_to_establish }
+                TS::Good { time_to_establish, details }
             }
             ISS::Faulty => TS::Faulty,
         };
