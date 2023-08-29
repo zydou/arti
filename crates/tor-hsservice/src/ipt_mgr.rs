@@ -545,7 +545,10 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                         Err(())
                     }
                 };
-                TS::Good { time_to_establish, details }
+                TS::Good {
+                    time_to_establish,
+                    details,
+                }
             }
             ISS::Faulty => TS::Faulty,
         };
