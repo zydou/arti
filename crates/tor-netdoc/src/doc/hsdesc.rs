@@ -129,8 +129,7 @@ pub enum IntroAuthType {
 
 /// Information in an onion service descriptor about a single
 /// introduction point.
-#[derive(Debug, Clone, amplify::Getters)]
-#[derive(Builder)]
+#[derive(Debug, Clone, amplify::Getters, Builder)]
 #[builder(pattern = "owned")] // mirrors HsDescBuilder
 pub struct IntroPointDesc {
     /// The list of link specifiers needed to extend a circuit to the introduction point.
