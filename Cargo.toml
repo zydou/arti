@@ -54,6 +54,12 @@ members = [
     "crates/arti",
     "crates/arti-bench",
     "crates/arti-testing",
+
+    "examples/connection-checker",
+    "examples/dns-resolver",
+    "examples/download-manager",
+    "examples/obfs4-checker",
+    "examples/pt-proxy",
 ]
 
 resolver = "2"
