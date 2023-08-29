@@ -20,12 +20,14 @@ use educe::Educe;
 use postage::watch;
 use rand::Rng as _;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tracing::{error, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
+use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
-use tor_error::internal;
-use tor_linkspec::RelayIds;
+use tor_error::{internal, Bug};
+use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
@@ -434,6 +436,25 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     }
 }
 
+/// An error that happened while trying to select a relay
+///
+/// (Used only within the IPT manager)
+#[derive(Debug, Error)]
+enum ChooseIptError {
+    /// Bad or insufficient netdir
+    #[error("bad or insufficient netdir")]
+    NetDir(#[from] tor_netdir::Error),
+    /// Too few suitable relays
+    #[error("too few suitable relays")]
+    TooFewUsableRelays,
+    /// Time overflow
+    #[error("time overflow (system clock set wrong?)")]
+    TimeOverflow,
+    /// Internal error
+    #[error("internal error")]
+    Bug(#[from] Bug),
+}
+
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
     /// Find the `Ipt` with persistent local id `lid`
     fn ipt_by_lid_mut(&mut self, needle: IptLocalId) -> Option<&mut Ipt> {
@@ -443,12 +464,44 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
     }
 
     /// Choose a new relay to use for IPTs
-    fn choose_new_ipt_relay(&mut self, imm: &Immutable<R>) {
-        /*
-           pick a random suitable relay
-           set retirement to something from now.checked_add(IPT_RELAY_ROTATION_TIME)
-        */
-        todo!()
+    fn choose_new_ipt_relay(
+        &mut self,
+        imm: &Immutable<R>,
+        now: SystemTime,
+    ) -> Result<(), ChooseIptError> {
+        let netdir = imm.dirprovider.timely_netdir()?;
+
+        let mut rng = self.mockable.thread_rng();
+
+        let relay = netdir
+            .pick_relay(
+                &mut rng,
+                tor_netdir::WeightRole::HsIntro,
+                // TODO HSS should we apply any other conditions to the selected IPT?
+                |new| {
+                    new.is_hs_intro_point()
+                        && !self
+                            .relays
+                            .iter()
+                            .any(|existing| new.has_any_relay_id_from(&existing.relay))
+                },
+            )
+            .ok_or(ChooseIptError::TooFewUsableRelays)?;
+
+        let retirement = rng
+            .gen_range_checked(IPT_RELAY_ROTATION_TIME)
+            .ok_or_else(|| internal!("IPT_RELAY_ROTATION_TIME range was empty!"))?;
+        let retirement = now
+            .checked_add(retirement)
+            .ok_or(ChooseIptError::TimeOverflow)?;
+
+        let relay = IptRelay {
+            relay: RelayIds::from_relay_ids(&relay),
+            planned_retirement: retirement,
+            ipts: vec![],
+        };
+        self.relays.push(relay);
+        Ok(())
     }
 
     /// Update `self`'s status tracking for one introduction point
@@ -592,7 +645,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             if n_good_ish_relays < self.target_n_intro_points()
                 && self.state.relays.len() < self.max_n_intro_relays()
             {
-                self.state.choose_new_ipt_relay(&self.imm);
+                self.state
+                    .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
+                    .expect("BUG"); // TODO HSS handle error from choosing IPT relay, and retry
                 return CONTINUE;
             }
         }

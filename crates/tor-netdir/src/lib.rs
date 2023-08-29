@@ -1357,6 +1357,12 @@ impl NetDir {
     ///
     /// This function returns None if (and only if) there are no relays
     /// with nonzero weight where `usable` returned true.
+    //
+    // TODO this API, with the `usable` closure, invites mistakes where we fail to
+    // check conditions that are implied by the role we have selected for the relay:
+    // call sites must include a call to `Relay::is_polarity_inverter()` or whatever.
+    // IMO the `WeightRole` ought to imply a condition (and it should therefore probably
+    // be renamed.)  -Diziet
     pub fn pick_relay<'a, R, P>(
         &'a self,
         rng: &mut R,
@@ -1815,6 +1821,12 @@ impl<'a> Relay<'a> {
     /// Return true if this relay is marked as a potential Guard node.
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
+    }
+    /// Return true if this relay is a potential HS introduction point
+    #[cfg(feature = "hs-service")] // TODO HSS maybe expose this unconditionally?
+    pub fn is_hs_intro_point(&self) -> bool {
+        true // TODO HSS / TODO SPEC is every relay really a potential intro point?
+             // TODO HSS check the stable flag?
     }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
