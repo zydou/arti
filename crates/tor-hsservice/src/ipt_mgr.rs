@@ -261,17 +261,6 @@ struct IptRecord {
     // TODO HSS other fields need to be here!
 }
 
-/// Instructions to the publisher
-/// TODO HSS reconcile IptSetStatus with publish.rs
-enum IptSetStatus {
-    /// We have no idea which IPTs to publish.
-    Unknown,
-    /// We have some IPTs we could publish, but we're not confident about them.
-    Uncertain(publish::IptSet),
-    /// We are sure of which IPTs we want to publish.
-    Certain(publish::IptSet),
-}
-
 /// Return value from one call to the main loop iteration
 enum ShutdownStatus {
     /// We should continue to operate this IPT manager
@@ -685,7 +674,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// for example, with a future time at which the IPT set ought to be published
     /// (eg, the status goes from Unknown to Uncertain).
     #[allow(clippy::unnecessary_wraps)] // for regularity
-    fn compute_iptsetstatus_publish(&self, now: &TrackingNow) -> Result<(), FatalError> {
+    fn compute_iptsetstatus_publish(&mut self, now: &TrackingNow) -> Result<(), FatalError> {
         //---------- tell the publisher what to announce ----------
 
         let very_recently: Option<TrackingInstantOffsetNow> = (|| {
@@ -725,23 +714,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .next()
         };
 
-        let publish_set = |expiry| {
-            // TODO HSS calculate set of ipts to publish
-            // TODO HSS update each Ipt's last_descriptor_expiry_including_slop
-            let expires = SystemTime::now(); // TODO HSS totally wrong
-            let ipts = vec![]; // TODO HSS totally wrong
-
-            publish::IptSet { ipts, expires }
-        };
-
-        let publish_status = if self.good_ipts().count() >= self.target_n_intro_points() {
-            IptSetStatus::Certain(publish_set(IPT_PUBLISH_CERTAIN))
+        let publish_set = if self.good_ipts().count() >= self.target_n_intro_points() {
+            // "Certain" - we are sure of which IPTs we want to publish
+            Some(self.publish_set(now, IPT_PUBLISH_CERTAIN)?)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
-            IptSetStatus::Unknown
+            // "Unknown" - we have no idea which IPTs to publish.
+            None
         } else {
-            IptSetStatus::Uncertain(publish_set(IPT_PUBLISH_UNCERTAIN))
+            // "Uncertain" - we have some IPTs we could publish, but we're not confident
+            Some(self.publish_set(now, IPT_PUBLISH_UNCERTAIN)?)
         };
 
         // TODO HSS tell all the being-published IPTs to start accepting introductions
@@ -753,6 +736,21 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // TODO HSS store persistent state
 
         Ok(())
+    }
+
+    /// Calculate `publish::IptSet`, given that we have decided to publish *something*
+    #[allow(clippy::unnecessary_wraps)] // XXXX
+    fn publish_set(
+        &mut self,
+        now: &TrackingNow,
+        expiry: Duration,
+    ) -> Result<publish::IptSet, FatalError> {
+        // TODO HSS calculate set of ipts to publish
+        // TODO HSS update each Ipt's last_descriptor_expiry_including_slop
+        let expires = SystemTime::now(); // TODO HSS totally wrong
+        let ipts = vec![]; // TODO HSS totally wrong
+
+        Ok(publish::IptSet { ipts, expires })
     }
 
     /// Run one iteration of the loop
