@@ -515,7 +515,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         };
 
         let mut inner = self.inner.lock().await;
-        let IptSet { ipts } = ipts;
+        #[allow(unused_variables)] // TODO HSS remove
+        let IptSet { ipts, expires } = ipts;
 
         inner.descriptor.ipts(ipts);
 

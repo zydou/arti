@@ -47,6 +47,27 @@ const IPT_RELAY_ROTATION_TIME: RangeInclusive<Duration> = {
     Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
 };
 
+/// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
+// TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
+const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(30 * 60); // 30 mins
+/// Expiry time to put on a final descriptor (IPT publication set Certain
+// TODO HSS IPT_PUBLISH_CERTAIN configure? get from netdir?
+const IPT_PUBLISH_CERTAIN: Duration = Duration::from_secs(12 * 3600); // 12 hours
+
+/// Descriptor expiry time slop
+///
+/// How long after our descriptor expired should we continue to maintain an old IPT?
+/// This is an allowance for:
+///
+///   - Various RTTs and delays in clients setting up circuits
+///     (we can't really measure this ourselves properly,
+///     since what matters is the client's latency)
+///
+///   - Clock skew
+//
+// TODO HSS IPT_PUBLISH_EXPIRY_SLOP configure?
+const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); // 5 minutes
+
 /// Persistent local identifier for an introduction point
 ///
 /// Changes when the IPT relay changes, or the IPT key material changes.
@@ -704,20 +725,23 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .next()
         };
 
-        let publish_set = || {
+        let publish_set = |expiry| {
             // TODO HSS calculate set of ipts to publish
             // TODO HSS update each Ipt's last_descriptor_expiry_including_slop
-            publish::IptSet { ipts: vec![] }
+            let expires = SystemTime::now(); // TODO HSS totally wrong
+            let ipts = vec![]; // TODO HSS totally wrong
+
+            publish::IptSet { ipts, expires }
         };
 
         let publish_status = if self.good_ipts().count() >= self.target_n_intro_points() {
-            IptSetStatus::Certain(publish_set())
+            IptSetStatus::Certain(publish_set(IPT_PUBLISH_CERTAIN))
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
             IptSetStatus::Unknown
         } else {
-            IptSetStatus::Uncertain(publish_set())
+            IptSetStatus::Uncertain(publish_set(IPT_PUBLISH_UNCERTAIN))
         };
 
         // TODO HSS tell all the being-published IPTs to start accepting introductions
