@@ -135,7 +135,7 @@ pub(crate) struct State<R, M> {
     status_recv: mpsc::Receiver<(IptLocalId, IptStatus)>,
 
     /// State: selected relays
-    relays: Vec<IptRelay>,
+    irelays: Vec<IptRelay>,
 
     /// Signal for us to shut down
     shutdown: oneshot::Receiver<Void>,
@@ -413,7 +413,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_recv,
             mockable,
             shutdown,
-            relays: vec![],
+            irelays: vec![],
             runtime: PhantomData,
         };
         let mgr = IptManager { imm, state };
@@ -438,7 +438,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Yields each `IptRelay` at most once.
     fn current_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
         self.state
-            .relays
+            .irelays
             .iter()
             .filter_map(|ir| Some((ir, ir.current_ipt()?)))
     }
@@ -475,7 +475,7 @@ enum ChooseIptError {
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
     /// Find the `Ipt` with persistent local id `lid`
     fn ipt_by_lid_mut(&mut self, needle: IptLocalId) -> Option<&mut Ipt> {
-        self.relays
+        self.irelays
             .iter_mut()
             .find_map(|ir| ir.ipts.iter_mut().find(|ipt| ipt.lid == needle))
     }
@@ -498,7 +498,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                 |new| {
                     new.is_hs_intro_point()
                         && !self
-                            .relays
+                            .irelays
                             .iter()
                             .any(|existing| new.has_any_relay_id_from(&existing.relay))
                 },
@@ -512,12 +512,12 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             .checked_add(retirement)
             .ok_or(ChooseIptError::TimeOverflow)?;
 
-        let relay = IptRelay {
+        let new_irelay = IptRelay {
             relay: RelayIds::from_relay_ids(&relay),
             planned_retirement: retirement,
             ipts: vec![],
         };
-        self.relays.push(relay);
+        self.irelays.push(new_irelay);
         Ok(())
     }
 
@@ -608,7 +608,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // Rotate out an old IPT if we have >N good IPTs
         if self.good_ipts().count() >= self.target_n_intro_points() {
-            for ir in &mut self.state.relays {
+            for ir in &mut self.state.irelays {
                 if ir.should_retire(&now) {
                     if let Some(ipt) = ir.current_ipt_mut() {
                         ipt.is_current = None;
@@ -619,7 +619,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         }
 
         // Forget old IPTs (after the last descriptor mentioning them has expired)
-        for ir in &mut self.state.relays {
+        for ir in &mut self.state.irelays {
             // When we drop the Ipt we drop the IptEstablisher, withdrawing the intro point
             ir.ipts.retain(|ipt| {
                 ipt.is_current.is_some() || now < ipt.last_descriptor_expiry_including_slop
@@ -630,7 +630,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // Forget retired IPT relays (all their IPTs are gone)
         self.state
-            .relays
+            .irelays
             .retain(|ir| !(ir.should_retire(&now) && ir.ipts.is_empty()));
         // If we deleted relays, we might want to select new ones.  That happens below.
 
@@ -639,7 +639,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // Consider selecting new relays and setting up new IPTs.
 
         // Create new IPTs at already-chosen relays
-        for ir in &mut self.state.relays {
+        for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
                 ir.make_new_ipt(&self.imm, &mut self.state.mockable)?;
@@ -663,7 +663,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .count();
 
             if n_good_ish_relays < self.target_n_intro_points()
-                && self.state.relays.len() < self.max_n_intro_relays()
+                && self.state.irelays.len() < self.max_n_intro_relays()
             {
                 self.state
                     .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
