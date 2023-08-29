@@ -18,7 +18,7 @@ use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
 use postage::watch;
-use rand::Rng as _;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{error, trace, warn};
@@ -27,6 +27,7 @@ use void::{ResultVoidErrExt as _, Void};
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{internal, Bug};
+use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKey};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
@@ -179,6 +180,25 @@ struct IptRelay {
     ipts: Vec<Ipt>,
 }
 
+/// TODO HSS surely this should be [`tor_proto::crypto::handshake::ntor::NtorSecretKey`] ?
+///
+/// But that is private?
+/// Also it has a strange name, for something which contains both private and public keys.
+#[derive(Clone, Debug)]
+struct NtorKeyPair {}
+
+impl NtorKeyPair {
+    /// TODO HSS document or replace
+    fn public(&self) -> HsSvcNtorKey {
+        todo!() // TODO HSS implement, or get rid of NtorKeyPair, or something
+    }
+
+    /// TODO HSS document or replace
+    fn generate(rng: &mut impl Rng) -> Self {
+        todo!() // TODO HSS implement, or get rid of NtorKeyPair, or something
+    }
+}
+
 /// One introduction point, representation in memory
 #[derive(Debug)]
 struct Ipt {
@@ -191,6 +211,15 @@ struct Ipt {
     /// We use `Box<dyn Any>` to avoid propagating the `M` type parameter to `Ipt` etc.
     #[allow(dead_code)]
     establisher: Box<dyn Any + Send + Sync + 'static>,
+
+    /// `KS_hs_ipt_sid`, `KP_hs_ipt_sid`
+    k_sid: HsIntroPtSessionIdKeypair,
+
+    /// `KS_hss_ntor`, `KP_hss_ntor`
+    // TODO HSS how do we provide the private half to the recipients of our rend reqs?
+    // It needs to be attached to each request, since the intro points have different
+    // keys and the consumer of the rend req stream needs to use the right ones.
+    k_hss_ntor: NtorKeyPair,
 
     /// Last information about how it's doing including timing info
     status_last: TrackedStatus,
@@ -331,7 +360,16 @@ impl IptRelay {
         let status_last = TS::Establishing {
             started: imm.runtime.now(),
         };
-        let lid: IptLocalId = mockable.thread_rng().gen();
+
+        let rng = mockable.thread_rng();
+        let lid: IptLocalId = rng.gen();
+        let k_hss_ntor = NtorKeyPair::generate(&mut rng);
+        // We want to use write
+        //     ed25519::Keypair::generate(&mut rng).into();
+        // But ed25519::Keypair is an alias to ed25519_dalek::Keypair, and
+        // ed25519_dalek seems to have a different version of the rand crate,
+        // which doesn't do the semver trick.
+        let k_sid = todo!(); // TODO HSS
 
         imm.runtime
             .spawn({
@@ -361,6 +399,8 @@ impl IptRelay {
         let ipt = Ipt {
             lid,
             establisher: Box::new(establisher),
+            k_hss_ntor,
+            k_sid,
             status_last,
             last_descriptor_expiry_including_slop: imm.runtime.wallclock(), // this'll do
             is_current: Some(IsCurrent),
