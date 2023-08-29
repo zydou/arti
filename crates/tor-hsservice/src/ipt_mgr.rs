@@ -412,6 +412,16 @@ impl IptRelay {
     }
 }
 
+impl Ipt {
+    /// Returns `true` if this IPT has status Good (properly published)
+    fn is_good(&self) -> bool {
+        match self.status_last {
+            TS::Good { .. } => true,
+            TS::Establishing { .. } | TS::Faulty => false,
+        }
+    }
+}
+
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Create a new IptManager
     #[allow(clippy::unnecessary_wraps)] // TODO HSS remove
@@ -475,10 +485,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Iterate over the current IPTs in `Good` state
     fn good_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
         self.current_ipts()
-            .filter(|(_ir, ipt)| match ipt.status_last {
-                TS::Good { .. } => true,
-                TS::Establishing { .. } | TS::Faulty => false,
-            })
+            .filter(|(_ir, ipt)| ipt.is_good())
     }
 }
 
