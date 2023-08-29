@@ -6,15 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arti-client = { git = "https://gitlab.torproject.org/tpo/core/arti", features = [ "bridge-client", "pt-client", "experimental" ] }
+arti-client = { path = "../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
 tokio = { version = "1.7", features = ["full"] }
 tracing = "0.1"
-tor-rtcompat = { git = "https://gitlab.torproject.org/tpo/core/arti" }
-tor-socksproto = { git = "https://gitlab.torproject.org/tpo/core/arti" }
-tor-linkspec = { git = "https://gitlab.torproject.org/tpo/core/arti" }
-tor-chanmgr = { git = "https://gitlab.torproject.org/tpo/core/arti", features = ["pt-client"]}
+tor-rtcompat = { path = "../../crates/tor-rtcompat" }
+tor-socksproto = { path = "../../crates/tor-socksproto" }
+tor-linkspec = { path = "../../crates/tor-linkspec" }
+tor-chanmgr = { path = "../../crates/tor-chanmgr", features = ["pt-client"]}
 tracing-subscriber = "0.2.0"
-tor-ptmgr = { git = "https://gitlab.torproject.org/tpo/core/arti", features = [ "experimental-api"] }
+tor-ptmgr = { path = "../../crates/tor-ptmgr", features = [ "experimental-api"] }
 anyhow = "1.0.72"
 thiserror = "1.0.44"
 tokio-stream = "0.1.14"

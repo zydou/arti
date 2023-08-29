@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arti-client = { git = "https://gitlab.torproject.org/tpo/core/arti/", features = [ "bridge-client", "pt-client", "experimental" ] }
+arti-client = { path = "../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
 tokio = { version = "1.7", features = ["full"] }
 tracing = "0.1"
-tor-rtcompat = { git = "https://gitlab.torproject.org/tpo/core/arti/" }
+tor-rtcompat = { path = "../../crates/tor-rtcompat" }
 tracing-subscriber = "0.2.0"
-tor-error = { git = "https://gitlab.torproject.org/tpo/core/arti/" }
+tor-error = { path = "../../crates/tor-error" }
 anyhow = "1.0.72"
 clap = { version = "4.3.21", features = ["derive"] }

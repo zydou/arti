@@ -6,17 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arti-client = { git = "https://gitlab.torproject.org/tpo/core/arti/", features = [ "bridge-client", "pt-client", "experimental" ] }
-tor-chanmgr = { git = "https://gitlab.torproject.org/tpo/core/arti/" , features = [ "pt-client", "experimental-api" ]}
-tor-guardmgr = { git = "https://gitlab.torproject.org/tpo/core/arti/" , features = [ "full" ]}
+arti-client = { path = "../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
+tor-chanmgr = { path = "../../crates/tor-chanmgr", features = [ "pt-client", "experimental-api" ]}
+tor-guardmgr = { path = "../../crates/tor-guardmgr" , features = [ "full" ]}
 tokio = { version = "1.7", features = ["full"] }
 tracing = "0.1"
-tor-rtcompat = { git = "https://gitlab.torproject.org/tpo/core/arti/" }
-tor-proto = { git = "https://gitlab.torproject.org/tpo/core/arti/" }
+tor-rtcompat = { path = "../../crates/tor-rtcompat" }
+tor-proto = { path = "../../crates/tor-proto" }
 tracing-subscriber = "0.2.0"
 tls-api = "0.9.0"
 tls-api-native-tls = "0.9.0"
-tor-error = { git = "https://gitlab.torproject.org/tpo/core/arti/" }
+tor-error = { path = "../../crates/tor-error" }
 futures = "0.3.28"
 serde = "1.0.180"
 axum = "0.6.19"
