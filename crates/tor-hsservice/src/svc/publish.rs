@@ -86,7 +86,7 @@ impl Publisher {
         let _ = self.tx.unbounded_send(Event::NewKeys(()));
     }
 
-    /// Inform this publisher that  the set of introduction points has changed.
+    /// Inform this publisher that  the set of introduction points may have changed.
     ///
     /// TODO HSS: Either this needs to take new intropoints as an argument,
     /// or there needs to be a source of intro points in the Publisher.
