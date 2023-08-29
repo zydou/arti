@@ -54,10 +54,7 @@ pub struct LimitConfig {
     ///
     /// We send this to the send to the introduction point to configure how many
     /// introduction requests it sends us.
-    rate_limit_at_intro: TokenBucketConfig,
-
-    /// How many streams will we allow to be open at once for this service?
-    max_concurrent_streams: u32,
+    rate_limit_at_intro: Option<TokenBucketConfig>,
 
     /// How many streams will we allow to be open at once for a single circuit on
     /// this service?
