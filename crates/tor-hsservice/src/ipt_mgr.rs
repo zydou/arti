@@ -4,6 +4,7 @@
 //! Provides a stream of rendezvous requests.
 
 use std::any::Any;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
@@ -26,9 +27,10 @@ use void::{ResultVoidErrExt as _, Void};
 
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
-use tor_error::{internal, Bug};
+use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKey};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
+use tor_llcrypto::pk::ed25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
@@ -136,6 +138,9 @@ pub(crate) struct State<R, M> {
     status_recv: mpsc::Receiver<(IptLocalId, IptStatus)>,
 
     /// State: selected relays
+    ///
+    /// We append to this, and call `retain` on it,
+    /// so these are in chronological order of selection.
     irelays: Vec<IptRelay>,
 
     /// Signal for us to shut down
@@ -419,6 +424,20 @@ impl Ipt {
             TS::Good { .. } => true,
             TS::Establishing { .. } | TS::Faulty => false,
         }
+    }
+
+    /// Construct the information needed by the publisher for this intro point
+    ///
+    /// `linkspecs` is `&self.status_last.Good.link_specifiers`
+    fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<publish::Ipt, Bug> {
+        let k_sid: &ed25519::Keypair = self.k_sid.as_ref();
+        tor_netdoc::doc::hsdesc::IntroPointDesc::builder()
+            .link_specifiers(details.link_specifiers.clone())
+            .ipt_kp_ntor(details.ipt_kp_ntor)
+            .kp_hs_ipt_sid(k_sid.public.into())
+            .kp_hss_ntor(self.k_hss_ntor.public())
+            .build()
+            .map_err(into_internal!("failed to construct IntroPointDesc"))
     }
 }
 
@@ -785,16 +804,70 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     }
 
     /// Calculate `publish::IptSet`, given that we have decided to publish *something*
-    #[allow(clippy::unnecessary_wraps)] // XXXX
+    ///
+    /// Calculates set of ipts to publish, selecting up to the target `N`
+    /// from the available good current IPTs.
+    /// (Old, non-current IPTs, that we are trying to retire, are never published.)
+    ///
+    /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
     fn publish_set(
         &mut self,
         now: &TrackingNow,
         expiry: Duration,
     ) -> Result<publish::IptSet, FatalError> {
-        // TODO HSS calculate set of ipts to publish
-        // TODO HSS update each Ipt's last_descriptor_expiry_including_slop
-        let expires = SystemTime::now(); // TODO HSS totally wrong
-        let ipts = vec![]; // TODO HSS totally wrong
+        let expires = now
+            .system_time()
+            // Our response to old descriptors expiring is handled by us checking
+            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
+            .get_now_untracked()
+            .checked_add(expiry)
+            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
+
+        /// Good candidate introduction point for publication
+        type Candidate<'i> = &'i mut Ipt;
+
+        let target_n = self.target_n_intro_points();
+
+        let mut candidates: VecDeque<_> = self
+            .state
+            .irelays
+            .iter_mut()
+            .filter_map(|ir: &mut _| -> Option<Candidate<'_>> {
+                let current_ipt = ir.current_ipt_mut()?;
+                if !current_ipt.is_good() {
+                    return None;
+                }
+                Some(current_ipt)
+            })
+            .collect();
+
+        // Take the last N good IPT relays
+        //
+        // The way we manage irelays means that this is always
+        // the ones we selected most recently.
+        // (We can't be forced to churn because we don't remove relays
+        // from our list of relays to try to use, other than on our own schedule.)
+        while candidates.len() > target_n {
+            // WTB: VecDeque::truncate_front
+            let _: Candidate = candidates.pop_front().expect("empty?!");
+        }
+
+        let new_last_expiry = expires
+            .checked_add(IPT_PUBLISH_EXPIRY_SLOP)
+            .ok_or_else(|| internal!("time overflow adding expiry slop"))?;
+
+        let ipts = candidates
+            .into_iter()
+            .map(|current_ipt| {
+                let TS::Good { details, .. } = &current_ipt.status_last else {
+                    panic!("was good but now isn't?!")
+                };
+
+                let publish = current_ipt.for_publish(details)?;
+                current_ipt.last_descriptor_expiry_including_slop = new_last_expiry;
+                Ok::<_, FatalError>(publish)
+            })
+            .collect::<Result<_, _>>()?;
 
         Ok(publish::IptSet { ipts, expires })
     }
