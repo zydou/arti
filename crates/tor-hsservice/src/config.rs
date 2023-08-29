@@ -2,9 +2,11 @@
 //
 // TODO HSS: We may want rename some of the types and members here!
 
+use base64ct::{Base64Unpadded, Encoding as _};
 use derive_builder::Builder;
 use std::path::PathBuf;
 use tor_config::ConfigBuildError;
+use tor_hscrypto::pk::HsClientDescEncKey;
 use tor_llcrypto::pk::curve25519;
 
 use crate::HsNickname;
@@ -145,6 +147,56 @@ pub enum AuthorizedClientConfig {
     /// A directory full of authorized public keys.
     DirectoryOfKeys(PathBuf),
     /// A single authorized public key.
-    // TODO HSS: Use the appropriate wrapper type.
-    Curve25519Key(curve25519::PublicKey),
+    Curve25519Key(HsClientDescEncKey),
+}
+
+impl std::fmt::Display for AuthorizedClientConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DirectoryOfKeys(pb) => write!(f, "dir:{}", pb.display()),
+            Self::Curve25519Key(key) => write!(
+                f,
+                "curve25519:{}",
+                Base64Unpadded::encode_string(key.as_bytes())
+            ),
+        }
+    }
+}
+
+/// A problem encountered while parsing an AuthorizedClientConfig.
+#[derive(thiserror::Error, Clone, Debug)]
+#[non_exhaustive]
+pub enum AuthorizedClientParseError {
+    /// Didn't recognize the type of this [`AuthorizedClientConfig`].
+    ///
+    /// Recognized types are `dir` and `curve25519`.
+    #[error("Unrecognized authorized client type")]
+    InvalidType,
+    /// Couldn't parse a curve25519 key.
+    #[error("Invalid curve25519 key")]
+    InvalidKey,
+}
+
+impl std::str::FromStr for AuthorizedClientConfig {
+    type Err = AuthorizedClientParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some((tp, val)) = s.split_once(':') else {
+            return Err(Self::Err::InvalidType);
+        };
+        if tp == "dir" {
+            Ok(Self::DirectoryOfKeys(val.into()))
+        } else if tp == "curve25519" {
+            let bytes: [u8; 32] = Base64Unpadded::decode_vec(val)
+                .map_err(|_| Self::Err::InvalidKey)?
+                .try_into()
+                .map_err(|_| Self::Err::InvalidKey)?;
+
+            Ok(Self::Curve25519Key(HsClientDescEncKey::from(
+                curve25519::PublicKey::from(bytes),
+            )))
+        } else {
+            Err(Self::Err::InvalidType)
+        }
+    }
 }

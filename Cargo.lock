@@ -4642,6 +4642,7 @@ version = "0.2.3"
 dependencies = [
  "async-broadcast",
  "async-trait",
+ "base64ct",
  "derive-adhoc",
  "derive_builder_fork_arti",
  "derive_more",
