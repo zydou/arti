@@ -7,6 +7,7 @@
 //! `Executable` wraps a mmap buffer from the `dynasmrt` crate and the
 //! `Architecture` is implemented in a CPU-specific way.
 
+use crate::program::NUM_INSTRUCTIONS;
 use crate::{program::Instruction, register::RegisterFile, CompilerError};
 
 #[cfg(all(feature = "compiler", target_arch = "x86_64"))]
@@ -41,7 +42,7 @@ pub(crate) struct Executable {
     not(any(target_arch = "x86_64", target_arch = "aarch64"))
 ))]
 impl Architecture for Executable {
-    fn compile(_program: &[Instruction]) -> Result<Self, CompilerError> {
+    fn compile(_program: &[Instruction; NUM_INSTRUCTIONS]) -> Result<Self, CompilerError> {
         Err(CompilerError::NotAvailable)
     }
 
@@ -71,7 +72,7 @@ where
     Self: Sized,
 {
     /// Compile an array of instructions into an Executable
-    fn compile(program: &[Instruction]) -> Result<Self, CompilerError>;
+    fn compile(program: &[Instruction; NUM_INSTRUCTIONS]) -> Result<Self, CompilerError>;
 
     /// Run the compiled code, with a RegisterFile for input and output
     fn invoke(&self, regs: &mut RegisterFile);
