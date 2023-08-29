@@ -31,7 +31,7 @@ use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::svc::ipt_establish;
+use crate::svc::{ipt_establish, publish};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
 use crate::{FatalError, HsNickname, OnionServiceConfig, RendRequest, StartupError};
 use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
@@ -246,16 +246,9 @@ enum IptSetStatus {
     /// We have no idea which IPTs to publish.
     Unknown,
     /// We have some IPTs we could publish, but we're not confident about them.
-    Uncertain(IptSetToPublish),
+    Uncertain(publish::IptSet),
     /// We are sure of which IPTs we want to publish.
-    Certain(IptSetToPublish),
-}
-
-/// A set of introduction points as told to the publisher
-/// TODO HSS reconcile IptSetStatus with publish.rs
-struct IptSetToPublish {
-    /// The actual introduction points
-    ipts: Vec<()>,
+    Certain(publish::IptSet),
 }
 
 /// Return value from one call to the main loop iteration
@@ -714,7 +707,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         let publish_set = || {
             // TODO HSS calculate set of ipts to publish
             // TODO HSS update each Ipt's last_descriptor_expiry_including_slop
-            IptSetToPublish { ipts: vec![] }
+            publish::IptSet { ipts: vec![] }
         };
 
         let publish_status = if self.good_ipts().count() >= self.target_n_intro_points() {

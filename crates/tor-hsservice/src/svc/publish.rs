@@ -18,7 +18,7 @@ use tor_rtcompat::Runtime;
 
 use crate::OnionServiceConfig;
 
-use descriptor::Ipt;
+pub(crate) use descriptor::Ipt;
 use err::PublisherError;
 use reactor::{Event, Reactor, ReactorError, ReactorState};
 
@@ -38,6 +38,12 @@ pub(crate) struct Publisher {
     // task.
     /// A channel for sending `Event`s to the reactor.
     tx: mpsc::UnboundedSender<Event>,
+}
+
+/// A set of introduction points for publication
+pub(crate) struct IptSet {
+    /// The actual introduction points
+    pub(crate) ipts: Vec<Ipt>,
 }
 
 impl Publisher {
@@ -84,7 +90,7 @@ impl Publisher {
     ///
     /// TODO HSS: Either this needs to take new intropoints as an argument,
     /// or there needs to be a source of intro points in the Publisher.
-    pub(crate) fn new_intro_points(&self, ipts: Vec<Ipt>) {
+    pub(crate) fn new_intro_points(&self, ipts: IptSet) {
         // TODO HSS: handle/return the error
         let _ = self.tx.unbounded_send(Event::NewIntroPoints(ipts));
     }

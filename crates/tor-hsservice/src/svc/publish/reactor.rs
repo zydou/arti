@@ -30,7 +30,8 @@ use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
-use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, Ipt};
+use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus};
+use crate::svc::publish::IptSet;
 
 /// The upload rate-limiting threshold.
 ///
@@ -270,7 +271,7 @@ impl TimePeriodContext {
 /// These are triggered by calling the various methods of [`Publisher`](super::Publisher).
 pub(super) enum Event {
     /// The introduction points of this service have changed.
-    NewIntroPoints(Vec<Ipt>),
+    NewIntroPoints(IptSet),
     /// The keys of this service have changed.
     ///
     /// TODO HSS: decide whether we need this, and if so, who is going to emit this event and what
@@ -506,8 +507,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
     /// Update our list of introduction points.
     #[allow(clippy::unnecessary_wraps)]
-    async fn handle_new_intro_points(&self, ipts: Vec<Ipt>) -> Result<(), ReactorError> {
+    async fn handle_new_intro_points(&self, ipts: IptSet) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
+        let IptSet { ipts } = ipts;
 
         inner.descriptor.ipts(ipts);
 
