@@ -87,7 +87,9 @@ impl Publisher {
     }
 
     /// Inform this publisher that  the set of introduction points may have changed.
-    pub(crate) fn new_intro_points(&self, ipts: IptSet) {
+    ///
+    /// `None` means to not publish or update descriptors
+    pub(crate) fn new_intro_points(&self, ipts: Option<IptSet>) {
         // TODO HSS: handle/return the error
         let _ = self.tx.unbounded_send(Event::NewIntroPoints(ipts));
     }
