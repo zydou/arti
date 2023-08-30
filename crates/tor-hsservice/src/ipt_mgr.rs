@@ -811,14 +811,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     fn publish_set(
         &mut self,
         now: &TrackingNow,
-        expiry: Duration,
+        lifetime: Duration,
     ) -> Result<publish::IptSet, FatalError> {
         let expires = now
             .system_time()
             // Our response to old descriptors expiring is handled by us checking
             // last_descriptor_expiry_including_slop in idempotently_progress_things_now
             .get_now_untracked()
-            .checked_add(expiry)
+            .checked_add(lifetime)
             .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
 
         /// Good candidate introduction point for publication
@@ -885,7 +885,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             })
             .collect::<Result<_, _>>()?;
 
-        Ok(publish::IptSet { ipts, expires })
+        Ok(publish::IptSet { ipts, lifetime })
     }
 
     /// Run one iteration of the loop

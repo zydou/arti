@@ -9,7 +9,7 @@ mod reactor;
 use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::Duration;
 use tracing::error;
 
 use tor_circmgr::hspool::HsCircPool;
@@ -47,7 +47,7 @@ pub(crate) struct IptSet {
     pub(crate) ipts: Vec<Ipt>,
 
     /// When to make the descriptor expire
-    pub(crate) expires: SystemTime,
+    pub(crate) lifetime: Duration,
 }
 
 impl Publisher {
