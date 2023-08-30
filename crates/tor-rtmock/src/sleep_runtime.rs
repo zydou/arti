@@ -99,6 +99,7 @@ use std::task::{Context, Poll};
 impl<F: Future> Future for WaitFor<F> {
     type Output = F::Output;
 
+    #[allow(clippy::cognitive_complexity)]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         trace!("waitfor poll");
         let mut this = self.project();

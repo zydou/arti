@@ -175,6 +175,7 @@ impl MockSleepProvider {
     ///
     /// NOTE: This function has side-effects; if it returns true, the caller is expected to do an
     /// advance before calling it again.
+    #[allow(clippy::cognitive_complexity)]
     pub(crate) fn should_advance(&mut self) -> bool {
         let mut state = self.state.lock().expect("Poisoned lock for state");
         if !state.blocked_advance.is_empty() && state.allowed_advance == Duration::from_nanos(0) {

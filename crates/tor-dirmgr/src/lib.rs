@@ -1017,6 +1017,7 @@ impl<R: Runtime> DirMgr<R> {
     }
 
     /// If `state` has netdir changes to apply, apply them to our netdir.
+    #[allow(clippy::cognitive_complexity)]
     fn apply_netdir_changes(
         self: &Arc<Self>,
         state: &mut Box<dyn DirState>,
