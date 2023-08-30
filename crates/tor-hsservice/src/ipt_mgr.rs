@@ -427,8 +427,6 @@ impl Ipt {
     }
 
     /// Construct the information needed by the publisher for this intro point
-    ///
-    /// `linkspecs` is `&self.status_last.Good.link_specifiers`
     fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<publish::Ipt, Bug> {
         let k_sid: &ed25519::Keypair = self.k_sid.as_ref();
         tor_netdoc::doc::hsdesc::IntroPointDesc::builder()
