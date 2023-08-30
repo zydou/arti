@@ -55,11 +55,11 @@ members = [
     "crates/arti-bench",
     "crates/arti-testing",
 
-    "examples/connection-checker",
-    "examples/dns-resolver",
-    "examples/download-manager",
-    "examples/obfs4-checker",
-    "examples/pt-proxy",
+    "examples/gsoc2023/connection-checker",
+    "examples/gsoc2023/dns-resolver",
+    "examples/gsoc2023/download-manager",
+    "examples/gsoc2023/obfs4-checker",
+    "examples/gsoc2023/pt-proxy",
 ]
 
 resolver = "2"
