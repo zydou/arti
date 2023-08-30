@@ -474,6 +474,22 @@ impl<R: Runtime> Reactor<R> {
             status_tx.borrow_mut().note_attempt();
             match self.establish_intro_once().await {
                 Ok(session) => {
+                    // TODO HSS we need to monitor the netdir for changes to this relay
+                    // Eg,
+                    //   - if it becomes unlisted, we should declare the IPT faulty
+                    //     (until it perhaps reappears)
+                    //
+                    //     TODO SPEC  Continuing to use an unlisted relay is dangerous
+                    //     It might be malicious.  We should withdraw our IPT then,
+                    //     and hope that clients find another, working, IPT.
+                    //
+                    //   - if it changes its ntor key or link specs,
+                    //     we need to update the GoodIptDetails in our status report,
+                    //     so that the updated info can make its way to the descriptor
+                    //
+                    // Possibly some this could/should be done by the IPT Manager instead,
+                    // but Diziet thinks it is probably cleanest to do it here.
+
                     status_tx.borrow_mut().note_open();
                     debug!(
                         "Successfully established introduction point with {}",
