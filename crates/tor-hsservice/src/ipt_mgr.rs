@@ -876,7 +876,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .into_iter()
             .map(|current_ipt| {
                 let TS::Good { details, .. } = &current_ipt.status_last else {
-                    panic!("was good but now isn't?!")
+                    return Err(internal!("was good but now isn't?!").into())
                 };
 
                 let publish = current_ipt.for_publish(details)?;
