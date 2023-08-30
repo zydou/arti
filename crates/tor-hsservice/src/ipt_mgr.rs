@@ -230,7 +230,7 @@ struct Ipt {
     status_last: TrackedStatus,
 
     /// Until when ought we to try to maintain it
-    last_descriptor_expiry_including_slop: SystemTime,
+    last_descriptor_expiry_including_slop: Instant,
 
     /// Is this IPT current - should we include it in descriptors ?
     ///
@@ -407,7 +407,7 @@ impl IptRelay {
             k_hss_ntor,
             k_sid,
             status_last,
-            last_descriptor_expiry_including_slop: imm.runtime.wallclock(), // this'll do
+            last_descriptor_expiry_including_slop: imm.runtime.now(), // this'll do
             is_current: Some(IsCurrent),
         };
 
@@ -814,7 +814,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         lifetime: Duration,
     ) -> Result<publish::IptSet, FatalError> {
         let expires = now
-            .system_time()
+            .instant()
             // Our response to old descriptors expiring is handled by us checking
             // last_descriptor_expiry_including_slop in idempotently_progress_things_now
             .get_now_untracked()
