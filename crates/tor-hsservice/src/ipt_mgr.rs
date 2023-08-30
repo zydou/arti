@@ -843,8 +843,26 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         //
         // The way we manage irelays means that this is always
         // the ones we selected most recently.
-        // (We can't be forced to churn because we don't remove relays
-        // from our list of relays to try to use, other than on our own schedule.)
+        //
+        // TODO SPEC  Publication strategy when we have more than >N IPTs
+        //
+        // We could have a number of strategies here.  We could take some timing
+        // measurements, or use the establishment time, or something; but we don't
+        // want to add distinguishability.
+        //
+        // Another concern is manipulability, but 
+        // We can't be forced to churn because we don't remove relays
+        // from our list of relays to try to use, other than on our own schedule.
+        // But we probably won't want to be too reactive to the network environment.
+        //
+        // Since we only choose new relays when old ones are to retire, or are faulty,
+        // choosing the most recently selected, rather than the least recently,
+        // has the effect of preferring relays we don't know to be faulty,
+        // to ones we have considered faulty least once.
+        //
+        // That's better than the opposite.  Also, choosing more recently selected relays
+        // for publication may slightly bring forward the time at which all descriptors
+        // mentioning that relay have expired, and then we can forget about it.
         while candidates.len() > target_n {
             // WTB: VecDeque::truncate_front
             let _: Candidate = candidates.pop_front().expect("empty?!");
