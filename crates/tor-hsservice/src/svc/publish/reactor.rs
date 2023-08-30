@@ -508,6 +508,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Update our list of introduction points.
+    ///
+    /// `None` means to not publish or update descriptors
     #[allow(clippy::unnecessary_wraps)]
     async fn handle_new_intro_points(&self, ipts: Option<IptSet>) -> Result<(), ReactorError> {
         let Some(ipts) = ipts else {
