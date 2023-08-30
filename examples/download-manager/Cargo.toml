@@ -2,13 +2,12 @@
 name = "download-manager"
 version = "0.1.0"
 edition = "2021"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.72"
 arti-client = { path = "../../crates/arti-client", features = [ "bridge-client", "pt-client" ] }
-arti-hyper = { path = "../../crates/arti-hyper", features = ["default"]}
+arti-hyper = { path = "../../crates/arti-hyper", features = ["default"] }
 futures = "0.3.28"
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 sha2 = "0.10.7"
