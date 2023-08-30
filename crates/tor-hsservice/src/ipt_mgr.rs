@@ -414,7 +414,7 @@ impl IptRelay {
 }
 
 impl Ipt {
-    /// Returns `true` if this IPT has status Good (properly published)
+    /// Returns `true` if this IPT has status Good (and should perhaps be published)
     fn is_good(&self) -> bool {
         match self.status_last {
             TS::Good { .. } => true,
