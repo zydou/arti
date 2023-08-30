@@ -31,6 +31,7 @@ use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKey};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
@@ -369,12 +370,7 @@ impl IptRelay {
         let rng = mockable.thread_rng();
         let lid: IptLocalId = rng.gen();
         let k_hss_ntor = NtorKeyPair::generate(&mut rng);
-        // We want to use write
-        //     ed25519::Keypair::generate(&mut rng).into();
-        // But ed25519::Keypair is an alias to ed25519_dalek::Keypair, and
-        // ed25519_dalek seems to have a different version of the rand crate,
-        // which doesn't do the semver trick.
-        let k_sid = todo!(); // TODO HSS
+        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
 
         imm.runtime
             .spawn({
