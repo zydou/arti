@@ -846,7 +846,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // measurements, or use the establishment time, or something; but we don't
         // want to add distinguishability.
         //
-        // Another concern is manipulability, but 
+        // Another concern is manipulability, but
         // We can't be forced to churn because we don't remove relays
         // from our list of relays to try to use, other than on our own schedule.
         // But we probably won't want to be too reactive to the network environment.
@@ -872,7 +872,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .into_iter()
             .map(|current_ipt| {
                 let TS::Good { details, .. } = &current_ipt.status_last else {
-                    return Err(internal!("was good but now isn't?!").into())
+                    return Err(internal!("was good but now isn't?!").into());
                 };
 
                 let publish = current_ipt.for_publish(details)?;
