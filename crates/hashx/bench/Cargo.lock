@@ -349,6 +349,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixed-capacity-vec"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66c4723aaf0696328be5d052584e992cfef2b4fe04b22d21eb5a0194b4c97d47"
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -394,6 +400,7 @@ dependencies = [
  "arrayvec",
  "blake2",
  "dynasmrt",
+ "fixed-capacity-vec",
  "hex",
  "rand_core",
  "thiserror",
