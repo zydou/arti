@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.8 — 5 September 2023
 
-Arti 1.1.8 focuses on support for onion services in arti.  It includes
+Arti 1.1.8 continues work on support for onion services in arti.  It includes
 backend support for nearly all of the functionality needed to launch
 and publish an onion service and accept incoming requests from onion
 service clients.  This functionality is not yet usable, however: we
@@ -46,7 +46,8 @@ high-level APIs to allow the user to actually turn it on.
   messages. ([#864], [#994], [#998], [#1009], [!1451], [!1474], [!1475],
   [!1476], [!1477], [!1484], [!1519])
 - Keystore directory configuration is now derived from the configured
-  state directory. ([#988], [!1498])
+  state directory when using `TorClientConfigBuilder::from_directories`.
+  ([#988], [!1498])
 - Expose the `KH` circuit-binding material, as needed for the
   rendezvous handshake. ([#993], [!1472])
 - Backend code to establish an introduction point, keep it
@@ -93,8 +94,8 @@ high-level APIs to allow the user to actually turn it on.
 
 ### Cleanups, minor features, and smaller bugfixes
 
-- Improved error message when a `[[bridges.transports]]` section does
-  not include a usable pluggable transport. ([#880], [!1229])
+- Improved error handling when a `[[bridges.transports]]` section does
+  not include any required pluggable transport. ([#880], [!1229])
 - Key manager APIs are now less tied to the SSH key format, and no
   longer require that x25519 keys be stored as ed25519 keys. ([#936],
   [#965], [!1464], [!1508])
