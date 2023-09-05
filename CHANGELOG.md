@@ -119,6 +119,15 @@ high-level APIs to allow the user to actually turn it on.
 
 ### Acknowledgments
 
+Thanks to everybody who's contributed to this release, including
+Emil Engler, Jim Newsome, Micah Elizabeth Scott, Saksham Mittal,
+and Trinity Pointard.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+
+
 
 
 
