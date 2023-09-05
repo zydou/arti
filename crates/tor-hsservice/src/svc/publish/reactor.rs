@@ -289,8 +289,6 @@ pub(super) enum ReactorError {
 
 impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Create a new `Reactor`.
-    #[allow(unreachable_code)] // TODO HSS: remove
-    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     pub(super) async fn new(
         runtime: R,
         hsid: HsId,
