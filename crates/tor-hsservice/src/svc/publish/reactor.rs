@@ -419,11 +419,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         Ok(())
     }
 
-    /// Maybe note a change in our list of HsDirs.
-    async fn handle_hs_dir_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
-        todo!()
-    }
-
     /// Recompute the HsDirs for all relevant time periods.
     async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
