@@ -604,8 +604,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     ///
     /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
     /// well as in what cases this will return an error).
-    //
-    // TODO HSS: perhaps `current` should be an enum rather than a bool
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_for_time_period(
