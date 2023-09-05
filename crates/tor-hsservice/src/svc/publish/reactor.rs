@@ -424,9 +424,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 // Time to reattempt a previously rate-limited upload
                 self.upload_all().await?;
             }
-            // TODO HSS: maybe create some task that notifies us when the time period changes?
-            // Alternatively, we can check if the time period changed every time we handle an
-            // event/consensus change.
         }
 
         Ok(())
@@ -452,6 +449,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
         let inner = &mut *inner;
+
+        // Update our list of relevant time periods.
+        inner.time_periods = Self::compute_time_periods(&inner.netdir, &self.hsid_key)?;
 
         for period in inner.time_periods.iter_mut() {
             period.recompute_hs_dirs(&inner.netdir)?;
