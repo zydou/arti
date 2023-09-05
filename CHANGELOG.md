@@ -3,6 +3,123 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.8 — 5 September 2023
+
+Arti 1.1.8 focuses on support for onion services in arti.  It includes
+backend support for nearly all of the functionality needed to launch
+and publish an onion service and accept incoming requests from onion
+service clients.  This functionality is not yet usable, however: we
+still need to connect it all together, test and debug it, and provide
+high-level APIs to allow the user to actually turn it on.
+
+### Major bugfixes
+
+- Do not allow the user to set `bridges = true` without having
+  configured any bridges.  Previously, this configuration was
+  possible, and it caused arti to connect without using any
+  bridges. This is tracked as [TROVE-2023-002]. ([#1000], [!1481]).
+- Fix an astronomically unlikely buffer overflow in our (currently
+  unused) [HashX] implementation.  This is tracked as
+  [TROVE-2023-003]. ([tor#40833], [????])  (TODO: Is arti's hashx affected
+  by this or not?)
+
+### Breaking changes in lower-level crates
+
+TODO write me.
+
+### Onion service development
+
+- We began laying more groundwork for onion services, with a set of
+  low-level API designs, algorithm designs, and data
+  structures. ([#970], [#971], [#972], [!1452], [!1444], [!1541])
+- Fuzzing support and significant speed improvements to the (still
+  unused) [HashX]-based proof-of-work code. ([!1446], [!1462],
+  [!1459], [!1513], [!1524], [!1529], [!1538], [!1539], [!1555])
+- Added low-level support in [`tor-proto`] for accepting incoming data
+  streams on a circuit. Onion services will use this to accept `BEGIN`
+  messages. ([#864], [#994], [#998], [#1009], [!1451], [!1474], [!1475],
+  [!1476], [!1477], [!1484], [!1519])
+- Keystore directory configuration is now derived from the configured
+  state directory. ([#988], [!1498])
+- Expose the `KH` circuit-binding material, as needed for the
+  rendezvous handshake. ([#993], [!1472])
+- Backend code to establish an introduction point, keep it
+  established, and watch for `INTRODUCE2` messages. ([!1510], [!1511],
+  [!1516], [1517], [!1522], [!1540])
+- Backend code to decode an `INTRODUCE2` message, complete the
+  necessary cryptographic handshakes, open a circuit to the client's
+  chosen rendezvous point, establish a shared virtual hop, and receive
+  `BEGIN` messages. ([#980], [#1013], [!1512], [!1520], [!1521],
+  [!1536], [!1547])
+- Taught the `tor-dirclient` crate how to upload onion service
+  descriptors. ([!1505])
+- Revise and debug logic for locating items the HsDir ring when
+  publishing. ([#960], [!1494], [!1518])
+- Refactor onion service error handling. ([!1515])
+- Backend code to select introduction points and keep track of which ones
+  are running correctly. ([!1523], [!1549], [!1550], [!1559])
+- Refactor HsDesc parsing code to remove `inner::IntroPointDesc`. ([!1528])
+- Initial backend code to regenerate and publish onion service descriptors
+  as needed. ([#977], [!1545])
+
+
+### Documentation
+
+- Fix documentation about the [`OnionAddressDisabled`] error: it was
+  missing a "not".  ([!1467])
+- Correct details about upcoming milestones in our [top-level `README.md`].
+  ([!1471])
+
+### Infrastructure
+
+- New release script to bump the patchlevel of a crate without
+  treating it as a dependency change. ([#945], [!1461])
+- New script to make sure that all checked-in `Cargo.lock` files
+  are correct. ([!1468])
+- Usability improvements to our coverage script. ([!1485])
+- In CI, verify that our scripts are using `/usr/bin/env` to find their
+  interpreters in the proper locations. ([!1489], [!1490])
+
+### Testing
+
+- Improve test coverage for the `tor-cert` crate. ([!1495], [!1496],
+  [!1497])
+- Improve test coverage for the `tor-proto` crate. ([!1501])
+
+### Cleanups, minor features, and smaller bugfixes
+
+- Improved error message when a [[bridges.transorts]]` section does
+  not include a usable pluggable transport. ([#880], [!1229])
+- Key manager APIs are now less tied to the SSH key format, and no
+  longer require that x25519 keys be stored as ed25519 keys. ([#936],
+  [#965], [!1464], [!1508])
+- Downgrade lints for built-in warnings to "warn". Previously two of
+  them (`missing_docs`, `unreachable_pub`) were set to "deny", which
+  had a risk of breaking compilation in the future. ([#951], [!1470])
+- Expose the `HopNum` type from `tor-proto`, to help avoid off-by-one
+  errors. ([eee3bb8822dd22a4], [#996], [!1548])
+- Deprecate and replace `ClientCirc::start_conversation_last_hop` with a new
+  [`start_conversation`] function that can target any hop. ([#959], [!1469])
+- New functions in `tor-proto` to wait for a channel or a circuit
+  to shut down. ([!1473])
+- Improved error messages and behaviors when we can't decide where to
+  look for our configuration files. ([!1478], [!1479], [!1480])
+- Deprecated and renamed `download` in `tor-dirclent` to
+  `send_request`. ([9a08f04a7698ae23])
+- Deprecate [`DropNotifyEofSignallable::is_eof`]. ([f4dfc146948d491c])
+- New [`ClientCirc::send_raw_msg`] function for cases where we want
+  to send a message without starting a conversation. ([#1010], [!1525])
+- Experimental backend support for launching pluggable transports in server
+  mode, for testing and example code. ([!1504])
+
+
+### Removed features
+### Acknowledgments
+
+
+
+
+
 # Arti 1.1.7 — 1 August 2023
 
 Arti 1.1.7 focuses on maintenance, bugfixing, and cleanups to earlier
