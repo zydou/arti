@@ -780,8 +780,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         /* !... .is_empty() */
         {
             // "Unknown" - we have no idea which IPTs to publish.
-            // TODO HSS Introduce `PublishIptSet` type alias, as per
-            //  https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1559#note_2937975
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
