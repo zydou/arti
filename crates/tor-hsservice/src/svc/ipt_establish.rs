@@ -30,6 +30,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
+use crate::svc::{LinkSpecs, NtorPublicKey};
 use crate::{FatalError, RendRequest};
 
 use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
@@ -275,10 +276,35 @@ pub(crate) enum IptStatusStatus {
     Establishing,
 
     /// The IPT is established and ready to accept rendezvous requests
-    Good,
+    ///
+    /// Also contains information about the introduction point
+    /// necessary for making descriptors,
+    /// including information from the netdir about the relay
+    Good(GoodIptDetails),
 
     /// We don't have the IPT and it looks like it was the IPT's fault
     Faulty,
+}
+
+/// Details of a good introduction point
+///
+/// This struct contains similar information to
+/// [`tor_linkspec::verbatim::VerbatimLinkSpecCircTarget`].
+/// However, that insists that the contained `T` is a [`CircTarget`],
+/// which `<NtorPublicKey>` isn't.
+/// And, we don't use this as a circuit target (at least, not here -
+/// the client will do so, as a result of us publishing the information).
+///
+/// See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1559#note_2937974>
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct GoodIptDetails {
+    /// The link specifiers to be used in the descriptor
+    ///
+    /// As obtained and converted from the netdir.
+    pub(crate) link_specifiers: LinkSpecs,
+
+    /// The introduction point relay's ntor key (from the netdir)
+    pub(crate) ipt_kp_ntor: NtorPublicKey,
 }
 
 /// `Err(IptWantsToRetire)` indicates that the IPT Establisher wants to retire this IPT
@@ -328,15 +354,17 @@ pub(crate) struct IptStatus {
 
 impl IptStatus {
     /// Record that we have successfully connected to an introduction point.
+    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn note_open(&mut self) {
-        self.status = IptStatusStatus::Good;
+        let linkspecs = todo!(); // TODO HSS get this from the netdir
+        self.status = IptStatusStatus::Good(linkspecs);
     }
 
     /// Record that we are trying to connect to an introduction point.
     fn note_attempt(&mut self) {
         use IptStatusStatus::*;
         self.status = match self.status {
-            Establishing | Good => Establishing,
+            Establishing | Good(..) => Establishing,
             Faulty => Faulty, // We don't change status if we think we're broken.
         }
     }
@@ -344,7 +372,7 @@ impl IptStatus {
     /// Record that an error has occurred.
     fn note_error(&mut self, err: &IptError) {
         use IptStatusStatus::*;
-        if err.is_ipt_failure() && self.status == Good {
+        if err.is_ipt_failure() && matches!(self.status, Good(..)) {
             self.n_faults += 1;
             self.status = Faulty;
         }
@@ -455,6 +483,22 @@ impl<R: Runtime> Reactor<R> {
             status_tx.borrow_mut().note_attempt();
             match self.establish_intro_once().await {
                 Ok(session) => {
+                    // TODO HSS we need to monitor the netdir for changes to this relay
+                    // Eg,
+                    //   - if it becomes unlisted, we should declare the IPT faulty
+                    //     (until it perhaps reappears)
+                    //
+                    //     TODO SPEC  Continuing to use an unlisted relay is dangerous
+                    //     It might be malicious.  We should withdraw our IPT then,
+                    //     and hope that clients find another, working, IPT.
+                    //
+                    //   - if it changes its ntor key or link specs,
+                    //     we need to update the GoodIptDetails in our status report,
+                    //     so that the updated info can make its way to the descriptor
+                    //
+                    // Possibly some this could/should be done by the IPT Manager instead,
+                    // but Diziet thinks it is probably cleanest to do it here.
+
                     status_tx.borrow_mut().note_open();
                     debug!(
                         "Successfully established introduction point with {}",

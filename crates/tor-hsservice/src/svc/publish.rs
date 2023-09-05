@@ -9,6 +9,7 @@ mod reactor;
 use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::error;
 
 use tor_circmgr::hspool::HsCircPool;
@@ -18,7 +19,7 @@ use tor_rtcompat::Runtime;
 
 use crate::OnionServiceConfig;
 
-use descriptor::Ipt;
+pub(crate) use descriptor::Ipt;
 use err::PublisherError;
 use reactor::{Event, Reactor, ReactorError, ReactorState};
 
@@ -38,6 +39,15 @@ pub(crate) struct Publisher {
     // task.
     /// A channel for sending `Event`s to the reactor.
     tx: mpsc::UnboundedSender<Event>,
+}
+
+/// A set of introduction points for publication
+pub(crate) struct IptSet {
+    /// The actual introduction points
+    pub(crate) ipts: Vec<Ipt>,
+
+    /// When to make the descriptor expire
+    pub(crate) lifetime: Duration,
 }
 
 impl Publisher {
@@ -80,11 +90,10 @@ impl Publisher {
         let _ = self.tx.unbounded_send(Event::NewKeys(()));
     }
 
-    /// Inform this publisher that  the set of introduction points has changed.
+    /// Inform this publisher that  the set of introduction points may have changed.
     ///
-    /// TODO HSS: Either this needs to take new intropoints as an argument,
-    /// or there needs to be a source of intro points in the Publisher.
-    pub(crate) fn new_intro_points(&self, ipts: Vec<Ipt>) {
+    /// `None` means to not publish or update descriptors
+    pub(crate) fn new_intro_points(&self, ipts: Option<IptSet>) {
         // TODO HSS: handle/return the error
         let _ = self.tx.unbounded_send(Event::NewIntroPoints(ipts));
     }

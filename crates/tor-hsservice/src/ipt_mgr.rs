@@ -4,6 +4,7 @@
 //! Provides a stream of rendezvous requests.
 
 use std::any::Any;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
@@ -18,7 +19,7 @@ use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
 use postage::watch;
-use rand::Rng as _;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{error, trace, warn};
@@ -26,12 +27,15 @@ use void::{ResultVoidErrExt as _, Void};
 
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
-use tor_error::{internal, Bug};
+use tor_error::{internal, into_internal, Bug};
+use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKey};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
+use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::svc::ipt_establish;
+use crate::svc::{ipt_establish, publish};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
 use crate::{FatalError, HsNickname, OnionServiceConfig, RendRequest, StartupError};
 use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
@@ -46,6 +50,27 @@ const IPT_RELAY_ROTATION_TIME: RangeInclusive<Duration> = {
     const DAY: u64 = 86400;
     Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
 };
+
+/// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
+// TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
+const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(30 * 60); // 30 mins
+/// Expiry time to put on a final descriptor (IPT publication set Certain
+// TODO HSS IPT_PUBLISH_CERTAIN configure? get from netdir?
+const IPT_PUBLISH_CERTAIN: Duration = Duration::from_secs(12 * 3600); // 12 hours
+
+/// Descriptor expiry time slop
+///
+/// How long after our descriptor expired should we continue to maintain an old IPT?
+/// This is an allowance for:
+///
+///   - Various RTTs and delays in clients setting up circuits
+///     (we can't really measure this ourselves properly,
+///     since what matters is the client's latency)
+///
+///   - Clock skew
+//
+// TODO HSS IPT_PUBLISH_EXPIRY_SLOP configure?
+const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); // 5 minutes
 
 /// Persistent local identifier for an introduction point
 ///
@@ -114,7 +139,10 @@ pub(crate) struct State<R, M> {
     status_recv: mpsc::Receiver<(IptLocalId, IptStatus)>,
 
     /// State: selected relays
-    relays: Vec<IptRelay>,
+    ///
+    /// We append to this, and call `retain` on it,
+    /// so these are in chronological order of selection.
+    irelays: Vec<IptRelay>,
 
     /// Signal for us to shut down
     shutdown: oneshot::Receiver<Void>,
@@ -158,6 +186,25 @@ struct IptRelay {
     ipts: Vec<Ipt>,
 }
 
+/// TODO HSS surely this should be [`tor_proto::crypto::handshake::ntor::NtorSecretKey`] ?
+///
+/// But that is private?
+/// Also it has a strange name, for something which contains both private and public keys.
+#[derive(Clone, Debug)]
+struct NtorKeyPair {}
+
+impl NtorKeyPair {
+    /// TODO HSS document or replace
+    fn public(&self) -> HsSvcNtorKey {
+        todo!() // TODO HSS implement, or get rid of NtorKeyPair, or something
+    }
+
+    /// TODO HSS document or replace
+    fn generate(rng: &mut impl Rng) -> Self {
+        todo!() // TODO HSS implement, or get rid of NtorKeyPair, or something
+    }
+}
+
 /// One introduction point, representation in memory
 #[derive(Debug)]
 struct Ipt {
@@ -171,11 +218,20 @@ struct Ipt {
     #[allow(dead_code)]
     establisher: Box<dyn Any + Send + Sync + 'static>,
 
+    /// `KS_hs_ipt_sid`, `KP_hs_ipt_sid`
+    k_sid: HsIntroPtSessionIdKeypair,
+
+    /// `KS_hss_ntor`, `KP_hss_ntor`
+    // TODO HSS how do we provide the private half to the recipients of our rend reqs?
+    // It needs to be attached to each request, since the intro points have different
+    // keys and the consumer of the rend req stream needs to use the right ones.
+    k_hss_ntor: NtorKeyPair,
+
     /// Last information about how it's doing including timing info
     status_last: TrackedStatus,
 
     /// Until when ought we to try to maintain it
-    last_descriptor_expiry_including_slop: SystemTime,
+    last_descriptor_expiry_including_slop: Instant,
 
     /// Is this IPT current - should we include it in descriptors ?
     ///
@@ -203,6 +259,9 @@ enum TrackedStatus {
         ///
         /// Can only be `Err` in strange situations.
         time_to_establish: Result<Duration, ()>,
+
+        /// Details, from the Establisher
+        details: ipt_establish::GoodIptDetails,
     },
 }
 
@@ -235,24 +294,6 @@ struct IptRecord {
     /// Used to find the cryptographic keys, amongst other things
     lid: IptLocalId,
     // TODO HSS other fields need to be here!
-}
-
-/// Instructions to the publisher
-/// TODO HSS reconcile IptSetStatus with publish.rs
-enum IptSetStatus {
-    /// We have no idea which IPTs to publish.
-    Unknown,
-    /// We have some IPTs we could publish, but we're not confident about them.
-    Uncertain(IptSetToPublish),
-    /// We are sure of which IPTs we want to publish.
-    Certain(IptSetToPublish),
-}
-
-/// A set of introduction points as told to the publisher
-/// TODO HSS reconcile IptSetStatus with publish.rs
-struct IptSetToPublish {
-    /// The actual introduction points
-    ipts: Vec<()>,
 }
 
 /// Return value from one call to the main loop iteration
@@ -325,7 +366,11 @@ impl IptRelay {
         let status_last = TS::Establishing {
             started: imm.runtime.now(),
         };
-        let lid: IptLocalId = mockable.thread_rng().gen();
+
+        let rng = mockable.thread_rng();
+        let lid: IptLocalId = rng.gen();
+        let k_hss_ntor = NtorKeyPair::generate(&mut rng);
+        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
 
         imm.runtime
             .spawn({
@@ -355,14 +400,38 @@ impl IptRelay {
         let ipt = Ipt {
             lid,
             establisher: Box::new(establisher),
+            k_hss_ntor,
+            k_sid,
             status_last,
-            last_descriptor_expiry_including_slop: imm.runtime.wallclock(), // this'll do
+            last_descriptor_expiry_including_slop: imm.runtime.now(), // this'll do
             is_current: Some(IsCurrent),
         };
 
         self.ipts.push(ipt);
 
         Ok(())
+    }
+}
+
+impl Ipt {
+    /// Returns `true` if this IPT has status Good (and should perhaps be published)
+    fn is_good(&self) -> bool {
+        match self.status_last {
+            TS::Good { .. } => true,
+            TS::Establishing { .. } | TS::Faulty => false,
+        }
+    }
+
+    /// Construct the information needed by the publisher for this intro point
+    fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<publish::Ipt, Bug> {
+        let k_sid: &ed25519::Keypair = self.k_sid.as_ref();
+        tor_netdoc::doc::hsdesc::IntroPointDesc::builder()
+            .link_specifiers(details.link_specifiers.clone())
+            .ipt_kp_ntor(details.ipt_kp_ntor)
+            .kp_hs_ipt_sid(k_sid.public.into())
+            .kp_hss_ntor(self.k_hss_ntor.public())
+            .build()
+            .map_err(into_internal!("failed to construct IntroPointDesc"))
     }
 }
 
@@ -396,7 +465,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_recv,
             mockable,
             shutdown,
-            relays: vec![],
+            irelays: vec![],
             runtime: PhantomData,
         };
         let mgr = IptManager { imm, state };
@@ -421,18 +490,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Yields each `IptRelay` at most once.
     fn current_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
         self.state
-            .relays
+            .irelays
             .iter()
             .filter_map(|ir| Some((ir, ir.current_ipt()?)))
     }
 
     /// Iterate over the current IPTs in `Good` state
     fn good_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
-        self.current_ipts()
-            .filter(|(_ir, ipt)| match ipt.status_last {
-                TS::Good { .. } => true,
-                TS::Establishing { .. } | TS::Faulty => false,
-            })
+        self.current_ipts().filter(|(_ir, ipt)| ipt.is_good())
     }
 }
 
@@ -458,7 +523,7 @@ enum ChooseIptError {
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
     /// Find the `Ipt` with persistent local id `lid`
     fn ipt_by_lid_mut(&mut self, needle: IptLocalId) -> Option<&mut Ipt> {
-        self.relays
+        self.irelays
             .iter_mut()
             .find_map(|ir| ir.ipts.iter_mut().find(|ipt| ipt.lid == needle))
     }
@@ -481,7 +546,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                 |new| {
                     new.is_hs_intro_point()
                         && !self
-                            .relays
+                            .irelays
                             .iter()
                             .any(|existing| new.has_any_relay_id_from(&existing.relay))
                 },
@@ -495,12 +560,12 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             .checked_add(retirement)
             .ok_or(ChooseIptError::TimeOverflow)?;
 
-        let relay = IptRelay {
+        let new_irelay = IptRelay {
             relay: RelayIds::from_relay_ids(&relay),
             planned_retirement: retirement,
             ipts: vec![],
         };
-        self.relays.push(relay);
+        self.irelays.push(new_irelay);
         Ok(())
     }
 
@@ -527,7 +592,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
 
         ipt.status_last = match update {
             ISS::Establishing => TS::Establishing { started: now() },
-            ISS::Good => {
+            ISS::Good(details) => {
                 let time_to_establish = match &ipt.status_last {
                     TS::Establishing { started, .. } => {
                         // return () at end of ok_or_else closure, for clarity
@@ -542,7 +607,10 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                         Err(())
                     }
                 };
-                TS::Good { time_to_establish }
+                TS::Good {
+                    time_to_establish,
+                    details,
+                }
             }
             ISS::Faulty => TS::Faulty,
         };
@@ -588,7 +656,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // Rotate out an old IPT if we have >N good IPTs
         if self.good_ipts().count() >= self.target_n_intro_points() {
-            for ir in &mut self.state.relays {
+            for ir in &mut self.state.irelays {
                 if ir.should_retire(&now) {
                     if let Some(ipt) = ir.current_ipt_mut() {
                         ipt.is_current = None;
@@ -599,7 +667,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         }
 
         // Forget old IPTs (after the last descriptor mentioning them has expired)
-        for ir in &mut self.state.relays {
+        for ir in &mut self.state.irelays {
             // When we drop the Ipt we drop the IptEstablisher, withdrawing the intro point
             ir.ipts.retain(|ipt| {
                 ipt.is_current.is_some() || now < ipt.last_descriptor_expiry_including_slop
@@ -610,7 +678,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // Forget retired IPT relays (all their IPTs are gone)
         self.state
-            .relays
+            .irelays
             .retain(|ir| !(ir.should_retire(&now) && ir.ipts.is_empty()));
         // If we deleted relays, we might want to select new ones.  That happens below.
 
@@ -619,7 +687,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // Consider selecting new relays and setting up new IPTs.
 
         // Create new IPTs at already-chosen relays
-        for ir in &mut self.state.relays {
+        for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
                 ir.make_new_ipt(&self.imm, &mut self.state.mockable)?;
@@ -643,7 +711,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .count();
 
             if n_good_ish_relays < self.target_n_intro_points()
-                && self.state.relays.len() < self.max_n_intro_relays()
+                && self.state.irelays.len() < self.max_n_intro_relays()
             {
                 self.state
                     .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
@@ -665,7 +733,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// for example, with a future time at which the IPT set ought to be published
     /// (eg, the status goes from Unknown to Uncertain).
     #[allow(clippy::unnecessary_wraps)] // for regularity
-    fn compute_iptsetstatus_publish(&self, now: &TrackingNow) -> Result<(), FatalError> {
+    fn compute_iptsetstatus_publish(&mut self, now: &TrackingNow) -> Result<(), FatalError> {
         //---------- tell the publisher what to announce ----------
 
         let very_recently: Option<TrackingInstantOffsetNow> = (|| {
@@ -705,20 +773,19 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .next()
         };
 
-        let publish_set = || {
-            // TODO HSS calculate set of ipts to publish
-            // TODO HSS update each Ipt's last_descriptor_expiry_including_slop
-            IptSetToPublish { ipts: vec![] }
-        };
-
-        let publish_status = if self.good_ipts().count() >= self.target_n_intro_points() {
-            IptSetStatus::Certain(publish_set())
+        let publish_set = if self.good_ipts().count() >= self.target_n_intro_points() {
+            // "Certain" - we are sure of which IPTs we want to publish
+            Some(self.publish_set(now, IPT_PUBLISH_CERTAIN)?)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
-            IptSetStatus::Unknown
+            // "Unknown" - we have no idea which IPTs to publish.
+            // TODO HSS Introduce `PublishIptSet` type alias, as per
+            //  https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1559#note_2937975
+            None
         } else {
-            IptSetStatus::Uncertain(publish_set())
+            // "Uncertain" - we have some IPTs we could publish, but we're not confident
+            Some(self.publish_set(now, IPT_PUBLISH_UNCERTAIN)?)
         };
 
         // TODO HSS tell all the being-published IPTs to start accepting introductions
@@ -730,6 +797,93 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // TODO HSS store persistent state
 
         Ok(())
+    }
+
+    /// Calculate `publish::IptSet`, given that we have decided to publish *something*
+    ///
+    /// Calculates set of ipts to publish, selecting up to the target `N`
+    /// from the available good current IPTs.
+    /// (Old, non-current IPTs, that we are trying to retire, are never published.)
+    ///
+    /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
+    fn publish_set(
+        &mut self,
+        now: &TrackingNow,
+        lifetime: Duration,
+    ) -> Result<publish::IptSet, FatalError> {
+        let expires = now
+            .instant()
+            // Our response to old descriptors expiring is handled by us checking
+            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
+            .get_now_untracked()
+            .checked_add(lifetime)
+            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
+
+        /// Good candidate introduction point for publication
+        type Candidate<'i> = &'i mut Ipt;
+
+        let target_n = self.target_n_intro_points();
+
+        let mut candidates: VecDeque<_> = self
+            .state
+            .irelays
+            .iter_mut()
+            .filter_map(|ir: &mut _| -> Option<Candidate<'_>> {
+                let current_ipt = ir.current_ipt_mut()?;
+                if !current_ipt.is_good() {
+                    return None;
+                }
+                Some(current_ipt)
+            })
+            .collect();
+
+        // Take the last N good IPT relays
+        //
+        // The way we manage irelays means that this is always
+        // the ones we selected most recently.
+        //
+        // TODO SPEC  Publication strategy when we have more than >N IPTs
+        //
+        // We could have a number of strategies here.  We could take some timing
+        // measurements, or use the establishment time, or something; but we don't
+        // want to add distinguishability.
+        //
+        // Another concern is manipulability, but
+        // We can't be forced to churn because we don't remove relays
+        // from our list of relays to try to use, other than on our own schedule.
+        // But we probably won't want to be too reactive to the network environment.
+        //
+        // Since we only choose new relays when old ones are to retire, or are faulty,
+        // choosing the most recently selected, rather than the least recently,
+        // has the effect of preferring relays we don't know to be faulty,
+        // to ones we have considered faulty least once.
+        //
+        // That's better than the opposite.  Also, choosing more recently selected relays
+        // for publication may slightly bring forward the time at which all descriptors
+        // mentioning that relay have expired, and then we can forget about it.
+        while candidates.len() > target_n {
+            // WTB: VecDeque::truncate_front
+            let _: Candidate = candidates.pop_front().expect("empty?!");
+        }
+
+        let new_last_expiry = expires
+            .checked_add(IPT_PUBLISH_EXPIRY_SLOP)
+            .ok_or_else(|| internal!("time overflow adding expiry slop"))?;
+
+        let ipts = candidates
+            .into_iter()
+            .map(|current_ipt| {
+                let TS::Good { details, .. } = &current_ipt.status_last else {
+                    return Err(internal!("was good but now isn't?!").into());
+                };
+
+                let publish = current_ipt.for_publish(details)?;
+                current_ipt.last_descriptor_expiry_including_slop = new_last_expiry;
+                Ok::<_, FatalError>(publish)
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(publish::IptSet { ipts, lifetime })
     }
 
     /// Run one iteration of the loop

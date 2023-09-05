@@ -16,12 +16,10 @@ use tor_netdoc::NetdocBuilder;
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
-/// An introduction point.
-/// TODO Add a real Ipt type
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Ipt {
-    // TODO HSS: decide what this looks like
-}
+/// Introduction point as specified to publisher by manager
+///
+/// Convenience type alias.
+pub(crate) type Ipt = tor_netdoc::doc::hsdesc::IntroPointDesc;
 
 /// TODO: add a real x25519 cert type in tor-cert.
 #[allow(unreachable_pub)]

@@ -25,6 +25,13 @@ pub(crate) mod ipt_establish;
 pub(crate) mod publish;
 pub(crate) mod rend_handshake;
 
+/// Convenience alias for link specifiers of an intro point
+pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;
+
+/// Convenient type alias for an ntor public key
+// TODO HSS maybe this should be `tor_proto::crypto::handshake::ntor::NtorPublicKey`?
+type NtorPublicKey = curve25519::PublicKey;
+
 /// A handle to an instance of an onion service.
 //
 // TODO HSS: Write more.
