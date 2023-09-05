@@ -18,10 +18,6 @@ high-level APIs to allow the user to actually turn it on.
   configured any bridges.  Previously, this configuration was
   possible, and it caused arti to connect without using any
   bridges. This is tracked as [TROVE-2023-002]. ([#1000], [!1481]).
-- Fix an astronomically unlikely buffer overflow in our (currently
-  unused) [HashX] implementation.  This is tracked as
-  [TROVE-2023-003]. ([tor#40833], [????])  (TODO: Is arti's hashx affected
-  by this or not?)
 
 ### Breaking changes in lower-level crates
 
