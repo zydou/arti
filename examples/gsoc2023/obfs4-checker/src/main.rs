@@ -6,10 +6,10 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use chrono::prelude::*;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr};
+use time::OffsetDateTime;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::time::timeout;
 use tor_error::ErrorReport;
@@ -39,7 +39,7 @@ pub struct BridgeResult {
     /// Is bridge online or not?
     functional: bool,
     /// The time at which the bridge was last tested, written as a nice string
-    last_tested: DateTime<Utc>,
+    last_tested: OffsetDateTime,
     /// Error encountered while trying to connect to the bridge, if any
     ///
     /// It is generated using [tor_error::ErrorReport]
@@ -70,12 +70,10 @@ async fn check_bridges(
     obfs4_path: String,
     new_bridges_rx: broadcast::Receiver<Vec<String>>,
 ) -> (StatusCode, Json<BridgesResult>) {
-    let commencement_time = Utc::now();
+    let commencement_time = OffsetDateTime::now_utc();
     let mainop = crate::checking::main_test(bridge_lines.clone(), &obfs4_path).await;
-    let end_time = Utc::now();
-    let diff = end_time
-        .signed_duration_since(commencement_time)
-        .num_seconds() as f64;
+    let end_time = OffsetDateTime::now_utc();
+    let diff = (end_time - commencement_time).as_seconds_f64();
     let (bridge_results, error) = match mainop {
         Ok((bridge_results, channels)) => {
             let failed_bridges = crate::checking::get_failed_bridges(&bridge_lines, &channels);

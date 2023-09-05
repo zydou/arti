@@ -2,8 +2,8 @@
 use arti_client::config::pt::ManagedTransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, CfgPath, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
-use chrono::prelude::*;
 use std::collections::{HashMap, HashSet};
+use time::OffsetDateTime;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::{timeout, Duration};
@@ -97,7 +97,7 @@ async fn test_bridges(
                         let bridge_config = bridge.build().unwrap();
                         let tor_client = common_tor_client.isolated_client();
                         tokio::spawn(async move {
-                            let current_time = Utc::now();
+                            let current_time = OffsetDateTime::now_utc();
                             match is_bridge_online(&bridge_config, &tor_client).await {
                                 Ok(functional) => {
                                     (rawbridgeline, Some(functional), current_time, None)
@@ -116,7 +116,7 @@ async fn test_bridges(
                         })
                     }
                     Err(e) => tokio::spawn(async move {
-                        let current_time = Utc::now();
+                        let current_time = OffsetDateTime::now_utc();
                         // Build error here since we can't
                         // represent the actual Arti-related errors
                         // by `dyn ErrorReport` and we need the
