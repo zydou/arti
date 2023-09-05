@@ -4361,7 +4361,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "async-compression",
  "base64ct",
@@ -4901,7 +4901,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
