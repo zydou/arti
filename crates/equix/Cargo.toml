@@ -30,7 +30,7 @@ arrayvec = "0.7.4"
 hashx = { path = "../hashx", version = "0.1.0", default-features = false }
 num-traits = "0.2.15"
 thiserror = "1.0.40"
-visibility = "0.0.1"
+visibility = "0.1.0"
 
 [dev-dependencies]
 hex-literal = "0.4.1"

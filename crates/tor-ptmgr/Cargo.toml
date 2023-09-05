@@ -43,7 +43,7 @@ tor-linkspec = { version = "0.8.2", path = "../tor-linkspec", features = ["pt-cl
 tor-rtcompat = { version = "0.9.1", path = "../tor-rtcompat" }
 tor-socksproto = { version = "0.7.2", path = "../tor-socksproto" }
 tracing = "0.1.36"
-visibility = { version = "0.0.1", optional = true }
+visibility = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.23"
