@@ -48,7 +48,7 @@ full = [
     "tor-netdir/full",
     "tor-persist/full",
     "tor-ptmgr?/full",
-    "tor-rpcbase?/full", "tor-keymgr/full",
+    "tor-rpcbase?/full", "tor-keymgr/full", "tor-linkspec/full",
 ]
 
 async-std = ["tor-rtcompat/async-std"]
