@@ -281,7 +281,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-
+    // TODO add this next lint to maint/add_warning, for all tests
+    #![allow(clippy::iter_overeager_cloned)]
     // Saves adding many individual #[cfg], or a sub-module
     #![cfg_attr(not(feature = "pt-client"), allow(dead_code))]
 

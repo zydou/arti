@@ -186,7 +186,7 @@ struct IptRelay {
     ipts: Vec<Ipt>,
 }
 
-/// TODO HSS surely this should be [`tor_proto::crypto::handshake::ntor::NtorSecretKey`] ?
+/// TODO HSS surely this should be `tor_proto::crypto::handshake::ntor::NtorSecretKey` ?
 ///
 /// But that is private?
 /// Also it has a strange name, for something which contains both private and public keys.
