@@ -25,7 +25,14 @@ high-level APIs to allow the user to actually turn it on.
 
 ### Breaking changes in lower-level crates
 
-TODO write me.
+- In `tor-dirclient`, `Requestable::make_request` now returns
+  `Request<String>`. ([cd6c4674dc560d9c1dc3])
+- In `tor-ptclient`, `PtParameters` been split, and
+  `PluggableTransport` has become a trait. ([bbed17ba4a44a4690ad6])
+- Additionally, many unstable APIs (marked with the `experimental-api`
+  feature and similar) and APIs in unstable crates (like
+  `tor-hsservice` and `tor-keymgr`) have changed.
+
 
 ### Onion service development
 
