@@ -33,7 +33,6 @@ high-level APIs to allow the user to actually turn it on.
   feature and similar) and APIs in unstable crates (like
   `tor-hsservice` and `tor-keymgr`) have changed.
 
-
 ### Onion service development
 
 - We began laying more groundwork for onion services, with a set of
@@ -68,7 +67,6 @@ high-level APIs to allow the user to actually turn it on.
 - Refactor HsDesc parsing code to remove `inner::IntroPointDesc`. ([!1528])
 - Initial backend code to regenerate and publish onion service descriptors
   as needed. ([#977], [!1545])
-
 
 ### Documentation
 
@@ -119,8 +117,6 @@ high-level APIs to allow the user to actually turn it on.
 - Experimental backend support for launching pluggable transports in server
   mode, for testing and example code. ([!1504])
 
-
-### Removed features
 ### Acknowledgments
 
 
