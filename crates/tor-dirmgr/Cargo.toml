@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirmgr"
-version = "0.11.0"
+version = "0.11.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -85,15 +85,15 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.3" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.10.0" }
-tor-config = { path = "../tor-config", version = "0.9.3" }
+tor-config = { path = "../tor-config", version = "0.9.4" }
 tor-consdiff = { path = "../tor-consdiff", version = "0.5.3" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.8.0", default-features = false }
-tor-error = { path = "../tor-error", version = "0.5.3", features = ["tracing"] }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.10.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.2" }
-tor-netdir = { path = "../tor-netdir", version = "0.9.3" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.8.2" }
-tor-proto = { path = "../tor-proto", version = "0.12.0" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.9.0", default-features = false }
+tor-error = { path = "../tor-error", version = "0.5.4", features = ["tracing"] }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.10.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.4" }
+tor-netdir = { path = "../tor-netdir", version = "0.9.4" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.8.3" }
+tor-proto = { path = "../tor-proto", version = "0.12.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1" }
 tracing = "0.1.36"
 
@@ -102,9 +102,9 @@ anyhow = "1.0.23"
 float_eq = "1.0.0"
 hex-literal = "0.4"
 tempfile = "3"
-tor-linkspec = { path = "../tor-linkspec", version = "0.8.2" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.8.3" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.9.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.9.1" }
 tracing-test = "0.2"
 [package.metadata.docs.rs]
 all-features = true
