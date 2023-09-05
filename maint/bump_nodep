@@ -32,7 +32,7 @@ for cratename in "$@"; do
     echo "Staging $C"
     "$GIT" add "$C"
     echo "Discarding other changes."
-    "$GIT" restore .
+    "$GIT" checkout .
 done
 
 "$GIT" status
