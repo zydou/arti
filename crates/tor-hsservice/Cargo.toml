@@ -21,7 +21,7 @@ full = [
     "tor-llcrypto/full",
     "tor-netdir/full",
     "tor-proto/full",
-    "tor-rtcompat/full",
+    "tor-rtcompat/full", "retry-error/full", "safelog/full", "tor-async-utils/full", "tor-basic-utils/full", "tor-bytes/full", "tor-cell/full", "tor-cert/full", "tor-config/full", "tor-dirclient/full", "tor-error/full", "tor-keymgr/full", "tor-linkspec/full", "tor-netdoc/full", "tor-units/full",
 ]
 
 [dependencies]
