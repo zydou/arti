@@ -142,8 +142,8 @@ impl<R: Runtime> Mockable<R> for ReactorState<R> {
 struct Inner {
     /// The descriptor to upload.
     ///
-    /// Note: this may be partially built. Use [`DescriptorBuilder::validate`] to check if it is
-    /// complete.
+    /// Note: this may be partially built. If incomplete, [`DescriptorBuilder::build`] will return
+    /// an error.
     ///
     /// This field is only expected to be incomplete on startup. Once the introduction points are
     /// established, we should have enough information to generate and upload the descriptor.
