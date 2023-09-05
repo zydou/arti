@@ -20,4 +20,4 @@ tor-ptmgr = { path = "../../../crates/tor-ptmgr", features = [ "experimental-api
 tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
 tor-socksproto = { path = "../../../crates/tor-socksproto" }
 tracing = "0.1"
-tracing-subscriber = "0.2.0"
+tracing-subscriber = "0.3.17"
