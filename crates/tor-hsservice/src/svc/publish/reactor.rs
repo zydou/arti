@@ -31,7 +31,7 @@ use tor_rtcompat::Runtime;
 use crate::config::OnionServiceConfig;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus};
-use crate::svc::publish::IptSet;
+use crate::svc::publish::{IptSet, PublishIptSet};
 
 /// The upload rate-limiting threshold.
 ///
@@ -271,9 +271,7 @@ impl TimePeriodContext {
 /// These are triggered by calling the various methods of [`Publisher`](super::Publisher).
 pub(super) enum Event {
     /// The introduction points of this service have changed.
-    ///
-    /// `None` means to not publish or update descriptors
-    NewIntroPoints(Option<IptSet>),
+    NewIntroPoints(PublishIptSet),
     /// The keys of this service have changed.
     ///
     /// TODO HSS: decide whether we need this, and if so, who is going to emit this event and what
@@ -508,10 +506,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Update our list of introduction points.
-    ///
-    /// `None` means to not publish or update descriptors
     #[allow(clippy::unnecessary_wraps)]
-    async fn handle_new_intro_points(&self, ipts: Option<IptSet>) -> Result<(), ReactorError> {
+    async fn handle_new_intro_points(&self, ipts: PublishIptSet) -> Result<(), ReactorError> {
         let Some(ipts) = ipts else {
             todo!() // TODO HSS stop publishing when we get None for ipts
         };

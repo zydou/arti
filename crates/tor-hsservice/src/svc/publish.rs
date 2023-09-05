@@ -41,6 +41,18 @@ pub(crate) struct Publisher {
     tx: mpsc::UnboundedSender<Event>,
 }
 
+/// Set of introduction points to be advertised in a descriptor (if we are to publish)
+///
+/// If `Some`, the publisher will try to maintain a published descriptor,
+/// of lifetime `lifetime`, listing `ipts`.
+///
+/// If `None`, the publisher will not try to publish.
+/// (Already-published descriptors will not be deleted.)
+///
+/// These instructions ultimately come from
+/// [`IptManager::compute_iptsetstatus_publish`](crate::ipt_mgr::IptManager::compute_iptsetstatus_publish).
+pub(crate) type PublishIptSet = Option<IptSet>;
+
 /// A set of introduction points for publication
 pub(crate) struct IptSet {
     /// The actual introduction points
@@ -91,9 +103,7 @@ impl Publisher {
     }
 
     /// Inform this publisher that  the set of introduction points may have changed.
-    ///
-    /// `None` means to not publish or update descriptors
-    pub(crate) fn new_intro_points(&self, ipts: Option<IptSet>) {
+    pub(crate) fn new_intro_points(&self, ipts: PublishIptSet) {
         // TODO HSS: handle/return the error
         let _ = self.tx.unbounded_send(Event::NewIntroPoints(ipts));
     }
