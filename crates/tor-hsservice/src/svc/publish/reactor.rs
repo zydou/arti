@@ -169,22 +169,6 @@ struct Inner {
     last_uploaded: Option<SystemTime>,
 }
 
-impl Inner {
-    /// Handle the transition to a new time period.
-    fn register_new_period(
-        &mut self,
-        new_period: TimePeriod,
-        blind_id: HsBlindId,
-    ) -> Result<(), ReactorError> {
-        let new_period = TimePeriodContext::new(new_period, blind_id, &self.netdir)?;
-        let current_period = std::mem::replace(&mut self.current_period, new_period);
-
-        self.previous_period = Some(current_period);
-
-        Ok(())
-    }
-}
-
 /// The part of the reactor state that changes with every time period.
 #[derive(Clone)]
 struct TimePeriodContext {
@@ -282,8 +266,6 @@ pub(super) enum Event {
     /// Note: not all config changes will cause the descriptor to be updated (if the changes are
     /// unrelated it is left unmodified).
     SvcConfigChange(OnionServiceConfig),
-    /// A new time period started.
-    TimePeriodChange((HsBlindId, TimePeriod)),
     // TODO HSS: do we need a shutdown event for explicitly shutting down the reactor?
 
     // Note: the reactor responds to other types of external events too, which do not have
@@ -499,9 +481,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             Event::NewIntroPoints(ipts) => self.handle_new_intro_points(ipts).await,
             Event::NewKeys(_keys) => self.handle_new_keys().await,
             Event::SvcConfigChange(config) => self.handle_svc_config_change(config).await,
-            Event::TimePeriodChange((hs_blind_id, time_period)) => {
-                self.handle_new_tp(hs_blind_id, time_period).await
-            }
         }
     }
 
@@ -536,22 +515,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         // TODO HSS: check if the config changes affect our descriptor. If they do, update its
         // state and mark it as dirty for all hsdirs
         todo!();
-    }
-
-    /// Handle the start of a new time period.
-    ///
-    /// TODO HSS: should we immediately reupload our descriptors if this happens? Should we "batch"
-    /// descriptor changes, or should we eagerly upload whenever something changes?
-    async fn handle_new_tp(
-        &self,
-        hsid: HsBlindId,
-        time_period: TimePeriod,
-    ) -> Result<(), ReactorError> {
-        let mut inner = self.inner.lock().await;
-
-        inner.register_new_period(time_period, hsid)?;
-
-        Ok(())
     }
 
     /// Try to upload our descriptor to the HsDirs that need it.
