@@ -13,7 +13,7 @@ use tracing::{debug, error, info, warn};
 use trust_dns_proto::op::{
     header::MessageType, op_code::OpCode, response_code::ResponseCode, Message, Query,
 };
-use trust_dns_proto::rr::{DNSClass, Name, RData, Record, RecordType};
+use trust_dns_proto::rr::{rdata, DNSClass, Name, RData, Record, RecordType};
 use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
@@ -130,16 +130,16 @@ where
         for (name, ip, typ) in a {
             match (ip, typ) {
                 (IpAddr::V4(v4), RecordType::A) => {
-                    answers.push(Record::from_rdata(name, 3600, RData::A(v4)));
+                    answers.push(Record::from_rdata(name, 3600, RData::A(rdata::A(v4))));
                 }
                 (IpAddr::V6(v6), RecordType::AAAA) => {
-                    answers.push(Record::from_rdata(name, 3600, RData::AAAA(v6)));
+                    answers.push(Record::from_rdata(name, 3600, RData::AAAA(rdata::AAAA(v6))));
                 }
                 _ => (),
             }
         }
         for (ptr, name) in ptr {
-            answers.push(Record::from_rdata(ptr, 3600, RData::PTR(name)));
+            answers.push(Record::from_rdata(ptr, 3600, RData::PTR(rdata::PTR(name))));
         }
     }
 
