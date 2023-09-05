@@ -248,6 +248,8 @@ integration-chutney:
     - ./maint/preserve -u
     - apt update
     - apt install -y tor git python3 curl dnsutils
+    # arti runtime dependency
+    - apt install -y libsqlite3-0
     - ./tests/chutney/setup proxy
     - ./tests/chutney/test
     - ./tests/chutney/stop-arti
@@ -307,6 +309,9 @@ integration-shadow:
     - apt-get install -y git tor stow
     - mkdir -p ~/src
     - mkdir -p ~/.local
+
+    # arti runtime dependency
+    - apt install -y libsqlite3-0
 
     # Build shadow
     - |
