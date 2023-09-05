@@ -30,7 +30,7 @@ use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
-use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus};
+use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorStatus};
 use crate::svc::publish::{IptSet, PublishIptSet};
 
 /// The upload rate-limiting threshold.
@@ -549,8 +549,26 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             }
         }
 
-        self.upload_for_time_period(true).await?;
-        self.upload_for_time_period(false).await?;
+        // Check we have enough information to generate the descriptor before proceeding.
+        let hsdesc = match self.inner.lock().await.descriptor.build() {
+            Ok(desc) => desc,
+            Err(e) => {
+                // TODO HSS:
+                // This can only happen if, for some reason, we decide to call the upload function
+                // before receiving our first NewIpts event (the intro points are the only piece of
+                // information we need from the "outside", AFAICT).
+                //
+                // I think this should never happen: we shouldn't start an upload unless we have
+                // enough information to build the descriptor (if we do get here, it's a bug).
+                //
+                // Instead of skipping the upload, we should be returning an internal! error.
+                trace!(hsid=%self.hsid, "not enough information to build descriptor, skipping upload: {e}");
+                return Ok(());
+            }
+        };
+
+        self.upload_for_time_period(&hsdesc, true).await?;
+        self.upload_for_time_period(&hsdesc, false).await?;
 
         self.inner.lock().await.last_uploaded = Some(SystemTime::now());
 
@@ -579,7 +597,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     // TODO HSS: perhaps `current` should be an enum rather than a bool
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
-    async fn upload_for_time_period(&self, current: bool) -> Result<(), ReactorError> {
+    async fn upload_for_time_period(
+        &self,
+        hsdesc: &Descriptor,
+        current: bool,
+    ) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
 
         // First, grab the time period-specific context.
@@ -599,27 +621,12 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             .iter_mut()
             .filter(|(_relay_id, status)| *status == DescriptorStatus::Dirty);
 
-        // Check we have enough information to generate the descriptor before proceeding.
-        let hsdesc = match inner.descriptor.build() {
-            Ok(desc) => {
-                let blind_id_kp = todo!();
-                let mut rng = self.mockable.thread_rng();
-
-                desc.build_sign(self.hsid_key, blind_id_kp, context.period, &mut rng)?;
-            }
-            Err(e) => {
-                // TODO HSS:
-                // This can only happen if, for some reason, we decide to call the upload function
-                // before receiving our first NewIpts event (the intro points are the only piece of
-                // information we need from the "outside", AFAICT).
-                //
-                // I think this should never happen: we shouldn't start an upload unless we have
-                // enough information to build the descriptor (if we do get here, it's a bug).
-                //
-                // Instead of skipping the upload, we should be returning an internal! error.
-                trace!(hsid=%self.hsid, "not enough information to build descriptor, skipping upload: {e}");
-                return Ok(());
-            }
+        let blind_id_kp = todo!();
+        // This scope exists because rng is not Send, so it needs to fall out of scope before we
+        // await anything.
+        let hsdesc = {
+            let mut rng = self.mockable.thread_rng();
+            hsdesc.build_sign(self.hsid_key, blind_id_kp, context.period, &mut rng)?
         };
 
         // TODO HSS: this should be rewritten to upload the descriptor to each HsDir in parallel
