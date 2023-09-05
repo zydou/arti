@@ -876,6 +876,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 };
 
                 let publish = current_ipt.for_publish(details)?;
+                // TODO HSS wrong descriptor (ipt) expiry time calculation, see arti#1023
                 current_ipt.last_descriptor_expiry_including_slop = new_last_expiry;
                 Ok::<_, FatalError>(publish)
             })

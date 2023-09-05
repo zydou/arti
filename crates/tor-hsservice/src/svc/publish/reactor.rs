@@ -31,7 +31,7 @@ use tor_rtcompat::Runtime;
 use crate::config::OnionServiceConfig;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus};
-use crate::svc::publish::IptSet;
+use crate::svc::publish::{IptSet, PublishIptSet};
 
 /// The upload rate-limiting threshold.
 ///
