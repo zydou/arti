@@ -600,7 +600,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         Ok(())
     }
 
-    /// Upload the descriptor for the current or previous time period.
+    /// Upload the descriptor for the specified time period.
     ///
     /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
     /// well as in what cases this will return an error).
