@@ -44,6 +44,11 @@ use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorS
 // TODO HSS: this value is probably not right.
 const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 
+/// The maximum number of concurrent upload tasks per time period.
+//
+// TODO HSS: this value was arbitrarily chosen and may not be optimal.
+const MAX_CONCURRENT_UPLOADS: usize = 16;
+
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
 /// The entrypoint is [`Reactor::run`].
@@ -635,22 +640,38 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         //
         // In addition, we might want `Reactor::upload_all` to execute asynchronously (i.e. in a
         // background task), as opposed to blocking the reactor loop until the upload is complete.
-        for (relay_ids, status) in hs_dirs {
-            let Some(hsdir) = netdir.by_ids(&*relay_ids) else {
+        let upload_results = futures::stream::iter(hs_dirs)
+            .map(|(relay_ids, status)| async {
+                let Some(hsdir) = netdir.by_ids(&*relay_ids) else {
                 // This should never happen (all of our relay_ids are from the stored netdir).
-                return Err(internal!(
+                return Err::<(), ReactorError>(internal!(
                     "tried to upload descriptor to relay not found in consensus?"
                 )
                 .into());
             };
 
-            self.upload_descriptor_with_retries(hsdesc, netdir, &hsdir)
+            self.upload_descriptor_with_retries(hsdesc.clone(), netdir, &hsdir)
                 .await?;
 
             // We successfully uploaded the descriptor to this HsDir, so we now mark it as clean
             // for that specific HsDir.
             *status = DescriptorStatus::Clean;
-        }
+
+            Ok(())
+            })
+            // This fails to compile unless the stream is boxed. See https://github.com/rust-lang/rust/issues/104382
+            .boxed()
+            .buffer_unordered(MAX_CONCURRENT_UPLOADS)
+            .collect::<Vec<_>>()
+            .await;
+
+        let (succeeded, failed): (Vec<_>, Vec<_>) = upload_results
+            .iter()
+            .partition(|res| res.is_ok());
+
+        trace!(hsid=%self.hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
+
+        // TODO: Notify the reactor about the outcome of these uploads.
 
         Ok(())
     }
