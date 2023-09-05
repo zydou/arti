@@ -287,6 +287,15 @@ pub(crate) enum IptStatusStatus {
 }
 
 /// Details of a good introduction point
+///
+/// This struct contains similar information to
+/// [`tor_linkspec::verbatim::VerbatimLinkSpecCircTarget`].
+/// However, that insists that the contained `T` is a [`CircTarget`],
+/// which `<NtorPublicKey>` isn't.
+/// And, we don't use this as a circuit target (at least, not here -
+/// the client will do so, as a result of us publishing the information).
+///
+/// See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1559#note_2937974>
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct GoodIptDetails {
     /// The link specifiers to be used in the descriptor
