@@ -3,6 +3,242 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.8 — 5 September 2023
+
+Arti 1.1.8 continues work on support for onion services in arti.  It includes
+backend support for nearly all of the functionality needed to launch
+and publish an onion service and accept incoming requests from onion
+service clients.  This functionality is not yet usable, however: we
+still need to connect it all together, test and debug it, and provide
+high-level APIs to allow the user to actually turn it on.
+
+### Major bugfixes
+
+- Do not allow the user to set `bridges = true` without having
+  configured any bridges.  Previously, this configuration was
+  possible, and it caused arti to connect without using any
+  bridges. This is tracked as [TROVE-2023-002]. ([#1000], [!1481]).
+- Fix an astronomically unlikely buffer overflow in our (currently
+  unused) [HashX] implementation.  This is tracked as
+  [TROVE-2023-003]. ([tor#40833], [????])  (TODO: Is arti's hashx affected
+  by this or not?)
+
+### Breaking changes in lower-level crates
+
+- In `tor-dirclient`, `Requestable::make_request` now returns
+  `Request<String>`. ([cd6c4674dc560d9c1dc3])
+- In `tor-ptclient`, `PtParameters` been split, and
+  `PluggableTransport` has become a trait. ([bbed17ba4a44a4690ad6])
+- Additionally, many unstable APIs (marked with the `experimental-api`
+  feature and similar) and APIs in unstable crates (like
+  `tor-hsservice` and `tor-keymgr`) have changed.
+
+### Onion service development
+
+- We began laying more groundwork for onion services, with a set of
+  low-level API designs, algorithm designs, and data
+  structures. ([#970], [#971], [#972], [!1452], [!1444], [!1541])
+- Fuzzing support and significant speed improvements to the (still
+  unused) [HashX]-based proof-of-work code. ([!1446], [!1462],
+  [!1459], [!1513], [!1524], [!1529], [!1538], [!1539], [!1555])
+- Added low-level support in [`tor-proto`] for accepting incoming data
+  streams on a circuit. Onion services will use this to accept `BEGIN`
+  messages. ([#864], [#994], [#998], [#1009], [!1451], [!1474], [!1475],
+  [!1476], [!1477], [!1484], [!1519])
+- Keystore directory configuration is now derived from the configured
+  state directory when using `TorClientConfigBuilder::from_directories`.
+  ([#988], [!1498])
+- Expose the `KH` circuit-binding material, as needed for the
+  rendezvous handshake. ([#993], [!1472])
+- Backend code to establish an introduction point, keep it
+  established, and watch for `INTRODUCE2` messages. ([!1510], [!1511],
+  [!1516], [!1517], [!1522], [!1540])
+- Backend code to decode an `INTRODUCE2` message, complete the
+  necessary cryptographic handshakes, open a circuit to the client's
+  chosen rendezvous point, establish a shared virtual hop, and receive
+  `BEGIN` messages. ([#980], [#1013], [!1512], [!1520], [!1521],
+  [!1536], [!1547])
+- Taught the `tor-dirclient` crate how to upload onion service
+  descriptors. ([!1505])
+- Revise and debug logic for locating items the HsDir ring when
+  publishing. ([#960], [!1494], [!1518])
+- Refactor onion service error handling. ([!1515])
+- Backend code to select introduction points and keep track of which ones
+  are running correctly. ([!1523], [!1549], [!1550], [!1559])
+- Refactor HsDesc parsing code to remove `inner::IntroPointDesc`. ([!1528])
+- Initial backend code to regenerate and publish onion service descriptors
+  as needed. ([#977], [!1545])
+
+### Documentation
+
+- Fix documentation about the [`OnionAddressDisabled`] error: it was
+  missing a "not".  ([!1467])
+- Correct details about upcoming milestones in our [top-level `README.md`].
+  ([!1471])
+
+### Infrastructure
+
+- New release script to bump the patchlevel of a crate without
+  treating it as a dependency change. ([#945], [!1461])
+- New script to make sure that all checked-in `Cargo.lock` files
+  are correct. ([!1468])
+- Usability improvements to our coverage script. ([!1485])
+- In CI, verify that our scripts are using `/usr/bin/env` to find their
+  interpreters in the proper locations. ([!1489], [!1490])
+
+### Testing
+
+- Improve test coverage for the `tor-cert` crate. ([!1495], [!1496],
+  [!1497])
+- Improve test coverage for the `tor-proto` crate. ([!1501])
+
+### Cleanups, minor features, and smaller bugfixes
+
+- Improved error handling when a `[[bridges.transports]]` section does
+  not include any required pluggable transport. ([#880], [!1229])
+- Key manager APIs are now less tied to the SSH key format, and no
+  longer require that x25519 keys be stored as ed25519 keys. ([#936],
+  [#965], [!1464], [!1508])
+- Downgrade lints for built-in warnings to "warn". Previously two of
+  them (`missing_docs`, `unreachable_pub`) were set to "deny", which
+  had a risk of breaking compilation in the future. ([#951], [!1470])
+- Expose the `HopNum` type from `tor-proto`, to help avoid off-by-one
+  errors. ([eee3bb8822dd22a4], [#996], [!1548])
+- Deprecate and replace `ClientCirc::start_conversation_last_hop` with a new
+  [`start_conversation`] function that can target any hop. ([#959], [!1469])
+- New functions in `tor-proto` to wait for a channel or a circuit
+  to shut down. ([!1473])
+- Improved error messages and behaviors when we can't decide where to
+  look for our configuration files. ([!1478], [!1479], [!1480])
+- Deprecated and renamed `download` in `tor-dirclent` to
+  `send_request`. ([9a08f04a7698ae23])
+- Deprecate [`DropNotifyEofSignallable::is_eof`]. ([f4dfc146948d491c])
+- New [`ClientCirc::send_raw_msg`] function for cases where we want
+  to send a message without starting a conversation. ([#1010], [!1525])
+- Experimental backend support for launching pluggable transports in server
+  mode, for testing and example code. ([!1504])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Emil Engler, Jim Newsome, Micah Elizabeth Scott, Saksham Mittal,
+and Trinity Pointard.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+
+[!1229]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1229
+[!1444]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1444
+[!1446]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1446
+[!1451]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1451
+[!1452]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1452
+[!1459]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1459
+[!1461]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1461
+[!1462]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1462
+[!1464]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1464
+[!1467]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1467
+[!1468]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1468
+[!1469]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1469
+[!1470]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1470
+[!1471]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1471
+[!1472]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1472
+[!1473]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1473
+[!1474]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1474
+[!1475]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1475
+[!1476]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1476
+[!1477]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1477
+[!1478]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1478
+[!1479]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1479
+[!1480]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1480
+[!1481]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1481
+[!1484]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1484
+[!1485]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1485
+[!1489]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1489
+[!1490]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1490
+[!1494]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1494
+[!1495]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1495
+[!1496]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1496
+[!1497]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1497
+[!1498]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1498
+[!1501]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1501
+[!1504]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1504
+[!1505]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1505
+[!1508]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1508
+[!1510]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1510
+[!1511]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1511
+[!1512]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1512
+[!1513]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1513
+[!1515]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1515
+[!1516]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1516
+[!1517]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1517
+[!1518]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1518
+[!1519]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1519
+[!1520]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1520
+[!1521]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1521
+[!1522]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1522
+[!1523]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1523
+[!1524]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1524
+[!1525]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1525
+[!1528]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1528
+[!1529]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1529
+[!1536]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1536
+[!1538]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1538
+[!1539]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1539
+[!1540]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1540
+[!1541]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1541
+[!1545]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1545
+[!1547]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1547
+[!1548]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1548
+[!1549]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1549
+[!1550]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1550
+[!1555]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1555
+[!1559]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1559
+[#864]: https://gitlab.torproject.org/tpo/core/arti/-/issues/864
+[#880]: https://gitlab.torproject.org/tpo/core/arti/-/issues/880
+[#936]: https://gitlab.torproject.org/tpo/core/arti/-/issues/936
+[#945]: https://gitlab.torproject.org/tpo/core/arti/-/issues/945
+[#951]: https://gitlab.torproject.org/tpo/core/arti/-/issues/951
+[#959]: https://gitlab.torproject.org/tpo/core/arti/-/issues/959
+[#960]: https://gitlab.torproject.org/tpo/core/arti/-/issues/960
+[#965]: https://gitlab.torproject.org/tpo/core/arti/-/issues/965
+[#970]: https://gitlab.torproject.org/tpo/core/arti/-/issues/970
+[#971]: https://gitlab.torproject.org/tpo/core/arti/-/issues/971
+[#972]: https://gitlab.torproject.org/tpo/core/arti/-/issues/972
+[#977]: https://gitlab.torproject.org/tpo/core/arti/-/issues/977
+[#980]: https://gitlab.torproject.org/tpo/core/arti/-/issues/980
+[#988]: https://gitlab.torproject.org/tpo/core/arti/-/issues/988
+[#993]: https://gitlab.torproject.org/tpo/core/arti/-/issues/993
+[#994]: https://gitlab.torproject.org/tpo/core/arti/-/issues/994
+[#996]: https://gitlab.torproject.org/tpo/core/arti/-/issues/996
+[#998]: https://gitlab.torproject.org/tpo/core/arti/-/issues/998
+[#1000]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1000
+[#1009]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1009
+[#1010]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1010
+[#1013]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1013
+[9a08f04a7698ae23]: https://gitlab.torproject.org/tpo/core/arti/-/commit/9a08f04a7698ae237e352c57ebb58456e727fc93
+[bbed17ba4a44a4690ad6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bbed17ba4a44a4690ad68e34844329d6542cc184
+[cd6c4674dc560d9c1dc3]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cd6c4674dc560d9c1dc355cac627edac32138f2c
+[eee3bb8822dd22a4]: https://gitlab.torproject.org/tpo/core/arti/-/commit/eee3bb8822dd22a48b58bfb9a42cb0eaa952138d
+[f4dfc146948d491c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f4dfc146948d491c2a8da0e5e6c8c58cabdf44b4
+[HashX]: https://lists.torproject.org/pipermail/tor-dev/2020-June/014381.html
+[TROVE-2023-002]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2023-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`ClientCirc::send_raw_msg`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/circuit/struct.ClientCirc.html#method.send_raw_msg
+[`DropNotifyEofSignallable::is_eof`]: https://tpo.pages.torproject.net/core/doc/rust/tor_async_utils/trait.DropNotifyEofSignallable.html#method.is_eof
+[`OnionAddressDisabled`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/enum.ErrorDetail.html#variant.OnionAddressDisabled
+[`start_conversation`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/circuit/struct.ClientCirc.html#method.start_conversation
+[`tor-proto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/index.html
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[top-level `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md
+[tor#40833]: https://gitlab.torproject.org/tpo/core/tor/-/issues/40833
+
+
+
+
+
+
 # Arti 1.1.7 — 1 August 2023
 
 Arti 1.1.7 focuses on maintenance, bugfixing, and cleanups to earlier
@@ -221,7 +457,7 @@ for funding the development of Arti!
 [EquiX]: https://github.com/tevador/equix/blob/master/devlog.md
 [HashX]: https://lists.torproject.org/pipermail/tor-dev/2020-June/014381.html
 [Shadow]: https://shadow.github.io/
-[Zcash Community Grants]: [Zcash Community Grants]: https://zcashcommunitygrants.org/
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`Conversation`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/circuit/struct.Conversation.html
 [`NetDir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/struct.NetDir.html
 [`RetryError`]: https://tpo.pages.torproject.net/core/doc/rust/retry_error/struct.RetryError.html
