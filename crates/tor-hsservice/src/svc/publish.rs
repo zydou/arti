@@ -10,6 +10,7 @@ use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use std::sync::Arc;
 use tracing::error;
+use postage::watch;
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_hscrypto::pk::HsId;
@@ -52,6 +53,7 @@ impl Publisher {
         circpool: Arc<HsCircPool<R>>,
         config: OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
+        config_rx: watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, PublisherError> {
         let (tx, rx) = mpsc::unbounded();
         let state = ReactorState::new(circpool);
@@ -63,6 +65,7 @@ impl Publisher {
             config,
             rx,
             ipt_watcher,
+            config_rx,
         )
         .await
         else {

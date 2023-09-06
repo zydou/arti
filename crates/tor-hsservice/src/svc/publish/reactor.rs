@@ -13,6 +13,7 @@ use futures::channel::mpsc;
 use futures::lock::Mutex;
 use futures::task::SpawnExt;
 use futures::{select_biased, FutureExt, StreamExt};
+use postage::watch;
 use tracing::{debug, trace};
 
 use tor_bytes::EncodeError;
@@ -29,7 +30,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
-use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
+use crate::ipt_set::{IptSet, PublishIptSet, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorStatus};
 
@@ -80,6 +81,8 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     rx: mpsc::UnboundedReceiver<Event>,
     /// A channel for receiving IPT change notifications.
     ipt_watcher: IptsPublisherView,
+    /// A channel for receiving onion service config change notifications.
+    config_rx: watch::Receiver<OnionServiceConfig>,
     /// A channel for the telling the upload reminder task when to remind us we need to upload
     /// some descriptors.
     pending_upload_tx: Sender<Duration>,
@@ -331,6 +334,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         config: OnionServiceConfig,
         rx: mpsc::UnboundedReceiver<Event>,
         ipt_watcher: IptsPublisherView,
+        config_rx: postage::watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, ReactorError> {
         let hsid_key: HsIdKey = hsid
             .try_into()
@@ -360,6 +364,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             mockable,
             rx,
             ipt_watcher,
+            config_rx,
             pending_upload_tx,
             schedule_upload_rx,
         })
@@ -432,6 +437,10 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 // TODO HSS: try to read IPTs from shared state (see #1023)
                 let ipts = todo!();
                 self.handle_new_intro_points(ipts).await?;
+            },
+            config = self.config_rx.next().fuse() => {
+                let config = config.ok_or(ReactorError::ShuttingDown)?;
+                self.handle_svc_config_change(config).await?;
             },
             res = self.schedule_upload_rx.recv().fuse() => {
                 let _: () = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
