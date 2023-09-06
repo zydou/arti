@@ -35,7 +35,8 @@ use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::svc::{ipt_establish, publish};
+use crate::ipt_set;
+use crate::svc::ipt_establish;
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
 use crate::{FatalError, HsNickname, OnionServiceConfig, RendRequest, StartupError};
 use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
@@ -57,20 +58,6 @@ const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(30 * 60); // 30 mins
 /// Expiry time to put on a final descriptor (IPT publication set Certain
 // TODO HSS IPT_PUBLISH_CERTAIN configure? get from netdir?
 const IPT_PUBLISH_CERTAIN: Duration = Duration::from_secs(12 * 3600); // 12 hours
-
-/// Descriptor expiry time slop
-///
-/// How long after our descriptor expired should we continue to maintain an old IPT?
-/// This is an allowance for:
-///
-///   - Various RTTs and delays in clients setting up circuits
-///     (we can't really measure this ourselves properly,
-///     since what matters is the client's latency)
-///
-///   - Clock skew
-//
-// TODO HSS IPT_PUBLISH_EXPIRY_SLOP configure?
-const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); // 5 minutes
 
 /// Persistent local identifier for an introduction point
 ///
@@ -423,7 +410,7 @@ impl Ipt {
     }
 
     /// Construct the information needed by the publisher for this intro point
-    fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<publish::Ipt, Bug> {
+    fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<ipt_set::Ipt, Bug> {
         let k_sid: &ed25519::Keypair = self.k_sid.as_ref();
         tor_netdoc::doc::hsdesc::IntroPointDesc::builder()
             .link_specifiers(details.link_specifiers.clone())
@@ -804,11 +791,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// (Old, non-current IPTs, that we are trying to retire, are never published.)
     ///
     /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
+    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn publish_set(
         &mut self,
         now: &TrackingNow,
         lifetime: Duration,
-    ) -> Result<publish::IptSet, FatalError> {
+    ) -> Result<ipt_set::IptSet, FatalError> {
         let expires = now
             .instant()
             // Our response to old descriptors expiring is handled by us checking
@@ -865,7 +853,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         }
 
         let new_last_expiry = expires
-            .checked_add(IPT_PUBLISH_EXPIRY_SLOP)
+            .checked_add(ipt_set::IPT_PUBLISH_EXPIRY_SLOP)
             .ok_or_else(|| internal!("time overflow adding expiry slop"))?;
 
         let ipts = candidates
@@ -878,11 +866,19 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 let publish = current_ipt.for_publish(details)?;
                 // TODO HSS wrong descriptor (ipt) expiry time calculation, see arti#1023
                 current_ipt.last_descriptor_expiry_including_slop = new_last_expiry;
+
+                // TODO HSS merge last_descriptor_expiry_including_slop from borrowed ipt set
+                // (this current code is entirely wrong, see #1023)
+                let publish = ipt_set::IptInSet {
+                    ipt: publish,
+                    last_descriptor_expiry_including_slop: None,
+                };
+
                 Ok::<_, FatalError>(publish)
             })
             .collect::<Result<_, _>>()?;
 
-        Ok(publish::IptSet { ipts, lifetime })
+        Ok(ipt_set::IptSet { ipts, lifetime })
     }
 
     /// Run one iteration of the loop

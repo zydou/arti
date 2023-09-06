@@ -9,7 +9,6 @@ mod reactor;
 use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::error;
 
 use tor_circmgr::hspool::HsCircPool;
@@ -17,9 +16,9 @@ use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
+use crate::ipt_set::PublishIptSet;
 use crate::OnionServiceConfig;
 
-pub(crate) use descriptor::Ipt;
 use err::PublisherError;
 use reactor::{Event, Reactor, ReactorError, ReactorState};
 
@@ -39,27 +38,6 @@ pub(crate) struct Publisher {
     // task.
     /// A channel for sending `Event`s to the reactor.
     tx: mpsc::UnboundedSender<Event>,
-}
-
-/// Set of introduction points to be advertised in a descriptor (if we are to publish)
-///
-/// If `Some`, the publisher will try to maintain a published descriptor,
-/// of lifetime `lifetime`, listing `ipts`.
-///
-/// If `None`, the publisher will not try to publish.
-/// (Already-published descriptors will not be deleted.)
-///
-/// These instructions ultimately come from
-/// [`IptManager::compute_iptsetstatus_publish`](crate::ipt_mgr::IptManager::compute_iptsetstatus_publish).
-pub(crate) type PublishIptSet = Option<IptSet>;
-
-/// A set of introduction points for publication
-pub(crate) struct IptSet {
-    /// The actual introduction points
-    pub(crate) ipts: Vec<Ipt>,
-
-    /// When to make the descriptor expire
-    pub(crate) lifetime: Duration,
 }
 
 impl Publisher {
