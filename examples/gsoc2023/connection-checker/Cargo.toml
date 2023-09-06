@@ -1,0 +1,17 @@
+[package]
+name = "connection-checker"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.72"
+arti-client = { path = "../../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
+clap = { version = "4.3.21", features = ["derive"] }
+tokio = { version = "1.7", features = ["full"] }
+tor-error = { path = "../../../crates/tor-error" }
+tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
+tracing = "0.1"
+tracing-subscriber = "0.3.17"

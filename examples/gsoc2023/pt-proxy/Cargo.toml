@@ -1,0 +1,23 @@
+[package]
+name = "pt-proxy"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+publish = false
+
+[dependencies]
+anyhow = "1.0.72"
+arti-client = { path = "../../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
+clap = { version = "4.3.21", features = [ "derive" ] }
+fast-socks5 = "0.8.2"
+thiserror = "1.0.44"
+tokio = { version = "1.7", features = ["full"] }
+tokio-stream = "0.1.14"
+tor-chanmgr = { path = "../../../crates/tor-chanmgr", features = ["pt-client"] }
+tor-linkspec = { path = "../../../crates/tor-linkspec" }
+tor-ptmgr = { path = "../../../crates/tor-ptmgr", features = [ "experimental-api"] }
+tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
+tor-socksproto = { path = "../../../crates/tor-socksproto" }
+tracing = "0.1"
+tracing-subscriber = "0.3.17"

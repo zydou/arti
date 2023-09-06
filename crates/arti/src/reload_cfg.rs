@@ -76,6 +76,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         })?;
     }
 
+    #[allow(clippy::cognitive_complexity)]
     std::thread::spawn(move || {
         // TODO: If someday we make this facility available outside of the
         // `arti` application, we probably don't want to have this thread own
@@ -158,6 +159,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 /// reconfigure the client as much as we can.
 ///
 /// Return true if we should be watching for configuration changes.
+#[allow(clippy::cognitive_complexity)]
 fn reconfigure<R: Runtime>(
     found_files: FoundConfigFiles<'_>,
     original: &ArtiConfig,

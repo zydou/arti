@@ -192,6 +192,7 @@ impl FromStr for PtMessage {
 
     // NOTE(eta): This, of course, implies that the PT IPC communications are valid UTF-8.
     //            This assumption might turn out to be false.
+    #[allow(clippy::cognitive_complexity)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // TODO(eta): Maybe tolerate additional whitespace (using `split_whitespace`)?.
         //            This requires modified words.join() logic, though.
@@ -388,6 +389,7 @@ pub(crate) mod sealed {
             );
             let (mut tx, rx) = mpsc::channel(PT_STDIO_BUFFER);
             let ident = identifier.clone();
+            #[allow(clippy::cognitive_complexity)]
             thread::spawn(move || {
                 let reader = BufReader::new(stdout);
                 let _stdin = stdin;

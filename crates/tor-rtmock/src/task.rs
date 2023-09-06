@@ -409,6 +409,7 @@ impl MockExecutor {
     /// # Panics
     ///
     /// Might malfunction or panic if called reentrantly
+    #[allow(clippy::cognitive_complexity)]
     fn execute_until_first_stall(&self, mut main_fut: MainFuture) {
         trace!("MockExecutor execute_until_first_stall ...");
         'outer: loop {

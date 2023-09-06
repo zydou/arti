@@ -1,0 +1,18 @@
+[package]
+name = "dns-resolver"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.72"
+# Use latest arti-client from GitLab to connect to Tor network
+arti-client = { path = "../../../crates/arti-client", features = ["bridge-client"] }
+thiserror = "1.0.44"
+# Specify which async framework we wish to use
+tokio = { version = "1.7", features = ["full"] }
+# Useful to print debugging or log messages in async programs
+tracing = "0.1"
+tracing-subscriber = "0.3.17"
