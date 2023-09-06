@@ -29,7 +29,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
-use crate::ipt_set::{IptSet, PublishIptSet, IptsPublisherView};
+use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorStatus};
 

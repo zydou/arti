@@ -7,9 +7,9 @@ mod err;
 mod reactor;
 
 use futures::task::SpawnExt;
+use postage::watch;
 use std::sync::Arc;
 use tracing::error;
-use postage::watch;
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_hscrypto::pk::HsId;
@@ -75,7 +75,7 @@ impl Publisher {
             })
             .map_err(|e| PublisherError::from_spawn("publisher reactor task", e))?;
 
-        Ok(Self {  })
+        Ok(Self {})
     }
 
     /// Inform this publisher that its set of keys has changed.
