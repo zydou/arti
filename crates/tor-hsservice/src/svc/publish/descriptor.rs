@@ -14,12 +14,9 @@ use tor_llcrypto::pk::curve25519;
 use tor_netdoc::doc::hsdesc::{HsDescBuilder, IntroPointDesc};
 use tor_netdoc::NetdocBuilder;
 
-// TODO HSS: Dummy types that should be implemented elsewhere.
+use crate::ipt_set::Ipt;
 
-/// Introduction point as specified to publisher by manager
-///
-/// Convenience type alias.
-pub(crate) type Ipt = tor_netdoc::doc::hsdesc::IntroPointDesc;
+// TODO HSS: Dummy types that should be implemented elsewhere.
 
 /// TODO: add a real x25519 cert type in tor-cert.
 #[allow(unreachable_pub)]
