@@ -29,7 +29,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
-use crate::ipt_set::{IptSet, PublishIptSet};
+use crate::ipt_set::{IptSet, PublishIptSet, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorStatus};
 
@@ -78,6 +78,8 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     // Also, if the IPT manager makes a multiple updates, we don't want to process them in order: we
     // only care about the latest IPTs! Perhaps this should be a postage::watch channel instead
     rx: mpsc::UnboundedReceiver<Event>,
+    /// A channel for receiving IPT change notifications.
+    ipt_watcher: IptsPublisherView,
     /// A channel for the telling the upload reminder task when to remind us we need to upload
     /// some descriptors.
     pending_upload_tx: Sender<Duration>,
@@ -328,6 +330,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         mockable: M,
         config: OnionServiceConfig,
         rx: mpsc::UnboundedReceiver<Event>,
+        ipt_watcher: IptsPublisherView,
     ) -> Result<Self, ReactorError> {
         let hsid_key: HsIdKey = hsid
             .try_into()
@@ -356,6 +359,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             dir_provider,
             mockable,
             rx,
+            ipt_watcher,
             pending_upload_tx,
             schedule_upload_rx,
         })
@@ -402,6 +406,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Run one iteration of the reactor loop.
+    #[allow(unreachable_code)] // TODO HSS: remove
+    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn run_once(&mut self) -> Result<(), ReactorError> {
         let mut netdir_events = self.dir_provider.events();
 
@@ -417,6 +423,15 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 // alive.
                 let event = event.ok_or(ReactorError::ShuttingDown)?;
                 self.handle_event(event).await?;
+            },
+            ipts = self.ipt_watcher.await_update().fuse() => {
+                if let Ok(()) = ipts.ok_or(ReactorError::ShuttingDown)? {
+                    // TODO HSS: add more context to the error
+                    internal!("failed to receive IPT update");
+                }
+                // TODO HSS: try to read IPTs from shared state (see #1023)
+                let ipts = todo!();
+                self.handle_new_intro_points(ipts).await?;
             },
             res = self.schedule_upload_rx.recv().fuse() => {
                 let _: () = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
