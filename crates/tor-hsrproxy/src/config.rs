@@ -2,7 +2,7 @@
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, path::PathBuf, str::FromStr};
+use std::{net::SocketAddr, ops::RangeInclusive, path::PathBuf, str::FromStr};
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 
 /// Configuration for a reverse proxy running for a single onion service.
@@ -37,7 +37,7 @@ define_list_builder_helper! {
 /// A single rule in a `ProxyConfig`.
 ///
 /// Rules take the form of, "When this pattern matches, take this action."
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 // TODO HSS: we might someday want to accept structs here as well, so that
 // we can add per-rule fields if we need to.  We can make that an option if/when
 // it comes up, however.
@@ -72,21 +72,10 @@ impl ProxyRule {
 }
 
 /// A set of ports to use when checking how to handle a port.
-#[derive(Clone, Debug, serde_with::DeserializeFromStr, serde_with::SerializeDisplay)]
-pub struct ProxyPattern(ProxyPatternInner);
-
-/// Implementation type for `ProxyPattern`.
-///
-/// (This is a separate type so that we can enforce well-formedness)
-#[derive(Clone, Debug)]
-enum ProxyPatternInner {
-    /// Match a single port.
-    Port(u16),
-    /// Match an inclusive range of ports.
-    PortRange(u16, u16),
-    /// Match all ports.
-    AllPorts,
-}
+#[derive(
+    Clone, Debug, serde_with::DeserializeFromStr, serde_with::SerializeDisplay, Eq, PartialEq,
+)]
+pub struct ProxyPattern(RangeInclusive<u16>);
 
 impl FromStr for ProxyPattern {
     type Err = ProxyConfigError;
@@ -107,11 +96,10 @@ impl FromStr for ProxyPattern {
 }
 impl std::fmt::Display for ProxyPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ProxyPatternInner as PPI;
-        match &self.0 {
-            PPI::Port(p) => write!(f, "{}", p),
-            PPI::PortRange(low, high) => write!(f, "{}-{}", low, high),
-            PPI::AllPorts => write!(f, "*"),
+        match self.0.clone().into_inner() {
+            (start, end) if start == end => write!(f, "{}", start),
+            (1, 65535) => write!(f, "*"),
+            (start, end) => write!(f, "{}-{}", start, end),
         }
     }
 }
@@ -119,50 +107,48 @@ impl std::fmt::Display for ProxyPattern {
 impl ProxyPattern {
     /// Return a pattern matching all ports.
     pub fn all_ports() -> Self {
-        ProxyPatternInner::AllPorts
-            .check()
-            .expect("Somehow, AllPorts was not a valid pattern")
+        Self::check(1, 65535).expect("Somehow, 1-65535 was not a valid pattern")
     }
     /// Return a pattern matching a single port.
     ///
     /// Gives an error if the port is zero.
     pub fn one_port(port: u16) -> Result<Self, ProxyConfigError> {
-        ProxyPatternInner::Port(port).check()
+        Self::check(port, port)
     }
     /// Return a pattern matching all ports between `low` and `high` inclusive.
     ///
     /// Gives an error unless `0 < low <= high`.
     pub fn port_range(low: u16, high: u16) -> Result<Self, ProxyConfigError> {
-        ProxyPatternInner::PortRange(low, high).check()
+        Self::check(low, high)
     }
 
     /// Return true if this pattern includes `port`.
     pub(crate) fn matches_port(&self, port: u16) -> bool {
-        use ProxyPatternInner as PPI;
-        match &self.0 {
-            PPI::Port(p) => *p == port,
-            PPI::PortRange(low, high) => *low <= port && port <= *high,
-            PPI::AllPorts => true,
-        }
+        self.0.contains(&port)
     }
-}
 
-impl ProxyPatternInner {
-    /// If this is a valid pattern, wrap it as a ProxyPattern. Otherwise return
+    /// If start..=end is a valid pattern, wrap it as a ProxyPattern. Otherwise return
     /// an error.
-    fn check(self) -> Result<ProxyPattern, ProxyConfigError> {
+    fn check(start: u16, end: u16) -> Result<ProxyPattern, ProxyConfigError> {
         use ProxyConfigError as PCE;
-        use ProxyPatternInner as PPI;
-        match self {
-            PPI::Port(0) | PPI::PortRange(0, _) | PPI::PortRange(_, 0) => Err(PCE::ZeroPort),
-            PPI::PortRange(low, high) if low > high => Err(PCE::EmptyPortRange),
-            other => Ok(ProxyPattern(other)),
+        match (start, end) {
+            (_, 0) => Err(PCE::ZeroPort),
+            (0, n) => Ok(Self(1..=n)),
+            (low, high) => Ok(Self(low..=high)),
         }
     }
 }
 
 /// An action to take upon receiving an incoming request.
-#[derive(Clone, Debug, Default, serde_with::DeserializeFromStr, serde_with::SerializeDisplay)]
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    serde_with::DeserializeFromStr,
+    serde_with::SerializeDisplay,
+    Eq,
+    PartialEq,
+)]
 #[non_exhaustive]
 pub enum ProxyTarget {
     /// Close the circuit immediately with an error.
@@ -267,13 +253,10 @@ mod test {
     #[test]
     fn pattern_ok() {
         use ProxyPattern as P;
-        use ProxyPatternInner as I;
-        assert!(matches!(P::from_str("*"), Ok(P(I::AllPorts))));
-        assert!(matches!(P::from_str("100"), Ok(P(I::Port(100)))));
-        assert!(matches!(
-            P::from_str("100-200"),
-            Ok(P(I::PortRange(100, 200)))
-        ));
+        assert_eq!(P::from_str("*").unwrap(), P(1..=65535));
+        assert_eq!(P::from_str("100").unwrap(), P(100..=100));
+        assert_eq!(P::from_str("100-200").unwrap(), P(100..=200));
+        assert_eq!(P::from_str("0-200").unwrap(), P(1..=200));
     }
 
     #[test]
