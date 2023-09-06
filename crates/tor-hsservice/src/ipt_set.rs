@@ -148,7 +148,7 @@ impl IptsPublisherView {
     ///  * `Some(Ok(())` if the IPT set was (or may have been) updated
     ///  * `None` if the manager is shutting down and the publisher should shut down too
     ///  * `Some(Err(..))` if a fatal error occurred
-    pub(crate) async fn await_update(&self) -> Option<Result<(), crate::FatalError>> {
+    pub(crate) async fn await_update(&mut self) -> Option<Result<(), crate::FatalError>> {
         void::unreachable(self.todo)
     }
 
