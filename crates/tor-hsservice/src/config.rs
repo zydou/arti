@@ -88,7 +88,7 @@ pub struct LimitConfig {
     /// How many streams will we allow to be open at once for a single circuit on
     /// this service?
     #[builder(default = "65535")]
-    max_concurrent_streams_per_circuit: u16,
+    max_concurrent_streams_per_circuit: u32,
 }
 
 /// Configuration for proof-of-work defense against DoS attacks.
