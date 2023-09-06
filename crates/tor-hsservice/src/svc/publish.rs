@@ -16,7 +16,7 @@ use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::ipt_set::{PublishIptSet, IptsPublisherView};
+use crate::ipt_set::{IptsPublisherView, PublishIptSet};
 use crate::OnionServiceConfig;
 
 use err::PublisherError;
@@ -55,8 +55,16 @@ impl Publisher {
     ) -> Result<Self, PublisherError> {
         let (tx, rx) = mpsc::unbounded();
         let state = ReactorState::new(circpool);
-        let Ok(reactor) =
-            Reactor::new(runtime.clone(), hsid, dir_provider, state, config, rx, ipt_watcher).await
+        let Ok(reactor) = Reactor::new(
+            runtime.clone(),
+            hsid,
+            dir_provider,
+            state,
+            config,
+            rx,
+            ipt_watcher,
+        )
+        .await
         else {
             error!("failed to create reactor");
             panic!();
