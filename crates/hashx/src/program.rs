@@ -3,7 +3,7 @@
 use crate::generator::Generator;
 use crate::register::{RegisterFile, RegisterId};
 use crate::Error;
-use crate::FixedCapacityVec;
+use fixed_capacity_vec::FixedCapacityVec;
 use rand_core::RngCore;
 use std::fmt;
 use std::ops::BitXor;

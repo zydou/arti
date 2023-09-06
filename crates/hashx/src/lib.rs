@@ -43,7 +43,6 @@
 mod compiler;
 mod constraints;
 mod err;
-mod fixed_capacity_vec;
 mod generator;
 mod program;
 mod rand;
@@ -52,7 +51,6 @@ mod scheduler;
 mod siphash;
 
 use crate::compiler::{Architecture, Executable};
-use crate::fixed_capacity_vec::FixedCapacityVec;
 use crate::program::Program;
 use rand_core::RngCore;
 
