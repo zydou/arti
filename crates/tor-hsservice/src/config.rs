@@ -22,14 +22,14 @@ pub struct OnionServiceConfig {
     // which the service's configuration is stored.  We'll see how the code
     // evolves.
     // (^ ipt_mgr::IptManager contains a copy of this nickname, that should be fixed too)
-    name: HsNickname,
+    pub(crate) name: HsNickname,
 
     // TODO HSS: Perhaps this belongs at a higher level.
     // enabled: bool,
     /// Whether we want this to be a non-anonymous "single onion service".
     /// We could skip this in v1.  We should make sure that our state
     /// is built to make it hard to accidentally set this.
-    anonymity: crate::Anonymity,
+    pub(crate) anonymity: crate::Anonymity,
 
     /// Number of intro points; defaults to 3; max 20.
     #[builder(default = "3")]
@@ -37,11 +37,11 @@ pub struct OnionServiceConfig {
 
     /// Limits on rates and concurrency of connections to our service.
     #[builder(sub_builder)]
-    limits: LimitConfig,
+    pub(crate) limits: LimitConfig,
 
     /// Configure proof-of-work defense against DoS attacks.
     #[builder(sub_builder)]
-    pow: PowConfig,
+    pub(crate) pow: PowConfig,
 
     /// Configure descriptor-based client authorization.
     ///
@@ -50,7 +50,7 @@ pub struct OnionServiceConfig {
     //
     // TODO HSS: we'd like this to be an Option, but that doesn't work well with
     // sub_builder.  We need to figure out what to do there.
-    encrypt_descriptor: Option<DescEncryptionConfig>,
+    pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
     //
     // TODO HSS: Do we want a "descriptor_lifetime" setting? C tor doesn't have
     // one.
