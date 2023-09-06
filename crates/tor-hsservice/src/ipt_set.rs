@@ -10,7 +10,10 @@ use futures::StreamExt as _;
 
 use derive_more::{Deref, DerefMut};
 
+use crate::FatalError;
 use crate::IptLocalId;
+
+use tor_error::internal;
 
 /// Set of introduction points to be advertised in a descriptor (if we are to publish)
 ///
@@ -251,7 +254,30 @@ impl IptSet {
     ///
     /// When calling this, the publisher promises that the publication attempt
     /// will either complete, or be abandoned, before `worst_case_end`.
-    pub(crate) fn note_publication_attempt_start(&mut self, worst_case_end: Instant) {
-        todo!()
+    pub(crate) fn note_publication_attempt_start(
+        &mut self,
+        worst_case_end: Instant,
+    ) -> Result<(), FatalError> {
+        let new_value = (|| {
+            worst_case_end
+                .checked_add(self.lifetime)?
+                .checked_add(IPT_PUBLISH_EXPIRY_SLOP)
+        })()
+        .ok_or_else(
+            // Clock overflow on the monotonic clock.  Everything is terrible.
+            // We will have no idea when we can stop publishing the descriptor!
+            // I guess we'll return an error and cause the publisher to bail out?
+            // An ErrorKind of ClockSkew is wrong, since this is a purely local problem,
+            // and should be impossible if we properly checked our parameters.
+            || internal!("monotonic clock overflow"),
+        )?;
+        for ipt in &mut self.ipts {
+            ipt.last_descriptor_expiry_including_slop = chain!(
+                ipt.last_descriptor_expiry_including_slop,
+                [new_value],
+            )
+            .max();
+        }
+        Ok(())
     }
 }
