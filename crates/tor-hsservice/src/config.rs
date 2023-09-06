@@ -141,6 +141,11 @@ pub struct DescEncryptionConfig {
     /// A list of our authorized clients.
     ///
     /// Note that if this list is empty, no clients can connect.  
+    //
+    // TODO HSS: It might be good to replace this with a trait or something, so that
+    // we can let callers give us a ClientKeyProvider or some plug-in that reads
+    // keys from somewhere else. On the other hand, we might have this configure
+    // our default ClientKeyProvider, and only allow programmatic ClientKeyProviders
     authorized_client: Vec<AuthorizedClientConfig>,
 }
 
