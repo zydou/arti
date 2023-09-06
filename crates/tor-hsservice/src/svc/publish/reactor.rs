@@ -493,6 +493,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
     /// Update our list of introduction points.
     #[allow(clippy::unnecessary_wraps)]
+    #[allow(unreachable_code, unused_mut, clippy::diverging_sub_expression)] // TODO HSS remove
     async fn handle_new_intro_points(&self, ipts: PublishIptSet) -> Result<(), ReactorError> {
         let Some(ipts) = ipts else {
             todo!() // TODO HSS stop publishing when we get None for ipts
@@ -501,6 +502,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let mut inner = self.inner.lock().await;
         #[allow(unused_variables)] // TODO HSS remove
         let IptSet { ipts, lifetime } = ipts;
+
+        let ipts = todo!(); // TODO HSSS something something last_publish etc.
+                            // (this current code is entirely wrong, see #1023)
 
         inner.descriptor.ipts(ipts);
 

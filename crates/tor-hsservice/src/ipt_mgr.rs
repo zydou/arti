@@ -791,6 +791,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// (Old, non-current IPTs, that we are trying to retire, are never published.)
     ///
     /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
+    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn publish_set(
         &mut self,
         now: &TrackingNow,
@@ -865,6 +866,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 let publish = current_ipt.for_publish(details)?;
                 // TODO HSS wrong descriptor (ipt) expiry time calculation, see arti#1023
                 current_ipt.last_descriptor_expiry_including_slop = new_last_expiry;
+
+                // TODO HSS merge last_descriptor_expiry_including_slop from borrowed ipt set
+                // (this current code is entirely wrong, see #1023)
+                let publish = ipt_set::IptInSet {
+                    ipt: publish,
+                    last_descriptor_expiry_including_slop: None,
+                };
+
                 Ok::<_, FatalError>(publish)
             })
             .collect::<Result<_, _>>()?;
