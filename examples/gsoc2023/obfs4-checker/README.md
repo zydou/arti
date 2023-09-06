@@ -14,7 +14,7 @@ Then, to pass bridges into the program for an initial scan, make the following H
 
 Here is the `curl` command:
 
-```
+```text
   curl -X POST localhost:5000/bridge-state -H "Content-Type: application/json" -d '{"bridge_lines": ["BRIDGE_LINE"]}'
 ```
 
@@ -22,7 +22,7 @@ where you should replace `BRIDGE_LINE` by all the bridges that you wish to test
 
 The output would look something like this:
 
-```
+```json
 {
   "bridge_results": {
     "obfs4 45.145.95.6:27015 C5B7CD6946FF10C5B3E89691A7D3F2C122D2117C cert=TD7PbUO0/0k6xYHMPW3vJxICfkMZNdkRrb63Zhl5j9dW3iRGiCx0A7mPhe5T2EDzQ35+Zw iat-mode=0": {
@@ -48,7 +48,7 @@ For getting updates, right now we have a `/updates` GET endpoint that you can po
 
 For that you can run
 
-```
+```text
   curl localhost:5000/updates
 ```
 
