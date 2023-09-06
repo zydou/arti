@@ -335,6 +335,23 @@ mod test {
         ));
 
         assert!(matches!(
+            T::from_str("127.1:80"),
+            Err(PCE::InvalidTargetAddr(_))
+        ));
+        assert!(matches!(
+            T::from_str("tcp:127.1:80"),
+            Err(PCE::InvalidTargetAddr(_))
+        ));
+        assert!(matches!(
+            T::from_str("127.1:80"),
+            Err(PCE::InvalidTargetAddr(_))
+        ));
+        assert!(matches!(
+            T::from_str("tcp:2130706433:80"),
+            Err(PCE::InvalidTargetAddr(_))
+        ));
+
+        assert!(matches!(
             T::from_str("128.256.cats.and.dogs"),
             Err(PCE::InvalidTargetAddr(_))
         ));
