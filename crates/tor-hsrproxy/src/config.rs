@@ -13,7 +13,7 @@ pub struct ProxyConfig {
     /// A list of rules to apply to incoming requests.  If no rule
     /// matches, we take the DestroyCircuit action.
     #[builder(sub_builder, setter(custom))]
-    proxy_ports: ProxyRuleList,
+    pub(crate) proxy_ports: ProxyRuleList,
 }
 
 define_list_builder_accessors! {
