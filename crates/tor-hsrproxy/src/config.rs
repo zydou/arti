@@ -75,7 +75,10 @@ impl ProxyRule {
 #[derive(
     Clone, Debug, serde_with::DeserializeFromStr, serde_with::SerializeDisplay, Eq, PartialEq,
 )]
-pub struct ProxyPattern(RangeInclusive<u16>);
+pub struct ProxyPattern(
+    // TODO HSS: Eventually, we will want to allow other patterns, like UDP.
+    RangeInclusive<u16>,
+);
 
 impl FromStr for ProxyPattern {
     type Err = ProxyConfigError;
@@ -162,6 +165,11 @@ pub enum ProxyTarget {
     RejectStream,
     /// Ignore the stream request.
     IgnoreStream,
+    // TODO HSS: Eventually, we will want to allow other protocols, like
+    // haproxy.  THese might be orthogonal to Tcp vs Unix.  Do we want to add
+    // these as flags to ProxyTarget, or some other thing?
+    //
+    // And does the Udp vs Tcp distinction belong here or in ProxyPattern?
 }
 
 impl FromStr for ProxyTarget {
