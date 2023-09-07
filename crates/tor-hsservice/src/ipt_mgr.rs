@@ -941,6 +941,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
 
+        drop(publish_set); // release lock, and notify publisher of any changes
+
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
             shutdown = &mut self.state.shutdown => return Ok(shutdown.void_unwrap_err().into()),
