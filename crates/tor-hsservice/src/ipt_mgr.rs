@@ -834,7 +834,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// by the ordering in `IptRelay.ipts`.  Both of these are stable.
     #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn publish_set(
-        &mut self,
+        &self,
         now: &TrackingNow,
         lifetime: Duration,
     ) -> Result<ipt_set::IptSet, FatalError> {
@@ -847,16 +847,16 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
 
         /// Good candidate introduction point for publication
-        type Candidate<'i> = &'i mut Ipt;
+        type Candidate<'i> = &'i Ipt;
 
         let target_n = self.target_n_intro_points();
 
         let mut candidates: VecDeque<_> = self
             .state
             .irelays
-            .iter_mut()
-            .filter_map(|ir: &mut _| -> Option<Candidate<'_>> {
-                let current_ipt = ir.current_ipt_mut()?;
+            .iter()
+            .filter_map(|ir: &_| -> Option<Candidate<'_>> {
+                let current_ipt = ir.current_ipt()?;
                 if !current_ipt.is_good() {
                     return None;
                 }
@@ -905,15 +905,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 };
 
                 let publish = current_ipt.for_publish(details)?;
-                // TODO HSS wrong descriptor (ipt) expiry time calculation, see arti#1023
-                current_ipt.last_descriptor_expiry_including_slop = Some(new_last_expiry);
 
-                // TODO HSS merge last_descriptor_expiry_including_slop from borrowed ipt set
-                // (this current code is entirely wrong, see #1023)
+                // last_descriptor_expiry_including_slop was earlier merged in from
+                // the previous IptSet, and here we copy it back
                 let publish = ipt_set::IptInSet {
                     ipt: publish,
                     lid: current_ipt.lid,
-                    last_descriptor_expiry_including_slop: None,
+                    last_descriptor_expiry_including_slop:
+                        current_ipt.last_descriptor_expiry_including_slop,
                 };
 
                 Ok::<_, FatalError>(publish)
