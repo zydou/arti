@@ -1146,6 +1146,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::ipc::{PtMessage, PtStatus};
+    use std::borrow::Cow;
     use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -1238,6 +1239,14 @@ mod test {
                 message: "\r\n\t".to_string()
             })
         );
+
+        for i in 0..9 {
+            let msg = format!("LOG SEVERITY=debug MESSAGE=\"\\{i}\"");
+            assert_eq!(
+                msg.parse::<PtMessage>(),
+                Err(Cow::from("attempted unsupported octal escape code"))
+            );
+        }
 
         let mut map = HashMap::new();
         map.insert("ADDRESS".to_string(), "198.51.100.123:1234".to_string());
