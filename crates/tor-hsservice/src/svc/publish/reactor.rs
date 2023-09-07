@@ -86,6 +86,8 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     pending_upload_tx: Sender<Duration>,
     /// A channel for receiving reminders from the upload reminder task.
     schedule_upload_rx: Receiver<()>,
+    /// A channel for receiving upload completion notifications.
+    upload_task_complete_rx: Receiver<TimePeriodUploadResult>,
 }
 
 /// Mockable state for the descriptor publisher reactor.
@@ -327,6 +329,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, ReactorError> {
+        /// The maximum size of the upload completion notifier channel.
+        //
+        // TODO HSS: choose an appropriate size for this buffer.
+        const UPLOAD_CHAN_BUF_SIZE: usize = 1024;
+
         let hsid_key: HsIdKey = hsid
             .try_into()
             .expect("failed to recover ed25519 public key from hsid?!");
@@ -337,6 +344,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         // There will be at most one pending upload.
         let (pending_upload_tx, _) = broadcast(1);
         let (_, schedule_upload_rx) = broadcast(1);
+        let (_, upload_task_complete_rx) = broadcast(UPLOAD_CHAN_BUF_SIZE);
 
         let inner = Inner {
             descriptor: DescriptorBuilder::default(),
@@ -357,6 +365,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             config_rx,
             pending_upload_tx,
             schedule_upload_rx,
+            upload_task_complete_rx,
         })
     }
 
@@ -407,6 +416,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
+            res = self.upload_task_complete_rx.recv().fuse() => {
+                let upload_res = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
+
+                self.handle_upload_results(upload_res).await;
+            }
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
                 let netdir = self.dir_provider.netdir(Timeliness::Timely)?;
