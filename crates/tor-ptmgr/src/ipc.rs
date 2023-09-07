@@ -1231,6 +1231,14 @@ mod test {
                 message: "Connected to bridge A".to_string()
             })
         );
+        assert_eq!(
+            "LOG SEVERITY=debug MESSAGE=\"\\r\\n\\t\"".parse(),
+            Ok(PtMessage::Log {
+                severity: "debug".to_string(),
+                message: "\r\n\t".to_string()
+            })
+        );
+
         let mut map = HashMap::new();
         map.insert("ADDRESS".to_string(), "198.51.100.123:1234".to_string());
         map.insert("CONNECT".to_string(), "Success".to_string());
