@@ -19,6 +19,10 @@ pub(crate) enum PublisherError {
         #[source]
         cause: Arc<SpawnError>,
     },
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 impl PublisherError {

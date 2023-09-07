@@ -6,8 +6,8 @@ mod descriptor;
 mod err;
 mod reactor;
 
-use futures::channel::mpsc;
 use futures::task::SpawnExt;
+use postage::watch;
 use std::sync::Arc;
 use tracing::error;
 
@@ -16,11 +16,11 @@ use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::ipt_set::PublishIptSet;
+use crate::ipt_set::IptsPublisherView;
 use crate::OnionServiceConfig;
 
 use err::PublisherError;
-use reactor::{Event, Reactor, ReactorError, ReactorState};
+use reactor::{Reactor, ReactorError, ReactorState};
 
 /// A handle for the Hsdir Publisher for an onion service.
 ///
@@ -36,8 +36,6 @@ pub(crate) struct Publisher {
     //
     // Some of these contents may actually wind up belonging to a reactor
     // task.
-    /// A channel for sending `Event`s to the reactor.
-    tx: mpsc::UnboundedSender<Event>,
 }
 
 impl Publisher {
@@ -51,11 +49,20 @@ impl Publisher {
         dir_provider: Arc<dyn NetDirProvider>,
         circpool: Arc<HsCircPool<R>>,
         config: OnionServiceConfig,
+        ipt_watcher: IptsPublisherView,
+        config_rx: watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, PublisherError> {
-        let (tx, rx) = mpsc::unbounded();
         let state = ReactorState::new(circpool);
-        let Ok(reactor) =
-            Reactor::new(runtime.clone(), hsid, dir_provider, state, config, rx).await
+        let Ok(reactor) = Reactor::new(
+            runtime.clone(),
+            hsid,
+            dir_provider,
+            state,
+            config,
+            ipt_watcher,
+            config_rx,
+        )
+        .await
         else {
             error!("failed to create reactor");
             panic!();
@@ -68,7 +75,7 @@ impl Publisher {
             })
             .map_err(|e| PublisherError::from_spawn("publisher reactor task", e))?;
 
-        Ok(Self { tx })
+        Ok(Self {})
     }
 
     /// Inform this publisher that its set of keys has changed.
@@ -76,14 +83,7 @@ impl Publisher {
     /// TODO HSS: Either this needs to take new keys as an argument, or there
     /// needs to be a source of keys (including public keys) in Publisher.
     pub(crate) fn new_hs_keys(&self, keys: ()) {
-        // TODO HSS: handle/return the error
-        let _ = self.tx.unbounded_send(Event::NewKeys(()));
-    }
-
-    /// Inform this publisher that  the set of introduction points may have changed.
-    pub(crate) fn new_intro_points(&self, ipts: PublishIptSet) {
-        // TODO HSS: handle/return the error
-        let _ = self.tx.unbounded_send(Event::NewIntroPoints(ipts));
+        todo!()
     }
 
     /// Return our current status.

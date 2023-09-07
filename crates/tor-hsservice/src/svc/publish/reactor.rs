@@ -9,10 +9,10 @@ use std::time::{Duration, SystemTime};
 
 use async_broadcast::{broadcast, Receiver, RecvError, Sender};
 use async_trait::async_trait;
-use futures::channel::mpsc;
 use futures::lock::Mutex;
 use futures::task::SpawnExt;
 use futures::{select_biased, FutureExt, StreamExt};
+use postage::watch;
 use tracing::{debug, trace};
 
 use tor_bytes::EncodeError;
@@ -29,7 +29,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
-use crate::ipt_set::{IptSet, PublishIptSet};
+use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorStatus};
 
@@ -71,13 +71,10 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     mockable: M,
     /// The mutable inner state,
     inner: Arc<Mutex<Inner>>,
-    /// A channel for receiving events.
-    // TODO HSS: should this be unbounded? Doesn't this mean we risk our memory usage blowing up
-    // under certain conditions?
-    //
-    // Also, if the IPT manager makes a multiple updates, we don't want to process them in order: we
-    // only care about the latest IPTs! Perhaps this should be a postage::watch channel instead
-    rx: mpsc::UnboundedReceiver<Event>,
+    /// A channel for receiving IPT change notifications.
+    ipt_watcher: IptsPublisherView,
+    /// A channel for receiving onion service config change notifications.
+    config_rx: watch::Receiver<OnionServiceConfig>,
     /// A channel for the telling the upload reminder task when to remind us we need to upload
     /// some descriptors.
     pending_upload_tx: Sender<Duration>,
@@ -249,33 +246,6 @@ impl TimePeriodContext {
     }
 }
 
-/// An event that needs to be handled by the publisher [`Reactor`].
-///
-/// These are triggered by calling the various methods of [`Publisher`](super::Publisher).
-pub(super) enum Event {
-    /// The introduction points of this service have changed.
-    NewIntroPoints(PublishIptSet),
-    /// The keys of this service have changed.
-    ///
-    /// TODO HSS: decide whether we need this, and if so, who is going to emit this event and what
-    /// information it will include.
-    NewKeys(()),
-    /// The config of this service has changed.
-    ///
-    /// Note: not all config changes will cause the descriptor to be updated (if the changes are
-    /// unrelated it is left unmodified).
-    SvcConfigChange(OnionServiceConfig),
-    // TODO HSS: do we need a shutdown event for explicitly shutting down the reactor?
-
-    // Note: the reactor responds to other types of external events too, which do not have
-    // a corresponding `Event` variant. These are:
-    //
-    //   * consensus changes, handled in [`Reactor::handle_consensus_change`]
-    //   * handling deferred uploads: sometimes the reactor will defer an upload (for example, due
-    //   to rate-limiting). Whenever this happens, the reactor notifies its "reminder task" to
-    //   remind it to execute the upload at a later point
-}
-
 /// A reactor error
 #[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
 #[derive(Clone, Debug, thiserror::Error)]
@@ -327,7 +297,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         dir_provider: Arc<dyn NetDirProvider>,
         mockable: M,
         config: OnionServiceConfig,
-        rx: mpsc::UnboundedReceiver<Event>,
+        ipt_watcher: IptsPublisherView,
+        config_rx: postage::watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, ReactorError> {
         let hsid_key: HsIdKey = hsid
             .try_into()
@@ -355,7 +326,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             hsid_key,
             dir_provider,
             mockable,
-            rx,
+            ipt_watcher,
+            config_rx,
             pending_upload_tx,
             schedule_upload_rx,
         })
@@ -402,6 +374,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     }
 
     /// Run one iteration of the reactor loop.
+    #[allow(unreachable_code)] // TODO HSS: remove
+    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn run_once(&mut self) -> Result<(), ReactorError> {
         let mut netdir_events = self.dir_provider.events();
 
@@ -412,11 +386,18 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
                 self.handle_consensus_change(netdir).await?;
             }
-            event = self.rx.next() => {
-                // TODO HSS: document who is supposed to be keeping the sending end of this channel
-                // alive.
-                let event = event.ok_or(ReactorError::ShuttingDown)?;
-                self.handle_event(event).await?;
+            ipts = self.ipt_watcher.await_update().fuse() => {
+                if let Ok(()) = ipts.ok_or(ReactorError::ShuttingDown)? {
+                    // TODO HSS: add more context to the error
+                    internal!("failed to receive IPT update");
+                }
+                // TODO HSS: try to read IPTs from shared state (see #1023)
+                let ipts = todo!();
+                self.handle_new_intro_points(ipts).await?;
+            },
+            config = self.config_rx.next().fuse() => {
+                let config = config.ok_or(ReactorError::ShuttingDown)?;
+                self.handle_svc_config_change(config).await?;
             },
             res = self.schedule_upload_rx.recv().fuse() => {
                 let _: () = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
@@ -480,15 +461,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Replace the old netdir with the new, returning the old.
     async fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
         std::mem::replace(&mut self.inner.lock().await.netdir, new_netdir)
-    }
-
-    /// Handle an incoming [`Event`].
-    async fn handle_event(&self, ev: Event) -> Result<(), ReactorError> {
-        match ev {
-            Event::NewIntroPoints(ipts) => self.handle_new_intro_points(ipts).await,
-            Event::NewKeys(_keys) => self.handle_new_keys().await,
-            Event::SvcConfigChange(config) => self.handle_svc_config_change(config).await,
-        }
     }
 
     /// Update our list of introduction points.
