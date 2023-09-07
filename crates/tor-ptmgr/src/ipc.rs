@@ -1239,6 +1239,13 @@ mod test {
                 message: "\r\n\t".to_string()
             })
         );
+        assert_eq!(
+            "LOG SEVERITY=debug MESSAGE=".parse(),
+            Ok(PtMessage::Log {
+                severity: "debug".to_string(),
+                message: "".to_string()
+            })
+        );
 
         for i in 0..9 {
             let msg = format!("LOG SEVERITY=debug MESSAGE=\"\\{i}\"");
