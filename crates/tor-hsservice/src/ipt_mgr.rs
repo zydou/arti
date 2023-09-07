@@ -157,6 +157,9 @@ struct IptRelay {
     /// IPTs at this relay
     ///
     /// At most one will have [`IsCurrent`].
+    ///
+    /// We append to this, and call `retain` on it,
+    /// so these are in chronological order of selection.
     ipts: Vec<Ipt>,
 }
 
@@ -782,6 +785,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// (Old, non-current IPTs, that we are trying to retire, are never published.)
     ///
     /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
+    ///
+    /// The returned `IptSet` set is in the same order as our data structure:
+    /// firstly, by the ordering in `State.irelays`, and then within each relay,
+    /// by the ordering in `IptRelay.ipts`.  Both of these are stable.
     #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn publish_set(
         &mut self,
