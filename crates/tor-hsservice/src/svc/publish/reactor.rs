@@ -589,14 +589,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// well as in what cases this will return an error).
     //
     // TODO HSS: what is N?
-    //
-    // TODO HSS: should this spawn upload tasks instead of blocking the reactor until the
-    // uploads complete? How would that work - if, during an upload, we receive an event telling us
-    // to update the descriptor, do we cancel the existing upload tasks, or do we let them carry
-    // on?
-    //
-    // TODO HSS: when addressing this, consider the points raised here:
-    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1545#note_2935673
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&self) -> Result<(), ReactorError> {
@@ -729,14 +721,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             revision_counter,
         } = &hsdesc;
 
-        // TODO HSS: this should be rewritten to upload the descriptor to each HsDir in parallel
-        // (the uploads are currently sequential).
-        //
-        // We will probably want to spawn a task for each upload, and join_all(upload_tasks) before
-        // returning from this function.
-        //
-        // In addition, we might want `Reactor::upload_all` to execute asynchronously (i.e. in a
-        // background task), as opposed to blocking the reactor loop until the upload is complete.
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
