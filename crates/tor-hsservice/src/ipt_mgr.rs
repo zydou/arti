@@ -911,8 +911,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 let publish = ipt_set::IptInSet {
                     ipt: publish,
                     lid: current_ipt.lid,
-                    last_descriptor_expiry_including_slop:
-                        current_ipt.last_descriptor_expiry_including_slop,
+                    last_descriptor_expiry_including_slop: current_ipt
+                        .last_descriptor_expiry_including_slop,
                 };
 
                 Ok::<_, FatalError>(publish)
