@@ -13,6 +13,7 @@ use futures::lock::Mutex;
 use futures::task::SpawnExt;
 use futures::{select_biased, FutureExt, StreamExt};
 use postage::watch;
+use tor_hscrypto::RevisionCounter;
 use tracing::{debug, trace};
 
 use tor_bytes::EncodeError;
@@ -166,7 +167,6 @@ struct Inner {
 }
 
 /// The part of the reactor state that changes with every time period.
-#[derive(Clone)]
 struct TimePeriodContext {
     /// The time period.
     period: TimePeriod,
@@ -179,6 +179,10 @@ struct TimePeriodContext {
     // store `Relay<'_>`s in the reactor, we'd need a way of atomically swapping out both the
     // `NetDir` and the cached relays, and to convince Rust what we're doing is sound)
     hs_dirs: Vec<(RelayIds, DescriptorStatus)>,
+    /// The current version of the descriptor.
+    revision_counter: u64,
+    /// The revision counter of the last successful upload, if any.
+    last_successful: Option<RevisionCounter>,
 }
 
 impl TimePeriodContext {
@@ -192,6 +196,14 @@ impl TimePeriodContext {
             period,
             blind_id,
             hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, iter::empty())?,
+            // The revision counter is set back to 0 each time we get a new blinded public key/time
+            // period. According to rend-spec-v3 Appendix F. this shouldn't be an issue:
+            //
+            //   Implementations MAY generate revision counters in any way they please,
+            //   so long as they are monotonically increasing over the lifetime of each
+            //   blinded public key
+            revision_counter: 0,
+            last_successful: None,
         })
     }
 
@@ -243,6 +255,18 @@ impl TimePeriodContext {
                 (relay_id, status)
             })
             .collect::<Vec<_>>())
+    }
+
+    /// Return the revision counter for this time period.
+    fn current_revision_counter(&self) -> RevisionCounter {
+        self.revision_counter.into()
+    }
+
+    /// Increment the revision counter for this time period, returning the new value.
+    fn inc_revision_counter(&mut self) -> RevisionCounter {
+        self.revision_counter += 1;
+
+        self.revision_counter.into()
     }
 }
 
@@ -595,7 +619,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         //
         // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
         // revision counter a timestamp encrypted using an OPE cipher
-        let revision_counter = todo!();
+        let revision_counter = context.inc_revision_counter();
         // This scope exists because rng is not Send, so it needs to fall out of scope before we
         // await anything.
         let hsdesc = {
