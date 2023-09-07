@@ -709,6 +709,42 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(Some(now))
     }
 
+    /// Import publisher's updates to latest descriptor expiry times
+    ///
+    /// Copies the `last_descriptor_expiry_including_slop` field
+    /// from each ipt in `publish_set` to the corresponding ipt in `self`.
+    fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) -> Result<(), FatalError> {
+        let Some(publish_set) = publish_set else {
+            // Nothing to update
+            return Ok(());
+        };
+
+        // Every entry in the PublishIptSet corresponds to an ipt in self.
+        // And the ordering is the same.  So we can do an O(N) merge-join.
+        let mut all_ours = self
+            .state
+            .irelays
+            .iter_mut()
+            .flat_map(|ir| ir.ipts.iter_mut());
+
+        for theirs in &publish_set.ipts {
+            // Look through our ipts until we find one that matches theirs.
+            // There may be ipts in ours but not in theirs, but not vice versa.
+            let ours = loop {
+                let ours = all_ours
+                    .next()
+                    .ok_or_else(|| internal!("ipt in PublishIptSet but not in mgr State"))?;
+                if ours.lid == theirs.lid {
+                    break ours;
+                }
+            };
+            ours.last_descriptor_expiry_including_slop =
+                theirs.last_descriptor_expiry_including_slop;
+        }
+
+        Ok(())
+    }
+
     /// Compute the IPT set to publish, and inform the publisher
     ///
     /// `now` is current time and also the earliest wakeup,
@@ -897,6 +933,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         publisher: &mut IptsManagerView,
     ) -> Result<ShutdownStatus, FatalError> {
         let mut publish_set = publisher.borrow_for_update();
+
+        self.import_new_expiry_times(&publish_set)?;
 
         let now = loop {
             if let Some(now) = self.idempotently_progress_things_now()? {
