@@ -213,6 +213,8 @@ struct Ipt {
     /// this is a copy of the value set by the publisher
     /// in the `IptSet` we share with the publisher,
     ///
+    /// (`None` means the IPT has not been advertised at all yet.)
+    ///
     /// We must duplicate the information because:
     ///
     ///  * We can't have it just live in the shared `IptSet`
