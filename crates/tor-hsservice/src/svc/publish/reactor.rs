@@ -779,7 +779,19 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         trace!(hsid=%self.hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
 
-        // TODO: Notify the reactor about the outcome of these uploads.
+        if let Err(e) = upload_task_complete_tx
+            .broadcast(TimePeriodUploadResult {
+                revision_counter: *revision_counter,
+                time_period,
+                hsdir_result: upload_results,
+            })
+            .await
+        {
+            return Err(internal!(
+                "failed to notify reactor of upload completion (reactor shut down)"
+            )
+            .into());
+        }
 
         Ok(())
     }
