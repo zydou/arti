@@ -885,17 +885,21 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Either do some work, making changes to our state,
     /// or, if there's nothing to be done, wait until there *is* something to do.
     async fn run_once(&mut self) -> Result<ShutdownStatus, FatalError> {
-        if let Some(now) = self.idempotently_progress_things_now()? {
-            self.compute_iptsetstatus_publish(&now)?;
+        let now = loop {
+            if let Some(now) = self.idempotently_progress_things_now()? {
+                break now;
+            }
+        };
 
-            select_biased! {
-                () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
-                shutdown = &mut self.state.shutdown => return Ok(shutdown.void_unwrap_err().into()),
+        self.compute_iptsetstatus_publish(&now)?;
 
-                update = self.state.status_recv.next() => {
-                    let (lid, update) = update.ok_or_else(|| internal!("update mpsc ended!"))?;
-                    self.state.handle_ipt_status_update(&self.imm, lid, update);
-                }
+        select_biased! {
+            () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
+            shutdown = &mut self.state.shutdown => return Ok(shutdown.void_unwrap_err().into()),
+
+            update = self.state.status_recv.next() => {
+                let (lid, update) = update.ok_or_else(|| internal!("update mpsc ended!"))?;
+                self.state.handle_ipt_status_update(&self.imm, lid, update);
             }
         }
 
