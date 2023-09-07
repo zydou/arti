@@ -359,6 +359,7 @@ impl FromStr for PtMessage {
     }
 }
 
+use sealed::*;
 /// Sealed trait to protect private types and default trait implementations
 pub(crate) mod sealed {
     use super::*;
@@ -541,7 +542,7 @@ pub(crate) mod sealed {
                 })?;
 
             let identifier = crate::pt_identifier(binary_path)?;
-            sealed::AsyncPtChild::new(child, identifier)
+            AsyncPtChild::new(child, identifier)
         }
 
         /// Consolidates some of the [`PtMessage`] potential matches to
@@ -772,7 +773,7 @@ impl PtClientMethod {
 /// Common functionality implemented to allow code reuse
 #[async_trait::async_trait]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-pub trait PluggableTransport: sealed::PluggableTransportPrivate {
+pub trait PluggableTransport: PluggableTransportPrivate {
     /// Get all client methods returned by the binary, if it has been launched.
     ///
     /// If it hasn't been launched, the returned map will be empty.
@@ -809,7 +810,7 @@ pub trait PluggableTransport: sealed::PluggableTransportPrivate {
 #[derive(Debug)]
 pub struct PluggableClientTransport {
     /// The currently running child, if there is one.
-    inner: Option<sealed::AsyncPtChild>,
+    inner: Option<AsyncPtChild>,
     /// The path to the binary to run.
     pub(crate) binary_path: PathBuf,
     /// Arguments to pass to the binary.
@@ -828,11 +829,11 @@ impl PluggableTransport for PluggableClientTransport {
     }
 }
 
-impl sealed::PluggableTransportPrivate for PluggableClientTransport {
-    fn inner(&mut self) -> Result<&mut sealed::AsyncPtChild, PtError> {
+impl PluggableTransportPrivate for PluggableClientTransport {
+    fn inner(&mut self) -> Result<&mut AsyncPtChild, PtError> {
         self.inner.as_mut().ok_or(PtError::ChildGone)
     }
-    fn set_inner(&mut self, newval: Option<sealed::AsyncPtChild>) {
+    fn set_inner(&mut self, newval: Option<AsyncPtChild>) {
         self.inner = newval;
     }
     fn identifier(&self) -> &str {
@@ -874,7 +875,7 @@ impl PluggableClientTransport {
             .environment_variables(&self.common_params);
 
         let mut async_child =
-            <PluggableClientTransport as sealed::PluggableTransportPrivate>::get_child_from_pt_launch(
+            <PluggableClientTransport as PluggableTransportPrivate>::get_child_from_pt_launch(
                 &self.inner,
                 &self.client_params.transports,
                 &self.binary_path,
@@ -887,7 +888,7 @@ impl PluggableClientTransport {
         let mut proxy_done = self.client_params.proxy_uri.is_none();
 
         loop {
-            match <PluggableClientTransport as sealed::PluggableTransportPrivate>::try_match_common_messages(&rt, deadline, &mut async_child).await {
+            match <PluggableClientTransport as PluggableTransportPrivate>::try_match_common_messages(&rt, deadline, &mut async_child).await {
                 Ok(maybe_message) => if let Some(message) = maybe_message {
                     match message {
                         PtMessage::ProxyDone => {
@@ -983,7 +984,7 @@ impl PluggableClientTransport {
 #[derive(Debug)]
 pub struct PluggableServerTransport {
     /// The currently running child, if there is one.
-    inner: Option<sealed::AsyncPtChild>,
+    inner: Option<AsyncPtChild>,
     /// The path to the binary to run.
     pub(crate) binary_path: PathBuf,
     /// Arguments to pass to the binary.
@@ -996,11 +997,11 @@ pub struct PluggableServerTransport {
     smethods: HashMap<PtTransportName, PtClientMethod>,
 }
 
-impl sealed::PluggableTransportPrivate for PluggableServerTransport {
-    fn inner(&mut self) -> Result<&mut sealed::AsyncPtChild, PtError> {
+impl PluggableTransportPrivate for PluggableServerTransport {
+    fn inner(&mut self) -> Result<&mut AsyncPtChild, PtError> {
         self.inner.as_mut().ok_or(PtError::ChildGone)
     }
-    fn set_inner(&mut self, newval: Option<sealed::AsyncPtChild>) {
+    fn set_inner(&mut self, newval: Option<AsyncPtChild>) {
         self.inner = newval;
     }
     fn identifier(&self) -> &str {
@@ -1048,7 +1049,7 @@ impl PluggableServerTransport {
             .environment_variables(&self.common_params);
 
         let mut async_child =
-            <PluggableServerTransport as sealed::PluggableTransportPrivate>::get_child_from_pt_launch(
+            <PluggableServerTransport as PluggableTransportPrivate>::get_child_from_pt_launch(
                 &self.inner,
                 &self.server_params.transports,
                 &self.binary_path,
@@ -1060,7 +1061,7 @@ impl PluggableServerTransport {
         let mut smethods = HashMap::new();
 
         loop {
-            match <PluggableServerTransport as sealed::PluggableTransportPrivate>::try_match_common_messages(&rt, deadline, &mut async_child).await {
+            match <PluggableServerTransport as PluggableTransportPrivate>::try_match_common_messages(&rt, deadline, &mut async_child).await {
                 Ok(maybe_message) => if let Some(message) = maybe_message {
                     match message {
 
