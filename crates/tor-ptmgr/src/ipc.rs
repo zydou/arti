@@ -1253,6 +1253,12 @@ mod test {
                 "failed to parse SMETHOD ARGS: smethod arg terminates with backslash"
             ))
         );
+        assert_eq!(
+            "SMETHOD obfs4 198.51.100.1:43734 ARGS:iat-mode=fo=o".parse::<PtMessage>(),
+            Err(Cow::from(
+                "failed to parse SMETHOD ARGS: encountered = while parsing value"
+            ))
+        );
 
         let mut map = HashMap::new();
         map.insert("ADDRESS".to_string(), "198.51.100.123:1234".to_string());
