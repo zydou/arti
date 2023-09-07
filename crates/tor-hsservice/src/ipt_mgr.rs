@@ -451,7 +451,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     }
 
     /// Send the IPT manager off to run and establish intro points
-    pub(crate) fn launch_background_tasks(self) -> Result<(), StartupError> {
+    pub(crate) fn launch_background_tasks(
+        self,
+    ) -> Result<(), StartupError> {
         let runtime = self.imm.runtime.clone();
         runtime
             .spawn(self.main_loop_task())
@@ -714,7 +716,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// for example, with a future time at which the IPT set ought to be published
     /// (eg, the status goes from Unknown to Uncertain).
     #[allow(clippy::unnecessary_wraps)] // for regularity
-    fn compute_iptsetstatus_publish(&mut self, now: &TrackingNow) -> Result<(), FatalError> {
+    fn compute_iptsetstatus_publish(
+        &mut self,
+        now: &TrackingNow,
+    ) -> Result<(), FatalError> {
         //---------- tell the publisher what to announce ----------
 
         let very_recently: Option<TrackingInstantOffsetNow> = (|| {
@@ -884,7 +889,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Either do some work, making changes to our state,
     /// or, if there's nothing to be done, wait until there *is* something to do.
-    async fn run_once(&mut self) -> Result<ShutdownStatus, FatalError> {
+    async fn run_once(
+        &mut self,
+    ) -> Result<ShutdownStatus, FatalError> {
         let now = loop {
             if let Some(now) = self.idempotently_progress_things_now()? {
                 break now;
