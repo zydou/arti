@@ -95,6 +95,7 @@ pub(crate) const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); /
 ///
 /// This is the manager's end of a bidirectional "channel",
 /// containing a shared `PublishIptSet`, i.e. an `Option<IptSet>`.
+#[derive(Debug)]
 pub(crate) struct IptsManagerView {
     /// TODO HSS
     todo: Void,
