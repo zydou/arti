@@ -745,3 +745,42 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         todo!();
     }
 }
+
+/// The outcome of uploading a descriptor to the HSDirs from a particular time period.
+#[derive(Debug, Clone)]
+struct TimePeriodUploadResult {
+    /// The revision counter of the descriptor we tried to upload.
+    revision_counter: RevisionCounter,
+    /// The time period.
+    time_period: TimePeriod,
+    /// The upload results.
+    hsdir_result: Vec<HsDirUploadStatus>,
+}
+
+/// The outcome of uploading a descriptor to a particular HsDir.
+#[derive(Clone, Debug, PartialEq)]
+struct HsDirUploadStatus {
+    /// The identity of the HsDir we attempted to upload the descriptor to.
+    relay_ids: RelayIds,
+    /// The outcome of this attempt.
+    upload_res: UploadStatus,
+}
+
+/// The outcome of uploading a descriptor.
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum UploadStatus {
+    /// The descriptor upload succeeded.
+    Success,
+    /// The descriptor upload failed.
+    Failure,
+}
+
+impl<T, E> From<Result<T, E>> for UploadStatus {
+    fn from(res: Result<T, E>) -> Self {
+        if res.is_ok() {
+            Self::Success
+        } else {
+            Self::Failure
+        }
+    }
+}
