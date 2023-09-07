@@ -745,7 +745,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(())
     }
 
-    /// Compute the IPT set to publish, and inform the publisher
+    /// Compute the IPT set to publish, and update the data shared with the publisher
     ///
     /// `now` is current time and also the earliest wakeup,
     /// which we are in the process of planning.
@@ -797,7 +797,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .next()
         };
 
-        let publish_set = if self.good_ipts().count() >= self.target_n_intro_points() {
+        *publish_set = if self.good_ipts().count() >= self.target_n_intro_points() {
             // "Certain" - we are sure of which IPTs we want to publish
             Some(self.publish_set(now, IPT_PUBLISH_CERTAIN)?)
         } else if self.good_ipts().next().is_none()
@@ -811,8 +811,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         };
 
         // TODO HSS tell all the being-published IPTs to start accepting introductions
-
-        let _ = publish_set; // TODO HSS send this to the IPT publisher
 
         //---------- store persistent state ----------
 
