@@ -858,6 +858,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 // (this current code is entirely wrong, see #1023)
                 let publish = ipt_set::IptInSet {
                     ipt: publish,
+                    lid: current_ipt.lid,
                     last_descriptor_expiry_including_slop: None,
                 };
 

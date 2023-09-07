@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use void::Void;
 
+use crate::IptLocalId;
+
 /// Set of introduction points to be advertised in a descriptor (if we are to publish)
 ///
 /// If `Some`, the publisher will try to maintain a published descriptor,
@@ -40,6 +42,12 @@ pub(crate) struct IptInSet {
     ///
     /// Set by the manager and read by the publisher.
     pub(crate) ipt: Ipt,
+
+    /// Local identifier for this introduction point
+    ///
+    /// Set and used by the manager, to correlate this data structure with the manager's.
+    /// May also be read by the publisher.
+    pub(crate) lid: IptLocalId,
 
     /// Time until which the manager ought we to try to maintain this ipt,
     /// even after we stop publishing it.
