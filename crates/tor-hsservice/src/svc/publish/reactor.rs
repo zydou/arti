@@ -298,7 +298,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         mockable: M,
         config: OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
-        config_rx: postage::watch::Receiver<OnionServiceConfig>,
+        config_rx: watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, ReactorError> {
         let hsid_key: HsIdKey = hsid
             .try_into()
