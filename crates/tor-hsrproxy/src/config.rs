@@ -15,6 +15,8 @@ pub struct ProxyConfig {
     #[builder(sub_builder, setter(custom))]
     pub(crate) proxy_ports: ProxyRuleList,
 }
+// ^ TODO HSS: Add validation function to make sure that there are no
+// unreachable rules.
 
 define_list_builder_accessors! {
    struct ProxyConfigBuilder {
