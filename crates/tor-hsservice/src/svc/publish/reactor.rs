@@ -437,6 +437,50 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         Ok(())
     }
 
+    /// Handle a batch of upload outcomes, possibly updating the status of the descriptor for the corresponding HSDirs.
+    async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
+        let mut inner = self.inner.lock().await;
+        inner.last_uploaded = Some(SystemTime::now());
+
+        // Check which time period these uploads pertain to.
+        let period = inner
+            .time_periods
+            .iter_mut()
+            .find(|ctx| ctx.period == results.time_period);
+
+        let Some(period) = period else {
+            // The uploads were for a time period that is no longer relevant, so we
+            // can ignore the result.
+            return;
+        };
+
+        for upload_res in results.hsdir_result {
+            let relay = period
+                .hs_dirs
+                .iter_mut()
+                .find(|(relay_ids, _status)| relay_ids == &upload_res.relay_ids);
+
+            let Some((relay, status)) = relay else {
+                // This HSDir went away, so the result doesn't matter.
+                return;
+            };
+
+            if upload_res.upload_res == UploadStatus::Success {
+                let update_last_successful = match period.last_successful {
+                    None => true,
+                    Some(counter) => counter <= results.revision_counter,
+                };
+
+                if update_last_successful {
+                    period.last_successful = Some(results.revision_counter);
+                    *status = DescriptorStatus::Clean;
+                }
+            }
+
+            // TODO HSS: maybe the failed uploads should be rescheduled at some point.
+        }
+    }
+
     /// Maybe update our list of HsDirs.
     async fn handle_consensus_change(&self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
         let _old: Arc<NetDir> = self.replace_netdir(netdir).await;
