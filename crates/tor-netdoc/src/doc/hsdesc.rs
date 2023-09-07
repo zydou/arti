@@ -608,10 +608,7 @@ mod test {
             .check_valid_at(&humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap())
             .unwrap();
 
-        assert_eq!(
-            meta.blinded_id.as_ref(),
-            &TEST_DATA_HS_BLIND_ID
-        );
+        assert_eq!(meta.blinded_id.as_ref(), &TEST_DATA_HS_BLIND_ID);
         assert_eq!(
             Duration::try_from(meta.idx_info.lifetime).unwrap(),
             Duration::from_secs(60 * 180)
