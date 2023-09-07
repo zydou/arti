@@ -273,6 +273,7 @@ impl IptSet {
         )?;
         for ipt in &mut self.ipts {
             ipt.last_descriptor_expiry_including_slop = chain!(
+                //
                 ipt.last_descriptor_expiry_including_slop,
                 [new_value],
             )
