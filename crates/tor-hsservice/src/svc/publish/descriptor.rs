@@ -125,3 +125,11 @@ pub(super) enum DescriptorStatus {
     /// Clean, does not need to be reuploaded.
     Clean,
 }
+
+/// A descriptor and its revision.
+pub(super) struct VersionedDescriptor {
+    /// The serialized descriptor.
+    pub(super) desc: String,
+    /// The revision counter.
+    pub(super) revision_counter: RevisionCounter,
+}
