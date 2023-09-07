@@ -629,7 +629,13 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         // await anything.
         let hsdesc = {
             let mut rng = self.mockable.thread_rng();
-            hsdesc.build_sign(self.hsid_key, blind_id_kp, context.period, revision_counter, &mut rng)?
+            hsdesc.build_sign(
+                self.hsid_key,
+                blind_id_kp,
+                context.period,
+                revision_counter,
+                &mut rng,
+            )?
         };
 
         // TODO HSS: this should be rewritten to upload the descriptor to each HsDir in parallel
@@ -643,21 +649,21 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|(relay_ids, status)| async {
                 let Some(hsdir) = netdir.by_ids(&*relay_ids) else {
-                // This should never happen (all of our relay_ids are from the stored netdir).
-                return Err::<(), ReactorError>(internal!(
-                    "tried to upload descriptor to relay not found in consensus?"
-                )
-                .into());
-            };
+                    // This should never happen (all of our relay_ids are from the stored netdir).
+                    return Err::<(), ReactorError>(
+                        internal!("tried to upload descriptor to relay not found in consensus?")
+                            .into(),
+                    );
+                };
 
-            self.upload_descriptor_with_retries(hsdesc.clone(), netdir, &hsdir)
-                .await?;
+                self.upload_descriptor_with_retries(hsdesc.clone(), netdir, &hsdir)
+                    .await?;
 
-            // We successfully uploaded the descriptor to this HsDir, so we now mark it as clean
-            // for that specific HsDir.
-            *status = DescriptorStatus::Clean;
+                // We successfully uploaded the descriptor to this HsDir, so we now mark it as clean
+                // for that specific HsDir.
+                *status = DescriptorStatus::Clean;
 
-            Ok(())
+                Ok(())
             })
             // This fails to compile unless the stream is boxed. See https://github.com/rust-lang/rust/issues/104382
             .boxed()
@@ -665,9 +671,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             .collect::<Vec<_>>()
             .await;
 
-        let (succeeded, failed): (Vec<_>, Vec<_>) = upload_results
-            .iter()
-            .partition(|res| res.is_ok());
+        let (succeeded, failed): (Vec<_>, Vec<_>) =
+            upload_results.iter().partition(|res| res.is_ok());
 
         trace!(hsid=%self.hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
 
