@@ -40,24 +40,6 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(dead_code, unused_variables)] // TODO hss remove.
+#![allow(dead_code)] // TODO HSS: remove this.
 
-mod anon_level;
 pub mod config;
-mod err;
-mod ipt_mgr;
-mod ipt_set;
-mod keys;
-mod nickname;
-mod req;
-mod status;
-mod svc;
-mod timeout_track;
-
-pub use anon_level::Anonymity;
-pub use config::OnionServiceConfig;
-pub use err::{ClientError, FatalError, StartupError};
-pub use nickname::{HsNickname, InvalidNickname};
-pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
-pub use status::OnionServiceStatus;
-pub use svc::OnionService;

@@ -4923,11 +4923,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-hsrproxy"
+version = "0.1.0"
+dependencies = [
+ "derive_builder_fork_arti",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "thiserror",
+ "tor-config",
+]
+
+[[package]]
 name = "tor-hsservice"
 version = "0.2.4"
 dependencies = [
  "async-broadcast",
  "async-trait",
+ "base64ct",
  "derive-adhoc",
  "derive_builder_fork_arti",
  "derive_more",

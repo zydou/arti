@@ -928,11 +928,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Target number of intro points
     pub(crate) fn target_n_intro_points(&self) -> usize {
-        self.state
-            .config
-            .num_intro_points
-            .unwrap_or(3 /* TODO HSS should be a const */)
-            .into()
+        self.state.config.num_intro_points.into()
     }
 
     /// Maximum number of concurrent intro point relays
