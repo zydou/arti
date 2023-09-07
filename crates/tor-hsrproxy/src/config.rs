@@ -139,6 +139,7 @@ impl ProxyPattern {
         match (start, end) {
             (_, 0) => Err(PCE::ZeroPort),
             (0, n) => Ok(Self(1..=n)),
+            (low, high) if low > high => Err(PCE::EmptyPortRange),
             (low, high) => Ok(Self(low..=high)),
         }
     }
@@ -286,6 +287,7 @@ mod test {
         use ProxyPattern as P;
         assert!(matches!(P::from_str("fred"), Err(PCE::InvalidPort(_))));
         assert!(matches!(P::from_str("100-fred"), Err(PCE::InvalidPort(_))));
+        assert!(matches!(P::from_str("100-42"), Err(PCE::EmptyPortRange)));
     }
 
     #[test]
