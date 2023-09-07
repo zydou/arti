@@ -35,7 +35,7 @@ use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::ipt_set;
+use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::svc::ipt_establish;
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
 use crate::{FatalError, HsNickname, IptLocalId, OnionServiceConfig, RendRequest, StartupError};
@@ -453,10 +453,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Send the IPT manager off to run and establish intro points
     pub(crate) fn launch_background_tasks(
         self,
+        publisher: IptsManagerView,
     ) -> Result<(), StartupError> {
         let runtime = self.imm.runtime.clone();
         runtime
-            .spawn(self.main_loop_task())
+            .spawn(self.main_loop_task(publisher))
             .map_err(|cause| StartupError::Spawn {
                 spawning: "ipt manager",
                 cause: cause.into(),
@@ -719,6 +720,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     fn compute_iptsetstatus_publish(
         &mut self,
         now: &TrackingNow,
+        publish_set: &mut PublishIptSet,
     ) -> Result<(), FatalError> {
         //---------- tell the publisher what to announce ----------
 
@@ -891,14 +893,18 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// or, if there's nothing to be done, wait until there *is* something to do.
     async fn run_once(
         &mut self,
+        // This is a separate argument for borrowck reasons
+        publisher: &mut IptsManagerView,
     ) -> Result<ShutdownStatus, FatalError> {
+        let mut publish_set = publisher.borrow_for_update();
+
         let now = loop {
             if let Some(now) = self.idempotently_progress_things_now()? {
                 break now;
             }
         };
 
-        self.compute_iptsetstatus_publish(&now)?;
+        self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
 
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
@@ -916,10 +922,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// IPT Manager main loop, runs as a task
     ///
     /// Contains the error handling, including catching panics.
-    async fn main_loop_task(mut self) {
+    async fn main_loop_task(mut self, mut publisher: IptsManagerView) {
         loop {
             match async {
-                AssertUnwindSafe(self.run_once())
+                AssertUnwindSafe(self.run_once(&mut publisher))
                     .catch_unwind()
                     .await
                     .map_err(|_: Box<dyn Any + Send>| internal!("IPT manager crashed"))?
