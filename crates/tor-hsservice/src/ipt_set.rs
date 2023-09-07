@@ -76,7 +76,7 @@ pub(crate) struct IptInSet {
     /// If the descriptor has never been published, is `None`.
     ///
     /// This field is updated by the publisher, using
-    /// [`note_publication_attempt_start`](IptSet::note_publication_attempt_start)
+    /// [`note_publication_attempt`](IptSet::note_publication_attempt)
     /// and read by the manager.
     ///
     /// A separate copy of the information is stored by the manager,
@@ -237,7 +237,7 @@ impl IptsPublisherView {
     /// Look at the list of introduction points to publish
     ///
     /// Whenever a a publication attempt is started,
-    /// [`note_publication_attempt_start`](IptSet::note_publication_attempt_start)
+    /// [`note_publication_attempt`](IptSet::note_publication_attempt)
     /// must be called.
     ///
     /// The returned value is a lock guard.
@@ -254,7 +254,7 @@ impl IptSet {
     ///
     /// When calling this, the publisher promises that the publication attempt
     /// will either complete, or be abandoned, before `worst_case_end`.
-    pub(crate) fn note_publication_attempt_start(
+    pub(crate) fn note_publication_attempt(
         &mut self,
         worst_case_end: Instant,
     ) -> Result<(), FatalError> {
