@@ -69,6 +69,9 @@ pub(crate) struct IptInSet {
     /// This field is updated by the publisher, using
     /// [`note_publication_attempt_start`](IptSet::note_publication_attempt_start)
     /// and read by the manager.
+    ///
+    /// A separate copy of the information is stored by the manager,
+    /// in `ipt_mgr::Ipt::last_descriptor_expiry_including_slop`.
     pub(crate) last_descriptor_expiry_including_slop: Option<Instant>,
 }
 

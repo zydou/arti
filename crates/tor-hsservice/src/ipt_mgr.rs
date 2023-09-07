@@ -208,6 +208,19 @@ struct Ipt {
     status_last: TrackedStatus,
 
     /// Until when ought we to try to maintain it
+    ///
+    /// For introduction points we are publishing,
+    /// this is a copy of the value set by the publisher
+    /// in the `IptSet` we share with the publisher,
+    ///
+    /// We must duplicate the information because:
+    ///
+    ///  * We can't have it just live in the shared `IptSet`
+    ///    because we need to retain it for no-longer-being published IPTs.
+    ///
+    ///  * We can't have it just live here because the publisher needs to update it.
+    ///
+    /// (An alternative would be to more seriously entangle the manager and publisher.)
     last_descriptor_expiry_including_slop: Option<Instant>,
 
     /// Is this IPT current - should we include it in descriptors ?
