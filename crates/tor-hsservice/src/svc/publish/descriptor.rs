@@ -56,9 +56,6 @@ pub(super) struct Descriptor {
     intro_auth_key_cert: Ed25519Cert,
     /// The expiration time of an introduction point encryption key certificate.
     intro_enc_key_cert: X25519Cert,
-    /// A revision counter to tell whether this descriptor is more or less recent
-    /// than another one for the same blinded ID.
-    revision_counter: RevisionCounter,
 }
 
 impl Descriptor {
@@ -73,6 +70,7 @@ impl Descriptor {
         hsid: HsIdKey,
         blind_id_kp: &HsBlindIdKeypair,
         period: TimePeriod,
+        revision_counter: RevisionCounter,
         rng: &mut Rng,
     ) -> Result<String, Bug> {
         // TODO HSS: should this be configurable? If so, we should read it from the svc config.
@@ -106,7 +104,7 @@ impl Descriptor {
             .intro_auth_key_cert_expiry(self.intro_auth_key_cert.expiry())
             .intro_enc_key_cert_expiry(self.intro_enc_key_cert.expiry())
             .lifetime(DESC_DEFAULT_LIFETIME.into())
-            .revision_counter(self.revision_counter) // TODO HSS
+            .revision_counter(revision_counter)
             .subcredential(subcredential)
             .auth_clients(&self.auth_clients)
             .build_sign(rng)?)

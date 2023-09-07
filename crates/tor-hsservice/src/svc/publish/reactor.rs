@@ -589,11 +589,18 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             .filter(|(_relay_id, status)| *status == DescriptorStatus::Dirty);
 
         let blind_id_kp = todo!();
+
+        // We're about to generate a new version of the descriptor: increment the revision
+        // counter.
+        //
+        // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
+        // revision counter a timestamp encrypted using an OPE cipher
+        let revision_counter = todo!();
         // This scope exists because rng is not Send, so it needs to fall out of scope before we
         // await anything.
         let hsdesc = {
             let mut rng = self.mockable.thread_rng();
-            hsdesc.build_sign(self.hsid_key, blind_id_kp, context.period, &mut rng)?
+            hsdesc.build_sign(self.hsid_key, blind_id_kp, context.period, revision_counter, &mut rng)?
         };
 
         // TODO HSS: this should be rewritten to upload the descriptor to each HsDir in parallel
