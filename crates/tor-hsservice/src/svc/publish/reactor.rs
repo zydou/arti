@@ -678,7 +678,16 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                     desc: hsdesc.clone(),
                     revision_counter,
                 };
-                if let Err(_e) = self.upload_for_time_period(hsdesc, hs_dirs, &netdir, period.period, upload_task_complete_tx).await {
+                if let Err(_e) = self
+                    .upload_for_time_period(
+                        hsdesc,
+                        hs_dirs,
+                        &netdir,
+                        period.period,
+                        upload_task_complete_tx,
+                    )
+                    .await
+                {
                     // TODO HSS
                 }
             });
@@ -715,7 +724,10 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         time_period: TimePeriod,
         upload_task_complete_tx: async_broadcast::Sender<TimePeriodUploadResult>,
     ) -> Result<(), ReactorError> {
-        let VersionedDescriptor { desc, revision_counter } = &hsdesc;
+        let VersionedDescriptor {
+            desc,
+            revision_counter,
+        } = &hsdesc;
 
         // TODO HSS: this should be rewritten to upload the descriptor to each HsDir in parallel
         // (the uploads are currently sequential).
@@ -730,38 +742,40 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 let netdir = netdir.clone();
 
                 async move {
-                let run_upload = || async {
-                    let Some(hsdir) = netdir.by_ids(&relay_ids) else {
-                        // This should never happen (all of our relay_ids are from the stored netdir).
-                        return Err::<(), ReactorError>(
-                            internal!(
-                                "tried to upload descriptor to relay not found in consensus?"
-                            )
-                            .into(),
-                        );
+                    let run_upload = || async {
+                        let Some(hsdir) = netdir.by_ids(&relay_ids) else {
+                            // This should never happen (all of our relay_ids are from the stored netdir).
+                            return Err::<(), ReactorError>(
+                                internal!(
+                                    "tried to upload descriptor to relay not found in consensus?"
+                                )
+                                .into(),
+                            );
+                        };
+
+                        self.upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir)
+                            .await?;
+
+                        Ok(())
                     };
 
-                    self.upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir)
-                        .await?;
+                    let upload_res = run_upload().await;
 
-                    Ok(())
-                };
-
-                let upload_res = run_upload().await;
-
-                HsDirUploadStatus {
-                    relay_ids,
-                    upload_res: upload_res.into(),
+                    HsDirUploadStatus {
+                        relay_ids,
+                        upload_res: upload_res.into(),
+                    }
                 }
-            }})
+            })
             // This fails to compile unless the stream is boxed. See https://github.com/rust-lang/rust/issues/104382
             .boxed()
             .buffer_unordered(MAX_CONCURRENT_UPLOADS)
             .collect::<Vec<_>>()
             .await;
 
-        let (succeeded, failed): (Vec<_>, Vec<_>) =
-            upload_results.iter().partition(|res| res.upload_res == UploadStatus::Success);
+        let (succeeded, failed): (Vec<_>, Vec<_>) = upload_results
+            .iter()
+            .partition(|res| res.upload_res == UploadStatus::Success);
 
         trace!(hsid=%self.hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
 
