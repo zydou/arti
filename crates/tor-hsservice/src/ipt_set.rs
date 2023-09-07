@@ -9,6 +9,7 @@ use futures::channel::mpsc;
 use futures::StreamExt as _;
 
 use derive_more::{Deref, DerefMut};
+use itertools::chain;
 
 use crate::FatalError;
 use crate::IptLocalId;
@@ -280,5 +281,121 @@ impl IptSet {
             .max();
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use futures::{pin_mut, poll};
+    use std::task::Poll::{self, *};
+    use tor_rtcompat::{BlockOn as _, SleepProvider as _};
+
+    fn test_intro_point() -> Ipt {
+        use tor_netdoc::doc::hsdesc::test_data;
+        test_data::test_parsed_hsdesc().unwrap().intro_points()[0].clone()
+    }
+
+    async fn pv_poll_await_update(
+        pv: &mut IptsPublisherView,
+    ) -> Poll<Option<Result<(), FatalError>>> {
+        let fut = pv.await_update();
+        pin_mut!(fut);
+        poll!(fut)
+    }
+
+    async fn pv_expect_one_await_update(pv: &mut IptsPublisherView) {
+        assert!(matches!(
+            pv_poll_await_update(pv).await,
+            Ready(Some(Ok(())))
+        ));
+        assert!(matches!(pv_poll_await_update(pv).await, Pending));
+    }
+
+    fn pv_note_publication_attempt(pv: &mut IptsPublisherView, worst_case_end: Instant) {
+        pv.borrow_for_publish()
+            .as_mut()
+            .unwrap()
+            .note_publication_attempt(worst_case_end)
+            .unwrap();
+    }
+
+    fn mv_get_0_expiry(mv: &mut IptsManagerView) -> Instant {
+        mv.borrow_for_update().as_ref().unwrap().ipts[0]
+            .last_descriptor_expiry_including_slop
+            .unwrap()
+    }
+
+    #[test]
+    fn test() {
+        // We don't bother with MockRuntime::test_with_various
+        // since this test case doesn't spawn tasks
+        let runtime = tor_rtmock::MockRuntime::new();
+        runtime.clone().block_on(async move {
+            // make a channel; it should have no updates yet
+
+            let (mut mv, mut pv) = ipts_channel(None);
+            assert!(matches!(pv_poll_await_update(&mut pv).await, Pending));
+
+            // borrowing publisher view for publish doesn't cause an update
+
+            let pg = pv.borrow_for_publish();
+            assert!(pg.is_none());
+            drop(pg);
+
+            // borrowing manager view for update *does* cause one update
+
+            let mut mg = mv.borrow_for_update();
+            *mg = Some(IptSet {
+                ipts: vec![],
+                lifetime: Duration::ZERO,
+            });
+            drop(mg);
+
+            pv_expect_one_await_update(&mut pv).await;
+
+            // borrowing manager view for update twice cause one update
+
+            const LIFETIME: Duration = Duration::from_secs(1800);
+            const PUBLISH_END_TIMEOUT: Duration = Duration::from_secs(300);
+
+            mv.borrow_for_update().as_mut().unwrap().lifetime = LIFETIME;
+            mv.borrow_for_update()
+                .as_mut()
+                .unwrap()
+                .ipts
+                .push(IptInSet {
+                    ipt: test_intro_point(),
+                    lid: IptLocalId([42; 32]),
+                    last_descriptor_expiry_including_slop: None,
+                });
+
+            pv_expect_one_await_update(&mut pv).await;
+
+            // test setting lifetime
+
+            pv_note_publication_attempt(&mut pv, runtime.now() + PUBLISH_END_TIMEOUT);
+
+            let expected_expiry =
+                runtime.now() + PUBLISH_END_TIMEOUT + LIFETIME + IPT_PUBLISH_EXPIRY_SLOP;
+            assert_eq!(mv_get_0_expiry(&mut mv), expected_expiry);
+
+            // setting an *earlier* lifetime is ignored
+
+            pv_note_publication_attempt(&mut pv, runtime.now() - Duration::from_secs(10));
+            assert_eq!(mv_get_0_expiry(&mut mv), expected_expiry);
+        });
     }
 }
