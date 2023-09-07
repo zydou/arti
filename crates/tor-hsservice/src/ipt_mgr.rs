@@ -205,7 +205,7 @@ struct Ipt {
     status_last: TrackedStatus,
 
     /// Until when ought we to try to maintain it
-    last_descriptor_expiry_including_slop: Instant,
+    last_descriptor_expiry_including_slop: Option<Instant>,
 
     /// Is this IPT current - should we include it in descriptors ?
     ///
@@ -377,7 +377,7 @@ impl IptRelay {
             k_hss_ntor,
             k_sid,
             status_last,
-            last_descriptor_expiry_including_slop: imm.runtime.now(), // this'll do
+            last_descriptor_expiry_including_slop: None,
             is_current: Some(IsCurrent),
         };
 
@@ -644,7 +644,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             // When we drop the Ipt we drop the IptEstablisher, withdrawing the intro point
             ir.ipts.retain(|ipt| {
-                ipt.is_current.is_some() || now < ipt.last_descriptor_expiry_including_slop
+                ipt.is_current.is_some() || match ipt.last_descriptor_expiry_including_slop {
+                    None => false,
+                    Some(last) => now < last,
+                }
             });
             // No need to return CONTINUE, since there is no other future work implied
             // by discarding a non-current IPT.
@@ -852,7 +855,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
                 let publish = current_ipt.for_publish(details)?;
                 // TODO HSS wrong descriptor (ipt) expiry time calculation, see arti#1023
-                current_ipt.last_descriptor_expiry_including_slop = new_last_expiry;
+                current_ipt.last_descriptor_expiry_including_slop = Some(new_last_expiry);
 
                 // TODO HSS merge last_descriptor_expiry_including_slop from borrowed ipt set
                 // (this current code is entirely wrong, see #1023)
