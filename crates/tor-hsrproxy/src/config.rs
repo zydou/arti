@@ -172,6 +172,9 @@ pub enum ProxyTarget {
     // these as flags to ProxyTarget, or some other thing?
     //
     // And does the Udp vs Tcp distinction belong here or in ProxyPattern?
+    //
+    // See thread at
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1557#note_2938349
 }
 
 impl FromStr for ProxyTarget {
