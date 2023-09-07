@@ -569,6 +569,13 @@ pub mod test_data {
     // SDZNMD4RP4SCH4EYTTUZPFRZINNFWAOPPKZ6BINZAC7LREV24RBQ (base32)
     pub const TEST_SECKEY_2: [u8; 32] =
         hex!("90F2D60F917F2423F0989CE9979639435A5B01CF7AB3E0A1B900BEB892BAE443");
+
+    /// K_hs_blind_id that can be used to parse [`TEST_DATA`]
+    ///
+    /// `pub(crate)` mostly because it's difficult to describe what TP it's for.
+    #[cfg(test)]
+    pub(crate) const TEST_DATA_HS_BLIND_ID: [u8; 32] =
+        hex!("43cc0d62fc6252f578705ca645a46109e265290343b1137e90189744b20b3f2d");
 }
 
 #[cfg(test)]
@@ -603,7 +610,7 @@ mod test {
 
         assert_eq!(
             meta.blinded_id.as_ref(),
-            &hex!("43cc0d62fc6252f578705ca645a46109e265290343b1137e90189744b20b3f2d")
+            &TEST_DATA_HS_BLIND_ID
         );
         assert_eq!(
             Duration::try_from(meta.idx_info.lifetime).unwrap(),
@@ -623,8 +630,7 @@ mod test {
         let wrong_blinded_id = [12; 32].into();
         let desc = HsDesc::parse(TEST_DATA, &wrong_blinded_id);
         assert!(desc.is_err());
-        let blinded_id =
-            hex!("43cc0d62fc6252f578705ca645a46109e265290343b1137e90189744b20b3f2d").into();
+        let blinded_id = TEST_DATA_HS_BLIND_ID.into();
         let desc = HsDesc::parse(TEST_DATA, &blinded_id)?
             .check_signature()?
             .check_valid_at(&humantime::parse_rfc3339("2023-01-23T15:00:00Z").unwrap())
