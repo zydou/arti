@@ -727,6 +727,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .iter_mut()
             .flat_map(|ir| ir.ipts.iter_mut());
 
+        // TODO HSS: Break this out into a separately-tested iterator combinator
+        // (itertools doesn't seem to have the right thing;
+        // merge_join_by could be abused but isn't quite right.)
+
         for theirs in &publish_set.ipts {
             // Look through our ipts until we find one that matches theirs.
             // There may be ipts in ours but not in theirs, but not vice versa.
