@@ -644,10 +644,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             // When we drop the Ipt we drop the IptEstablisher, withdrawing the intro point
             ir.ipts.retain(|ipt| {
-                ipt.is_current.is_some() || match ipt.last_descriptor_expiry_including_slop {
-                    None => false,
-                    Some(last) => now < last,
-                }
+                ipt.is_current.is_some()
+                    || match ipt.last_descriptor_expiry_including_slop {
+                        None => false,
+                        Some(last) => now < last,
+                    }
             });
             // No need to return CONTINUE, since there is no other future work implied
             // by discarding a non-current IPT.
