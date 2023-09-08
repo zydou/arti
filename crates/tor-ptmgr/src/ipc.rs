@@ -510,6 +510,45 @@ pub(crate) mod sealed {
         /// Return a loggable identifier for this transport.
         fn identifier(&self) -> &str;
 
+        /// Checks whether a transport is specified in our specific parameters
+        fn specific_params_contains(&self, transport: &PtTransportName) -> bool;
+
+        /// Common handler for `ClientTransportLaunched` and `ServerTransportLaunched`
+        fn common_transport_launched_handler(
+            &self,
+            protocol: Option<String>,
+            transport: PtTransportName,
+            endpoint: SocketAddr,
+            methods: &mut HashMap<PtTransportName, PtClientMethod>,
+        ) -> Result<(), PtError> {
+            if !self.specific_params_contains(&transport) {
+                return Err(PtError::ProtocolViolation(format!(
+                    "binary launched unwanted transport '{}'",
+                    transport
+                )));
+            }
+            let protocol = match protocol {
+                Some(protocol_str) => match &protocol_str as &str {
+                    "socks4" => SocksVersion::V4,
+                    "socks5" => SocksVersion::V5,
+                    x => {
+                        return Err(PtError::ProtocolViolation(format!(
+                            "unknown CMETHOD protocol '{}'",
+                            x
+                        )))
+                    }
+                },
+                None => SocksVersion::V5,
+            };
+            let method = PtClientMethod {
+                kind: protocol,
+                endpoint,
+            };
+            info!("Transport '{}' uses method {:?}", transport, method);
+            methods.insert(transport, method);
+            Ok(())
+        }
+
         /// Attempt to launch the PT and return the corresponding `[AsyncPtChild]`
         fn get_child_from_pt_launch(
             inner: &Option<AsyncPtChild>,
@@ -554,9 +593,11 @@ pub(crate) mod sealed {
         /// was found and the appropriate action was successfully taken, and you don't
         /// need to worry about it.
         async fn try_match_common_messages<R: Runtime>(
+            &self,
             rt: &R,
             deadline: Instant,
             async_child: &mut AsyncPtChild,
+            methods: &mut HashMap<PtTransportName, PtClientMethod>,
         ) -> Result<Option<PtMessage>, PtError> {
             match rt
                 .timeout(
@@ -577,6 +618,27 @@ pub(crate) mod sealed {
                         transport: transport.to_string(),
                         message,
                     });
+                }
+                PtMessage::ClientTransportLaunched {
+                    transport,
+                    protocol,
+                    endpoint,
+                } => {
+                    self.common_transport_launched_handler(
+                        Some(protocol),
+                        transport,
+                        endpoint,
+                        methods,
+                    )?;
+                    Ok(None)
+                }
+                PtMessage::ServerTransportLaunched {
+                    transport,
+                    endpoint,
+                    options: _,
+                } => {
+                    self.common_transport_launched_handler(None, transport, endpoint, methods)?;
+                    Ok(None)
                 }
                 PtMessage::VersionError(e) => {
                     if e != "no-version" {
@@ -853,6 +915,9 @@ impl PluggableTransportPrivate for PluggableClientTransport {
             None => "<not yet launched>",
         }
     }
+    fn specific_params_contains(&self, transport: &PtTransportName) -> bool {
+        self.client_params.transports.contains(transport)
+    }
 }
 
 impl PluggableClientTransport {
@@ -899,75 +964,51 @@ impl PluggableClientTransport {
         let mut proxy_done = self.client_params.proxy_uri.is_none();
 
         loop {
-            match <PluggableClientTransport as PluggableTransportPrivate>::try_match_common_messages(&rt, deadline, &mut async_child).await {
-                Ok(maybe_message) => if let Some(message) = maybe_message {
-                    match message {
-                        PtMessage::ProxyDone => {
-                            if proxy_done {
-                                return Err(PtError::ProtocolViolation(
-                                    "binary initiated proxy when not asked (or twice)".into(),
-                                ));
+            match self
+                .try_match_common_messages(&rt, deadline, &mut async_child, &mut cmethods)
+                .await
+            {
+                Ok(maybe_message) => {
+                    if let Some(message) = maybe_message {
+                        match message {
+                            PtMessage::ProxyDone => {
+                                if proxy_done {
+                                    return Err(PtError::ProtocolViolation(
+                                        "binary initiated proxy when not asked (or twice)".into(),
+                                    ));
+                                }
+                                info!("PT binary now proxying connections via supplied URI");
+                                proxy_done = true;
                             }
-                            info!("PT binary now proxying connections via supplied URI");
-                            proxy_done = true;
-                        }
-                        // TODO HSS: unify most of the handling of ClientTransportLaunched with ServerTransportLaunched
-                        // TODO HSS: unify most of the handling of ClientTransportsDone with ServerTransportsDone
-                        PtMessage::ClientTransportLaunched {
-                            transport,
-                            protocol,
-                            endpoint,
-                        } => {
-                            if !self.client_params.transports.contains(&transport) {
+                            // TODO HSS: unify most of the handling of ClientTransportsDone with ServerTransportsDone
+                            PtMessage::ClientTransportsDone => {
+                                let unsupported = self
+                                    .client_params
+                                    .transports
+                                    .iter()
+                                    .filter(|&x| !cmethods.contains_key(x))
+                                    .map(|x| x.to_string())
+                                    .collect::<Vec<_>>();
+                                if !unsupported.is_empty() {
+                                    warn!(
+                                        "PT binary failed to initialise transports: {:?}",
+                                        unsupported
+                                    );
+                                    return Err(PtError::ClientTransportsUnsupported(unsupported));
+                                }
+                                info!("PT binary initialisation done");
+                                break;
+                            }
+                            x => {
                                 return Err(PtError::ProtocolViolation(format!(
-                                    "binary launched unwanted transport '{}'",
-                                    transport
+                                    "received unexpected {:?}",
+                                    x
                                 )));
                             }
-                            let protocol = match &protocol as &str {
-                                "socks4" => SocksVersion::V4,
-                                "socks5" => SocksVersion::V5,
-                                x => {
-                                    return Err(PtError::ProtocolViolation(format!(
-                                        "unknown CMETHOD protocol '{}'",
-                                        x
-                                    )))
-                                }
-                            };
-                            let method = PtClientMethod {
-                                kind: protocol,
-                                endpoint,
-                            };
-                            info!("Transport '{}' uses method {:?}", transport, method);
-                            cmethods.insert(transport, method);
-                        }
-                        PtMessage::ClientTransportsDone => {
-                            let unsupported = self
-                                .client_params
-                                .transports
-                                .iter()
-                                .filter(|&x| !cmethods.contains_key(x))
-                                .map(|x| x.to_string())
-                                .collect::<Vec<_>>();
-                            if !unsupported.is_empty() {
-                                warn!(
-                                    "PT binary failed to initialise transports: {:?}",
-                                    unsupported
-                                );
-                                return Err(PtError::ClientTransportsUnsupported(unsupported));
-                            }
-                            info!("PT binary initialisation done");
-                            break;
-                        }
-                        x => {
-                            return Err(PtError::ProtocolViolation(format!(
-                                "received unexpected {:?}",
-                                x
-                            )));
                         }
                     }
                 }
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         self.cmethods = cmethods;
@@ -1009,6 +1050,9 @@ impl PluggableTransportPrivate for PluggableServerTransport {
             Some(child) => &child.identifier,
             None => "<not yet launched>",
         }
+    }
+    fn specific_params_contains(&self, transport: &PtTransportName) -> bool {
+        self.server_params.transports.contains(transport)
     }
 }
 
@@ -1061,56 +1105,41 @@ impl PluggableServerTransport {
         let mut smethods = HashMap::new();
 
         loop {
-            match <PluggableServerTransport as PluggableTransportPrivate>::try_match_common_messages(&rt, deadline, &mut async_child).await {
-                Ok(maybe_message) => if let Some(message) = maybe_message {
-                    match message {
-
-                        PtMessage::ServerTransportLaunched {
-                            transport,
-                            endpoint,
-                            options: _options,
-                        } => {
-                            if !self.server_params.transports.contains(&transport) {
+            match self
+                .try_match_common_messages(&rt, deadline, &mut async_child, &mut smethods)
+                .await
+            {
+                Ok(maybe_message) => {
+                    if let Some(message) = maybe_message {
+                        match message {
+                            PtMessage::ServerTransportsDone => {
+                                let unsupported = self
+                                    .server_params
+                                    .transports
+                                    .iter()
+                                    .filter(|&x| !smethods.contains_key(x))
+                                    .map(|x| x.to_string())
+                                    .collect::<Vec<_>>();
+                                if !unsupported.is_empty() {
+                                    warn!(
+                                        "PT binary failed to initialise transports: {:?}",
+                                        unsupported
+                                    );
+                                    return Err(PtError::ClientTransportsUnsupported(unsupported));
+                                }
+                                info!("PT binary initialisation done");
+                                break;
+                            }
+                            x => {
                                 return Err(PtError::ProtocolViolation(format!(
-                                    "binary launched unwanted transport '{}'",
-                                    transport
+                                    "received unexpected {:?}",
+                                    x
                                 )));
                             }
-                            let protocol = SocksVersion::V5;
-                            let method = PtClientMethod {
-                                kind: protocol,
-                                endpoint,
-                            };
-                            info!("Transport '{}' uses method {:?}", transport, method);
-                            smethods.insert(transport, method);
-                        }
-                        PtMessage::ServerTransportsDone => {
-                            let unsupported = self
-                                .server_params
-                                .transports
-                                .iter()
-                                .filter(|&x| !smethods.contains_key(x))
-                                .map(|x| x.to_string())
-                                .collect::<Vec<_>>();
-                            if !unsupported.is_empty() {
-                                warn!(
-                                    "PT binary failed to initialise transports: {:?}",
-                                    unsupported
-                                );
-                                return Err(PtError::ClientTransportsUnsupported(unsupported));
-                            }
-                            info!("PT binary initialisation done");
-                            break;
-                        }
-                        x => {
-                            return Err(PtError::ProtocolViolation(format!(
-                                "received unexpected {:?}",
-                                x
-                            )));
                         }
                     }
                 }
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         self.smethods = smethods;
