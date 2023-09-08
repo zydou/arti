@@ -2,6 +2,7 @@
 
 #![allow(clippy::needless_pass_by_value)] // TODO HSS REMOVE.
 
+mod backoff;
 mod descriptor;
 mod err;
 mod reactor;
