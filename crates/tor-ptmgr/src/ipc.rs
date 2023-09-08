@@ -567,6 +567,17 @@ pub(crate) mod sealed {
                 .await
                 .map_err(|_| PtError::Timeout)??
             {
+                PtMessage::ClientTransportFailed { transport, message }
+                | PtMessage::ServerTransportFailed { transport, message } => {
+                    warn!(
+                        "PT {} unable to launch {}. It said: {:?}",
+                        async_child.identifier, transport, message
+                    );
+                    return Err(PtError::ClientTransportGaveError {
+                        transport: transport.to_string(),
+                        message,
+                    });
+                }
                 PtMessage::VersionError(e) => {
                     if e != "no-version" {
                         warn!("weird VERSION-ERROR: {}", e);
@@ -901,7 +912,6 @@ impl PluggableClientTransport {
                             proxy_done = true;
                         }
                         // TODO HSS: unify most of the handling of ClientTransportLaunched with ServerTransportLaunched
-                        // TODO HSS: unify most of the handling of ClientTransportFailed with ServerTransportFailed
                         // TODO HSS: unify most of the handling of ClientTransportsDone with ServerTransportsDone
                         PtMessage::ClientTransportLaunched {
                             transport,
@@ -930,16 +940,6 @@ impl PluggableClientTransport {
                             };
                             info!("Transport '{}' uses method {:?}", transport, method);
                             cmethods.insert(transport, method);
-                        }
-                        PtMessage::ClientTransportFailed { transport, message } => {
-                            warn!(
-                                "PT {} unable to launch {}. It said: {:?}",
-                                async_child.identifier, transport, message
-                            );
-                            return Err(PtError::ClientTransportGaveError {
-                                transport: transport.to_string(),
-                                message,
-                            });
                         }
                         PtMessage::ClientTransportsDone => {
                             let unsupported = self
@@ -1083,17 +1083,6 @@ impl PluggableServerTransport {
                             };
                             info!("Transport '{}' uses method {:?}", transport, method);
                             smethods.insert(transport, method);
-                        }
-
-                        PtMessage::ServerTransportFailed { transport, message } => {
-                            warn!(
-                                "PT {} unable to launch {}. It said: {:?}",
-                                async_child.identifier, transport, message
-                            );
-                            return Err(PtError::ClientTransportGaveError {
-                                transport: transport.to_string(),
-                                message,
-                            });
                         }
                         PtMessage::ServerTransportsDone => {
                             let unsupported = self
