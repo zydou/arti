@@ -823,7 +823,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     async fn upload_descriptor(
         &self,
         hsdesc: String,
-        netdir: Arc<NetDir>,
+        netdir: &Arc<NetDir>,
         hsdir: &Relay<'_>,
     ) -> Result<(), ReactorError> {
         let request = HsDescUploadRequest::new(hsdesc);
@@ -836,7 +836,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let circuit = self
             .mockable
             .get_or_launch_specific(
-                &netdir,
+                netdir,
                 HsCircKind::SvcHsDir,
                 OwnedCircTarget::from_circ_target(hsdir),
             )
