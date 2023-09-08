@@ -14,7 +14,7 @@ use futures::task::SpawnExt;
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
 use postage::watch;
 use tor_hscrypto::RevisionCounter;
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
@@ -774,16 +774,34 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                             );
                         };
 
-                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir).await?;
-
-                        Ok(())
+                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir)
+                            .await
                     };
 
-                    let upload_res = run_upload().await;
+                    let upload_res = match run_upload().await {
+                        Ok(()) => UploadStatus::Success,
+                        Err(e) => {
+                            let ed_id = relay_ids
+                                .rsa_identity()
+                                .map(|id| id.to_string())
+                                .unwrap_or_else(|| "unknown".into());
+                            let rsa_id = relay_ids
+                                .rsa_identity()
+                                .map(|id| id.to_string())
+                                .unwrap_or_else(|| "unknown".into());
+
+                            error!(
+                                hsid=%hsid, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                "failed to upload descriptor: {e}"
+                            );
+
+                            UploadStatus::Failure
+                        }
+                    };
 
                     HsDirUploadStatus {
                         relay_ids,
-                        upload_res: upload_res.into(),
+                        upload_res,
                     }
                 }
             })
