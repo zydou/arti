@@ -28,11 +28,11 @@ done
 
 for cratename in "$@"; do
     C=crates/"$cratename"/Cargo.toml
-    "$CARGO" set-version --bump patch -p "$cratename"
+    $CARGO set-version --bump patch -p "$cratename"
     echo "Staging $C"
     "$GIT" add "$C"
     echo "Discarding other changes."
-    "$GIT" restore .
+    "$GIT" checkout .
 done
 
 "$GIT" status
