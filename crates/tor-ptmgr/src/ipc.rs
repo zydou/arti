@@ -1146,6 +1146,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::ipc::{PtMessage, PtStatus};
+    use std::borrow::Cow;
     use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -1231,6 +1232,47 @@ mod test {
                 message: "Connected to bridge A".to_string()
             })
         );
+        assert_eq!(
+            "LOG SEVERITY=debug MESSAGE=\"\\r\\n\\t\"".parse(),
+            Ok(PtMessage::Log {
+                severity: "debug".to_string(),
+                message: "\r\n\t".to_string()
+            })
+        );
+        assert_eq!(
+            "LOG SEVERITY=debug MESSAGE=".parse(),
+            Ok(PtMessage::Log {
+                severity: "debug".to_string(),
+                message: "".to_string()
+            })
+        );
+
+        for i in 0..9 {
+            let msg = format!("LOG SEVERITY=debug MESSAGE=\"\\{i}\"");
+            assert_eq!(
+                msg.parse::<PtMessage>(),
+                Err(Cow::from("attempted unsupported octal escape code"))
+            );
+        }
+        assert_eq!(
+            "SMETHOD obfs4 198.51.100.1:43734 ARGS:iat-mode=0\\".parse::<PtMessage>(),
+            Err(Cow::from(
+                "failed to parse SMETHOD ARGS: smethod arg terminates with backslash"
+            ))
+        );
+        assert_eq!(
+            "SMETHOD obfs4 198.51.100.1:43734 ARGS:iat-mode=fo=o".parse::<PtMessage>(),
+            Err(Cow::from(
+                "failed to parse SMETHOD ARGS: encountered = while parsing value"
+            ))
+        );
+        assert_eq!(
+            "SMETHOD obfs4 198.51.100.1:43734 ARGS:iat-mode".parse::<PtMessage>(),
+            Err(Cow::from(
+                "failed to parse SMETHOD ARGS: ran out of chars parsing smethod arg"
+            ))
+        );
+
         let mut map = HashMap::new();
         map.insert("ADDRESS".to_string(), "198.51.100.123:1234".to_string());
         map.insert("CONNECT".to_string(), "Success".to_string());
