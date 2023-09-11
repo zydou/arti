@@ -1104,7 +1104,8 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 ///
 /// If the Requirements are violated, returns `Bug`.
 ///
-/// The algorithm has complexity `O(N_bigger)`.
+/// The algorithm has complexity `O(N_bigger)`
+/// and working set `O(1)`.
 fn merge_join_subset_by<K, BI, SI>(
     bigger: impl IntoIterator<Item = BI>,
     bigger_keyf: impl Fn(&BI) -> K,
