@@ -1103,9 +1103,9 @@ fn merge_join_subset_by<'out, K, BI, SI>(
     smaller_keyf: impl Fn(&SI) -> K + 'out,
 ) -> impl Iterator<Item = (K, BI, SI)> + 'out
 where
-    K: Eq + Hash + Clone + Debug + 'out,
-    BI: Debug + 'out,
-    SI: Debug + 'out,
+    K: Eq + Hash + Clone + 'out,
+    BI: 'out,
+    SI: 'out,
 {
     let mut smaller: HashMap<K, SI> = smaller
         .into_iter()
