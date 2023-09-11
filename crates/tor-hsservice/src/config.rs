@@ -4,6 +4,7 @@
 
 use base64ct::{Base64Unpadded, Encoding as _};
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tor_config::ConfigBuildError;
 use tor_hscrypto::pk::HsClientDescEncKey;
@@ -14,6 +15,7 @@ use crate::HsNickname;
 /// Configuration for one onion service.
 #[derive(Debug, Clone, Builder)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
+#[builder(derive(Serialize, Deserialize))]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc,
     //
@@ -42,15 +44,18 @@ pub struct OnionServiceConfig {
     /// Configure proof-of-work defense against DoS attacks.
     #[builder(sub_builder)]
     pub(crate) pow: PowConfig,
-
-    /// Configure descriptor-based client authorization.
-    ///
-    /// When this is enabled, we encrypt our list of introduction point and keys
-    /// so that only clients holding one of the listed keys can decrypt it.
+    // /// Configure descriptor-based client authorization.
+    // ///
+    // /// When this is enabled, we encrypt our list of introduction point and keys
+    // /// so that only clients holding one of the listed keys can decrypt it.
     //
     // TODO HSS: we'd like this to be an Option, but that doesn't work well with
     // sub_builder.  We need to figure out what to do there.
-    pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
+    //
+    // TODO HSS: Temporarily disabled while we figure out how we want it to work;
+    // see #1028
+    //
+    // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
     //
     // TODO HSS: Do we want a "descriptor_lifetime" setting? C tor doesn't have
     // one.
@@ -78,6 +83,7 @@ impl OnionServiceConfigBuilder {
 /// Configuration for maximum rates and concurrency.
 #[derive(Debug, Clone, Builder)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Serialize, Deserialize))]
 pub struct LimitConfig {
     /// A rate-limit on the acceptable rate of introduction requests.
     ///
@@ -94,6 +100,7 @@ pub struct LimitConfig {
 /// Configuration for proof-of-work defense against DoS attacks.
 #[derive(Debug, Clone, Builder)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Serialize, Deserialize))]
 pub struct PowConfig {
     /// If true, we will require proof-of-work when we're under heavy load.
     enable_pow: bool,
@@ -116,7 +123,7 @@ pub struct PowConfig {
 //
 // TODO: Do we want to parameterize this, or make it always u32?  Do we want to
 // specify "per second"?
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenBucketConfig {
     /// The maximum number of items to process per second.
     rate: u32,
@@ -136,7 +143,8 @@ impl TokenBucketConfig {
 }
 
 /// Configuration for descriptor encryption.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Builder, PartialEq)]
+#[builder(derive(Serialize, Deserialize))]
 pub struct DescEncryptionConfig {
     /// A list of our authorized clients.
     ///
@@ -150,7 +158,7 @@ pub struct DescEncryptionConfig {
 }
 
 /// A single client (or a collection of clients) authorized using the descriptor encryption mechanism.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde_with::DeserializeFromStr, serde_with::SerializeDisplay)]
 #[non_exhaustive]
 pub enum AuthorizedClientConfig {
     /// A directory full of authorized public keys.

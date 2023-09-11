@@ -4959,6 +4959,7 @@ dependencies = [
  "safelog",
  "serde",
  "serde_json",
+ "serde_with",
  "thiserror",
  "tor-async-utils",
  "tor-basic-utils",
