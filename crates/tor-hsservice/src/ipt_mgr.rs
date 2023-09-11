@@ -13,8 +13,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use futures::channel::{mpsc, oneshot};
-use futures::{future, select_biased};
 use futures::task::SpawnExt as _;
+use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
