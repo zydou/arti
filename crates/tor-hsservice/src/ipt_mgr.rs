@@ -4,8 +4,9 @@
 //! Provides a stream of rendezvous requests.
 
 use std::any::Any;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::panic::AssertUnwindSafe;
@@ -1087,25 +1088,14 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 /// The key `K`, which can be extracted from each element of either iterator,
 /// is `PartialEq` and says whether a `BI` is "the same as" an `SI`.
 ///
-/// ### Requirements
-///
-/// `bigger` must be a superset of `smaller` (when considering the keys),
-/// and in the same order.
-/// Or to put it another way, the list of `K`s from `smaller` must be
-/// a possible result of simply *filtering* the list of `K`s from `bigger`.
-///
-/// `K`s must be unique.
-/// (Strictly, neither iterator may yield successive elements with the same key.)
-///
-/// ### Results
-///
 /// `call` is called for each `K` which appears in both lists, in that same order.
 /// Nothing is done about elements which are only in `bigger`.
 ///
-/// If the Requirements are violated, returns `Bug`.
+/// (The behaviour with duplicate entries is unspecified.)
 ///
-/// The algorithm has complexity `O(N_bigger)`
-/// and working set `O(1)`.
+/// The algorithm has complexity `O(N_bigger)`,
+/// and also a working set of `O(N_bigger)`.
+#[allow(clippy::unnecessary_wraps)] // XXXX
 fn merge_join_subset_by<K, BI, SI>(
     bigger: impl IntoIterator<Item = BI>,
     bigger_keyf: impl Fn(&BI) -> K,
@@ -1114,71 +1104,24 @@ fn merge_join_subset_by<K, BI, SI>(
     mut call: impl FnMut(K, BI, SI),
 ) -> Result<(), Bug>
 where
-    K: PartialEq + Clone + Debug,
+    K: Eq + Hash + Clone + Debug,
     BI: Debug,
     SI: Debug,
 {
-    /// Wrapper for one of the sets of inputs
-    ///
-    /// For extracting keys and checking uniqueness
-    struct Input<K, IT, KF> {
-        /// Previous key (for uniqueness check)
-        last: Option<K>,
-        /// Input iterator
-        it: IT,
-        /// Input key extractor
-        keyf: KF,
-    }
-    impl<K, I, IT, KF> Input<K, IT, KF>
-    where
-        K: PartialEq + Clone + Debug,
-        I: Debug,
-        IT: Iterator<Item = I>,
-        KF: Fn(&I) -> K,
-    {
-        /// Make a new `Input` from a pair of our arguments
-        fn new(it: impl IntoIterator<IntoIter = IT>, keyf: KF) -> Self {
-            Input {
-                last: None,
-                it: it.into_iter(),
-                keyf,
-            }
-        }
+    let mut smaller: HashMap<K, SI> = smaller
+        .into_iter()
+        .map(|si| (smaller_keyf(&si), si))
+        .collect();
 
-        /// Get the next item and key, but return an error if two identical items found
-        fn next(&mut self) -> Result<Option<(I, K)>, Bug> {
-            let Some(i) = self.it.next() else {
-                return Ok(None);
-            };
-            let k = (self.keyf)(&i);
-            if self.last.as_ref() == Some(&k) {
-                return Err(internal!("duplicate key {:?} in {:?}", k, i));
-            }
-            self.last = Some(k.clone());
-            Ok(Some((i, k)))
-        }
-    }
+    let output = bigger.into_iter().filter_map(move |bi| {
+        let k = bigger_keyf(&bi);
+        let si = smaller.remove(&k)?;
+        Some((k, bi, si))
+    });
 
-    let mut bigger = Input::new(bigger, bigger_keyf);
-    let mut smaller = Input::new(smaller, smaller_keyf);
-    while let Some((si, sk)) = smaller.next()? {
-        let bi = loop {
-            let (bi, bk) = bigger.next()?.ok_or_else(|| {
-                internal!(
-                    "key {:?} is in 'smaller' item {:?} but not 'bigger'",
-                    sk,
-                    si,
-                )
-            })?;
-            if bk == sk {
-                break bi;
-            }
-        };
-        call(sk, bi, si);
+    for (k, bi, si) in output {
+        call(k, bi, si);
     }
-
-    // Drain bigger to detect any remaining dupes
-    while let Some((_, _)) = bigger.next()? {}
 
     Ok(())
 }
