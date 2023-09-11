@@ -14,6 +14,7 @@ use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
 use postage::watch;
 use retry_error::RetryError;
+use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
 use tracing::{debug, error, trace};
 
@@ -33,6 +34,7 @@ use tor_rtcompat::Runtime;
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
+use crate::svc::publish::backoff::{BackoffSchedule, RetriableError};
 use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, VersionedDescriptor};
 
 /// The upload rate-limiting threshold.
@@ -920,6 +922,39 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         _hsdir: &Relay<'_>,
     ) -> Result<(), ReactorError> {
         todo!();
+    }
+}
+
+/// The backoff schedule for the task that publishes descriptors.
+#[derive(Clone, Debug)]
+struct PublisherBackoffSchedule<M: Mockable> {
+    /// The delays
+    retry_delay: RetryDelay,
+    /// The mockable reactor state, needed for obtaining an rng.
+    mockable: M,
+}
+
+impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
+    fn max_retries(&self) -> Option<usize> {
+        None
+    }
+
+    fn timeout(&self) -> Option<Duration> {
+        // TODO HSS: pick a less arbitrary timeout
+        Some(Duration::from_secs(30))
+    }
+
+    fn next_delay<E: RetriableError>(&mut self, _error: &E) -> Option<Duration> {
+        Some(self.retry_delay.next_delay(&mut self.mockable.thread_rng()))
+    }
+}
+
+impl RetriableError for UploadError {
+    fn should_retry(&self) -> bool {
+        match self {
+            UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
+            UploadError::Bug(_) | UploadError::Spawn { .. } => false,
+        }
     }
 }
 
