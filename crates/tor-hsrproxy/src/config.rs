@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, ops::RangeInclusive, path::PathBuf, str::FromStr};
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 
-/// Configuration for a reverse proxy running for a single onion service.
+/// Configuration for a reverse proxy running for one onion service.
 #[derive(Clone, Debug, Builder)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
