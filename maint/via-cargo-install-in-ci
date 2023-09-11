@@ -11,6 +11,6 @@ for cmd in "$@"; do
 
     if cp "$cache" "$CARGO_HOME"/bin/; then continue; fi
 
-    cargo install "$cmd"
+    cargo install --locked "$cmd"
     cp -v "$CARGO_HOME/bin/$cmd" "$cache"
 done
