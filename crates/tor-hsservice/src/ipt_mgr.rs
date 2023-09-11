@@ -1096,17 +1096,17 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 /// The algorithm has complexity `O(N_bigger)`,
 /// and also a working set of `O(N_bigger)`.
 #[allow(clippy::unnecessary_wraps)] // XXXX
-fn merge_join_subset_by<K, BI, SI>(
-    bigger: impl IntoIterator<Item = BI>,
-    bigger_keyf: impl Fn(&BI) -> K,
-    smaller: impl IntoIterator<Item = SI>,
-    smaller_keyf: impl Fn(&SI) -> K,
+fn merge_join_subset_by<'out, K, BI, SI>(
+    bigger: impl IntoIterator<Item = BI> + 'out,
+    bigger_keyf: impl Fn(&BI) -> K + 'out,
+    smaller: impl IntoIterator<Item = SI> + 'out,
+    smaller_keyf: impl Fn(&SI) -> K + 'out,
     mut call: impl FnMut(K, BI, SI),
 ) -> Result<(), Bug>
 where
-    K: Eq + Hash + Clone + Debug,
-    BI: Debug,
-    SI: Debug,
+    K: Eq + Hash + Clone + Debug + 'out,
+    BI: Debug + 'out,
+    SI: Debug + 'out,
 {
     let mut smaller: HashMap<K, SI> = smaller
         .into_iter()
