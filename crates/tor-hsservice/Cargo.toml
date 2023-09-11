@@ -21,7 +21,21 @@ full = [
     "tor-llcrypto/full",
     "tor-netdir/full",
     "tor-proto/full",
-    "tor-rtcompat/full", "retry-error/full", "safelog/full", "tor-async-utils/full", "tor-basic-utils/full", "tor-bytes/full", "tor-cell/full", "tor-cert/full", "tor-config/full", "tor-dirclient/full", "tor-error/full", "tor-keymgr/full", "tor-linkspec/full", "tor-netdoc/full", "tor-units/full",
+    "tor-rtcompat/full",
+    "retry-error/full",
+    "safelog/full",
+    "tor-async-utils/full",
+    "tor-basic-utils/full",
+    "tor-bytes/full",
+    "tor-cell/full",
+    "tor-cert/full",
+    "tor-config/full",
+    "tor-dirclient/full",
+    "tor-error/full",
+    "tor-keymgr/full",
+    "tor-linkspec/full",
+    "tor-netdoc/full",
+    "tor-units/full",
 ]
 
 [dependencies]
@@ -40,6 +54,7 @@ rand_core = "0.6.2"
 retry-error = { version = "0.5.0", path = "../retry-error" }
 safelog = { path = "../safelog", version = "0.3.3" }
 serde = { version = "1.0.103", features = ["derive"] }
+serde_with = "3.0.0"
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.4" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
