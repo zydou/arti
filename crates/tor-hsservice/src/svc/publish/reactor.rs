@@ -67,7 +67,7 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 // new one read from the `Event`, the publisher should simply not update it (or mark the descriptor
 // dirty).
 #[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
-pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
+pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// The runtime.
     runtime: R,
     /// The service for which we're publishing descriptors.
@@ -106,7 +106,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
 ///
 /// This enables us to mock parts of the [`Reactor`] for testing purposes.
 #[async_trait]
-pub(super) trait Mockable<R>: Clone + Send + Sync + Sized + 'static {
+pub(super) trait Mockable: Clone + Send + Sync + Sized + 'static {
     /// The type of random number generator.
     type Rng: rand::Rng + rand::CryptoRng;
 
@@ -136,7 +136,7 @@ impl<R: Runtime> ReactorState<R> {
 }
 
 #[async_trait]
-impl<R: Runtime> Mockable<R> for ReactorState<R> {
+impl<R: Runtime> Mockable for ReactorState<R> {
     type Rng = rand::rngs::ThreadRng;
 
     fn thread_rng(&self) -> Self::Rng {
@@ -331,7 +331,7 @@ pub(super) enum ReactorError {
     Bug(#[from] tor_error::Bug),
 }
 
-impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
+impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
     pub(super) async fn new(
         runtime: R,
