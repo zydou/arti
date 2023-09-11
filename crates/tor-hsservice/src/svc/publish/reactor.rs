@@ -291,7 +291,6 @@ impl TimePeriodContext {
 }
 
 /// A reactor error
-#[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub(super) enum ReactorError {
