@@ -94,7 +94,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
 ///
 /// This enables us to mock parts of the [`Reactor`] for testing purposes.
 #[async_trait]
-pub(super) trait Mockable<R>: Send + Sync + Sized + 'static {
+pub(super) trait Mockable<R>: Clone + Send + Sync + Sized + 'static {
     /// The type of random number generator.
     type Rng: rand::Rng + rand::CryptoRng;
 
@@ -113,6 +113,7 @@ pub(super) trait Mockable<R>: Send + Sync + Sized + 'static {
 }
 
 /// The mockable state of the reactor.
+#[derive(Clone)]
 pub(super) struct ReactorState<R: Runtime>(Arc<HsCircPool<R>>);
 
 impl<R: Runtime> ReactorState<R> {
