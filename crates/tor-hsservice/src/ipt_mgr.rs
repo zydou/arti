@@ -2,6 +2,8 @@
 //!
 //! Maintains introduction points and publishes descriptors.
 //! Provides a stream of rendezvous requests.
+//!
+//! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
 use std::collections::{HashMap, VecDeque};
@@ -638,6 +640,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// In that case, the caller must call `compute_iptsetstatus_publish`,
     /// since the IPT set etc. may have changed.
+    ///
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// When handling state changes relating to a particular IPT (or IPT relay)
+    /// it needs at most O(1) calls to progress that one IPT to its proper new state.
+    ///
+    /// See the performance note on [`run_once()`](Self::run_once).
     fn idempotently_progress_things_now(&mut self) -> Result<Option<TrackingNow>, FatalError> {
         /// Return value which means "we changed something, please run me again"
         ///
@@ -747,6 +758,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Copies the `last_descriptor_expiry_including_slop` field
     /// from each ipt in `publish_set` to the corresponding ipt in `self`.
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
     fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) {
         let Some(publish_set) = publish_set else {
             // Nothing to update
@@ -779,6 +795,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// The noted earliest wakeup can be updated by this function,
     /// for example, with a future time at which the IPT set ought to be published
     /// (eg, the status goes from Unknown to Uncertain).
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(clippy::unnecessary_wraps)] // for regularity
     fn compute_iptsetstatus_publish(
         &mut self,
@@ -857,6 +878,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// The returned `IptSet` set is in the same order as our data structure:
     /// firstly, by the ordering in `State.irelays`, and then within each relay,
     /// by the ordering in `IptRelay.ipts`.  Both of these are stable.
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn publish_set(
         &self,
@@ -951,6 +977,39 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Either do some work, making changes to our state,
     /// or, if there's nothing to be done, wait until there *is* something to do.
+    ///
+    /// ### Implementation approach
+    ///
+    /// Every time we wake up we idempotently make progress
+    /// by searching our whole state machine, looking for something to do.
+    /// If we find something to do, we do that one thing, and search again.
+    /// When we're done, we unconditionally recalculate the IPTs to publish, and sleep.
+    ///
+    /// This approach avoids the need for complicated reasoning about
+    /// which state updates need to trigger other state updates,
+    /// and thereby avoids several classes of potential bugs.
+    /// However, it has some performance implications:
+    ///
+    /// ### Performance
+    ///
+    /// Events relating to an IPT occur, at worst,
+    /// at a rate proportional to the current number of IPTs,
+    /// times the maximum flap rate of any one IPT.
+    ///
+    /// [`idempotently_progress_things_now`](Self::idempotently_progress_things_now)
+    /// can be called more than once for each such event,
+    /// but only a finite number of times per IPT.
+    ///
+    /// Therefore, overall, our work rate is O(N^2) where N is the number of IPTs.
+    /// We think this is tolerable,
+    /// but it does mean that the principal functions should be written
+    /// with an eye to avoiding "accidentally quadratic" algorithms,
+    /// because that would make the whole manager cubic.
+    /// Ideally we would avoid O(N.log(N)) algorithms.
+    ///
+    /// (Note that the number of IPTs can be significantly larger than
+    /// the maximum target of 20, if the service is very busy so the intro points
+    /// are cycling rapidly due to the need to replace the replay database.)
     async fn run_once(
         &mut self,
         // This is a separate argument for borrowck reasons
