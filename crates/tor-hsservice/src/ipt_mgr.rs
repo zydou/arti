@@ -754,30 +754,22 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // Every entry in the PublishIptSet corresponds to an ipt in self.
         // And the ordering is the same.  So we can do an O(N) merge-join.
-        let mut all_ours = self
+        let all_ours = self
             .state
             .irelays
             .iter_mut()
             .flat_map(|ir| ir.ipts.iter_mut());
 
-        // TODO HSS: Break this out into a separately-tested iterator combinator
-        // (itertools doesn't seem to have the right thing;
-        // merge_join_by could be abused but isn't quite right.)
-
-        for theirs in &publish_set.ipts {
-            // Look through our ipts until we find one that matches theirs.
-            // There may be ipts in ours but not in theirs, but not vice versa.
-            let ours = loop {
-                let ours = all_ours
-                    .next()
-                    .ok_or_else(|| internal!("ipt in PublishIptSet but not in mgr State"))?;
-                if ours.lid == theirs.lid {
-                    break ours;
-                }
-            };
-            ours.last_descriptor_expiry_including_slop =
-                theirs.last_descriptor_expiry_including_slop;
-        }
+        merge_join_subset_by(
+            all_ours,
+            |ours| ours.lid,
+            &publish_set.ipts,
+            |theirs| theirs.lid,
+            |_lid, ours, theirs| {
+                ours.last_descriptor_expiry_including_slop =
+                    theirs.last_descriptor_expiry_including_slop;
+            },
+        )?;
 
         Ok(())
     }
@@ -1086,6 +1078,104 @@ impl<R: Runtime> Mockable<R> for Real<R> {
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
         IptEstablisher::new(imm.runtime.clone(), params, self.circ_pool.clone())
     }
+}
+
+/// Joins two iterators, by keys, one of which is a subset of the other
+///
+/// `bigger` and `smaller` are iterators yielding `BI` and `SI`.
+///
+/// The key `K`, which can be extracted from each element of either iterator,
+/// is `PartialEq` and says whether a `BI` is "the same as" an `SI`.
+///
+/// ### Requirements
+///
+/// `bigger` must be a superset of `smaller` (when considering the keys),
+/// and in the same order.
+/// Or to put it another way, the list of `K`s from `smaller` must be
+/// a possible result of simply *filtering* the list of `K`s from `bigger`.
+///
+/// `K`s must be unique.
+/// (Strictly, neither iterator may yield successive elements with the same key.)
+///
+/// ### Results
+///
+/// `call` is called for each `K` which appears in both lists, in that same order.
+/// Nothing is done about elements which are only in `bigger`.
+///
+/// If the Requirements are violated, returns `Bug`.
+///
+/// The algorithm has complexity `O(N_bigger)`.
+fn merge_join_subset_by<K, BI, SI>(
+    bigger: impl IntoIterator<Item = BI>,
+    bigger_keyf: impl Fn(&BI) -> K,
+    smaller: impl IntoIterator<Item = SI>,
+    smaller_keyf: impl Fn(&SI) -> K,
+    mut call: impl FnMut(K, BI, SI),
+) -> Result<(), Bug>
+where
+    K: PartialEq + Clone + Debug,
+    BI: Debug,
+    SI: Debug,
+{
+    /// Wrapper for one of the sets of inputs
+    ///
+    /// For extracting keys and checking uniqueness
+    struct Input<K, IT, KF> {
+        /// Previous key (for uniqueness check)
+        last: Option<K>,
+        /// Input iterator
+        it: IT,
+        /// Input key extractor
+        keyf: KF,
+    }
+    impl<K, I, IT, KF> Input<K, IT, KF>
+    where
+        K: PartialEq + Clone + Debug,
+        I: Debug,
+        IT: Iterator<Item = I>,
+        KF: Fn(&I) -> K,
+    {
+        /// Make a new `Input` from a pair of our arguments
+        fn new(it: impl IntoIterator<IntoIter = IT>, keyf: KF) -> Self {
+            Input {
+                last: None,
+                it: it.into_iter(),
+                keyf,
+            }
+        }
+
+        /// Get the next item and key, but return an error if two identical items found
+        fn next(&mut self) -> Result<Option<(I, K)>, Bug> {
+            let Some(i) = self.it.next() else {
+                return Ok(None);
+            };
+            let k = (self.keyf)(&i);
+            if self.last.as_ref() == Some(&k) {
+                return Err(internal!("duplicate key {:?} in {:?}", k, i));
+            }
+            self.last = Some(k.clone());
+            Ok(Some((i, k)))
+        }
+    }
+
+    let mut bigger = Input::new(bigger, bigger_keyf);
+    let mut smaller = Input::new(smaller, smaller_keyf);
+    while let Some((si, sk)) = smaller.next()? {
+        let bi = loop {
+            let (bi, bk) = bigger.next()?.ok_or_else(|| {
+                internal!(
+                    "key {:?} is in 'smaller' item {:?} but not 'bigger'",
+                    sk,
+                    si,
+                )
+            })?;
+            if bk == sk {
+                break bi;
+            }
+        };
+        call(sk, bi, si);
+    }
+    Ok(())
 }
 
 // TODO HSS add unit tests for IptManager
