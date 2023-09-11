@@ -747,6 +747,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Copies the `last_descriptor_expiry_including_slop` field
     /// from each ipt in `publish_set` to the corresponding ipt in `self`.
+    #[allow(clippy::unnecessary_wraps)] // XXXX
     fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) -> Result<(), FatalError> {
         let Some(publish_set) = publish_set else {
             // Nothing to update
@@ -761,16 +762,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .iter_mut()
             .flat_map(|ir| ir.ipts.iter_mut());
 
-        merge_join_subset_by(
+        for (_lid, ours, theirs) in merge_join_subset_by(
             all_ours,
             |ours| ours.lid,
             &publish_set.ipts,
             |theirs| theirs.lid,
-            |_lid, ours, theirs| {
+        ) {
                 ours.last_descriptor_expiry_including_slop =
                     theirs.last_descriptor_expiry_including_slop;
-            },
-        )?;
+        }
 
         Ok(())
     }
@@ -1095,14 +1095,13 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 ///
 /// The algorithm has complexity `O(N_bigger)`,
 /// and also a working set of `O(N_bigger)`.
-#[allow(clippy::unnecessary_wraps)] // XXXX
+#[allow(clippy::let_and_return)] // XXXX
 fn merge_join_subset_by<'out, K, BI, SI>(
     bigger: impl IntoIterator<Item = BI> + 'out,
     bigger_keyf: impl Fn(&BI) -> K + 'out,
     smaller: impl IntoIterator<Item = SI> + 'out,
     smaller_keyf: impl Fn(&SI) -> K + 'out,
-    mut call: impl FnMut(K, BI, SI),
-) -> Result<(), Bug>
+) -> impl Iterator<Item = (K, BI, SI)> + 'out
 where
     K: Eq + Hash + Clone + Debug + 'out,
     BI: Debug + 'out,
@@ -1119,11 +1118,7 @@ where
         Some((k, bi, si))
     });
 
-    for (k, bi, si) in output {
-        call(k, bi, si);
-    }
-
-    Ok(())
+    output
 }
 
 // TODO HSS add unit tests for IptManager
