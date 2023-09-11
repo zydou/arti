@@ -747,11 +747,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Copies the `last_descriptor_expiry_including_slop` field
     /// from each ipt in `publish_set` to the corresponding ipt in `self`.
-    #[allow(clippy::unnecessary_wraps)] // XXXX
-    fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) -> Result<(), FatalError> {
+    fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) {
         let Some(publish_set) = publish_set else {
             // Nothing to update
-            return Ok(());
+            return;
         };
 
         // Every entry in the PublishIptSet corresponds to an ipt in self.
@@ -771,8 +770,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 ours.last_descriptor_expiry_including_slop =
                     theirs.last_descriptor_expiry_including_slop;
         }
-
-        Ok(())
     }
 
     /// Compute the IPT set to publish, and update the data shared with the publisher
@@ -961,7 +958,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ) -> Result<ShutdownStatus, FatalError> {
         let mut publish_set = publisher.borrow_for_update();
 
-        self.import_new_expiry_times(&publish_set)?;
+        self.import_new_expiry_times(&publish_set);
 
         let now = loop {
             if let Some(now) = self.idempotently_progress_things_now()? {
@@ -1095,7 +1092,6 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 ///
 /// The algorithm has complexity `O(N_bigger)`,
 /// and also a working set of `O(N_bigger)`.
-#[allow(clippy::let_and_return)] // XXXX
 fn merge_join_subset_by<'out, K, BI, SI>(
     bigger: impl IntoIterator<Item = BI> + 'out,
     bigger_keyf: impl Fn(&BI) -> K + 'out,
@@ -1112,13 +1108,11 @@ where
         .map(|si| (smaller_keyf(&si), si))
         .collect();
 
-    let output = bigger.into_iter().filter_map(move |bi| {
+    bigger.into_iter().filter_map(move |bi| {
         let k = bigger_keyf(&bi);
         let si = smaller.remove(&k)?;
         Some((k, bi, si))
-    });
-
-    output
+    })
 }
 
 // TODO HSS add unit tests for IptManager
