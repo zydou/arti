@@ -767,8 +767,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             &publish_set.ipts,
             |theirs| theirs.lid,
         ) {
-                ours.last_descriptor_expiry_including_slop =
-                    theirs.last_descriptor_expiry_including_slop;
+            ours.last_descriptor_expiry_including_slop =
+                theirs.last_descriptor_expiry_including_slop;
         }
     }
 
