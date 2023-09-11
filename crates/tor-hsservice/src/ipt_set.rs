@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use void::Void;
 
+use crate::IptLocalId;
+
 /// Set of introduction points to be advertised in a descriptor (if we are to publish)
 ///
 /// If `Some`, the publisher will try to maintain a published descriptor,
@@ -41,6 +43,12 @@ pub(crate) struct IptInSet {
     /// Set by the manager and read by the publisher.
     pub(crate) ipt: Ipt,
 
+    /// Local identifier for this introduction point
+    ///
+    /// Set and used by the manager, to correlate this data structure with the manager's.
+    /// May also be read by the publisher.
+    pub(crate) lid: IptLocalId,
+
     /// Time until which the manager ought we to try to maintain this ipt,
     /// even after we stop publishing it.
     ///
@@ -61,6 +69,9 @@ pub(crate) struct IptInSet {
     /// This field is updated by the publisher, using
     /// [`note_publication_attempt_start`](IptSet::note_publication_attempt_start)
     /// and read by the manager.
+    ///
+    /// A separate copy of the information is stored by the manager,
+    /// in `ipt_mgr::Ipt::last_descriptor_expiry_including_slop`.
     pub(crate) last_descriptor_expiry_including_slop: Option<Instant>,
 }
 
@@ -87,6 +98,7 @@ pub(crate) const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); /
 ///
 /// This is the manager's end of a bidirectional "channel",
 /// containing a shared `PublishIptSet`, i.e. an `Option<IptSet>`.
+#[derive(Debug)]
 pub(crate) struct IptsManagerView {
     /// TODO HSS
     todo: Void,
