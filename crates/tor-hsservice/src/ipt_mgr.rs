@@ -1175,6 +1175,10 @@ where
         };
         call(sk, bi, si);
     }
+
+    // Drain bigger to detect any remaining dupes
+    while let Some((_, _)) = bigger.next()? {}
+
     Ok(())
 }
 
