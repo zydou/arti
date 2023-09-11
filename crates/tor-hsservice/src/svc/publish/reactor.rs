@@ -10,9 +10,10 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::lock::Mutex;
-use futures::task::SpawnExt;
+use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
 use postage::watch;
+use retry_error::RetryError;
 use tor_hscrypto::RevisionCounter;
 use tracing::{debug, error, trace};
 
@@ -307,9 +308,28 @@ pub(super) enum ReactorError {
     #[error("could not build a hidden service descriptor")]
     HsDescBuild(#[from] EncodeError),
 
+    /// Failed to publish a descriptor.
+    #[error("failed to publish a descriptor")]
+    PublishFailure(RetryError<UploadError>),
+
+    /// A fatal error that caused the reactor to shut down.
+    //
+    // TODO HSS: add more context to this error?
+    #[error("publisher reactor is shutting down")]
+    ShuttingDown,
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+/// An error that occurs while trying to upload a descriptor.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub(super) enum UploadError {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
     #[error("descriptor upload request failed")]
-    UploadRequestFailed(#[from] RequestError),
+    Request(#[from] RequestError),
 
     /// Failed to establish circuit to hidden service directory
     #[error("circuit failed")]
@@ -319,11 +339,18 @@ pub(super) enum ReactorError {
     #[error("stream failed")]
     Stream(#[source] tor_proto::Error),
 
-    /// A fatal error that caused the reactor to shut down.
+    /// Unable to spawn task
     //
-    // TODO HSS: add more context to this error?
-    #[error("publisher reactor is shutting down")]
-    ShuttingDown,
+    // TODO lots of our Errors have a variant exactly like this.
+    // Maybe we should make a struct tor_error::SpawnError.
+    #[error("Unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn.
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
 
     /// An internal error.
     #[error("Internal error")]
@@ -841,7 +868,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hsdesc: String,
         netdir: &Arc<NetDir>,
         hsdir: &Relay<'_>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), UploadError> {
         let request = HsDescUploadRequest::new(hsdesc);
 
         trace!(hsid=%self.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
@@ -861,11 +888,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut stream = circuit
             .begin_dir_stream()
             .await
-            .map_err(ReactorError::Stream)?;
+            .map_err(UploadError::Stream)?;
 
         let response = send_request(&self.runtime, &request, &mut stream, None)
             .await
-            .map_err(|dir_error| -> ReactorError {
+            .map_err(|dir_error| -> UploadError {
                 match dir_error {
                     DirClientError::RequestFailed(e) => e.error.into(),
                     DirClientError::CircMgr(e) => into_internal!(
