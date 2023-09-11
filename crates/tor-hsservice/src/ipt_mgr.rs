@@ -13,8 +13,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use futures::channel::{mpsc, oneshot};
-use futures::select_biased;
 use futures::task::SpawnExt as _;
+use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
@@ -27,6 +27,7 @@ use void::{ResultVoidErrExt as _, Void};
 
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
+use tor_error::error_report;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKey};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
@@ -117,6 +118,11 @@ pub(crate) struct State<R, M> {
     /// We append to this, and call `retain` on it,
     /// so these are in chronological order of selection.
     irelays: Vec<IptRelay>,
+
+    /// Did we fail to select a relay last time?
+    ///
+    /// This can only be caused (or triggered) by a busted netdir or config.
+    last_irelay_selection_outcome: Result<(), ()>,
 
     /// Signal for us to shut down
     shutdown: oneshot::Receiver<Void>,
@@ -458,6 +464,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             mockable,
             shutdown,
             irelays: vec![],
+            last_irelay_selection_outcome: Ok(()),
             runtime: PhantomData,
         };
         let mgr = IptManager { imm, state };
@@ -498,7 +505,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
 /// An error that happened while trying to select a relay
 ///
-/// (Used only within the IPT manager)
+/// Used only within the IPT manager.
+/// Can only be caused by bad netdir or maybe bad config.
 #[derive(Debug, Error)]
 enum ChooseIptError {
     /// Bad or insufficient netdir
@@ -709,12 +717,22 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 })
                 .count();
 
+            #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)] // in map_err
             if n_good_ish_relays < self.target_n_intro_points()
                 && self.state.irelays.len() < self.max_n_intro_relays()
+                && self.state.last_irelay_selection_outcome.is_ok()
             {
-                self.state
+                self.state.last_irelay_selection_outcome = self
+                    .state
                     .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
-                    .expect("BUG"); // TODO HSS handle error from choosing IPT relay, and retry
+                    .map_err(|error| {
+                        error_report!(
+                            error,
+                            "HS service {} failed to select IPT relay",
+                            &self.imm.nick,
+                        );
+                        ()
+                    });
                 return CONTINUE;
             }
         }
@@ -970,6 +988,18 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 let (lid, update) = update.ok_or_else(|| internal!("update mpsc ended!"))?;
                 self.state.handle_ipt_status_update(&self.imm, lid, update);
             }
+
+            _dir_event = async {
+                match self.state.last_irelay_selection_outcome {
+                    Ok(()) => future::pending().await,
+                    // This boxes needlessly but it shouldn't really happen
+                    Err(()) => self.imm.dirprovider.events().next().await,
+                }
+            }.fuse() => {
+                self.state.last_irelay_selection_outcome = Ok(());
+            }
+
+            // TODO HSS clear last_irelay_selection_outcome on new configuration
         }
 
         Ok(ShutdownStatus::Continue)
