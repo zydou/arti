@@ -2,10 +2,13 @@
 //!
 //! Maintains introduction points and publishes descriptors.
 //! Provides a stream of rendezvous requests.
+//!
+//! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::panic::AssertUnwindSafe;
@@ -637,6 +640,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// In that case, the caller must call `compute_iptsetstatus_publish`,
     /// since the IPT set etc. may have changed.
+    ///
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// When handling state changes relating to a particular IPT (or IPT relay)
+    /// it needs at most O(1) calls to progress that one IPT to its proper new state.
+    ///
+    /// See the performance note on [`run_once()`](Self::run_once).
     fn idempotently_progress_things_now(&mut self) -> Result<Option<TrackingNow>, FatalError> {
         /// Return value which means "we changed something, please run me again"
         ///
@@ -746,40 +758,34 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Copies the `last_descriptor_expiry_including_slop` field
     /// from each ipt in `publish_set` to the corresponding ipt in `self`.
-    fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) -> Result<(), FatalError> {
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
+    fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) {
         let Some(publish_set) = publish_set else {
             // Nothing to update
-            return Ok(());
+            return;
         };
 
         // Every entry in the PublishIptSet corresponds to an ipt in self.
         // And the ordering is the same.  So we can do an O(N) merge-join.
-        let mut all_ours = self
+        let all_ours = self
             .state
             .irelays
             .iter_mut()
             .flat_map(|ir| ir.ipts.iter_mut());
 
-        // TODO HSS: Break this out into a separately-tested iterator combinator
-        // (itertools doesn't seem to have the right thing;
-        // merge_join_by could be abused but isn't quite right.)
-
-        for theirs in &publish_set.ipts {
-            // Look through our ipts until we find one that matches theirs.
-            // There may be ipts in ours but not in theirs, but not vice versa.
-            let ours = loop {
-                let ours = all_ours
-                    .next()
-                    .ok_or_else(|| internal!("ipt in PublishIptSet but not in mgr State"))?;
-                if ours.lid == theirs.lid {
-                    break ours;
-                }
-            };
+        for (_lid, ours, theirs) in merge_join_subset_by(
+            all_ours,
+            |ours| ours.lid,
+            &publish_set.ipts,
+            |theirs| theirs.lid,
+        ) {
             ours.last_descriptor_expiry_including_slop =
                 theirs.last_descriptor_expiry_including_slop;
         }
-
-        Ok(())
     }
 
     /// Compute the IPT set to publish, and update the data shared with the publisher
@@ -789,6 +795,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// The noted earliest wakeup can be updated by this function,
     /// for example, with a future time at which the IPT set ought to be published
     /// (eg, the status goes from Unknown to Uncertain).
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(clippy::unnecessary_wraps)] // for regularity
     fn compute_iptsetstatus_publish(
         &mut self,
@@ -867,6 +878,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// The returned `IptSet` set is in the same order as our data structure:
     /// firstly, by the ordering in `State.irelays`, and then within each relay,
     /// by the ordering in `IptRelay.ipts`.  Both of these are stable.
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn publish_set(
         &self,
@@ -961,6 +977,39 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Either do some work, making changes to our state,
     /// or, if there's nothing to be done, wait until there *is* something to do.
+    ///
+    /// ### Implementation approach
+    ///
+    /// Every time we wake up we idempotently make progress
+    /// by searching our whole state machine, looking for something to do.
+    /// If we find something to do, we do that one thing, and search again.
+    /// When we're done, we unconditionally recalculate the IPTs to publish, and sleep.
+    ///
+    /// This approach avoids the need for complicated reasoning about
+    /// which state updates need to trigger other state updates,
+    /// and thereby avoids several classes of potential bugs.
+    /// However, it has some performance implications:
+    ///
+    /// ### Performance
+    ///
+    /// Events relating to an IPT occur, at worst,
+    /// at a rate proportional to the current number of IPTs,
+    /// times the maximum flap rate of any one IPT.
+    ///
+    /// [`idempotently_progress_things_now`](Self::idempotently_progress_things_now)
+    /// can be called more than once for each such event,
+    /// but only a finite number of times per IPT.
+    ///
+    /// Therefore, overall, our work rate is O(N^2) where N is the number of IPTs.
+    /// We think this is tolerable,
+    /// but it does mean that the principal functions should be written
+    /// with an eye to avoiding "accidentally quadratic" algorithms,
+    /// because that would make the whole manager cubic.
+    /// Ideally we would avoid O(N.log(N)) algorithms.
+    ///
+    /// (Note that the number of IPTs can be significantly larger than
+    /// the maximum target of 20, if the service is very busy so the intro points
+    /// are cycling rapidly due to the need to replace the replay database.)
     async fn run_once(
         &mut self,
         // This is a separate argument for borrowck reasons
@@ -968,7 +1017,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ) -> Result<ShutdownStatus, FatalError> {
         let mut publish_set = publisher.borrow_for_update();
 
-        self.import_new_expiry_times(&publish_set)?;
+        self.import_new_expiry_times(&publish_set);
 
         let now = loop {
             if let Some(now) = self.idempotently_progress_things_now()? {
@@ -1088,5 +1137,87 @@ impl<R: Runtime> Mockable<R> for Real<R> {
     }
 }
 
+/// Joins two iterators, by keys, one of which is a subset of the other
+///
+/// `bigger` and `smaller` are iterators yielding `BI` and `SI`.
+///
+/// The key `K`, which can be extracted from each element of either iterator,
+/// is `PartialEq` and says whether a `BI` is "the same as" an `SI`.
+///
+/// `call` is called for each `K` which appears in both lists, in that same order.
+/// Nothing is done about elements which are only in `bigger`.
+///
+/// (The behaviour with duplicate entries is unspecified.)
+///
+/// The algorithm has complexity `O(N_bigger)`,
+/// and also a working set of `O(N_bigger)`.
+fn merge_join_subset_by<'out, K, BI, SI>(
+    bigger: impl IntoIterator<Item = BI> + 'out,
+    bigger_keyf: impl Fn(&BI) -> K + 'out,
+    smaller: impl IntoIterator<Item = SI> + 'out,
+    smaller_keyf: impl Fn(&SI) -> K + 'out,
+) -> impl Iterator<Item = (K, BI, SI)> + 'out
+where
+    K: Eq + Hash + Clone + 'out,
+    BI: 'out,
+    SI: 'out,
+{
+    let mut smaller: HashMap<K, SI> = smaller
+        .into_iter()
+        .map(|si| (smaller_keyf(&si), si))
+        .collect();
+
+    bigger.into_iter().filter_map(move |bi| {
+        let k = bigger_keyf(&bi);
+        let si = smaller.remove(&k)?;
+        Some((k, bi, si))
+    })
+}
+
 // TODO HSS add unit tests for IptManager
 // Especially, we want to exercise all code paths in idempotently_progress_things_now
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    #[test]
+    fn test_merge_join_subset_by() {
+        fn chk(bigger: &str, smaller: &str, output: &str) {
+            let keyf = |c: &char| *c;
+
+            assert_eq!(
+                merge_join_subset_by(bigger.chars(), keyf, smaller.chars(), keyf)
+                    .map(|(k, b, s)| {
+                        assert_eq!(k, b);
+                        assert_eq!(k, s);
+                        k
+                    })
+                    .collect::<String>(),
+                output,
+            );
+        }
+
+        chk("abc", "abc", "abc");
+        chk("abc", "a", "a");
+        chk("abc", "b", "b");
+        chk("abc", "c", "c");
+        chk("abc", "x", ""); // wrong input, but test it anyway
+        chk("b", "abc", "b"); // wrong input, but test it anyway
+
+        chk("abc", "", "");
+        chk("", "abc", ""); // wrong input, but test it anyway
+    }
+}
