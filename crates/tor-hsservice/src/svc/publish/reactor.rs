@@ -5,7 +5,7 @@
 use std::fmt::Debug;
 use std::iter;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 use async_broadcast::{broadcast, Receiver, RecvError, Sender};
 use async_trait::async_trait;
@@ -170,7 +170,7 @@ struct Inner {
     //
     // TODO HSS: maybe we should implement rate-limiting on a per-hsdir basis? It's probably not
     // necessary though.
-    last_uploaded: Option<SystemTime>,
+    last_uploaded: Option<Instant>,
 }
 
 /// The part of the reactor state that changes with every time period.
@@ -454,7 +454,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Handle a batch of upload outcomes, possibly updating the status of the descriptor for the corresponding HSDirs.
     async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().await;
-        inner.last_uploaded = Some(SystemTime::now());
+        inner.last_uploaded = Some(self.runtime.now());
 
         // Check which time period these uploads pertain to.
         let period = inner
@@ -593,13 +593,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&self) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().await;
-        let now = SystemTime::now();
+        let now = self.runtime.now();
 
         // Check if we should rate-limit this upload.
         if let Some(last_uploaded) = inner.last_uploaded {
-            let duration_since_upload = last_uploaded
-                .duration_since(now)
-                .unwrap_or(Duration::from_secs(0));
+            let duration_since_upload = last_uploaded.duration_since(now);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 return self.schedule_pending_upload().await;
