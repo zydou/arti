@@ -1193,4 +1193,31 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    #[test]
+    fn test_merge_join_subset_by() {
+        fn chk(bigger: &str, smaller: &str, output: &str) {
+            let keyf = |c: &char| *c;
+
+            assert_eq!(
+                merge_join_subset_by(bigger.chars(), keyf, smaller.chars(), keyf)
+                    .map(|(k, b, s)| {
+                        assert_eq!(k, b);
+                        assert_eq!(k, s);
+                        k
+                    })
+                    .collect::<String>(),
+                output,
+            );
+        }
+
+        chk("abc", "abc", "abc");
+        chk("abc", "a", "a");
+        chk("abc", "b", "b");
+        chk("abc", "c", "c");
+        chk("abc", "x", ""); // wrong input, but test it anyway
+        chk("b", "abc", "b"); // wrong input, but test it anyway
+
+        chk("abc", "", "");
+        chk("", "abc", ""); // wrong input, but test it anyway
+    }
 }
