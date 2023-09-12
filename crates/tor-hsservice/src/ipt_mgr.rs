@@ -192,6 +192,10 @@ struct Ipt {
     // TODO HSS how do we provide the private half to the recipients of our rend reqs?
     // It needs to be attached to each request, since the intro points have different
     // keys and the consumer of the rend req stream needs to use the right ones.
+    //
+    // ^ Specifically,
+    // svc::rend_handshake::IntroRequest::decrypt_from_introduce2 expects to get
+    // this as part of the HsNtorServiceInput object it takes as an argument.
     k_hss_ntor: HsSvcNtorKeypair,
 
     /// Last information about how it's doing including timing info
