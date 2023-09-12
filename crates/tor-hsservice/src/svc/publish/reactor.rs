@@ -451,7 +451,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         Ok(())
     }
 
-    /// Handle a batch of upload outcomes, possibly updating the status of the descriptor for the corresponding HSDirs.
+    /// Handle a batch of upload outcomes,
+    /// possibly updating the status of the descriptor for the corresponding HSDirs.
     async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().await;
         inner.last_uploaded = Some(self.runtime.now());
