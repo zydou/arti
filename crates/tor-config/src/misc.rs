@@ -224,7 +224,7 @@ impl Listen {
     /// Returns `None` if listening is configured to be disabled.
     ///
     /// Fails, giving an unsupported error, if the configuration
-    /// isn't just "listen on a single localhost port".
+    /// isn't just "listen on a single localhost port in all address families"
     pub fn localhost_port_legacy(&self) -> Result<Option<u16>, ListenUnsupported> {
         use ListenItem as LI;
         Ok(match &*self.0 {
@@ -245,8 +245,8 @@ pub struct ListenUnsupported {}
 ///
 /// We distinguish `Localhost`,
 /// rather than just storing two `net:SocketAddr`,
-/// so that we can handle localhost (which means to address families) specially
-/// in order to implement `localhost_port_deprecated()`.
+/// so that we can handle localhost (which means two address families) specially
+/// in order to implement `localhost_port_legacy()`.
 #[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 enum ListenItem {
