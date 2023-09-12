@@ -4926,7 +4926,6 @@ dependencies = [
 name = "tor-hsservice"
 version = "0.2.4"
 dependencies = [
- "async-broadcast",
  "async-trait",
  "derive-adhoc",
  "derive_builder_fork_arti",

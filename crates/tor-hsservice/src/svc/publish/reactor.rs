@@ -7,11 +7,11 @@ use std::iter;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use async_broadcast::{broadcast, Receiver, RecvError, Sender};
+use futures::channel::mpsc::{self, Receiver, Sender};
 use async_trait::async_trait;
 use futures::lock::Mutex;
 use futures::task::SpawnExt;
-use futures::{select_biased, FutureExt, StreamExt};
+use futures::{select_biased, FutureExt, SinkExt, StreamExt};
 use postage::watch;
 use tor_hscrypto::RevisionCounter;
 use tracing::{debug, trace};
@@ -83,11 +83,17 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     config_rx: watch::Receiver<OnionServiceConfig>,
     /// A channel for the telling the upload reminder task when to remind us we need to upload
     /// some descriptors.
-    pending_upload_tx: Sender<Duration>,
-    /// A channel for receiving reminders from the upload reminder task.
-    schedule_upload_rx: Receiver<()>,
-    /// A channel for receiving upload completion notifications.
+    ///
+    /// This is initialized in [`Reactor::run`].
+    pending_upload_tx: Option<Sender<Duration>>,
+    /// A channel for sending upload completion notifications.
+    ///
+    /// This channel is polled in the main loop of the reactor.
     upload_task_complete_rx: Receiver<TimePeriodUploadResult>,
+    /// A channel for receiving upload completion notifications.
+    ///
+    /// A copy of this sender is handed to each upload task.
+    upload_task_complete_tx: Sender<TimePeriodUploadResult>,
 }
 
 /// Mockable state for the descriptor publisher reactor.
@@ -342,10 +348,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         let time_periods = Self::compute_time_periods(&netdir, &hsid_key)?;
 
-        // There will be at most one pending upload.
-        let (pending_upload_tx, _) = broadcast(1);
-        let (_, schedule_upload_rx) = broadcast(1);
-        let (_, upload_task_complete_rx) = broadcast(UPLOAD_CHAN_BUF_SIZE);
+        let (upload_task_complete_tx, upload_task_complete_rx) = mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
         let inner = Inner {
             descriptor: DescriptorBuilder::default(),
@@ -364,9 +367,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             mockable,
             ipt_watcher,
             config_rx,
-            pending_upload_tx,
-            schedule_upload_rx,
+            pending_upload_tx: None,
             upload_task_complete_rx,
+            upload_task_complete_tx,
         })
     }
 
@@ -379,18 +382,21 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     pub(super) async fn run(mut self) -> Result<(), ReactorError> {
         debug!("starting descriptor publisher reactor");
 
-        let mut pending_upload_rx = self.pending_upload_tx.new_receiver();
-        let schedule_upload_tx = self.schedule_upload_rx.new_sender();
+        // There will be at most one pending upload.
+        let (pending_upload_tx, mut pending_upload_rx) = mpsc::channel(1);
+        let (mut schedule_upload_tx, mut schedule_upload_rx) = mpsc::channel(1);
+
+        self.pending_upload_tx = Some(pending_upload_tx);
 
         let rt = self.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
-            while let Ok(duration) = pending_upload_rx.recv().await {
+            while let Some(duration) = pending_upload_rx.next().await {
                 rt.sleep(duration).await;
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
-                if let Err(e) = schedule_upload_tx.broadcast(()).await {
+                if let Err(e) = schedule_upload_tx.send(()).await {
                     // TODO HSS: update publisher state
                     debug!("failed to notify reactor to reattempt upload");
                 }
@@ -400,7 +406,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         });
 
         let err = loop {
-            if let Err(e) = self.run_once().await {
+            if let Err(e) = self.run_once(&mut schedule_upload_rx).await {
                 break e;
             }
         };
@@ -413,12 +419,13 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Run one iteration of the reactor loop.
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
-    async fn run_once(&mut self) -> Result<(), ReactorError> {
+    async fn run_once(&mut self, schedule_upload_rx: &mut Receiver<()>) -> Result<(), ReactorError> {
         let mut netdir_events = self.dir_provider.events();
 
+
         select_biased! {
-            res = self.upload_task_complete_rx.recv().fuse() => {
-                let upload_res = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
+            res = self.upload_task_complete_rx.next().fuse() => {
+                let upload_res = res.ok_or(ReactorError::ShuttingDown)?;
 
                 self.handle_upload_results(upload_res).await;
             }
@@ -441,8 +448,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 let config = config.ok_or(ReactorError::ShuttingDown)?;
                 self.handle_svc_config_change(config).await?;
             },
-            res = self.schedule_upload_rx.recv().fuse() => {
-                let _: () = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
+            res = schedule_upload_rx.next().fuse() => {
+                let _: () = res.ok_or(ReactorError::ShuttingDown)?;
 
                 // Time to reattempt a previously rate-limited upload
                 self.upload_all().await?;
@@ -605,7 +612,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             }
         }
 
-        let mut inner = self.inner.lock().await;
+        let inner = self.inner.lock().await;
+
         // Check we have enough information to generate the descriptor before proceeding.
         let hsdesc = match inner.descriptor.build() {
             Ok(desc) => desc,
@@ -629,10 +637,10 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let runtime = self.runtime.clone();
         let mockable = self.mockable.clone();
         let hsid_key = self.hsid_key.clone();
-        let upload_task_complete_tx = self.upload_task_complete_rx.new_sender();
+        let upload_task_complete_tx = self.upload_task_complete_tx.clone();
         let hsid = self.hsid;
 
-        let upload_tasks = inner.time_periods.iter_mut().map(move |period| {
+        let upload_tasks = inner.time_periods.iter().map(move |period| {
             // Figure out which HsDirs we need to upload the descriptor to (some of them might already
             // have our latest descriptor, so we filter them out).
             let hs_dirs = period
@@ -679,7 +687,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                         &netdir,
                         period.period,
                         hsid,
-                        upload_task_complete_tx.clone(),
+                        upload_task_complete_tx,
                     )
                     .await
                 {
@@ -697,7 +705,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     async fn schedule_pending_upload(&mut self) -> Result<(), ReactorError> {
         if let Err(e) = self
             .pending_upload_tx
-            .broadcast(UPLOAD_RATE_LIM_THRESHOLD)
+            .as_mut()
+            .ok_or(internal!("channel not initialized (schedule_pending_upload called before run?!)"))?
+            .send(UPLOAD_RATE_LIM_THRESHOLD)
             .await
         {
             // TODO HSS: return an error
@@ -717,7 +727,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         netdir: &Arc<NetDir>,
         time_period: TimePeriod,
         hsid: HsId,
-        upload_task_complete_tx: async_broadcast::Sender<TimePeriodUploadResult>,
+        mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), ReactorError> {
         let VersionedDescriptor {
             desc,
@@ -767,7 +777,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         trace!(hsid=%hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
 
         if let Err(e) = upload_task_complete_tx
-            .broadcast(TimePeriodUploadResult {
+            .send(TimePeriodUploadResult {
                 revision_counter: *revision_counter,
                 time_period,
                 hsdir_result: upload_results,

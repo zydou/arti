@@ -25,7 +25,6 @@ full = [
 ]
 
 [dependencies]
-async-broadcast = "0.5.0"
 async-trait = "0.1.54"
 derive-adhoc = "0.7.3"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
