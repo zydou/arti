@@ -662,9 +662,11 @@ mod test {
     use super::*;
     use futures::channel::mpsc;
     use futures::{SinkExt as _, StreamExt as _};
+
+    #[cfg(not(miri))] // trace! asks for the time, which miri doesn't support
     use tracing_test::traced_test;
 
-    #[traced_test]
+    #[cfg_attr(not(miri), traced_test)]
     #[test]
     fn simple() {
         let runtime = MockExecutor::default();
@@ -672,7 +674,7 @@ mod test {
         assert_eq!(val, 42);
     }
 
-    #[traced_test]
+    #[cfg_attr(not(miri), traced_test)]
     #[test]
     fn stall() {
         let runtime = MockExecutor::default();
