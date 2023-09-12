@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::iter;
+use std::mem;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
@@ -185,6 +186,9 @@ type SleepLocation = ();
 ///
 /// Futures (eg, channels from [`futures`]) will use this to wake a task
 /// when it should be polled.
+///
+/// This type must not be `Cloned` with the `Data` lock held.
+/// Consequently, a `Waker` mustn't either.
 #[derive(Clone)]
 struct ActualWaker {
     /// Executor state
@@ -396,9 +400,28 @@ impl MockExecutor {
                     "ProgressingUntilStalled finished twice?!"
                 );
                 pus.finished = Ready(());
-                pus.waker
-                    .clone()
-                    .expect("ProgressUntilStalledFuture not ever polled!")
+
+                // Release the lock temporarily so that ActualWaker::clone doesn't deadlock
+                let waker = pus
+                    .waker
+                    .take()
+                    .expect("ProgressUntilStalledFuture not ever polled!");
+                drop(data);
+                let waker_copy = waker.clone();
+                let mut data = self.data.lock();
+
+                let pus = &mut data.progressing_until_stalled;
+                if let Some(double) = mem::replace(
+                    &mut pus
+                        .as_mut()
+                        .expect("progressing_until_stalled updated under our feet!")
+                        .waker,
+                    Some(waker),
+                ) {
+                    panic!("double progressing_until_stalled.waker! {double:?}");
+                }
+
+                waker_copy
             };
             pus_waker.wake();
         }
@@ -544,11 +567,12 @@ impl Future for ProgressUntilStalledFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<()> {
+        let waker = cx.waker().clone();
         let mut data = self.data.lock();
         let pus = data.progressing_until_stalled.as_mut();
         trace!("MockExecutor progress_until_stalled polling... {:?}", &pus);
         let pus = pus.expect("ProgressingUntilStalled missing");
-        pus.waker = Some(cx.waker().clone());
+        pus.waker = Some(waker);
         pus.finished
     }
 }
