@@ -8,7 +8,7 @@ use std::future::Future;
 use std::iter;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::task::{Context, Poll, Wake, Waker};
+use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
@@ -185,6 +185,7 @@ type SleepLocation = ();
 ///
 /// Futures (eg, channels from [`futures`]) will use this to wake a task
 /// when it should be polled.
+#[derive(Clone)]
 struct ActualWaker {
     /// Executor state
     data: ArcMutexData,
@@ -432,10 +433,11 @@ impl MockExecutor {
             };
 
             // Poll the selected task
-            let waker = Waker::from(Arc::new(ActualWaker {
+            let waker = ActualWaker {
                 data: self.data.clone(),
                 id,
-            }));
+            }
+            .new_waker();
             trace!("MockExecutor {id:?} polling...");
             let mut cx = Context::from_waker(&waker);
             let r = match &mut fut {
@@ -490,8 +492,9 @@ impl Data {
     }
 }
 
-impl Wake for ActualWaker {
-    fn wake(self: Arc<Self>) {
+impl ActualWaker {
+    #[allow(clippy::missing_docs_in_private_items)] // XXXX
+    fn wake(&self) {
         let mut data = self.data.lock();
         trace!("MockExecutor {:?} wake", &self.id);
         let Some(task) = data.tasks.get_mut(self.id) else {
@@ -571,6 +574,81 @@ impl ArcMutexData {
         self.0.lock().expect("data lock poisoned")
     }
 }
+
+//---------- ActualWaker as RawWaker ----------
+
+/// Using [`ActualWaker`] in a [`RawWaker`]
+///
+/// We need to make a
+/// [`Waker`] (the safe, type-erased, waker, used by actual futures)
+/// which contains an
+/// [`ActualWaker`] (our actual waker implementation, also safe).
+///
+/// `std` offers `Waker::from<Arc<impl Wake>>`.
+/// But we want a bespoke `Clone` implementation, so we don't want to use `Arc`.
+///
+/// So instead, we implement the `RawWaker` API in terms of `ActualWaker`.
+/// We keep the `ActualWaker` in a `Box`, and actually `clone` it (and the `Box`).
+///
+/// SAFETY
+///
+///  * The data pointer is `Box::<ActualWaker>::into_raw()`
+///  * We share these when we clone
+///  * No-one is allowed `&mut ActualWaker` unless there are no other clones
+///  * So we may make references `&ActualWaker`
+impl ActualWaker {
+    /// Wrap up an [`ActualWaker`] as a type-erased [`Waker`] for passing to futures etc.
+    fn new_waker(self) -> Waker {
+        unsafe { Waker::from_raw(self.raw_new()) }
+    }
+
+    /// Helper: wrap up an [`ActualWaker`] as a [`RawWaker`].
+    fn raw_new(self) -> RawWaker {
+        let self_: Box<ActualWaker> = self.into();
+        let self_: *mut ActualWaker = Box::into_raw(self_);
+        let self_: *const () = self_ as _;
+        RawWaker::new(self_, &RAW_WAKER_VTABLE)
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `clone`
+    unsafe fn raw_clone(self_: *const ()) -> RawWaker {
+        let self_: *const ActualWaker = self_ as _;
+        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+        let copy: ActualWaker = self_.clone();
+        copy.raw_new()
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `wake`
+    unsafe fn raw_wake(self_: *const ()) {
+        Self::raw_wake_by_ref(self_);
+        Self::raw_drop(self_);
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `wake_ref_by`
+    unsafe fn raw_wake_by_ref(self_: *const ()) {
+        let self_: *const ActualWaker = self_ as _;
+        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+        self_.wake();
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `drop`
+    unsafe fn raw_drop(self_: *const ()) {
+        let self_: *mut ActualWaker = self_ as _;
+        let self_: Box<ActualWaker> = Box::from_raw(self_);
+        drop(self_);
+    }
+}
+
+/// vtable for `Box<ActualWaker>` as `RawWaker`
+//
+// This ought to be in the impl block above, but
+//   "associated `static` items are not allowed"
+static RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
+    ActualWaker::raw_clone,
+    ActualWaker::raw_wake,
+    ActualWaker::raw_wake_by_ref,
+    ActualWaker::raw_drop,
+);
 
 //---------- bespoke Debug impls ----------
 
