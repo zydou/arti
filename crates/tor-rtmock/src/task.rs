@@ -175,8 +175,11 @@ enum TaskState {
     /// Asleep - does *not* need to be polled
     ///
     /// Established each time just before we call the future's [`poll`](Future::poll)
-    Asleep,
+    Asleep(Vec<SleepLocation>),
 }
+
+/// XXXX
+type SleepLocation = ();
 
 /// Actual implementor of `Wake` for use in a `Waker`
 ///
@@ -423,7 +426,7 @@ impl MockExecutor {
                     trace!("MockExecutor {id:?} vanished");
                     continue;
                 };
-                task.state = Asleep;
+                task.state = Asleep(vec![]);
                 let fut = task.fut.take().expect("future missing from task!");
                 break 'inner (id, fut);
             };
@@ -496,7 +499,7 @@ impl Wake for ActualWaker {
         };
         match task.state {
             Awake => {}
-            Asleep => {
+            Asleep(_) => {
                 task.state = Awake;
                 data.awake.push_back(self.id);
             }
@@ -584,7 +587,7 @@ impl Debug for Task {
         }
         match state {
             Awake => write!(f, "W")?,
-            Asleep => write!(f, "s")?,
+            Asleep(locs) => write!(f, "s{}", locs.len())?,
         };
         Ok(())
     }
@@ -621,7 +624,7 @@ where
 ///  * `m`: this is the main task from `block_on`
 ///
 ///  * `W`: the task is awake
-///  * `s`: the task is asleep
+///  * `s<n>`: the task is asleep, and `<n>` is the number of recorded sleeping locations
 //
 // We do it this way because the naive dump from derive is very expansive
 // and makes it impossible to see the wood for the trees.
