@@ -245,8 +245,8 @@ pub struct ListenUnsupported {}
 ///
 /// We distinguish `Localhost`,
 /// rather than just storing two `net:SocketAddr`,
-/// so that we can handle localhost (which means to address families) specially
-/// in order to implement `localhost_port_deprecated()`.
+/// so that we can handle localhost (which means two address families) specially
+/// in order to implement `localhost_port_legacy()`.
 #[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 enum ListenItem {
