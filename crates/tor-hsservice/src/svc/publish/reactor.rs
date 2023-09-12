@@ -7,8 +7,8 @@ use std::iter;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use futures::channel::mpsc::{self, Receiver, Sender};
 use async_trait::async_trait;
+use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::lock::Mutex;
 use futures::task::SpawnExt;
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
@@ -348,7 +348,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         let time_periods = Self::compute_time_periods(&netdir, &hsid_key)?;
 
-        let (upload_task_complete_tx, upload_task_complete_rx) = mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
+        let (upload_task_complete_tx, upload_task_complete_rx) =
+            mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
         let inner = Inner {
             descriptor: DescriptorBuilder::default(),
@@ -419,9 +420,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Run one iteration of the reactor loop.
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
-    async fn run_once(&mut self, schedule_upload_rx: &mut Receiver<()>) -> Result<(), ReactorError> {
+    async fn run_once(
+        &mut self,
+        schedule_upload_rx: &mut Receiver<()>,
+    ) -> Result<(), ReactorError> {
         let mut netdir_events = self.dir_provider.events();
-
 
         select_biased! {
             res = self.upload_task_complete_rx.next().fuse() => {
@@ -682,14 +685,14 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                     revision_counter,
                 };
                 if let Err(_e) = Self::upload_for_time_period(
-                        hsdesc,
-                        hs_dirs,
-                        &netdir,
-                        period.period,
-                        hsid,
-                        upload_task_complete_tx,
-                    )
-                    .await
+                    hsdesc,
+                    hs_dirs,
+                    &netdir,
+                    period.period,
+                    hsid,
+                    upload_task_complete_tx,
+                )
+                .await
                 {
                     // TODO HSS
                 }
@@ -706,7 +709,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         if let Err(e) = self
             .pending_upload_tx
             .as_mut()
-            .ok_or(internal!("channel not initialized (schedule_pending_upload called before run?!)"))?
+            .ok_or(internal!(
+                "channel not initialized (schedule_pending_upload called before run?!)"
+            ))?
             .send(UPLOAD_RATE_LIM_THRESHOLD)
             .await
         {
@@ -750,8 +755,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                             );
                         };
 
-                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir)
-                            .await?;
+                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir).await?;
 
                         Ok(())
                     };
