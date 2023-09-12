@@ -224,7 +224,7 @@ impl Listen {
     /// Returns `None` if listening is configured to be disabled.
     ///
     /// Fails, giving an unsupported error, if the configuration
-    /// isn't just "listen on a single localhost port".
+    /// isn't just "listen on a single localhost port in all address families"
     pub fn localhost_port_legacy(&self) -> Result<Option<u16>, ListenUnsupported> {
         use ListenItem as LI;
         Ok(match &*self.0 {
