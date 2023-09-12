@@ -15,6 +15,7 @@ use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
 
+use backtrace::Backtrace;
 use educe::Educe;
 use itertools::{chain, izip};
 use slotmap::DenseSlotMap;
@@ -179,9 +180,6 @@ enum TaskState {
     Asleep(Vec<SleepLocation>),
 }
 
-/// XXXX
-type SleepLocation = ();
-
 /// Actual implementor of `Wake` for use in a `Waker`
 ///
 /// Futures (eg, channels from [`futures`]) will use this to wake a task
@@ -189,7 +187,6 @@ type SleepLocation = ();
 ///
 /// This type must not be `Cloned` with the `Data` lock held.
 /// Consequently, a `Waker` mustn't either.
-#[derive(Clone)]
 struct ActualWaker {
     /// Executor state
     data: ArcMutexData,
@@ -673,6 +670,80 @@ static RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
     ActualWaker::raw_wake_by_ref,
     ActualWaker::raw_drop,
 );
+
+//---------- Sleep location tracking and dumping ----------
+
+/// Proof token that `resolve_backtraces` has been called.
+#[allow(dead_code)] // XXXX
+#[derive(Clone, Copy)]
+struct BacktracesResolved {}
+
+/// We record "where a future went to sleep" as (just) a backtrace
+type SleepLocation = Backtrace;
+
+impl Data {
+    /// Resolve backtraces (for debug dump)
+    #[allow(dead_code)] // XXXX
+    fn resolve_backtraces(&mut self) -> BacktracesResolved {
+        for (_id, task) in &mut self.tasks {
+            match &mut task.state {
+                Awake => {}
+                Asleep(locs) => {
+                    for loc in locs {
+                        loc.resolve();
+                    }
+                }
+            }
+        }
+        BacktracesResolved {}
+    }
+
+    /// Dump tasks and their sleep location backtraces
+    ///
+    /// `resolve_backtraces` must have been called.
+    /// (This split allows us to make a wrapper that can be `Debug`,
+    /// where the printing has to work with `&` not `&mut`.)
+    #[allow(dead_code)] // XXXX
+    fn dump_backtraces(&self, f: &mut fmt::Formatter, _: BacktracesResolved) -> fmt::Result {
+        for (id, task) in &self.tasks {
+            write!(f, "{id:?}={task:?}: ")?;
+            match &task.state {
+                Awake => writeln!(f, "awake")?,
+                Asleep(locs) => {
+                    let n = locs.len();
+                    for (i, loc) in locs.iter().enumerate() {
+                        writeln!(f, "asleep, backtrace {i}/{n}:\n{loc:?}",)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Track sleep locations via `<Waker as Clone>`.
+impl Clone for ActualWaker {
+    fn clone(&self) -> Self {
+        let id = self.id;
+
+        {
+            let mut data = self.data.lock();
+            if let Some(task) = data.tasks.get_mut(self.id) {
+                match &mut task.state {
+                    Awake => trace!("MockExecutor cloned waker for awake task {id:?}"),
+                    Asleep(locs) => locs.push(SleepLocation::new_unresolved()),
+                }
+            } else {
+                trace!("MockExecutor cloned waker for dead task {id:?}");
+            }
+        }
+
+        ActualWaker {
+            data: self.data.clone(),
+            id,
+        }
+    }
+}
 
 //---------- bespoke Debug impls ----------
 

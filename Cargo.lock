@@ -5298,6 +5298,7 @@ version = "0.9.1"
 dependencies = [
  "amplify",
  "async-trait",
+ "backtrace",
  "derive-adhoc",
  "educe",
  "futures",
