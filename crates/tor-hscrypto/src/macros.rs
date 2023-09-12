@@ -7,6 +7,7 @@
 macro_rules! define_pk_keypair {
     {
         $(#[$meta:meta])* pub struct $pk:ident($pkt:ty) / $(#[$sk_meta:meta])* $sk:ident($skt:ty);
+        $($(#[$p_meta:meta])* curve25519_pair as $pair:ident;)?
     } => {
         paste::paste!{
             $(#[$meta])*
@@ -25,6 +26,39 @@ macro_rules! define_pk_keypair {
                 }
             }
 
+            // For curve25519 keys, we are willing to handle secret keys without
+            // a corresponding public key, since there is not a cryptographic
+            // risk inherent in our protocols to getting them mixed up.
+            //
+            // But that means that it sometimes _is_ worthwhile defining a
+            // keypair type.
+            $(
+                #[doc = concat!("A pair of a public and private components for a [`", stringify!($pk), "`].")]
+                $(#[$p_meta])*
+                #[derive(Debug)]
+                pub struct $pair {
+                    public: $pk,
+                    secret: $sk,
+                }
+                impl $pair {
+                    /// Return the public part of this keypair.
+                    pub fn public(&self) -> &$pk { &self.public }
+                    /// Return the secret part of this keypair.
+                    pub fn secret(&self) -> &$sk { &self.secret }
+                    /// Generate a new keypair from a secure random number generator.
+                    pub fn generate<R>(rng: &mut R) -> Self
+                    where
+                        R: rand::Rng + rand::CryptoRng,
+                    {
+                        let secret = curve25519::StaticSecret::new(rng);
+                        let public: curve25519::PublicKey = (&secret).into();
+                        Self {
+                            secret: secret.into(),
+                            public: public.into(),
+                        }
+                    }
+                }
+            )?
         }
     };
 }
