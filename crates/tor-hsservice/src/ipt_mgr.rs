@@ -32,7 +32,7 @@ use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::error_report;
 use tor_error::{internal, into_internal, Bug};
-use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKey};
+use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::util::rand_compat::RngCompatExt as _;
@@ -172,25 +172,6 @@ struct IptRelay {
     ipts: Vec<Ipt>,
 }
 
-/// TODO HSS surely this should be `tor_proto::crypto::handshake::ntor::NtorSecretKey` ?
-///
-/// But that is private?
-/// Also it has a strange name, for something which contains both private and public keys.
-#[derive(Clone, Debug)]
-struct NtorKeyPair {}
-
-impl NtorKeyPair {
-    /// TODO HSS document or replace
-    fn public(&self) -> HsSvcNtorKey {
-        todo!() // TODO HSS implement, or get rid of NtorKeyPair, or something
-    }
-
-    /// TODO HSS document or replace
-    fn generate(rng: &mut impl Rng) -> Self {
-        todo!() // TODO HSS implement, or get rid of NtorKeyPair, or something
-    }
-}
-
 /// One introduction point, representation in memory
 #[derive(Debug)]
 struct Ipt {
@@ -211,7 +192,7 @@ struct Ipt {
     // TODO HSS how do we provide the private half to the recipients of our rend reqs?
     // It needs to be attached to each request, since the intro points have different
     // keys and the consumer of the rend req stream needs to use the right ones.
-    k_hss_ntor: NtorKeyPair,
+    k_hss_ntor: HsSvcNtorKeypair,
 
     /// Last information about how it's doing including timing info
     status_last: TrackedStatus,
@@ -370,7 +351,7 @@ impl IptRelay {
 
         let rng = mockable.thread_rng();
         let lid: IptLocalId = rng.gen();
-        let k_hss_ntor = NtorKeyPair::generate(&mut rng);
+        let k_hss_ntor = HsSvcNtorKeypair::generate(&mut rng);
         let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
 
         imm.runtime
@@ -430,7 +411,7 @@ impl Ipt {
             .link_specifiers(details.link_specifiers.clone())
             .ipt_kp_ntor(details.ipt_kp_ntor)
             .kp_hs_ipt_sid(k_sid.public.into())
-            .kp_hss_ntor(self.k_hss_ntor.public())
+            .kp_hss_ntor(self.k_hss_ntor.public().clone())
             .build()
             .map_err(into_internal!("failed to construct IntroPointDesc"))
     }
