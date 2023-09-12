@@ -337,9 +337,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         config_rx: watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, ReactorError> {
         /// The maximum size of the upload completion notifier channel.
-        //
-        // TODO HSS: choose an appropriate size for this buffer.
-        const UPLOAD_CHAN_BUF_SIZE: usize = 1024;
+        ///
+        /// The channel we use this for is a futures::mpsc channel, which has a capacity of
+        /// `UPLOAD_CHAN_BUF_SIZE + num-senders`. We don't need the buffer size to be non-zero, as
+        /// each sender will send exactly one message.
+        const UPLOAD_CHAN_BUF_SIZE: usize = 0;
 
         let hsid_key: HsIdKey = hsid
             .try_into()
