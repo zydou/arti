@@ -47,6 +47,12 @@ const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 /// The maximum number of concurrent upload tasks per time period.
 //
 // TODO HSS: this value was arbitrarily chosen and may not be optimal.
+//
+// The uploads for all TPs happen in parallel.  As a result, the actual limit for the maximum
+// number of concurrent upload tasks is multiplied by a number which depends on the TP parameters
+// (currently 2, which means the concurrency limit will, in fact, be 32).
+//
+// We should try to decouple this value from the TP parameters.
 const MAX_CONCURRENT_UPLOADS: usize = 16;
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
@@ -501,6 +507,17 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
                 if update_last_successful {
                     period.last_successful = Some(results.revision_counter);
+                    // TODO HSS: Is it possible that this won't update the statuses promptly
+                    // enough. For example, it's possible for the reactor to see a Dirty descriptor
+                    // and start an upload task for a descriptor has already been uploaded (or is
+                    // being uploaded) in another task, but whose upload results have not yet been
+                    // processed.
+                    //
+                    // This is probably made worse by the fact that the statuses are updated in
+                    // batches (grouped by time period), rather than one by one as the upload tasks
+                    // complete (updating the status involves locking the inner mutex, and I wanted
+                    // to minimize the locking/unlocking overheads). I'm not sure handling the
+                    // updates in batches was the correct decision here.
                     *status = DescriptorStatus::Clean;
                 }
             }
