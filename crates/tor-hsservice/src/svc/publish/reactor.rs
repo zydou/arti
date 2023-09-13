@@ -34,7 +34,7 @@ use tor_rtcompat::Runtime;
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
-use crate::svc::publish::backoff::{BackoffSchedule, RetriableError};
+use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, VersionedDescriptor};
 
 /// The upload rate-limiting threshold.
@@ -882,7 +882,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// If an upload fails, this returns an `Err`. This function does not handle retries. It is up
     /// to the caller to retry on failure.
     async fn upload_descriptor(
-        &self,
         hsdesc: String,
         netdir: &Arc<NetDir>,
         hsdir: &Relay<'_>,
@@ -934,12 +933,49 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// TODO HSS: document the retry logic when we implement it.
     async fn upload_descriptor_with_retries(
-        _hsdesc: String,
-        _netdir: &Arc<NetDir>,
-        _hsdir: &Relay<'_>,
-        _imm: Arc<Immutable<R, M>>,
+        hsdesc: String,
+        netdir: &Arc<NetDir>,
+        hsdir: &Relay<'_>,
+        imm: Arc<Immutable<R, M>>,
     ) -> Result<(), ReactorError> {
-        todo!();
+        use BackoffError as BE;
+
+        /// The base delay to use for the backoff schedule.
+        const BASE_DELAY_MSEC: u32 = 1000;
+
+        let runner = {
+            let schedule = PublisherBackoffSchedule {
+                retry_delay: RetryDelay::from_msec(BASE_DELAY_MSEC),
+                mockable: imm.mockable.clone(),
+            };
+            Runner::new(
+                "upload a hidden service descriptor".into(),
+                schedule,
+                imm.runtime.clone(),
+            )
+        };
+
+        let fallible_op = || async {
+            Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await
+        };
+
+        let res = runner.run(fallible_op).await;
+
+        let err = match res {
+            Ok(res) => return Ok(res),
+            Err(e) => e,
+        };
+
+        match err {
+            BE::FatalError(e)
+            | BE::MaxRetryCountExceeded(e)
+            | BE::Timeout(e)
+            | BE::ExplicitStop(e) => Err(ReactorError::PublishFailure(e)),
+            BE::Spawn { .. } | BE::Bug(_) => Err(into_internal!(
+                "internal error while attempting to publish descriptor"
+            )(err)
+            .into()),
+        }
     }
 }
 
