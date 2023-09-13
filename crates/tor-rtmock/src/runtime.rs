@@ -4,6 +4,7 @@ use std::fmt::{Debug, Display};
 
 use amplify::Getters;
 use futures::FutureExt as _;
+use itertools::chain;
 use strum::IntoEnumIterator as _;
 use void::{ResultVoidExt as _, Void};
 
@@ -150,6 +151,30 @@ impl MockRuntime {
         self.task.spawn_identified(desc, fut)
     }
 
+    /// Run tasks and advance time, until every task except this one is waiting
+    ///
+    /// On return the other tasks won't be waiting on timeouts,
+    /// since time will be advanced as needed.
+    ///
+    /// Therefore the other tasks (if any) will be waiting for something
+    /// that won't happen by itself,
+    /// such as a provocation via their APIs from this task.
+    ///
+    /// # Panics
+    ///
+    /// See [`progress_until_stalled`](MockRuntime::progress_until_stalled)
+    pub async fn advance_until_stalled(&self) {
+        loop {
+            self.progress_until_stalled().await;
+            let Some(timeout) = self.time_until_next_timeout() else {
+                // Nothing is waiting on timeouts
+                return;
+            };
+            assert_ne!(timeout, Duration::ZERO);
+            self.sleep.advance(timeout).await;
+        }
+    }
+
     /// Run tasks in the current executor until every task except this one is waiting
     ///
     /// Calls [`MockExecutor::progress_until_stalled()`].
@@ -178,10 +203,84 @@ impl MockRuntime {
         self.task.progress_until_stalled().await;
     }
 
-    /// See [`MockSleepProvider::advance()`]
+    /// Run tasks and advance time up to at most `limit`
+    ///
+    /// Will return when all other tasks are either:
+    ///  * Waiting on a timeout that will fire strictly after `limit`,
+    ///    (return value is the time until the earliest such)
+    ///  * Waiting for something else that won't happen by itself.
+    ///    (return value is `None`)
+    ///
+    /// Like [`advance_until_stalled`](MockRuntime::advance_until_stalled)
+    /// but stops when the mock time reaches `limit`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the time somehow advances beyond `limit`.
+    /// (This function won't do that, but maybe it was beyond `limit` on entry,
+    /// or another task advanced the clock.)
+    ///
+    /// And, see [`progress_until_stalled`](MockRuntime::progress_until_stalled)
+    pub async fn advance_until(&self, limit: Instant) -> Option<Duration> {
+        loop {
+            self.task.progress_until_stalled().await;
+
+            let timeout = self.time_until_next_timeout();
+
+            let limit = limit
+                .checked_duration_since(self.now())
+                .expect("MockRuntime::advance_until: time advanced beyond `limit`!");
+
+            if limit == Duration::ZERO {
+                // Time has reached `limit`
+                return timeout;
+            }
+
+            let advance = chain!(timeout, [limit]).min().expect("empty!");
+            assert_ne!(advance, Duration::ZERO);
+            self.sleep.advance(advance).await;
+        }
+    }
+
+    /// Advances time by `dur`, firing time events and other tasks in order
+    ///
+    /// Prefer this to [`MockSleepProvider::advance()`];
+    /// it works more correctly.
+    ///
+    /// Specifically, it advances time in successive stages,
+    /// so that timeouts occur sequentially, in the right order.
+    ///
+    /// # Panics
+    ///
+    /// Can panic if the mock time is advanced by other tasks.
+    ///
+    /// And, see [`progress_until_stalled`](MockRuntime::progress_until_stalled)
+    pub async fn advance_by(&self, dur: Duration) -> Option<Duration> {
+        let limit = self
+            .now()
+            .checked_add(dur)
+            .expect("MockRuntime::advance: time overflow");
+
+        self.advance_until(limit).await
+    }
+
+    /// Dispatches to [`MockSleepProvider::advance()`]
+    ///
+    /// ### Deprecated
+    ///
+    /// Usually, you will want `MockRuntime::advance_by`,
+    /// which advances the time in stages,
+    /// ensuring that all timeouts trigger in the expected sequence.
+    /// Changing from `advance` to `advance_by` should be correct,
+    /// but it can expose new bugs.
+    ///
+    /// If you want to step the time in one go,
+    /// use `runtime.mock_sleep().advance()`.
+    #[deprecated(note = "use MockRuntime::advance_by, or MockSleepProvider::advance()")]
     pub async fn advance(&self, dur: Duration) {
         self.sleep.advance(dur).await;
     }
+
     /// See [`MockSleepProvider::jump_to()`]
     pub fn jump_to(&self, new_wallclock: SystemTime) {
         self.sleep.jump_to(new_wallclock);
