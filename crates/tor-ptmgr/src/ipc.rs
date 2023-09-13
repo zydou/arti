@@ -597,7 +597,6 @@ pub(crate) mod sealed {
             rt: &R,
             deadline: Instant,
             async_child: &mut AsyncPtChild,
-            methods: &mut HashMap<PtTransportName, PtClientMethod>,
         ) -> Result<Option<PtMessage>, PtError> {
             match rt
                 .timeout(
@@ -618,27 +617,6 @@ pub(crate) mod sealed {
                         transport: transport.to_string(),
                         message,
                     });
-                }
-                PtMessage::ClientTransportLaunched {
-                    transport,
-                    protocol,
-                    endpoint,
-                } => {
-                    self.common_transport_launched_handler(
-                        Some(protocol),
-                        transport,
-                        endpoint,
-                        methods,
-                    )?;
-                    Ok(None)
-                }
-                PtMessage::ServerTransportLaunched {
-                    transport,
-                    endpoint,
-                    options: _,
-                } => {
-                    self.common_transport_launched_handler(None, transport, endpoint, methods)?;
-                    Ok(None)
                 }
                 PtMessage::VersionError(e) => {
                     if e != "no-version" {
@@ -965,12 +943,24 @@ impl PluggableClientTransport {
 
         loop {
             match self
-                .try_match_common_messages(&rt, deadline, &mut async_child, &mut cmethods)
+                .try_match_common_messages(&rt, deadline, &mut async_child)
                 .await
             {
                 Ok(maybe_message) => {
                     if let Some(message) = maybe_message {
                         match message {
+                            PtMessage::ClientTransportLaunched {
+                                transport,
+                                protocol,
+                                endpoint,
+                            } => {
+                                self.common_transport_launched_handler(
+                                    Some(protocol),
+                                    transport,
+                                    endpoint,
+                                    &mut cmethods,
+                                )?;
+                            }
                             PtMessage::ProxyDone => {
                                 if proxy_done {
                                     return Err(PtError::ProtocolViolation(
@@ -1106,12 +1096,24 @@ impl PluggableServerTransport {
 
         loop {
             match self
-                .try_match_common_messages(&rt, deadline, &mut async_child, &mut smethods)
+                .try_match_common_messages(&rt, deadline, &mut async_child)
                 .await
             {
                 Ok(maybe_message) => {
                     if let Some(message) = maybe_message {
                         match message {
+                            PtMessage::ServerTransportLaunched {
+                                transport,
+                                endpoint,
+                                options: _,
+                            } => {
+                                self.common_transport_launched_handler(
+                                    None,
+                                    transport,
+                                    endpoint,
+                                    &mut smethods,
+                                )?;
+                            }
                             PtMessage::ServerTransportsDone => {
                                 let unsupported = self
                                     .server_params
