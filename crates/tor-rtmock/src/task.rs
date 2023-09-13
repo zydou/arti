@@ -802,8 +802,13 @@ impl MockExecutor {
     ///
     /// A future which is waiting in a `select!` will typically
     /// show multiple traces, one for each branch.
-    /// But a complicated future contraption *might* clone the `Waker` more times,
-    /// so not every backtrace will necessarily be informative.
+    /// But,
+    /// if a future sleeps on one thing, and then when polled again later,
+    /// sleeps on something different, without waking up in between,
+    /// both backtrace locations will be shown.
+    /// And,
+    /// a complicated future contraption *might* clone the `Waker` more times.
+    /// So not every backtrace will necessarily be informative.
     ///
     /// ### Panics
     ///
