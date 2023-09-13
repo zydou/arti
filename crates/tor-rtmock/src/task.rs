@@ -361,12 +361,11 @@ impl BlockOn for MockExecutor {
 
         #[allow(clippy::let_and_return)] // clarity
         let value = value.take().unwrap_or_else(|| {
-            let data = self.data.lock();
+            let mut data = self.data.lock();
+            data.debug_dump();
             panic!(
                 r"
 all futures blocked. waiting for the real world? or deadlocked (waiting for each other) ?
-
-{data:#?}
 "
             );
         });
@@ -791,7 +790,6 @@ impl MockExecutor {
 
 impl Data {
     /// Convenience function: dump including backtraces, to stderr
-    #[allow(dead_code)] // XXXX
     fn debug_dump(&mut self) {
         let resolved = self.resolve_backtraces();
         DebugDump(Either::Left(self), resolved).to_stderr();
@@ -987,6 +985,8 @@ mod test {
                         eprintln!("sending task done");
                     }
                 });
+
+                runtime.debug_dump();
 
                 for i in 0..txs.len() {
                     eprintln!("main {i} wait stall...");
