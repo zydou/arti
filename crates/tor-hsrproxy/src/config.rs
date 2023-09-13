@@ -7,7 +7,7 @@ use tor_config::{define_list_builder_accessors, define_list_builder_helper, Conf
 
 /// Configuration for a reverse proxy running for one onion service.
 #[derive(Clone, Debug, Builder)]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ProxyConfig {
     /// A list of rules to apply to incoming requests.  If no rule
@@ -15,8 +15,26 @@ pub struct ProxyConfig {
     #[builder(sub_builder, setter(custom))]
     pub(crate) proxy_ports: ProxyRuleList,
 }
-// ^ TODO HSS: Add validation function to make sure that there are no
-// unreachable rules.
+
+impl ProxyConfigBuilder {
+    /// Run checks on this ProxyConfig to ensure that it's valid.
+    fn validate(&self) -> Result<(), ConfigBuildError> {
+        // Make sure that every proxy pattern is actually reachable.
+        let mut covered = rangemap::RangeInclusiveSet::<u16>::new();
+        for rule in self.proxy_ports.access_opt().iter().flatten() {
+            let range = &rule.source.0;
+            if covered.gaps(range).next().is_none() {
+                return Err(ConfigBuildError::Invalid {
+                    field: "proxy_ports".into(),
+                    problem: format!("Port pattern {} is not reachable", rule.source),
+                });
+            }
+            covered.insert(range.clone());
+        }
+
+        Ok(())
+    }
+}
 
 define_list_builder_accessors! {
    struct ProxyConfigBuilder {
@@ -377,5 +395,36 @@ mod test {
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.proxy_ports.len(), 3);
         // TODO HSS: test actual values.
+    }
+
+    #[test]
+    fn validation_fail() {
+        // this should fail; the third pattern isn't reachable.
+        let ex = r#"{
+            "proxy_ports": [
+                [ "2-300", "127.0.0.1:11443" ],
+                [ "301-999", "ignore" ],
+                [ "30-310", "destroy" ]
+            ]
+        }"#;
+        let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
+        match bld.build() {
+            Err(ConfigBuildError::Invalid { field, problem }) => {
+                assert_eq!(field, "proxy_ports");
+                assert_eq!(problem, "Port pattern 30-310 is not reachable");
+            }
+            other => panic!("Expected an Invalid error; got {other:?}"),
+        }
+
+        // This should work; the third pattern is not completely covered.
+        let ex = r#"{
+            "proxy_ports": [
+                [ "2-300", "127.0.0.1:11443" ],
+                [ "302-999", "ignore" ],
+                [ "30-310", "destroy" ]
+            ]
+        }"#;
+        let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
+        assert!(bld.build().is_ok());
     }
 }

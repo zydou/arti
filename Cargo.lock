@@ -4931,6 +4931,7 @@ name = "tor-hsrproxy"
 version = "0.1.0"
 dependencies = [
  "derive_builder_fork_arti",
+ "rangemap",
  "serde",
  "serde_json",
  "serde_with",
