@@ -571,7 +571,8 @@ mod test {
         let runtime = MockRuntime::new();
         runtime.clone().block_on(async move {
             // prevent underflow of Instant in case we started very recently
-            runtime.advance(Duration::from_secs(1000000)).await;
+            // (just jump the clock)
+            runtime.advance_by(Duration::from_secs(1000000)).await;
             // set SystemTime to a known value
             runtime.jump_to(earliest_systemtime());
 
