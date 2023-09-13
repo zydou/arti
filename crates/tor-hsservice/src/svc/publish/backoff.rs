@@ -11,12 +11,11 @@ use std::future::{self, Future};
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::channel::oneshot;
-use futures::task::{SpawnError, SpawnExt};
+use futures::future::Either;
+use futures::task::SpawnError;
 use futures::{select_biased, FutureExt};
 
 use retry_error::RetryError;
-use tor_error::internal;
 use tor_rtcompat::Runtime;
 use tracing::{debug, trace};
 
@@ -56,10 +55,14 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
         let mut retry_count = 0;
         let mut errors = RetryError::in_attempt_to(self.doing.clone());
 
-        let (timeout_tx, timeout_rx) = oneshot::channel();
-        Self::spawn_timeout_task::<E>(self.runtime.clone(), self.schedule.timeout(), timeout_tx)?;
+        // When this timeout elapses, the `Runner` will stop retrying the fallible operation.
+        //
+        // A `timeout` of `None` means there is no time limit for the retries.
+        let mut timeout = match self.schedule.timeout() {
+            Some(timeout) => Either::Left(Box::pin(self.runtime.sleep(timeout))),
+            None => Either::Right(future::pending()),
+        }.fuse();
 
-        let mut timeout_rx = timeout_rx.fuse();
         loop {
             // Bail if we've exceeded the number of allowed retries.
             if matches!(self.schedule.max_retries(), Some(max_retry_count) if retry_count >= max_retry_count)
@@ -70,15 +73,10 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
             trace!(attempt = (retry_count + 1), "{}", self.doing);
 
             select_biased! {
-                res = timeout_rx => {
-                    match res {
-                        Ok(()) => {
-                            // The timeout has elapsed, so stop retrying and return the errors
-                            // accummulated so far.
-                            return Err(BackoffError::Timeout(errors))
-                        },
-                        Err(_) => return Err(internal!("timeout sender dropped").into())
-                    }
+                res = timeout => {
+                    // The timeout has elapsed, so stop retrying and return the errors
+                    // accummulated so far.
+                    return Err(BackoffError::Timeout(errors))
                 }
                 res = fallible_fn().fuse() => {
                     match res {
@@ -114,38 +112,6 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                 },
             }
         }
-    }
-
-    /// Spawn a task that tells this `Runner` to stop retrying the fallible operation when
-    /// `timeout` elapses.
-    ///
-    /// A `timeout` of `None` means there is no time limit for the retries.
-    fn spawn_timeout_task<E: RetriableError>(
-        runtime: R,
-        timeout: Option<Duration>,
-        timeout_tx: oneshot::Sender<()>,
-    ) -> Result<(), BackoffError<E>> {
-        runtime
-            .spawn({
-                let runtime = runtime.clone();
-                async move {
-                    match timeout {
-                        Some(timeout) => {
-                            let () = runtime.sleep(timeout).await;
-                            // Ignore the result. This will return an error if the `Runner`
-                            // completes (and is dropped) before the timeout elapses.
-                            let _: Result<(), ()> = timeout_tx.send(());
-                        }
-                        None => {
-                            // Never time out.
-                            future::pending::<()>().await;
-                        }
-                    }
-                }
-            })
-            .map_err(|e| BackoffError::from_spawn("failed to spawn publish timeout task", e))?;
-
-        Ok(())
     }
 }
 
@@ -249,6 +215,8 @@ mod tests {
 
     use std::iter;
     use std::sync::RwLock;
+
+    use futures::channel::oneshot;
 
     use tor_rtcompat::{BlockOn, SleepProvider};
     use tor_rtmock::MockRuntime;
@@ -412,7 +380,7 @@ mod tests {
     fn timeout() {
         use TestError::*;
 
-        let expected_run_count = TIMEOUT.as_millis() / SHORT_DELAY.as_millis() + 1;
+        let expected_run_count = TIMEOUT.as_millis() / SHORT_DELAY.as_millis();
 
         run_test(
             BackoffWithTimeout,
