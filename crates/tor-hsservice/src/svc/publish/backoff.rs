@@ -41,7 +41,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
     }
 
     /// Run `fallible_fn`, retrying according to the [`BackoffSchedule`] of this `Runner`.
-    /// 
+    ///
     /// If `fallible_fn` eventually returns `Ok(_)`, return that output. Otherwise,
     /// keep retrying until either `fallible_fn` has failed too many times, or until
     /// a fatal error occurs.
