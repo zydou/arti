@@ -69,11 +69,11 @@ pub struct ProxyRule {
     /// Any connections to a port matching this pattern match this rule.
     source: ProxyPattern,
     /// When this rule matches, we take this action.
-    target: ProxyTarget,
+    target: ProxyAction,
 }
 
 /// Helper type used to (de)serialize ProxyRule.
-type ProxyRuleAsTuple = (ProxyPattern, ProxyTarget);
+type ProxyRuleAsTuple = (ProxyPattern, ProxyAction);
 impl From<ProxyRuleAsTuple> for ProxyRule {
     fn from(value: ProxyRuleAsTuple) -> Self {
         Self {
@@ -89,7 +89,7 @@ impl From<ProxyRule> for ProxyRuleAsTuple {
 }
 impl ProxyRule {
     /// Create a new ProxyRule mapping `source` to `target`.
-    pub fn new(source: ProxyPattern, target: ProxyTarget) -> Self {
+    pub fn new(source: ProxyPattern, target: ProxyAction) -> Self {
         Self { source, target }
     }
 }
@@ -174,7 +174,7 @@ impl ProxyPattern {
     PartialEq,
 )]
 #[non_exhaustive]
-pub enum ProxyTarget {
+pub enum ProxyAction {
     /// Close the circuit immediately with an error.
     #[default]
     DestroyCircuit,
@@ -247,7 +247,7 @@ pub enum Encapsulation {
     Direct,
 }
 
-impl FromStr for ProxyTarget {
+impl FromStr for ProxyAction {
     type Err = ProxyConfigError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -265,13 +265,13 @@ impl FromStr for ProxyTarget {
     }
 }
 
-impl std::fmt::Display for ProxyTarget {
+impl std::fmt::Display for ProxyAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProxyTarget::DestroyCircuit => write!(f, "destroy"),
-            ProxyTarget::Forward(Encapsulation::Direct, addr) => write!(f, "direct:{}", addr),
-            ProxyTarget::RejectStream => write!(f, "reject"),
-            ProxyTarget::IgnoreStream => write!(f, "ignore"),
+            ProxyAction::DestroyCircuit => write!(f, "destroy"),
+            ProxyAction::Forward(Encapsulation::Direct, addr) => write!(f, "direct:{}", addr),
+            ProxyAction::RejectStream => write!(f, "reject"),
+            ProxyAction::IgnoreStream => write!(f, "ignore"),
         }
     }
 }
@@ -346,7 +346,7 @@ mod test {
     #[test]
     fn target_ok() {
         use Encapsulation::Direct;
-        use ProxyTarget as T;
+        use ProxyAction as T;
         use TargetAddr as A;
         assert!(matches!(T::from_str("reject"), Ok(T::RejectStream)));
         assert!(matches!(T::from_str("ignore"), Ok(T::IgnoreStream)));
@@ -372,7 +372,7 @@ mod test {
     #[test]
     fn target_display() {
         use Encapsulation::Direct;
-        use ProxyTarget as T;
+        use ProxyAction as T;
         use TargetAddr as A;
 
         assert_eq!(T::RejectStream.to_string(), "reject");
@@ -394,8 +394,8 @@ mod test {
 
     #[test]
     fn target_err() {
+        use ProxyAction as T;
         use ProxyConfigError as PCE;
-        use ProxyTarget as T;
 
         assert!(matches!(
             T::from_str("sdakljf"),
@@ -454,10 +454,10 @@ mod test {
 
         assert_eq!(
             cfg.proxy_ports[0].target,
-            ProxyTarget::Forward(Direct, A::Inet("127.0.0.1:11443".parse().unwrap()))
+            ProxyAction::Forward(Direct, A::Inet("127.0.0.1:11443".parse().unwrap()))
         );
-        assert_eq!(cfg.proxy_ports[1].target, ProxyTarget::IgnoreStream);
-        assert_eq!(cfg.proxy_ports[2].target, ProxyTarget::DestroyCircuit);
+        assert_eq!(cfg.proxy_ports[1].target, ProxyAction::IgnoreStream);
+        assert_eq!(cfg.proxy_ports[2].target, ProxyAction::DestroyCircuit);
     }
 
     #[test]
