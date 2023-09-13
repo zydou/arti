@@ -347,3 +347,180 @@ impl MockRuntimeBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use futures::channel::mpsc;
+    use futures::{SinkExt as _, StreamExt as _};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering::SeqCst;
+    use std::sync::Arc;
+    use tracing::trace;
+    use tracing_test::traced_test;
+
+    //---------- helper alias ----------
+
+    fn ms(i: u64) -> Duration {
+        Duration::from_millis(i)
+    }
+
+    //---------- set up some test tasks ----------
+
+    struct TestTasks {
+        runtime: MockRuntime,
+        start: Instant,
+        tx: mpsc::Sender<()>,
+        signals: Vec<Arc<AtomicBool>>,
+    }
+    impl TestTasks {
+        fn spawn(runtime: &MockRuntime) -> TestTasks {
+            let start = runtime.now();
+            let mut signals = vec![];
+
+            let mut new_signal = || {
+                let signal = Arc::new(AtomicBool::new(false));
+                signals.push(signal.clone());
+                signal
+            };
+
+            let (tx, mut rx) = mpsc::channel(0);
+            runtime.spawn_identified("rx", {
+                let signal = new_signal();
+                async move {
+                    trace!("task rx starting...");
+                    let _: Option<()> = rx.next().await;
+                    signal.store(true, SeqCst);
+                    trace!("task rx finished.");
+                }
+            });
+
+            for i in 1..=3 {
+                let signal = new_signal();
+                runtime.spawn_identified(i, {
+                    let runtime = runtime.clone();
+                    async move {
+                        trace!("task {i} starting...");
+                        runtime.sleep(ms(i * 1000)).await;
+                        signal.store(true, SeqCst);
+                        trace!("task {i} finished.");
+                    }
+                });
+            }
+            let runtime = runtime.clone();
+
+            TestTasks {
+                runtime,
+                start,
+                tx,
+                signals,
+            }
+        }
+
+        fn signals_list(&self) -> String {
+            self.signals
+                .iter()
+                .map(|s| if s.load(SeqCst) { 't' } else { 'f' })
+                .collect()
+        }
+    }
+
+    //---------- test advance_until_stalled ----------
+
+    impl TestTasks {
+        async fn advance_until_stalled(&self, exp_offset_from_start: Duration, exp_signals: &str) {
+            self.runtime.advance_until_stalled().await;
+            assert_eq!(self.runtime.now() - self.start, exp_offset_from_start);
+            assert_eq!(self.signals_list(), exp_signals);
+        }
+    }
+
+    #[traced_test]
+    #[test]
+    fn advance_until_stalled() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let mut tt = TestTasks::spawn(&runtime);
+
+            tt.advance_until_stalled(ms(3000), "fttt").await;
+            tt.tx.send(()).await.unwrap();
+            tt.advance_until_stalled(ms(3000), "tttt").await;
+        });
+    }
+
+    //---------- test advance_until ----------
+
+    impl TestTasks {
+        async fn advance_until(
+            &self,
+            offset_from_start: Duration,
+            exp_signals: &str,
+            exp_got: Option<Duration>,
+        ) {
+            let limit = self.start + offset_from_start;
+            eprintln!("===> advance_until {}ms", offset_from_start.as_millis());
+            let got = self.runtime.advance_until(limit).await;
+            assert_eq!(self.runtime.now() - self.start, offset_from_start);
+            assert_eq!(self.signals_list(), exp_signals);
+            assert_eq!(got, exp_got);
+        }
+    }
+
+    #[traced_test]
+    #[test]
+    fn advance_until() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let mut tt = TestTasks::spawn(&runtime);
+
+            tt.advance_until(ms(1100), "ftff", Some(ms(900))).await;
+            tt.advance_until(ms(2000), "fttf", Some(ms(1000))).await;
+            tt.tx.send(()).await.unwrap();
+            tt.advance_until(ms(2000), "tttf", Some(ms(1000))).await;
+            tt.advance_until(ms(3300), "tttt", None).await;
+        });
+    }
+
+    //---------- test advance_by ----------
+
+    impl TestTasks {
+        async fn advance_by(
+            &self,
+            advance: Duration,
+            exp_offset_from_start: Duration,
+            exp_signals: &str,
+            exp_got: Option<Duration>,
+        ) {
+            eprintln!("===> advance {}ms", advance.as_millis());
+            let got = self.runtime.advance_by(advance).await;
+            assert_eq!(self.runtime.now() - self.start, exp_offset_from_start);
+            assert_eq!(self.signals_list(), exp_signals);
+            assert_eq!(got, exp_got);
+        }
+    }
+
+    #[traced_test]
+    #[test]
+    fn advance_by() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let mut tt = TestTasks::spawn(&runtime);
+
+            tt.advance_by(ms(1100), ms(1100), "ftff", Some(ms(900)))
+                .await;
+            tt.advance_by(ms(900), ms(2000), "fttf", Some(ms(1000)))
+                .await;
+            tt.tx.send(()).await.unwrap();
+            tt.advance_by(ms(1300), ms(3300), "tttt", None).await;
+        });
+    }
+}
