@@ -71,19 +71,13 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 // dirty).
 #[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
 pub(super) struct Reactor<R: Runtime, M: Mockable> {
-    /// The runtime.
-    runtime: R,
-    /// The service for which we're publishing descriptors.
-    hsid: HsId,
+    /// The immutable, shared inner state.
+    imm: Arc<Immutable<R, M>>,
     /// The public key of the service.
     hsid_key: HsIdKey,
     /// A source for new network directories that we use to determine
     /// our HsDirs.
     dir_provider: Arc<dyn NetDirProvider>,
-    /// Mockable state.
-    ///
-    /// This is used for launching circuits and for obtaining random number generators.
-    mockable: M,
     /// The mutable inner state,
     inner: Arc<Mutex<Inner>>,
     /// A channel for receiving IPT change notifications.
@@ -103,6 +97,19 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ///
     /// A copy of this sender is handed to each upload task.
     upload_task_complete_tx: Sender<TimePeriodUploadResult>,
+}
+
+/// The immutable, shared state of the descriptor publisher reactor.
+#[derive(Clone)]
+struct Immutable<R: Runtime, M: Mockable> {
+    /// The runtime.
+    runtime: R,
+    /// Mockable state.
+    ///
+    /// This is used for launching circuits and for obtaining random number generators.
+    mockable: M,
+    /// The service for which we're publishing descriptors.
+    hsid: HsId,
 }
 
 /// Mockable state for the descriptor publisher reactor.
@@ -387,6 +394,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let (upload_task_complete_tx, upload_task_complete_rx) =
             mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
+        let imm = Immutable {
+            runtime,
+            mockable,
+            hsid,
+        };
+
         let inner = Inner {
             descriptor: DescriptorBuilder::default(),
             time_periods,
@@ -396,12 +409,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         };
 
         Ok(Self {
-            runtime,
+            imm: Arc::new(imm),
             inner: Arc::new(Mutex::new(inner)),
-            hsid,
             hsid_key,
             dir_provider,
-            mockable,
             ipt_watcher,
             config_rx,
             pending_upload_tx: None,
@@ -425,9 +436,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         self.pending_upload_tx = Some(pending_upload_tx);
 
-        let rt = self.runtime.clone();
+        let rt = self.imm.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
-        let _ = self.runtime.spawn(async move {
+        let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
             while let Some(duration) = pending_upload_rx.next().await {
                 rt.sleep(duration).await;
@@ -502,7 +513,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
     async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().await;
-        inner.last_uploaded = Some(self.runtime.now());
+        inner.last_uploaded = Some(self.imm.runtime.now());
 
         // Check which time period these uploads pertain to.
         let period = inner
@@ -652,7 +663,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&mut self) -> Result<(), ReactorError> {
         let last_uploaded = self.inner.lock().await.last_uploaded;
-        let now = self.runtime.now();
+        let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
         if let Some(last_uploaded) = last_uploaded {
             let duration_since_upload = last_uploaded.duration_since(now);
@@ -677,18 +688,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // enough information to build the descriptor (if we do get here, it's a bug).
                 //
                 // Instead of skipping the upload, we should be returning an internal! error.
-                trace!(hsid=%self.hsid, "not enough information to build descriptor, skipping upload: {e}");
+                trace!(hsid=%self.imm.hsid, "not enough information to build descriptor, skipping upload: {e}");
                 return Ok(());
             }
         };
 
         let netdir = Arc::clone(&inner.netdir);
 
-        let runtime = self.runtime.clone();
-        let mockable = self.mockable.clone();
+        let imm = Arc::clone(&self.imm);
         let hsid_key = self.hsid_key.clone();
         let upload_task_complete_tx = self.upload_task_complete_tx.clone();
-        let hsid = self.hsid;
 
         let upload_tasks = inner.time_periods.iter().map(move |period| {
             // Figure out which HsDirs we need to upload the descriptor to (some of them might already
@@ -716,7 +725,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
             let hsdesc = {
-                let mut rng = mockable.thread_rng();
+                let mut rng = imm.mockable.thread_rng();
                 hsdesc.build_sign(
                     hsid_key,
                     blind_id_kp,
@@ -726,7 +735,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 )?
             };
 
-            let handle = runtime.spawn(async {
+            let handle = imm.runtime.spawn(async {
                 let hsdesc = VersionedDescriptor {
                     desc: hsdesc.clone(),
                     revision_counter,
@@ -736,7 +745,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     hs_dirs,
                     &netdir,
                     period.period,
-                    hsid,
+                    imm,
                     upload_task_complete_tx,
                 )
                 .await
@@ -778,7 +787,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
         time_period: TimePeriod,
-        hsid: HsId,
+        imm: Arc<Immutable<R, M>>,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), ReactorError> {
         let VersionedDescriptor {
@@ -789,6 +798,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
+                let imm = Arc::clone(&imm);
 
                 async move {
                     let run_upload = || async {
@@ -818,7 +828,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 .unwrap_or_else(|| "unknown".into());
 
                             error!(
-                                hsid=%hsid, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                hsid=%imm.hsid, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
                                 "failed to upload descriptor: {e}"
                             );
 
@@ -842,7 +852,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(hsid=%hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
+        trace!(hsid=%imm.hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
@@ -870,15 +880,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hsdesc: String,
         netdir: &Arc<NetDir>,
         hsdir: &Relay<'_>,
+        imm: Arc<Immutable<R, M>>,
     ) -> Result<(), UploadError> {
         let request = HsDescUploadRequest::new(hsdesc);
 
-        trace!(hsid=%self.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
+        trace!(hsid=%imm.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
             "trying to upload descriptor. HTTP request:\n{:?}",
             request.make_request()
         );
 
-        let circuit = self
+        let circuit = imm
             .mockable
             .get_or_launch_specific(
                 netdir,
@@ -892,7 +903,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .await
             .map_err(UploadError::Stream)?;
 
-        let response = send_request(&self.runtime, &request, &mut stream, None)
+        let response = send_request(&imm.runtime, &request, &mut stream, None)
             .await
             .map_err(|dir_error| -> UploadError {
                 match dir_error {
@@ -906,7 +917,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             })?;
 
         trace!(
-            hsid=%self.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
+            hsid=%imm.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
             "successfully uploaded descriptor"
         );
 
