@@ -637,7 +637,10 @@ impl<D: MockableConnectorData> ServiceState<D> {
                     error!("time overflow calculating HS circuit expiry, killing circuit!");
                     None
                 })?;
-            let wait = expiry.checked_duration_since(now)?;
+            let wait = expiry.checked_duration_since(now).unwrap_or_default();
+            if wait == Duration::ZERO {
+                return None;
+            }
             Some(wait)
         }
 
