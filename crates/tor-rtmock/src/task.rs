@@ -707,13 +707,21 @@ impl Data {
     /// where the printing has to work with `&` not `&mut`.)
     fn dump_backtraces(&self, f: &mut fmt::Formatter, _: BacktracesResolved) -> fmt::Result {
         for (id, task) in &self.tasks {
-            write!(f, "{id:?}={task:?}: ")?;
+            let prefix = |f: &mut fmt::Formatter| write!(f, "{id:?}={task:?}: ");
             match &task.state {
-                Awake => writeln!(f, "awake")?,
+                Awake => {
+                    prefix(f)?;
+                    writeln!(f, "awake")?;
+                }
                 Asleep(locs) => {
                     let n = locs.len();
                     for (i, loc) in locs.iter().enumerate() {
+                        prefix(f)?;
                         writeln!(f, "asleep, backtrace {i}/{n}:\n{loc:?}",)?;
+                    }
+                    if n == 0 {
+                        prefix(f)?;
+                        writeln!(f, "asleep, no backtraces, Waker never cloned, stuck!",)?;
                     }
                 }
             }
