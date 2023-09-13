@@ -812,7 +812,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             );
                         };
 
-                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir).await
+                        Self::upload_descriptor_with_retries(
+                            desc.clone(),
+                            &netdir,
+                            &hsdir,
+                            Arc::clone(&imm),
+                        )
+                        .await
                     };
 
                     let upload_res = match run_upload().await {
@@ -931,6 +937,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         _hsdesc: String,
         _netdir: &Arc<NetDir>,
         _hsdir: &Relay<'_>,
+        _imm: Arc<Immutable<R, M>>,
     ) -> Result<(), ReactorError> {
         todo!();
     }
