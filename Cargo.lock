@@ -5298,6 +5298,7 @@ version = "0.9.1"
 dependencies = [
  "amplify",
  "async-trait",
+ "backtrace",
  "derive-adhoc",
  "educe",
  "futures",
@@ -5310,6 +5311,7 @@ dependencies = [
  "strum",
  "thiserror",
  "tor-basic-utils",
+ "tor-error",
  "tor-rtcompat",
  "tracing",
  "tracing-test",

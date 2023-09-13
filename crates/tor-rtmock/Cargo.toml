@@ -14,6 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
+backtrace = { version = "0.3.68" }
 derive-adhoc = "0.7"
 educe = "0.4.6"
 futures = "0.3.14"
@@ -23,6 +24,7 @@ pin-project = "1"
 slotmap = "1.0.6"
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
+tor-error = { version = "0.5.4", path = "../tor-error", features = ["tracing"] }
 tor-rtcompat = { version = "0.9.1", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 tracing-test = "0.2"

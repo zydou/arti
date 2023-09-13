@@ -5,21 +5,26 @@
 use std::collections::VecDeque;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
+use std::io::{self, Write as _};
 use std::iter;
+use std::mem;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::task::{Context, Poll, Wake, Waker};
+use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
 
+use backtrace::Backtrace;
 use educe::Educe;
+use itertools::Either;
 use itertools::{chain, izip};
 use slotmap::DenseSlotMap;
 use strum::EnumIter;
 use tracing::trace;
 
+use tor_error::error_report;
 use tor_rtcompat::BlockOn;
 
 use Poll::*;
@@ -175,13 +180,16 @@ enum TaskState {
     /// Asleep - does *not* need to be polled
     ///
     /// Established each time just before we call the future's [`poll`](Future::poll)
-    Asleep,
+    Asleep(Vec<SleepLocation>),
 }
 
 /// Actual implementor of `Wake` for use in a `Waker`
 ///
 /// Futures (eg, channels from [`futures`]) will use this to wake a task
 /// when it should be polled.
+///
+/// This type must not be `Cloned` with the `Data` lock held.
+/// Consequently, a `Waker` mustn't either.
 struct ActualWaker {
     /// Executor state
     data: ArcMutexData,
@@ -353,12 +361,11 @@ impl BlockOn for MockExecutor {
 
         #[allow(clippy::let_and_return)] // clarity
         let value = value.take().unwrap_or_else(|| {
-            let data = self.data.lock();
+            let mut data = self.data.lock();
+            data.debug_dump();
             panic!(
                 r"
 all futures blocked. waiting for the real world? or deadlocked (waiting for each other) ?
-
-{data:#?}
 "
             );
         });
@@ -392,9 +399,28 @@ impl MockExecutor {
                     "ProgressingUntilStalled finished twice?!"
                 );
                 pus.finished = Ready(());
-                pus.waker
-                    .clone()
-                    .expect("ProgressUntilStalledFuture not ever polled!")
+
+                // Release the lock temporarily so that ActualWaker::clone doesn't deadlock
+                let waker = pus
+                    .waker
+                    .take()
+                    .expect("ProgressUntilStalledFuture not ever polled!");
+                drop(data);
+                let waker_copy = waker.clone();
+                let mut data = self.data.lock();
+
+                let pus = &mut data.progressing_until_stalled;
+                if let Some(double) = mem::replace(
+                    &mut pus
+                        .as_mut()
+                        .expect("progressing_until_stalled updated under our feet!")
+                        .waker,
+                    Some(waker),
+                ) {
+                    panic!("double progressing_until_stalled.waker! {double:?}");
+                }
+
+                waker_copy
             };
             pus_waker.wake();
         }
@@ -423,16 +449,17 @@ impl MockExecutor {
                     trace!("MockExecutor {id:?} vanished");
                     continue;
                 };
-                task.state = Asleep;
+                task.state = Asleep(vec![]);
                 let fut = task.fut.take().expect("future missing from task!");
                 break 'inner (id, fut);
             };
 
             // Poll the selected task
-            let waker = Waker::from(Arc::new(ActualWaker {
+            let waker = ActualWaker {
                 data: self.data.clone(),
                 id,
-            }));
+            }
+            .new_waker();
             trace!("MockExecutor {id:?} polling...");
             let mut cx = Context::from_waker(&waker);
             let r = match &mut fut {
@@ -487,8 +514,11 @@ impl Data {
     }
 }
 
-impl Wake for ActualWaker {
-    fn wake(self: Arc<Self>) {
+impl ActualWaker {
+    /// Wake the task corresponding to this `ActualWaker`
+    ///
+    /// This is like `<Self as std::task::Wake>::wake()` but takes `&self`, not `Arc`
+    fn wake(&self) {
         let mut data = self.data.lock();
         trace!("MockExecutor {:?} wake", &self.id);
         let Some(task) = data.tasks.get_mut(self.id) else {
@@ -496,7 +526,7 @@ impl Wake for ActualWaker {
         };
         match task.state {
             Awake => {}
-            Asleep => {
+            Asleep(_) => {
                 task.state = Awake;
                 data.awake.push_back(self.id);
             }
@@ -538,11 +568,12 @@ impl Future for ProgressUntilStalledFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<()> {
+        let waker = cx.waker().clone();
         let mut data = self.data.lock();
         let pus = data.progressing_until_stalled.as_mut();
         trace!("MockExecutor progress_until_stalled polling... {:?}", &pus);
         let pus = pus.expect("ProgressingUntilStalled missing");
-        pus.waker = Some(cx.waker().clone());
+        pus.waker = Some(waker);
         pus.finished
     }
 }
@@ -569,7 +600,258 @@ impl ArcMutexData {
     }
 }
 
+//---------- ActualWaker as RawWaker ----------
+
+/// Using [`ActualWaker`] in a [`RawWaker`]
+///
+/// We need to make a
+/// [`Waker`] (the safe, type-erased, waker, used by actual futures)
+/// which contains an
+/// [`ActualWaker`] (our actual waker implementation, also safe).
+///
+/// `std` offers `Waker::from<Arc<impl Wake>>`.
+/// But we want a bespoke `Clone` implementation, so we don't want to use `Arc`.
+///
+/// So instead, we implement the `RawWaker` API in terms of `ActualWaker`.
+/// We keep the `ActualWaker` in a `Box`, and actually `clone` it (and the `Box`).
+///
+/// SAFETY
+///
+///  * The data pointer is `Box::<ActualWaker>::into_raw()`
+///  * We share these when we clone
+///  * No-one is allowed `&mut ActualWaker` unless there are no other clones
+///  * So we may make references `&ActualWaker`
+impl ActualWaker {
+    /// Wrap up an [`ActualWaker`] as a type-erased [`Waker`] for passing to futures etc.
+    fn new_waker(self) -> Waker {
+        unsafe { Waker::from_raw(self.raw_new()) }
+    }
+
+    /// Helper: wrap up an [`ActualWaker`] as a [`RawWaker`].
+    fn raw_new(self) -> RawWaker {
+        let self_: Box<ActualWaker> = self.into();
+        let self_: *mut ActualWaker = Box::into_raw(self_);
+        let self_: *const () = self_ as _;
+        RawWaker::new(self_, &RAW_WAKER_VTABLE)
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `clone`
+    unsafe fn raw_clone(self_: *const ()) -> RawWaker {
+        let self_: *const ActualWaker = self_ as _;
+        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+        let copy: ActualWaker = self_.clone();
+        copy.raw_new()
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `wake`
+    unsafe fn raw_wake(self_: *const ()) {
+        Self::raw_wake_by_ref(self_);
+        Self::raw_drop(self_);
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `wake_ref_by`
+    unsafe fn raw_wake_by_ref(self_: *const ()) {
+        let self_: *const ActualWaker = self_ as _;
+        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+        self_.wake();
+    }
+
+    /// Implementation of [`RawWakerVTable`]'s `drop`
+    unsafe fn raw_drop(self_: *const ()) {
+        let self_: *mut ActualWaker = self_ as _;
+        let self_: Box<ActualWaker> = Box::from_raw(self_);
+        drop(self_);
+    }
+}
+
+/// vtable for `Box<ActualWaker>` as `RawWaker`
+//
+// This ought to be in the impl block above, but
+//   "associated `static` items are not allowed"
+static RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
+    ActualWaker::raw_clone,
+    ActualWaker::raw_wake,
+    ActualWaker::raw_wake_by_ref,
+    ActualWaker::raw_drop,
+);
+
+//---------- Sleep location tracking and dumping ----------
+
+/// Proof token that `resolve_backtraces` has been called.
+#[derive(Clone, Copy)]
+struct BacktracesResolved {}
+
+/// We record "where a future went to sleep" as (just) a backtrace
+type SleepLocation = Backtrace;
+
+impl Data {
+    /// Resolve backtraces (for debug dump)
+    fn resolve_backtraces(&mut self) -> BacktracesResolved {
+        for (_id, task) in &mut self.tasks {
+            match &mut task.state {
+                Awake => {}
+                Asleep(locs) => {
+                    for loc in locs {
+                        loc.resolve();
+                    }
+                }
+            }
+        }
+        BacktracesResolved {}
+    }
+
+    /// Dump tasks and their sleep location backtraces
+    ///
+    /// `resolve_backtraces` must have been called.
+    /// (This split allows us to make a wrapper that can be `Debug`,
+    /// where the printing has to work with `&` not `&mut`.)
+    fn dump_backtraces(&self, f: &mut fmt::Formatter, _: BacktracesResolved) -> fmt::Result {
+        for (id, task) in &self.tasks {
+            write!(f, "{id:?}={task:?}: ")?;
+            match &task.state {
+                Awake => writeln!(f, "awake")?,
+                Asleep(locs) => {
+                    let n = locs.len();
+                    for (i, loc) in locs.iter().enumerate() {
+                        writeln!(f, "asleep, backtrace {i}/{n}:\n{loc:?}",)?;
+                    }
+                }
+            }
+        }
+        writeln!(
+            f,
+            "\nNote: there might be spurious traces, see docs for MockExecutor::debug_dump\n"
+        )?;
+        Ok(())
+    }
+}
+
+/// Track sleep locations via `<Waker as Clone>`.
+///
+/// See [`MockExecutor::debug_dump`] for the explanation.
+impl Clone for ActualWaker {
+    fn clone(&self) -> Self {
+        let id = self.id;
+
+        {
+            let mut data = self.data.lock();
+            if let Some(task) = data.tasks.get_mut(self.id) {
+                match &mut task.state {
+                    Awake => trace!("MockExecutor cloned waker for awake task {id:?}"),
+                    Asleep(locs) => locs.push(SleepLocation::new_unresolved()),
+                }
+            } else {
+                trace!("MockExecutor cloned waker for dead task {id:?}");
+            }
+        }
+
+        ActualWaker {
+            data: self.data.clone(),
+            id,
+        }
+    }
+}
+
+//---------- API for full debug dump ----------
+
+/// Debugging dump of a `MockExecutor`'s state
+///
+/// Returned by [`MockExecutor::as_debug_dump`]
+//
+// Existence implies backtraces have been resolved
+//
+// We use `Either` so that we can also use this internally when we have &mut Data.
+pub struct DebugDump<'a>(Either<&'a Data, MutexGuard<'a, Data>>, BacktracesResolved);
+
+impl MockExecutor {
+    /// Dump the executor's state including backtraces of waiting tasks, to stderr
+    ///
+    /// This is considerably more extensive than simply
+    /// `MockExecutor as Debug`.
+    ///
+    /// (This is a convenience method, which wraps
+    /// [`MockExecutor::as_debug_dump()`].
+    ///
+    /// ### Backtrace salience (possible spurious traces)
+    ///
+    /// **Summary**
+    ///
+    /// The technique used to capture backtraces when futures sleep is not 100% exact.
+    /// It will usually show all the actual sleeping sites,
+    /// but it might also show other backtraces which were part of
+    /// the implementation of some complex relevant future.
+    ///
+    /// **Details**
+    ///
+    /// When a future's implementation wants to sleep,
+    /// it needs to record the [`Waker`] (from the [`Context`])
+    /// so that the "other end" can call `.wake()` on it later,
+    /// when the future should be woken.
+    ///
+    /// Since `Context.waker()` gives `&Waker`, borrowed from the `Context`,
+    /// the future must clone the `Waker`,
+    /// and it must do so in within the `poll()` call.
+    ///
+    /// A future which is waiting in a `select!` will typically
+    /// show multiple traces, one for each branch.
+    /// But a complicated future contraption *might* clone the `Waker` more times,
+    /// so not every backtrace will necessarily be informative.
+    ///
+    /// ### Panics
+    ///
+    /// Panics on write errors.
+    pub fn debug_dump(&self) {
+        self.as_debug_dump().to_stderr();
+    }
+
+    /// Dump the executor's state including backtraces of waiting tasks
+    ///
+    /// This is considerably more extensive than simply
+    /// `MockExecutor as Debug`.
+    ///
+    /// Returns an object for formatting with [`Debug`].
+    /// To simply print the dump to stderr (eg in a test),
+    /// use [`.debug_dump()`](MockExecutor::debug_dump).
+    ///
+    /// **Backtrace salience (possible spurious traces)** -
+    /// see [`.debug_dump()`](MockExecutor::debug_dump).
+    pub fn as_debug_dump(&self) -> DebugDump {
+        let mut data = self.data.lock();
+        let resolved = data.resolve_backtraces();
+        DebugDump(Either::Right(data), resolved)
+    }
+}
+
+impl Data {
+    /// Convenience function: dump including backtraces, to stderr
+    fn debug_dump(&mut self) {
+        let resolved = self.resolve_backtraces();
+        DebugDump(Either::Left(self), resolved).to_stderr();
+    }
+}
+
+impl DebugDump<'_> {
+    /// Convenience function: dump tasks and backtraces to stderr
+    #[allow(clippy::wrong_self_convention)] // "to_stderr" doesn't mean "convert to stderr"
+    fn to_stderr(self) {
+        write!(io::stderr().lock(), "{:?}", self)
+            .unwrap_or_else(|e| error_report!(e, "failed to write debug dump to stderr"));
+    }
+}
+
 //---------- bespoke Debug impls ----------
+
+impl Debug for DebugDump<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let self_: &Data = &self.0;
+
+        writeln!(f, "MockExecutor state:\n{self_:#?}")?;
+        writeln!(f, "MockExecutor task dump:")?;
+        self_.dump_backtraces(f, self.1)?;
+
+        Ok(())
+    }
+}
 
 // See `impl Debug for Data` for notes on the output
 impl Debug for Task {
@@ -584,7 +866,7 @@ impl Debug for Task {
         }
         match state {
             Awake => write!(f, "W")?,
-            Asleep => write!(f, "s")?,
+            Asleep(locs) => write!(f, "s{}", locs.len())?,
         };
         Ok(())
     }
@@ -621,7 +903,7 @@ where
 ///  * `m`: this is the main task from `block_on`
 ///
 ///  * `W`: the task is awake
-///  * `s`: the task is asleep
+///  * `s<n>`: the task is asleep, and `<n>` is the number of recorded sleeping locations
 //
 // We do it this way because the naive dump from derive is very expansive
 // and makes it impossible to see the wood for the trees.
@@ -662,9 +944,11 @@ mod test {
     use super::*;
     use futures::channel::mpsc;
     use futures::{SinkExt as _, StreamExt as _};
+
+    #[cfg(not(miri))] // trace! asks for the time, which miri doesn't support
     use tracing_test::traced_test;
 
-    #[traced_test]
+    #[cfg_attr(not(miri), traced_test)]
     #[test]
     fn simple() {
         let runtime = MockExecutor::default();
@@ -672,7 +956,7 @@ mod test {
         assert_eq!(val, 42);
     }
 
-    #[traced_test]
+    #[cfg_attr(not(miri), traced_test)]
     #[test]
     fn stall() {
         let runtime = MockExecutor::default();
@@ -735,6 +1019,8 @@ mod test {
                         eprintln!("sending task done");
                     }
                 });
+
+                runtime.debug_dump();
 
                 for i in 0..txs.len() {
                     eprintln!("main {i} wait stall...");
