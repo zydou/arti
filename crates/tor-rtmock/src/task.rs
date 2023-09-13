@@ -515,7 +515,9 @@ impl Data {
 }
 
 impl ActualWaker {
-    #[allow(clippy::missing_docs_in_private_items)] // XXXX
+    /// Wake the task corresponding to this `ActualWaker`
+    ///
+    /// This is like `<Self as std::task::Wake>::wake()` but takes `&self`, not `Arc`
     fn wake(&self) {
         let mut data = self.data.lock();
         trace!("MockExecutor {:?} wake", &self.id);
