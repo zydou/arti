@@ -5,6 +5,7 @@
 use std::collections::VecDeque;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
+use std::io::{self, Write as _};
 use std::iter;
 use std::mem;
 use std::pin::Pin;
@@ -17,11 +18,13 @@ use futures::FutureExt as _;
 
 use backtrace::Backtrace;
 use educe::Educe;
+use itertools::Either;
 use itertools::{chain, izip};
 use slotmap::DenseSlotMap;
 use strum::EnumIter;
 use tracing::trace;
 
+use tor_error::error_report;
 use tor_rtcompat::BlockOn;
 
 use Poll::*;
@@ -674,7 +677,6 @@ static RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
 //---------- Sleep location tracking and dumping ----------
 
 /// Proof token that `resolve_backtraces` has been called.
-#[allow(dead_code)] // XXXX
 #[derive(Clone, Copy)]
 struct BacktracesResolved {}
 
@@ -683,7 +685,6 @@ type SleepLocation = Backtrace;
 
 impl Data {
     /// Resolve backtraces (for debug dump)
-    #[allow(dead_code)] // XXXX
     fn resolve_backtraces(&mut self) -> BacktracesResolved {
         for (_id, task) in &mut self.tasks {
             match &mut task.state {
@@ -703,7 +704,6 @@ impl Data {
     /// `resolve_backtraces` must have been called.
     /// (This split allows us to make a wrapper that can be `Debug`,
     /// where the printing has to work with `&` not `&mut`.)
-    #[allow(dead_code)] // XXXX
     fn dump_backtraces(&self, f: &mut fmt::Formatter, _: BacktracesResolved) -> fmt::Result {
         for (id, task) in &self.tasks {
             write!(f, "{id:?}={task:?}: ")?;
@@ -722,6 +722,8 @@ impl Data {
 }
 
 /// Track sleep locations via `<Waker as Clone>`.
+//
+// XXXX Explanation will come in "Add warning about backtrace salience"
 impl Clone for ActualWaker {
     fn clone(&self) -> Self {
         let id = self.id;
@@ -745,7 +747,79 @@ impl Clone for ActualWaker {
     }
 }
 
+//---------- API for full debug dump ----------
+
+/// Debugging dump of a `MockExecutor`'s state
+///
+/// Returned by [`MockExecutor::as_debug_dump`]
+//
+// Existence implies backtraces have been resolved
+//
+// We use `Either` so that we can also use this internally when we have &mut Data.
+pub struct DebugDump<'a>(Either<&'a Data, MutexGuard<'a, Data>>, BacktracesResolved);
+
+impl MockExecutor {
+    /// Dump the executor's state including backtraces of waiting tasks, to stderr
+    ///
+    /// This is considerably more extensive than simply
+    /// `MockExecutor as Debug`.
+    ///
+    /// (This is a convenience method, which wraps
+    /// [`MockExecutor::as_debug_dump()`].
+    ///
+    /// ### Panics
+    ///
+    /// Panics on write errors.
+    pub fn debug_dump(&self) {
+        self.as_debug_dump().to_stderr();
+    }
+
+    /// Dump the executor's state including backtraces of waiting tasks
+    ///
+    /// This is considerably more extensive than simply
+    /// `MockExecutor as Debug`.
+    ///
+    /// Returns an object for formatting with [`Debug`].
+    /// To simply print the dump to stderr (eg in a test),
+    /// use [`.debug_dump()`](MockExecutor::debug_dump).
+    pub fn as_debug_dump(&self) -> DebugDump {
+        let mut data = self.data.lock();
+        let resolved = data.resolve_backtraces();
+        DebugDump(Either::Right(data), resolved)
+    }
+}
+
+impl Data {
+    /// Convenience function: dump including backtraces, to stderr
+    #[allow(dead_code)] // XXXX
+    fn debug_dump(&mut self) {
+        let resolved = self.resolve_backtraces();
+        DebugDump(Either::Left(self), resolved).to_stderr();
+    }
+}
+
+impl DebugDump<'_> {
+    /// Convenience function: dump tasks and backtraces to stderr
+    #[allow(clippy::wrong_self_convention)] // "to_stderr" doesn't mean "convert to stderr"
+    fn to_stderr(self) {
+        write!(io::stderr().lock(), "{:?}", self)
+            .unwrap_or_else(|e| error_report!(e, "failed to write debug dump to stderr"));
+    }
+}
+
 //---------- bespoke Debug impls ----------
+
+impl Debug for DebugDump<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let self_: &Data = &self.0;
+
+        writeln!(f, "MockExecutor state:\n{self_:#?}")?;
+        writeln!(f, "MockExecutor task dump:")?;
+        self_.dump_backtraces(f, self.1)?;
+
+        Ok(())
+    }
+}
 
 // See `impl Debug for Data` for notes on the output
 impl Debug for Task {
