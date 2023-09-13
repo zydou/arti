@@ -1,5 +1,7 @@
 //! Completely mock runtime
 
+use std::fmt::{Debug, Display};
+
 use amplify::Getters;
 use futures::FutureExt as _;
 use strum::IntoEnumIterator as _;
@@ -135,6 +137,17 @@ impl MockRuntime {
             runtime.block_on(test_case(runtime.clone()))?;
         }
         Ok(())
+    }
+
+    /// Spawn a task and return something to identify it
+    ///
+    /// See [`MockExecutor::spawn_identified()`]
+    pub fn spawn_identified(
+        &self,
+        desc: impl Display,
+        fut: impl Future<Output = ()> + Send + 'static,
+    ) -> impl Debug + Clone + Send + 'static {
+        self.task.spawn_identified(desc, fut)
     }
 
     /// Run tasks in the current executor until every task except this one is waiting
