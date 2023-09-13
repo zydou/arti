@@ -614,7 +614,7 @@ pub(crate) mod sealed {
                         "PT {} unable to launch {}. It said: {:?}",
                         async_child.identifier, transport, message
                     );
-                    return Err(PtError::ClientTransportGaveError {
+                    return Err(PtError::TransportGaveError {
                         transport: transport.to_string(),
                         message,
                     });
