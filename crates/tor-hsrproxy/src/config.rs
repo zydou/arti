@@ -14,6 +14,9 @@ pub struct ProxyConfig {
     /// matches, we take the DestroyCircuit action.
     #[builder(sub_builder, setter(custom))]
     pub(crate) proxy_ports: ProxyRuleList,
+    //
+    // TODO: Someday we may want to allow udp, resolve, etc.  If we do, it will
+    // be via another option, rather than adding another subtype to ProxySource.
 }
 
 impl ProxyConfigBuilder {
@@ -95,10 +98,7 @@ impl ProxyRule {
 #[derive(
     Clone, Debug, serde_with::DeserializeFromStr, serde_with::SerializeDisplay, Eq, PartialEq,
 )]
-pub struct ProxyPattern(
-    // TODO HSS: Eventually, we will want to allow other patterns, like UDP.
-    RangeInclusive<u16>,
-);
+pub struct ProxyPattern(RangeInclusive<u16>);
 
 impl FromStr for ProxyPattern {
     type Err = ProxyConfigError;
@@ -178,25 +178,28 @@ pub enum ProxyTarget {
     /// Close the circuit immediately with an error.
     #[default]
     DestroyCircuit,
-    /// Open a TCP connection to a given address and port.
-    Tcp(SocketAddr),
-    /// Open an AF_UNIX connection to a given address.
-    Unix(PathBuf),
+    /// Accept the client's request and forward it, via some encapsulation method,
+    /// to some target address.
+    Forward(Encapsulation, TargetAddr),
     /// Close the stream immediately with an error.
     RejectStream,
     /// Ignore the stream request.
     IgnoreStream,
-    // TODO HSS: Eventually, we will want to allow other protocols, like
-    // haproxy.  THese might be orthogonal to Tcp vs Unix.  Do we want to add
-    // these as flags to ProxyTarget, or some other thing?
-    //
-    // And does the Udp vs Tcp distinction belong here or in ProxyPattern?
-    //
-    // See thread at
-    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1557#note_2938349
 }
 
-impl FromStr for ProxyTarget {
+/// The address to which we forward an accepted connection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum TargetAddr {
+    /// An address that we can reach over the internet.
+    //
+    // TODO HSS: should we warn if this is a public address?
+    Inet(SocketAddr),
+    /// An address of a local unix socket.
+    Unix(PathBuf),
+}
+
+impl FromStr for TargetAddr {
     type Err = ProxyConfigError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -209,22 +212,55 @@ impl FromStr for ProxyTarget {
                     .map(|rhs| rhs.starts_with(|c: char| c.is_ascii_hexdigit() || c == ':'))
                     .unwrap_or(false)
         }
+        if let Some(path) = s.strip_prefix("unix:") {
+            Ok(Self::Unix(PathBuf::from(path)))
+        } else if let Some(addr) = s.strip_prefix("inet:") {
+            Ok(Self::Inet(addr.parse().map_err(PCE::InvalidTargetAddr)?))
+        } else if looks_like_attempted_addr(s) {
+            // We check 'looks_like_attempted_addr' before parsing this.
+            Ok(Self::Inet(s.parse().map_err(PCE::InvalidTargetAddr)?))
+        } else {
+            Err(PCE::UnrecognizedTargetType)
+        }
+    }
+}
 
+impl std::fmt::Display for TargetAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TargetAddr::Inet(a) => write!(f, "inet:{}", a),
+            TargetAddr::Unix(p) => write!(f, "unix:{}", p.display()),
+        }
+    }
+}
+
+/// The method by which we encapsulate a forwarded request.
+///
+/// (Right now, only `Direct` is supported, but we may later support
+/// "HTTP CONNECT", "HAProxy", or others.)
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum Encapsulation {
+    /// Handle a request by opening a local socket to the target address and
+    /// forwarding the contents verbatim.
+    #[default]
+    Direct,
+}
+
+impl FromStr for ProxyTarget {
+    type Err = ProxyConfigError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s == "destroy" {
             Ok(Self::DestroyCircuit)
         } else if s == "reject" {
             Ok(Self::RejectStream)
         } else if s == "ignore" {
             Ok(Self::IgnoreStream)
-        } else if let Some(path) = s.strip_prefix("unix:") {
-            Ok(Self::Unix(PathBuf::from(path)))
-        } else if let Some(addr) = s.strip_prefix("tcp:") {
-            Ok(Self::Tcp(addr.parse().map_err(PCE::InvalidTargetAddr)?))
-        } else if looks_like_attempted_addr(s) {
-            // We check 'looks_like_attempted_addr' before parsing this.
-            Ok(Self::Tcp(s.parse().map_err(PCE::InvalidTargetAddr)?))
+        } else if let Some(addr) = s.strip_prefix("direct:") {
+            Ok(Self::Forward(Encapsulation::Direct, addr.parse()?))
         } else {
-            Err(PCE::UnrecognizedTargetType)
+            Ok(Self::Forward(Encapsulation::Direct, s.parse()?))
         }
     }
 }
@@ -233,8 +269,7 @@ impl std::fmt::Display for ProxyTarget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProxyTarget::DestroyCircuit => write!(f, "destroy"),
-            ProxyTarget::Tcp(addr) => write!(f, "tcp:{}", addr),
-            ProxyTarget::Unix(path) => write!(f, "unix:{}", path.display()),
+            ProxyTarget::Forward(Encapsulation::Direct, addr) => write!(f, "direct:{}", addr),
             ProxyTarget::RejectStream => write!(f, "reject"),
             ProxyTarget::IgnoreStream => write!(f, "ignore"),
         }
@@ -310,37 +345,50 @@ mod test {
 
     #[test]
     fn target_ok() {
+        use Encapsulation::Direct;
         use ProxyTarget as T;
+        use TargetAddr as A;
         assert!(matches!(T::from_str("reject"), Ok(T::RejectStream)));
         assert!(matches!(T::from_str("ignore"), Ok(T::IgnoreStream)));
         assert!(matches!(T::from_str("destroy"), Ok(T::DestroyCircuit)));
         let sa: SocketAddr = "192.168.1.1:50".parse().unwrap();
-        assert!(matches!(T::from_str("192.168.1.1:50"), Ok(T::Tcp(a)) if a == sa));
-        assert!(matches!(T::from_str("tcp:192.168.1.1:50"), Ok(T::Tcp(a)) if a == sa));
+        assert!(
+            matches!(T::from_str("192.168.1.1:50"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa)
+        );
+        assert!(
+            matches!(T::from_str("inet:192.168.1.1:50"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa)
+        );
         let sa: SocketAddr = "[::1]:999".parse().unwrap();
-        assert!(matches!(T::from_str("[::1]:999"), Ok(T::Tcp(a)) if a == sa));
-        assert!(matches!(T::from_str("tcp:[::1]:999"), Ok(T::Tcp(a)) if a == sa));
+        assert!(matches!(T::from_str("[::1]:999"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa));
+        assert!(
+            matches!(T::from_str("inet:[::1]:999"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa)
+        );
         let pb = PathBuf::from("/var/run/hs/socket");
-        assert!(matches!(T::from_str("unix:/var/run/hs/socket"), Ok(T::Unix(p)) if p == pb));
+        assert!(
+            matches!(T::from_str("unix:/var/run/hs/socket"), Ok(T::Forward(Direct, A::Unix(p))) if p == pb)
+        );
     }
 
     #[test]
     fn target_display() {
+        use Encapsulation::Direct;
         use ProxyTarget as T;
+        use TargetAddr as A;
+
         assert_eq!(T::RejectStream.to_string(), "reject");
         assert_eq!(T::IgnoreStream.to_string(), "ignore");
         assert_eq!(T::DestroyCircuit.to_string(), "destroy");
         assert_eq!(
-            T::Tcp("192.168.1.1:50".parse().unwrap()).to_string(),
-            "tcp:192.168.1.1:50"
+            T::Forward(Direct, A::Inet("192.168.1.1:50".parse().unwrap())).to_string(),
+            "direct:inet:192.168.1.1:50"
         );
         assert_eq!(
-            T::Tcp("[::1]:999".parse().unwrap()).to_string(),
-            "tcp:[::1]:999"
+            T::Forward(Direct, A::Inet("[::1]:999".parse().unwrap())).to_string(),
+            "direct:inet:[::1]:999"
         );
         assert_eq!(
-            T::Unix("/var/run/hs/socket".into()).to_string(),
-            "unix:/var/run/hs/socket"
+            T::Forward(Direct, A::Unix("/var/run/hs/socket".into())).to_string(),
+            "direct:unix:/var/run/hs/socket"
         );
     }
 
@@ -355,7 +403,11 @@ mod test {
         ));
 
         assert!(matches!(
-            T::from_str("tcp:hello"),
+            T::from_str("inet:hello"),
+            Err(PCE::InvalidTargetAddr(_))
+        ));
+        assert!(matches!(
+            T::from_str("inet:wwww.example.com:80"),
             Err(PCE::InvalidTargetAddr(_))
         ));
 
@@ -364,7 +416,7 @@ mod test {
             Err(PCE::InvalidTargetAddr(_))
         ));
         assert!(matches!(
-            T::from_str("tcp:127.1:80"),
+            T::from_str("inet:127.1:80"),
             Err(PCE::InvalidTargetAddr(_))
         ));
         assert!(matches!(
@@ -372,7 +424,7 @@ mod test {
             Err(PCE::InvalidTargetAddr(_))
         ));
         assert!(matches!(
-            T::from_str("tcp:2130706433:80"),
+            T::from_str("inet:2130706433:80"),
             Err(PCE::InvalidTargetAddr(_))
         ));
 
@@ -384,6 +436,8 @@ mod test {
 
     #[test]
     fn deserialize() {
+        use Encapsulation::Direct;
+        use TargetAddr as A;
         let ex = r#"{
             "proxy_ports": [
                 [ "443", "127.0.0.1:11443" ],
@@ -400,7 +454,7 @@ mod test {
 
         assert_eq!(
             cfg.proxy_ports[0].target,
-            ProxyTarget::Tcp("127.0.0.1:11443".parse().unwrap())
+            ProxyTarget::Forward(Direct, A::Inet("127.0.0.1:11443".parse().unwrap()))
         );
         assert_eq!(cfg.proxy_ports[1].target, ProxyTarget::IgnoreStream);
         assert_eq!(cfg.proxy_ports[2].target, ProxyTarget::DestroyCircuit);
