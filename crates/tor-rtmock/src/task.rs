@@ -716,13 +716,17 @@ impl Data {
                 }
             }
         }
+        writeln!(
+            f,
+            "\nNote: there might be spurious traces, see docs for MockExecutor::debug_dump\n"
+        )?;
         Ok(())
     }
 }
 
 /// Track sleep locations via `<Waker as Clone>`.
-//
-// XXXX Explanation will come in "Add warning about backtrace salience"
+///
+/// See [`MockExecutor::debug_dump`] for the explanation.
 impl Clone for ActualWaker {
     fn clone(&self) -> Self {
         let id = self.id;
@@ -766,6 +770,31 @@ impl MockExecutor {
     /// (This is a convenience method, which wraps
     /// [`MockExecutor::as_debug_dump()`].
     ///
+    /// ### Backtrace salience (possible spurious traces)
+    ///
+    /// **Summary**
+    ///
+    /// The technique used to capture backtraces when futures sleep is not 100% exact.
+    /// It will usually show all the actual sleeping sites,
+    /// but it might also show other backtraces which were part of
+    /// the implementation of some complex relevant future.
+    ///
+    /// **Details**
+    ///
+    /// When a future's implementation wants to sleep,
+    /// it needs to record the [`Waker`] (from the [`Context`])
+    /// so that the "other end" can call `.wake()` on it later,
+    /// when the future should be woken.
+    ///
+    /// Since `Context.waker()` gives `&Waker`, borrowed from the `Context`,
+    /// the future must clone the `Waker`,
+    /// and it must do so in within the `poll()` call.
+    ///
+    /// A future which is waiting in a `select!` will typically
+    /// show multiple traces, one for each branch.
+    /// But a complicated future contraption *might* clone the `Waker` more times,
+    /// so not every backtrace will necessarily be informative.
+    ///
     /// ### Panics
     ///
     /// Panics on write errors.
@@ -781,6 +810,9 @@ impl MockExecutor {
     /// Returns an object for formatting with [`Debug`].
     /// To simply print the dump to stderr (eg in a test),
     /// use [`.debug_dump()`](MockExecutor::debug_dump).
+    ///
+    /// **Backtrace salience (possible spurious traces)** -
+    /// see [`.debug_dump()`](MockExecutor::debug_dump).
     pub fn as_debug_dump(&self) -> DebugDump {
         let mut data = self.data.lock();
         let resolved = data.resolve_backtraces();
