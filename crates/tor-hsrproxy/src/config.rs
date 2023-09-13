@@ -394,7 +394,16 @@ mod test {
         let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.proxy_ports.len(), 3);
-        // TODO HSS: test actual values.
+        assert_eq!(cfg.proxy_ports[0].source.0, 443..=443);
+        assert_eq!(cfg.proxy_ports[1].source.0, 80..=80);
+        assert_eq!(cfg.proxy_ports[2].source.0, 1..=65535);
+
+        assert_eq!(
+            cfg.proxy_ports[0].target,
+            ProxyTarget::Tcp("127.0.0.1:11443".parse().unwrap())
+        );
+        assert_eq!(cfg.proxy_ports[1].target, ProxyTarget::IgnoreStream);
+        assert_eq!(cfg.proxy_ports[2].target, ProxyTarget::DestroyCircuit);
     }
 
     #[test]
