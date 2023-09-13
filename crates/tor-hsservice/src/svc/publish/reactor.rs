@@ -774,8 +774,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                             );
                         };
 
-                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir)
-                            .await
+                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir).await
                     };
 
                     let upload_res = match run_upload().await {
