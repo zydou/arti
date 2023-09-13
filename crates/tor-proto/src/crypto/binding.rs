@@ -46,6 +46,7 @@ impl CircuitBinding {
     ///
     /// This is potentially dangerous, since we don't want to expose this
     /// information: We only want to use it as a MAC key.
+    #[cfg(feature = "hs-service")]
     fn dangerously_into_bytes(&self) -> &[u8] {
         &(**self.0)[..]
     }
