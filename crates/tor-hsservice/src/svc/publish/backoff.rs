@@ -61,7 +61,8 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
         let mut timeout = match self.schedule.timeout() {
             Some(timeout) => Either::Left(Box::pin(self.runtime.sleep(timeout))),
             None => Either::Right(future::pending()),
-        }.fuse();
+        }
+        .fuse();
 
         loop {
             // Bail if we've exceeded the number of allowed retries.
