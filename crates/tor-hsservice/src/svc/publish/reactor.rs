@@ -23,7 +23,7 @@ use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::request::Requestable;
 use tor_dirclient::{send_request, Error as DirClientError, RequestError};
-use tor_error::{internal, into_internal};
+use tor_error::{internal, into_internal, warn_report};
 use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
@@ -833,9 +833,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 .map(|id| id.to_string())
                                 .unwrap_or_else(|| "unknown".into());
 
-                            error!(
-                                hsid=%imm.hsid, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
-                                "failed to upload descriptor: {e}"
+                            // TODO: extend warn_report to support key-value fields like warn!
+                            warn_report!(
+                                e,
+                                "failed to upload descriptor for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
+                                imm.hsid, ed_id, rsa_id
                             );
 
                             UploadStatus::Failure
