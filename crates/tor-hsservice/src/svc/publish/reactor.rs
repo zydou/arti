@@ -10,18 +10,20 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::lock::Mutex;
-use futures::task::SpawnExt;
+use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
 use postage::watch;
+use retry_error::RetryError;
+use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::request::Requestable;
 use tor_dirclient::{send_request, Error as DirClientError, RequestError};
-use tor_error::{internal, into_internal};
+use tor_error::{internal, into_internal, warn_report};
 use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
@@ -32,6 +34,7 @@ use tor_rtcompat::Runtime;
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
+use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, VersionedDescriptor};
 
 /// The upload rate-limiting threshold.
@@ -67,20 +70,14 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 // new one read from the `Event`, the publisher should simply not update it (or mark the descriptor
 // dirty).
 #[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
-pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
-    /// The runtime.
-    runtime: R,
-    /// The service for which we're publishing descriptors.
-    hsid: HsId,
+pub(super) struct Reactor<R: Runtime, M: Mockable> {
+    /// The immutable, shared inner state.
+    imm: Arc<Immutable<R, M>>,
     /// The public key of the service.
     hsid_key: HsIdKey,
     /// A source for new network directories that we use to determine
     /// our HsDirs.
     dir_provider: Arc<dyn NetDirProvider>,
-    /// Mockable state.
-    ///
-    /// This is used for launching circuits and for obtaining random number generators.
-    mockable: M,
     /// The mutable inner state,
     inner: Arc<Mutex<Inner>>,
     /// A channel for receiving IPT change notifications.
@@ -102,11 +99,24 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     upload_task_complete_tx: Sender<TimePeriodUploadResult>,
 }
 
+/// The immutable, shared state of the descriptor publisher reactor.
+#[derive(Clone)]
+struct Immutable<R: Runtime, M: Mockable> {
+    /// The runtime.
+    runtime: R,
+    /// Mockable state.
+    ///
+    /// This is used for launching circuits and for obtaining random number generators.
+    mockable: M,
+    /// The service for which we're publishing descriptors.
+    hsid: HsId,
+}
+
 /// Mockable state for the descriptor publisher reactor.
 ///
 /// This enables us to mock parts of the [`Reactor`] for testing purposes.
 #[async_trait]
-pub(super) trait Mockable<R>: Clone + Send + Sync + Sized + 'static {
+pub(super) trait Mockable: Clone + Send + Sync + Sized + 'static {
     /// The type of random number generator.
     type Rng: rand::Rng + rand::CryptoRng;
 
@@ -136,7 +146,7 @@ impl<R: Runtime> ReactorState<R> {
 }
 
 #[async_trait]
-impl<R: Runtime> Mockable<R> for ReactorState<R> {
+impl<R: Runtime> Mockable for ReactorState<R> {
     type Rng = rand::rngs::ThreadRng;
 
     fn thread_rng(&self) -> Self::Rng {
@@ -291,7 +301,6 @@ impl TimePeriodContext {
 }
 
 /// A reactor error
-#[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub(super) enum ReactorError {
@@ -308,17 +317,9 @@ pub(super) enum ReactorError {
     #[error("could not build a hidden service descriptor")]
     HsDescBuild(#[from] EncodeError),
 
-    /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
-    #[error("descriptor upload request failed")]
-    UploadRequestFailed(#[from] RequestError),
-
-    /// Failed to establish circuit to hidden service directory
-    #[error("circuit failed")]
-    Circuit(#[from] tor_circmgr::Error),
-
-    /// Failed to establish stream to hidden service directory
-    #[error("stream failed")]
-    Stream(#[source] tor_proto::Error),
+    /// Failed to publish a descriptor.
+    #[error("failed to publish a descriptor")]
+    PublishFailure(RetryError<UploadError>),
 
     /// A fatal error that caused the reactor to shut down.
     //
@@ -331,7 +332,41 @@ pub(super) enum ReactorError {
     Bug(#[from] tor_error::Bug),
 }
 
-impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
+/// An error that occurs while trying to upload a descriptor.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub(super) enum UploadError {
+    /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
+    #[error("descriptor upload request failed")]
+    Request(#[from] RequestError),
+
+    /// Failed to establish circuit to hidden service directory
+    #[error("circuit failed")]
+    Circuit(#[from] tor_circmgr::Error),
+
+    /// Failed to establish stream to hidden service directory
+    #[error("stream failed")]
+    Stream(#[source] tor_proto::Error),
+
+    /// Unable to spawn task
+    //
+    // TODO lots of our Errors have a variant exactly like this.
+    // Maybe we should make a struct tor_error::SpawnError.
+    #[error("Unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn.
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
     pub(super) async fn new(
         runtime: R,
@@ -359,6 +394,12 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let (upload_task_complete_tx, upload_task_complete_rx) =
             mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
+        let imm = Immutable {
+            runtime,
+            mockable,
+            hsid,
+        };
+
         let inner = Inner {
             descriptor: DescriptorBuilder::default(),
             time_periods,
@@ -368,12 +409,10 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         };
 
         Ok(Self {
-            runtime,
+            imm: Arc::new(imm),
             inner: Arc::new(Mutex::new(inner)),
-            hsid,
             hsid_key,
             dir_provider,
-            mockable,
             ipt_watcher,
             config_rx,
             pending_upload_tx: None,
@@ -397,9 +436,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         self.pending_upload_tx = Some(pending_upload_tx);
 
-        let rt = self.runtime.clone();
+        let rt = self.imm.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
-        let _ = self.runtime.spawn(async move {
+        let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
             while let Some(duration) = pending_upload_rx.next().await {
                 rt.sleep(duration).await;
@@ -474,7 +513,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
     async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().await;
-        inner.last_uploaded = Some(self.runtime.now());
+        inner.last_uploaded = Some(self.imm.runtime.now());
 
         // Check which time period these uploads pertain to.
         let period = inner
@@ -624,7 +663,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&mut self) -> Result<(), ReactorError> {
         let last_uploaded = self.inner.lock().await.last_uploaded;
-        let now = self.runtime.now();
+        let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
         if let Some(last_uploaded) = last_uploaded {
             let duration_since_upload = last_uploaded.duration_since(now);
@@ -649,18 +688,16 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 // enough information to build the descriptor (if we do get here, it's a bug).
                 //
                 // Instead of skipping the upload, we should be returning an internal! error.
-                trace!(hsid=%self.hsid, "not enough information to build descriptor, skipping upload: {e}");
+                trace!(hsid=%self.imm.hsid, "not enough information to build descriptor, skipping upload: {e}");
                 return Ok(());
             }
         };
 
         let netdir = Arc::clone(&inner.netdir);
 
-        let runtime = self.runtime.clone();
-        let mockable = self.mockable.clone();
+        let imm = Arc::clone(&self.imm);
         let hsid_key = self.hsid_key.clone();
         let upload_task_complete_tx = self.upload_task_complete_tx.clone();
-        let hsid = self.hsid;
 
         let upload_tasks = inner.time_periods.iter().map(move |period| {
             // Figure out which HsDirs we need to upload the descriptor to (some of them might already
@@ -688,7 +725,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
             let hsdesc = {
-                let mut rng = mockable.thread_rng();
+                let mut rng = imm.mockable.thread_rng();
                 hsdesc.build_sign(
                     hsid_key,
                     blind_id_kp,
@@ -698,7 +735,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 )?
             };
 
-            let handle = runtime.spawn(async {
+            let handle = imm.runtime.spawn(async {
                 let hsdesc = VersionedDescriptor {
                     desc: hsdesc.clone(),
                     revision_counter,
@@ -708,7 +745,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                     hs_dirs,
                     &netdir,
                     period.period,
-                    hsid,
+                    imm,
                     upload_task_complete_tx,
                 )
                 .await
@@ -750,7 +787,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
         time_period: TimePeriod,
-        hsid: HsId,
+        imm: Arc<Immutable<R, M>>,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), ReactorError> {
         let VersionedDescriptor {
@@ -761,6 +798,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
+                let imm = Arc::clone(&imm);
 
                 async move {
                     let run_upload = || async {
@@ -774,16 +812,41 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                             );
                         };
 
-                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir).await?;
-
-                        Ok(())
+                        Self::upload_descriptor_with_retries(
+                            desc.clone(),
+                            &netdir,
+                            &hsdir,
+                            Arc::clone(&imm),
+                        )
+                        .await
                     };
 
-                    let upload_res = run_upload().await;
+                    let upload_res = match run_upload().await {
+                        Ok(()) => UploadStatus::Success,
+                        Err(e) => {
+                            let ed_id = relay_ids
+                                .rsa_identity()
+                                .map(|id| id.to_string())
+                                .unwrap_or_else(|| "unknown".into());
+                            let rsa_id = relay_ids
+                                .rsa_identity()
+                                .map(|id| id.to_string())
+                                .unwrap_or_else(|| "unknown".into());
+
+                            // TODO: extend warn_report to support key-value fields like warn!
+                            warn_report!(
+                                e,
+                                "failed to upload descriptor for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
+                                imm.hsid, ed_id, rsa_id
+                            );
+
+                            UploadStatus::Failure
+                        }
+                    };
 
                     HsDirUploadStatus {
                         relay_ids,
-                        upload_res: upload_res.into(),
+                        upload_res,
                     }
                 }
             })
@@ -797,7 +860,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(hsid=%hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
+        trace!(hsid=%imm.hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
@@ -821,22 +884,22 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// If an upload fails, this returns an `Err`. This function does not handle retries. It is up
     /// to the caller to retry on failure.
     async fn upload_descriptor(
-        &self,
         hsdesc: String,
-        netdir: Arc<NetDir>,
+        netdir: &Arc<NetDir>,
         hsdir: &Relay<'_>,
-    ) -> Result<(), ReactorError> {
+        imm: Arc<Immutable<R, M>>,
+    ) -> Result<(), UploadError> {
         let request = HsDescUploadRequest::new(hsdesc);
 
-        trace!(hsid=%self.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
+        trace!(hsid=%imm.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
             "trying to upload descriptor. HTTP request:\n{:?}",
             request.make_request()
         );
 
-        let circuit = self
+        let circuit = imm
             .mockable
             .get_or_launch_specific(
-                &netdir,
+                netdir,
                 HsCircKind::SvcHsDir,
                 OwnedCircTarget::from_circ_target(hsdir),
             )
@@ -845,11 +908,11 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         let mut stream = circuit
             .begin_dir_stream()
             .await
-            .map_err(ReactorError::Stream)?;
+            .map_err(UploadError::Stream)?;
 
-        let response = send_request(&self.runtime, &request, &mut stream, None)
+        let response = send_request(&imm.runtime, &request, &mut stream, None)
             .await
-            .map_err(|dir_error| -> ReactorError {
+            .map_err(|dir_error| -> UploadError {
                 match dir_error {
                     DirClientError::RequestFailed(e) => e.error.into(),
                     DirClientError::CircMgr(e) => into_internal!(
@@ -861,7 +924,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             })?;
 
         trace!(
-            hsid=%self.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
+            hsid=%imm.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
             "successfully uploaded descriptor"
         );
 
@@ -872,11 +935,82 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     ///
     /// TODO HSS: document the retry logic when we implement it.
     async fn upload_descriptor_with_retries(
-        _hsdesc: String,
-        _netdir: &Arc<NetDir>,
-        _hsdir: &Relay<'_>,
+        hsdesc: String,
+        netdir: &Arc<NetDir>,
+        hsdir: &Relay<'_>,
+        imm: Arc<Immutable<R, M>>,
     ) -> Result<(), ReactorError> {
-        todo!();
+        use BackoffError as BE;
+
+        /// The base delay to use for the backoff schedule.
+        const BASE_DELAY_MSEC: u32 = 1000;
+
+        let runner = {
+            let schedule = PublisherBackoffSchedule {
+                retry_delay: RetryDelay::from_msec(BASE_DELAY_MSEC),
+                mockable: imm.mockable.clone(),
+            };
+            Runner::new(
+                "upload a hidden service descriptor".into(),
+                schedule,
+                imm.runtime.clone(),
+            )
+        };
+
+        let fallible_op = || async {
+            Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await
+        };
+
+        let res = runner.run(fallible_op).await;
+
+        let err = match res {
+            Ok(res) => return Ok(res),
+            Err(e) => e,
+        };
+
+        match err {
+            BE::FatalError(e)
+            | BE::MaxRetryCountExceeded(e)
+            | BE::Timeout(e)
+            | BE::ExplicitStop(e) => Err(ReactorError::PublishFailure(e)),
+            BE::Spawn { .. } | BE::Bug(_) => Err(into_internal!(
+                "internal error while attempting to publish descriptor"
+            )(err)
+            .into()),
+        }
+    }
+}
+
+/// The backoff schedule for the task that publishes descriptors.
+#[derive(Clone, Debug)]
+struct PublisherBackoffSchedule<M: Mockable> {
+    /// The delays
+    retry_delay: RetryDelay,
+    /// The mockable reactor state, needed for obtaining an rng.
+    mockable: M,
+}
+
+impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
+    fn max_retries(&self) -> Option<usize> {
+        None
+    }
+
+    fn timeout(&self) -> Option<Duration> {
+        // TODO HSS: pick a less arbitrary timeout
+        Some(Duration::from_secs(30))
+    }
+
+    fn next_delay<E: RetriableError>(&mut self, _error: &E) -> Option<Duration> {
+        Some(self.retry_delay.next_delay(&mut self.mockable.thread_rng()))
+    }
+}
+
+impl RetriableError for UploadError {
+    fn should_retry(&self) -> bool {
+        match self {
+            UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
+            UploadError::Bug(_) | UploadError::Spawn { .. } => false,
+        }
     }
 }
 
