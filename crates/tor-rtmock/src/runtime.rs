@@ -148,6 +148,8 @@ impl MockRuntime {
         desc: impl Display,
         fut: impl Future<Output = ()> + Send + 'static,
     ) -> impl Debug + Clone + Send + 'static {
+        // MSRV: 1.65 cannot cope and erroneously claims that desc has to be 'static
+        let desc = desc.to_string();
         self.task.spawn_identified(desc, fut)
     }
 
