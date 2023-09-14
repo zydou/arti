@@ -2,7 +2,11 @@
 
 set -euo pipefail
 
-cache_dir=cache/"$CI_JOB_IMAGE"
+# Bump this to "clear" the cache.
+# Actually, it just causes us to ignore previous cached results.
+cache_clear_token=2023-09-11
+
+cache_dir=cache/"$CI_JOB_IMAGE","$cache_clear_token"
 
 mkdir -p "$cache_dir"
 
@@ -11,6 +15,6 @@ for cmd in "$@"; do
 
     if cp "$cache" "$CARGO_HOME"/bin/; then continue; fi
 
-    cargo install "$cmd"
+    cargo install --locked "$cmd"
     cp -v "$CARGO_HOME/bin/$cmd" "$cache"
 done
