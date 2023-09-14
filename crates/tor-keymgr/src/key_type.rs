@@ -56,8 +56,8 @@ impl KeyType {
     // to decide the file extension should be).
     pub fn arti_extension(&self) -> &'static str {
         match self {
-            KeyType::Ed25519Keypair => "ed25519_private",
-            KeyType::X25519StaticSecret => "x25519_private",
+            KeyType::Ed25519Keypair => "ed25519",
+            KeyType::X25519StaticSecret => "x25519",
         }
     }
 

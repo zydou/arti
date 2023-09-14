@@ -166,11 +166,11 @@ pub struct HsClientSecretKeySpecifier {
 #[derive(Debug, Clone, Copy, PartialEq, derive_more::Display)]
 #[non_exhaustive]
 pub enum HsClientKeyRole {
-    /// A key for deriving keys for decrypting HS descriptors (KP_hsc_desc_enc).
-    #[display(fmt = "KP_hsc_desc_enc")]
+    /// A key for deriving keys for decrypting HS descriptors (KS_hsc_desc_enc).
+    #[display(fmt = "KS_hsc_desc_enc")]
     DescEnc,
-    /// A key for computing INTRODUCE1 signatures (KP_hsc_intro_auth).
-    #[display(fmt = "KP_hsc_intro_auth")]
+    /// A key for computing INTRODUCE1 signatures (KS_hsc_intro_auth).
+    #[display(fmt = "KS_hsc_intro_auth")]
     IntroAuth,
 }
 
