@@ -13,8 +13,10 @@
 
 set -euo pipefail
 
-cargo +nightly update -Z minimal-versions
-cargo update \
+: "${CARGO:=cargo}"
+
+$CARGO +nightly update -Z minimal-versions
+$CARGO update \
       -p log:0.4.17 \
       -p crc32fast \
       -p zeroize_derive:1.3.2 \
