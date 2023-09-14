@@ -465,8 +465,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Run one iteration of the reactor loop.
-    #[allow(unreachable_code)] // TODO HSS: remove
-    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn run_once(
         &mut self,
         schedule_upload_rx: &mut Receiver<()>,
