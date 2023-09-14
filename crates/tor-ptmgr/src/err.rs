@@ -21,7 +21,7 @@ pub enum PtError {
     /// A PT binary failed to launch a pluggable transport, and reported
     /// an error message.
     #[error("Transport '{}' failed to launch, saying: {:?}", transport, message)]
-    ClientTransportGaveError {
+    TransportGaveError {
         /// The transport that failed.
         transport: String,
         /// The failure message.
@@ -119,7 +119,7 @@ impl HasKind for PtError {
             | E::UnsupportedVersion
             | E::IpcParseFailed { .. } => EK::LocalProtocolViolation,
             E::Timeout
-            | E::ClientTransportGaveError { .. }
+            | E::TransportGaveError { .. }
             | E::ChildGone
             | E::ChildReadFailed(_)
             | E::ChildSpawnFailed { .. }
@@ -149,7 +149,7 @@ impl HasRetryTime for PtError {
             | E::Spawn { .. }
             | E::PathExpansionFailed { .. } => RT::Never,
             E::StatedirCreateFailed { .. }
-            | E::ClientTransportGaveError { .. }
+            | E::TransportGaveError { .. }
             | E::Timeout
             | E::UnconfiguredTransportDueToConcurrentReconfiguration
             | E::ProxyError(_)
