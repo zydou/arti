@@ -707,13 +707,21 @@ impl Data {
     /// where the printing has to work with `&` not `&mut`.)
     fn dump_backtraces(&self, f: &mut fmt::Formatter, _: BacktracesResolved) -> fmt::Result {
         for (id, task) in &self.tasks {
-            write!(f, "{id:?}={task:?}: ")?;
+            let prefix = |f: &mut fmt::Formatter| write!(f, "{id:?}={task:?}: ");
             match &task.state {
-                Awake => writeln!(f, "awake")?,
+                Awake => {
+                    prefix(f)?;
+                    writeln!(f, "awake")?;
+                }
                 Asleep(locs) => {
                     let n = locs.len();
                     for (i, loc) in locs.iter().enumerate() {
+                        prefix(f)?;
                         writeln!(f, "asleep, backtrace {i}/{n}:\n{loc:?}",)?;
+                    }
+                    if n == 0 {
+                        prefix(f)?;
+                        writeln!(f, "asleep, no backtraces, Waker never cloned, stuck!",)?;
                     }
                 }
             }
@@ -794,8 +802,13 @@ impl MockExecutor {
     ///
     /// A future which is waiting in a `select!` will typically
     /// show multiple traces, one for each branch.
-    /// But a complicated future contraption *might* clone the `Waker` more times,
-    /// so not every backtrace will necessarily be informative.
+    /// But,
+    /// if a future sleeps on one thing, and then when polled again later,
+    /// sleeps on something different, without waking up in between,
+    /// both backtrace locations will be shown.
+    /// And,
+    /// a complicated future contraption *might* clone the `Waker` more times.
+    /// So not every backtrace will necessarily be informative.
     ///
     /// ### Panics
     ///
