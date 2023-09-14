@@ -23,6 +23,7 @@ pub(crate) type PublishIptSet = Option<IptSet>;
 ///
 /// This is shared between the manager and the publisher.
 /// Each leaf field says who sets it.
+#[derive(Debug)]
 pub(crate) struct IptSet {
     /// The actual introduction points
     pub(crate) ipts: Vec<IptInSet>,
