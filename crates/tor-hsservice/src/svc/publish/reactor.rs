@@ -5,14 +5,15 @@
 use std::fmt::Debug;
 use std::iter;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
-use async_broadcast::{broadcast, Receiver, RecvError, Sender};
 use async_trait::async_trait;
+use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::lock::Mutex;
 use futures::task::SpawnExt;
-use futures::{select_biased, FutureExt, StreamExt};
+use futures::{select_biased, FutureExt, SinkExt, StreamExt};
 use postage::watch;
+use tor_hscrypto::RevisionCounter;
 use tracing::{debug, trace};
 
 use tor_bytes::EncodeError;
@@ -31,7 +32,7 @@ use tor_rtcompat::Runtime;
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
-use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorStatus};
+use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, VersionedDescriptor};
 
 /// The upload rate-limiting threshold.
 ///
@@ -42,6 +43,17 @@ use crate::svc::publish::descriptor::{Descriptor, DescriptorBuilder, DescriptorS
 //
 // TODO HSS: this value is probably not right.
 const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
+
+/// The maximum number of concurrent upload tasks per time period.
+//
+// TODO HSS: this value was arbitrarily chosen and may not be optimal.
+//
+// The uploads for all TPs happen in parallel.  As a result, the actual limit for the maximum
+// number of concurrent upload tasks is multiplied by a number which depends on the TP parameters
+// (currently 2, which means the concurrency limit will, in fact, be 32).
+//
+// We should try to decouple this value from the TP parameters.
+const MAX_CONCURRENT_UPLOADS: usize = 16;
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
@@ -77,16 +89,24 @@ pub(super) struct Reactor<R: Runtime, M: Mockable<R>> {
     config_rx: watch::Receiver<OnionServiceConfig>,
     /// A channel for the telling the upload reminder task when to remind us we need to upload
     /// some descriptors.
-    pending_upload_tx: Sender<Duration>,
-    /// A channel for receiving reminders from the upload reminder task.
-    schedule_upload_rx: Receiver<()>,
+    ///
+    /// This is initialized in [`Reactor::run`].
+    pending_upload_tx: Option<Sender<Duration>>,
+    /// A channel for sending upload completion notifications.
+    ///
+    /// This channel is polled in the main loop of the reactor.
+    upload_task_complete_rx: Receiver<TimePeriodUploadResult>,
+    /// A channel for receiving upload completion notifications.
+    ///
+    /// A copy of this sender is handed to each upload task.
+    upload_task_complete_tx: Sender<TimePeriodUploadResult>,
 }
 
 /// Mockable state for the descriptor publisher reactor.
 ///
 /// This enables us to mock parts of the [`Reactor`] for testing purposes.
 #[async_trait]
-pub(super) trait Mockable<R>: Send + Sync + Sized + 'static {
+pub(super) trait Mockable<R>: Clone + Send + Sync + Sized + 'static {
     /// The type of random number generator.
     type Rng: rand::Rng + rand::CryptoRng;
 
@@ -105,6 +125,7 @@ pub(super) trait Mockable<R>: Send + Sync + Sized + 'static {
 }
 
 /// The mockable state of the reactor.
+#[derive(Clone)]
 pub(super) struct ReactorState<R: Runtime>(Arc<HsCircPool<R>>);
 
 impl<R: Runtime> ReactorState<R> {
@@ -162,11 +183,10 @@ struct Inner {
     //
     // TODO HSS: maybe we should implement rate-limiting on a per-hsdir basis? It's probably not
     // necessary though.
-    last_uploaded: Option<SystemTime>,
+    last_uploaded: Option<Instant>,
 }
 
 /// The part of the reactor state that changes with every time period.
-#[derive(Clone)]
 struct TimePeriodContext {
     /// The time period.
     period: TimePeriod,
@@ -179,6 +199,10 @@ struct TimePeriodContext {
     // store `Relay<'_>`s in the reactor, we'd need a way of atomically swapping out both the
     // `NetDir` and the cached relays, and to convince Rust what we're doing is sound)
     hs_dirs: Vec<(RelayIds, DescriptorStatus)>,
+    /// The current version of the descriptor.
+    revision_counter: u64,
+    /// The revision counter of the last successful upload, if any.
+    last_successful: Option<RevisionCounter>,
 }
 
 impl TimePeriodContext {
@@ -192,6 +216,14 @@ impl TimePeriodContext {
             period,
             blind_id,
             hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, iter::empty())?,
+            // The revision counter is set back to 0 each time we get a new blinded public key/time
+            // period. According to rend-spec-v3 Appendix F. this shouldn't be an issue:
+            //
+            //   Implementations MAY generate revision counters in any way they please,
+            //   so long as they are monotonically increasing over the lifetime of each
+            //   blinded public key
+            revision_counter: 0,
+            last_successful: None,
         })
     }
 
@@ -244,6 +276,18 @@ impl TimePeriodContext {
             })
             .collect::<Vec<_>>())
     }
+
+    /// Return the revision counter for this time period.
+    fn current_revision_counter(&self) -> RevisionCounter {
+        self.revision_counter.into()
+    }
+
+    /// Increment the revision counter for this time period, returning the new value.
+    fn inc_revision_counter(&mut self) -> RevisionCounter {
+        self.revision_counter += 1;
+
+        self.revision_counter.into()
+    }
 }
 
 /// A reactor error
@@ -289,8 +333,6 @@ pub(super) enum ReactorError {
 
 impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Create a new `Reactor`.
-    #[allow(unreachable_code)] // TODO HSS: remove
-    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     pub(super) async fn new(
         runtime: R,
         hsid: HsId,
@@ -298,8 +340,15 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         mockable: M,
         config: OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
-        config_rx: postage::watch::Receiver<OnionServiceConfig>,
+        config_rx: watch::Receiver<OnionServiceConfig>,
     ) -> Result<Self, ReactorError> {
+        /// The maximum size of the upload completion notifier channel.
+        ///
+        /// The channel we use this for is a futures::mpsc channel, which has a capacity of
+        /// `UPLOAD_CHAN_BUF_SIZE + num-senders`. We don't need the buffer size to be non-zero, as
+        /// each sender will send exactly one message.
+        const UPLOAD_CHAN_BUF_SIZE: usize = 0;
+
         let hsid_key: HsIdKey = hsid
             .try_into()
             .expect("failed to recover ed25519 public key from hsid?!");
@@ -307,9 +356,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
 
         let time_periods = Self::compute_time_periods(&netdir, &hsid_key)?;
 
-        // There will be at most one pending upload.
-        let (pending_upload_tx, _) = broadcast(1);
-        let (_, schedule_upload_rx) = broadcast(1);
+        let (upload_task_complete_tx, upload_task_complete_rx) =
+            mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
         let inner = Inner {
             descriptor: DescriptorBuilder::default(),
@@ -328,8 +376,9 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
             mockable,
             ipt_watcher,
             config_rx,
-            pending_upload_tx,
-            schedule_upload_rx,
+            pending_upload_tx: None,
+            upload_task_complete_rx,
+            upload_task_complete_tx,
         })
     }
 
@@ -342,18 +391,21 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     pub(super) async fn run(mut self) -> Result<(), ReactorError> {
         debug!("starting descriptor publisher reactor");
 
-        let mut pending_upload_rx = self.pending_upload_tx.new_receiver();
-        let schedule_upload_tx = self.schedule_upload_rx.new_sender();
+        // There will be at most one pending upload.
+        let (pending_upload_tx, mut pending_upload_rx) = mpsc::channel(1);
+        let (mut schedule_upload_tx, mut schedule_upload_rx) = mpsc::channel(1);
+
+        self.pending_upload_tx = Some(pending_upload_tx);
 
         let rt = self.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
-            while let Ok(duration) = pending_upload_rx.recv().await {
+            while let Some(duration) = pending_upload_rx.next().await {
                 rt.sleep(duration).await;
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
-                if let Err(e) = schedule_upload_tx.broadcast(()).await {
+                if let Err(e) = schedule_upload_tx.send(()).await {
                     // TODO HSS: update publisher state
                     debug!("failed to notify reactor to reattempt upload");
                 }
@@ -363,7 +415,7 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         });
 
         let err = loop {
-            if let Err(e) = self.run_once().await {
+            if let Err(e) = self.run_once(&mut schedule_upload_rx).await {
                 break e;
             }
         };
@@ -376,10 +428,18 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// Run one iteration of the reactor loop.
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
-    async fn run_once(&mut self) -> Result<(), ReactorError> {
+    async fn run_once(
+        &mut self,
+        schedule_upload_rx: &mut Receiver<()>,
+    ) -> Result<(), ReactorError> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
+            res = self.upload_task_complete_rx.next().fuse() => {
+                let upload_res = res.ok_or(ReactorError::ShuttingDown)?;
+
+                self.handle_upload_results(upload_res).await;
+            }
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
                 let netdir = self.dir_provider.netdir(Timeliness::Timely)?;
@@ -399,8 +459,8 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
                 let config = config.ok_or(ReactorError::ShuttingDown)?;
                 self.handle_svc_config_change(config).await?;
             },
-            res = self.schedule_upload_rx.recv().fuse() => {
-                let _: () = res.map_err(|_: RecvError| ReactorError::ShuttingDown)?;
+            res = schedule_upload_rx.next().fuse() => {
+                let _: () = res.ok_or(ReactorError::ShuttingDown)?;
 
                 // Time to reattempt a previously rate-limited upload
                 self.upload_all().await?;
@@ -408,6 +468,62 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         }
 
         Ok(())
+    }
+
+    /// Handle a batch of upload outcomes,
+    /// possibly updating the status of the descriptor for the corresponding HSDirs.
+    async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
+        let mut inner = self.inner.lock().await;
+        inner.last_uploaded = Some(self.runtime.now());
+
+        // Check which time period these uploads pertain to.
+        let period = inner
+            .time_periods
+            .iter_mut()
+            .find(|ctx| ctx.period == results.time_period);
+
+        let Some(period) = period else {
+            // The uploads were for a time period that is no longer relevant, so we
+            // can ignore the result.
+            return;
+        };
+
+        for upload_res in results.hsdir_result {
+            let relay = period
+                .hs_dirs
+                .iter_mut()
+                .find(|(relay_ids, _status)| relay_ids == &upload_res.relay_ids);
+
+            let Some((relay, status)) = relay else {
+                // This HSDir went away, so the result doesn't matter.
+                return;
+            };
+
+            if upload_res.upload_res == UploadStatus::Success {
+                let update_last_successful = match period.last_successful {
+                    None => true,
+                    Some(counter) => counter <= results.revision_counter,
+                };
+
+                if update_last_successful {
+                    period.last_successful = Some(results.revision_counter);
+                    // TODO HSS: Is it possible that this won't update the statuses promptly
+                    // enough. For example, it's possible for the reactor to see a Dirty descriptor
+                    // and start an upload task for a descriptor has already been uploaded (or is
+                    // being uploaded) in another task, but whose upload results have not yet been
+                    // processed.
+                    //
+                    // This is probably made worse by the fact that the statuses are updated in
+                    // batches (grouped by time period), rather than one by one as the upload tasks
+                    // complete (updating the status involves locking the inner mutex, and I wanted
+                    // to minimize the locking/unlocking overheads). I'm not sure handling the
+                    // updates in batches was the correct decision here.
+                    *status = DescriptorStatus::Clean;
+                }
+            }
+
+            // TODO HSS: maybe the failed uploads should be rescheduled at some point.
+        }
     }
 
     /// Maybe update our list of HsDirs.
@@ -419,11 +535,6 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         // TODO HSS: upload the descriptors.
 
         Ok(())
-    }
-
-    /// Maybe note a change in our list of HsDirs.
-    async fn handle_hs_dir_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
-        todo!()
     }
 
     /// Recompute the HsDirs for all relevant time periods.
@@ -509,28 +620,21 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     /// well as in what cases this will return an error).
     //
     // TODO HSS: what is N?
-    //
-    // TODO HSS: should this spawn upload tasks instead of blocking the reactor until the
-    // uploads complete? How would that work - if, during an upload, we receive an event telling us
-    // to update the descriptor, do we cancel the existing upload tasks, or do we let them carry
-    // on?
-    //
-    // TODO HSS: when addressing this, consider the points raised here:
-    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1545#note_2935673
-    async fn upload_all(&self) -> Result<(), ReactorError> {
-        let mut inner = self.inner.lock().await;
-        let now = SystemTime::now();
-
+    #[allow(unreachable_code)] // TODO HSS: remove
+    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
+    async fn upload_all(&mut self) -> Result<(), ReactorError> {
+        let last_uploaded = self.inner.lock().await.last_uploaded;
+        let now = self.runtime.now();
         // Check if we should rate-limit this upload.
-        if let Some(last_uploaded) = inner.last_uploaded {
-            let duration_since_upload = last_uploaded
-                .duration_since(now)
-                .unwrap_or(Duration::from_secs(0));
+        if let Some(last_uploaded) = last_uploaded {
+            let duration_since_upload = last_uploaded.duration_since(now);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 return self.schedule_pending_upload().await;
             }
         }
+
+        let inner = self.inner.lock().await;
 
         // Check we have enough information to generate the descriptor before proceeding.
         let hsdesc = match inner.descriptor.build() {
@@ -551,22 +655,83 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
         };
 
         let netdir = Arc::clone(&inner.netdir);
-        for period in inner.time_periods.iter_mut() {
-            // `inner` is an async-aware mutex so we can hold it across this await point
-            self.upload_for_time_period(&hsdesc, period, &netdir)
-                .await?;
-        }
 
-        inner.last_uploaded = Some(SystemTime::now());
+        let runtime = self.runtime.clone();
+        let mockable = self.mockable.clone();
+        let hsid_key = self.hsid_key.clone();
+        let upload_task_complete_tx = self.upload_task_complete_tx.clone();
+        let hsid = self.hsid;
+
+        let upload_tasks = inner.time_periods.iter().map(move |period| {
+            // Figure out which HsDirs we need to upload the descriptor to (some of them might already
+            // have our latest descriptor, so we filter them out).
+            let hs_dirs = period
+                .hs_dirs
+                .iter()
+                .filter_map(|(relay_id, status)| {
+                    if *status == DescriptorStatus::Dirty {
+                        Some(relay_id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let blind_id_kp = todo!();
+
+            // We're about to generate a new version of the descriptor: increment the revision
+            // counter.
+            //
+            // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
+            // revision counter a timestamp encrypted using an OPE cipher
+            let revision_counter = period.inc_revision_counter();
+            // This scope exists because rng is not Send, so it needs to fall out of scope before we
+            // await anything.
+            let hsdesc = {
+                let mut rng = mockable.thread_rng();
+                hsdesc.build_sign(
+                    hsid_key,
+                    blind_id_kp,
+                    period.period,
+                    revision_counter,
+                    &mut rng,
+                )?
+            };
+
+            let handle = runtime.spawn(async {
+                let hsdesc = VersionedDescriptor {
+                    desc: hsdesc.clone(),
+                    revision_counter,
+                };
+                if let Err(_e) = Self::upload_for_time_period(
+                    hsdesc,
+                    hs_dirs,
+                    &netdir,
+                    period.period,
+                    hsid,
+                    upload_task_complete_tx,
+                )
+                .await
+                {
+                    // TODO HSS
+                }
+            });
+
+            Ok::<_, ReactorError>(handle)
+        });
 
         Ok(())
     }
 
     /// Tell the "upload reminder" task to remind us about a pending upload.
-    async fn schedule_pending_upload(&self) -> Result<(), ReactorError> {
+    async fn schedule_pending_upload(&mut self) -> Result<(), ReactorError> {
         if let Err(e) = self
             .pending_upload_tx
-            .broadcast(UPLOAD_RATE_LIM_THRESHOLD)
+            .as_mut()
+            .ok_or(internal!(
+                "channel not initialized (schedule_pending_upload called before run?!)"
+            ))?
+            .send(UPLOAD_RATE_LIM_THRESHOLD)
             .await
         {
             // TODO HSS: return an error
@@ -580,52 +745,72 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     ///
     /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
     /// well as in what cases this will return an error).
-    #[allow(unreachable_code)] // TODO HSS: remove
-    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_for_time_period(
-        &self,
-        hsdesc: &Descriptor,
-        context: &mut TimePeriodContext,
+        hsdesc: VersionedDescriptor,
+        hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
+        time_period: TimePeriod,
+        hsid: HsId,
+        mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), ReactorError> {
-        // Figure out which HsDirs we need to upload the descriptor to (some of them might already
-        // have our latest descriptor, so we filter them out).
-        let hs_dirs = context
-            .hs_dirs
-            .iter_mut()
-            .filter(|(_relay_id, status)| *status == DescriptorStatus::Dirty);
+        let VersionedDescriptor {
+            desc,
+            revision_counter,
+        } = &hsdesc;
 
-        let blind_id_kp = todo!();
-        // This scope exists because rng is not Send, so it needs to fall out of scope before we
-        // await anything.
-        let hsdesc = {
-            let mut rng = self.mockable.thread_rng();
-            hsdesc.build_sign(self.hsid_key, blind_id_kp, context.period, &mut rng)?
-        };
+        let upload_results = futures::stream::iter(hs_dirs)
+            .map(|relay_ids| {
+                let netdir = netdir.clone();
 
-        // TODO HSS: this should be rewritten to upload the descriptor to each HsDir in parallel
-        // (the uploads are currently sequential).
-        //
-        // We will probably want to spawn a task for each upload, and join_all(upload_tasks) before
-        // returning from this function.
-        //
-        // In addition, we might want `Reactor::upload_all` to execute asynchronously (i.e. in a
-        // background task), as opposed to blocking the reactor loop until the upload is complete.
-        for (relay_ids, status) in hs_dirs {
-            let Some(hsdir) = netdir.by_ids(&*relay_ids) else {
-                // This should never happen (all of our relay_ids are from the stored netdir).
-                return Err(internal!(
-                    "tried to upload descriptor to relay not found in consensus?"
-                )
-                .into());
-            };
+                async move {
+                    let run_upload = || async {
+                        let Some(hsdir) = netdir.by_ids(&relay_ids) else {
+                            // This should never happen (all of our relay_ids are from the stored netdir).
+                            return Err::<(), ReactorError>(
+                                internal!(
+                                    "tried to upload descriptor to relay not found in consensus?"
+                                )
+                                .into(),
+                            );
+                        };
 
-            self.upload_descriptor_with_retries(hsdesc, netdir, &hsdir)
-                .await?;
+                        Self::upload_descriptor_with_retries(desc.clone(), &netdir, &hsdir).await?;
 
-            // We successfully uploaded the descriptor to this HsDir, so we now mark it as clean
-            // for that specific HsDir.
-            *status = DescriptorStatus::Clean;
+                        Ok(())
+                    };
+
+                    let upload_res = run_upload().await;
+
+                    HsDirUploadStatus {
+                        relay_ids,
+                        upload_res: upload_res.into(),
+                    }
+                }
+            })
+            // This fails to compile unless the stream is boxed. See https://github.com/rust-lang/rust/issues/104382
+            .boxed()
+            .buffer_unordered(MAX_CONCURRENT_UPLOADS)
+            .collect::<Vec<_>>()
+            .await;
+
+        let (succeeded, failed): (Vec<_>, Vec<_>) = upload_results
+            .iter()
+            .partition(|res| res.upload_res == UploadStatus::Success);
+
+        trace!(hsid=%hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
+
+        if let Err(e) = upload_task_complete_tx
+            .send(TimePeriodUploadResult {
+                revision_counter: *revision_counter,
+                time_period,
+                hsdir_result: upload_results,
+            })
+            .await
+        {
+            return Err(internal!(
+                "failed to notify reactor of upload completion (reactor shut down)"
+            )
+            .into());
         }
 
         Ok(())
@@ -687,11 +872,49 @@ impl<R: Runtime, M: Mockable<R>> Reactor<R, M> {
     ///
     /// TODO HSS: document the retry logic when we implement it.
     async fn upload_descriptor_with_retries(
-        &self,
         _hsdesc: String,
         _netdir: &Arc<NetDir>,
         _hsdir: &Relay<'_>,
     ) -> Result<(), ReactorError> {
         todo!();
+    }
+}
+
+/// The outcome of uploading a descriptor to the HSDirs from a particular time period.
+#[derive(Debug, Clone)]
+struct TimePeriodUploadResult {
+    /// The revision counter of the descriptor we tried to upload.
+    revision_counter: RevisionCounter,
+    /// The time period.
+    time_period: TimePeriod,
+    /// The upload results.
+    hsdir_result: Vec<HsDirUploadStatus>,
+}
+
+/// The outcome of uploading a descriptor to a particular HsDir.
+#[derive(Clone, Debug, PartialEq)]
+struct HsDirUploadStatus {
+    /// The identity of the HsDir we attempted to upload the descriptor to.
+    relay_ids: RelayIds,
+    /// The outcome of this attempt.
+    upload_res: UploadStatus,
+}
+
+/// The outcome of uploading a descriptor.
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum UploadStatus {
+    /// The descriptor upload succeeded.
+    Success,
+    /// The descriptor upload failed.
+    Failure,
+}
+
+impl<T, E> From<Result<T, E>> for UploadStatus {
+    fn from(res: Result<T, E>) -> Self {
+        if res.is_ok() {
+            Self::Success
+        } else {
+            Self::Failure
+        }
     }
 }

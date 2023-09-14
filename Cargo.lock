@@ -4938,7 +4938,6 @@ dependencies = [
 name = "tor-hsservice"
 version = "0.2.4"
 dependencies = [
- "async-broadcast",
  "async-trait",
  "base64ct",
  "derive-adhoc",
