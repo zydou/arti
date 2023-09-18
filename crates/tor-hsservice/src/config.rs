@@ -37,15 +37,31 @@ pub struct OnionServiceConfig {
     #[builder(default = "3")]
     pub(crate) num_intro_points: u8,
 
-    /// Limits on rates and concurrency of connections to our service.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
-    pub(crate) limits: LimitConfig,
+    /// A rate-limit on the acceptable rate of introduction requests.
+    ///
+    /// We send this to the send to the introduction point to configure how many
+    /// introduction requests it sends us.
+    rate_limit_at_intro: Option<TokenBucketConfig>,
 
-    /// Configure proof-of-work defense against DoS attacks.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
-    pub(crate) pow: PowConfig,
+    /// How many streams will we allow to be open at once for a single circuit on
+    /// this service?
+    #[builder(default = "65535")]
+    max_concurrent_streams_per_circuit: u32,
+
+    /// If true, we will require proof-of-work when we're under heavy load.
+    enable_pow: bool,
+    /// Disable the compiled backend for proof-of-work.
+    disable_pow_compilation: bool,
+    // TODO HSS: C tor has this, but I don't know if we want it.
+    //
+    // TODO HSS: It's possible that we want this to relate, somehow, to our
+    // rate_limit_at_intro settings.
+    //
+    // /// A rate-limit on dispatching requests from the request queue when
+    // /// our proof-of-work defense is enabled.
+    // pow_queue_rate: TokenBucketConfig,
+    // ...
+
     // /// Configure descriptor-based client authorization.
     // ///
     // /// When this is enabled, we encrypt our list of introduction point and keys
@@ -80,43 +96,6 @@ impl OnionServiceConfigBuilder {
         }
         Ok(())
     }
-}
-
-/// Configuration for maximum rates and concurrency.
-#[derive(Debug, Clone, Builder)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Serialize, Deserialize))]
-pub struct LimitConfig {
-    /// A rate-limit on the acceptable rate of introduction requests.
-    ///
-    /// We send this to the send to the introduction point to configure how many
-    /// introduction requests it sends us.
-    rate_limit_at_intro: Option<TokenBucketConfig>,
-
-    /// How many streams will we allow to be open at once for a single circuit on
-    /// this service?
-    #[builder(default = "65535")]
-    max_concurrent_streams_per_circuit: u32,
-}
-
-/// Configuration for proof-of-work defense against DoS attacks.
-#[derive(Debug, Clone, Builder)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Serialize, Deserialize))]
-pub struct PowConfig {
-    /// If true, we will require proof-of-work when we're under heavy load.
-    enable_pow: bool,
-    /// Disable the compiled backend for proof-of-work.
-    disable_pow_compilation: bool,
-    // TODO HSS: C tor has this, but I don't know if we want it.
-    //
-    // TODO HSS: It's possible that we want this to relate, somehow, to our
-    // rate_limit_at_intro settings.
-    //
-    // /// A rate-limit on dispatching requests from the request queue when
-    // /// our proof-of-work defense is enabled.
-    // pow_queue_rate: TokenBucketConfig,
-    // ...
 }
 
 /// Configure a token-bucket style limit on some process.
