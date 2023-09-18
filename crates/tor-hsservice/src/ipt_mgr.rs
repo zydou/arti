@@ -1000,19 +1000,26 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // This is a separate argument for borrowck reasons
         publisher: &mut IptsManagerView,
     ) -> Result<ShutdownStatus, FatalError> {
-        let mut publish_set = publisher.borrow_for_update();
+        let now = {
+            // Block to persuade borrow checker that publish_set isn't
+            // held over an await point.
 
-        self.import_new_expiry_times(&publish_set);
+            let mut publish_set = publisher.borrow_for_update();
 
-        let now = loop {
-            if let Some(now) = self.idempotently_progress_things_now()? {
-                break now;
-            }
+            self.import_new_expiry_times(&publish_set);
+
+            let now = loop {
+                if let Some(now) = self.idempotently_progress_things_now()? {
+                    break now;
+                }
+            };
+
+            self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
+
+            drop(publish_set); // release lock, and notify publisher of any changes
+
+            now
         };
-
-        self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
-
-        drop(publish_set); // release lock, and notify publisher of any changes
 
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
