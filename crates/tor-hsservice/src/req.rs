@@ -10,11 +10,7 @@ use tor_cell::relaycell::msg::Introduce2;
 use tor_error::Bug;
 use tor_proto::{circuit::handshake::hs_ntor::HsNtorServiceInput, stream::DataStream};
 
-use crate::{
-    svc::{rend_handshake},
-    ClientError,
-    IptLocalId,
-};
+use crate::{svc::rend_handshake, ClientError, IptLocalId};
 
 /// Request to complete an introduction/rendezvous handshake.
 ///
