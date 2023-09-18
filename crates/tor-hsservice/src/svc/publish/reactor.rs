@@ -4,6 +4,7 @@
 
 use std::fmt::Debug;
 use std::iter;
+use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -33,7 +34,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
-use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
+use crate::ipt_set::IptsPublisherView;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -505,14 +506,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 self.handle_consensus_change(netdir).await?;
             }
-            ipts = self.ipt_watcher.await_update().fuse() => {
-                if let Ok(()) = ipts.ok_or(ReactorError::ShuttingDown)? {
-                    // TODO HSS: add more context to the error
-                    internal!("failed to receive IPT update");
-                }
-                // TODO HSS: try to read IPTs from shared state (see #1023)
-                let ipts = todo!();
-                self.handle_new_intro_points(ipts).await?;
+            update = self.ipt_watcher.await_update().fuse() => {
+                self.handle_new_intro_points(update).await?;
             },
             config = self.config_rx.next().fuse() => {
                 let config = config.ok_or(ReactorError::ShuttingDown)?;
@@ -668,22 +663,34 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         true
     }
 
+    /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
+    /// uploading.
+    async fn note_ipt_change(&self) -> PublishStatus {
+        let inner = self.inner.lock().await;
+
+        let mut ipts = self.ipt_watcher.borrow_for_publish();
+        match ipts.deref_mut() {
+            Some(ipts) => PublishStatus::UploadScheduled,
+            None => PublishStatus::AwaitingIpts,
+        }
+    }
+
     /// Update our list of introduction points.
     #[allow(clippy::unnecessary_wraps)]
     #[allow(unreachable_code, unused_mut, clippy::diverging_sub_expression)] // TODO HSS remove
-    async fn handle_new_intro_points(&self, ipts: PublishIptSet) -> Result<(), ReactorError> {
-        let Some(ipts) = ipts else {
-            todo!() // TODO HSS stop publishing when we get None for ipts
-        };
+    async fn handle_new_intro_points(
+        &mut self,
+        update: Option<Result<(), crate::FatalError>>,
+    ) -> Result<(), ReactorError> {
+        match update {
+            Some(Ok(())) => {
+                let should_upload = self.note_ipt_change().await;
 
-        let mut inner = self.inner.lock().await;
-        #[allow(unused_variables)] // TODO HSS remove
-        let IptSet { ipts, lifetime } = ipts;
-
-        let ipts = todo!(); // TODO HSSS something something last_publish etc.
-                            // (this current code is entirely wrong, see #1023)
-
-        // TODO HSS: upload the descriptors.
+                self.mark_all_dirty().await;
+                self.update_publish_status(should_upload).await
+            }
+            Some(Err(_)) | None => Err(ReactorError::ShuttingDown),
+        }
     }
 
     /// Update the `PublishStatus` of the reactor with `new_state`,
