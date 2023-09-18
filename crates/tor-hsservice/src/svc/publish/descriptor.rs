@@ -13,6 +13,7 @@ use tor_llcrypto::pk::curve25519;
 use tor_netdoc::doc::hsdesc::{HsDescBuilder, IntroPointDesc};
 use tor_netdoc::NetdocBuilder;
 
+use crate::config::DescEncryptionConfig;
 use crate::ipt_set::{Ipt, IptSet};
 use crate::OnionServiceConfig;
 
@@ -67,10 +68,14 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     // TODO HSS: support introduction-layer authentication.
     let auth_required = None;
 
-    let is_single_onion_service = todo!();
+    let is_single_onion_service =
+        matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
     let intro_auth_key_cert: Ed25519Cert = todo!();
     let intro_enc_key_cert: X25519Cert = todo!();
-    let auth_clients: Vec<curve25519::PublicKey> = todo!();
+    let auth_clients: Vec<curve25519::PublicKey> = match config.encrypt_descriptor {
+        Some(auth_clients) => build_auth_clients(&auth_clients),
+        None => vec![],
+    };
 
     Ok(HsDescBuilder::default()
         .blinded_id(blind_id_kp)
@@ -91,6 +96,11 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
 /// Create an [`IntroPointDesc`] from the specified introduction point.
 fn build_intro_point_desc(_ipt: &Ipt) -> IntroPointDesc {
+    todo!()
+}
+
+/// Return the list of authorized public keys from the specified [`DescEncryptionConfig`].
+fn build_auth_clients(_auth_clients: &DescEncryptionConfig) -> Vec<curve25519::PublicKey> {
     todo!()
 }
 
