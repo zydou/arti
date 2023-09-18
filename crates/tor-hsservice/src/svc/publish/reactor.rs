@@ -299,6 +299,13 @@ impl TimePeriodContext {
             .collect::<Vec<_>>())
     }
 
+    /// Mark the descriptor dirty for all HSDirs of this time period.
+    fn mark_all_dirty(&mut self) {
+        self.hs_dirs
+            .iter_mut()
+            .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
+    }
+
     /// Return the revision counter for this time period.
     fn current_revision_counter(&self) -> RevisionCounter {
         self.revision_counter.into()
@@ -687,6 +694,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // TODO HSS: check if the config changes affect our descriptor. If they do, update its
         // state and mark it as dirty for all hsdirs
         todo!();
+    }
+
+    /// Mark the descriptor dirty for all time periods.
+    async fn mark_all_dirty(&self) {
+        self.inner
+            .lock()
+            .await
+            .time_periods
+            .iter_mut()
+            .for_each(|tp| tp.mark_all_dirty());
     }
 
     /// Try to upload our descriptor to the HsDirs that need it.
