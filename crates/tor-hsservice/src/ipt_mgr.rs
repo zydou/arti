@@ -884,14 +884,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         now: &TrackingNow,
         lifetime: Duration,
     ) -> Result<ipt_set::IptSet, FatalError> {
-        let expires = now
-            .instant()
-            // Our response to old descriptors expiring is handled by us checking
-            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
-            .get_now_untracked()
-            .checked_add(lifetime)
-            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
-
         /// Good candidate introduction point for publication
         type Candidate<'i> = &'i Ipt;
 
@@ -938,6 +930,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // WTB: VecDeque::truncate_front
             let _: Candidate = candidates.pop_front().expect("empty?!");
         }
+
+        let expires = now
+            .instant()
+            // Our response to old descriptors expiring is handled by us checking
+            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
+            .get_now_untracked()
+            .checked_add(lifetime)
+            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
 
         let new_last_expiry = expires
             .checked_add(ipt_set::IPT_PUBLISH_EXPIRY_SLOP)
