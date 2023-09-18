@@ -186,7 +186,12 @@ struct Ipt {
     establisher: Box<dyn Any + Send + Sync + 'static>,
 
     /// `KS_hs_ipt_sid`, `KP_hs_ipt_sid`
-    k_sid: HsIntroPtSessionIdKeypair,
+    ///
+    /// This is an `Arc` because:
+    ///  * The manager needs a copy so that it can save it to disk.
+    ///  * The establisher needs a copy to actually use.
+    ///  * The underlying secret key type is not `Clone`.
+    k_sid: Arc<HsIntroPtSessionIdKeypair>,
 
     /// `KS_hss_ntor`, `KP_hss_ntor`
     // TODO HSS how do we provide the private half to the recipients of our rend reqs?
@@ -346,6 +351,7 @@ impl IptRelay {
         let lid: IptLocalId = rng.gen();
         let k_hss_ntor = HsSvcNtorKeypair::generate(&mut rng);
         let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
+        let k_sid = Arc::new(k_sid);
 
         let params = IptParameters {
             netdir_provider: imm.dirprovider.clone(),
@@ -410,7 +416,7 @@ impl Ipt {
 
     /// Construct the information needed by the publisher for this intro point
     fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<ipt_set::Ipt, Bug> {
-        let k_sid: &ed25519::Keypair = self.k_sid.as_ref();
+        let k_sid: &ed25519::Keypair = (*self.k_sid).as_ref();
         tor_netdoc::doc::hsdesc::IntroPointDesc::builder()
             .link_specifiers(details.link_specifiers.clone())
             .ipt_kp_ntor(details.ipt_kp_ntor)

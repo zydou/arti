@@ -170,7 +170,7 @@ pub(crate) struct IptParameters {
     // configuration object?
     pub(crate) target: RelayIds,
     /// `K_hs_ipt_sid`
-    pub(crate) k_sid: HsIntroPtSessionIdKeypair,
+    pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
     pub(crate) accepting_requests: RequestDisposition,
 }
 
@@ -449,7 +449,7 @@ struct Reactor<R: Runtime> {
     ///
     /// Knowledge of this private key prevents anybody else from impersonating
     /// us to the introduction point.
-    k_sid: HsIntroPtSessionIdKeypair,
+    k_sid: Arc<HsIntroPtSessionIdKeypair>,
     /// The extensions to use when establishing the introduction point.
     ///
     /// TODO: Should this be able to change over time if we re-establish this
@@ -562,7 +562,7 @@ impl<R: Runtime> Reactor<R> {
             .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
 
         let establish_intro = {
-            let ipt_sid_id = self.k_sid.as_ref().public.into();
+            let ipt_sid_id = (*self.k_sid).as_ref().public.into();
             let mut details = EstablishIntroDetails::new(ipt_sid_id);
             if let Some(dos_params) = &self.extensions.dos_params {
                 details.set_extension_dos(dos_params.clone());
@@ -571,7 +571,7 @@ impl<R: Runtime> Reactor<R> {
                 .binding_key(intro_pt_hop)
                 .ok_or(internal!("No binding key for introduction point!?"))?;
             let body: Vec<u8> = details
-                .sign_and_encode(self.k_sid.as_ref(), circuit_binding_key.hs_mac())
+                .sign_and_encode((*self.k_sid).as_ref(), circuit_binding_key.hs_mac())
                 .map_err(IptError::CreateEstablishIntro)?;
 
             // TODO HSS: This is ugly, but it is the sensible way to munge the above
