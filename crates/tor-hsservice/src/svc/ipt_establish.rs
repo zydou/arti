@@ -31,10 +31,9 @@ use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
 use crate::svc::{LinkSpecs, NtorPublicKey};
-use crate::{FatalError, RendRequest};
+use crate::{FatalError, IptLocalId, RendRequest};
 
 use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
-use super::IntroPointId;
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {
@@ -166,11 +165,12 @@ impl IptError {
 pub(crate) struct IptParameters {
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
-    pub(crate) intro_pt_id: IntroPointId,
+    pub(crate) lid: IptLocalId,
     // TODO HSS: Should this and the following elements be part of some
     // configuration object?
     pub(crate) target: RelayIds,
-    pub(crate) ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+    /// `K_hs_ipt_sid`
+    pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
     pub(crate) accepting_requests: RequestDisposition,
 }
 
@@ -198,9 +198,9 @@ impl IptEstablisher {
         let IptParameters {
             netdir_provider,
             introduce_tx,
-            intro_pt_id,
+            lid,
             target,
-            ipt_sid_keypair,
+            k_sid,
             accepting_requests,
         } = params;
         if matches!(accepting_requests, RequestDisposition::Shutdown) {
@@ -216,9 +216,9 @@ impl IptEstablisher {
             runtime: runtime.clone(),
             pool,
             netdir_provider,
-            intro_pt_id,
+            lid,
             target,
-            ipt_sid_keypair,
+            k_sid,
             introduce_tx,
             // TODO HSS This should come from the configuration.
             extensions: EstIntroExtensionSet { dos_params: None },
@@ -442,14 +442,14 @@ struct Reactor<R: Runtime> {
     ///
     /// TODO HSS: I am assuming that this type will be a unique identifier, and
     /// will change whenever RelayIds and/or HsIntroPtSessionIdKeypair changes.
-    intro_pt_id: IntroPointId,
+    lid: IptLocalId,
     /// The target introduction point.
     target: RelayIds,
     /// The keypair to use when establishing the introduction point.
     ///
     /// Knowledge of this private key prevents anybody else from impersonating
     /// us to the introduction point.
-    ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+    k_sid: Arc<HsIntroPtSessionIdKeypair>,
     /// The extensions to use when establishing the introduction point.
     ///
     /// TODO: Should this be able to change over time if we re-establish this
@@ -562,7 +562,7 @@ impl<R: Runtime> Reactor<R> {
             .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
 
         let establish_intro = {
-            let ipt_sid_id = self.ipt_sid_keypair.as_ref().public.into();
+            let ipt_sid_id = (*self.k_sid).as_ref().public.into();
             let mut details = EstablishIntroDetails::new(ipt_sid_id);
             if let Some(dos_params) = &self.extensions.dos_params {
                 details.set_extension_dos(dos_params.clone());
@@ -571,7 +571,7 @@ impl<R: Runtime> Reactor<R> {
                 .binding_key(intro_pt_hop)
                 .ok_or(internal!("No binding key for introduction point!?"))?;
             let body: Vec<u8> = details
-                .sign_and_encode(self.ipt_sid_keypair.as_ref(), circuit_binding_key.hs_mac())
+                .sign_and_encode((*self.k_sid).as_ref(), circuit_binding_key.hs_mac())
                 .map_err(IptError::CreateEstablishIntro)?;
 
             // TODO HSS: This is ugly, but it is the sensible way to munge the above
@@ -596,7 +596,7 @@ impl<R: Runtime> Reactor<R> {
             established_tx: Some(established_tx),
             introduce_tx: self.introduce_tx.clone(),
             state: self.state.clone(),
-            intro_pt_id: self.intro_pt_id.clone(),
+            lid: self.lid,
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -656,7 +656,7 @@ struct IptMsgHandler {
 
     /// Unique identifier for the introduction point (including the current
     /// keys).  Used to tag requests.
-    intro_pt_id: IntroPointId,
+    lid: IptLocalId,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
@@ -699,7 +699,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     RequestDisposition::Advertised => {}
                 }
 
-                let request = RendRequest::new(self.intro_pt_id.clone(), introduce2);
+                let request = RendRequest::new(self.lid, introduce2);
                 match self.introduce_tx.try_send(request) {
                     Ok(()) => Ok(()),
                     Err(e) => {
