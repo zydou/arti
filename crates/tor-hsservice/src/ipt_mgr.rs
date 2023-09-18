@@ -853,7 +853,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         *publish_set = if let Some(lifetime) = publish_lifetime {
             let selected = self.publish_set_select();
-            // TODO HSS tell all the being-published IPTs to start accepting introductions
+            for ipt in &selected {
+                self.state.mockable.start_accepting(&ipt.establisher);
+            }
             Some(Self::make_publish_set(selected, now, lifetime)?)
         } else {
             None
@@ -1131,6 +1133,9 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
         imm: &Immutable<R>,
         params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
+
+    /// Call `IptEstablisher::start_accepting`
+    fn start_accepting(&self, establisher: &ErasedIptEstablisher);
 }
 
 impl<R: Runtime> Mockable<R> for Real<R> {
@@ -1150,6 +1155,12 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
         IptEstablisher::new(imm.runtime.clone(), params, self.circ_pool.clone())
+    }
+
+    fn start_accepting(&self, establisher: &ErasedIptEstablisher) {
+        let establisher: &IptEstablisher = <dyn Any>::downcast_ref(establisher)
+            .expect("upcast failure, ErasedIptEstablisher is not IptEstablisher!");
+        establisher.start_accepting();
     }
 }
 
