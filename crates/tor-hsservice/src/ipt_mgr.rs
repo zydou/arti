@@ -185,7 +185,6 @@ struct Ipt {
     lid: IptLocalId,
 
     /// Handle for the establisher; we keep this here just for its `Drop` action
-    #[allow(dead_code)]
     establisher: Box<ErasedIptEstablisher>,
 
     /// `KS_hs_ipt_sid`, `KP_hs_ipt_sid`
@@ -339,7 +338,6 @@ impl IptRelay {
     /// Make a new introduction point at this relay
     ///
     /// It becomes the current IPT.
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn make_new_ipt<R: Runtime, M: Mockable<R>>(
         &mut self,
         imm: &Immutable<R>,
@@ -882,7 +880,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn publish_set_select(
         &self,
     ) -> VecDeque<&Ipt> {
@@ -946,7 +943,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn make_publish_set<'i>(
         selected: impl IntoIterator<Item = &'i Ipt>,
         now: &TrackingNow,
