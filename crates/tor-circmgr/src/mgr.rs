@@ -2255,6 +2255,7 @@ mod test {
             SupportedCircUsage::Exit {
                 policy: ep_none,
                 isolation: None,
+                country_code: None,
             },
             fake_circ.clone(),
             expiration.clone(),
@@ -2264,6 +2265,7 @@ mod test {
             SupportedCircUsage::Exit {
                 policy: ep_web,
                 isolation: None,
+                country_code: None,
             },
             fake_circ.clone(),
             expiration.clone(),
@@ -2273,6 +2275,7 @@ mod test {
             SupportedCircUsage::Exit {
                 policy: ep_full,
                 isolation: None,
+                country_code: None,
             },
             fake_circ,
             expiration,
@@ -2282,6 +2285,7 @@ mod test {
         let usage_web = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: StreamIsolation::no_isolation(),
+            country_code: None,
         };
         let empty: Vec<&mut OpenEntry<SupportedCircUsage, FakeCirc>> = vec![];
 

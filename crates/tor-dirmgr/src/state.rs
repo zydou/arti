@@ -34,6 +34,8 @@ use crate::{
 };
 use crate::{DocSource, SharedMutArc};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
+#[cfg(feature = "geoip")]
+use tor_geoip::GeoipDb;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::doc::{
     microdesc::{MdDigest, Microdesc},
@@ -902,7 +904,13 @@ impl<R: Runtime> GetMicrodescsState<R> {
         let n_microdescs = consensus.relays().len();
 
         let params = &config.override_net_params;
+        #[cfg(not(feature = "geoip"))]
         let mut partial_dir = PartialNetDir::new(consensus, Some(params));
+        // TODO(eta): Make this embedded database configurable using the `DirMgrConfig`.
+        #[cfg(feature = "geoip")]
+        let mut partial_dir =
+            PartialNetDir::new_with_geoip(consensus, Some(params), &GeoipDb::new_embedded());
+
         if let Some(old_dir) = prev_netdir.as_ref().and_then(|x| x.get_netdir()) {
             partial_dir.fill_from_previous_netdir(old_dir);
         }

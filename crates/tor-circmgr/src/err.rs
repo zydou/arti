@@ -84,15 +84,18 @@ pub enum Error {
     /// No suitable exit relay for a request.
     #[error(
         "Can't find exit for circuit: \
-         Rejected {} because of family restrictions and {} because of port requirements",
+         Rejected {} because of family restrictions, {} because of port requirements, and {} because of country requirements",
         can_share.display_frac_rejected(),
         correct_ports.display_frac_rejected(),
+        correct_country.display_frac_rejected()
     )]
     NoExit {
         /// Exit relays accepted and rejected based on relay family policies.
         can_share: FilterCount,
         /// Exit relays accepted and rejected base on the ports that we need.
         correct_ports: FilterCount,
+        /// Exit relays accepted and rejected based on exit country code.
+        correct_country: FilterCount,
     },
 
     /// Problem creating or updating a guard manager.

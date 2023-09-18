@@ -6,9 +6,13 @@ use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::debug;
+#[cfg(not(feature = "geoip"))]
+use void::Void;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_chanmgr::ChannelUsage;
+#[cfg(feature = "geoip")]
+use tor_error::internal;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
@@ -16,6 +20,19 @@ use tor_rtcompat::Runtime;
 
 #[cfg(feature = "specific-relay")]
 use tor_linkspec::{HasChanMethod, HasRelayIds};
+
+#[cfg(feature = "geoip")]
+use tor_geoip::CountryCode;
+/// A non-existent country code type, used as a placeholder for the real `tor_geoip::CountryCode`
+/// when the `geoip` crate feature is not present.
+///
+/// This type exists to simplify conditional compilation: without it, we'd have to duplicate a lot
+/// of match patterns and things would suck a lot.
+// TODO GEOIP: propagate this refactor down through the stack (i.e. all the way down to the
+//            `tor-geoip` crate)
+//             We can also get rid of a lot of #[cfg] then.
+#[cfg(not(feature = "geoip"))]
+pub(crate) type CountryCode = Void;
 
 #[cfg(any(feature = "specific-relay", feature = "hs-common"))]
 use tor_linkspec::OwnedChanTarget;
@@ -145,6 +162,8 @@ pub(crate) enum TargetCircUsage {
         ports: Vec<TargetPort>,
         /// Isolation group the circuit shall be part of
         isolation: StreamIsolation,
+        /// Restrict the circuit to only exits in the provided country code.
+        country_code: Option<CountryCode>,
     },
     /// For a circuit is only used for the purpose of building it.
     TimeoutTesting,
@@ -197,6 +216,8 @@ pub(crate) enum SupportedCircUsage {
         /// Isolation group the circuit is part of. None when the circuit is not yet assigned to an
         /// isolation group.
         isolation: Option<StreamIsolation>,
+        /// Country code the exit is in, or `None` if no country could be determined.
+        country_code: Option<CountryCode>,
     },
     /// This circuit is not suitable for any usage.
     NoUsage,
@@ -239,11 +260,17 @@ impl TargetCircUsage {
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
+                #[cfg(feature = "geoip")]
+                let country_code = path.country_code();
+                #[cfg(not(feature = "geoip"))]
+                let country_code = None;
+
                 Ok((
                     path,
                     SupportedCircUsage::Exit {
                         policy,
                         isolation: None,
+                        country_code,
                     },
                     mon,
                     usable,
@@ -252,17 +279,41 @@ impl TargetCircUsage {
             TargetCircUsage::Exit {
                 ports: p,
                 isolation,
+                country_code,
             } => {
-                let (path, mon, usable) = ExitPathBuilder::from_target_ports(p.clone())
-                    .pick_path(rng, netdir, guards, config, now)?;
+                #[cfg(feature = "geoip")]
+                let builder = if let Some(cc) = country_code {
+                    ExitPathBuilder::in_given_country(*cc, p.clone())
+                } else {
+                    ExitPathBuilder::from_target_ports(p.clone())
+                };
+                #[cfg(not(feature = "geoip"))]
+                let builder = ExitPathBuilder::from_target_ports(p.clone());
+
+                let (path, mon, usable) = builder.pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
+
+                #[cfg(feature = "geoip")]
+                let resulting_cc = path.country_code();
+                #[cfg(feature = "geoip")]
+                if resulting_cc != *country_code {
+                    internal!(
+                        "asked for a country code of {:?}, got {:?}",
+                        country_code,
+                        resulting_cc
+                    );
+                }
+
+                #[cfg(not(feature = "geoip"))]
+                let resulting_cc = *country_code; // avoid unused var warning
                 Ok((
                     path,
                     SupportedCircUsage::Exit {
                         policy,
                         isolation: Some(isolation.clone()),
+                        country_code: resulting_cc,
                     },
                     mon,
                     usable,
@@ -272,10 +323,15 @@ impl TargetCircUsage {
                 let (path, mon, usable) = ExitPathBuilder::for_timeout_testing()
                     .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path.exit_policy();
+                #[cfg(feature = "geoip")]
+                let country_code = path.country_code();
+                #[cfg(not(feature = "geoip"))]
+                let country_code = None;
                 let usage = match policy {
                     Some(policy) if policy.allows_some_port() => SupportedCircUsage::Exit {
                         policy,
                         isolation: None,
+                        country_code,
                     },
                     _ => SupportedCircUsage::NoUsage,
                 };
@@ -323,18 +379,26 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 Exit {
                     policy: p1,
                     isolation: i1,
+                    country_code: cc1,
                 },
                 TargetCircUsage::Exit {
                     ports: p2,
                     isolation: i2,
+                    country_code: cc2,
                 },
             ) => {
                 i1.as_ref()
                     .map(|i1| i1.compatible_same_type(i2))
                     .unwrap_or(true)
                     && p2.iter().all(|port| p1.allows_port(*port))
+                    && (cc2.is_none() || cc1 == cc2)
             }
-            (Exit { policy, isolation }, TargetCircUsage::Preemptive { port, .. }) => {
+            (
+                Exit {
+                    policy, isolation, ..
+                },
+                TargetCircUsage::Preemptive { port, .. },
+            ) => {
                 if isolation.is_some() {
                     // If the circuit has a stream isolation, we might not be able to use it
                     // for new streams that don't share it.
@@ -460,12 +524,14 @@ pub(crate) mod test {
                     Exit {
                         ports: p1,
                         isolation: is1,
+                        country_code: cc1,
                     },
                     Exit {
                         ports: p2,
                         isolation: is2,
+                        country_code: cc2,
                     },
-                ) => p1 == p2 && is1.isol_eq(is2),
+                ) => p1 == p2 && cc1 == cc2 && is1.isol_eq(is2),
                 (TimeoutTesting, TimeoutTesting) => true,
                 (
                     Preemptive {
@@ -491,12 +557,14 @@ pub(crate) mod test {
                     Exit {
                         policy: p1,
                         isolation: is1,
+                        country_code: cc1,
                     },
                     Exit {
                         policy: p2,
                         isolation: is2,
+                        country_code: cc2,
                     },
-                ) => p1 == p2 && is1.isol_eq(is2),
+                ) => p1 == p2 && is1.isol_eq(is2) && cc1 == cc2,
                 (NoUsage, NoUsage) => true,
                 _ => false,
             }
@@ -586,36 +654,44 @@ pub(crate) mod test {
         let supp_exit = SupportedCircUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation.clone()),
+            country_code: None,
         };
         let supp_exit_iso2 = SupportedCircUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation2.clone()),
+            country_code: None,
         };
         let supp_exit_no_iso = SupportedCircUsage::Exit {
             policy,
             isolation: None,
+            country_code: None,
         };
         let supp_none = SupportedCircUsage::NoUsage;
 
         let targ_80_v4 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation.clone(),
+            country_code: None,
         };
         let targ_80_v4_iso2 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation2,
+            country_code: None,
         };
         let targ_80_23_v4 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80), TargetPort::ipv4(23)],
             isolation: isolation.clone(),
+            country_code: None,
         };
         let targ_80_23_mixed = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80), TargetPort::ipv6(23)],
             isolation: isolation.clone(),
+            country_code: None,
         };
         let targ_999_v6 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv6(999)],
             isolation,
+            country_code: None,
         };
         let targ_testing = TargetCircUsage::TimeoutTesting;
 
@@ -667,23 +743,28 @@ pub(crate) mod test {
         let supp_exit = SupportedCircUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation.clone()),
+            country_code: None,
         };
         let supp_exit_iso2 = SupportedCircUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation2.clone()),
+            country_code: None,
         };
         let supp_exit_no_iso = SupportedCircUsage::Exit {
             policy,
             isolation: None,
+            country_code: None,
         };
         let supp_none = SupportedCircUsage::NoUsage;
         let targ_exit = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation,
+            country_code: None,
         };
         let targ_exit_iso2 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation2,
+            country_code: None,
         };
         let targ_testing = TargetCircUsage::TimeoutTesting;
 
@@ -771,6 +852,7 @@ pub(crate) mod test {
         let exit_usage = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(995)],
             isolation: isolation.clone(),
+            country_code: None,
         };
         let (p_exit, u_exit, _, _) = exit_usage
             .build_path(&mut rng, di, guards, &config, now)
@@ -806,7 +888,8 @@ pub(crate) mod test {
             usage,
             SupportedCircUsage::Exit {
                 policy,
-                isolation: None
+                isolation: None,
+                country_code: None,
             }
         );
     }
