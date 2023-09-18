@@ -337,6 +337,16 @@ impl IptRelay {
         imm: &Immutable<R>,
         mockable: &mut M,
     ) -> Result<(), FatalError> {
+        // we'll treat it as Establishing until we find otherwise
+        let status_last = TS::Establishing {
+            started: imm.runtime.now(),
+        };
+
+        let mut rng = mockable.thread_rng();
+        let lid: IptLocalId = rng.gen();
+        let k_hss_ntor = HsSvcNtorKeypair::generate(&mut rng);
+        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
+
         let params = IptParameters {
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
@@ -347,16 +357,6 @@ impl IptRelay {
             accepting_requests: todo!(), // TODO HSS
         };
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
-
-        // we'll treat it as Establishing until we find otherwise
-        let status_last = TS::Establishing {
-            started: imm.runtime.now(),
-        };
-
-        let rng = mockable.thread_rng();
-        let lid: IptLocalId = rng.gen();
-        let k_hss_ntor = HsSvcNtorKeypair::generate(&mut rng);
-        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
 
         imm.runtime
             .spawn({
