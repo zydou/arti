@@ -35,7 +35,7 @@ use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
-use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, VersionedDescriptor};
+use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 
 /// The upload rate-limiting threshold.
 ///
@@ -168,14 +168,6 @@ impl<R: Runtime> Mockable for ReactorState<R> {
 
 /// The mutable state of a [`Reactor`].
 struct Inner {
-    /// The descriptor to upload.
-    ///
-    /// Note: this may be partially built. If incomplete, [`DescriptorBuilder::build`] will return
-    /// an error.
-    ///
-    /// This field is only expected to be incomplete on startup. Once the introduction points are
-    /// established, we should have enough information to generate and upload the descriptor.
-    descriptor: DescriptorBuilder,
     /// The onion service config.
     config: OnionServiceConfig,
     /// The relevant time periods.
@@ -401,7 +393,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         };
 
         let inner = Inner {
-            descriptor: DescriptorBuilder::default(),
             time_periods,
             config,
             netdir,
@@ -626,8 +617,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let ipts = todo!(); // TODO HSSS something something last_publish etc.
                             // (this current code is entirely wrong, see #1023)
 
-        inner.descriptor.ipts(ipts);
-
         // TODO HSS: upload the descriptors.
 
         Ok(())
@@ -673,31 +662,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let inner = self.inner.lock().await;
 
-        // Check we have enough information to generate the descriptor before proceeding.
-        let hsdesc = match inner.descriptor.build() {
-            Ok(desc) => desc,
-            Err(e) => {
-                // TODO HSS:
-                // This can only happen if, for some reason, we decide to call the upload function
-                // before receiving our first NewIpts event (the intro points are the only piece of
-                // information we need from the "outside", AFAICT).
-                //
-                // I think this should never happen: we shouldn't start an upload unless we have
-                // enough information to build the descriptor (if we do get here, it's a bug).
-                //
-                // Instead of skipping the upload, we should be returning an internal! error.
-                trace!(hsid=%self.imm.hsid, "not enough information to build descriptor, skipping upload: {e}");
-                return Ok(());
-            }
-        };
-
         let netdir = Arc::clone(&inner.netdir);
 
         let imm = Arc::clone(&self.imm);
         let hsid_key = self.hsid_key.clone();
         let upload_task_complete_tx = self.upload_task_complete_tx.clone();
 
-        let upload_tasks = inner.time_periods.iter().map(move |period| {
+        let upload_tasks = inner.time_periods.iter().map(|period| {
             // Figure out which HsDirs we need to upload the descriptor to (some of them might already
             // have our latest descriptor, so we filter them out).
             let hs_dirs = period
@@ -724,9 +695,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             // await anything.
             let hsdesc = {
                 let mut rng = imm.mockable.thread_rng();
-                hsdesc.build_sign(
+
+                let ipt_set = todo!();
+
+                build_sign(
+                    inner.config,
                     hsid_key,
                     blind_id_kp,
+                    ipt_set,
                     period.period,
                     revision_counter,
                     &mut rng,
@@ -752,7 +728,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 }
             });
 
-            Ok::<_, ReactorError>(handle)
+            Ok::<_, ReactorError>(Some(handle))
         });
 
         Ok(())

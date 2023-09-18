@@ -2,7 +2,6 @@
 
 use std::time::SystemTime;
 
-use derive_builder::Builder;
 use rand_core::{CryptoRng, RngCore};
 
 use tor_cert::Ed25519Cert;
@@ -14,7 +13,8 @@ use tor_llcrypto::pk::curve25519;
 use tor_netdoc::doc::hsdesc::{HsDescBuilder, IntroPointDesc};
 use tor_netdoc::NetdocBuilder;
 
-use crate::ipt_set::Ipt;
+use crate::OnionServiceConfig;
+use crate::ipt_set::{Ipt, IptSet};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
@@ -32,33 +32,6 @@ impl X25519Cert {
     }
 }
 
-// TODO HSS: should this be configurable? If so, we should read it from the svc config.
-//
-/// The default lifetime of a descriptor in minutes (3h).
-pub(super) const DESC_DEFAULT_LIFETIME: u16 = 3 * 60;
-
-/// A hidden service descriptor.
-#[derive(Clone, Builder)]
-#[builder(pattern = "mutable")]
-pub(super) struct Descriptor {
-    /// If true, this a "single onion service" and is not trying to keep its own location private.
-    is_single_onion_service: bool,
-    /// The list of clients authorized to access the hidden service. If empty, client
-    /// authentication is disabled.
-    ///
-    /// If client authorization is disabled, the resulting middle document will contain a single
-    /// `auth-client` line populated with random values.
-    #[builder(default)]
-    auth_clients: Vec<curve25519::PublicKey>,
-    /// One or more introduction points used to contact the onion service.
-    ipts: Vec<Ipt>,
-    /// The expiration time of an introduction point authentication key certificate.
-    intro_auth_key_cert: Ed25519Cert,
-    /// The expiration time of an introduction point encryption key certificate.
-    intro_enc_key_cert: X25519Cert,
-}
-
-impl Descriptor {
     /// Build the descriptor.
     ///
     /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
@@ -66,9 +39,10 @@ impl Descriptor {
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
-        &self,
+        config: OnionServiceConfig,
         hsid: HsIdKey,
         blind_id_kp: &HsBlindIdKeypair,
+        ipt_set: &IptSet,
         period: TimePeriod,
         revision_counter: RevisionCounter,
         rng: &mut Rng,
@@ -78,10 +52,10 @@ impl Descriptor {
         /// The CREATE handshake type we support.
         const CREATE2_FORMATS: &[u32] = &[1, 2];
 
-        let intro_points = self
+        let intro_points = ipt_set
             .ipts
             .iter()
-            .map(Self::build_intro_point_desc)
+            .map(|ipt_in_set| build_intro_point_desc(&ipt_in_set.ipt))
             .collect::<Vec<_>>();
 
         let blind_id_key = HsBlindIdKey::from(blind_id_kp);
@@ -93,20 +67,25 @@ impl Descriptor {
         // TODO HSS: support introduction-layer authentication.
         let auth_required = None;
 
+        let is_single_onion_service = todo!();
+        let intro_auth_key_cert: Ed25519Cert = todo!();
+        let intro_enc_key_cert: X25519Cert = todo!();
+        let auth_clients: Vec<curve25519::PublicKey> = todo!();
+
         Ok(HsDescBuilder::default()
             .blinded_id(blind_id_kp)
             .hs_desc_sign(hs_desc_sign)
             .hs_desc_sign_cert_expiry(hs_desc_sign_cert.expiry())
             .create2_formats(CREATE2_FORMATS)
             .auth_required(auth_required)
-            .is_single_onion_service(self.is_single_onion_service)
+            .is_single_onion_service(is_single_onion_service)
             .intro_points(&intro_points[..])
-            .intro_auth_key_cert_expiry(self.intro_auth_key_cert.expiry())
-            .intro_enc_key_cert_expiry(self.intro_enc_key_cert.expiry())
-            .lifetime(DESC_DEFAULT_LIFETIME.into())
+            .intro_auth_key_cert_expiry(intro_auth_key_cert.expiry())
+            .intro_enc_key_cert_expiry(intro_enc_key_cert.expiry())
+            .lifetime(((ipt_set.lifetime.as_secs() / 60) as u16).into())
             .revision_counter(revision_counter)
             .subcredential(subcredential)
-            .auth_clients(&self.auth_clients)
+            .auth_clients(&auth_clients)
             .build_sign(rng)?)
     }
 
@@ -114,7 +93,6 @@ impl Descriptor {
     fn build_intro_point_desc(_ipt: &Ipt) -> IntroPointDesc {
         todo!()
     }
-}
 
 /// The freshness status of a descriptor at a particular HsDir.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
