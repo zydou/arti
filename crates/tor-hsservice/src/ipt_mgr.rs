@@ -1100,11 +1100,6 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
         imm: &Immutable<R>,
         params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
-
-    /// Call `Publisher::new_intro_points`
-    fn new_intro_points(&mut self, ipts: ()) {
-        todo!() // TODO HSS there should be no default impl; code should be in Real's impl
-    }
 }
 
 impl<R: Runtime> Mockable<R> for Real<R> {
