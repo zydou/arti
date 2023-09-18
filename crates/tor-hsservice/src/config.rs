@@ -39,10 +39,12 @@ pub struct OnionServiceConfig {
 
     /// Limits on rates and concurrency of connections to our service.
     #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     pub(crate) limits: LimitConfig,
 
     /// Configure proof-of-work defense against DoS attacks.
     #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     pub(crate) pow: PowConfig,
     // /// Configure descriptor-based client authorization.
     // ///
