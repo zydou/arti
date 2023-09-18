@@ -849,8 +849,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         };
 
         *publish_set = if let Some(lifetime) = publish_lifetime {
+            let selected = self.publish_set_select();
             // TODO HSS tell all the being-published IPTs to start accepting introductions
-            Some(self.publish_set(now, lifetime)?)
+            Some(Self::make_publish_set(selected, now, lifetime)?)
         } else {
             None
         };
@@ -862,15 +863,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(())
     }
 
-    /// Calculate `publish::IptSet`, given that we have decided to publish *something*
+    /// Select IPTs to publish, given that we have decided to publish *something*
     ///
     /// Calculates set of ipts to publish, selecting up to the target `N`
     /// from the available good current IPTs.
     /// (Old, non-current IPTs, that we are trying to retire, are never published.)
     ///
-    /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
-    ///
-    /// The returned `IptSet` set is in the same order as our data structure:
+    /// The returned list is in the same order as our data structure:
     /// firstly, by the ordering in `State.irelays`, and then within each relay,
     /// by the ordering in `IptRelay.ipts`.  Both of these are stable.
     ///
@@ -879,11 +878,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
-    fn publish_set(
+    fn publish_set_select(
         &self,
-        now: &TrackingNow,
-        lifetime: Duration,
-    ) -> Result<ipt_set::IptSet, FatalError> {
+    ) -> VecDeque<&Ipt> {
         /// Good candidate introduction point for publication
         type Candidate<'i> = &'i Ipt;
 
@@ -931,6 +928,25 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             let _: Candidate = candidates.pop_front().expect("empty?!");
         }
 
+        candidates
+    }
+
+    /// Produce a `publish::IptSet`, from a list of IPT selected for publication
+    ///
+    /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
+    ///
+    /// The returned `IptSet` set is in the same order as `selected`.
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
+    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
+    fn make_publish_set<'i>(
+        selected: impl IntoIterator<Item = &'i Ipt>,
+        now: &TrackingNow,
+        lifetime: Duration,
+    ) -> Result<ipt_set::IptSet, FatalError> {
         let expires = now
             .instant()
             // Our response to old descriptors expiring is handled by us checking
@@ -943,7 +959,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .checked_add(ipt_set::IPT_PUBLISH_EXPIRY_SLOP)
             .ok_or_else(|| internal!("time overflow adding expiry slop"))?;
 
-        let ipts = candidates
+        let ipts = selected
             .into_iter()
             .map(|current_ipt| {
                 let TS::Good { details, .. } = &current_ipt.status_last else {
