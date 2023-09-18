@@ -322,6 +322,7 @@ mod tests {
             // The expected retry count may be unknow (for example, if we set a timeout but no
             // upper limit for the number of retries, it's impossible to tell exactly how many
             // times the operation will be retried)
+            #[allow(deprecated)] // TODO HSS replace MockRuntime::advance
             for i in 1..=expected_run_count {
                 runtime.mock_task().progress_until_stalled().await;
                 runtime.advance(SHORT_DELAY).await;
