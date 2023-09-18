@@ -813,7 +813,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 )?
             };
 
-            let handle = imm.runtime.spawn(async {
+            let _handle = imm.runtime.spawn(async {
                 let hsdesc = VersionedDescriptor {
                     desc: hsdesc.clone(),
                     revision_counter,
@@ -832,8 +832,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 }
             });
 
-            Ok::<_, ReactorError>(Some(handle))
-        });
+            Ok::<_, ReactorError>(())
+        }).collect::<Result<Vec<_>, ReactorError>>()?;
 
         Ok(())
     }
