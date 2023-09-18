@@ -341,7 +341,7 @@ impl IptRelay {
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
             // TODO HSS IntroPointId lacks a constructor and maybe should change anyway
-            intro_pt_id: todo!(),
+            lid: todo!(),
             target: self.relay.clone(),
             k_sid: todo!(),              // TODO HSS
             accepting_requests: todo!(), // TODO HSS

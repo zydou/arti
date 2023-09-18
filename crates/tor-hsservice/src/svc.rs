@@ -136,12 +136,6 @@ struct IntroPointState {
     // TODO HSS: use diziet's structures  from `hssvc-ipt-algorithms.md` once those are more settled.
 }
 
-/// Identifier for a single introduction point of an onion point.
-//
-// TODO HSS maybe use a nicer type, like a generational arena index.
-#[derive(Debug, Clone)]
-pub(crate) struct IntroPointId(RelayIds);
-
 impl<R: Runtime> OnionService<R> {
     /// Create (but do not launch) a new onion service.
     pub fn new(config: (), netdir_provider: (), circmgr: ()) -> Self {

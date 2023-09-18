@@ -11,8 +11,9 @@ use tor_error::Bug;
 use tor_proto::{circuit::handshake::hs_ntor::HsNtorServiceInput, stream::DataStream};
 
 use crate::{
-    svc::{rend_handshake, IntroPointId},
+    svc::{rend_handshake},
     ClientError,
+    IptLocalId,
 };
 
 /// Request to complete an introduction/rendezvous handshake.
@@ -27,7 +28,7 @@ use crate::{
 #[derive(Debug)]
 pub struct RendRequest {
     /// The introduction point that sent this request.
-    intro_point: IntroPointId,
+    ipt_lid: IptLocalId,
 
     /// The message as received from the remote introduction point.
     raw: Introduce2,
@@ -96,9 +97,9 @@ pub struct OnionServiceDataStream {
 
 impl RendRequest {
     /// Construct a new RendRequest from its parts.
-    pub(crate) fn new(source: IntroPointId, msg: Introduce2) -> Self {
+    pub(crate) fn new(ipt_lid: IptLocalId, msg: Introduce2) -> Self {
         Self {
-            intro_point: source,
+            ipt_lid,
             raw: msg,
             expanded: Default::default(),
         }

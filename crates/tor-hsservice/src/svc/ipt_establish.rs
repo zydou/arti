@@ -31,10 +31,9 @@ use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
 use crate::svc::{LinkSpecs, NtorPublicKey};
-use crate::{FatalError, RendRequest};
+use crate::{FatalError, IptLocalId, RendRequest};
 
 use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
-use super::IntroPointId;
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {
@@ -166,7 +165,7 @@ impl IptError {
 pub(crate) struct IptParameters {
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
-    pub(crate) intro_pt_id: IntroPointId,
+    pub(crate) lid: IptLocalId,
     // TODO HSS: Should this and the following elements be part of some
     // configuration object?
     pub(crate) target: RelayIds,
@@ -199,7 +198,7 @@ impl IptEstablisher {
         let IptParameters {
             netdir_provider,
             introduce_tx,
-            intro_pt_id,
+            lid,
             target,
             k_sid,
             accepting_requests,
@@ -217,7 +216,7 @@ impl IptEstablisher {
             runtime: runtime.clone(),
             pool,
             netdir_provider,
-            intro_pt_id,
+            lid,
             target,
             k_sid,
             introduce_tx,
@@ -443,7 +442,7 @@ struct Reactor<R: Runtime> {
     ///
     /// TODO HSS: I am assuming that this type will be a unique identifier, and
     /// will change whenever RelayIds and/or HsIntroPtSessionIdKeypair changes.
-    intro_pt_id: IntroPointId,
+    lid: IptLocalId,
     /// The target introduction point.
     target: RelayIds,
     /// The keypair to use when establishing the introduction point.
@@ -597,7 +596,7 @@ impl<R: Runtime> Reactor<R> {
             established_tx: Some(established_tx),
             introduce_tx: self.introduce_tx.clone(),
             state: self.state.clone(),
-            intro_pt_id: self.intro_pt_id.clone(),
+            lid: self.lid,
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -657,7 +656,7 @@ struct IptMsgHandler {
 
     /// Unique identifier for the introduction point (including the current
     /// keys).  Used to tag requests.
-    intro_pt_id: IntroPointId,
+    lid: IptLocalId,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
@@ -700,7 +699,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     RequestDisposition::Advertised => {}
                 }
 
-                let request = RendRequest::new(self.intro_pt_id.clone(), introduce2);
+                let request = RendRequest::new(self.lid, introduce2);
                 match self.introduce_tx.try_send(request) {
                     Ok(()) => Ok(()),
                     Err(e) => {
