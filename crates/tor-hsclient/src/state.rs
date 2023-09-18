@@ -637,7 +637,10 @@ impl<D: MockableConnectorData> ServiceState<D> {
                     error!("time overflow calculating HS circuit expiry, killing circuit!");
                     None
                 })?;
-            let wait = expiry.checked_duration_since(now)?;
+            let wait = expiry.checked_duration_since(now).unwrap_or_default();
+            if wait == Duration::ZERO {
+                return None;
+            }
             Some(wait)
         }
 
@@ -958,7 +961,7 @@ pub(crate) mod test {
                 async move {
                     // let expiry task get going and choose its expiry (wakeup) time
                     runtime.progress_until_stalled().await;
-                    runtime.advance(duration).await;
+                    runtime.advance_by(duration).await;
                     // let expiry task run
                     runtime.progress_until_stalled().await;
                     hsconn.services().unwrap().run_housekeeping(runtime.now());
