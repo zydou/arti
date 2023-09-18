@@ -343,7 +343,7 @@ impl IptRelay {
             // TODO HSS IntroPointId lacks a constructor and maybe should change anyway
             intro_pt_id: todo!(),
             target: self.relay.clone(),
-            ipt_sid_keypair: todo!(),    // TODO HSS
+            k_sid: todo!(),              // TODO HSS
             accepting_requests: todo!(), // TODO HSS
         };
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;

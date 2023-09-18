@@ -170,7 +170,8 @@ pub(crate) struct IptParameters {
     // TODO HSS: Should this and the following elements be part of some
     // configuration object?
     pub(crate) target: RelayIds,
-    pub(crate) ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+    /// `K_hs_ipt_sid`
+    pub(crate) k_sid: HsIntroPtSessionIdKeypair,
     pub(crate) accepting_requests: RequestDisposition,
 }
 
@@ -200,7 +201,7 @@ impl IptEstablisher {
             introduce_tx,
             intro_pt_id,
             target,
-            ipt_sid_keypair,
+            k_sid,
             accepting_requests,
         } = params;
         if matches!(accepting_requests, RequestDisposition::Shutdown) {
@@ -218,7 +219,7 @@ impl IptEstablisher {
             netdir_provider,
             intro_pt_id,
             target,
-            ipt_sid_keypair,
+            k_sid,
             introduce_tx,
             // TODO HSS This should come from the configuration.
             extensions: EstIntroExtensionSet { dos_params: None },
@@ -449,7 +450,7 @@ struct Reactor<R: Runtime> {
     ///
     /// Knowledge of this private key prevents anybody else from impersonating
     /// us to the introduction point.
-    ipt_sid_keypair: HsIntroPtSessionIdKeypair,
+    k_sid: HsIntroPtSessionIdKeypair,
     /// The extensions to use when establishing the introduction point.
     ///
     /// TODO: Should this be able to change over time if we re-establish this
@@ -562,7 +563,7 @@ impl<R: Runtime> Reactor<R> {
             .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
 
         let establish_intro = {
-            let ipt_sid_id = self.ipt_sid_keypair.as_ref().public.into();
+            let ipt_sid_id = self.k_sid.as_ref().public.into();
             let mut details = EstablishIntroDetails::new(ipt_sid_id);
             if let Some(dos_params) = &self.extensions.dos_params {
                 details.set_extension_dos(dos_params.clone());
@@ -571,7 +572,7 @@ impl<R: Runtime> Reactor<R> {
                 .binding_key(intro_pt_hop)
                 .ok_or(internal!("No binding key for introduction point!?"))?;
             let body: Vec<u8> = details
-                .sign_and_encode(self.ipt_sid_keypair.as_ref(), circuit_binding_key.hs_mac())
+                .sign_and_encode(self.k_sid.as_ref(), circuit_binding_key.hs_mac())
                 .map_err(IptError::CreateEstablishIntro)?;
 
             // TODO HSS: This is ugly, but it is the sensible way to munge the above
