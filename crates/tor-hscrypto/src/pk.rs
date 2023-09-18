@@ -495,6 +495,12 @@ define_pk_keypair! {
 pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
 }
 
+impl PartialEq for HsClientDescEncKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
 define_pk_keypair! {
 /// Server key, used for diffie hellman during onion descriptor decryption.
 /// (`KP_hss_desc_enc`)
