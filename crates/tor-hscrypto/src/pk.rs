@@ -474,6 +474,7 @@ define_pk_keypair! {
 /// introduction point, though it does not need to tell the introduction points
 /// about these keys.
 pub struct HsSvcNtorKey(curve25519::PublicKey) / HsSvcNtorSecretKey(curve25519::StaticSecret);
+curve25519_pair as HsSvcNtorKeypair;
 }
 
 define_pk_keypair! {
