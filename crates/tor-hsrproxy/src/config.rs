@@ -236,15 +236,18 @@ impl std::fmt::Display for TargetAddr {
 
 /// The method by which we encapsulate a forwarded request.
 ///
-/// (Right now, only `Direct` is supported, but we may later support
+/// (Right now, only `Simple` is supported, but we may later support
 /// "HTTP CONNECT", "HAProxy", or others.)
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Encapsulation {
     /// Handle a request by opening a local socket to the target address and
     /// forwarding the contents verbatim.
+    ///
+    /// This does not transmit any information about the circuit origin of the request;
+    /// only the local port will distinguish one request from another.
     #[default]
-    Direct,
+    Simple,
 }
 
 impl FromStr for ProxyAction {
@@ -257,10 +260,10 @@ impl FromStr for ProxyAction {
             Ok(Self::RejectStream)
         } else if s == "ignore" {
             Ok(Self::IgnoreStream)
-        } else if let Some(addr) = s.strip_prefix("direct:") {
-            Ok(Self::Forward(Encapsulation::Direct, addr.parse()?))
+        } else if let Some(addr) = s.strip_prefix("simple:") {
+            Ok(Self::Forward(Encapsulation::Simple, addr.parse()?))
         } else {
-            Ok(Self::Forward(Encapsulation::Direct, s.parse()?))
+            Ok(Self::Forward(Encapsulation::Simple, s.parse()?))
         }
     }
 }
@@ -269,7 +272,7 @@ impl std::fmt::Display for ProxyAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProxyAction::DestroyCircuit => write!(f, "destroy"),
-            ProxyAction::Forward(Encapsulation::Direct, addr) => write!(f, "direct:{}", addr),
+            ProxyAction::Forward(Encapsulation::Simple, addr) => write!(f, "simple:{}", addr),
             ProxyAction::RejectStream => write!(f, "reject"),
             ProxyAction::IgnoreStream => write!(f, "ignore"),
         }
@@ -345,7 +348,7 @@ mod test {
 
     #[test]
     fn target_ok() {
-        use Encapsulation::Direct;
+        use Encapsulation::Simple;
         use ProxyAction as T;
         use TargetAddr as A;
         assert!(matches!(T::from_str("reject"), Ok(T::RejectStream)));
@@ -353,25 +356,25 @@ mod test {
         assert!(matches!(T::from_str("destroy"), Ok(T::DestroyCircuit)));
         let sa: SocketAddr = "192.168.1.1:50".parse().unwrap();
         assert!(
-            matches!(T::from_str("192.168.1.1:50"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa)
+            matches!(T::from_str("192.168.1.1:50"), Ok(T::Forward(Simple, A::Inet(a))) if a == sa)
         );
         assert!(
-            matches!(T::from_str("inet:192.168.1.1:50"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa)
+            matches!(T::from_str("inet:192.168.1.1:50"), Ok(T::Forward(Simple, A::Inet(a))) if a == sa)
         );
         let sa: SocketAddr = "[::1]:999".parse().unwrap();
-        assert!(matches!(T::from_str("[::1]:999"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa));
+        assert!(matches!(T::from_str("[::1]:999"), Ok(T::Forward(Simple, A::Inet(a))) if a == sa));
         assert!(
-            matches!(T::from_str("inet:[::1]:999"), Ok(T::Forward(Direct, A::Inet(a))) if a == sa)
+            matches!(T::from_str("inet:[::1]:999"), Ok(T::Forward(Simple, A::Inet(a))) if a == sa)
         );
         let pb = PathBuf::from("/var/run/hs/socket");
         assert!(
-            matches!(T::from_str("unix:/var/run/hs/socket"), Ok(T::Forward(Direct, A::Unix(p))) if p == pb)
+            matches!(T::from_str("unix:/var/run/hs/socket"), Ok(T::Forward(Simple, A::Unix(p))) if p == pb)
         );
     }
 
     #[test]
     fn target_display() {
-        use Encapsulation::Direct;
+        use Encapsulation::Simple;
         use ProxyAction as T;
         use TargetAddr as A;
 
@@ -379,16 +382,16 @@ mod test {
         assert_eq!(T::IgnoreStream.to_string(), "ignore");
         assert_eq!(T::DestroyCircuit.to_string(), "destroy");
         assert_eq!(
-            T::Forward(Direct, A::Inet("192.168.1.1:50".parse().unwrap())).to_string(),
-            "direct:inet:192.168.1.1:50"
+            T::Forward(Simple, A::Inet("192.168.1.1:50".parse().unwrap())).to_string(),
+            "simple:inet:192.168.1.1:50"
         );
         assert_eq!(
-            T::Forward(Direct, A::Inet("[::1]:999".parse().unwrap())).to_string(),
-            "direct:inet:[::1]:999"
+            T::Forward(Simple, A::Inet("[::1]:999".parse().unwrap())).to_string(),
+            "simple:inet:[::1]:999"
         );
         assert_eq!(
-            T::Forward(Direct, A::Unix("/var/run/hs/socket".into())).to_string(),
-            "direct:unix:/var/run/hs/socket"
+            T::Forward(Simple, A::Unix("/var/run/hs/socket".into())).to_string(),
+            "simple:unix:/var/run/hs/socket"
         );
     }
 
@@ -436,7 +439,7 @@ mod test {
 
     #[test]
     fn deserialize() {
-        use Encapsulation::Direct;
+        use Encapsulation::Simple;
         use TargetAddr as A;
         let ex = r#"{
             "proxy_ports": [
@@ -454,7 +457,7 @@ mod test {
 
         assert_eq!(
             cfg.proxy_ports[0].target,
-            ProxyAction::Forward(Direct, A::Inet("127.0.0.1:11443".parse().unwrap()))
+            ProxyAction::Forward(Simple, A::Inet("127.0.0.1:11443".parse().unwrap()))
         );
         assert_eq!(cfg.proxy_ports[1].target, ProxyAction::IgnoreStream);
         assert_eq!(cfg.proxy_ports[2].target, ProxyAction::DestroyCircuit);
