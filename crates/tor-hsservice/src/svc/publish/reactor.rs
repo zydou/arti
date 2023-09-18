@@ -646,6 +646,28 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         std::mem::replace(&mut self.inner.lock().await.netdir, new_netdir)
     }
 
+    /// Replace our view of the service config with `new_config` if `new_config` contains changes
+    /// that would cause us to generate a new descriptor.
+    async fn replace_config_if_changed(&self, new_config: OnionServiceConfig) -> bool {
+        let mut inner = self.inner.lock().await;
+        let old_config = &mut inner.config;
+
+        // The fields we're interested in haven't changed, so there's no need to update
+        // `inner.config`.
+        //
+        // TODO HSS: maybe `Inner` should only contain the fields we're interested in instead of
+        // the entire config.
+        if old_config.anonymity == new_config.anonymity
+            && old_config.encrypt_descriptor == new_config.encrypt_descriptor
+        {
+            return false;
+        }
+
+        let _old: OnionServiceConfig = std::mem::replace(old_config, new_config);
+
+        true
+    }
+
     /// Update our list of introduction points.
     #[allow(clippy::unnecessary_wraps)]
     #[allow(unreachable_code, unused_mut, clippy::diverging_sub_expression)] // TODO HSS remove
@@ -688,12 +710,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Update the descriptors based on the config change.
     async fn handle_svc_config_change(
-        &self,
-        _config: OnionServiceConfig,
+        &mut self,
+        config: OnionServiceConfig,
     ) -> Result<(), ReactorError> {
-        // TODO HSS: check if the config changes affect our descriptor. If they do, update its
-        // state and mark it as dirty for all hsdirs
-        todo!();
+        if self.replace_config_if_changed(config).await {
+            self.mark_all_dirty().await;
+
+            // Schedule an upload, unless we're still waiting for IPTs.
+            self.update_publish_status(PublishStatus::UploadScheduled)
+                .await?;
+        }
+
+        Ok(())
     }
 
     /// Mark the descriptor dirty for all time periods.
