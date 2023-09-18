@@ -257,7 +257,7 @@ struct IsCurrent;
 
 /// Record of intro point establisher state, as stored on disk
 #[derive(Serialize, Deserialize)]
-#[allow(dead_code)] // TODO HSS remove
+#[allow(dead_code)] // TODO HSS-IPT-PERSIST remove
 struct StateRecord {
     /// Relays
     ipt_relays: Vec<RelayRecord>,
@@ -265,7 +265,7 @@ struct StateRecord {
 
 /// Record of a selected intro point relay, as stored on disk
 #[derive(Serialize, Deserialize)]
-#[allow(dead_code)] // TODO HSS remove
+#[allow(dead_code)] // TODO HSS-IPT-PERSIST remove
 struct RelayRecord {
     /// Which relay?
     relay: RelayIds,
@@ -275,11 +275,11 @@ struct RelayRecord {
 
 /// Record of a single intro point, as stored on disk
 #[derive(Serialize, Deserialize)]
-#[allow(dead_code)] // TODO HSS remove
+#[allow(dead_code)] // TODO HSS-IPT-PERSIST remove
 struct IptRecord {
     /// Used to find the cryptographic keys, amongst other things
     lid: IptLocalId,
-    // TODO HSS other fields need to be here!
+    // TODO HSS-IPT-PERSIST other fields need to be here!
 }
 
 /// Return value from one call to the main loop iteration
@@ -433,7 +433,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         shutdown: oneshot::Receiver<Void>,
         mockable: M,
     ) -> Result<Self, StartupError> {
-        // TODO HSS load persistent state
+        // TODO HSS-IPT-PERSIST load persistent state
 
         // We don't need buffering; since this is written to by dedicated tasks which
         // are reading watches.
@@ -847,7 +847,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         //---------- store persistent state ----------
 
-        // TODO HSS store persistent state
+        // TODO HSS-IPT-PERSIST store persistent state
 
         Ok(())
     }
