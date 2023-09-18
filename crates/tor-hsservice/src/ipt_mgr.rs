@@ -172,6 +172,12 @@ struct IptRelay {
     ipts: Vec<Ipt>,
 }
 
+/// Type-erased version of `Box<IptEstablisher>`
+///
+/// The real type is `M::IptEstablisher`.
+/// We use `Box<dyn Any>` to avoid propagating the `M` type parameter to `Ipt` etc.
+type ErasedIptEstablisher = dyn Any + Send + Sync + 'static;
+
 /// One introduction point, representation in memory
 #[derive(Debug)]
 struct Ipt {
@@ -179,11 +185,8 @@ struct Ipt {
     lid: IptLocalId,
 
     /// Handle for the establisher; we keep this here just for its `Drop` action
-    ///
-    /// The real type is `M::IptEstablisher`.
-    /// We use `Box<dyn Any>` to avoid propagating the `M` type parameter to `Ipt` etc.
     #[allow(dead_code)]
-    establisher: Box<dyn Any + Send + Sync + 'static>,
+    establisher: Box<ErasedIptEstablisher>,
 
     /// `KS_hs_ipt_sid`, `KP_hs_ipt_sid`
     ///
