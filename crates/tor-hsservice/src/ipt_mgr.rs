@@ -172,6 +172,12 @@ struct IptRelay {
     ipts: Vec<Ipt>,
 }
 
+/// Type-erased version of `Box<IptEstablisher>`
+///
+/// The real type is `M::IptEstablisher`.
+/// We use `Box<dyn Any>` to avoid propagating the `M` type parameter to `Ipt` etc.
+type ErasedIptEstablisher = dyn Any + Send + Sync + 'static;
+
 /// One introduction point, representation in memory
 #[derive(Debug)]
 struct Ipt {
@@ -179,11 +185,7 @@ struct Ipt {
     lid: IptLocalId,
 
     /// Handle for the establisher; we keep this here just for its `Drop` action
-    ///
-    /// The real type is `M::IptEstablisher`.
-    /// We use `Box<dyn Any>` to avoid propagating the `M` type parameter to `Ipt` etc.
-    #[allow(dead_code)]
-    establisher: Box<dyn Any + Send + Sync + 'static>,
+    establisher: Box<ErasedIptEstablisher>,
 
     /// `KS_hs_ipt_sid`, `KP_hs_ipt_sid`
     ///
@@ -336,7 +338,6 @@ impl IptRelay {
     /// Make a new introduction point at this relay
     ///
     /// It becomes the current IPT.
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn make_new_ipt<R: Runtime, M: Mockable<R>>(
         &mut self,
         imm: &Immutable<R>,
@@ -835,9 +836,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .next()
         };
 
-        *publish_set = if self.good_ipts().count() >= self.target_n_intro_points() {
+        let publish_lifetime = if self.good_ipts().count() >= self.target_n_intro_points() {
             // "Certain" - we are sure of which IPTs we want to publish
-            Some(self.publish_set(now, IPT_PUBLISH_CERTAIN)?)
+            Some(IPT_PUBLISH_CERTAIN)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
@@ -845,10 +846,18 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
-            Some(self.publish_set(now, IPT_PUBLISH_UNCERTAIN)?)
+            Some(IPT_PUBLISH_UNCERTAIN)
         };
 
-        // TODO HSS tell all the being-published IPTs to start accepting introductions
+        *publish_set = if let Some(lifetime) = publish_lifetime {
+            let selected = self.publish_set_select();
+            for ipt in &selected {
+                self.state.mockable.start_accepting(&ipt.establisher);
+            }
+            Some(Self::make_publish_set(selected, now, lifetime)?)
+        } else {
+            None
+        };
 
         //---------- store persistent state ----------
 
@@ -857,15 +866,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(())
     }
 
-    /// Calculate `publish::IptSet`, given that we have decided to publish *something*
+    /// Select IPTs to publish, given that we have decided to publish *something*
     ///
     /// Calculates set of ipts to publish, selecting up to the target `N`
     /// from the available good current IPTs.
     /// (Old, non-current IPTs, that we are trying to retire, are never published.)
     ///
-    /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
-    ///
-    /// The returned `IptSet` set is in the same order as our data structure:
+    /// The returned list is in the same order as our data structure:
     /// firstly, by the ordering in `State.irelays`, and then within each relay,
     /// by the ordering in `IptRelay.ipts`.  Both of these are stable.
     ///
@@ -873,20 +880,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
-    fn publish_set(
-        &self,
-        now: &TrackingNow,
-        lifetime: Duration,
-    ) -> Result<ipt_set::IptSet, FatalError> {
-        let expires = now
-            .instant()
-            // Our response to old descriptors expiring is handled by us checking
-            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
-            .get_now_untracked()
-            .checked_add(lifetime)
-            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
-
+    fn publish_set_select(&self) -> VecDeque<&Ipt> {
         /// Good candidate introduction point for publication
         type Candidate<'i> = &'i Ipt;
 
@@ -934,11 +928,37 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             let _: Candidate = candidates.pop_front().expect("empty?!");
         }
 
+        candidates
+    }
+
+    /// Produce a `publish::IptSet`, from a list of IPT selected for publication
+    ///
+    /// Updates each chosen `Ipt`'s `last_descriptor_expiry_including_slop`
+    ///
+    /// The returned `IptSet` set is in the same order as `selected`.
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
+    fn make_publish_set<'i>(
+        selected: impl IntoIterator<Item = &'i Ipt>,
+        now: &TrackingNow,
+        lifetime: Duration,
+    ) -> Result<ipt_set::IptSet, FatalError> {
+        let expires = now
+            .instant()
+            // Our response to old descriptors expiring is handled by us checking
+            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
+            .get_now_untracked()
+            .checked_add(lifetime)
+            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
+
         let new_last_expiry = expires
             .checked_add(ipt_set::IPT_PUBLISH_EXPIRY_SLOP)
             .ok_or_else(|| internal!("time overflow adding expiry slop"))?;
 
-        let ipts = candidates
+        let ipts = selected
             .into_iter()
             .map(|current_ipt| {
                 let TS::Good { details, .. } = &current_ipt.status_last else {
@@ -1107,6 +1127,9 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
         imm: &Immutable<R>,
         params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
+
+    /// Call `IptEstablisher::start_accepting`
+    fn start_accepting(&self, establisher: &ErasedIptEstablisher);
 }
 
 impl<R: Runtime> Mockable<R> for Real<R> {
@@ -1126,6 +1149,12 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
         IptEstablisher::new(imm.runtime.clone(), params, self.circ_pool.clone())
+    }
+
+    fn start_accepting(&self, establisher: &ErasedIptEstablisher) {
+        let establisher: &IptEstablisher = <dyn Any>::downcast_ref(establisher)
+            .expect("upcast failure, ErasedIptEstablisher is not IptEstablisher!");
+        establisher.start_accepting();
     }
 }
 
