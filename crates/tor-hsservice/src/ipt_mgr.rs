@@ -351,16 +351,15 @@ impl IptRelay {
         let lid: IptLocalId = rng.gen();
         let k_hss_ntor = HsSvcNtorKeypair::generate(&mut rng);
         let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
-        let k_sid = Arc::new(k_sid);
+        let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
 
         let params = IptParameters {
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
-            // TODO HSS IntroPointId lacks a constructor and maybe should change anyway
-            lid: todo!(),
+            lid,
             target: self.relay.clone(),
-            k_sid: todo!(),              // TODO HSS
-            accepting_requests: todo!(), // TODO HSS
+            k_sid: k_sid.clone(),
+            accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
