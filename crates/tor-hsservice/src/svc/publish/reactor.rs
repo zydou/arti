@@ -800,9 +800,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let hsdesc = {
                 let mut rng = imm.mockable.thread_rng();
 
-                let ipt_set = todo!();
+                let mut ipt_set = self.ipt_watcher.borrow_for_publish();
+                let Some(mut ipt_set) = ipt_set.as_mut() else {
+                    return Ok(());
+                };
 
-                build_sign(
+                let desc = build_sign(
                     inner.config,
                     hsid_key,
                     blind_id_kp,
@@ -810,7 +813,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     period.period,
                     revision_counter,
                     &mut rng,
-                )?
+                )?;
+
+                let worst_case_end = todo!();
+                ipt_set
+                    .note_publication_attempt(worst_case_end)
+                    .map_err(|_| internal!("failed to note publication attempt"))?;
+
+                desc
             };
 
             let _handle = imm.runtime.spawn(async {
