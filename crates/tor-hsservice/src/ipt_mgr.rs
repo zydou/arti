@@ -880,9 +880,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
-    fn publish_set_select(
-        &self,
-    ) -> VecDeque<&Ipt> {
+    fn publish_set_select(&self) -> VecDeque<&Ipt> {
         /// Good candidate introduction point for publication
         type Candidate<'i> = &'i Ipt;
 
