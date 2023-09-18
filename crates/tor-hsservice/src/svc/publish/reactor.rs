@@ -12,6 +12,7 @@ use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::lock::Mutex;
 use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
+use postage::sink::SendError;
 use postage::watch;
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
@@ -84,6 +85,23 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<OnionServiceConfig>,
+    /// A channel for receiving updates regarding our [`PublishStatus`].
+    ///
+    /// The main loop of the reactor watches for updates on this channel.
+    ///
+    /// When the [`PublishStatus`] changes to [`UploadScheduled`](PublishStatus::UploadScheduled),
+    /// we can start publishing descriptors.
+    ///
+    /// If the [`PublishStatus`] is [`AwaitingIpts`](PublishStatus::AwaitingIpts), publishing is
+    /// paused until we receive a notification on `ipt_watcher` telling us the IPT manager has
+    /// established some introduction points.
+    publish_status_rx: watch::Receiver<PublishStatus>,
+    /// A sender for updating our [`PublishStatus`].
+    ///
+    /// When our [`PublishStatus`] changes to [`UploadScheduled`](PublishStatus::UploadScheduled),
+    /// we can start publishing descriptors.
+    publish_status_tx: watch::Sender<PublishStatus>,
+    /// A channel for sending updates regarding our [`PublishStatus`].
     /// A channel for the telling the upload reminder task (spawned in [`Reactor::run`]) when to
     /// remind us that we need to retry a rate-limited upload.
     ///
@@ -388,6 +406,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let (upload_task_complete_tx, upload_task_complete_rx) =
             mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
+        let (publish_status_tx, publish_status_rx) = watch::channel();
+
         let imm = Immutable {
             runtime,
             mockable,
@@ -408,6 +428,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
+            publish_status_rx,
+            publish_status_tx,
             rate_lim_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
@@ -492,12 +514,26 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             res = schedule_upload_rx.next().fuse() => {
                 let _: () = res.ok_or(ReactorError::ShuttingDown)?;
 
-                // Time to reattempt a previously rate-limited upload
-                self.upload_all().await?;
+                // Unless we're waiting for IPTs, reattempt the rate-limited upload in the next
+                // iteration.
+                self.update_publish_status(PublishStatus::UploadScheduled).await?;
+            },
+            should_upload = self.publish_status_rx.next().fuse() => {
+                let should_upload = should_upload.ok_or(ReactorError::ShuttingDown)?;
+
+                // Our PublishStatus changed -- are we ready to publish?
+                if should_upload == PublishStatus::UploadScheduled {
+                    self.upload_all().await?;
+                }
             }
         }
 
         Ok(())
+    }
+
+    /// Returns the current status of the publisher
+    fn status(&self) -> PublishStatus {
+        *self.publish_status_rx.borrow()
     }
 
     /// Handle a batch of upload outcomes,
@@ -557,12 +593,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Maybe update our list of HsDirs.
-    async fn handle_consensus_change(&self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
+    async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
         let _old: Arc<NetDir> = self.replace_netdir(netdir).await;
 
         self.recompute_hs_dirs().await?;
-
-        // TODO HSS: upload the descriptors.
+        self.update_publish_status(PublishStatus::UploadScheduled).await?;
 
         Ok(())
     }
@@ -620,6 +655,21 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             // (this current code is entirely wrong, see #1023)
 
         // TODO HSS: upload the descriptors.
+    }
+
+    /// Update the `PublishStatus` of the reactor with `new_state`,
+    /// unless the current state is `AwaitingIpts`.
+    async fn update_publish_status(
+        &mut self,
+        new_state: PublishStatus,
+    ) -> Result<(), ReactorError> {
+        // Only update the state if we're not waiting for intro points.
+        if self.status() != PublishStatus::AwaitingIpts {
+            self.publish_status_tx
+                .send(new_state)
+                .await
+                .map_err(|_: SendError<_>| internal!("failed to send upload notification?!"))?;
+        }
 
         Ok(())
     }
@@ -955,6 +1005,19 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .into()),
         }
     }
+}
+
+/// Whether the reactor should initiate an upload.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+enum PublishStatus {
+    /// We need to call upload_all.
+    UploadScheduled,
+    /// We are waiting for the IPT manager to establish some introduction points.
+    ///
+    /// No descriptors will be published until the `PublishStatus` of the reactor is changed to
+    /// `UploadScheduled`.
+    #[default]
+    AwaitingIpts,
 }
 
 /// The backoff schedule for the task that publishes descriptors.
