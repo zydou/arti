@@ -507,7 +507,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.handle_consensus_change(netdir).await?;
             }
             update = self.ipt_watcher.await_update().fuse() => {
-                self.handle_new_intro_points(update).await?;
+                self.handle_ipt_change(update).await?;
             },
             config = self.config_rx.next().fuse() => {
                 let config = config.ok_or(ReactorError::ShuttingDown)?;
@@ -678,7 +678,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Update our list of introduction points.
     #[allow(clippy::unnecessary_wraps)]
     #[allow(unreachable_code, unused_mut, clippy::diverging_sub_expression)] // TODO HSS remove
-    async fn handle_new_intro_points(
+    async fn handle_ipt_change(
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
     ) -> Result<(), ReactorError> {
