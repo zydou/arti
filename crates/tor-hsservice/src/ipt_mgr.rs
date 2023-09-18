@@ -835,9 +835,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .next()
         };
 
-        *publish_set = if self.good_ipts().count() >= self.target_n_intro_points() {
+        let publish_lifetime = if self.good_ipts().count() >= self.target_n_intro_points() {
             // "Certain" - we are sure of which IPTs we want to publish
-            Some(self.publish_set(now, IPT_PUBLISH_CERTAIN)?)
+            Some(IPT_PUBLISH_CERTAIN)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
@@ -845,10 +845,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
-            Some(self.publish_set(now, IPT_PUBLISH_UNCERTAIN)?)
+            Some(IPT_PUBLISH_UNCERTAIN)
         };
 
-        // TODO HSS tell all the being-published IPTs to start accepting introductions
+        *publish_set = if let Some(lifetime) = publish_lifetime {
+            // TODO HSS tell all the being-published IPTs to start accepting introductions
+            Some(self.publish_set(now, lifetime)?)
+        } else {
+            None
+        };
 
         //---------- store persistent state ----------
 
