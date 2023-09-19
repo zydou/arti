@@ -90,7 +90,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// This is initialized in [`Reactor::run`].
     //
     // TODO HSS: decide if this is the right approach for implementing rate-limiting
-    rate_lim_upload_tx: Option<Sender<Duration>>,
+    rate_lim_upload_tx: Option<watch::Sender<Duration>>,
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
@@ -424,8 +424,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         debug!("starting descriptor publisher reactor");
 
         // There will be at most one pending upload.
-        let (rate_lim_upload_tx, mut rate_lim_upload_rx) = mpsc::channel(1);
-        let (mut schedule_upload_tx, mut schedule_upload_rx) = mpsc::channel(1);
+        let (rate_lim_upload_tx, mut rate_lim_upload_rx) = watch::channel();
+        let (mut schedule_upload_tx, mut schedule_upload_rx) = watch::channel();
 
         self.rate_lim_upload_tx = Some(rate_lim_upload_tx);
 
@@ -460,7 +460,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Run one iteration of the reactor loop.
     async fn run_once(
         &mut self,
-        schedule_upload_rx: &mut Receiver<()>,
+        schedule_upload_rx: &mut watch::Receiver<()>,
     ) -> Result<(), ReactorError> {
         let mut netdir_events = self.dir_provider.events();
 
