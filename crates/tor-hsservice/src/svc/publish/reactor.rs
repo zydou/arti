@@ -599,7 +599,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let _old: Arc<NetDir> = self.replace_netdir(netdir).await;
 
         self.recompute_hs_dirs().await?;
-        self.update_publish_status(PublishStatus::UploadScheduled).await?;
+        self.update_publish_status(PublishStatus::UploadScheduled)
+            .await?;
 
         Ok(())
     }
@@ -772,78 +773,82 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let hsid_key = self.hsid_key.clone();
         let upload_task_complete_tx = self.upload_task_complete_tx.clone();
 
-        let upload_tasks = inner.time_periods.iter().map(|period| {
-            // Figure out which HsDirs we need to upload the descriptor to (some of them might already
-            // have our latest descriptor, so we filter them out).
-            let hs_dirs = period
-                .hs_dirs
-                .iter()
-                .filter_map(|(relay_id, status)| {
-                    if *status == DescriptorStatus::Dirty {
-                        Some(relay_id.clone())
-                    } else {
-                        None
+        let upload_tasks = inner
+            .time_periods
+            .iter()
+            .map(|period| {
+                // Figure out which HsDirs we need to upload the descriptor to (some of them might already
+                // have our latest descriptor, so we filter them out).
+                let hs_dirs = period
+                    .hs_dirs
+                    .iter()
+                    .filter_map(|(relay_id, status)| {
+                        if *status == DescriptorStatus::Dirty {
+                            Some(relay_id.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let blind_id_kp = todo!();
+
+                // We're about to generate a new version of the descriptor: increment the revision
+                // counter.
+                //
+                // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
+                // revision counter a timestamp encrypted using an OPE cipher
+                let revision_counter = period.inc_revision_counter();
+                // This scope exists because rng is not Send, so it needs to fall out of scope before we
+                // await anything.
+                let hsdesc = {
+                    let mut rng = imm.mockable.thread_rng();
+
+                    let mut ipt_set = self.ipt_watcher.borrow_for_publish();
+                    let Some(mut ipt_set) = ipt_set.as_mut() else {
+                        return Ok(());
+                    };
+
+                    let desc = build_sign(
+                        inner.config,
+                        hsid_key,
+                        blind_id_kp,
+                        ipt_set,
+                        period.period,
+                        revision_counter,
+                        &mut rng,
+                    )?;
+
+                    let worst_case_end = todo!();
+                    ipt_set
+                        .note_publication_attempt(worst_case_end)
+                        .map_err(|_| internal!("failed to note publication attempt"))?;
+
+                    desc
+                };
+
+                let _handle = imm.runtime.spawn(async {
+                    let hsdesc = VersionedDescriptor {
+                        desc: hsdesc.clone(),
+                        revision_counter,
+                    };
+                    if let Err(_e) = Self::upload_for_time_period(
+                        hsdesc,
+                        hs_dirs,
+                        &netdir,
+                        period.period,
+                        imm,
+                        upload_task_complete_tx,
+                    )
+                    .await
+                    {
+                        // TODO HSS
                     }
-                })
-                .collect::<Vec<_>>();
+                });
 
-            let blind_id_kp = todo!();
-
-            // We're about to generate a new version of the descriptor: increment the revision
-            // counter.
-            //
-            // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
-            // revision counter a timestamp encrypted using an OPE cipher
-            let revision_counter = period.inc_revision_counter();
-            // This scope exists because rng is not Send, so it needs to fall out of scope before we
-            // await anything.
-            let hsdesc = {
-                let mut rng = imm.mockable.thread_rng();
-
-                let mut ipt_set = self.ipt_watcher.borrow_for_publish();
-                let Some(mut ipt_set) = ipt_set.as_mut() else {
-                    return Ok(());
-                };
-
-                let desc = build_sign(
-                    inner.config,
-                    hsid_key,
-                    blind_id_kp,
-                    ipt_set,
-                    period.period,
-                    revision_counter,
-                    &mut rng,
-                )?;
-
-                let worst_case_end = todo!();
-                ipt_set
-                    .note_publication_attempt(worst_case_end)
-                    .map_err(|_| internal!("failed to note publication attempt"))?;
-
-                desc
-            };
-
-            let _handle = imm.runtime.spawn(async {
-                let hsdesc = VersionedDescriptor {
-                    desc: hsdesc.clone(),
-                    revision_counter,
-                };
-                if let Err(_e) = Self::upload_for_time_period(
-                    hsdesc,
-                    hs_dirs,
-                    &netdir,
-                    period.period,
-                    imm,
-                    upload_task_complete_tx,
-                )
-                .await
-                {
-                    // TODO HSS
-                }
-            });
-
-            Ok::<_, ReactorError>(())
-        }).collect::<Result<Vec<_>, ReactorError>>()?;
+                Ok::<_, ReactorError>(())
+            })
+            .collect::<Result<Vec<_>, ReactorError>>()?;
 
         Ok(())
     }
