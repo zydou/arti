@@ -2,18 +2,12 @@
 
 mod netdir;
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::sync::{Arc, Mutex};
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::ReconfigureError;
 use tor_error::Bug;
-use tor_hscrypto::pk::HsBlindIdKey;
 use tor_keymgr::KeyMgr;
-use tor_linkspec::RelayIds;
 use tor_llcrypto::pk::curve25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
@@ -67,73 +61,6 @@ struct SvcInner<R: Runtime> {
     // circuit" API from CircMgr, so that we can have this be a dyn reference
     // too?
     circmgr: Arc<HsCircPool<R>>,
-
-    /// Authentication information for descriptor encryption.
-    ///
-    /// (Our protocol defines two kinds of client authentication: in the first
-    /// type, we encrypt the descriptor to client public keys.  In the second,
-    /// we require authentictaion as part of the `INTRODUCE2` message. Only the
-    /// first type has ever been implemented.)
-    encryption_auth: Option<DescEncryptionAuth>,
-
-    /// Private keys in actual use for this onion service.
-    //
-    // TODO hss: This will need heavy refactoring.
-    //
-    // TODO hss: There's a separate blinded ID, certificate, and signing key
-    // for each active time period.
-    keys: (),
-
-    /// Status for each active introduction point for this onion service.
-    //
-    // TODO HSS: This might want to be a generational arena, and might want to be
-    // use a different map for each descriptor epoch. Feel free to refactor!
-    intro_points: Vec<IntroPointState>,
-
-    /// Status for our onion service descriptor
-    desc_status: DescUploadHistory,
-}
-
-/// Information about encryption-based authentication.
-
-struct DescEncryptionAuth {
-    /// A list of the public keys for which we should encrypt our
-    /// descriptor.
-    //
-    // TODO HSS: maybe this should instead be a place to find the keys, so that
-    // we can reload them on change?
-    //
-    // TODO HSS: maybe this should instead be part of our configuration
-    keys: Vec<curve25519::PublicKey>,
-}
-
-/// Current history and status for our descriptor uploads.
-///
-// TODO HSS: Remember, there are *multiple simultaneous variants* of our
-// descriptor. we will probably need to make this structure different.
-struct DescUploadHistory {
-    /// When did we last rebuild our descriptors?
-    last_rebuilt: Instant,
-
-    /// Each current descriptor that we need to try to maintain and upload.
-    descriptors: HashMap<HsBlindIdKey, String>,
-
-    /// Status of uploading each descriptor to each HsDir.
-    //
-    // Note that is possible that multiple descriptors will need to be uploaded
-    // to the same HsDir.  When this happens, we MUST use separate circuits to
-    // upload them.
-    target_status: HashMap<HsBlindIdKey, HashMap<RelayIds, RetryState>>,
-}
-
-/// State of uploading a single descriptor
-struct RetryState {
-    // TODO HSS: implement this as needed.
-}
-
-/// State of a current introduction point.
-struct IntroPointState {
-    // TODO HSS: use diziet's structures  from `hssvc-ipt-algorithms.md` once those are more settled.
 }
 
 impl<R: Runtime> OnionService<R> {
