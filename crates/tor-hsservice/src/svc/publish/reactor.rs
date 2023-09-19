@@ -638,7 +638,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Replace the old netdir with the new, returning the old.
     async fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
-        std::mem::replace(&mut self.inner.lock().expect("poisoned lock").netdir, new_netdir)
+        std::mem::replace(
+            &mut self.inner.lock().expect("poisoned lock").netdir,
+            new_netdir,
+        )
     }
 
     /// Replace our view of the service config with `new_config` if `new_config` contains changes
