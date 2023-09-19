@@ -104,10 +104,22 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// A channel for the telling the upload reminder task (spawned in [`Reactor::run`]) when to
     /// remind us that we need to retry a rate-limited upload.
     ///
-    /// This is initialized in [`Reactor::run`].
-    //
+    /// The [`Instant`] sent on this channel represents the earliest time when the upload can be
+    /// rescheduled. The receiving end of this channel will initially observe `None` (the default
+    /// value of the inner type), which indicates there are no pending uploads to reschedule.
+    ///
+    /// Note: this can't be a non-optional `Instant` because:
+    ///   * [`postage::watch`] channels require an inner type that implements `Default`, which
+    ///   `Instant` does not implement
+    ///   * `Receiver`s are always observe an initial value, even if nothing was sent on the
+    ///   channel. Since we don't want to reschedule the upload until we receive a notification
+    ///   from the sender, we `None` as a special value that tells the upload reminder task to
+    ///   block until it receives a non-default value
+    ///
+    /// This field is initialized in [`Reactor::run`].
+    ///
     // TODO HSS: decide if this is the right approach for implementing rate-limiting
-    rate_lim_upload_tx: Option<watch::Sender<Duration>>,
+    rate_lim_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
@@ -461,8 +473,21 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
-            while let Some(duration) = rate_lim_upload_rx.next().await {
-                rt.sleep(duration).await;
+            while let Some(scheduled_time) = rate_lim_upload_rx.next().await {
+                let Some(scheduled_time) = scheduled_time else {
+                    // `None` is the initially observed, default value of this postage::watch
+                    // channel, and it means there are no pending uploads to reschedule.
+                    continue;
+                };
+
+                // Check how long we have to sleep until we're no longer rate-limited.
+                let duration = scheduled_time.checked_duration_since(rt.now());
+
+                // If duration is `None`, it means we're past `scheduled_time`, so we don't need to
+                // sleep at all.
+                if let Some(duration) = duration {
+                    rt.sleep(duration).await;
+                }
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
                 if let Err(e) = schedule_upload_tx.send(()).await {
@@ -862,7 +887,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .ok_or(internal!(
                 "channel not initialized (schedule_pending_upload called before run?!)"
             ))?
-            .send(UPLOAD_RATE_LIM_THRESHOLD)
+            .send(Some(self.imm.runtime.now() + UPLOAD_RATE_LIM_THRESHOLD))
             .await
         {
             // TODO HSS: return an error
