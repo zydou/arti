@@ -57,6 +57,8 @@ use crate::err::ErrorDetail;
 use crate::{status, util, TorClientBuilder};
 #[cfg(feature = "geoip")]
 use tor_geoip::CountryCode;
+#[cfg(all(feature = "experimental-api", feature = "pt-client"))]
+use tor_ptmgr::PtMgr;
 use tor_rtcompat::scheduler::TaskHandle;
 use tracing::{debug, info};
 
@@ -1246,6 +1248,15 @@ impl<R: Runtime> TorClient<R> {
     #[cfg(feature = "experimental-api")]
     pub fn chanmgr(&self) -> &Arc<tor_chanmgr::ChanMgr<R>> {
         &self.chanmgr
+    }
+
+    /// Return a reference to this client's pluggable transport manager.
+    ///
+    /// This function is unstable. It is only enabled if the crate was
+    /// built with the `experimental-api` feature.
+    #[cfg(all(feature = "experimental-api", feature = "pt-client"))]
+    pub fn ptmgr(&self) -> &Arc<PtMgr<R>> {
+        &self.pt_mgr
     }
 
     /// Return a reference to the runtime being used by this client.

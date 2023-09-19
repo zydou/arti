@@ -810,6 +810,11 @@ pub struct PtClientMethod {
 }
 
 impl PtClientMethod {
+    /// Make a new `PtClientMethod` for a provided SOCKS endpoint and version.
+    pub fn new(kind: SocksVersion, endpoint: SocketAddr) -> Self {
+        Self { kind, endpoint }
+    }
+
     /// Get the SOCKS protocol version to use.
     pub fn kind(&self) -> SocksVersion {
         self.kind

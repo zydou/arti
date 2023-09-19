@@ -377,6 +377,16 @@ impl<R: Runtime> PtMgr<R> {
         let _ = self.tx.unbounded_send(PtReactorMessage::Reconfigured);
         Ok(())
     }
+
+    /// Add an "unmanaged" pluggable transport -- that is, make requests for the provided transport
+    /// name use a SOCKS proxy at the provided address.
+    pub fn add_unmanaged(&self, transport: PtTransportName, endpoint: PtClientMethod) {
+        self.state
+            .write()
+            .expect("ptmgr poisoned")
+            .cmethods
+            .insert(transport, endpoint);
+    }
 }
 
 /// Spawn a `PluggableTransport` using a `ManagedTransportConfig`.

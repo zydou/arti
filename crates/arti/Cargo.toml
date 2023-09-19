@@ -60,7 +60,7 @@ harden = ["secmem-proc"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio", "tokio-util"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
-pt-client = ["bridge-client", "arti-client/pt-client"]
+pt-client = ["bridge-client", "arti-client/pt-client", "tor-ptmgr"]
 
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
@@ -118,6 +118,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-config = { path = "../tor-config", version = "0.9.4" }
 tor-error = { path = "../tor-error", version = "0.5.4", default-features = false, features = ["tracing"] }
+tor-ptmgr = { path = "../tor-ptmgr", version = "0.5.0", optional = true }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.1.2", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", default-features = false }
 tor-socksproto = { path = "../tor-socksproto", version = "0.7.2" }

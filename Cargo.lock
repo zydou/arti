@@ -228,6 +228,7 @@ dependencies = [
  "toml 0.7.6",
  "tor-config",
  "tor-error",
+ "tor-ptmgr",
  "tor-rpcbase",
  "tor-rtcompat",
  "tor-socksproto",
