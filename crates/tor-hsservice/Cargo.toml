@@ -70,6 +70,7 @@ tor-linkspec = { version = "0.8.3", path = "../tor-linkspec", features = ["verba
 tor-llcrypto = { version = "0.5.4", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.9.4", path = "../tor-netdir", features = ["hs-service"] }
 tor-netdoc = { version = "0.8.3", path = "../tor-netdoc", features = ["hs-service"] }
+tor-persist = { version = "0.7.4", path = "../tor-persist" }
 tor-proto = { version = "0.12.1", path = "../tor-proto", features = [
     "experimental-api",
     "hs-service",

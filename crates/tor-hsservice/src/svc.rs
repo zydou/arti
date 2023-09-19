@@ -71,14 +71,24 @@ struct SvcInner<R: Runtime> {
 impl<R: Runtime> OnionService<R> {
     /// Create (but do not launch) a new onion service.
     #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
-    pub fn new(
+    pub fn new<S>(
         runtime: R,
         config: OnionServiceConfig,
         netdir_provider: Arc<dyn NetDirProvider>,
         circ_pool: Arc<HsCircPool<R>>,
         keymgr: Arc<KeyMgr>,
-    ) -> Self {
+        statemgr: S,
+    ) -> Self
+    where
+        S: tor_persist::StateMgr + Send + Sync + 'static,
+    {
         let nickname = config.name.clone();
+        // TODO HSS: Maybe, adjust tor_persist::fs to handle subdirectories, and
+        // use onion/{nickname}?
+        let storage_key = format!("onion_svc_{nickname}");
+        // TODO HSS-IPT-PERSIST: Use this handle, and use a real struct type instead.
+        let storage_handle: Arc<dyn tor_persist::StorageHandle<()>> =
+            statemgr.create_handle(storage_key);
 
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
