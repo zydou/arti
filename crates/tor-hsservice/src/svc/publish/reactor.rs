@@ -5,12 +5,11 @@
 use std::fmt::Debug;
 use std::iter;
 use std::ops::DerefMut;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use futures::channel::mpsc::{self, Receiver, Sender};
-use futures::lock::Mutex;
 use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
 use postage::sink::SendError;
@@ -541,7 +540,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Handle a batch of upload outcomes,
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
     async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().expect("poisoned lock");
         inner.last_uploaded = Some(self.imm.runtime.now());
 
         // Check which time period these uploads pertain to.
@@ -607,7 +606,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Recompute the HsDirs for all relevant time periods.
     async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
         // Update our list of relevant time periods.
@@ -639,13 +638,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Replace the old netdir with the new, returning the old.
     async fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
-        std::mem::replace(&mut self.inner.lock().await.netdir, new_netdir)
+        std::mem::replace(&mut self.inner.lock().expect("poisoned lock").netdir, new_netdir)
     }
 
     /// Replace our view of the service config with `new_config` if `new_config` contains changes
     /// that would cause us to generate a new descriptor.
     async fn replace_config_if_changed(&self, new_config: OnionServiceConfig) -> bool {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().expect("poisoned lock");
         let old_config = &mut inner.config;
 
         // The fields we're interested in haven't changed, so there's no need to update
@@ -667,7 +666,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
     /// uploading.
     async fn note_ipt_change(&self) -> PublishStatus {
-        let inner = self.inner.lock().await;
+        let inner = self.inner.lock().expect("poisoned lock");
 
         let mut ipts = self.ipt_watcher.borrow_for_publish();
         match ipts.deref_mut() {
@@ -736,7 +735,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn mark_all_dirty(&self) {
         self.inner
             .lock()
-            .await
+            .expect("poisoned lock")
             .time_periods
             .iter_mut()
             .for_each(|tp| tp.mark_all_dirty());
@@ -754,7 +753,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&mut self) -> Result<(), ReactorError> {
-        let last_uploaded = self.inner.lock().await.last_uploaded;
+        let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
         let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
         if let Some(last_uploaded) = last_uploaded {
@@ -765,7 +764,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
-        let inner = self.inner.lock().await;
+        let inner = self.inner.lock().expect("poisoned lock");
 
         let netdir = Arc::clone(&inner.netdir);
 
