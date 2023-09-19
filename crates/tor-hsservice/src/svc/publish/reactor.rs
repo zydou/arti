@@ -548,6 +548,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 // Our PublishStatus changed -- are we ready to publish?
                 if should_upload == PublishStatus::UploadScheduled {
+                    // TODO HSS: if upload_all fails, we don't reattempt the upload until a state
+                    // change is triggered by an external event (such as a consensus or IPT change)
+                    self.update_publish_status(PublishStatus::Idle).await?;
                     self.upload_all().await?;
                 }
             }
@@ -1105,6 +1108,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 enum PublishStatus {
     /// We need to call upload_all.
     UploadScheduled,
+    /// We are idle and waiting for external events.
+    ///
+    /// We have enough information to build the descriptor, but since we have already called
+    /// upload_all to upload it to all relevant HSDirs, there is nothing for us to do right nbow.
+    Idle,
     /// We are waiting for the IPT manager to establish some introduction points.
     ///
     /// No descriptors will be published until the `PublishStatus` of the reactor is changed to
