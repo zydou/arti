@@ -1,7 +1,7 @@
 //! Define the `Anonymity` type to indicate a level of anonymity.
 
 /// The level of anonymity that an onion service should try to run with.
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Anonymity {
     /// Try to keep the location of the onion service private.

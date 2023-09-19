@@ -136,7 +136,7 @@ impl TokenBucketConfig {
 }
 
 /// Configuration for descriptor encryption.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DescEncryptionConfig {
     /// A list of our authorized clients.
     ///
@@ -150,7 +150,7 @@ pub struct DescEncryptionConfig {
 }
 
 /// A single client (or a collection of clients) authorized using the descriptor encryption mechanism.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum AuthorizedClientConfig {
     /// A directory full of authorized public keys.
