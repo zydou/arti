@@ -4,6 +4,8 @@ mod netdir;
 
 use std::sync::{Arc, Mutex};
 
+use futures::channel::mpsc;
+use futures::channel::oneshot;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::ReconfigureError;
 use tor_error::Bug;
@@ -12,6 +14,9 @@ use tor_llcrypto::pk::curve25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
+use crate::ipt_mgr::IptManager;
+use crate::svc::publish::Publisher;
+use crate::OnionServiceConfig;
 use crate::OnionServiceStatus;
 use crate::StartupError;
 
@@ -43,9 +48,9 @@ pub struct OnionService<R: Runtime> {
 struct SvcInner<R: Runtime> {
     /// Configuration information about this service.
     ///
-    /// TODO HSS: Authorized client public keys might be here, or they might be in a
-    /// separate structure.
-    config: crate::OnionServiceConfig,
+    /// TODO HSS: Should this be an `Arc<OnionServiceConfig>` or even a
+    /// postage::watch thing?  That seems to be what `IptManager `expects.
+    config: OnionServiceConfig,
 
     /// A netdir provider to use in finding our directories and choosing our
     /// introduction points.
@@ -65,8 +70,77 @@ struct SvcInner<R: Runtime> {
 
 impl<R: Runtime> OnionService<R> {
     /// Create (but do not launch) a new onion service.
-    pub fn new(config: (), netdir_provider: (), circmgr: ()) -> Self {
-        todo!(); // TODO hss
+    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
+    pub fn new(
+        runtime: R,
+        config: OnionServiceConfig,
+        netdir_provider: Arc<dyn NetDirProvider>,
+        circ_pool: Arc<HsCircPool<R>>,
+        keymgr: Arc<KeyMgr>,
+    ) -> Self {
+        let nickname = config.name.clone();
+
+        let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let (config_tx, config_rx) = postage::watch::channel_with(config.clone());
+
+        // TODO HSS: How do I give ipt_mgr_view to ipt_mgr?  Does IptManager even take
+        //          one of these?
+        let (ipt_mgr_view, publisher_view) = crate::ipt_set::ipts_channel(None);
+
+        let ipt_mgr = IptManager::new(
+            runtime.clone(),
+            netdir_provider.clone(),
+            nickname,
+            Arc::new(config.clone()),
+            rend_req_tx,
+            shutdown_rx,
+            crate::ipt_mgr::Real {
+                circ_pool: circ_pool.clone(),
+            },
+        )
+        .expect("TODO HSS");
+
+        let hs_id = {
+            todo!() // TODO HSS Look up HsId by KeyMgr based on nickname.
+        };
+
+        // TODO HSS Publisher::new is async; we'd prefer a separate new/launch,
+        // perhaps?  Or we could make OnionService::new async and have it
+        // implicitly launch?
+
+        // TODO HSS Why does this not need a keymgr?
+        let publisher_future = Publisher::new(
+            runtime,
+            hs_id,
+            netdir_provider.clone(),
+            circ_pool,
+            config,
+            publisher_view,
+            config_rx,
+        );
+
+        // TODO HSS: we need to actually do something with: shutdown_tx,
+        // rend_req_rx.  The latter may need to be refactored to actually work
+        // with svc::rend_handshake, if it doesn't already.
+
+        OnionService {
+            inner: Mutex::new(SvcInner {
+                config,
+                netdir_provider,
+                keymgr,
+                circmgr: circ_pool,
+            }),
+        }
+
+        // TODO HSS: CONVERGENCE NOTES:
+        //   - Converge on one way to handle sharing config and config
+        //     changes.
+        //   - Converge on how to actually send IptSet from manager to
+        //     publisher.
+        //   - Converge on convention for new() vs launch()
+        //   - Converge on relationship between RendRequest and
+        //     IntroRequest.
     }
 
     /// Change the configuration of this onion service.
@@ -87,6 +161,7 @@ impl<R: Runtime> OnionService<R> {
     pub fn status(&self) -> OnionServiceStatus {
         todo!() // TODO hss
     }
+
     // TODO hss let's also have a function that gives you a stream of Status
     // changes?  Or use a publish-based watcher?
 
