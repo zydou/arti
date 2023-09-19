@@ -868,24 +868,27 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     desc
                 };
 
-                let _handle: () = imm.runtime.spawn(async {
-                    let hsdesc = VersionedDescriptor {
-                        desc: hsdesc.clone(),
-                        revision_counter,
-                    };
-                    if let Err(_e) = Self::upload_for_time_period(
-                        hsdesc,
-                        hs_dirs,
-                        &netdir,
-                        period.period,
-                        imm,
-                        upload_task_complete_tx,
-                    )
-                    .await
-                    {
-                        // TODO HSS
-                    }
-                }).map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
+                let _handle: () = imm
+                    .runtime
+                    .spawn(async {
+                        let hsdesc = VersionedDescriptor {
+                            desc: hsdesc.clone(),
+                            revision_counter,
+                        };
+                        if let Err(_e) = Self::upload_for_time_period(
+                            hsdesc,
+                            hs_dirs,
+                            &netdir,
+                            period.period,
+                            imm,
+                            upload_task_complete_tx,
+                        )
+                        .await
+                        {
+                            // TODO HSS
+                        }
+                    })
+                    .map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
 
                 Ok::<_, ReactorError>(())
             })
