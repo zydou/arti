@@ -84,11 +84,13 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<OnionServiceConfig>,
-    /// A channel for the telling the upload reminder task when to remind us we need to upload
-    /// some descriptors.
+    /// A channel for the telling the upload reminder task (spawned in [`Reactor::run`]) when to
+    /// remind us that we need to retry a rate-limited upload.
     ///
     /// This is initialized in [`Reactor::run`].
-    pending_upload_tx: Option<Sender<Duration>>,
+    //
+    // TODO HSS: decide if this is the right approach for implementing rate-limiting
+    rate_lim_upload_tx: Option<Sender<Duration>>,
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
@@ -406,7 +408,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
-            pending_upload_tx: None,
+            rate_lim_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
         })
@@ -422,16 +424,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         debug!("starting descriptor publisher reactor");
 
         // There will be at most one pending upload.
-        let (pending_upload_tx, mut pending_upload_rx) = mpsc::channel(1);
+        let (rate_lim_upload_tx, mut rate_lim_upload_rx) = mpsc::channel(1);
         let (mut schedule_upload_tx, mut schedule_upload_rx) = mpsc::channel(1);
 
-        self.pending_upload_tx = Some(pending_upload_tx);
+        self.rate_lim_upload_tx = Some(rate_lim_upload_tx);
 
         let rt = self.imm.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
-            while let Some(duration) = pending_upload_rx.next().await {
+            while let Some(duration) = rate_lim_upload_rx.next().await {
                 rt.sleep(duration).await;
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
@@ -734,10 +736,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Tell the "upload reminder" task to remind us about a pending upload.
+    /// Tell the "upload reminder" task to remind us to retry an upload that was rate-limited.
     async fn schedule_pending_upload(&mut self) -> Result<(), ReactorError> {
         if let Err(e) = self
-            .pending_upload_tx
+            .rate_lim_upload_tx
             .as_mut()
             .ok_or(internal!(
                 "channel not initialized (schedule_pending_upload called before run?!)"
