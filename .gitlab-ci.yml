@@ -107,8 +107,6 @@ rust-latest:
     paths:
       - artifacts
     expire_in: 1 hours
-  tags:
-    - amd64
 
 rust-latest-arti-extra-features:
   stage: build
@@ -135,8 +133,6 @@ rust-latest-arti-extra-features:
     paths:
       - artifacts
     expire_in: 1 hours
-  tags:
-    - amd64
 
 rust-latest-async-std-rustls:
   stage: build
@@ -147,8 +143,6 @@ rust-latest-async-std-rustls:
     - cd crates/arti-client && cargo clippy --no-default-features --features=async-std,rustls
   after_script:
     - cargo clean
-  tags:
-    - amd64
 
 rust-nightly:
   stage: test
@@ -175,8 +169,6 @@ rust-nightly:
     - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
   after_script:
     - cargo clean
-  tags:
-    - amd64
 
 coverage:
   stage: test
@@ -197,8 +189,6 @@ coverage:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
-  tags:
-    - amd64
 
 minimal-versions:
   stage: test
@@ -211,8 +201,6 @@ minimal-versions:
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
   after_script:
     - cargo clean
-  tags:
-    - amd64
 
 build-repro:
   rules:
@@ -258,8 +246,6 @@ integration-chutney:
   artifacts:
     paths:
       - benchmark_results.json
-  tags:
-    - amd64
 
 integration-shadow:
   variables:
@@ -386,8 +372,6 @@ rust-latest-test-all-features:
     paths:
       - artifacts
     expire_in: 1 hours
-  tags:
-    - amd64
 
 every-crate:
   stage: test
@@ -433,8 +417,6 @@ coverage-aggregated:
   artifacts:
     paths:
       - coverage
-  tags:
-    - amd64
 
 check-targets:
   rules:
