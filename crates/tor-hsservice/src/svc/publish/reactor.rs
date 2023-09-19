@@ -101,7 +101,6 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// When our [`PublishStatus`] changes to [`UploadScheduled`](PublishStatus::UploadScheduled),
     /// we can start publishing descriptors.
     publish_status_tx: watch::Sender<PublishStatus>,
-    /// A channel for sending updates regarding our [`PublishStatus`].
     /// A channel for the telling the upload reminder task (spawned in [`Reactor::run`]) when to
     /// remind us that we need to retry a rate-limited upload.
     ///
