@@ -351,6 +351,19 @@ pub(super) enum ReactorError {
     #[error("failed to publish a descriptor")]
     PublishFailure(RetryError<UploadError>),
 
+    /// Unable to spawn task
+    //
+    // TODO lots of our Errors have a variant exactly like this.
+    // Maybe we should make a struct tor_error::SpawnError.
+    #[error("Unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn.
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
+
     /// A fatal error that caused the reactor to shut down.
     //
     // TODO HSS: add more context to this error?
@@ -360,6 +373,18 @@ pub(super) enum ReactorError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl ReactorError {
+    /// Construct a new `ReactorError` from a `SpawnError`.
+    //
+    // TODO lots of our Errors have a function exactly like this.
+    pub(super) fn from_spawn(spawning: &'static str, err: SpawnError) -> ReactorError {
+        ReactorError::Spawn {
+            spawning,
+            cause: Arc::new(err),
+        }
+    }
 }
 
 /// An error that occurs while trying to upload a descriptor.
@@ -377,19 +402,6 @@ pub(super) enum UploadError {
     /// Failed to establish stream to hidden service directory
     #[error("stream failed")]
     Stream(#[source] tor_proto::Error),
-
-    /// Unable to spawn task
-    //
-    // TODO lots of our Errors have a variant exactly like this.
-    // Maybe we should make a struct tor_error::SpawnError.
-    #[error("Unable to spawn {spawning}")]
-    Spawn {
-        /// What we were trying to spawn.
-        spawning: &'static str,
-        /// What happened when we tried to spawn it.
-        #[source]
-        cause: Arc<SpawnError>,
-    },
 
     /// An internal error.
     #[error("Internal error")]
@@ -856,7 +868,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     desc
                 };
 
-                let _handle = imm.runtime.spawn(async {
+                let _handle: () = imm.runtime.spawn(async {
                     let hsdesc = VersionedDescriptor {
                         desc: hsdesc.clone(),
                         revision_counter,
@@ -873,7 +885,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     {
                         // TODO HSS
                     }
-                });
+                }).map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
 
                 Ok::<_, ReactorError>(())
             })
@@ -1149,7 +1161,7 @@ impl RetriableError for UploadError {
     fn should_retry(&self) -> bool {
         match self {
             UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
-            UploadError::Bug(_) | UploadError::Spawn { .. } => false,
+            UploadError::Bug(_) => false,
         }
     }
 }
