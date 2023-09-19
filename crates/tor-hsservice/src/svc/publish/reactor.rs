@@ -497,7 +497,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             res = self.upload_task_complete_rx.next().fuse() => {
                 let upload_res = res.ok_or(ReactorError::ShuttingDown)?;
 
-                self.handle_upload_results(upload_res).await;
+                self.handle_upload_results(upload_res);
             }
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
@@ -539,7 +539,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Handle a batch of upload outcomes,
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
-    async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
+    fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().expect("poisoned lock");
         inner.last_uploaded = Some(self.imm.runtime.now());
 
@@ -595,9 +595,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Maybe update our list of HsDirs.
     async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
-        let _old: Arc<NetDir> = self.replace_netdir(netdir).await;
+        let _old: Arc<NetDir> = self.replace_netdir(netdir);
 
-        self.recompute_hs_dirs().await?;
+        self.recompute_hs_dirs()?;
         self.update_publish_status(PublishStatus::UploadScheduled)
             .await?;
 
@@ -605,7 +605,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Recompute the HsDirs for all relevant time periods.
-    async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
+    fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
@@ -637,7 +637,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Replace the old netdir with the new, returning the old.
-    async fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
+    fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
         std::mem::replace(
             &mut self.inner.lock().expect("poisoned lock").netdir,
             new_netdir,
@@ -646,7 +646,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Replace our view of the service config with `new_config` if `new_config` contains changes
     /// that would cause us to generate a new descriptor.
-    async fn replace_config_if_changed(&self, new_config: OnionServiceConfig) -> bool {
+    fn replace_config_if_changed(&self, new_config: OnionServiceConfig) -> bool {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let old_config = &mut inner.config;
 
@@ -668,7 +668,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
     /// uploading.
-    async fn note_ipt_change(&self) -> PublishStatus {
+    fn note_ipt_change(&self) -> PublishStatus {
         let inner = self.inner.lock().expect("poisoned lock");
 
         let mut ipts = self.ipt_watcher.borrow_for_publish();
@@ -687,9 +687,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), ReactorError> {
         match update {
             Some(Ok(())) => {
-                let should_upload = self.note_ipt_change().await;
+                let should_upload = self.note_ipt_change();
 
-                self.mark_all_dirty().await;
+                self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
             Some(Err(_)) | None => Err(ReactorError::ShuttingDown),
@@ -723,8 +723,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &mut self,
         config: OnionServiceConfig,
     ) -> Result<(), ReactorError> {
-        if self.replace_config_if_changed(config).await {
-            self.mark_all_dirty().await;
+        if self.replace_config_if_changed(config) {
+            self.mark_all_dirty();
 
             // Schedule an upload, unless we're still waiting for IPTs.
             self.update_publish_status(PublishStatus::UploadScheduled)
@@ -735,7 +735,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Mark the descriptor dirty for all time periods.
-    async fn mark_all_dirty(&self) {
+    fn mark_all_dirty(&self) {
         self.inner
             .lock()
             .expect("poisoned lock")
