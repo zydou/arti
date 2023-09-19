@@ -42,6 +42,7 @@
 
 pub mod cmdline;
 mod err;
+mod flatten;
 pub mod list_builder;
 pub mod load;
 mod misc;
@@ -53,6 +54,7 @@ pub use cmdline::CmdLine;
 pub use config as config_crate;
 pub use educe;
 pub use err::{ConfigBuildError, ConfigError, ReconfigureError};
+pub use flatten::{Flatten, Flattenable};
 pub use itertools::Itertools;
 pub use list_builder::{MultilineListBuilder, MultilineListBuilderError};
 pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
@@ -64,6 +66,11 @@ pub use serde;
 pub use sources::{ConfigurationSource, ConfigurationSources};
 
 pub use tor_basic_utils::macro_first_nonempty;
+
+#[doc(hidden)]
+pub use derive_adhoc;
+#[doc(hidden)]
+pub use flatten::flattenable_test;
 
 /// Rules for reconfiguring a running Arti instance.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
