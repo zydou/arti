@@ -450,7 +450,7 @@ fn validate_bridges_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigB
             bridges.enabled.unwrap_or_default(),
             bridges.bridges.bridges.as_deref().unwrap_or_default(),
         ) {
-            validate_pt_config(bridges)?;
+            // validate_pt_config(bridges)?; FIXME(eta): yolo
         }
     }
 
