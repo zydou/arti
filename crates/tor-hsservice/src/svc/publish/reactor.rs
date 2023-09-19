@@ -694,6 +694,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         //
         // TODO HSS: maybe `Inner` should only contain the fields we're interested in instead of
         // the entire config.
+        //
+        // Alternatively, a less error-prone solution would be to introduce a separate
+        // `DescriptorConfigView` as described in
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603#note_2944902
         if old_config.anonymity == new_config.anonymity
             && old_config.encrypt_descriptor == new_config.encrypt_descriptor
         {
