@@ -107,8 +107,15 @@ pub(crate) struct Immutable<R> {
 /// State of an IPT Manager
 #[derive(Debug)]
 pub(crate) struct State<R, M> {
-    /// Configuration
-    config: Arc<OnionServiceConfig>,
+    /// Source of configuration updates
+    new_configs: watch::Receiver<Arc<OnionServiceConfig>>,
+
+    /// Last configuration update we received
+    ///
+    /// This is the snapshot of the config we are currently using.
+    /// (Doing it this way avoids running our algorithms
+    /// with a mixture of old and new config.)
+    current_config: Arc<OnionServiceConfig>,
 
     /// Channel for updates from IPT Establishers (receiver)
     ///
@@ -434,7 +441,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         runtime: R,
         dirprovider: Arc<dyn NetDirProvider>,
         nick: HsNickname,
-        config: Arc<OnionServiceConfig>,
+        config: watch::Receiver<Arc<OnionServiceConfig>>,
         output_rend_reqs: mpsc::Sender<RendRequest>,
         shutdown: oneshot::Receiver<Void>,
         mockable: M,
@@ -452,8 +459,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_send,
             output_rend_reqs,
         };
+        let current_config = config.borrow().clone();
+
         let state = State {
-            config,
+            current_config,
+            new_configs: config,
             status_recv,
             mockable,
             shutdown,
@@ -1046,6 +1056,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             now
         };
 
+        let mut new_configs = self.state.new_configs.next().fuse();
+
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
             shutdown = &mut self.state.shutdown => return Ok(shutdown.void_unwrap_err().into()),
@@ -1065,7 +1077,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 self.state.last_irelay_selection_outcome = Ok(());
             }
 
-            // TODO HSS clear last_irelay_selection_outcome on new configuration
+            new_config = new_configs => {
+                let Some(new_config) = new_config else {
+                    trace!("HS service {} terminating due to EOF on config updates stream", &self.imm.nick);
+                    return Ok(ShutdownStatus::Terminate);
+                };
+                self.state.current_config = new_config;
+                self.state.last_irelay_selection_outcome = Ok(());
+            }
         }
 
         Ok(ShutdownStatus::Continue)
@@ -1096,7 +1115,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Target number of intro points
     pub(crate) fn target_n_intro_points(&self) -> usize {
-        self.state.config.num_intro_points.into()
+        self.state.current_config.num_intro_points.into()
     }
 
     /// Maximum number of concurrent intro point relays
