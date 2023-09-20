@@ -84,7 +84,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// A channel for receiving IPT change notifications.
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
-    config_rx: watch::Receiver<OnionServiceConfig>,
+    config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
     /// The main loop of the reactor watches for updates on this channel.
@@ -200,7 +200,7 @@ impl<R: Runtime> Mockable for ReactorState<R> {
 /// The mutable state of a [`Reactor`].
 struct Inner {
     /// The onion service config.
-    config: OnionServiceConfig,
+    config: Arc<OnionServiceConfig>,
     /// The relevant time periods.
     ///
     /// This includes the current time period, as well as any other time periods we need to be
@@ -417,7 +417,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         mockable: M,
         config: OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
-        config_rx: watch::Receiver<OnionServiceConfig>,
+        config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     ) -> Result<Self, ReactorError> {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -446,7 +446,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let inner = Inner {
             time_periods,
-            config,
+            config: Arc::new(config),
             netdir,
             last_uploaded: None,
         };
@@ -685,7 +685,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Replace our view of the service config with `new_config` if `new_config` contains changes
     /// that would cause us to generate a new descriptor.
-    fn replace_config_if_changed(&self, new_config: OnionServiceConfig) -> bool {
+    fn replace_config_if_changed(&self, new_config: Arc<OnionServiceConfig>) -> bool {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let old_config = &mut inner.config;
 
@@ -709,7 +709,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
         */
 
-        let _old: OnionServiceConfig = std::mem::replace(old_config, new_config);
+        let _old: Arc<OnionServiceConfig> = std::mem::replace(old_config, new_config);
 
         true
     }
@@ -769,7 +769,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Update the descriptors based on the config change.
     async fn handle_svc_config_change(
         &mut self,
-        config: OnionServiceConfig,
+        config: Arc<OnionServiceConfig>,
     ) -> Result<(), ReactorError> {
         if self.replace_config_if_changed(config) {
             self.mark_all_dirty();

@@ -51,7 +51,7 @@ impl Publisher {
         circpool: Arc<HsCircPool<R>>,
         config: OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
-        config_rx: watch::Receiver<OnionServiceConfig>,
+        config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     ) -> Result<Self, PublisherError> {
         let state = ReactorState::new(circpool);
         let Ok(reactor) = Reactor::new(
