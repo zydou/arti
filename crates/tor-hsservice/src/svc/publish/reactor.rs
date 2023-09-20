@@ -698,11 +698,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // Alternatively, a less error-prone solution would be to introduce a separate
         // `DescriptorConfigView` as described in
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603#note_2944902
+
+        // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
+        // work; see #1028
+        /*
         if old_config.anonymity == new_config.anonymity
             && old_config.encrypt_descriptor == new_config.encrypt_descriptor
         {
             return false;
         }
+        */
 
         let _old: OnionServiceConfig = std::mem::replace(old_config, new_config);
 

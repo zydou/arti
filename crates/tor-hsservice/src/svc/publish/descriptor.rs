@@ -72,10 +72,17 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
     let intro_auth_key_cert: Ed25519Cert = todo!();
     let intro_enc_key_cert: X25519Cert = todo!();
+
+    // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
+    // work; see #1028
+    /*
     let auth_clients: Vec<curve25519::PublicKey> = match config.encrypt_descriptor {
         Some(auth_clients) => build_auth_clients(&auth_clients),
         None => vec![],
     };
+    */
+
+    let auth_clients = vec![];
 
     Ok(HsDescBuilder::default()
         .blinded_id(blind_id_kp)
