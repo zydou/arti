@@ -108,7 +108,7 @@ pub(crate) struct Immutable<R> {
 #[derive(Debug)]
 pub(crate) struct State<R, M> {
     /// Configuration
-    config: Arc<OnionServiceConfig>,
+    config: watch::Receiver<Arc<OnionServiceConfig>>,
 
     /// Channel for updates from IPT Establishers (receiver)
     ///
@@ -434,7 +434,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         runtime: R,
         dirprovider: Arc<dyn NetDirProvider>,
         nick: HsNickname,
-        config: Arc<OnionServiceConfig>,
+        config: watch::Receiver<Arc<OnionServiceConfig>>,
         output_rend_reqs: mpsc::Sender<RendRequest>,
         shutdown: oneshot::Receiver<Void>,
         mockable: M,
@@ -1065,6 +1065,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 self.state.last_irelay_selection_outcome = Ok(());
             }
 
+            // TODO HSS watch for config changes
             // TODO HSS clear last_irelay_selection_outcome on new configuration
         }
 
@@ -1096,7 +1097,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Target number of intro points
     pub(crate) fn target_n_intro_points(&self) -> usize {
-        self.state.config.num_intro_points.into()
+        // TODO HSS bug! this risks getting different answers at different times
+        self.state.config.borrow().num_intro_points.into()
     }
 
     /// Maximum number of concurrent intro point relays
