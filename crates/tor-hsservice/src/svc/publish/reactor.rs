@@ -17,7 +17,7 @@ use postage::watch;
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
-use tor_keymgr::KeyMgr;
+use tor_keymgr::{KeyMgr, KeystoreError};
 use tracing::{debug, error, trace};
 
 use tor_bytes::EncodeError;
@@ -353,6 +353,10 @@ pub(crate) enum ReactorError {
     /// Failed to publish a descriptor.
     #[error("failed to publish a descriptor")]
     PublishFailure(RetryError<UploadError>),
+
+    /// Failed to access the keystore.
+    #[error("failed to access keystore")]
+    Keystore(#[from] Box<dyn KeystoreError>),
 
     /// Unable to spawn task
     //
