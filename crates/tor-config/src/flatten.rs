@@ -272,6 +272,11 @@ derive_adhoc! {
             /// version of outer `Flatten` containing references
             ///
             /// We give it the same name because the name is visible via serde
+            ///
+            /// The problems with `#[serde(flatten)]` don't apply to serialisation,
+            /// because we're not trying to track ignored fields.
+            /// But we can't just apply `#[serde(flatten)]` to `Flatten`
+            /// since it doesn't work with tuple structs.
             #[derive(Serialize)]
             struct Flatten<'r, T, U> {
               $(
