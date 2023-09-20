@@ -30,6 +30,8 @@ pub enum HsSvcKeyRole {
     HsIdPublicKey,
     /// The blinded signing keypair.
     BlindIdKeypair(TimePeriod),
+    /// The descriptor signing key.
+    DescSigningKeypair(TimePeriod),
 }
 
 impl fmt::Display for HsSvcKeyRole {
@@ -44,6 +46,12 @@ impl fmt::Display for HsSvcKeyRole {
                 period.length()
             ),
             HsIdPublicKey => write!(f, "KP_hs_id"),
+            DescSigningKeypair(period) => write!(
+                f,
+                "KS_hs_desc_sign_{}_{}",
+                period.interval_num(),
+                period.length()
+            ),
         }
     }
 }
