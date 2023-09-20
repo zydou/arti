@@ -2,22 +2,21 @@
 
 mod netdir;
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::sync::{Arc, Mutex};
 
+use futures::channel::mpsc;
+use futures::channel::oneshot;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::ReconfigureError;
 use tor_error::Bug;
-use tor_hscrypto::pk::HsBlindIdKey;
 use tor_keymgr::KeyMgr;
-use tor_linkspec::RelayIds;
 use tor_llcrypto::pk::curve25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
+use crate::ipt_mgr::IptManager;
+use crate::svc::publish::Publisher;
+use crate::OnionServiceConfig;
 use crate::OnionServiceStatus;
 use crate::StartupError;
 
@@ -49,9 +48,9 @@ pub struct OnionService<R: Runtime> {
 struct SvcInner<R: Runtime> {
     /// Configuration information about this service.
     ///
-    /// TODO HSS: Authorized client public keys might be here, or they might be in a
-    /// separate structure.
-    config: crate::OnionServiceConfig,
+    /// TODO HSS: Should this be an `Arc<OnionServiceConfig>` or even a
+    /// postage::watch thing?  That seems to be what `IptManager `expects.
+    config: OnionServiceConfig,
 
     /// A netdir provider to use in finding our directories and choosing our
     /// introduction points.
@@ -67,79 +66,91 @@ struct SvcInner<R: Runtime> {
     // circuit" API from CircMgr, so that we can have this be a dyn reference
     // too?
     circmgr: Arc<HsCircPool<R>>,
-
-    /// Authentication information for descriptor encryption.
-    ///
-    /// (Our protocol defines two kinds of client authentication: in the first
-    /// type, we encrypt the descriptor to client public keys.  In the second,
-    /// we require authentictaion as part of the `INTRODUCE2` message. Only the
-    /// first type has ever been implemented.)
-    encryption_auth: Option<DescEncryptionAuth>,
-
-    /// Private keys in actual use for this onion service.
-    //
-    // TODO hss: This will need heavy refactoring.
-    //
-    // TODO hss: There's a separate blinded ID, certificate, and signing key
-    // for each active time period.
-    keys: (),
-
-    /// Status for each active introduction point for this onion service.
-    //
-    // TODO HSS: This might want to be a generational arena, and might want to be
-    // use a different map for each descriptor epoch. Feel free to refactor!
-    intro_points: Vec<IntroPointState>,
-
-    /// Status for our onion service descriptor
-    desc_status: DescUploadHistory,
-}
-
-/// Information about encryption-based authentication.
-
-struct DescEncryptionAuth {
-    /// A list of the public keys for which we should encrypt our
-    /// descriptor.
-    //
-    // TODO HSS: maybe this should instead be a place to find the keys, so that
-    // we can reload them on change?
-    //
-    // TODO HSS: maybe this should instead be part of our configuration
-    keys: Vec<curve25519::PublicKey>,
-}
-
-/// Current history and status for our descriptor uploads.
-///
-// TODO HSS: Remember, there are *multiple simultaneous variants* of our
-// descriptor. we will probably need to make this structure different.
-struct DescUploadHistory {
-    /// When did we last rebuild our descriptors?
-    last_rebuilt: Instant,
-
-    /// Each current descriptor that we need to try to maintain and upload.
-    descriptors: HashMap<HsBlindIdKey, String>,
-
-    /// Status of uploading each descriptor to each HsDir.
-    //
-    // Note that is possible that multiple descriptors will need to be uploaded
-    // to the same HsDir.  When this happens, we MUST use separate circuits to
-    // upload them.
-    target_status: HashMap<HsBlindIdKey, HashMap<RelayIds, RetryState>>,
-}
-
-/// State of uploading a single descriptor
-struct RetryState {
-    // TODO HSS: implement this as needed.
-}
-
-/// State of a current introduction point.
-struct IntroPointState {
-    // TODO HSS: use diziet's structures  from `hssvc-ipt-algorithms.md` once those are more settled.
 }
 
 impl<R: Runtime> OnionService<R> {
     /// Create (but do not launch) a new onion service.
-    pub fn new(config: (), netdir_provider: (), circmgr: ()) -> Self {
-        todo!(); // TODO hss
+    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
+    pub fn new<S>(
+        runtime: R,
+        config: OnionServiceConfig,
+        netdir_provider: Arc<dyn NetDirProvider>,
+        circ_pool: Arc<HsCircPool<R>>,
+        keymgr: Arc<KeyMgr>,
+        statemgr: S,
+    ) -> Self
+    where
+        S: tor_persist::StateMgr + Send + Sync + 'static,
+    {
+        let nickname = config.name.clone();
+        // TODO HSS: Maybe, adjust tor_persist::fs to handle subdirectories, and
+        // use onion/{nickname}?
+        let storage_key = format!("onion_svc_{nickname}");
+        // TODO HSS-IPT-PERSIST: Use this handle, and use a real struct type instead.
+        let storage_handle: Arc<dyn tor_persist::StorageHandle<()>> =
+            statemgr.create_handle(storage_key);
+
+        let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let (config_tx, config_rx) = postage::watch::channel_with(config.clone());
+
+        // TODO HSS: How do I give ipt_mgr_view to ipt_mgr?  Does IptManager even take
+        //          one of these?
+        let (ipt_mgr_view, publisher_view) = crate::ipt_set::ipts_channel(None);
+
+        let ipt_mgr = IptManager::new(
+            runtime.clone(),
+            netdir_provider.clone(),
+            nickname,
+            Arc::new(config.clone()),
+            rend_req_tx,
+            shutdown_rx,
+            crate::ipt_mgr::Real {
+                circ_pool: circ_pool.clone(),
+            },
+        )
+        .expect("TODO HSS");
+
+        let hs_id = {
+            todo!() // TODO HSS Look up HsId by KeyMgr based on nickname.
+        };
+
+        // TODO HSS Publisher::new is async; we'd prefer a separate new/launch,
+        // perhaps?  Or we could make OnionService::new async and have it
+        // implicitly launch?
+
+        // TODO HSS Why does this not need a keymgr?
+        let publisher_future = Publisher::new(
+            runtime,
+            hs_id,
+            netdir_provider.clone(),
+            circ_pool,
+            config,
+            publisher_view,
+            config_rx,
+        );
+
+        // TODO HSS: we need to actually do something with: shutdown_tx,
+        // rend_req_rx.  The latter may need to be refactored to actually work
+        // with svc::rend_handshake, if it doesn't already.
+
+        OnionService {
+            inner: Mutex::new(SvcInner {
+                config,
+                netdir_provider,
+                keymgr,
+                circmgr: circ_pool,
+            }),
+        }
+
+        // TODO HSS: CONVERGENCE NOTES:
+        //   - Converge on one way to handle sharing config and config
+        //     changes.
+        //   - Converge on how to actually send IptSet from manager to
+        //     publisher.
+        //   - Converge on convention for new() vs launch()
+        //   - Converge on relationship between RendRequest and
+        //     IntroRequest.
     }
 
     /// Change the configuration of this onion service.
@@ -160,6 +171,7 @@ impl<R: Runtime> OnionService<R> {
     pub fn status(&self) -> OnionServiceStatus {
         todo!() // TODO hss
     }
+
     // TODO hss let's also have a function that gives you a stream of Status
     // changes?  Or use a publish-based watcher?
 
