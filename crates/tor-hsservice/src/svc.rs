@@ -158,6 +158,7 @@ impl OnionService {
             circ_pool,
             publisher_view,
             config_rx,
+            Arc::clone(&keymgr),
         );
 
         // TODO HSS: we need to actually do something with: shutdown_tx,

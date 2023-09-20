@@ -17,6 +17,7 @@ use postage::watch;
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
+use tor_keymgr::KeyMgr;
 use tracing::{debug, error, trace};
 
 use tor_bytes::EncodeError;
@@ -141,6 +142,8 @@ struct Immutable<R: Runtime, M: Mockable> {
     mockable: M,
     /// The service for which we're publishing descriptors.
     hsid: HsId,
+    /// The key manager,
+    keymgr: Arc<KeyMgr>,
 }
 
 /// Mockable state for the descriptor publisher reactor.
@@ -410,6 +413,7 @@ pub(crate) enum UploadError {
 
 impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
+    #[allow(clippy::too_many_arguments)]
     pub(super) async fn new(
         runtime: R,
         hsid: HsId,
@@ -418,6 +422,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        keymgr: Arc<KeyMgr>,
     ) -> Result<Self, ReactorError> {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -442,6 +447,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             runtime,
             mockable,
             hsid,
+            keymgr,
         };
 
         let inner = Inner {
