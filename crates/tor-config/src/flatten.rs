@@ -131,6 +131,7 @@ define_derive_adhoc! {
         }
     }
 
+    #[test]
     fn $<flattenable_test_ ${snake_case $tname}>() {
         tor_config::flattenable_test::<$ttype>(&$FNAMES);
     }
