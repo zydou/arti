@@ -22,15 +22,24 @@ use tor_cell::relaycell::{
 };
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{bad_api_usage, debug_report, internal, into_internal};
-use tor_hscrypto::pk::HsIntroPtSessionIdKeypair;
+use tor_hscrypto::{
+    pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair},
+    Subcredential,
+};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
-use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
+use tor_proto::circuit::{
+    handshake::hs_ntor::{self},
+    ClientCirc, ConversationInHandler, MetaCellDisposition,
+};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
-use crate::svc::{LinkSpecs, NtorPublicKey};
+use crate::{
+    req::RendRequestContext,
+    svc::{LinkSpecs, NtorPublicKey},
+};
 use crate::{FatalError, IptLocalId, RendRequest};
 
 use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
@@ -162,7 +171,8 @@ impl IptError {
 ///  * The circuit builder (leaving this out makes it possible to use this
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
-pub(crate) struct IptParameters {
+pub(crate) struct IptParameters<'a> {
+    // TODO HSS: maybe this should be a bunch of refs.
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
     pub(crate) lid: IptLocalId,
@@ -172,6 +182,8 @@ pub(crate) struct IptParameters {
     /// `K_hs_ipt_sid`
     pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
     pub(crate) accepting_requests: RequestDisposition,
+    pub(crate) subcredential: Subcredential,
+    pub(crate) k_ntor: &'a HsSvcNtorKeypair,
 }
 
 impl IptEstablisher {
@@ -190,7 +202,7 @@ impl IptEstablisher {
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
         runtime: R,
-        params: IptParameters,
+        params: IptParameters<'_>,
         pool: Arc<HsCircPool<R>>,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
         // This exhaustive deconstruction ensures that we don't
@@ -201,6 +213,8 @@ impl IptEstablisher {
             lid,
             target,
             k_sid,
+            k_ntor,
+            subcredential,
             accepting_requests,
         } = params;
         if matches!(accepting_requests, RequestDisposition::Shutdown) {
@@ -212,17 +226,28 @@ impl IptEstablisher {
 
         let state = Arc::new(Mutex::new(EstablisherState { accepting_requests }));
 
+        let hs_ntor_keys = hs_ntor::HsNtorServiceInput::new(
+            // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
+            // clone.  We should either make it Clone, or hold it in an Arc.
+            k_ntor.secret().as_ref().clone().into(),
+            k_ntor.public().clone(),
+            k_sid.as_ref().as_ref().public.into(),
+            subcredential,
+        );
+        let request_context = Arc::new(RendRequestContext { hs_ntor_keys });
+
         let reactor = Reactor {
             runtime: runtime.clone(),
             pool,
             netdir_provider,
             lid,
             target,
-            k_sid,
+            k_sid, // TODO HSS this is now redundant.
             introduce_tx,
             // TODO HSS This should come from the configuration.
             extensions: EstIntroExtensionSet { dos_params: None },
             state: state.clone(),
+            request_context,
         };
 
         let (status_tx, status_rx) = postage::watch::channel_with(IptStatus::new());
@@ -461,6 +486,9 @@ struct Reactor<R: Runtime> {
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
     state: Arc<Mutex<EstablisherState>>,
+
+    /// Context information that we'll need to answer rendezvous requests.
+    request_context: Arc<RendRequestContext>,
 }
 
 /// An open session with a single introduction point.
@@ -597,6 +625,7 @@ impl<R: Runtime> Reactor<R> {
             introduce_tx: self.introduce_tx.clone(),
             state: self.state.clone(),
             lid: self.lid,
+            request_context: self.request_context.clone(),
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -651,6 +680,9 @@ struct IptMsgHandler {
     /// A channel used to report Introduce2 messages.
     introduce_tx: mpsc::Sender<RendRequest>,
 
+    /// Keys that we'll need to answer the introduction requests.
+    request_context: Arc<RendRequestContext>,
+
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
     state: Arc<Mutex<EstablisherState>>,
 
@@ -699,7 +731,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     RequestDisposition::Advertised => {}
                 }
 
-                let request = RendRequest::new(self.lid, introduce2);
+                let request = RendRequest::new(self.lid, introduce2, self.request_context.clone());
                 match self.introduce_tx.try_send(request) {
                     Ok(()) => Ok(()),
                     Err(e) => {

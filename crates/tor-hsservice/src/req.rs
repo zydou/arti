@@ -3,8 +3,9 @@
 //! These requests are yielded on a stream, and the calling code needs to decide
 //! whether to permit or reject them.
 
+use educe::Educe;
 use futures::{channel::mpsc, Stream};
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tor_cell::relaycell::msg::Introduce2;
 
 use tor_error::Bug;
@@ -21,13 +22,18 @@ use crate::{svc::rend_handshake, ClientError, IptLocalId};
 /// Protocol details: More specifically, we create one of these whenever we get a well-formed
 /// `INTRODUCE2` message.  Based on this, the caller decides whether to send a
 /// `RENDEZVOUS1` message.
-#[derive(Debug)]
+#[derive(Educe)]
+#[educe(Debug)]
 pub struct RendRequest {
     /// The introduction point that sent this request.
     ipt_lid: IptLocalId,
 
     /// The message as received from the remote introduction point.
     raw: Introduce2,
+
+    /// Reference to the keys we'll need to decrypt and handshake with this request.
+    #[educe(Debug(ignore))]
+    context: Arc<RendRequestContext>,
 
     /// The introduce2 message that we've decrypted and processed.
     ///
@@ -91,27 +97,37 @@ pub struct OnionServiceDataStream {
     inner: DataStream,
 }
 
+/// Keys and objects needed to answer a RendRequest.
+pub(crate) struct RendRequestContext {
+    /// Keys we'll use to decrypt the rendezvous request.
+    pub(crate) hs_ntor_keys: HsNtorServiceInput,
+}
+
 impl RendRequest {
     /// Construct a new RendRequest from its parts.
-    pub(crate) fn new(ipt_lid: IptLocalId, msg: Introduce2) -> Self {
+    pub(crate) fn new(
+        ipt_lid: IptLocalId,
+        msg: Introduce2,
+        context: Arc<RendRequestContext>,
+    ) -> Self {
         Self {
             ipt_lid,
             raw: msg,
+            context,
             expanded: Default::default(),
         }
     }
 
     /// Try to return a reference to the intro_request, creating it if it did
     /// not previously exist.
-    ///
-    // TODO HSS: Perhaps we need to have an Arc<HsNtorServiceInput> as a member
-    // of this type instead of an argument here.
     fn intro_request(
         &self,
-        keys: &HsNtorServiceInput,
     ) -> Result<&rend_handshake::IntroRequest, rend_handshake::IntroRequestError> {
         self.expanded.get_or_try_init(|| {
-            rend_handshake::IntroRequest::decrypt_from_introduce2(self.raw.clone(), keys)
+            rend_handshake::IntroRequest::decrypt_from_introduce2(
+                self.raw.clone(),
+                &self.context.hs_ntor_keys,
+            )
         })
     }
 
