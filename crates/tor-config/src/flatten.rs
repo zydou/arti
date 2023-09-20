@@ -492,6 +492,12 @@ struct FlattenableTesterSuccess(FieldList);
 
 /// Extract fields of a struct, as viewed by `serde`
 ///
+/// # Performance
+///
+/// In release builds, is very fast - all the serde nonsense boils off.
+/// In debug builds, maybe a hundred instructions, so not ideal,
+/// but it is at least O(1) since it doesn't have any loops.
+///
 /// # STABILITY WARNING
 ///
 /// This function is `pub` but it is `#[doc(hidden)]`.
@@ -679,5 +685,30 @@ mod test {
                 }
             }),
         );
+    }
+
+    /// This function exists only so we can disassemble it.
+    ///
+    /// To see what the result looks like in a release build:
+    ///
+    ///  * `RUSTFLAGS=-g cargo test -p tor-config --all-features --release -- --nocapture flattenable_extract_fields_a_test`
+    ///  * Observe the binary that's run, eg `Running unittests src/lib.rs (target/release/deps/tor_config-d4c4f29c45a0a3f9)`
+    ///  * Disassemble it `objdump -d target/release/deps/tor_config-d4c4f29c45a0a3f9`
+    ///  * Search for this function: `less +/'28flattenable_extract_fields_a.*:'`
+    ///
+    /// At the time of writing, the result is three instructions:
+    /// load the address of the list, load a register with the constant 2 (the length),
+    /// return.
+    fn flattenable_extract_fields_a() -> FieldList {
+        flattenable_extract_fields::<'_, A>()
+    }
+
+    #[test]
+    fn flattenable_extract_fields_a_test() {
+        // use std::hint::black_box
+        let black_box = std::convert::identity; // replace with `use` when MSRV 1.66.0
+
+        let f: fn() -> _ = black_box(flattenable_extract_fields_a);
+        eprintln!("{:?}", f());
     }
 }
