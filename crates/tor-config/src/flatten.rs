@@ -308,40 +308,6 @@ derive_adhoc! {
     }
 }
 
-//========== FlattenError ==========
-
-/// Error for our deserialize impl
-///
-/// serde requires us to provide an error type in various places.
-/// This is the simplest possible thing that implements the requirements.
-///
-/// This only appears inside our implementation;
-/// the public serde API gives control of the error type to the data format,
-/// not the data type.
-///
-/// We convert errors to strings, as is implied by the API of `de::Error::custom`.
-/// To improve this, we could make this an enum,
-/// corresponding to the constructors in `de::Error`;
-/// or,
-/// we could parameterise `Portion` by the underlying data type's error.
-#[derive(Error, Debug)]
-#[error("{0}")]
-struct FlattenError(String);
-
-impl de::Error for FlattenError {
-    fn custom<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        FlattenError(e.to_string())
-    }
-}
-
-/// Helper to get a `FlattenError` from some error that comes via a serde API
-fn map_e(e: impl Display) -> FlattenError {
-    FlattenError::custom(e)
-}
-
 //========== Deserialize implementation ==========
 
 /// The keys and values we are to direct to a particular child
@@ -355,6 +321,12 @@ struct FlattenVisitor<T, U>(PhantomData<(T, U)>);
 
 /// Wrapper for a field name, impls [`de::Deserializer`]
 struct Key(String);
+
+/// Type alias for reified error
+///
+/// [`serde_value::DeserializerError`] has one variant
+/// for each of the constructors of [`de::Error`].
+type FlattenError = serde_value::DeserializerError;
 
 //----- part 1: disassembly -----
 
@@ -432,8 +404,7 @@ derive_adhoc! {
         ) -> Result<Self, FlattenError> {
             Ok(Flatten(
               $(
-                $ftype::deserialize($fpatname)
-                    .map_err(map_e)?,
+                $ftype::deserialize($fpatname)?,
               )
             ))
         }
@@ -465,7 +436,7 @@ impl<'de> MapAccess<'de> for Portion {
             return Ok(None);
         };
         let k = mem::take(&mut entry.0);
-        let k: K::Value = seed.deserialize(Key(k)).map_err(map_e)?;
+        let k: K::Value = seed.deserialize(Key(k))?;
         Ok(Some(k))
     }
 
@@ -478,7 +449,7 @@ impl<'de> MapAccess<'de> for Portion {
             .pop_front()
             .expect("next_value called inappropriately")
             .1;
-        let r = seed.deserialize(v).map_err(map_e)?;
+        let r = seed.deserialize(v)?;
         Ok(r)
     }
 }
