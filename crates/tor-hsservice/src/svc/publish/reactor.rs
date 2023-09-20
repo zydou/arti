@@ -830,17 +830,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
-        let inner = self.inner.lock().expect("poisoned lock");
+        let mut inner = self.inner.lock().expect("poisoned lock");
 
         let netdir = Arc::clone(&inner.netdir);
 
         let imm = Arc::clone(&self.imm);
         let hsid_key = self.hsid_key.clone();
         let upload_task_complete_tx = self.upload_task_complete_tx.clone();
+        let keymgr = Arc::clone(&imm.keymgr);
+
+        let inner = &mut *inner;
 
         let upload_tasks = inner
             .time_periods
-            .iter()
+            .iter_mut()
             .map(|period| {
                 // Figure out which HsDirs we need to upload the descriptor to (some of them might already
                 // have our latest descriptor, so we filter them out).
@@ -856,8 +859,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     })
                     .collect::<Vec<_>>();
 
-                let blind_id_kp = todo!();
-
                 // We're about to generate a new version of the descriptor: increment the revision
                 // counter.
                 //
@@ -870,14 +871,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     let mut rng = imm.mockable.thread_rng();
 
                     let mut ipt_set = self.ipt_watcher.borrow_for_publish();
-                    let Some(mut ipt_set) = ipt_set.as_mut() else {
+                    let Some(ipt_set) = ipt_set.as_mut() else {
                         return Ok(());
                     };
 
                     let desc = build_sign(
-                        inner.config,
-                        hsid_key,
-                        blind_id_kp,
+                        Arc::clone(&keymgr),
+                        Arc::clone(&inner.config),
                         ipt_set,
                         period.period,
                         revision_counter,

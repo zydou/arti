@@ -6,7 +6,7 @@ use std::time::SystemTime;
 use rand_core::{CryptoRng, RngCore};
 
 use tor_cert::Ed25519Cert;
-use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsIdKey};
+use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, ToEncodableKey};
@@ -43,9 +43,8 @@ impl X25519Cert {
 #[allow(unreachable_code)] // TODO HSS: remove
 #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
 pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
+    keymgr: Arc<KeyMgr>,
     config: Arc<OnionServiceConfig>,
-    hsid: HsIdKey,
-    blind_id_kp: &HsBlindIdKeypair,
     ipt_set: &IptSet,
     period: TimePeriod,
     revision_counter: RevisionCounter,
@@ -62,12 +61,23 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         .map(|ipt_in_set| build_intro_point_desc(&ipt_in_set.ipt))
         .collect::<Vec<_>>();
 
-    let blind_id_key = HsBlindIdKey::from(blind_id_kp);
+    let nickname = todo!();
+
+    let hsid = read_svc_key::<HsIdKey>(&keymgr, nickname, HsSvcKeyRole::HsIdPublicKey)?;
+    let blind_id_kp =
+        read_svc_key::<HsBlindIdKeypair>(&keymgr, nickname, HsSvcKeyRole::BlindIdKeypair(period))?;
+    let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
+
     // The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
     // TODO HSS: these should be provided by the KeyMgr.
-    let hs_desc_sign = todo!();
+    let hs_desc_sign = read_svc_key::<HsDescSigningKeypair>(
+        &keymgr,
+        nickname,
+        HsSvcKeyRole::DescSigningKeypair(period),
+    )?;
     let hs_desc_sign_cert: Ed25519Cert = todo!();
+
     // TODO HSS: support introduction-layer authentication.
     let auth_required = None;
 
@@ -88,8 +98,8 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     let auth_clients = vec![];
 
     Ok(HsDescBuilder::default()
-        .blinded_id(blind_id_kp)
-        .hs_desc_sign(hs_desc_sign)
+        .blinded_id(&blind_id_kp)
+        .hs_desc_sign(&hs_desc_sign.into())
         .hs_desc_sign_cert_expiry(hs_desc_sign_cert.expiry())
         .create2_formats(CREATE2_FORMATS)
         .auth_required(auth_required)
