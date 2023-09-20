@@ -6,7 +6,6 @@ use std::time::SystemTime;
 use rand_core::{CryptoRng, RngCore};
 
 use tor_cert::Ed25519Cert;
-use tor_error::Bug;
 use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
@@ -16,6 +15,7 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::{Ipt, IptSet};
+use crate::svc::publish::reactor::ReactorError;
 use crate::OnionServiceConfig;
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
@@ -48,7 +48,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     period: TimePeriod,
     revision_counter: RevisionCounter,
     rng: &mut Rng,
-) -> Result<String, Bug> {
+) -> Result<String, ReactorError> {
     // TODO HSS: should this be configurable? If so, we should read it from the svc config.
     //
     /// The CREATE handshake type we support.
