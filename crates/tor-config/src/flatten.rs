@@ -251,7 +251,7 @@ macro_rules! call_any_for_rest { {} => {
     call_any!(u8);
     call_any!(unit);
 
-    call_any!(enum, _: &'static str, _: &'static [&'static str]);
+    call_any!(enum, _: &'static str, _: FieldList);
     call_any!(newtype_struct, _: &'static str );
     call_any!(tuple, _: usize );
     call_any!(tuple_struct, _: &'static str, _: usize );
@@ -421,7 +421,7 @@ impl<'de> Deserializer<'de> for Portion {
         visitor.visit_map(self)
     }
 
-    call_any!(struct, _: &'static str, _: &'static [&'static str]);
+    call_any!(struct, _: &'static str, _: FieldList);
     call_any_for_rest!();
 }
 
@@ -464,11 +464,14 @@ impl<'de> Deserializer<'de> for Key {
         visitor.visit_string(self.0)
     }
 
-    call_any!(struct, _: &'static str, _: &'static [&'static str]);
+    call_any!(struct, _: &'static str, _: FieldList);
     call_any_for_rest!();
 }
 
 //========== Tester ==========
+
+/// List of fields, appears in several APIs here
+type FieldList = &'static [&'static str];
 
 /// Stunt "data format" which we use only for testing derived `Flattenable` impls
 ///
@@ -483,7 +486,7 @@ impl<'de> Deserializer<'de> for Key {
 /// So this test ensures that the serde view and `Flattenable` view match up.
 ///
 #[allow(clippy::exhaustive_structs)] // Not part of our semver API
-struct FlattenableTester(&'static [&'static str]);
+struct FlattenableTester(FieldList);
 
 /// Error from `Flattenable` impl self-test
 ///
@@ -502,7 +505,7 @@ struct FlattenableTesterSuccess;
 /// There are **NO SEMVER GUARANTEES**
 //
 // This isn't cfg(test) because when other crates depend on us, they get our non-test cfg
-pub fn flattenable_test<'de, T: Deserialize<'de>>(expected: &'static [&'static str]) {
+pub fn flattenable_test<'de, T: Deserialize<'de>>(expected: FieldList) {
     let notional_input = FlattenableTester(expected);
     let FlattenableTesterSuccess = T::deserialize(notional_input)
         .map(|_| ())
@@ -524,7 +527,7 @@ impl<'de> Deserializer<'de> for FlattenableTester {
     fn deserialize_struct<V>(
         self,
         _name: &'static str,
-        fields: &'static [&'static str],
+        fields: FieldList,
         _visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
