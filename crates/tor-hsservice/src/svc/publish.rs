@@ -27,6 +27,7 @@ use reactor::{Reactor, ReactorError, ReactorState};
 /// This handle represents a set of tasks that identify the hsdirs for each
 /// relevant time period, construct descriptors, publish them, and keep them
 /// up-to-date.
+#[must_use = "If you don't call launch() on the publisher, it won't publish any descriptors."]
 pub(crate) struct Publisher<R: Runtime> {
     /// The runtime.
     runtime: R,
