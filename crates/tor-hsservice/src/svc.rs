@@ -92,7 +92,7 @@ impl<R: Runtime> OnionService<R> {
 
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
-        let (config_tx, config_rx) = postage::watch::channel_with(config.clone());
+        let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
         // TODO HSS: How do I give ipt_mgr_view to ipt_mgr?  Does IptManager even take
         //          one of these?
@@ -102,7 +102,7 @@ impl<R: Runtime> OnionService<R> {
             runtime.clone(),
             netdir_provider.clone(),
             nickname,
-            Arc::new(config.clone()),
+            config_rx.clone(),
             rend_req_tx,
             shutdown_rx,
             crate::ipt_mgr::Real {

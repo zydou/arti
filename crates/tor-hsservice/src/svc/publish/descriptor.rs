@@ -1,5 +1,6 @@
 //! Helpers for building and representing hidden service descriptors.
 
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use rand_core::{CryptoRng, RngCore};
@@ -40,7 +41,7 @@ impl X25519Cert {
 #[allow(unreachable_code)] // TODO HSS: remove
 #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
 pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
-    config: OnionServiceConfig,
+    config: Arc<OnionServiceConfig>,
     hsid: HsIdKey,
     blind_id_kp: &HsBlindIdKeypair,
     ipt_set: &IptSet,
