@@ -432,7 +432,6 @@ impl Ed25519PublicKey for HsBlindIdKeypair {
     }
 }
 
-/*
 define_pk_keypair! {
 /// A key used to sign onion service descriptors. (`KP_desc_sign`)
 ///
@@ -453,7 +452,6 @@ define_pk_keypair! {
 // it entirely.
 pub struct HsDescSigningKey(ed25519::PublicKey) / HsDescSigningKeypair(ed25519::Keypair);
 }
-*/
 
 define_pk_keypair! {
 /// A key used to identify and authenticate an onion service at a single
