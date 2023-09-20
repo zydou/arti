@@ -458,7 +458,7 @@ impl<'de> Deserializer<'de> for Key {
     call_any_for_rest!();
 }
 
-//========== Tester ==========
+//========== Field extractor ==========
 
 /// List of fields, appears in several APIs here
 type FieldList = &'static [&'static str];
@@ -466,19 +466,19 @@ type FieldList = &'static [&'static str];
 /// Stunt "data format" which we use for extracting fields for derived `Flattenable` impls
 ///
 /// The field extraction works as follows:
-///  * We ask serde to deserialize `$ttype` from a `FlattenableTester`
+///  * We ask serde to deserialize `$ttype` from a `FieldExtractor`
 ///  * We expect the serde-macro-generated `Deserialize` impl to call `deserialize_struct`
 ///  * We return the list of fields to match up as an error
 #[allow(clippy::exhaustive_structs)] // Not part of our semver API
-struct FlattenableTester;
+struct FieldExtractor;
 
-/// Error resulting from successful operation of a [`FlattenableTester`]
+/// Error resulting from successful operation of a [`FieldExtractor`]
 ///
 /// Existence of this error is a *success*.
 /// Unexpected behaviour by the type's serde implementation causes panics, not errors.
 #[derive(Error, Debug)]
 #[error("Flattenable macro test gave error, so test passed successfuly")]
-struct FlattenableTesterSuccess(FieldList);
+struct FieldExtractorSuccess(FieldList);
 
 /// Extract fields of a struct, as viewed by `serde`
 ///
@@ -500,14 +500,14 @@ struct FlattenableTesterSuccess(FieldList);
 /// which will include things that aren't named fields structs,
 /// might include types decorated with unusual serde annotations.
 pub fn flattenable_extract_fields<'de, T: Deserialize<'de>>() -> FieldList {
-    let notional_input = FlattenableTester;
-    let FlattenableTesterSuccess(fields) = T::deserialize(notional_input)
+    let notional_input = FieldExtractor;
+    let FieldExtractorSuccess(fields) = T::deserialize(notional_input)
         .map(|_| ())
-        .expect_err("unexpected success deserializing from FlattenableTester!");
+        .expect_err("unexpected success deserializing from FieldExtractor!");
     fields
 }
 
-impl de::Error for FlattenableTesterSuccess {
+impl de::Error for FieldExtractorSuccess {
     fn custom<E>(e: E) -> Self
     where
         E: Display,
@@ -516,8 +516,8 @@ impl de::Error for FlattenableTesterSuccess {
     }
 }
 
-impl<'de> Deserializer<'de> for FlattenableTester {
-    type Error = FlattenableTesterSuccess;
+impl<'de> Deserializer<'de> for FieldExtractor {
+    type Error = FieldExtractorSuccess;
 
     fn deserialize_struct<V>(
         self,
@@ -528,7 +528,7 @@ impl<'de> Deserializer<'de> for FlattenableTester {
     where
         V: Visitor<'de>,
     {
-        Err(FlattenableTesterSuccess(fields))
+        Err(FieldExtractorSuccess(fields))
     }
 
     fn deserialize_any<V>(self, _: V) -> Result<V::Value, Self::Error>
