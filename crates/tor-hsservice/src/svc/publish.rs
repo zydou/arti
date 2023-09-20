@@ -89,7 +89,6 @@ impl<R: Runtime> Publisher<R> {
         )
         .await?;
 
-        // TODO: Do we really want to launch now, or later?
         self.runtime
             .spawn(async move {
                 let _result: Result<(), ReactorError> = reactor.run().await;
