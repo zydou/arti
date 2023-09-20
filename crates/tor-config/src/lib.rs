@@ -70,7 +70,7 @@ pub use tor_basic_utils::macro_first_nonempty;
 #[doc(hidden)]
 pub use derive_adhoc;
 #[doc(hidden)]
-pub use flatten::{flattenable_extract_fields, flattenable_test};
+pub use flatten::flattenable_extract_fields;
 
 /// Rules for reconfiguring a running Arti instance.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
