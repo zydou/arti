@@ -315,7 +315,15 @@ derive_adhoc! {
 /// serde requires us to provide an error type in various places.
 /// This is the simplest possible thing that implements the requirements.
 ///
+/// This only appears inside our implementation;
+/// the public serde API gives control of the error type to the data format,
+/// not the data type.
+///
 /// We convert errors to strings, as is implied by the API of `de::Error::custom`.
+/// To improve this, we could make this an enum,
+/// corresponding to the constructors in `de::Error`;
+/// or,
+/// we could parameterise `Portion` by the underlying data type's error.
 #[derive(Error, Debug)]
 #[error("{0}")]
 struct FlattenError(String);
