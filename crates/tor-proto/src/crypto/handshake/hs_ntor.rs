@@ -40,7 +40,7 @@ use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;
 
 #[cfg(any(test, feature = "hs-service"))]
-use tor_hscrypto::pk::HsSvcNtorSecretKey;
+use tor_hscrypto::pk::HsSvcNtorKeypair;
 
 /// The ENC_KEY from the HS Ntor protocol
 //
@@ -273,10 +273,8 @@ fn encrypt_and_mac(
 // server_receive_intro function.
 #[cfg(any(test, feature = "hs-service"))]
 pub struct HsNtorServiceInput {
-    /// Introduction point encryption privkey
-    b: HsSvcNtorSecretKey,
-    /// Introduction point encryption pubkey
-    B: HsSvcNtorKey,
+    /// Introduction point encryption keypair.
+    k_hss_ntor: HsSvcNtorKeypair,
 
     /// Introduction point authentication key (aka AUTH_KEY, aka `KP_hs_ipt_sid`)
     auth_key: HsIntroPtSessionIdKey,
@@ -289,14 +287,12 @@ pub struct HsNtorServiceInput {
 impl HsNtorServiceInput {
     /// Create a new `HsNtorServiceInput`
     pub fn new(
-        b: HsSvcNtorSecretKey,
-        B: HsSvcNtorKey,
+        k_hss_ntor: HsSvcNtorKeypair,
         auth_key: HsIntroPtSessionIdKey,
         subcredential: Subcredential,
     ) -> Self {
         HsNtorServiceInput {
-            b,
-            B,
+            k_hss_ntor,
             auth_key,
             subcredential,
         }
@@ -352,12 +348,12 @@ fn server_receive_intro_no_keygen(
         .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?;
 
     // Now derive keys needed for handling the INTRO1 cell
-    let bx = proto_input.b.as_ref().diffie_hellman(&X);
+    let bx = proto_input.k_hss_ntor.secret().as_ref().diffie_hellman(&X);
     let (enc_key, mac_key) = get_introduce1_key_material(
         &bx,
         &proto_input.auth_key,
         &X,
-        &proto_input.B,
+        proto_input.k_hss_ntor.public(),
         &proto_input.subcredential,
     )?;
 
@@ -384,10 +380,16 @@ fn server_receive_intro_no_keygen(
 
     // Compute EXP(X,y) and EXP(X,b)
     let xy = y.diffie_hellman(&X);
-    let xb = proto_input.b.as_ref().diffie_hellman(&X);
+    let xb = proto_input.k_hss_ntor.secret().as_ref().diffie_hellman(&X);
 
-    let (keygen, auth_input_mac) =
-        get_rendezvous1_key_material(&xy, &xb, &proto_input.auth_key, &proto_input.B, &X, &Y)?;
+    let (keygen, auth_input_mac) = get_rendezvous1_key_material(
+        &xy,
+        &xb,
+        &proto_input.auth_key,
+        proto_input.k_hss_ntor.public(),
+        &X,
+        &Y,
+    )?;
 
     // Set up RENDEZVOUS1 reply to the client
     let mut reply: Vec<u8> = Vec::new();
@@ -570,8 +572,7 @@ mod test {
         );
 
         let service_keys = HsNtorServiceInput::new(
-            intro_b_privkey.into(),
-            intro_b_pubkey.into(),
+            HsSvcNtorKeypair::from_secret_key(intro_b_privkey.into()),
             intro_auth_key_pubkey.into(),
             [5; 32].into(),
         );
@@ -688,8 +689,7 @@ mod test {
         let key_y = curve25519::StaticSecret::from(key_y);
 
         let proto_input = HsNtorServiceInput {
-            b: ks_hss_ntor,
-            B: kp_hss_ntor,
+            k_hss_ntor: HsSvcNtorKeypair::from_secret_key(ks_hss_ntor),
             auth_key: kp_hs_ipt_sid,
             subcredential,
         };

@@ -41,6 +41,11 @@ macro_rules! define_pk_keypair {
                     secret: $sk,
                 }
                 impl $pair {
+                    /// Construct this keypair from a secret key.
+                    pub fn from_secret_key(secret: $sk) -> Self {
+                        let public:$pk = $pkt::from(&secret.0).into();
+                        Self { public, secret }
+                    }
                     /// Return the public part of this keypair.
                     pub fn public(&self) -> &$pk { &self.public }
                     /// Return the secret part of this keypair.

@@ -229,8 +229,7 @@ impl IptEstablisher {
         let hs_ntor_keys = hs_ntor::HsNtorServiceInput::new(
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
             // clone.  We should either make it Clone, or hold it in an Arc.
-            k_ntor.secret().as_ref().clone().into(),
-            k_ntor.public().clone(),
+            HsSvcNtorKeypair::from_secret_key(k_ntor.secret().as_ref().clone().into()),
             k_sid.as_ref().as_ref().public.into(),
             subcredential,
         );
