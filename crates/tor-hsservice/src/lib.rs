@@ -62,6 +62,7 @@ pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError,
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
+pub use svc::keys::{HsSvcKeyRole, HsSvcKeySpecifier};
 pub use svc::OnionService;
 
 /// Persistent local identifier for an introduction point

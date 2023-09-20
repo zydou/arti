@@ -21,6 +21,7 @@ use crate::OnionServiceStatus;
 use crate::StartupError;
 
 pub(crate) mod ipt_establish;
+pub(crate) mod keys;
 pub(crate) mod publish;
 pub(crate) mod rend_handshake;
 

@@ -7,7 +7,7 @@ use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, OpaqueKeypair};
 use ssh_key::public::{Ed25519PublicKey, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
-use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
+use tor_hscrypto::pk::{HsBlindIdKeypair, HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::key_type::ssh::X25519_ALGORITHM_NAME;
@@ -198,5 +198,17 @@ impl ToEncodableKey for HsClientIntroAuthKeypair {
 
     fn from_encodable_key(key: Self::Key) -> Self {
         HsClientIntroAuthKeypair::from(key)
+    }
+}
+
+impl ToEncodableKey for HsBlindIdKeypair {
+    type Key = ed25519::Keypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        todo!()
+    }
+
+    fn from_encodable_key(_key: Self::Key) -> Self {
+        todo!()
     }
 }
