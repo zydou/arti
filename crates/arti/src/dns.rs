@@ -7,7 +7,7 @@ use futures::lock::Mutex;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use trust_dns_proto::op::{
@@ -18,6 +18,7 @@ use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
 use safelog::sensitive as sv;
+use tor_config::Listen;
 use tor_error::{error_report, warn_report};
 use tor_rtcompat::{Runtime, UdpSocket};
 
@@ -235,25 +236,28 @@ where
 pub(crate) async fn run_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
-    dns_port: u16,
+    listen: Listen,
 ) -> Result<()> {
     let mut listeners = Vec::new();
 
-    // We actually listen on two ports: one for ipv4 and one for ipv6.
-    let localhosts: [IpAddr; 2] = [Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()];
-
     // Try to bind to the DNS ports.
-    for localhost in &localhosts {
-        let addr: SocketAddr = (*localhost, dns_port).into();
-        // NOTE: Our logs here displays the local address. We allow this, since
-        // knowing the address is basically essential for diagnostics.
-        match runtime.bind(&addr).await {
-            Ok(listener) => {
-                info!("Listening on {:?}.", addr);
-                listeners.push(listener);
+    match listen.ip_addrs() {
+        Ok(addrgroups) => {
+            for addrgroup in addrgroups {
+                for addr in addrgroup {
+                    // NOTE: Our logs here displays the local address. We allow this, since
+                    // knowing the address is basically essential for diagnostics.
+                    match runtime.bind(&addr).await {
+                        Ok(listener) => {
+                            info!("Listening on {:?}.", addr);
+                            listeners.push(listener);
+                        }
+                        Err(e) => warn_report!(e, "Can't listen on {}", addr),
+                    }
+                }
             }
-            Err(e) => warn_report!(e, "Can't listen on {}", addr),
         }
+        Err(e) => warn_report!(e, "Invalid listen spec"),
     }
     // We weren't able to bind any ports: There's nothing to do.
     if listeners.is_empty() {
