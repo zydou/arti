@@ -35,6 +35,7 @@ use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::IptsPublisherView;
+use crate::svc::keys::HsSvcKeyRole;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -357,6 +358,10 @@ pub(crate) enum ReactorError {
     /// Failed to access the keystore.
     #[error("failed to access keystore")]
     Keystore(#[from] Box<dyn KeystoreError>),
+
+    /// A key we needed could not be found in the keystore.
+    #[error("A key we needed could not be found in the keystore: {0}")]
+    MissingKey(HsSvcKeyRole),
 
     /// Unable to spawn task
     //
