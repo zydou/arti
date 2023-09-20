@@ -371,9 +371,9 @@ dependencies = [
 
 [[package]]
 name = "fixed-capacity-vec"
-version = "0.1.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66c4723aaf0696328be5d052584e992cfef2b4fe04b22d21eb5a0194b4c97d47"
+checksum = "6b31a14f5ee08ed1a40e1252b35af18bed062e3f39b69aab34decde36bc43e40"
 
 [[package]]
 name = "fnv"
