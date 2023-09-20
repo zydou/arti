@@ -473,30 +473,50 @@ impl<'de> Deserializer<'de> for Key {
 /// List of fields, appears in several APIs here
 type FieldList = &'static [&'static str];
 
-/// Stunt "data format" which we use only for testing derived `Flattenable` impls
+/// Stunt "data format" which we use for extracting fields for derived `Flattenable` impls
 ///
-/// The test case works as follows:
+/// The field extraction works as follows:
 ///  * We ask serde to deserialize `$ttype` from a `FlattenableTester`
 ///  * We expect the serde-macro-generated `Deserialize` impl to call `deserialize_struct`
-///  * We expect the list of fields to match up
+///  * We return the list of fields to match up as an error
+#[allow(clippy::exhaustive_structs)] // Not part of our semver API
+struct FlattenableTester;
+
+/// Error resulting from successful operation of a [`FlattenableTester`]
+///
+/// Existence of this error is a *success*.
+/// Unexpected behaviour by the type's serde implementation causes panics, not errors.
+#[derive(Error, Debug)]
+#[error("Flattenable macro test gave error, so test passed successfuly")]
+struct FlattenableTesterSuccess(FieldList);
+
+/// Extract fields of a struct, as viewed by `serde`
+///
+/// # STABILITY WARNING
+///
+/// This function is `pub` but it is `#[doc(hidden)]`.
+/// The only legitimate use is via the `Flattenable` macro.
+/// There are **NO SEMVER GUARANTEES**
+///
+/// # Panics
+///
+/// Will panic on types whose serde field list cannot be simply extracted via serde,
+/// which will include things that aren't named fields structs,
+/// might include types decorated with unusual serde annotations.
+pub fn flattenable_extract_fields<'de, T: Deserialize<'de>>() -> FieldList {
+    let notional_input = FlattenableTester;
+    let FlattenableTesterSuccess(fields) = T::deserialize(notional_input)
+        .map(|_| ())
+        .expect_err("unexpected success deserializing from FlattenableTester!");
+    fields
+}
+
+/// Test consistency of `serde` and `Flattenable`, for a struct
 ///
 /// The derive-adhoc macro generates the list of field names,
 /// which is used both for `FlattenableTester` and [`Flattenable::has_field`].
 ///
 /// So this test ensures that the serde view and `Flattenable` view match up.
-///
-#[allow(clippy::exhaustive_structs)] // Not part of our semver API
-struct FlattenableTester(FieldList);
-
-/// Error from `Flattenable` impl self-test
-///
-/// Existence of this error is a *successful* test.
-/// Test failures panic.
-#[derive(Error, Debug)]
-#[error("Flattenable macro test gave error, so test passed successfuly")]
-struct FlattenableTesterSuccess;
-
-/// Test consistency of `serde` and `Flattenable`, for a struct
 ///
 /// # STABILITY WARNING
 ///
@@ -505,11 +525,11 @@ struct FlattenableTesterSuccess;
 /// There are **NO SEMVER GUARANTEES**
 //
 // This isn't cfg(test) because when other crates depend on us, they get our non-test cfg
-pub fn flattenable_test<'de, T: Deserialize<'de>>(expected: FieldList) {
-    let notional_input = FlattenableTester(expected);
-    let FlattenableTesterSuccess = T::deserialize(notional_input)
-        .map(|_| ())
-        .expect_err("unexpected success deserializing from FlattenableTester!");
+pub fn flattenable_test<'de, T: Deserialize<'de>>(expected: &'static [&'static str]) {
+    assert_eq!(
+        flattenable_extract_fields::<T>().iter().collect::<HashSet<_>>(),
+        expected.iter().collect::<HashSet<_>>(),
+    );
 }
 
 impl de::Error for FlattenableTesterSuccess {
@@ -533,11 +553,7 @@ impl<'de> Deserializer<'de> for FlattenableTester {
     where
         V: Visitor<'de>,
     {
-        assert_eq!(
-            fields.iter().collect::<HashSet<_>>(),
-            self.0.iter().collect::<HashSet<_>>(),
-        );
-        Err(FlattenableTesterSuccess)
+        Err(FlattenableTesterSuccess(fields))
     }
 
     fn deserialize_any<V>(self, _: V) -> Result<V::Value, Self::Error>
