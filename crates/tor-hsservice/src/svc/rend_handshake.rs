@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::{stream::BoxStream, StreamExt as _};
 use retry_error::RetryError;
 use tor_cell::relaycell::{
@@ -129,6 +130,32 @@ pub(crate) struct OpenSession {
     circuit: Arc<ClientCirc>,
 }
 
+/// Dyn-safe trait to represent a `HsCircPool`.
+///
+/// We need this so that we can hold an `Arc<HsCircPool<R>>` in
+/// `RendRequestContext` without needing to parameterize on R.
+#[async_trait]
+pub(crate) trait RendCircConnector {
+    async fn get_or_launch_specific(
+        &self,
+        netdir: &tor_netdir::NetDir,
+        kind: HsCircKind,
+        target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
+    ) -> tor_circmgr::Result<Arc<ClientCirc>>;
+}
+
+#[async_trait]
+impl<R: Runtime> RendCircConnector for HsCircPool<R> {
+    async fn get_or_launch_specific(
+        &self,
+        netdir: &tor_netdir::NetDir,
+        kind: HsCircKind,
+        target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
+    ) -> tor_circmgr::Result<Arc<ClientCirc>> {
+        HsCircPool::get_or_launch_specific(self, netdir, kind, target).await
+    }
+}
+
 impl IntroRequest {
     /// Try to decrypt an incoming Introduce2 request, using the set of keys provided.
     pub(crate) fn decrypt_from_introduce2(
@@ -179,9 +206,9 @@ impl IntroRequest {
     /// To do so, we open a circuit to the client's chosen rendezvous point,
     /// send it a RENDEZVOUS1 message, and wait for incoming BEGIN messages from
     /// the client.
-    pub(crate) async fn establish_session<R: Runtime>(
+    pub(crate) async fn establish_session(
         self,
-        hs_pool: HsCircPool<R>,
+        hs_pool: Arc<dyn RendCircConnector>,
         provider: Arc<dyn NetDirProvider>,
     ) -> Result<OpenSession, EstablishSessionError> {
         use EstablishSessionError as E;
