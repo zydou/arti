@@ -2,7 +2,6 @@
 
 use std::time::SystemTime;
 
-use derive_builder::Builder;
 use rand_core::{CryptoRng, RngCore};
 
 use tor_cert::Ed25519Cert;
@@ -14,7 +13,9 @@ use tor_llcrypto::pk::curve25519;
 use tor_netdoc::doc::hsdesc::{HsDescBuilder, IntroPointDesc};
 use tor_netdoc::NetdocBuilder;
 
-use crate::ipt_set::Ipt;
+use crate::config::DescEncryptionConfig;
+use crate::ipt_set::{Ipt, IptSet};
+use crate::OnionServiceConfig;
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
@@ -32,88 +33,75 @@ impl X25519Cert {
     }
 }
 
-// TODO HSS: should this be configurable? If so, we should read it from the svc config.
-//
-/// The default lifetime of a descriptor in minutes (3h).
-pub(super) const DESC_DEFAULT_LIFETIME: u16 = 3 * 60;
+/// Build the descriptor.
+///
+/// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
+/// signing keys (KP_hs_blind_id, KS_hs_blind_id).
+#[allow(unreachable_code)] // TODO HSS: remove
+#[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
+pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
+    config: OnionServiceConfig,
+    hsid: HsIdKey,
+    blind_id_kp: &HsBlindIdKeypair,
+    ipt_set: &IptSet,
+    period: TimePeriod,
+    revision_counter: RevisionCounter,
+    rng: &mut Rng,
+) -> Result<String, Bug> {
+    // TODO HSS: should this be configurable? If so, we should read it from the svc config.
+    //
+    /// The CREATE handshake type we support.
+    const CREATE2_FORMATS: &[u32] = &[1, 2];
 
-/// A hidden service descriptor.
-#[derive(Clone, Builder)]
-#[builder(pattern = "mutable")]
-pub(super) struct Descriptor {
-    /// If true, this a "single onion service" and is not trying to keep its own location private.
-    is_single_onion_service: bool,
-    /// The list of clients authorized to access the hidden service. If empty, client
-    /// authentication is disabled.
-    ///
-    /// If client authorization is disabled, the resulting middle document will contain a single
-    /// `auth-client` line populated with random values.
-    #[builder(default)]
-    auth_clients: Vec<curve25519::PublicKey>,
-    /// One or more introduction points used to contact the onion service.
-    ipts: Vec<Ipt>,
-    /// The expiration time of an introduction point authentication key certificate.
-    intro_auth_key_cert: Ed25519Cert,
-    /// The expiration time of an introduction point encryption key certificate.
-    intro_enc_key_cert: X25519Cert,
+    let intro_points = ipt_set
+        .ipts
+        .iter()
+        .map(|ipt_in_set| build_intro_point_desc(&ipt_in_set.ipt))
+        .collect::<Vec<_>>();
+
+    let blind_id_key = HsBlindIdKey::from(blind_id_kp);
+    let subcredential = hsid.compute_subcredential(&blind_id_key, period);
+    // The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
+    // TODO HSS: these should be provided by the KeyMgr.
+    let hs_desc_sign = todo!();
+    let hs_desc_sign_cert: Ed25519Cert = todo!();
+    // TODO HSS: support introduction-layer authentication.
+    let auth_required = None;
+
+    let is_single_onion_service =
+        matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
+    let intro_auth_key_cert: Ed25519Cert = todo!();
+    let intro_enc_key_cert: X25519Cert = todo!();
+    let auth_clients: Vec<curve25519::PublicKey> = match config.encrypt_descriptor {
+        Some(auth_clients) => build_auth_clients(&auth_clients),
+        None => vec![],
+    };
+
+    Ok(HsDescBuilder::default()
+        .blinded_id(blind_id_kp)
+        .hs_desc_sign(hs_desc_sign)
+        .hs_desc_sign_cert_expiry(hs_desc_sign_cert.expiry())
+        .create2_formats(CREATE2_FORMATS)
+        .auth_required(auth_required)
+        .is_single_onion_service(is_single_onion_service)
+        .intro_points(&intro_points[..])
+        .intro_auth_key_cert_expiry(intro_auth_key_cert.expiry())
+        .intro_enc_key_cert_expiry(intro_enc_key_cert.expiry())
+        .lifetime(((ipt_set.lifetime.as_secs() / 60) as u16).into())
+        .revision_counter(revision_counter)
+        .subcredential(subcredential)
+        .auth_clients(&auth_clients)
+        .build_sign(rng)?)
 }
 
-impl Descriptor {
-    /// Build the descriptor.
-    ///
-    /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
-    /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
-    #[allow(unreachable_code)] // TODO HSS: remove
-    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
-    pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
-        &self,
-        hsid: HsIdKey,
-        blind_id_kp: &HsBlindIdKeypair,
-        period: TimePeriod,
-        revision_counter: RevisionCounter,
-        rng: &mut Rng,
-    ) -> Result<String, Bug> {
-        // TODO HSS: should this be configurable? If so, we should read it from the svc config.
-        //
-        /// The CREATE handshake type we support.
-        const CREATE2_FORMATS: &[u32] = &[1, 2];
+/// Create an [`IntroPointDesc`] from the specified introduction point.
+fn build_intro_point_desc(_ipt: &Ipt) -> IntroPointDesc {
+    todo!()
+}
 
-        let intro_points = self
-            .ipts
-            .iter()
-            .map(Self::build_intro_point_desc)
-            .collect::<Vec<_>>();
-
-        let blind_id_key = HsBlindIdKey::from(blind_id_kp);
-        let subcredential = hsid.compute_subcredential(&blind_id_key, period);
-        // The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
-        // TODO HSS: these should be provided by the KeyMgr.
-        let hs_desc_sign = todo!();
-        let hs_desc_sign_cert: Ed25519Cert = todo!();
-        // TODO HSS: support introduction-layer authentication.
-        let auth_required = None;
-
-        Ok(HsDescBuilder::default()
-            .blinded_id(blind_id_kp)
-            .hs_desc_sign(hs_desc_sign)
-            .hs_desc_sign_cert_expiry(hs_desc_sign_cert.expiry())
-            .create2_formats(CREATE2_FORMATS)
-            .auth_required(auth_required)
-            .is_single_onion_service(self.is_single_onion_service)
-            .intro_points(&intro_points[..])
-            .intro_auth_key_cert_expiry(self.intro_auth_key_cert.expiry())
-            .intro_enc_key_cert_expiry(self.intro_enc_key_cert.expiry())
-            .lifetime(DESC_DEFAULT_LIFETIME.into())
-            .revision_counter(revision_counter)
-            .subcredential(subcredential)
-            .auth_clients(&self.auth_clients)
-            .build_sign(rng)?)
-    }
-
-    /// Create an [`IntroPointDesc`] from the specified introduction point.
-    fn build_intro_point_desc(_ipt: &Ipt) -> IntroPointDesc {
-        todo!()
-    }
+/// Return the list of authorized public keys from the specified [`DescEncryptionConfig`].
+fn build_auth_clients(_auth_clients: &DescEncryptionConfig) -> Vec<curve25519::PublicKey> {
+    todo!()
 }
 
 /// The freshness status of a descriptor at a particular HsDir.

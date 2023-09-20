@@ -4,14 +4,15 @@
 
 use std::fmt::Debug;
 use std::iter;
-use std::sync::Arc;
+use std::ops::DerefMut;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use futures::channel::mpsc::{self, Receiver, Sender};
-use futures::lock::Mutex;
 use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
+use postage::sink::SendError;
 use postage::watch;
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
@@ -32,10 +33,10 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
-use crate::ipt_set::{IptSet, IptsPublisherView, PublishIptSet};
+use crate::ipt_set::IptsPublisherView;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
-use crate::svc::publish::descriptor::{DescriptorBuilder, DescriptorStatus, VersionedDescriptor};
+use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 
 /// The upload rate-limiting threshold.
 ///
@@ -84,11 +85,41 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<OnionServiceConfig>,
-    /// A channel for the telling the upload reminder task when to remind us we need to upload
-    /// some descriptors.
+    /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
-    /// This is initialized in [`Reactor::run`].
-    pending_upload_tx: Option<Sender<Duration>>,
+    /// The main loop of the reactor watches for updates on this channel.
+    ///
+    /// When the [`PublishStatus`] changes to [`UploadScheduled`](PublishStatus::UploadScheduled),
+    /// we can start publishing descriptors.
+    ///
+    /// If the [`PublishStatus`] is [`AwaitingIpts`](PublishStatus::AwaitingIpts), publishing is
+    /// paused until we receive a notification on `ipt_watcher` telling us the IPT manager has
+    /// established some introduction points.
+    publish_status_rx: watch::Receiver<PublishStatus>,
+    /// A sender for updating our [`PublishStatus`].
+    ///
+    /// When our [`PublishStatus`] changes to [`UploadScheduled`](PublishStatus::UploadScheduled),
+    /// we can start publishing descriptors.
+    publish_status_tx: watch::Sender<PublishStatus>,
+    /// A channel for the telling the upload reminder task (spawned in [`Reactor::run`]) when to
+    /// remind us that we need to retry a rate-limited upload.
+    ///
+    /// The [`Instant`] sent on this channel represents the earliest time when the upload can be
+    /// rescheduled. The receiving end of this channel will initially observe `None` (the default
+    /// value of the inner type), which indicates there are no pending uploads to reschedule.
+    ///
+    /// Note: this can't be a non-optional `Instant` because:
+    ///   * [`postage::watch`] channels require an inner type that implements `Default`, which
+    ///   `Instant` does not implement
+    ///   * `Receiver`s are always observe an initial value, even if nothing was sent on the
+    ///   channel. Since we don't want to reschedule the upload until we receive a notification
+    ///   from the sender, we `None` as a special value that tells the upload reminder task to
+    ///   block until it receives a non-default value
+    ///
+    /// This field is initialized in [`Reactor::run`].
+    ///
+    // TODO HSS: decide if this is the right approach for implementing rate-limiting
+    rate_lim_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
@@ -168,14 +199,6 @@ impl<R: Runtime> Mockable for ReactorState<R> {
 
 /// The mutable state of a [`Reactor`].
 struct Inner {
-    /// The descriptor to upload.
-    ///
-    /// Note: this may be partially built. If incomplete, [`DescriptorBuilder::build`] will return
-    /// an error.
-    ///
-    /// This field is only expected to be incomplete on startup. Once the introduction points are
-    /// established, we should have enough information to generate and upload the descriptor.
-    descriptor: DescriptorBuilder,
     /// The onion service config.
     config: OnionServiceConfig,
     /// The relevant time periods.
@@ -287,6 +310,13 @@ impl TimePeriodContext {
             .collect::<Vec<_>>())
     }
 
+    /// Mark the descriptor dirty for all HSDirs of this time period.
+    fn mark_all_dirty(&mut self) {
+        self.hs_dirs
+            .iter_mut()
+            .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
+    }
+
     /// Return the revision counter for this time period.
     fn current_revision_counter(&self) -> RevisionCounter {
         self.revision_counter.into()
@@ -321,6 +351,19 @@ pub(super) enum ReactorError {
     #[error("failed to publish a descriptor")]
     PublishFailure(RetryError<UploadError>),
 
+    /// Unable to spawn task
+    //
+    // TODO lots of our Errors have a variant exactly like this.
+    // Maybe we should make a struct tor_error::SpawnError.
+    #[error("Unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn.
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
+
     /// A fatal error that caused the reactor to shut down.
     //
     // TODO HSS: add more context to this error?
@@ -330,6 +373,18 @@ pub(super) enum ReactorError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl ReactorError {
+    /// Construct a new `ReactorError` from a `SpawnError`.
+    //
+    // TODO lots of our Errors have a function exactly like this.
+    pub(super) fn from_spawn(spawning: &'static str, err: SpawnError) -> ReactorError {
+        ReactorError::Spawn {
+            spawning,
+            cause: Arc::new(err),
+        }
+    }
 }
 
 /// An error that occurs while trying to upload a descriptor.
@@ -347,19 +402,6 @@ pub(super) enum UploadError {
     /// Failed to establish stream to hidden service directory
     #[error("stream failed")]
     Stream(#[source] tor_proto::Error),
-
-    /// Unable to spawn task
-    //
-    // TODO lots of our Errors have a variant exactly like this.
-    // Maybe we should make a struct tor_error::SpawnError.
-    #[error("Unable to spawn {spawning}")]
-    Spawn {
-        /// What we were trying to spawn.
-        spawning: &'static str,
-        /// What happened when we tried to spawn it.
-        #[source]
-        cause: Arc<SpawnError>,
-    },
 
     /// An internal error.
     #[error("Internal error")]
@@ -394,6 +436,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let (upload_task_complete_tx, upload_task_complete_rx) =
             mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
+        let (publish_status_tx, publish_status_rx) = watch::channel();
+
         let imm = Immutable {
             runtime,
             mockable,
@@ -401,7 +445,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         };
 
         let inner = Inner {
-            descriptor: DescriptorBuilder::default(),
             time_periods,
             config,
             netdir,
@@ -415,7 +458,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
-            pending_upload_tx: None,
+            publish_status_rx,
+            publish_status_tx,
+            rate_lim_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
         })
@@ -431,17 +476,30 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         debug!("starting descriptor publisher reactor");
 
         // There will be at most one pending upload.
-        let (pending_upload_tx, mut pending_upload_rx) = mpsc::channel(1);
-        let (mut schedule_upload_tx, mut schedule_upload_rx) = mpsc::channel(1);
+        let (rate_lim_upload_tx, mut rate_lim_upload_rx) = watch::channel();
+        let (mut schedule_upload_tx, mut schedule_upload_rx) = watch::channel();
 
-        self.pending_upload_tx = Some(pending_upload_tx);
+        self.rate_lim_upload_tx = Some(rate_lim_upload_tx);
 
         let rt = self.imm.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
-            while let Some(duration) = pending_upload_rx.next().await {
-                rt.sleep(duration).await;
+            while let Some(scheduled_time) = rate_lim_upload_rx.next().await {
+                let Some(scheduled_time) = scheduled_time else {
+                    // `None` is the initially observed, default value of this postage::watch
+                    // channel, and it means there are no pending uploads to reschedule.
+                    continue;
+                };
+
+                // Check how long we have to sleep until we're no longer rate-limited.
+                let duration = scheduled_time.checked_duration_since(rt.now());
+
+                // If duration is `None`, it means we're past `scheduled_time`, so we don't need to
+                // sleep at all.
+                if let Some(duration) = duration {
+                    rt.sleep(duration).await;
+                }
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
                 if let Err(e) = schedule_upload_tx.send(()).await {
@@ -465,11 +523,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Run one iteration of the reactor loop.
-    #[allow(unreachable_code)] // TODO HSS: remove
-    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn run_once(
         &mut self,
-        schedule_upload_rx: &mut Receiver<()>,
+        schedule_upload_rx: &mut watch::Receiver<()>,
     ) -> Result<(), ReactorError> {
         let mut netdir_events = self.dir_provider.events();
 
@@ -477,7 +533,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             res = self.upload_task_complete_rx.next().fuse() => {
                 let upload_res = res.ok_or(ReactorError::ShuttingDown)?;
 
-                self.handle_upload_results(upload_res).await;
+                self.handle_upload_results(upload_res);
             }
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
@@ -485,14 +541,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 self.handle_consensus_change(netdir).await?;
             }
-            ipts = self.ipt_watcher.await_update().fuse() => {
-                if let Ok(()) = ipts.ok_or(ReactorError::ShuttingDown)? {
-                    // TODO HSS: add more context to the error
-                    internal!("failed to receive IPT update");
-                }
-                // TODO HSS: try to read IPTs from shared state (see #1023)
-                let ipts = todo!();
-                self.handle_new_intro_points(ipts).await?;
+            update = self.ipt_watcher.await_update().fuse() => {
+                self.handle_ipt_change(update).await?;
             },
             config = self.config_rx.next().fuse() => {
                 let config = config.ok_or(ReactorError::ShuttingDown)?;
@@ -501,18 +551,35 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             res = schedule_upload_rx.next().fuse() => {
                 let _: () = res.ok_or(ReactorError::ShuttingDown)?;
 
-                // Time to reattempt a previously rate-limited upload
-                self.upload_all().await?;
+                // Unless we're waiting for IPTs, reattempt the rate-limited upload in the next
+                // iteration.
+                self.update_publish_status(PublishStatus::UploadScheduled).await?;
+            },
+            should_upload = self.publish_status_rx.next().fuse() => {
+                let should_upload = should_upload.ok_or(ReactorError::ShuttingDown)?;
+
+                // Our PublishStatus changed -- are we ready to publish?
+                if should_upload == PublishStatus::UploadScheduled {
+                    // TODO HSS: if upload_all fails, we don't reattempt the upload until a state
+                    // change is triggered by an external event (such as a consensus or IPT change)
+                    self.update_publish_status(PublishStatus::Idle).await?;
+                    self.upload_all().await?;
+                }
             }
         }
 
         Ok(())
     }
 
+    /// Returns the current status of the publisher
+    fn status(&self) -> PublishStatus {
+        *self.publish_status_rx.borrow()
+    }
+
     /// Handle a batch of upload outcomes,
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
-    async fn handle_upload_results(&self, results: TimePeriodUploadResult) {
-        let mut inner = self.inner.lock().await;
+    fn handle_upload_results(&self, results: TimePeriodUploadResult) {
+        let mut inner = self.inner.lock().expect("poisoned lock");
         inner.last_uploaded = Some(self.imm.runtime.now());
 
         // Check which time period these uploads pertain to.
@@ -566,19 +633,19 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Maybe update our list of HsDirs.
-    async fn handle_consensus_change(&self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
-        let _old: Arc<NetDir> = self.replace_netdir(netdir).await;
+    async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
+        let _old: Arc<NetDir> = self.replace_netdir(netdir);
 
-        self.recompute_hs_dirs().await?;
-
-        // TODO HSS: upload the descriptors.
+        self.recompute_hs_dirs()?;
+        self.update_publish_status(PublishStatus::UploadScheduled)
+            .await?;
 
         Ok(())
     }
 
     /// Recompute the HsDirs for all relevant time periods.
-    async fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
-        let mut inner = self.inner.lock().await;
+    fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
+        let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
         // Update our list of relevant time periods.
@@ -609,28 +676,82 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Replace the old netdir with the new, returning the old.
-    async fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
-        std::mem::replace(&mut self.inner.lock().await.netdir, new_netdir)
+    fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
+        std::mem::replace(
+            &mut self.inner.lock().expect("poisoned lock").netdir,
+            new_netdir,
+        )
+    }
+
+    /// Replace our view of the service config with `new_config` if `new_config` contains changes
+    /// that would cause us to generate a new descriptor.
+    fn replace_config_if_changed(&self, new_config: OnionServiceConfig) -> bool {
+        let mut inner = self.inner.lock().expect("poisoned lock");
+        let old_config = &mut inner.config;
+
+        // The fields we're interested in haven't changed, so there's no need to update
+        // `inner.config`.
+        //
+        // TODO HSS: maybe `Inner` should only contain the fields we're interested in instead of
+        // the entire config.
+        //
+        // Alternatively, a less error-prone solution would be to introduce a separate
+        // `DescriptorConfigView` as described in
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603#note_2944902
+        if old_config.anonymity == new_config.anonymity
+            && old_config.encrypt_descriptor == new_config.encrypt_descriptor
+        {
+            return false;
+        }
+
+        let _old: OnionServiceConfig = std::mem::replace(old_config, new_config);
+
+        true
+    }
+
+    /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
+    /// uploading.
+    fn note_ipt_change(&self) -> PublishStatus {
+        let inner = self.inner.lock().expect("poisoned lock");
+
+        let mut ipts = self.ipt_watcher.borrow_for_publish();
+        match ipts.deref_mut() {
+            Some(ipts) => PublishStatus::UploadScheduled,
+            None => PublishStatus::AwaitingIpts,
+        }
     }
 
     /// Update our list of introduction points.
     #[allow(clippy::unnecessary_wraps)]
     #[allow(unreachable_code, unused_mut, clippy::diverging_sub_expression)] // TODO HSS remove
-    async fn handle_new_intro_points(&self, ipts: PublishIptSet) -> Result<(), ReactorError> {
-        let Some(ipts) = ipts else {
-            todo!() // TODO HSS stop publishing when we get None for ipts
-        };
+    async fn handle_ipt_change(
+        &mut self,
+        update: Option<Result<(), crate::FatalError>>,
+    ) -> Result<(), ReactorError> {
+        match update {
+            Some(Ok(())) => {
+                let should_upload = self.note_ipt_change();
 
-        let mut inner = self.inner.lock().await;
-        #[allow(unused_variables)] // TODO HSS remove
-        let IptSet { ipts, lifetime } = ipts;
+                self.mark_all_dirty();
+                self.update_publish_status(should_upload).await
+            }
+            Some(Err(_)) | None => Err(ReactorError::ShuttingDown),
+        }
+    }
 
-        let ipts = todo!(); // TODO HSSS something something last_publish etc.
-                            // (this current code is entirely wrong, see #1023)
-
-        inner.descriptor.ipts(ipts);
-
-        // TODO HSS: upload the descriptors.
+    /// Update the `PublishStatus` of the reactor with `new_state`,
+    /// unless the current state is `AwaitingIpts`.
+    async fn update_publish_status(
+        &mut self,
+        new_state: PublishStatus,
+    ) -> Result<(), ReactorError> {
+        // Only update the state if we're not waiting for intro points.
+        if self.status() != PublishStatus::AwaitingIpts {
+            self.publish_status_tx
+                .send(new_state)
+                .await
+                .map_err(|_: SendError<_>| internal!("failed to send upload notification?!"))?;
+        }
 
         Ok(())
     }
@@ -642,12 +763,28 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Update the descriptors based on the config change.
     async fn handle_svc_config_change(
-        &self,
-        _config: OnionServiceConfig,
+        &mut self,
+        config: OnionServiceConfig,
     ) -> Result<(), ReactorError> {
-        // TODO HSS: check if the config changes affect our descriptor. If they do, update its
-        // state and mark it as dirty for all hsdirs
-        todo!();
+        if self.replace_config_if_changed(config) {
+            self.mark_all_dirty();
+
+            // Schedule an upload, unless we're still waiting for IPTs.
+            self.update_publish_status(PublishStatus::UploadScheduled)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Mark the descriptor dirty for all time periods.
+    fn mark_all_dirty(&self) {
+        self.inner
+            .lock()
+            .expect("poisoned lock")
+            .time_periods
+            .iter_mut()
+            .for_each(|tp| tp.mark_all_dirty());
     }
 
     /// Try to upload our descriptor to the HsDirs that need it.
@@ -662,7 +799,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&mut self) -> Result<(), ReactorError> {
-        let last_uploaded = self.inner.lock().await.last_uploaded;
+        let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
         let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
         if let Some(last_uploaded) = last_uploaded {
@@ -673,25 +810,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
-        let inner = self.inner.lock().await;
-
-        // Check we have enough information to generate the descriptor before proceeding.
-        let hsdesc = match inner.descriptor.build() {
-            Ok(desc) => desc,
-            Err(e) => {
-                // TODO HSS:
-                // This can only happen if, for some reason, we decide to call the upload function
-                // before receiving our first NewIpts event (the intro points are the only piece of
-                // information we need from the "outside", AFAICT).
-                //
-                // I think this should never happen: we shouldn't start an upload unless we have
-                // enough information to build the descriptor (if we do get here, it's a bug).
-                //
-                // Instead of skipping the upload, we should be returning an internal! error.
-                trace!(hsid=%self.imm.hsid, "not enough information to build descriptor, skipping upload: {e}");
-                return Ok(());
-            }
-        };
+        let inner = self.inner.lock().expect("poisoned lock");
 
         let netdir = Arc::clone(&inner.netdir);
 
@@ -699,76 +818,98 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let hsid_key = self.hsid_key.clone();
         let upload_task_complete_tx = self.upload_task_complete_tx.clone();
 
-        let upload_tasks = inner.time_periods.iter().map(move |period| {
-            // Figure out which HsDirs we need to upload the descriptor to (some of them might already
-            // have our latest descriptor, so we filter them out).
-            let hs_dirs = period
-                .hs_dirs
-                .iter()
-                .filter_map(|(relay_id, status)| {
-                    if *status == DescriptorStatus::Dirty {
-                        Some(relay_id.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
+        let upload_tasks = inner
+            .time_periods
+            .iter()
+            .map(|period| {
+                // Figure out which HsDirs we need to upload the descriptor to (some of them might already
+                // have our latest descriptor, so we filter them out).
+                let hs_dirs = period
+                    .hs_dirs
+                    .iter()
+                    .filter_map(|(relay_id, status)| {
+                        if *status == DescriptorStatus::Dirty {
+                            Some(relay_id.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
 
-            let blind_id_kp = todo!();
+                let blind_id_kp = todo!();
 
-            // We're about to generate a new version of the descriptor: increment the revision
-            // counter.
-            //
-            // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
-            // revision counter a timestamp encrypted using an OPE cipher
-            let revision_counter = period.inc_revision_counter();
-            // This scope exists because rng is not Send, so it needs to fall out of scope before we
-            // await anything.
-            let hsdesc = {
-                let mut rng = imm.mockable.thread_rng();
-                hsdesc.build_sign(
-                    hsid_key,
-                    blind_id_kp,
-                    period.period,
-                    revision_counter,
-                    &mut rng,
-                )?
-            };
+                // We're about to generate a new version of the descriptor: increment the revision
+                // counter.
+                //
+                // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
+                // revision counter a timestamp encrypted using an OPE cipher
+                let revision_counter = period.inc_revision_counter();
+                // This scope exists because rng is not Send, so it needs to fall out of scope before we
+                // await anything.
+                let hsdesc = {
+                    let mut rng = imm.mockable.thread_rng();
 
-            let handle = imm.runtime.spawn(async {
-                let hsdesc = VersionedDescriptor {
-                    desc: hsdesc.clone(),
-                    revision_counter,
+                    let mut ipt_set = self.ipt_watcher.borrow_for_publish();
+                    let Some(mut ipt_set) = ipt_set.as_mut() else {
+                        return Ok(());
+                    };
+
+                    let desc = build_sign(
+                        inner.config,
+                        hsid_key,
+                        blind_id_kp,
+                        ipt_set,
+                        period.period,
+                        revision_counter,
+                        &mut rng,
+                    )?;
+
+                    let worst_case_end = todo!();
+                    ipt_set
+                        .note_publication_attempt(worst_case_end)
+                        .map_err(|_| internal!("failed to note publication attempt"))?;
+
+                    desc
                 };
-                if let Err(_e) = Self::upload_for_time_period(
-                    hsdesc,
-                    hs_dirs,
-                    &netdir,
-                    period.period,
-                    imm,
-                    upload_task_complete_tx,
-                )
-                .await
-                {
-                    // TODO HSS
-                }
-            });
 
-            Ok::<_, ReactorError>(handle)
-        });
+                let _handle: () = imm
+                    .runtime
+                    .spawn(async {
+                        let hsdesc = VersionedDescriptor {
+                            desc: hsdesc.clone(),
+                            revision_counter,
+                        };
+                        if let Err(_e) = Self::upload_for_time_period(
+                            hsdesc,
+                            hs_dirs,
+                            &netdir,
+                            period.period,
+                            imm,
+                            upload_task_complete_tx,
+                        )
+                        .await
+                        {
+                            // TODO HSS
+                        }
+                    })
+                    .map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
+
+                Ok::<_, ReactorError>(())
+            })
+            .collect::<Result<Vec<_>, ReactorError>>()?;
 
         Ok(())
     }
 
-    /// Tell the "upload reminder" task to remind us about a pending upload.
+    /// Tell the "upload reminder" task to remind us to retry an upload that was rate-limited.
     async fn schedule_pending_upload(&mut self) -> Result<(), ReactorError> {
         if let Err(e) = self
-            .pending_upload_tx
+            .rate_lim_upload_tx
             .as_mut()
             .ok_or(internal!(
                 "channel not initialized (schedule_pending_upload called before run?!)"
             ))?
-            .send(UPLOAD_RATE_LIM_THRESHOLD)
+            .send(Some(self.imm.runtime.now() + UPLOAD_RATE_LIM_THRESHOLD))
             .await
         {
             // TODO HSS: return an error
@@ -981,6 +1122,24 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 }
 
+/// Whether the reactor should initiate an upload.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+enum PublishStatus {
+    /// We need to call upload_all.
+    UploadScheduled,
+    /// We are idle and waiting for external events.
+    ///
+    /// We have enough information to build the descriptor, but since we have already called
+    /// upload_all to upload it to all relevant HSDirs, there is nothing for us to do right nbow.
+    Idle,
+    /// We are waiting for the IPT manager to establish some introduction points.
+    ///
+    /// No descriptors will be published until the `PublishStatus` of the reactor is changed to
+    /// `UploadScheduled`.
+    #[default]
+    AwaitingIpts,
+}
+
 /// The backoff schedule for the task that publishes descriptors.
 #[derive(Clone, Debug)]
 struct PublisherBackoffSchedule<M: Mockable> {
@@ -1009,7 +1168,7 @@ impl RetriableError for UploadError {
     fn should_retry(&self) -> bool {
         match self {
             UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
-            UploadError::Bug(_) | UploadError::Spawn { .. } => false,
+            UploadError::Bug(_) => false,
         }
     }
 }
