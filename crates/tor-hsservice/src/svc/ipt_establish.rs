@@ -234,7 +234,11 @@ impl IptEstablisher {
             k_sid.as_ref().as_ref().public.into(),
             subcredential,
         );
-        let request_context = Arc::new(RendRequestContext { hs_ntor_keys });
+        let request_context = Arc::new(RendRequestContext {
+            hs_ntor_keys,
+            netdir_provider: netdir_provider.clone(),
+            circ_pool: pool.clone(),
+        });
 
         let reactor = Reactor {
             runtime: runtime.clone(),

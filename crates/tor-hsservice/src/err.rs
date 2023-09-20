@@ -8,6 +8,8 @@ use thiserror::Error;
 
 use tor_error::Bug;
 
+pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
+
 /// An error which occurs trying to create and start up an onion service
 ///
 /// This is only returned by startup methods.
@@ -37,12 +39,20 @@ pub enum StartupError {
     },
 }
 
-/// An error which occurs trying to communicate with a particular client
+/// An error which occurs trying to communicate with a particular client.
 ///
 /// This is returned by `RendRequest::accept` and `StreamRequest::accept`.
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
-pub enum ClientError {}
+pub enum ClientError {
+    /// Failed to process an INTRODUCE2 request.
+    #[error("Could not process INTRODUCE request")]
+    BadIntroduce(#[source] IntroRequestError),
+
+    /// Failed to complete a rendezvous request.
+    #[error("Could not connect rendezvous circuit.")]
+    EstablishSession(#[source] EstablishSessionError),
+}
 
 /// An error which means we cannot continue to try to operate an onion service.
 ///

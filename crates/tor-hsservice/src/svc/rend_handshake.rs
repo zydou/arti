@@ -35,7 +35,8 @@ use tor_rtcompat::Runtime;
 /// received from a client via an introduction point.
 #[derive(Debug, Clone, thiserror::Error)]
 #[allow(clippy::enum_variant_names)] // TODO HSS
-pub(crate) enum IntroRequestError {
+#[non_exhaustive]
+pub enum IntroRequestError {
     /// The handshake (e.g. hs_ntor) in the Introduce2 message was invalid and
     /// could not be completed.
     #[error("Introduction handshake was invalid")]
@@ -53,7 +54,8 @@ pub(crate) enum IntroRequestError {
 /// An error produced while trying to connect to a rendezvous point and open a
 /// session with a client.
 #[derive(Debug, Clone, thiserror::Error)]
-pub(crate) enum EstablishSessionError {
+#[non_exhaustive]
+pub enum EstablishSessionError {
     /// We couldn't get a timely network directory in order to build our
     /// chosen circuits.
     #[error("Network directory not available")]
@@ -121,13 +123,13 @@ pub(crate) struct IntroRequest {
 /// An open session with a single client.
 pub(crate) struct OpenSession {
     /// A stream of incoming BEGIN requests.
-    stream_requests: BoxStream<'static, tor_proto::Result<IncomingStream>>,
+    pub(crate) stream_requests: BoxStream<'static, tor_proto::Result<IncomingStream>>,
 
     /// Our circuit with the client in question
     // TODO HSS: If we drop this handle, nothing will keep the circuit alive.
     // But we need to make sure we drop this handle when the other side destroys
     // the circuit.
-    circuit: Arc<ClientCirc>,
+    pub(crate) circuit: Arc<ClientCirc>,
 }
 
 /// Dyn-safe trait to represent a `HsCircPool`.
