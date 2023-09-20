@@ -469,7 +469,6 @@ type FieldList = &'static [&'static str];
 ///  * We ask serde to deserialize `$ttype` from a `FieldExtractor`
 ///  * We expect the serde-macro-generated `Deserialize` impl to call `deserialize_struct`
 ///  * We return the list of fields to match up as an error
-#[allow(clippy::exhaustive_structs)] // Not part of our semver API
 struct FieldExtractor;
 
 /// Error resulting from successful operation of a [`FieldExtractor`]
