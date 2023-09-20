@@ -592,7 +592,6 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    #![allow(dead_code)] // XXXX
     use super::*;
     use crate as tor_config; // for the benefit of the macros
 
