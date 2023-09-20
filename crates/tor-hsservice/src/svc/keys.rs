@@ -26,8 +26,10 @@ impl HsSvcKeySpecifier {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub enum HsSvcKeyRole {
-    /// The blinded signing key.`
-    BlindIdSecretKey(TimePeriod),
+    /// The public part of the identity key of the service.
+    HsIdPublicKey,
+    /// The blinded signing keypair.
+    BlindIdKeypair(TimePeriod),
 }
 
 impl fmt::Display for HsSvcKeyRole {
@@ -35,12 +37,13 @@ impl fmt::Display for HsSvcKeyRole {
         use HsSvcKeyRole::*;
 
         match self {
-            BlindIdSecretKey(period) => write!(
+            BlindIdKeypair(period) => write!(
                 f,
                 "KS_hs_blind_id_{}_{}",
                 period.interval_num(),
                 period.length()
             ),
+            HsIdPublicKey => write!(f, "KP_hs_id"),
         }
     }
 }

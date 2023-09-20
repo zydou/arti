@@ -7,7 +7,9 @@ use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, OpaqueKeypair};
 use ssh_key::public::{Ed25519PublicKey, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
-use tor_hscrypto::pk::{HsBlindIdKeypair, HsClientDescEncSecretKey, HsClientIntroAuthKeypair};
+use tor_hscrypto::pk::{
+    HsBlindIdKeypair, HsClientDescEncSecretKey, HsClientIntroAuthKeypair, HsIdKey,
+};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::key_type::ssh::X25519_ALGORITHM_NAME;
@@ -152,6 +154,26 @@ impl EncodableKey for ed25519::Keypair {
     }
 }
 
+impl EncodableKey for ed25519::PublicKey {
+    fn key_type() -> KeyType
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData> {
+        todo!()
+    }
+}
+
 /// A key that can be converted to an [`EncodableKey`].
 //
 // NOTE: Conceptually, the `ToEncodableKey` and `EncodableKey` traits serve the same purpose (they
@@ -203,6 +225,18 @@ impl ToEncodableKey for HsClientIntroAuthKeypair {
 
 impl ToEncodableKey for HsBlindIdKeypair {
     type Key = ed25519::Keypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        todo!()
+    }
+
+    fn from_encodable_key(_key: Self::Key) -> Self {
+        todo!()
+    }
+}
+
+impl ToEncodableKey for HsIdKey {
+    type Key = ed25519::PublicKey;
 
     fn to_encodable_key(self) -> Self::Key {
         todo!()
