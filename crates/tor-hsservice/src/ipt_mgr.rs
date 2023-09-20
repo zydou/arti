@@ -25,7 +25,6 @@ use postage::watch;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tor_hscrypto::Subcredential;
 use tracing::{error, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
@@ -355,17 +354,6 @@ impl IptRelay {
         let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
         let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
 
-        // TODO HSS BLOCKER: This is a totally placeholder value.  We need the
-        // subcredential for the *current time period* in order to do the
-        // hs_ntor handshake. But that information isn't available at this
-        // point.
-        //
-        // We **could**, if we really had to, allow our server-side hs-ntor code
-        // to take a list of _all_ the subcredentials that are currently live.
-        // But even that would require updating intro-point objects, so it's not
-        // an easy fix.
-        let subcredential = Subcredential::from([0xEE; 32]);
-
         let params = IptParameters {
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
@@ -373,7 +361,6 @@ impl IptRelay {
             target: self.relay.clone(),
             k_sid: k_sid.clone(),
             k_ntor: &k_hss_ntor,
-            subcredential,
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;

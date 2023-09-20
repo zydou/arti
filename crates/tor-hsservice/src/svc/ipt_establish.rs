@@ -182,7 +182,6 @@ pub(crate) struct IptParameters<'a> {
     /// `K_hs_ipt_sid`
     pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
     pub(crate) accepting_requests: RequestDisposition,
-    pub(crate) subcredential: Subcredential,
     pub(crate) k_ntor: &'a HsSvcNtorKeypair,
 }
 
@@ -214,7 +213,6 @@ impl IptEstablisher {
             target,
             k_sid,
             k_ntor,
-            subcredential,
             accepting_requests,
         } = params;
         if matches!(accepting_requests, RequestDisposition::Shutdown) {
@@ -226,12 +224,19 @@ impl IptEstablisher {
 
         let state = Arc::new(Mutex::new(EstablisherState { accepting_requests }));
 
+        // TODO HSS BLOCKER: This is a totally placeholder value.  We need the
+        // subcredential for the *current time period* in order to do the
+        // hs_ntor handshake. But that can change over time.  We will need
+        // instead to have the ability to find the current subcredentials at any
+        // given moment.
+        let subcredential = Subcredential::from([0xEE; 32]);
+
         let hs_ntor_keys = hs_ntor::HsNtorServiceInput::new(
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
             // clone.  We should either make it Clone, or hold it in an Arc.
             HsSvcNtorKeypair::from_secret_key(k_ntor.secret().as_ref().clone().into()),
             k_sid.as_ref().as_ref().public.into(),
-            subcredential,
+            vec![subcredential],
         );
         let request_context = Arc::new(RendRequestContext {
             hs_ntor_keys,
