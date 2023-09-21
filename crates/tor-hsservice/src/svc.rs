@@ -48,25 +48,15 @@ pub struct OnionService<R: Runtime> {
 /// Implementation details for an onion service.
 struct SvcInner<R: Runtime> {
     /// Configuration information about this service.
-    ///
-    /// TODO HSS: Should this be an `Arc<OnionServiceConfig>` or even a
-    /// postage::watch thing?  That seems to be what `IptManager `expects.
-    config: OnionServiceConfig,
-
-    /// A netdir provider to use in finding our directories and choosing our
-    /// introduction points.
-    netdir_provider: Arc<dyn NetDirProvider>,
+    config_tx: postage::watch::Sender<Arc<OnionServiceConfig>>,
 
     /// A keymgr used to look up our keys and store new medium-term keys.
+    //
+    // TODO HSS: Do we actually need this in this structure?
     keymgr: Arc<KeyMgr>,
 
-    /// A circuit pool to use in making circuits to our introduction points,
-    /// HsDirs, and rendezvous points.
-    //
-    // TODO hss: Maybe we can make a trait that only gives a minimal "build a
-    // circuit" API from CircMgr, so that we can have this be a dyn reference
-    // too?
-    circmgr: Arc<HsCircPool<R>>,
+    /// A oneshot that will be dropped when this object is dropped.
+    shutdown_tx: oneshot::Sender<void::Void>,
 
     /// Handles that we'll take ownership of when launching the service.
     ///
@@ -138,16 +128,17 @@ impl<R: Runtime> OnionService<R> {
             },
         )?;
         let hs_id = {
-            todo!() // TODO HSS Look up HsId by KeyMgr based on nickname.
+            // TODO HSS BLOCKER: Look up HsId by KeyMgr based on nickname.  This
+            // is just a placeholder so the function will compile.
+            tor_hscrypto::pk::HsId::from([0xff; 32])
         };
 
         // TODO HSS Why does this not need a keymgr?
         let publisher = Publisher::new(
             runtime,
             hs_id,
-            netdir_provider.clone(),
+            netdir_provider,
             circ_pool,
-            config,
             publisher_view,
             config_rx,
         );
@@ -158,10 +149,9 @@ impl<R: Runtime> OnionService<R> {
 
         Ok(Arc::new(OnionService {
             inner: Mutex::new(SvcInner {
-                config,
-                netdir_provider,
+                config_tx,
+                shutdown_tx,
                 keymgr,
-                circmgr: circ_pool,
                 unlaunched: Some(ForLaunch {
                     publisher,
                     ipt_mgr,

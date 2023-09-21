@@ -63,16 +63,16 @@ impl<R: Runtime> Publisher<R> {
         hsid: HsId,
         dir_provider: Arc<dyn NetDirProvider>,
         circpool: Arc<HsCircPool<R>>,
-        config: OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     ) -> Self {
+        let config = config_rx.borrow().clone();
         Self {
             runtime,
             hsid,
             dir_provider,
             circpool,
-            config: Arc::new(config),
+            config,
             ipt_watcher,
             config_rx,
         }
