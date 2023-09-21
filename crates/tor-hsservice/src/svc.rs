@@ -1,5 +1,4 @@
 //! Principal types for onion services.
-
 mod netdir;
 
 use std::sync::{Arc, Mutex};
@@ -88,7 +87,6 @@ struct ForLaunch<R: Runtime> {
 
 impl<R: Runtime> OnionService<R> {
     /// Create (but do not launch) a new onion service.
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     pub fn new<S>(
         runtime: R,
         config: OnionServiceConfig,
