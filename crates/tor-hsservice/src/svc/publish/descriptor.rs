@@ -1,7 +1,7 @@
 //! Helpers for building and representing hidden service descriptors.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use rand_core::{CryptoRng, RngCore};
 
@@ -13,7 +13,6 @@ use tor_keymgr::{KeyMgr, ToEncodableKey};
 use tor_llcrypto::pk::curve25519;
 use tor_netdoc::doc::hsdesc::{HsDescBuilder, IntroPointDesc};
 use tor_netdoc::NetdocBuilder;
-use tor_rtcompat::Runtime;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::{Ipt, IptSet};
@@ -25,18 +24,21 @@ use crate::{HsNickname, OnionServiceConfig};
 
 /// Build the descriptor.
 ///
+/// The `now` argument is used for computing the expiry of the `intro_{auth, enc}_key_cert`
+/// certificates included in the descriptor. The expiry will be set to 54 hours from `now`.
+///
 /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
 /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
 #[allow(unreachable_code)] // TODO HSS: remove
 #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
-pub(crate) fn build_sign<R: Runtime, Rng: RngCore + CryptoRng>(
+pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     keymgr: Arc<KeyMgr>,
     config: Arc<OnionServiceConfig>,
     ipt_set: &IptSet,
     period: TimePeriod,
     revision_counter: RevisionCounter,
     rng: &mut Rng,
-    runtime: R,
+    now: SystemTime,
 ) -> Result<String, ReactorError> {
     // TODO HSS: should this be configurable? If so, we should read it from the svc config.
     //
@@ -82,7 +84,6 @@ pub(crate) fn build_sign<R: Runtime, Rng: RngCore + CryptoRng>(
     let is_single_onion_service =
         matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
 
-    let now = runtime.wallclock();
     let intro_auth_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
     let intro_enc_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
 
