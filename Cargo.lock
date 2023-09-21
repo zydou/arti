@@ -5369,6 +5369,7 @@ dependencies = [
  "async-trait",
  "backtrace",
  "derive-adhoc",
+ "derive_more",
  "educe",
  "futures",
  "futures-await-test",
