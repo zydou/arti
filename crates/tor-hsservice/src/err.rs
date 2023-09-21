@@ -37,6 +37,18 @@ pub enum StartupError {
         #[source]
         cause: Arc<SpawnError>,
     },
+
+    /// Tried to launch an onion service that has already been launched.
+    #[error("Onion service has already been launched")]
+    AlreadyLaunched,
+
+    /// Tried to launch a descriptor publisher, but encountered an error.
+    #[error("Unable to launch descriptor publisher.")]
+    // TODO HSS: This is actually a PublisherError, but that type isn't exposed,
+    // and it contains a whole ecosystem of other crate-internal errors.
+    // Either we should change Publisher::launch() to return a StartupError,
+    // or we should figure out how much of PublisherError to expose.
+    LaunchPublisher(#[source] Arc<dyn std::error::Error + Send + Sync>),
 }
 
 /// An error which occurs trying to communicate with a particular client.

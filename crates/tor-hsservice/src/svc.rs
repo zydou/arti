@@ -1,5 +1,4 @@
 //! Principal types for onion services.
-
 mod netdir;
 
 use std::sync::{Arc, Mutex};
@@ -15,6 +14,7 @@ use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
 use crate::ipt_mgr::IptManager;
+use crate::ipt_set::IptsManagerView;
 use crate::svc::publish::Publisher;
 use crate::OnionServiceConfig;
 use crate::OnionServiceStatus;
@@ -36,50 +36,85 @@ type NtorPublicKey = curve25519::PublicKey;
 // TODO HSS: Write more.
 //
 // (APIs should return Arc<OnionService>)
-//
-// NOTE: This might not need to be parameterized on Runtime; if we can avoid it
-// without too much trouble,  we should.
-pub struct OnionService<R: Runtime> {
+pub struct OnionService {
     /// The mutable implementation details of this onion service.
-    inner: Mutex<SvcInner<R>>,
+    inner: Mutex<SvcInner>,
 }
 
 /// Implementation details for an onion service.
-struct SvcInner<R: Runtime> {
+struct SvcInner {
     /// Configuration information about this service.
-    ///
-    /// TODO HSS: Should this be an `Arc<OnionServiceConfig>` or even a
-    /// postage::watch thing?  That seems to be what `IptManager `expects.
-    config: OnionServiceConfig,
-
-    /// A netdir provider to use in finding our directories and choosing our
-    /// introduction points.
-    netdir_provider: Arc<dyn NetDirProvider>,
+    config_tx: postage::watch::Sender<Arc<OnionServiceConfig>>,
 
     /// A keymgr used to look up our keys and store new medium-term keys.
+    //
+    // TODO HSS: Do we actually need this in this structure?
     keymgr: Arc<KeyMgr>,
 
-    /// A circuit pool to use in making circuits to our introduction points,
-    /// HsDirs, and rendezvous points.
-    //
-    // TODO hss: Maybe we can make a trait that only gives a minimal "build a
-    // circuit" API from CircMgr, so that we can have this be a dyn reference
-    // too?
-    circmgr: Arc<HsCircPool<R>>,
+    /// A oneshot that will be dropped when this object is dropped.
+    shutdown_tx: oneshot::Sender<void::Void>,
+
+    /// Handles that we'll take ownership of when launching the service.
+    ///
+    /// (TODO HSS: Having to consume this may indicate a design problem.)
+    unlaunched: Option<Box<dyn Launchable + Send + Sync>>,
 }
 
-impl<R: Runtime> OnionService<R> {
+/// Objects and handles needed to launch an onion service.
+struct ForLaunch<R: Runtime> {
+    /// An unlaunched handle for the HsDesc publisher.
+    ///
+    /// This publisher is responsible for determining when we need to upload a
+    /// new set of HsDescs, building them, and publishing them at the correct
+    /// HsDirs.
+    publisher: Publisher<R>,
+
+    /// Our handler for the introduction point manager.
+    ///
+    /// This manager is responsible for selecting introduction points,
+    /// maintaining our connections to them, and telling the publisher which ones
+    /// are publicly available.
+    ipt_mgr: IptManager<R, crate::ipt_mgr::Real<R>>,
+
+    /// A handle used by the ipt manager to send Ipts to the publisher.
+    ///
+    ///
+    ipt_mgr_view: IptsManagerView,
+}
+
+/// Private trait used to type-erase `ForLaunch<R>`, so that we don't need to
+/// parameterize OnionService on `<R>`.
+// TODO HSS: It would be neat if this didn't have to be async.
+#[async_trait::async_trait]
+trait Launchable: Send + Sync {
+    /// Launch
+    async fn launch(self: Box<Self>) -> Result<(), StartupError>;
+}
+
+#[async_trait::async_trait]
+impl<R: Runtime> Launchable for ForLaunch<R> {
+    async fn launch(self: Box<Self>) -> Result<(), StartupError> {
+        self.ipt_mgr.launch_background_tasks(self.ipt_mgr_view)?;
+        self.publisher
+            .launch()
+            .await
+            .map_err(|e| StartupError::LaunchPublisher(Arc::new(e)))?;
+        Ok(())
+    }
+}
+
+impl OnionService {
     /// Create (but do not launch) a new onion service.
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
-    pub fn new<S>(
+    pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
         netdir_provider: Arc<dyn NetDirProvider>,
         circ_pool: Arc<HsCircPool<R>>,
         keymgr: Arc<KeyMgr>,
         statemgr: S,
-    ) -> Self
+    ) -> Result<Arc<Self>, StartupError>
     where
+        R: Runtime,
         S: tor_persist::StateMgr + Send + Sync + 'static,
     {
         let nickname = config.name.clone();
@@ -108,24 +143,19 @@ impl<R: Runtime> OnionService<R> {
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
             },
-        )
-        .expect("TODO HSS");
-
+        )?;
         let hs_id = {
-            todo!() // TODO HSS Look up HsId by KeyMgr based on nickname.
+            // TODO HSS BLOCKER: Look up HsId by KeyMgr based on nickname.  This
+            // is just a placeholder so the function will compile.
+            tor_hscrypto::pk::HsId::from([0xff; 32])
         };
 
-        // TODO HSS Publisher::new is async; we'd prefer a separate new/launch,
-        // perhaps?  Or we could make OnionService::new async and have it
-        // implicitly launch?
-
         // TODO HSS Why does this not need a keymgr?
-        let publisher_future = Publisher::new(
+        let publisher = Publisher::new(
             runtime,
             hs_id,
-            netdir_provider.clone(),
+            netdir_provider,
             circ_pool,
-            config,
             publisher_view,
             config_rx,
         );
@@ -134,23 +164,18 @@ impl<R: Runtime> OnionService<R> {
         // rend_req_rx.  The latter may need to be refactored to actually work
         // with svc::rend_handshake, if it doesn't already.
 
-        OnionService {
+        Ok(Arc::new(OnionService {
             inner: Mutex::new(SvcInner {
-                config,
-                netdir_provider,
+                config_tx,
+                shutdown_tx,
                 keymgr,
-                circmgr: circ_pool,
+                unlaunched: Some(Box::new(ForLaunch {
+                    publisher,
+                    ipt_mgr,
+                    ipt_mgr_view,
+                })),
             }),
-        }
-
-        // TODO HSS: CONVERGENCE NOTES:
-        //   - Converge on one way to handle sharing config and config
-        //     changes.
-        //   - Converge on how to actually send IptSet from manager to
-        //     publisher.
-        //   - Converge on convention for new() vs launch()
-        //   - Converge on relationship between RendRequest and
-        //     IntroRequest.
+        }))
     }
 
     /// Change the configuration of this onion service.
@@ -178,33 +203,25 @@ impl<R: Runtime> OnionService<R> {
     /// Tell this onion service to begin running.
     //
     // TODO HSS: Probably return an `impl Stream<RendRequest>`.
-    pub fn launch(&self) -> Result<(), StartupError> {
-        todo!() // TODO hss
+    pub async fn launch(self: Arc<Self>) -> Result<(), StartupError> {
+        let launch = {
+            let mut inner = self.inner.lock().expect("poisoned lock");
+            inner
+                .unlaunched
+                .take()
+                .ok_or(StartupError::AlreadyLaunched)?
+        };
 
-        // This needs to launch at least the following tasks:
+        launch.launch().await
+        // TODO HSS:  This needs to launch at least the following tasks:
         //
         // - If we decide to use separate disk-based key provisioning, a task to
         //   monitor our keys directory.
         // - If we own our identity key, a task to generate per-period sub-keys as
         //   needed.
-        // - A task to make sure that we have enough introduction point circuits
-        //   at all times, and launch new ones as needed.
-        // - A task to see whether we have an up-to-date descriptor uploaded for
-        //   each supported time period to every HsDir listed for us in the
-        //   current directory, and if not, regenerate and upload our descriptor
-        //   as needed.
-        // - A task to receive introduction requests from our introduction
-        //   points, decide whether to answer them, and if so launch a new
-        //   rendezvous task to:
-        //    - finish the cryptographic handshake
-        //    - build a circuit to the rendezvous point
-        //    - Send the RENDEZVOUS1 reply
-        //    - Add a virtual hop to the rendezvous circuit
-        //    - Launch a new task to handle BEGIN requests on the rendezvous
-        //      circuit, using our StreamHandler.
     }
 
-    /// Tell  this onion service to stop running.  
+    /// Tell this onion service to stop running.
     ///
     /// It can be restarted with launch().
     ///
