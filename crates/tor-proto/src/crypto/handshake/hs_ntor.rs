@@ -358,10 +358,10 @@ fn server_receive_intro_no_keygen(
     // We have to do this for every possible subcredential to find out which
     // one, if any, gives a valid encryption key.  We don't break on our first
     // success, to avoid a timing sidechannel.
-    let mut found_enc_key = None;
+    let mut found_dec_key = None;
 
     for subcredential in proto_input.subcredential.iter() {
-        let (enc_key, mac_key) = get_introduce1_key_material(
+        let (dec_key, mac_key) = get_introduce1_key_material(
             &bx,
             &proto_input.auth_key,
             &X,
@@ -379,17 +379,17 @@ fn server_receive_intro_no_keygen(
 
         if my_mac_tag == mac_tag {
             // TODO: We could use CtOption here.
-            found_enc_key = Some(enc_key);
+            found_dec_key = Some(dec_key);
         }
     }
 
-    let Some(enc_key) = found_enc_key else {
+    let Some(dec_key) = found_dec_key else {
         return Err(Error::BadCircHandshakeAuth);
     };
 
     // Decrypt the ENCRYPTED_DATA from the intro cell
     let zero_iv = GenericArray::default();
-    let mut cipher = Aes256Ctr::new(enc_key.as_ref().into(), &zero_iv);
+    let mut cipher = Aes256Ctr::new(dec_key.as_ref().into(), &zero_iv);
     cipher.apply_keystream(ciphertext);
     let plaintext = ciphertext; // it's now decrypted
 
