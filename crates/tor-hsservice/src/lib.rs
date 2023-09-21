@@ -49,7 +49,6 @@ pub mod config;
 mod err;
 mod ipt_mgr;
 mod ipt_set;
-mod keys;
 mod nickname;
 mod req;
 mod status;
