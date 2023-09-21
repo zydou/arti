@@ -36,16 +36,13 @@ type NtorPublicKey = curve25519::PublicKey;
 // TODO HSS: Write more.
 //
 // (APIs should return Arc<OnionService>)
-//
-// NOTE: This might not need to be parameterized on Runtime; if we can avoid it
-// without too much trouble,  we should.
-pub struct OnionService<R: Runtime> {
+pub struct OnionService {
     /// The mutable implementation details of this onion service.
-    inner: Mutex<SvcInner<R>>,
+    inner: Mutex<SvcInner>,
 }
 
 /// Implementation details for an onion service.
-struct SvcInner<R: Runtime> {
+struct SvcInner {
     /// Configuration information about this service.
     config_tx: postage::watch::Sender<Arc<OnionServiceConfig>>,
 
@@ -60,7 +57,7 @@ struct SvcInner<R: Runtime> {
     /// Handles that we'll take ownership of when launching the service.
     ///
     /// (TODO HSS: Having to consume this may indicate a design problem.)
-    unlaunched: Option<ForLaunch<R>>,
+    unlaunched: Option<Box<dyn Launchable + Send + Sync>>,
 }
 
 /// Objects and handles needed to launch an onion service.
@@ -85,9 +82,30 @@ struct ForLaunch<R: Runtime> {
     ipt_mgr_view: IptsManagerView,
 }
 
-impl<R: Runtime> OnionService<R> {
+/// Private trait used to type-erase `ForLaunch<R>`, so that we don't need to
+/// parameterize OnionService on `<R>`.
+// TODO HSS: It would be neat if this didn't have to be async.
+#[async_trait::async_trait]
+trait Launchable: Send + Sync {
+    /// Launch
+    async fn launch(self: Box<Self>) -> Result<(), StartupError>;
+}
+
+#[async_trait::async_trait]
+impl<R: Runtime> Launchable for ForLaunch<R> {
+    async fn launch(self: Box<Self>) -> Result<(), StartupError> {
+        self.ipt_mgr.launch_background_tasks(self.ipt_mgr_view)?;
+        self.publisher
+            .launch()
+            .await
+            .map_err(|e| StartupError::LaunchPublisher(Arc::new(e)))?;
+        Ok(())
+    }
+}
+
+impl OnionService {
     /// Create (but do not launch) a new onion service.
-    pub fn new<S>(
+    pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
         netdir_provider: Arc<dyn NetDirProvider>,
@@ -96,6 +114,7 @@ impl<R: Runtime> OnionService<R> {
         statemgr: S,
     ) -> Result<Arc<Self>, StartupError>
     where
+        R: Runtime,
         S: tor_persist::StateMgr + Send + Sync + 'static,
     {
         let nickname = config.name.clone();
@@ -150,11 +169,11 @@ impl<R: Runtime> OnionService<R> {
                 config_tx,
                 shutdown_tx,
                 keymgr,
-                unlaunched: Some(ForLaunch {
+                unlaunched: Some(Box::new(ForLaunch {
                     publisher,
                     ipt_mgr,
                     ipt_mgr_view,
-                }),
+                })),
             }),
         }))
     }
@@ -192,16 +211,8 @@ impl<R: Runtime> OnionService<R> {
                 .take()
                 .ok_or(StartupError::AlreadyLaunched)?
         };
-        launch
-            .ipt_mgr
-            .launch_background_tasks(launch.ipt_mgr_view)?;
-        launch
-            .publisher
-            .launch()
-            .await
-            .map_err(|e| StartupError::LaunchPublisher(Arc::new(e)))?;
 
-        Ok(())
+        launch.launch().await
         // TODO HSS:  This needs to launch at least the following tasks:
         //
         // - If we decide to use separate disk-based key provisioning, a task to
