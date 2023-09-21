@@ -333,7 +333,7 @@ impl TimePeriodContext {
 /// A reactor error
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub(super) enum ReactorError {
+pub(crate) enum ReactorError {
     /// Failed to get network directory
     #[error("failed to get a network directory")]
     Netdir(#[from] tor_netdir::Error),
@@ -390,7 +390,7 @@ impl ReactorError {
 /// An error that occurs while trying to upload a descriptor.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub(super) enum UploadError {
+pub(crate) enum UploadError {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
     #[error("descriptor upload request failed")]
     Request(#[from] RequestError),
@@ -415,7 +415,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hsid: HsId,
         dir_provider: Arc<dyn NetDirProvider>,
         mockable: M,
-        config: OnionServiceConfig,
+        config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     ) -> Result<Self, ReactorError> {
@@ -446,7 +446,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let inner = Inner {
             time_periods,
-            config: Arc::new(config),
+            config,
             netdir,
             last_uploaded: None,
         };

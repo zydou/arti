@@ -10,7 +10,6 @@ mod reactor;
 use futures::task::SpawnExt;
 use postage::watch;
 use std::sync::Arc;
-use tracing::error;
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_hscrypto::pk::HsId;
@@ -28,23 +27,38 @@ use reactor::{Reactor, ReactorError, ReactorState};
 /// This handle represents a set of tasks that identify the hsdirs for each
 /// relevant time period, construct descriptors, publish them, and keep them
 /// up-to-date.
-pub(crate) struct Publisher {
-    // TODO HSS: Write the contents here.
+#[must_use = "If you don't call launch() on the publisher, it won't publish any descriptors."]
+pub(crate) struct Publisher<R: Runtime> {
+    /// The runtime.
+    runtime: R,
+    /// The HsId of the service.
     //
-    // I'm assuming that each Publisher knows its current keys, keeps track of
-    // the current relevant time periods, and knows the current
-    // status for uploading to each HsDir.
-    //
-    // Some of these contents may actually wind up belonging to a reactor
-    // task.
+    // TODO HSS: read this from the KeyMgr instead?
+    hsid: HsId,
+    /// A source for new network directories that we use to determine
+    /// our HsDirs.
+    dir_provider: Arc<dyn NetDirProvider>,
+    /// A [`HsCircPool`] for building circuits to HSDirs.
+    circpool: Arc<HsCircPool<R>>,
+    /// The onion service config.
+    config: Arc<OnionServiceConfig>,
+    /// A channel for receiving IPT change notifications.
+    ipt_watcher: IptsPublisherView,
+    /// A channel for receiving onion service config change notifications.
+    config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
 }
 
-impl Publisher {
-    /// Create and launch a new publisher.
+impl<R: Runtime> Publisher<R> {
+    /// Create a new publisher.
     ///
     /// When it launches, it will know no keys or introduction points,
     /// and will therefore not upload any descriptors.
-    pub(crate) async fn new<R: Runtime>(
+    ///
+    /// The publisher won't start publishing until you call [`Publisher::launch`].
+    //
+    // TODO HSS: perhaps we don't need both config and config_rx (we could read the initial config
+    // value from config_rx).
+    pub(crate) fn new(
         runtime: R,
         hsid: HsId,
         dir_provider: Arc<dyn NetDirProvider>,
@@ -52,31 +66,39 @@ impl Publisher {
         config: OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-    ) -> Result<Self, PublisherError> {
-        let state = ReactorState::new(circpool);
-        let Ok(reactor) = Reactor::new(
-            runtime.clone(),
+    ) -> Self {
+        Self {
+            runtime,
             hsid,
             dir_provider,
-            state,
-            config,
+            circpool,
+            config: Arc::new(config),
             ipt_watcher,
             config_rx,
-        )
-        .await
-        else {
-            error!("failed to create reactor");
-            panic!();
-        };
+        }
+    }
 
-        // TODO: Do we really want to launch now, or later?
-        runtime
+    /// Launch the publisher reactor.
+    pub(crate) async fn launch(self) -> Result<(), PublisherError> {
+        let state = ReactorState::new(self.circpool);
+        let reactor = Reactor::new(
+            self.runtime.clone(),
+            self.hsid,
+            self.dir_provider,
+            state,
+            self.config,
+            self.ipt_watcher,
+            self.config_rx,
+        )
+        .await?;
+
+        self.runtime
             .spawn(async move {
                 let _result: Result<(), ReactorError> = reactor.run().await;
             })
             .map_err(|e| PublisherError::from_spawn("publisher reactor task", e))?;
 
-        Ok(Self {})
+        Ok(())
     }
 
     /// Inform this publisher that its set of keys has changed.
