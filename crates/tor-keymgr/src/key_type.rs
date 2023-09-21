@@ -52,6 +52,8 @@ pub(crate) mod ssh;
 pub enum KeyType {
     /// An Ed25519 keypair.
     Ed25519Keypair,
+    /// An expanded Ed25519 keypair.
+    Ed25519ExpandedKeypair,
     /// A Curve25519 keypair.
     X25519StaticKeypair,
     /// An Ed25519 public key.
@@ -72,6 +74,7 @@ impl KeyType {
         match self {
             Ed25519Keypair | Ed25519PublicKey => "ed25519",
             X25519StaticKeypair | X25519PublicKey => "x25519",
+            Ed25519ExpandedKeypair => "ed25519_expanded",
         }
     }
 

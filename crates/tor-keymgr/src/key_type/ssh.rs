@@ -311,6 +311,7 @@ impl KeyType {
         match self {
             KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => SshKeyAlgorithm::Ed25519,
             KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => SshKeyAlgorithm::X25519,
+            KeyType::Ed25519ExpandedKeypair => SshKeyAlgorithm::Ed25519Expanded,
         }
     }
 
@@ -323,7 +324,9 @@ impl KeyType {
 
         let key_type = *self;
         match key_type {
-            KeyType::Ed25519Keypair | KeyType::X25519StaticKeypair => {
+            KeyType::Ed25519Keypair
+            | KeyType::X25519StaticKeypair
+            | KeyType::Ed25519ExpandedKeypair => {
                 parse_openssh!(PRIVATE key, key_type)
             }
             KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
