@@ -1,7 +1,6 @@
 //! Helpers for building and representing hidden service descriptors.
 
 use std::sync::Arc;
-use std::time::SystemTime;
 use std::time::Duration;
 
 use rand_core::{CryptoRng, RngCore};
@@ -23,20 +22,6 @@ use crate::svc::publish::reactor::ReactorError;
 use crate::{HsNickname, OnionServiceConfig};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
-
-/// TODO: add a real x25519 cert type in tor-cert.
-#[allow(unreachable_pub)]
-#[derive(Clone)]
-pub struct X25519Cert;
-
-impl X25519Cert {
-    #[allow(unreachable_pub)]
-    /// The time when this certificate will expire.
-    pub fn expiry(&self) -> SystemTime {
-        // TODO
-        SystemTime::now()
-    }
-}
 
 /// Build the descriptor.
 ///
