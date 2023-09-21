@@ -59,7 +59,7 @@ impl fmt::Display for HsSvcKeyRole {
 
 impl KeySpecifier for HsSvcKeySpecifier {
     fn arti_path(&self) -> tor_keymgr::Result<ArtiPath> {
-        ArtiPath::new(format!("service/{}/{}", self.nickname, self.role))
+        ArtiPath::new(format!("hs/{}/{}", self.nickname, self.role))
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {
