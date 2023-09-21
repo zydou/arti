@@ -176,7 +176,7 @@ impl HsNtorClientState {
         let service = &state.service_info;
 
         // Compute keys required to finish this part of the handshake
-        let (enc_key, mac_key) = get_introduce1_key_material(
+        let (enc_key, mac_key) = get_introduce_key_material(
             &state.Bx,
             &service.auth_key,
             &state.X,
@@ -219,7 +219,7 @@ impl HsNtorClientState {
         let xy = state.x.diffie_hellman(&Y);
         let xb = state.x.diffie_hellman(&state.service_info.B);
 
-        let (keygen, my_mac_tag) = get_rendezvous1_key_material(
+        let (keygen, my_mac_tag) = get_rendezvous_key_material(
             &xy,
             &xb,
             &state.service_info.auth_key,
@@ -368,7 +368,7 @@ fn server_receive_intro_no_keygen(
     let mut found_dec_key = None;
 
     for subcredential in proto_input.subcredential.iter() {
-        let (dec_key, mac_key) = get_introduce1_key_material(
+        let (dec_key, mac_key) = get_introduce_key_material(
             &bx,
             &proto_input.auth_key,
             &X,
@@ -407,7 +407,7 @@ fn server_receive_intro_no_keygen(
     let xy = y.diffie_hellman(&X);
     let xb = proto_input.k_hss_ntor.secret().as_ref().diffie_hellman(&X);
 
-    let (keygen, auth_input_mac) = get_rendezvous1_key_material(
+    let (keygen, auth_input_mac) = get_rendezvous_key_material(
         &xy,
         &xb,
         &proto_input.auth_key,
@@ -441,7 +441,7 @@ fn server_receive_intro_no_keygen(
 /// ```
 ///
 /// Return (ENC_KEY, MAC_KEY).
-fn get_introduce1_key_material(
+fn get_introduce_key_material(
     bx: &curve25519::SharedSecret,
     auth_key: &ed25519::PublicKey,
     X: &curve25519::PublicKey,
@@ -497,7 +497,7 @@ fn get_introduce1_key_material(
 ///
 /// Return (keygen, AUTH_INPUT_MAC), where keygen is a key generator based on
 /// NTOR_KEY_SEED.
-fn get_rendezvous1_key_material(
+fn get_rendezvous_key_material(
     xy: &curve25519::SharedSecret,
     xb: &curve25519::SharedSecret,
     auth_key: &ed25519::PublicKey,
