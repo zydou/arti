@@ -207,7 +207,11 @@ impl<R: Runtime> OnionService<R> {
         launch
             .ipt_mgr
             .launch_background_tasks(launch.ipt_mgr_view)?;
-        launch.publisher.launch().await.expect("XXX");
+        launch
+            .publisher
+            .launch()
+            .await
+            .map_err(|e| StartupError::LaunchPublisher(Arc::new(e)))?;
 
         Ok(())
         // TODO HSS:  This needs to launch at least the following tasks:
