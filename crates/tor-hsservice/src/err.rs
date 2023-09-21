@@ -37,6 +37,10 @@ pub enum StartupError {
         #[source]
         cause: Arc<SpawnError>,
     },
+
+    /// Tried to launch an onion service that has already been launched.
+    #[error("Onion service has already been launched")]
+    AlreadyLaunched,
 }
 
 /// An error which occurs trying to communicate with a particular client.
