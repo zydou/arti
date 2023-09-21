@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::{stream::BoxStream, StreamExt as _};
 use retry_error::RetryError;
 use tor_cell::relaycell::{
@@ -34,7 +35,8 @@ use tor_rtcompat::Runtime;
 /// received from a client via an introduction point.
 #[derive(Debug, Clone, thiserror::Error)]
 #[allow(clippy::enum_variant_names)] // TODO HSS
-pub(crate) enum IntroRequestError {
+#[non_exhaustive]
+pub enum IntroRequestError {
     /// The handshake (e.g. hs_ntor) in the Introduce2 message was invalid and
     /// could not be completed.
     #[error("Introduction handshake was invalid")]
@@ -52,7 +54,8 @@ pub(crate) enum IntroRequestError {
 /// An error produced while trying to connect to a rendezvous point and open a
 /// session with a client.
 #[derive(Debug, Clone, thiserror::Error)]
-pub(crate) enum EstablishSessionError {
+#[non_exhaustive]
+pub enum EstablishSessionError {
     /// We couldn't get a timely network directory in order to build our
     /// chosen circuits.
     #[error("Network directory not available")]
@@ -120,13 +123,39 @@ pub(crate) struct IntroRequest {
 /// An open session with a single client.
 pub(crate) struct OpenSession {
     /// A stream of incoming BEGIN requests.
-    stream_requests: BoxStream<'static, tor_proto::Result<IncomingStream>>,
+    pub(crate) stream_requests: BoxStream<'static, tor_proto::Result<IncomingStream>>,
 
     /// Our circuit with the client in question
     // TODO HSS: If we drop this handle, nothing will keep the circuit alive.
     // But we need to make sure we drop this handle when the other side destroys
     // the circuit.
-    circuit: Arc<ClientCirc>,
+    pub(crate) circuit: Arc<ClientCirc>,
+}
+
+/// Dyn-safe trait to represent a `HsCircPool`.
+///
+/// We need this so that we can hold an `Arc<HsCircPool<R>>` in
+/// `RendRequestContext` without needing to parameterize on R.
+#[async_trait]
+pub(crate) trait RendCircConnector {
+    async fn get_or_launch_specific(
+        &self,
+        netdir: &tor_netdir::NetDir,
+        kind: HsCircKind,
+        target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
+    ) -> tor_circmgr::Result<Arc<ClientCirc>>;
+}
+
+#[async_trait]
+impl<R: Runtime> RendCircConnector for HsCircPool<R> {
+    async fn get_or_launch_specific(
+        &self,
+        netdir: &tor_netdir::NetDir,
+        kind: HsCircKind,
+        target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
+    ) -> tor_circmgr::Result<Arc<ClientCirc>> {
+        HsCircPool::get_or_launch_specific(self, netdir, kind, target).await
+    }
 }
 
 impl IntroRequest {
@@ -179,9 +208,9 @@ impl IntroRequest {
     /// To do so, we open a circuit to the client's chosen rendezvous point,
     /// send it a RENDEZVOUS1 message, and wait for incoming BEGIN messages from
     /// the client.
-    pub(crate) async fn establish_session<R: Runtime>(
+    pub(crate) async fn establish_session(
         self,
-        hs_pool: HsCircPool<R>,
+        hs_pool: Arc<dyn RendCircConnector>,
         provider: Arc<dyn NetDirProvider>,
     ) -> Result<OpenSession, EstablishSessionError> {
         use EstablishSessionError as E;

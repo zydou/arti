@@ -367,6 +367,7 @@ impl IptRelay {
             lid,
             target: self.relay.clone(),
             k_sid: k_sid.clone(),
+            k_ntor: &k_hss_ntor,
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;

@@ -3,14 +3,21 @@
 //! These requests are yielded on a stream, and the calling code needs to decide
 //! whether to permit or reject them.
 
-use futures::{channel::mpsc, Stream};
-use std::net::SocketAddr;
+use educe::Educe;
+use futures::{Stream, StreamExt};
+use std::sync::Arc;
 use tor_cell::relaycell::msg::Introduce2;
 
 use tor_error::Bug;
-use tor_proto::{circuit::handshake::hs_ntor::HsNtorServiceInput, stream::DataStream};
+use tor_proto::{
+    circuit::{handshake::hs_ntor::HsNtorServiceInput, ClientCirc},
+    stream::{DataStream, IncomingStream},
+};
 
-use crate::{svc::rend_handshake, ClientError, IptLocalId};
+use crate::{
+    svc::rend_handshake::{self, RendCircConnector},
+    ClientError, IptLocalId,
+};
 
 /// Request to complete an introduction/rendezvous handshake.
 ///
@@ -21,13 +28,18 @@ use crate::{svc::rend_handshake, ClientError, IptLocalId};
 /// Protocol details: More specifically, we create one of these whenever we get a well-formed
 /// `INTRODUCE2` message.  Based on this, the caller decides whether to send a
 /// `RENDEZVOUS1` message.
-#[derive(Debug)]
+#[derive(Educe)]
+#[educe(Debug)]
 pub struct RendRequest {
     /// The introduction point that sent this request.
     ipt_lid: IptLocalId,
 
     /// The message as received from the remote introduction point.
     raw: Introduce2,
+
+    /// Reference to the keys we'll need to decrypt and handshake with this request.
+    #[educe(Debug(ignore))]
+    context: Arc<RendRequestContext>,
 
     /// The introduce2 message that we've decrypted and processed.
     ///
@@ -71,15 +83,10 @@ enum ProofOfWork {
 #[derive(Debug)]
 pub struct StreamRequest {
     /// The object that will be used to send data to and from the client.
-    ///
-    /// TODO HSS: Possibly instead this will be some type from tor_proto that
-    /// can turn into a DataStream.
-    stream: DataStream,
+    stream: IncomingStream,
 
-    /// The address that the client has asked to connect to.
-    ///
-    /// TODO HSS: This is the wrong type! It may be a hostname.
-    target: SocketAddr,
+    /// The circuit that made this request.
+    on_circuit: Arc<ClientCirc>,
 }
 
 /// A stream opened over an onion service.
@@ -91,27 +98,44 @@ pub struct OnionServiceDataStream {
     inner: DataStream,
 }
 
+/// Keys and objects needed to answer a RendRequest.
+pub(crate) struct RendRequestContext {
+    /// Keys we'll use to decrypt the rendezvous request.
+    pub(crate) hs_ntor_keys: HsNtorServiceInput,
+
+    /// Provider we'll use to find a directory so that we can build a rendezvous
+    /// circuit.
+    pub(crate) netdir_provider: Arc<dyn tor_netdir::NetDirProvider>,
+
+    /// Circuit pool we'll use to build a rendezvous circuit.
+    pub(crate) circ_pool: Arc<dyn RendCircConnector + Send + Sync>,
+}
+
 impl RendRequest {
     /// Construct a new RendRequest from its parts.
-    pub(crate) fn new(ipt_lid: IptLocalId, msg: Introduce2) -> Self {
+    pub(crate) fn new(
+        ipt_lid: IptLocalId,
+        msg: Introduce2,
+        context: Arc<RendRequestContext>,
+    ) -> Self {
         Self {
             ipt_lid,
             raw: msg,
+            context,
             expanded: Default::default(),
         }
     }
 
     /// Try to return a reference to the intro_request, creating it if it did
     /// not previously exist.
-    ///
-    // TODO HSS: Perhaps we need to have an Arc<HsNtorServiceInput> as a member
-    // of this type instead of an argument here.
     fn intro_request(
         &self,
-        keys: &HsNtorServiceInput,
     ) -> Result<&rend_handshake::IntroRequest, rend_handshake::IntroRequestError> {
         self.expanded.get_or_try_init(|| {
-            rend_handshake::IntroRequest::decrypt_from_introduce2(self.raw.clone(), keys)
+            rend_handshake::IntroRequest::decrypt_from_introduce2(
+                self.raw.clone(),
+                &self.context.hs_ntor_keys,
+            )
         })
     }
 
@@ -119,11 +143,41 @@ impl RendRequest {
     /// provided rendezvous point.
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    pub async fn accept(self) -> Result<impl Stream<Item = StreamRequest>, ClientError> {
-        let r: Result<mpsc::Receiver<StreamRequest>, ClientError>;
-        todo!();
-        #[allow(unreachable_code)]
-        r
+    /// TODO HSS: Using tor_proto::Result here is a bit wonky.
+    pub async fn accept(
+        mut self,
+    ) -> Result<impl Stream<Item = tor_proto::Result<StreamRequest>>, ClientError> {
+        // Make sure the request is there.
+        self.intro_request().map_err(ClientError::BadIntroduce)?;
+        // Take ownership of the request.
+        let intro_request = self
+            .expanded
+            .take()
+            .expect("intro_request succeeded but did not fill 'expanded'.");
+        let rend_handshake::OpenSession {
+            stream_requests,
+            circuit,
+        } = intro_request
+            .establish_session(
+                self.context.circ_pool.clone(),
+                self.context.netdir_provider.clone(),
+            )
+            .await
+            .map_err(ClientError::EstablishSession)?;
+
+        // Note that we move circuit (which is an Arc<ClientCirc>) into this
+        // closure, which lives for as long as the stream of StreamRequest, and
+        // for as long as each individual StreamRequest.  This is how we keep
+        // the rendezvous circuit alive.
+        Ok(
+            stream_requests.map(move |incoming: tor_proto::Result<IncomingStream>| {
+                let stream = incoming?;
+                Ok(StreamRequest {
+                    stream,
+                    on_circuit: circuit.clone(),
+                })
+            }),
+        )
     }
     /// Reject this request.  (The client will receive no notification.)
     ///

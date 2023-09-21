@@ -58,7 +58,7 @@ mod timeout_track;
 
 pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
-pub use err::{ClientError, FatalError, StartupError};
+pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
