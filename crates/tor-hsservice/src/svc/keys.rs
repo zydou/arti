@@ -63,6 +63,11 @@ impl KeySpecifier for HsSvcKeySpecifier {
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {
+        // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the directories used
+        // by C tor. The resulting CTorPath will be prefixed with the appropriate C tor directory,
+        // based on the HsSvcKeyRole.
+        //
+        // This function will return `None` for keys that aren't stored on disk by C tor.
         todo!()
     }
 }
