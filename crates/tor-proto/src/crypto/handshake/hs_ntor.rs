@@ -350,7 +350,7 @@ fn server_receive_intro_no_keygen(
         .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?;
     let remaining_bytes = cur.remaining();
     let ciphertext = &mut cur
-        .take(remaining_bytes - 32)
+        .take(remaining_bytes - HS_MAC_LEN)
         .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?
         .to_vec();
     let mac_tag: MacTag = cur
