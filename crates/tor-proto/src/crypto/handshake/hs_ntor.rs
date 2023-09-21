@@ -279,7 +279,12 @@ pub struct HsNtorServiceInput {
     /// Introduction point authentication key (aka AUTH_KEY, aka `KP_hs_ipt_sid`)
     auth_key: HsIntroPtSessionIdKey,
 
-    /// Our subcredentials.
+    /// The subcredentials we should use when attempting to decrypt the
+    /// INTRODUCE2 message.
+    ///
+    /// (Our decryption will work if these correspond to the subcredential that
+    /// the client used when trying to contact us, which will be the the one
+    /// that the client believes corresponds to the current time period.)
     //
     // TODO HSS: We might need to move this into being a separate argument,
     // since apparently we want to allow it to vary while we keep
@@ -358,6 +363,8 @@ fn server_receive_intro_no_keygen(
     // We have to do this for every possible subcredential to find out which
     // one, if any, gives a valid encryption key.  We don't break on our first
     // success, to avoid a timing sidechannel.
+    //
+    // TODO SPEC: Document this behavior and explain why it's necessary and okay.
     let mut found_dec_key = None;
 
     for subcredential in proto_input.subcredential.iter() {
@@ -369,8 +376,8 @@ fn server_receive_intro_no_keygen(
             subcredential,
         )?; // This can only fail with a Bug, so it's okay to bail early.
 
-        // Now validate the MAC: Staple the previous INTRODUCE1 data along with the
-        // ciphertext to create the body of the MAC tag
+        // Now validate the MAC: Staple the previous parts of the INTRODUCE2
+        // message, along with the ciphertext, to create the body of the MAC tag.
         let mut mac_body: Vec<u8> = Vec::new();
         mac_body.extend(intro_header);
         mac_body.extend(X.as_bytes());
