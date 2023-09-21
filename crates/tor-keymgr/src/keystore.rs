@@ -219,18 +219,20 @@ impl EncodableKey for ed25519::PublicKey {
     where
         Self: Sized,
     {
-        todo!()
+        KeyType::Ed25519PublicKey
     }
 
     fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
     {
-        todo!()
+        Err(internal!("cannot generate a public key without a private key!").into())
     }
 
     fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
-        todo!()
+        let key_data = Ed25519PublicKey(self.to_bytes());
+
+        Ok(ssh_key::public::KeyData::Ed25519(key_data).into())
     }
 }
 
