@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 use std::time::SystemTime;
+use std::time::Duration;
 
 use rand_core::{CryptoRng, RngCore};
 
@@ -13,6 +14,7 @@ use tor_keymgr::{KeyMgr, ToEncodableKey};
 use tor_llcrypto::pk::curve25519;
 use tor_netdoc::doc::hsdesc::{HsDescBuilder, IntroPointDesc};
 use tor_netdoc::NetdocBuilder;
+use tor_rtcompat::Runtime;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::{Ipt, IptSet};
@@ -42,18 +44,29 @@ impl X25519Cert {
 /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
 #[allow(unreachable_code)] // TODO HSS: remove
 #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
-pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
+pub(crate) fn build_sign<R: Runtime, Rng: RngCore + CryptoRng>(
     keymgr: Arc<KeyMgr>,
     config: Arc<OnionServiceConfig>,
     ipt_set: &IptSet,
     period: TimePeriod,
     revision_counter: RevisionCounter,
     rng: &mut Rng,
+    runtime: R,
 ) -> Result<String, ReactorError> {
     // TODO HSS: should this be configurable? If so, we should read it from the svc config.
     //
     /// The CREATE handshake type we support.
     const CREATE2_FORMATS: &[u32] = &[1, 2];
+
+    /// Lifetime of the intro_{auth, enc}_key_cert certificates in the descriptor.
+    ///
+    /// From C-Tor src/feature/hs/hs_descriptor.h:
+    ///
+    /// "This defines the lifetime of the descriptor signing key and the cross certification cert of
+    /// that key. It is set to 54 hours because a descriptor can be around for 48 hours and because
+    /// consensuses are used after the hour, add an extra 6 hours to give some time for the service
+    /// to stop using it."
+    const HS_DESC_CERT_LIFETIME_SEC: Duration = Duration::from_secs(54 * 60 * 60);
 
     let intro_points = ipt_set
         .ipts
@@ -83,8 +96,10 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let is_single_onion_service =
         matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
-    let intro_auth_key_cert: Ed25519Cert = todo!();
-    let intro_enc_key_cert: X25519Cert = todo!();
+
+    let now = runtime.wallclock();
+    let intro_auth_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
+    let intro_enc_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
 
     // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
     // work; see #1028
@@ -105,8 +120,8 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         .auth_required(auth_required)
         .is_single_onion_service(is_single_onion_service)
         .intro_points(&intro_points[..])
-        .intro_auth_key_cert_expiry(intro_auth_key_cert.expiry())
-        .intro_enc_key_cert_expiry(intro_enc_key_cert.expiry())
+        .intro_auth_key_cert_expiry(intro_auth_key_cert_expiry)
+        .intro_enc_key_cert_expiry(intro_enc_key_cert_expiry)
         .lifetime(((ipt_set.lifetime.as_secs() / 60) as u16).into())
         .revision_counter(revision_counter)
         .subcredential(subcredential)

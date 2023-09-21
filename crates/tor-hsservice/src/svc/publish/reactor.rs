@@ -882,6 +882,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         period.period,
                         revision_counter,
                         &mut rng,
+                        imm.runtime.clone(),
                     )?;
 
                     let worst_case_end = todo!();
