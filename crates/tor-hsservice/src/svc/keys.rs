@@ -8,6 +8,7 @@ use tor_keymgr::{ArtiPath, CTorPath, KeySpecifier};
 use crate::HsNickname;
 
 /// An identifier for a particular instance of a hidden service key.
+#[derive(Clone, Debug, PartialEq)]
 pub struct HsSvcKeySpecifier {
     /// The nickname of the  hidden service.
     nickname: HsNickname,
