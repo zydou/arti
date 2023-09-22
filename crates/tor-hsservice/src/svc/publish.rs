@@ -10,6 +10,7 @@ mod reactor;
 use futures::task::SpawnExt;
 use postage::watch;
 use std::sync::Arc;
+use tor_keymgr::KeyMgr;
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_hscrypto::pk::HsId;
@@ -46,6 +47,8 @@ pub(crate) struct Publisher<R: Runtime> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+    /// The key manager.
+    keymgr: Arc<KeyMgr>,
 }
 
 impl<R: Runtime> Publisher<R> {
@@ -58,6 +61,7 @@ impl<R: Runtime> Publisher<R> {
     //
     // TODO HSS: perhaps we don't need both config and config_rx (we could read the initial config
     // value from config_rx).
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         runtime: R,
         hsid: HsId,
@@ -65,6 +69,7 @@ impl<R: Runtime> Publisher<R> {
         circpool: Arc<HsCircPool<R>>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        keymgr: Arc<KeyMgr>,
     ) -> Self {
         let config = config_rx.borrow().clone();
         Self {
@@ -75,28 +80,41 @@ impl<R: Runtime> Publisher<R> {
             config,
             ipt_watcher,
             config_rx,
+            keymgr,
         }
     }
 
     /// Launch the publisher reactor.
     pub(crate) async fn launch(self) -> Result<(), PublisherError> {
-        let state = ReactorState::new(self.circpool);
         // TODO HSS: It might be useful if this Reactor::new happened inside
         // the subtask, or if it did not have to be `async`, so that this
         // launch task could complete immediately and we could make
         // OnionService::launch a non-async function.
+        let Publisher {
+            runtime,
+            hsid,
+            dir_provider,
+            circpool,
+            config,
+            ipt_watcher,
+            config_rx,
+            keymgr,
+        } = self;
+
+        let state = ReactorState::new(circpool);
         let reactor = Reactor::new(
-            self.runtime.clone(),
-            self.hsid,
-            self.dir_provider,
+            runtime.clone(),
+            hsid,
+            dir_provider,
             state,
-            self.config,
-            self.ipt_watcher,
-            self.config_rx,
+            config,
+            ipt_watcher,
+            config_rx,
+            keymgr,
         )
         .await?;
 
-        self.runtime
+        runtime
             .spawn(async move {
                 let _result: Result<(), ReactorError> = reactor.run().await;
             })

@@ -17,6 +17,7 @@ use postage::watch;
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
+use tor_keymgr::{KeyMgr, KeystoreError};
 use tracing::{debug, error, trace};
 
 use tor_bytes::EncodeError;
@@ -37,6 +38,7 @@ use crate::ipt_set::IptsPublisherView;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use crate::HsSvcKeyRole;
 
 /// The upload rate-limiting threshold.
 ///
@@ -141,6 +143,8 @@ struct Immutable<R: Runtime, M: Mockable> {
     mockable: M,
     /// The service for which we're publishing descriptors.
     hsid: HsId,
+    /// The key manager,
+    keymgr: Arc<KeyMgr>,
 }
 
 /// Mockable state for the descriptor publisher reactor.
@@ -351,6 +355,34 @@ pub(crate) enum ReactorError {
     #[error("failed to publish a descriptor")]
     PublishFailure(RetryError<UploadError>),
 
+    /// Failed to access the keystore.
+    #[error("failed to access keystore")]
+    Keystore(#[from] Box<dyn KeystoreError>),
+
+    /// A key we needed could not be found in the keystore.
+    //
+    // TODO HSS: this error should be split into multiple separate errors:
+    //
+    //   * we failed to retrieve a key (such as `KS_hs_id`), and we can't auto-generate it because
+    //   it is stored offline (we assume the key is stored offline if the keystore contains the
+    //   public part of the key (`KP_hs_id`) but not the private one). This can happen, for
+    //   example, if we're trying to retrieve `KS_hs_id` in order to generate a new `hs_blind_id`
+    //   keypair (which would happen outside of keymgr, because the keygr doesn't know about time
+    //   periods).
+    //   * we failed to retrieve a certificate, and we can't auto-generate it because the signing
+    //   key is missing (and can't be auto-generated). For example, `hs_desc_sign_cert` can't be
+    //   found in the keystore, and also can't be auto-generated, because `hs_blind_id` doesn't
+    //   exist in the keystore either (`hs_blind_id` can't be auto-generated because generating
+    //   blinded keys requires knowing the time period).
+    //
+    // TODO HSS: this error should only be returned if the key we're looking for is missing _and_ we
+    // cannot auto-generate it (so perhaps MissingKey is not the best name for this variant).
+    // See also the TODO in read_svc_key() from publish/descriptor.rs
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946311
+    #[error("A key we needed could not be found in the keystore: {0}")]
+    MissingKey(HsSvcKeyRole),
+
     /// Unable to spawn task
     //
     // TODO lots of our Errors have a variant exactly like this.
@@ -410,6 +442,7 @@ pub(crate) enum UploadError {
 
 impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
+    #[allow(clippy::too_many_arguments)]
     pub(super) async fn new(
         runtime: R,
         hsid: HsId,
@@ -418,6 +451,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        keymgr: Arc<KeyMgr>,
     ) -> Result<Self, ReactorError> {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -442,6 +476,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             runtime,
             mockable,
             hsid,
+            keymgr,
         };
 
         let inner = Inner {
@@ -815,17 +850,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
-        let inner = self.inner.lock().expect("poisoned lock");
+        let mut inner = self.inner.lock().expect("poisoned lock");
 
         let netdir = Arc::clone(&inner.netdir);
 
         let imm = Arc::clone(&self.imm);
         let hsid_key = self.hsid_key.clone();
         let upload_task_complete_tx = self.upload_task_complete_tx.clone();
+        let keymgr = Arc::clone(&imm.keymgr);
+
+        let inner = &mut *inner;
 
         let upload_tasks = inner
             .time_periods
-            .iter()
+            .iter_mut()
             .map(|period| {
                 // Figure out which HsDirs we need to upload the descriptor to (some of them might already
                 // have our latest descriptor, so we filter them out).
@@ -841,8 +879,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     })
                     .collect::<Vec<_>>();
 
-                let blind_id_kp = todo!();
-
                 // We're about to generate a new version of the descriptor: increment the revision
                 // counter.
                 //
@@ -855,18 +891,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     let mut rng = imm.mockable.thread_rng();
 
                     let mut ipt_set = self.ipt_watcher.borrow_for_publish();
-                    let Some(mut ipt_set) = ipt_set.as_mut() else {
+                    let Some(ipt_set) = ipt_set.as_mut() else {
                         return Ok(());
                     };
 
                     let desc = build_sign(
-                        inner.config,
-                        hsid_key,
-                        blind_id_kp,
+                        Arc::clone(&keymgr),
+                        Arc::clone(&inner.config),
                         ipt_set,
                         period.period,
                         revision_counter,
                         &mut rng,
+                        imm.runtime.wallclock(),
                     )?;
 
                     let worst_case_end = todo!();
