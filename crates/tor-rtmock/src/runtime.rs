@@ -12,7 +12,7 @@ use crate::util::impl_runtime_prelude::*;
 
 use crate::net::MockNetProvider;
 use crate::task::{MockExecutor, SchedulingPolicy};
-use crate::time::MockSleepProvider;
+use crate::simple_time::Provider as MockSleepProvider; // XXXX fix this misleading alias
 
 /// Completely mock runtime
 ///
@@ -168,7 +168,7 @@ impl MockRuntime {
                 return;
             };
             assert_ne!(timeout, Duration::ZERO);
-            self.sleep.advance(timeout).await;
+            self.sleep.advance(timeout);
         }
     }
 
@@ -235,14 +235,14 @@ impl MockRuntime {
 
             let advance = chain!(timeout, [limit]).min().expect("empty!");
             assert_ne!(advance, Duration::ZERO);
-            self.sleep.advance(advance).await;
+            self.sleep.advance(advance);
         }
     }
 
     /// Advances time by `dur`, firing time events and other tasks in order
     ///
     /// Prefer this to [`MockSleepProvider::advance()`];
-    /// it works more correctly.
+    /// it works more faithfully.
     ///
     /// Specifically, it advances time in successive stages,
     /// so that timeouts occur sequentially, in the right order.
@@ -261,9 +261,9 @@ impl MockRuntime {
         self.advance_until(limit).await
     }
 
-    /// See [`MockSleepProvider::jump_to()`]
+    /// See [`MockSleepProvider::jump_wallclock()`]
     pub fn jump_to(&self, new_wallclock: SystemTime) {
-        self.sleep.jump_to(new_wallclock);
+        self.sleep.jump_wallclock(new_wallclock);
     }
 
     /// Return the amount of virtual time until the next timeout
@@ -283,10 +283,6 @@ impl MockRuntime {
     /// can depend on whether tasks have actually yet polled various futures.
     /// The answer should be correct after
     /// [`progress_until_stalled`](Self::progress_until_stalled).
-    //
-    // The corresponding method on MockSleepProvider is still only pub(crate),
-    // mostly because I think's very hard (or maybe impossible) to use correctly,
-    // other than as part of the implementation, without `progress_until_stalled`.
     pub fn time_until_next_timeout(&self) -> Option<Duration> {
         self.sleep.time_until_next_timeout()
     }
@@ -305,7 +301,7 @@ impl MockRuntime {
     /// use `runtime.mock_sleep().advance()`.
     #[deprecated(note = "use MockRuntime::advance_by, or MockSleepProvider::advance()")]
     pub async fn advance(&self, dur: Duration) {
-        self.sleep.advance(dur).await;
+        self.sleep.advance(dur);
     }
 }
 
@@ -330,7 +326,7 @@ impl MockRuntimeBuilder {
         } = self;
 
         let sleep = if let Some(starting_wallclock) = starting_wallclock {
-            MockSleepProvider::new(starting_wallclock)
+            MockSleepProvider::from_wallclock(starting_wallclock)
         } else {
             MockSleepProvider::default()
         };

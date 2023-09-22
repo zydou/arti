@@ -133,6 +133,9 @@ impl Provider {
     ///
     /// Will wake sleeping [`SleepFuture`]s, as appropriate,
     /// but does not yield to the executor.
+    ///
+    /// To simulate normal time advancement, wakeups, and task activations,
+    /// use [`MockExecutor::advance_*()`](crate::MockRuntime).
     pub fn advance(&self, d: Duration) {
         let mut state = self.lock();
         state.now += d;

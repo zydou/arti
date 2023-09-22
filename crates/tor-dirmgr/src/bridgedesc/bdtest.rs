@@ -28,7 +28,7 @@ use tracing_test::traced_test;
 
 use tor_linkspec::HasAddrs;
 use tor_rtcompat::SleepProvider;
-use tor_rtmock::time::MockSleepProvider;
+use tor_rtmock::simple_time::SimpleMockTimeProvider;
 use tor_rtmock::MockRuntime;
 
 use super::*;
@@ -59,7 +59,7 @@ use Error::TestError as TE;
 
 #[derive(Debug, Clone)]
 struct Mock {
-    sleep: MockSleepProvider,
+    sleep: SimpleMockTimeProvider,
 
     // Using an async mutex lets us block a call to `download`
     // so we can see what the state is mid-download.
@@ -129,7 +129,7 @@ impl Mock {
 
 fn setup(runtime: MockRuntime) -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let sleep = runtime.mock_sleep().clone();
-    sleep.jump_to(example_wallclock());
+    sleep.jump_wallclock(example_wallclock());
 
     let mut docs = HashMap::new();
     docs.insert(EXAMPLE_PORT, Ok(EXAMPLE_DESCRIPTOR.into()));
@@ -292,7 +292,7 @@ fn success() -> Result<(), anyhow::Error> {
 
         eprintln!("----- move the clock forward to do some retries ----------");
 
-        mock.sleep.advance(Duration::from_secs(5000)).await;
+        mock.sleep.advance(Duration::from_secs(5000));
 
         bdm.check_consistency(Some(&bridges));
 
@@ -341,7 +341,7 @@ fn success() -> Result<(), anyhow::Error> {
 
         let hold = mock.mstate.lock().await;
 
-        mock.sleep.advance(Duration::from_secs(8000)).await;
+        mock.sleep.advance(Duration::from_secs(8000));
         bdm.check_consistency(Some(&bridges));
 
         // should yield, but not produce any events yet
@@ -456,7 +456,7 @@ fn cache() -> Result<(), anyhow::Error> {
         );
 
         // Exceeds default max_refetch
-        mock.sleep.advance(Duration::from_secs(20000)).await;
+        mock.sleep.advance(Duration::from_secs(20000));
 
         stream_drain_until(3, &mut events, || async {
             (mock.mstate.lock().await.download_calls > 0).then_some(())
@@ -544,7 +544,7 @@ fn process_doc() -> Result<(), anyhow::Error> {
         };
 
         let expecting_at = |now: SystemTime, exp| {
-            mock.sleep.jump_to(now);
+            mock.sleep.jump_wallclock(now);
             pr_t("now", now);
             pr_t("valid.0", valid.0);
             pr_t("valid.1", valid.1);
