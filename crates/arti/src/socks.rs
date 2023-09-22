@@ -17,7 +17,7 @@ use tracing::{debug, error, info, warn};
 
 use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
 use tor_config::Listen;
-use tor_error::{error_report, warn_report};
+use tor_error::warn_report;
 #[cfg(feature = "rpc")]
 use tor_rpcbase as rpc;
 use tor_rtcompat::{Runtime, TcpListener};
@@ -619,7 +619,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                             listeners.push(listener);
                         }
                         Err(ref e) if e.kind() == AddrInUse => {
-                            error_report!(e, "Address already in use {}", addr);
+                            return Err(anyhow!("Address already in use {}", addr));
                         }
                         Err(e) => warn_report!(e, "Can't listen on {}", addr),
                     }
