@@ -125,6 +125,17 @@ where
 {
     let svc_key_spec = HsSvcKeySpecifier::new(nickname, role);
 
+    // TODO HSS: most of the time, we don't want to return a MissingKey error. Generally, if a
+    // key/cert is missing, we should try to generate it, and only return MissingKey if generating
+    // the key is not possible. This can happen, for example, if we have to generate and
+    // cross-certify a key, but we're missing the signing key (e.g. if we're trying to generate
+    // `hs_desc_sign_cert`, but we don't have a corresponding `hs_blind_id` key in the keystore).
+    // It can also happen if, for example, if we need to generate a new blind_hs_id, but the
+    // KS_hs_id is stored offline (not that if both KS_hs_id and KP_hs_id are missing from the
+    // keystore, we would just generate a new hs_id keypair, rather than return a MissingKey error
+    // -- TODO HSS: decide if this is the correct behaviour!)
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946313
     keymgr
         .get::<K>(&svc_key_spec)?
         .ok_or_else(|| ReactorError::MissingKey(role))
