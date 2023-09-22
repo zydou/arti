@@ -49,6 +49,7 @@ pub mod config;
 mod err;
 mod ipt_mgr;
 mod ipt_set;
+mod keys;
 mod nickname;
 mod req;
 mod status;
@@ -58,10 +59,10 @@ mod timeout_track;
 pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
+pub use keys::{HsSvcKeyRole, HsSvcKeySpecifier};
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
-pub use svc::keys::{HsSvcKeyRole, HsSvcKeySpecifier};
 pub use svc::OnionService;
 
 /// Persistent local identifier for an introduction point

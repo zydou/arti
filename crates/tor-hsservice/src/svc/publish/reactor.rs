@@ -35,10 +35,10 @@ use tor_rtcompat::Runtime;
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::IptsPublisherView;
-use crate::svc::keys::HsSvcKeyRole;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use crate::HsSvcKeyRole;
 
 /// The upload rate-limiting threshold.
 ///

@@ -16,9 +16,8 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::{Ipt, IptSet};
-use crate::svc::keys::{HsSvcKeyRole, HsSvcKeySpecifier};
 use crate::svc::publish::reactor::ReactorError;
-use crate::{HsNickname, OnionServiceConfig};
+use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, OnionServiceConfig};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
