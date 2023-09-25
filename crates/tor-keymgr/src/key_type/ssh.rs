@@ -289,65 +289,13 @@ impl KeyType {
         // TODO HSS: perhaps this needs to be a method on EncodableKey instead?
 
         let key_type = *self;
-        let sk = ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| {
-            SshKeyError::SshKeyParse {
-                // TODO: rust thinks this clone is necessary because key.path is also used below (but
-                // if we get to this point, we're going to return an error and never reach the other
-                // error handling branches where we use key.path).
-                path: key.path.clone(),
-                key_type,
-                err: e.into(),
-            }
-        })?;
-
-        let wanted_key_algo = key_type.ssh_algorithm();
-
-        if SshKeyAlgorithm::from(sk.algorithm()) != wanted_key_algo {
-            return Err(SshKeyError::UnexpectedSshKeyType {
-                path: key.path,
-                wanted_key_algo,
-                found_key_algo: sk.algorithm().into(),
-            }
-            .boxed());
-        }
-
         match key_type {
-        KeyType::Ed25519Keypair | KeyType::X25519StaticKeypair => {
-        // Build the expected key type (i.e. convert ssh_key key types to the key types
-        // we're using internally).
-        match sk.key_data() {
-            KeypairData::Ed25519(key) => Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
-                .map_err(|_| internal!("failed to build ed25519 key out of ed25519 OpenSSH key"))
-                .map(Box::new)?),
-            KeypairData::Other(key)
-                if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
-            {
-                let secret: [u8; 32] = key
-                    .private
-                    .as_ref()
-                    .try_into()
-                    .map_err(|_| internal!("invalid x25519 private key"))?;
-
-                let public: [u8; 32] = key
-                    .public
-                    .as_ref()
-                    .try_into()
-                    .map_err(|_| internal!("invalid x25519 public key"))?;
-
-                Ok(Box::new(curve25519::StaticKeypair {
-                    secret: secret.into(),
-                    public: public.into(),
-                }))
+            KeyType::Ed25519Keypair | KeyType::X25519StaticKeypair => {
+                parse_openssh!(PRIVATE key, key_type)
+            },
+            KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
+                parse_openssh!(PUBLIC key, key_type)
             }
-            _ => Err(SshKeyError::UnexpectedSshKeyType {
-                path: key.path,
-                wanted_key_algo,
-                found_key_algo: sk.algorithm().into(),
-            }
-            .boxed()),
-        }
-        },
-        KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => todo!(),
         }
     }
 }
