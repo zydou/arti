@@ -324,11 +324,16 @@ mod tests {
     use super::*;
 
     const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
+    const OPENSSH_ED25519_PUB: &str = include_str!("../../testdata/ed25519_openssh.public");
     const OPENSSH_ED25519_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.private");
+    const OPENSSH_ED25519_PUB_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.public");
     const OPENSSH_DSA: &str = include_str!("../../testdata/dsa_openssh.private");
     const OPENSSH_X25519: &str = include_str!("../../testdata/x25519_openssh.private");
+    const OPENSSH_X25519_PUB: &str = include_str!("../../testdata/x25519_openssh.public");
     const OPENSSH_X25519_UNKNOWN_ALGORITHM: &str =
         include_str!("../../testdata/x25519_openssh_unknown_algorithm.private");
+    const OPENSSH_X25519_PUB_UNKNOWN_ALGORITHM: &str =
+        include_str!("../../testdata/x25519_openssh_unknown_algorithm.public");
 
     macro_rules! test_parse_ssh_format_erased {
         ($key_ty:tt, $key:expr, $expected_ty:path) => {{
@@ -387,11 +392,18 @@ mod tests {
             OPENSSH_ED25519_BAD,
             err = "Failed to parse OpenSSH with type Ed25519Keypair"
         );
+
+        test_parse_ssh_format_erased!(
+            Ed25519Keypair,
+            OPENSSH_ED25519_PUB_BAD,
+            err = "Failed to parse OpenSSH with type Ed25519Keypair"
+        );
     }
 
     #[test]
     fn ed25519_key() {
         test_parse_ssh_format_erased!(Ed25519Keypair, OPENSSH_ED25519, ed25519::Keypair);
+        test_parse_ssh_format_erased!(Ed25519PublicKey, OPENSSH_ED25519_PUB, ed25519::PublicKey);
     }
 
     #[test]
@@ -401,6 +413,8 @@ mod tests {
             OPENSSH_X25519,
             curve25519::StaticKeypair
         );
+
+        test_parse_ssh_format_erased!(X25519PublicKey, OPENSSH_X25519_PUB, curve25519::PublicKey);
     }
 
     #[test]
@@ -409,6 +423,18 @@ mod tests {
             X25519StaticKeypair,
             OPENSSH_X25519_UNKNOWN_ALGORITHM,
             err = "Unexpected OpenSSH key type: wanted X25519, found pangolin@torproject.org"
+        );
+
+        test_parse_ssh_format_erased!(
+            X25519PublicKey,
+            OPENSSH_X25519_UNKNOWN_ALGORITHM, // Note: this is a private key
+            err = "Failed to parse OpenSSH with type X25519PublicKey"
+        );
+
+        test_parse_ssh_format_erased!(
+            X25519PublicKey,
+            OPENSSH_X25519_PUB_UNKNOWN_ALGORITHM,
+            err = "Unexpected OpenSSH key type: wanted X25519, found armadillo@torproject.org"
         );
     }
 }
