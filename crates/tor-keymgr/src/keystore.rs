@@ -161,6 +161,32 @@ impl EncodableKey for curve25519::StaticKeypair {
     }
 }
 
+impl EncodableKey for curve25519::PublicKey {
+    fn key_type() -> KeyType
+    where
+        Self: Sized,
+    {
+        KeyType::X25519PublicKey
+    }
+
+    fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Err(internal!("cannot generate a public key without a private key!").into())
+    }
+
+    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
+        let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
+            .map_err(|_| internal!("invalid algorithm name"))?;
+
+        let ssh_public =
+            OpaquePublicKey::new(self.to_bytes().to_vec(), Algorithm::Other(algorithm_name));
+
+        Ok(KeyData::Other(ssh_public).into())
+    }
+}
+
 impl EncodableKey for ed25519::Keypair {
     fn key_type() -> KeyType
     where
