@@ -236,7 +236,6 @@ impl Listen {
         Ok(match &*self.0 {
             [] => None,
             [LI::Localhost(port)] => Some((*port).into()),
-            _ if !self.is_empty() => None,
             _ => return Err(ListenUnsupported {}),
         })
     }
@@ -249,7 +248,7 @@ impl Display for Listen {
             write!(f, "{sep}{a}")?;
             sep = ", ";
         }
-        writeln!(f)
+        Ok(())
     }
 }
 /// [`Listen`] configuration specified something not supported by application code
@@ -551,7 +550,7 @@ mod test {
                     .into_iter()
                     .flatten()
                     .collect()),
-                Ok(None),
+                Err(()),
                 &format!("listen = [ {}, 23 ]", s),
             );
         };
@@ -570,7 +569,7 @@ mod test {
         chk_1(
             LI::General(unspec6(56)),
             vec![vec![unspec6(56)]],
-            Ok(None),
+            Err(()),
             r#""[::]:56""#,
         );
 

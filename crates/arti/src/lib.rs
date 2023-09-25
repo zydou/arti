@@ -467,7 +467,7 @@ where
         };
 
         info!(
-            "Starting Arti {} in SOCKS proxy mode on {}...",
+            "Starting Arti {} in SOCKS proxy mode on {} ...",
             env!("CARGO_PKG_VERSION"),
             socks_listen
         );
