@@ -173,8 +173,8 @@ impl KeyType {
     /// Get the algorithm of this key type.
     pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
         match self {
-            KeyType::Ed25519Keypair => SshKeyAlgorithm::Ed25519,
-            KeyType::X25519StaticKeypair => SshKeyAlgorithm::X25519,
+            KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => SshKeyAlgorithm::Ed25519,
+            KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => SshKeyAlgorithm::X25519,
         }
     }
 
@@ -208,6 +208,8 @@ impl KeyType {
             .boxed());
         }
 
+        match key_type {
+        KeyType::Ed25519Keypair | KeyType::X25519StaticKeypair => {
         // Build the expected key type (i.e. convert ssh_key key types to the key types
         // we're using internally).
         match sk.key_data() {
@@ -240,6 +242,9 @@ impl KeyType {
                 found_key_algo: sk.algorithm().into(),
             }
             .boxed()),
+        }
+        },
+        KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => todo!(),
         }
     }
 }

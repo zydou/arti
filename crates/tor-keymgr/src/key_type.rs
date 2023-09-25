@@ -46,6 +46,10 @@ pub enum KeyType {
     Ed25519Keypair,
     /// A Curve25519 keypair.
     X25519StaticKeypair,
+    /// An Ed25519 public key.
+    Ed25519PublicKey,
+    /// A Curve25519 public key.
+    X25519PublicKey,
     // ...plus all the other key types we're interested in (TODO)
 }
 
@@ -55,9 +59,11 @@ impl KeyType {
     // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
     // to decide the file extension should be).
     pub fn arti_extension(&self) -> &'static str {
+        use KeyType::*;
+
         match self {
-            KeyType::Ed25519Keypair => "ed25519",
-            KeyType::X25519StaticKeypair => "x25519",
+            Ed25519Keypair | Ed25519PublicKey => "ed25519",
+            X25519StaticKeypair | X25519PublicKey => "x25519",
         }
     }
 
