@@ -122,8 +122,10 @@ impl EncodableKey for curve25519::StaticKeypair {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
-        let ssh_public =
-            OpaquePublicKey::new(self.public.to_bytes().to_vec(), Algorithm::Other(algorithm_name));
+        let ssh_public = OpaquePublicKey::new(
+            self.public.to_bytes().to_vec(),
+            Algorithm::Other(algorithm_name),
+        );
         let keypair = OpaqueKeypair::new(self.secret.to_bytes().to_vec(), ssh_public);
 
         Ok(ssh_key::private::KeypairData::Other(keypair))

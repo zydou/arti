@@ -9,7 +9,7 @@ use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use tor_hscrypto::pk::{HsClientIntroAuthKeypair, HsId, HsClientDescEncKeypair};
+use tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientIntroAuthKeypair, HsId};
 use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
 
 /// Keys (if any) to use when connecting to a specific onion service.

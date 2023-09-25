@@ -223,14 +223,16 @@ impl KeyType {
                     .try_into()
                     .map_err(|_| internal!("invalid x25519 private key"))?;
 
-
                 let public: [u8; 32] = key
                     .public
                     .as_ref()
                     .try_into()
                     .map_err(|_| internal!("invalid x25519 public key"))?;
 
-                Ok(Box::new(curve25519::StaticKeypair { secret: secret.into(), public: public.into() }))
+                Ok(Box::new(curve25519::StaticKeypair {
+                    secret: secret.into(),
+                    public: public.into(),
+                }))
             }
             _ => Err(SshKeyError::UnexpectedSshKeyType {
                 path: key.path,

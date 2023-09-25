@@ -260,7 +260,7 @@ mod test {
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as ParsedHsDesc};
     use tor_basic_utils::test_rng::Config;
     use tor_checkable::{SelfSigned, Timebound};
-    use tor_hscrypto::pk::{HsIdKeypair, HsClientDescEncKeypair};
+    use tor_hscrypto::pk::{HsClientDescEncKeypair, HsIdKeypair};
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::curve25519;

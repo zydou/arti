@@ -25,9 +25,7 @@ use crate::{NetdocErrorKind as EK, Result};
 use tor_checkable::signed::{self, SignatureGated};
 use tor_checkable::timed::{self, TimerangeBound};
 use tor_checkable::{SelfSigned, Timebound};
-use tor_hscrypto::pk::{
-    HsBlindId, HsClientDescEncKeypair, HsIntroPtSessionIdKey, HsSvcNtorKey,
-};
+use tor_hscrypto::pk::{HsBlindId, HsClientDescEncKeypair, HsIntroPtSessionIdKey, HsSvcNtorKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_linkspec::EncodedLinkSpec;
 use tor_llcrypto::pk::curve25519;
@@ -716,7 +714,9 @@ mod test {
         let subcredential = TEST_SUBCREDENTIAL_2.into();
         let pk = curve25519::PublicKey::from(TEST_PUBKEY_2).into();
         let sk = curve25519::StaticSecret::from(TEST_SECKEY_2).into();
-        let desc = encrypted.decrypt(&subcredential, Some(&HsClientDescEncKeypair::new(pk, sk))).unwrap();
+        let desc = encrypted
+            .decrypt(&subcredential, Some(&HsClientDescEncKeypair::new(pk, sk)))
+            .unwrap();
         let desc = desc
             .check_valid_at(&humantime::parse_rfc3339("2023-01-24T03:00:00Z").unwrap())
             .unwrap();

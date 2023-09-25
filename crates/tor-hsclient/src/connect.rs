@@ -594,11 +594,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             })?;
 
         let desc_text = response.into_output_string().map_err(|rfe| rfe.error)?;
-        let hsc_desc_enc = self
-            .secret_keys
-            .keys
-            .ks_hsc_desc_enc
-            .as_ref();
+        let hsc_desc_enc = self.secret_keys.keys.ks_hsc_desc_enc.as_ref();
 
         let now = self.runtime.wallclock();
 
@@ -1490,12 +1486,12 @@ mod test {
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
-    use tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientDescEncKey};
     use std::ops::{Bound, RangeBounds};
     use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
     use tor_basic_utils::test_rng::{testing_rng, TestingRng};
+    use tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncKeypair};
     use tor_llcrypto::pk::curve25519;
     use tor_netdoc::doc::{hsdesc::test_data, netstatus::Lifetime};
     use tor_rtcompat::{tokio::TokioNativeTlsRuntime, CompoundRuntime};
