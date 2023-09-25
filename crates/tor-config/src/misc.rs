@@ -582,4 +582,28 @@ mod test {
         chk_err_1("need actual addr/port", "did not match any variant", "true");
         chk_err("did not match any variant", r#"listen = [ [] ]"#);
     }
+
+    #[test]
+    fn display_listen() {
+        let empty = Listen::new_none();
+        assert_eq!(empty.to_string(), "");
+
+        let one_port = Listen::new_localhost(1234);
+        assert_eq!(one_port.to_string(), "localhost port 1234");
+
+        let multi_port = Listen(vec![
+            ListenItem::Localhost(1111.try_into().unwrap()),
+            ListenItem::Localhost(2222.try_into().unwrap()),
+        ]);
+        assert_eq!(
+            multi_port.to_string(),
+            "localhost port 1111, localhost port 2222"
+        );
+
+        let multi_addr = Listen(vec![
+            ListenItem::Localhost(1234.try_into().unwrap()),
+            ListenItem::General("1.2.3.4:5678".parse().unwrap()),
+        ]);
+        assert_eq!(multi_addr.to_string(), "localhost port 1234, 1.2.3.4:5678");
+    }
 }
