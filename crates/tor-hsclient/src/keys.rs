@@ -9,7 +9,7 @@ use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair, HsId};
+use tor_hscrypto::pk::{HsClientIntroAuthKeypair, HsId, HsClientDescEncKeypair};
 use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
 
 /// Keys (if any) to use when connecting to a specific onion service.
@@ -105,7 +105,7 @@ type ClientSecretKeyValues = HsClientSecretKeysBuilder;
 #[derive(Default, Debug)]
 pub struct HsClientSecretKeysBuilder {
     /// Possibly, a key that is used to decrypt a descriptor.
-    pub(crate) ks_hsc_desc_enc: Option<HsClientDescEncSecretKey>,
+    pub(crate) ks_hsc_desc_enc: Option<HsClientDescEncKeypair>,
 
     /// Possibly, a key that is used to authenticate while introducing.
     pub(crate) ks_hsc_intro_auth: Option<HsClientIntroAuthKeypair>,
@@ -118,7 +118,7 @@ pub struct HsClientSecretKeysBuilder {
 // feed secret key material through config-rs, etc.
 impl HsClientSecretKeysBuilder {
     /// Provide a descriptor decryption key
-    pub fn ks_hsc_desc_enc(&mut self, ks: HsClientDescEncSecretKey) -> &mut Self {
+    pub fn ks_hsc_desc_enc(&mut self, ks: HsClientDescEncKeypair) -> &mut Self {
         self.ks_hsc_desc_enc = Some(ks);
         self
     }

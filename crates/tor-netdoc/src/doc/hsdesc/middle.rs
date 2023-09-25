@@ -2,7 +2,7 @@
 
 use once_cell::sync::Lazy;
 use subtle::ConstantTimeEq;
-use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey, HsSvcDescEncKey};
+use tor_hscrypto::pk::{HsBlindId, HsSvcDescEncKey, HsClientDescEncSecretKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::util::ct::CtByteArray;

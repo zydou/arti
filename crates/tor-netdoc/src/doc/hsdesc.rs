@@ -26,7 +26,7 @@ use tor_checkable::signed::{self, SignatureGated};
 use tor_checkable::timed::{self, TimerangeBound};
 use tor_checkable::{SelfSigned, Timebound};
 use tor_hscrypto::pk::{
-    HsBlindId, HsClientDescEncKey, HsClientDescEncSecretKey, HsIntroPtSessionIdKey, HsSvcNtorKey,
+    HsBlindId, HsClientDescEncKeypair, HsIntroPtSessionIdKey, HsSvcNtorKey,
 };
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_linkspec::EncodedLinkSpec;
@@ -267,7 +267,7 @@ impl HsDesc {
         blinded_onion_id: &HsBlindId,
         valid_at: SystemTime,
         subcredential: &Subcredential,
-        hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
+        hsc_desc_enc: Option<&HsClientDescEncKeypair>,
     ) -> StdResult<TimerangeBound<Self>, HsDescError> {
         use HsDescError as E;
         let unchecked_desc = Self::parse(input, blinded_onion_id)
@@ -463,7 +463,7 @@ impl EncryptedHsDesc {
     pub fn decrypt(
         &self,
         subcredential: &Subcredential,
-        hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
+        hsc_desc_enc: Option<&HsClientDescEncKeypair>,
     ) -> StdResult<TimerangeBound<SignatureGated<HsDesc>>, HsDescError> {
         use HsDescError as E;
         let blinded_id = self.outer_doc.blinded_id();
@@ -485,7 +485,7 @@ impl EncryptedHsDesc {
             &blinded_id,
             revision_counter,
             subcredential,
-            hsc_desc_enc.map(|keys| keys.1),
+            hsc_desc_enc.map(|keys| keys.secret()),
         )?;
         let inner = std::str::from_utf8(&inner[..]).map_err(|_| {
             E::InnerParsing(EK::BadObjectVal.with_msg("Bad utf-8 in inner document"))
@@ -716,7 +716,7 @@ mod test {
         let subcredential = TEST_SUBCREDENTIAL_2.into();
         let pk = curve25519::PublicKey::from(TEST_PUBKEY_2).into();
         let sk = curve25519::StaticSecret::from(TEST_SECKEY_2).into();
-        let desc = encrypted.decrypt(&subcredential, Some((&pk, &sk))).unwrap();
+        let desc = encrypted.decrypt(&subcredential, Some(&HsClientDescEncKeypair::new(pk, sk))).unwrap();
         let desc = desc
             .check_valid_at(&humantime::parse_rfc3339("2023-01-24T03:00:00Z").unwrap())
             .unwrap();

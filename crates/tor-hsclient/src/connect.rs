@@ -34,7 +34,7 @@ use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
 use tor_error::{internal, into_internal};
 use tor_error::{HasRetryTime as _, RetryTime};
-use tor_hscrypto::pk::{HsBlindId, HsClientDescEncKey, HsId, HsIdKey};
+use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
 use tor_hscrypto::RendCookie;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -598,8 +598,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .secret_keys
             .keys
             .ks_hsc_desc_enc
-            .as_ref()
-            .map(|ks| (HsClientDescEncKey::from(ks), ks));
+            .as_ref();
 
         let now = self.runtime.wallclock();
 
@@ -608,7 +607,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             &self.hs_blind_id,
             now,
             &self.subcredential,
-            hsc_desc_enc.as_ref().map(|(kp, ks)| (kp, *ks)),
+            hsc_desc_enc,
         )
         .map_err(DescriptorErrorDetail::from)
     }
@@ -1491,6 +1490,7 @@ mod test {
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
+    use tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientDescEncKey};
     use std::ops::{Bound, RangeBounds};
     use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
@@ -1638,10 +1638,10 @@ mod test {
         let hsid = test_data::TEST_HSID_2.into();
         let mut data = Data::default();
 
-        let pk = curve25519::PublicKey::from(test_data::TEST_PUBKEY_2).into();
+        let pk: HsClientDescEncKey = curve25519::PublicKey::from(test_data::TEST_PUBKEY_2).into();
         let sk = curve25519::StaticSecret::from(test_data::TEST_SECKEY_2).into();
         let mut secret_keys_builder = HsClientSecretKeysBuilder::default();
-        secret_keys_builder.ks_hsc_desc_enc(sk);
+        secret_keys_builder.ks_hsc_desc_enc(HsClientDescEncKeypair::new(pk.clone(), sk));
         let secret_keys = secret_keys_builder.build().unwrap();
 
         let ctx = Context::new(
@@ -1672,7 +1672,7 @@ mod test {
             &hs_blind_id,
             now,
             &subcredential,
-            Some((&pk, &sk)),
+            Some(&HsClientDescEncKeypair::new(pk, sk)),
         )
         .unwrap()
         .dangerously_assume_timely();
