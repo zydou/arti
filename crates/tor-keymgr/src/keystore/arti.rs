@@ -77,7 +77,7 @@ impl Keystore for ArtiNativeKeystore {
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
         let path = self.key_path(key_spec, key_type)?;
 
-        let inner = match self.keystore_dir.read(&path) {
+        let inner = match self.keystore_dir.read_to_string(&path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
             Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
                 return Ok(None);
@@ -181,7 +181,7 @@ mod tests {
 
     // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
     // include it once)
-    const OPENSSH_ED25519: &[u8] = include_bytes!("../../testdata/ed25519_openssh.private");
+    const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
 
     struct TestSpecifier;
 

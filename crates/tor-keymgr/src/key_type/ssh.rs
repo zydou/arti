@@ -76,7 +76,7 @@ pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@torproject.org";
 /// The inner value is zeroed on drop.
 pub(crate) struct UnparsedOpenSshKey {
     /// The contents of an OpenSSH key file.
-    inner: Zeroizing<Vec<u8>>,
+    inner: Zeroizing<String>,
     /// The path of the file (for error reporting).
     path: PathBuf,
 }
@@ -85,7 +85,7 @@ impl UnparsedOpenSshKey {
     /// Create a new [`UnparsedOpenSshKey`].
     ///
     /// The contents of `inner` are erased on drop.
-    pub(crate) fn new(inner: Vec<u8>, path: PathBuf) -> Self {
+    pub(crate) fn new(inner: String, path: PathBuf) -> Self {
         Self {
             inner: Zeroizing::new(inner),
             path,
@@ -260,12 +260,12 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    const OPENSSH_ED25519: &[u8] = include_bytes!("../../testdata/ed25519_openssh.private");
-    const OPENSSH_ED25519_BAD: &[u8] = include_bytes!("../../testdata/ed25519_openssh_bad.private");
-    const OPENSSH_DSA: &[u8] = include_bytes!("../../testdata/dsa_openssh.private");
-    const OPENSSH_X25519: &[u8] = include_bytes!("../../testdata/x25519_openssh.private");
-    const OPENSSH_X25519_UNKNOWN_ALGORITHM: &[u8] =
-        include_bytes!("../../testdata/x25519_openssh_unknown_algorithm.private");
+    const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
+    const OPENSSH_ED25519_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.private");
+    const OPENSSH_DSA: &str = include_str!("../../testdata/dsa_openssh.private");
+    const OPENSSH_X25519: &str = include_str!("../../testdata/x25519_openssh.private");
+    const OPENSSH_X25519_UNKNOWN_ALGORITHM: &str =
+        include_str!("../../testdata/x25519_openssh_unknown_algorithm.private");
 
     #[test]
     fn wrong_key_type() {
