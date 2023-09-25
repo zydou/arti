@@ -14,6 +14,15 @@ pub mod rsa;
 /// [`x25519_dalek`].
 pub mod curve25519 {
     pub use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret, StaticSecret};
+
+    /// A keypair containing a [`StaticSecret`] and its corresponding public key.
+    #[allow(clippy::exhaustive_structs)]
+    pub struct StaticKeypair {
+        /// The secret part of the key.
+        pub secret: StaticSecret,
+        /// The public part of this key.
+        pub public: PublicKey,
+    }
 }
 
 /// A type for a validatable signature.
