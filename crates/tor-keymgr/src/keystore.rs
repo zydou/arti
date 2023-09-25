@@ -301,11 +301,11 @@ impl ToEncodableKey for HsIdKey {
     type Key = ed25519::PublicKey;
 
     fn to_encodable_key(self) -> Self::Key {
-        todo!()
+        self.into()
     }
 
-    fn from_encodable_key(_key: Self::Key) -> Self {
-        todo!()
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsIdKey::from(key)
     }
 }
 
