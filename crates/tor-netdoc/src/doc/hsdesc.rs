@@ -448,10 +448,6 @@ impl EncryptedHsDesc {
     /// If `hsc_desc_enc` is provided, we use it to decrypt the inner encryption layer;
     /// otherwise, we require that the inner document is encrypted using the "no
     /// client authorization" method.
-    ///
-    /// Note that `hsc_desc_enc` must be a key *pair* - ie, a KP_hsc_desc_enc
-    /// and corresponding KS_hsc_desc_enc. This function **does not check**
-    /// this.
     //
     // TODO: Someday we _might_ want to allow a list of keypairs in place of
     // `hs_desc_enc`.  For now, though, we always know a single key that we want
