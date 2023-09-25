@@ -330,6 +330,27 @@ mod tests {
     const OPENSSH_X25519_UNKNOWN_ALGORITHM: &str =
         include_str!("../../testdata/x25519_openssh_unknown_algorithm.private");
 
+    macro_rules! test_parse_ssh_format_erased {
+        ($key_ty:tt, $key:expr, $expected_ty:path) => {{
+            let key_type = KeyType::$key_ty;
+            let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/test/path"));
+            let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
+
+            assert!(erased_key.downcast::<$expected_ty>().is_ok());
+        }};
+
+        ($key_ty:tt, $key:expr, err = $expect_err:expr) => {{
+            let key_type = KeyType::$key_ty;
+            let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/dummy/path"));
+            let err = key_type
+                .parse_ssh_format_erased(key)
+                .map(|_| "<type erased key>")
+                .unwrap_err();
+
+            assert_eq!(err.to_string(), $expect_err);
+        }};
+    }
+
     #[test]
     fn wrong_key_type() {
         let key_type = KeyType::Ed25519Keypair;
@@ -347,56 +368,47 @@ mod tests {
                 SshKeyAlgorithm::Dsa
             )
         );
+
+        test_parse_ssh_format_erased!(
+            Ed25519Keypair,
+            OPENSSH_DSA,
+            err = format!(
+                "Unexpected OpenSSH key type: wanted {}, found {}",
+                SshKeyAlgorithm::Ed25519,
+                SshKeyAlgorithm::Dsa
+            )
+        );
     }
 
     #[test]
     fn invalid_ed25519_key() {
-        let key_type = KeyType::Ed25519Keypair;
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519_BAD.into(), PathBuf::from("/test/path"));
-        let err = key_type
-            .parse_ssh_format_erased(key)
-            .map(|_| "<type erased key>")
-            .unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "Failed to parse OpenSSH with type Ed25519Keypair"
+        test_parse_ssh_format_erased!(
+            Ed25519Keypair,
+            OPENSSH_ED25519_BAD,
+            err = "Failed to parse OpenSSH with type Ed25519Keypair"
         );
     }
 
     #[test]
     fn ed25519_key() {
-        let key_type = KeyType::Ed25519Keypair;
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
-
-        assert!(erased_key.downcast::<ed25519::Keypair>().is_ok());
+        test_parse_ssh_format_erased!(Ed25519Keypair, OPENSSH_ED25519, ed25519::Keypair);
     }
 
     #[test]
     fn x25519_key() {
-        let key_type = KeyType::X25519StaticKeypair;
-        let key = UnparsedOpenSshKey::new(OPENSSH_X25519.into(), PathBuf::from("/dummy/path"));
-        let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
-
-        assert!(erased_key.downcast::<curve25519::StaticKeypair>().is_ok());
+        test_parse_ssh_format_erased!(
+            X25519StaticKeypair,
+            OPENSSH_X25519,
+            curve25519::StaticKeypair
+        );
     }
 
     #[test]
     fn invalid_x25519_key() {
-        let key_type = KeyType::X25519StaticKeypair;
-        let key = UnparsedOpenSshKey::new(
-            OPENSSH_X25519_UNKNOWN_ALGORITHM.into(),
-            PathBuf::from("/dummy/path"),
-        );
-        let err = key_type
-            .parse_ssh_format_erased(key)
-            .map(|_| "<type erased key>")
-            .unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "Unexpected OpenSSH key type: wanted X25519, found pangolin@torproject.org"
+        test_parse_ssh_format_erased!(
+            X25519StaticKeypair,
+            OPENSSH_X25519_UNKNOWN_ALGORITHM,
+            err = "Unexpected OpenSSH key type: wanted X25519, found pangolin@torproject.org"
         );
     }
 }
