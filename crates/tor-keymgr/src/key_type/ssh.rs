@@ -240,17 +240,21 @@ macro_rules! parse_openssh {
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
 fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
     Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
-    .map_err(|_| {
-        internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
-    })?)
+        .map_err(|_| internal!("failed to build ed25519 key out of ed25519 OpenSSH key"))?)
 }
 
 /// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::Keypair`].
 fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519::StaticKeypair> {
-    let public: [u8; 32] = key.public.as_ref().try_into()
+    let public: [u8; 32] = key
+        .public
+        .as_ref()
+        .try_into()
         .map_err(|_| internal!("invalid x25519 public key"))?;
 
-    let secret: [u8; 32] = key.private.as_ref().try_into()
+    let secret: [u8; 32] = key
+        .private
+        .as_ref()
+        .try_into()
         .map_err(|_| internal!("invalid x25519 secret key"))?;
 
     Ok(curve25519::StaticKeypair {
@@ -261,12 +265,15 @@ fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519
 
 /// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
 fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
-    Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..]).map_err(|_| internal!("invalid ed25519 public key"))?)
+    Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..])
+        .map_err(|_| internal!("invalid ed25519 public key"))?)
 }
 
 /// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
 fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve25519::PublicKey> {
-    let public: [u8; 32] = key.as_ref().try_into()
+    let public: [u8; 32] = key
+        .as_ref()
+        .try_into()
         .map_err(|_| internal!("invalid x25519 public key"))?;
 
     Ok(curve25519::PublicKey::from(public))
@@ -292,7 +299,7 @@ impl KeyType {
         match key_type {
             KeyType::Ed25519Keypair | KeyType::X25519StaticKeypair => {
                 parse_openssh!(PRIVATE key, key_type)
-            },
+            }
             KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
                 parse_openssh!(PUBLIC key, key_type)
             }
