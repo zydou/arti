@@ -37,7 +37,7 @@ use cipher::{KeyIvInit, StreamCipher};
 use generic_array::GenericArray;
 use tor_error::into_internal;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize as _, Zeroizing};
 
 #[cfg(any(test, feature = "hs-service"))]
 use tor_hscrypto::pk::HsSvcNtorKeypair;
@@ -131,22 +131,38 @@ pub struct HsNtorClientState {
     /// public ntor key `B`.  (The service has a separate public ntor key
     /// associated with each intro point.)
     Bx: curve25519::SharedSecret,
+
+    /// Target length for the generated Introduce1 messages.
+    intro1_target_len: usize,
 }
+
+/// Default target length for our generated Introduce1 messages.
+///
+/// This value is chosen to be the maximum size of a single-cell message
+/// after proposal 340 is implemented.  (509 bytes for cell data, minus 16 bytes
+/// for relay encryption overhead, minus 1 byte for relay command, minus 2 bytes
+/// for relay message length.)
+const INTRO1_TARGET_LEN: usize = 490;
 
 #[cfg(any(test, feature = "hs-client"))]
 impl HsNtorClientState {
     /// Construct a new `HsNtorClientState` for connecting to a given onion
     /// service described in `service_info`.
     ///
-    /// Once constructed, this `HsNtorClientState` can be used to construct
-    /// an INTROUDCE1 bodies that can be sent to an introduction
-    /// point.
+    /// Once constructed, this `HsNtorClientState` can be used to construct an
+    /// INTROUDCE1 bodies that can be sent to an introduction point.
     pub fn new<R>(rng: &mut R, service_info: HsNtorServiceInfo) -> Self
     where
         R: rand::RngCore + rand::CryptoRng,
     {
         let x = curve25519::StaticSecret::new(rng.rng_compat());
         Self::new_no_keygen(service_info, x)
+    }
+
+    /// Override the default target length for the resulting introduce1 message.
+    #[cfg(test)]
+    fn set_intro1_target_len(&mut self, len: usize) {
+        self.intro1_target_len = len;
     }
 
     /// As `new()`, but do not use an RNG to generate our ephemeral secret key x.
@@ -158,6 +174,7 @@ impl HsNtorClientState {
             x,
             X,
             Bx,
+            intro1_target_len: INTRO1_TARGET_LEN,
         }
     }
 
@@ -172,6 +189,9 @@ impl HsNtorClientState {
     ///  MAC                      [MAC_LEN bytes]
     /// ```
     pub fn client_send_intro(&self, intro_header: &[u8], plaintext_body: &[u8]) -> Result<Vec<u8>> {
+        /// The number of bytes added by this encryption.
+        const ENC_OVERHEAD: usize = 32 + 32;
+
         let state = self;
         let service = &state.service_info;
 
@@ -184,8 +204,18 @@ impl HsNtorClientState {
             &service.subcredential,
         )?;
 
+        let padded_body_target_len = self
+            .intro1_target_len
+            .saturating_sub(intro_header.len() + ENC_OVERHEAD);
+        let mut padded_body = plaintext_body.to_vec();
+        if padded_body.len() < padded_body_target_len {
+            padded_body.resize(padded_body_target_len, 0);
+        }
+        debug_assert!(padded_body.len() >= padded_body_target_len);
+
         let (ciphertext, mac_tag) =
-            encrypt_and_mac(plaintext_body, intro_header, &state.X, &enc_key, mac_key);
+            encrypt_and_mac(&padded_body, intro_header, &state.X, &enc_key, mac_key);
+        padded_body.zeroize();
 
         // Create the relevant parts of INTRO1
         let mut response: Vec<u8> = Vec::new();
@@ -605,6 +635,7 @@ mod test {
         // Client: Sends an encrypted INTRODUCE1 cell
         let state = HsNtorClientState::new(&mut rng, client_keys);
         let cmsg = state.client_send_intro(&[66; 10], &[42; 60])?;
+        assert_eq!(cmsg.len() + 10, INTRO1_TARGET_LEN);
 
         // Service: Decrypt INTRODUCE1 cell, and reply with RENDEZVOUS1 cell
         let (skeygen, smsg, s_plaintext) =
@@ -612,7 +643,7 @@ mod test {
 
         // Check that the plaintext received by the service is the one that the
         // client sent
-        assert_eq!(s_plaintext, vec![42; 60]);
+        assert_eq!(s_plaintext[0..60], vec![42; 60]);
 
         // Client: Receive RENDEZVOUS1 and create key material
         let ckeygen = state.client_receive_rend(&smsg)?;
@@ -684,7 +715,10 @@ mod test {
              000000000000000000000000000000000000000000000000000000000000"
         );
         // Now try to do the handshake...
-        let client_state = HsNtorClientState::new_no_keygen(service_info, key_x);
+        let mut client_state = HsNtorClientState::new_no_keygen(service_info, key_x);
+        // (Do not pad, since C tor's padding algorithm didn't match ours when
+        // these test vectors were generated.)
+        client_state.set_intro1_target_len(0);
         let encrypted_body = client_state
             .client_send_intro(&intro_header, &intro_body)
             .unwrap();

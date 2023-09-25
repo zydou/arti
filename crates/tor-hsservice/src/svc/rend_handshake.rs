@@ -179,9 +179,10 @@ impl IntroRequest {
 
         let intro_payload: IntroduceHandshakePayload = {
             let mut r = tor_bytes::Reader::from_slice(&msg_body);
-            let payload = r.extract().map_err(E::InvalidPayload)?;
-            r.should_be_exhausted().map_err(E::InvalidPayload)?;
-            payload
+            r.extract().map_err(E::InvalidPayload)?
+            // Note: we _do not_ call `should_be_exhausted` here, since we
+            // explicitly expect the payload of an introduce2 message to be
+            // padded to hide its size.
         };
 
         // We build the OwnedChanTargetBuilder now, so that we can detect any
