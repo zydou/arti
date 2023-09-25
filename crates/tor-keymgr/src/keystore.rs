@@ -2,9 +2,10 @@
 
 pub(crate) mod arti;
 
+use derive_more::From;
 use rand::{CryptoRng, RngCore};
-use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, OpaqueKeypair};
-use ssh_key::public::{Ed25519PublicKey, OpaquePublicKey};
+use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair};
+use ssh_key::public::{Ed25519PublicKey, KeyData, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
 use tor_hscrypto::pk::{
@@ -81,6 +82,34 @@ pub trait Keystore: Send + Sync + 'static {
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>>;
 }
 
+/// A public key or a keypair.
+#[derive(From)]
+#[allow(clippy::exhaustive_enums)]
+pub enum SshKeyData {
+    /// The [`KeyData`] of a public key.
+    Public(KeyData),
+    /// The [`KeypairData`] of a private key.
+    Private(KeypairData),
+}
+
+impl SshKeyData {
+    /// Returns the [`KeyData`], if this is a public key. Otheriwse returns `None`.
+    pub fn public(self) -> Option<KeyData> {
+        match self {
+            SshKeyData::Public(key_data) => Some(key_data),
+            SshKeyData::Private(_) => None,
+        }
+    }
+
+    /// Returns the [`KeypairData`], if this is a private key. Otheriwse returns `None`.
+    pub fn private(self) -> Option<KeypairData> {
+        match self {
+            SshKeyData::Public(_) => None,
+            SshKeyData::Private(keypair_data) => Some(keypair_data),
+        }
+    }
+}
+
 /// A key that can be serialized to, and deserialized from, a format used by a
 /// [`Keystore`].
 pub trait EncodableKey: Downcast {
@@ -94,8 +123,8 @@ pub trait EncodableKey: Downcast {
     where
         Self: Sized;
 
-    /// Return the [`KeypairData`][ssh_key::private::KeypairData] of this key.
-    fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData>;
+    /// Return the [`SshKeyData`] of this key.
+    fn as_ssh_keypair_data(&self) -> Result<SshKeyData>;
 }
 
 impl_downcast!(EncodableKey);
@@ -118,7 +147,7 @@ impl EncodableKey for curve25519::StaticKeypair {
         Ok(curve25519::StaticKeypair { secret, public })
     }
 
-    fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData> {
+    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
@@ -128,7 +157,7 @@ impl EncodableKey for curve25519::StaticKeypair {
         );
         let keypair = OpaqueKeypair::new(self.secret.to_bytes().to_vec(), ssh_public);
 
-        Ok(ssh_key::private::KeypairData::Other(keypair))
+        Ok(ssh_key::private::KeypairData::Other(keypair).into())
     }
 }
 
@@ -149,13 +178,13 @@ impl EncodableKey for ed25519::Keypair {
         Ok(ed25519::Keypair::generate(&mut rng.rng_compat()))
     }
 
-    fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData> {
+    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
         let keypair = Ed25519Keypair {
             public: Ed25519PublicKey(self.public.to_bytes()),
             private: Ed25519PrivateKey::from_bytes(self.secret.as_bytes()),
         };
 
-        Ok(ssh_key::private::KeypairData::Ed25519(keypair))
+        Ok(KeypairData::Ed25519(keypair).into())
     }
 }
 
@@ -174,7 +203,7 @@ impl EncodableKey for ed25519::PublicKey {
         todo!()
     }
 
-    fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData> {
+    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
         todo!()
     }
 }
