@@ -15,7 +15,7 @@ use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
 /// Represents a possibly empty subset of the following keys:
-///  * `KS_hsc_desc_enc`, [`HsClientDescEncSecretKey`]
+///  * `KS_hsc_desc_enc`, [`HsClientDescEncKeypair`]
 ///  * `KS_hsc_intro_auth`, [`HsClientIntroAuthKeypair`]
 ///
 /// `HsClientSecretKeys` is constructed with a `Builder`:
