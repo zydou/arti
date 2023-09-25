@@ -39,7 +39,7 @@ use {
         HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
         HsClientSpecifier,
     },
-    tor_hscrypto::pk::{HsClientDescEncSecretKey, HsClientIntroAuthKeypair},
+    tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientIntroAuthKeypair},
     tor_netdir::DirEvent,
 };
 
@@ -1069,7 +1069,7 @@ impl<R: Runtime> TorClient<R> {
                     // The code that reads ks_hsc_desc_enc and ks_hsc_intro_auth and builds the
                     // HsClientSecretKeys is very repetitive and should be refactored.
                     let ks_hsc_desc_enc =
-                        keymgr.get::<HsClientDescEncSecretKey>(&desc_enc_key_spec)?;
+                        keymgr.get::<HsClientDescEncKeypair>(&desc_enc_key_spec)?;
 
                     let intro_auth_key_spec = HsClientSecretKeySpecifier::new(
                         client_id,

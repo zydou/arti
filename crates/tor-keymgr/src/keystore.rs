@@ -8,7 +8,7 @@ use ssh_key::public::{Ed25519PublicKey, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
 use tor_hscrypto::pk::{
-    HsBlindIdKeypair, HsClientDescEncSecretKey, HsClientIntroAuthKeypair, HsDescSigningKeypair,
+    HsBlindIdKeypair, HsClientDescEncKeypair, HsClientIntroAuthKeypair, HsDescSigningKeypair,
     HsIdKey,
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -100,29 +100,33 @@ pub trait EncodableKey: Downcast {
 
 impl_downcast!(EncodableKey);
 
-impl EncodableKey for curve25519::StaticSecret {
+impl EncodableKey for curve25519::StaticKeypair {
     fn key_type() -> KeyType
     where
         Self: Sized,
     {
-        KeyType::X25519StaticSecret
+        KeyType::X25519StaticKeypair
     }
 
     fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
     {
-        Ok(curve25519::StaticSecret::new(rng))
+        let secret = curve25519::StaticSecret::new(rng);
+        let public = curve25519::PublicKey::from(&secret);
+
+        Ok(curve25519::StaticKeypair { secret, public })
     }
 
     fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
-        let public = curve25519::PublicKey::from(self);
-        let ssh_public =
-            OpaquePublicKey::new(public.to_bytes().to_vec(), Algorithm::Other(algorithm_name));
-        let keypair = OpaqueKeypair::new(self.to_bytes().to_vec(), ssh_public);
+        let ssh_public = OpaquePublicKey::new(
+            self.public.to_bytes().to_vec(),
+            Algorithm::Other(algorithm_name),
+        );
+        let keypair = OpaqueKeypair::new(self.secret.to_bytes().to_vec(), ssh_public);
 
         Ok(ssh_key::private::KeypairData::Other(keypair))
     }
@@ -200,15 +204,15 @@ pub trait ToEncodableKey {
     fn from_encodable_key(key: Self::Key) -> Self;
 }
 
-impl ToEncodableKey for HsClientDescEncSecretKey {
-    type Key = curve25519::StaticSecret;
+impl ToEncodableKey for HsClientDescEncKeypair {
+    type Key = curve25519::StaticKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
     }
 
     fn from_encodable_key(key: Self::Key) -> Self {
-        HsClientDescEncSecretKey::from(key)
+        HsClientDescEncKeypair::new(key.public.into(), key.secret.into())
     }
 }
 

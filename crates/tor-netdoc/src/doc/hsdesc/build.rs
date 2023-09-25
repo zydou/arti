@@ -260,7 +260,7 @@ mod test {
     use crate::doc::hsdesc::{EncryptedHsDesc, HsDesc as ParsedHsDesc};
     use tor_basic_utils::test_rng::Config;
     use tor_checkable::{SelfSigned, Timebound};
-    use tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncSecretKey, HsIdKeypair};
+    use tor_hscrypto::pk::{HsClientDescEncKeypair, HsIdKeypair};
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::curve25519;
@@ -316,7 +316,7 @@ mod test {
         unparsed_desc: &str,
         blinded_pk: ed25519::PublicKey,
         subcredential: &Subcredential,
-        hsc_desc_enc: Option<(&HsClientDescEncKey, &HsClientDescEncSecretKey)>,
+        hsc_desc_enc: Option<&HsClientDescEncKeypair>,
     ) -> ParsedHsDesc {
         const TIMESTAMP: &str = "2023-01-23T15:00:00Z";
 
@@ -421,13 +421,12 @@ mod test {
         assert_eq!(&*encoded_desc, &*reencoded_desc);
 
         // The same test, this time with client auth enabled (with a single authorized client):
-        let client_skey: HsClientDescEncSecretKey = curve25519::StaticSecret::new(&mut rng).into();
-        let client_pkey: HsClientDescEncKey =
-            curve25519::PublicKey::from(client_skey.as_ref()).into();
+        let client_kp: HsClientDescEncKeypair = HsClientDescEncKeypair::generate(&mut rng);
+        let client_pkey = client_kp.public().as_ref();
         let auth_clients = vec![*client_pkey];
 
         let encoded_desc = builder
-            .auth_clients(&auth_clients)
+            .auth_clients(&auth_clients[..])
             .build_sign(&mut Config::Deterministic.into_rng())
             .unwrap();
 
@@ -436,7 +435,7 @@ mod test {
             encoded_desc.as_str(),
             blinded_id.as_ref().public,
             &subcredential,
-            Some((&client_pkey, &client_skey)), /* With client auth */
+            Some(&client_kp), /* With client auth */
         );
 
         // ...and build a new descriptor using the information from the parsed descriptor,

@@ -275,7 +275,7 @@ mod tests {
 
         assert_eq!(
             key_store
-                .key_path(&TestSpecifier, KeyType::X25519StaticSecret)
+                .key_path(&TestSpecifier, KeyType::X25519StaticKeypair)
                 .unwrap(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.x25519")
         );

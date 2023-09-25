@@ -174,7 +174,7 @@ impl KeyType {
     pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
         match self {
             KeyType::Ed25519Keypair => SshKeyAlgorithm::Ed25519,
-            KeyType::X25519StaticSecret => SshKeyAlgorithm::X25519,
+            KeyType::X25519StaticKeypair => SshKeyAlgorithm::X25519,
         }
     }
 
@@ -217,13 +217,22 @@ impl KeyType {
             KeypairData::Other(key)
                 if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
             {
-                let key: [u8; 32] = key
+                let secret: [u8; 32] = key
                     .private
                     .as_ref()
                     .try_into()
                     .map_err(|_| internal!("invalid x25519 private key"))?;
 
-                Ok(Box::new(curve25519::StaticSecret::from(key)))
+                let public: [u8; 32] = key
+                    .public
+                    .as_ref()
+                    .try_into()
+                    .map_err(|_| internal!("invalid x25519 public key"))?;
+
+                Ok(Box::new(curve25519::StaticKeypair {
+                    secret: secret.into(),
+                    public: public.into(),
+                }))
             }
             _ => Err(SshKeyError::UnexpectedSshKeyType {
                 path: key.path,
@@ -303,16 +312,16 @@ mod tests {
 
     #[test]
     fn x25519_key() {
-        let key_type = KeyType::X25519StaticSecret;
+        let key_type = KeyType::X25519StaticKeypair;
         let key = UnparsedOpenSshKey::new(OPENSSH_X25519.into(), PathBuf::from("/dummy/path"));
         let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
 
-        assert!(erased_key.downcast::<curve25519::StaticSecret>().is_ok());
+        assert!(erased_key.downcast::<curve25519::StaticKeypair>().is_ok());
     }
 
     #[test]
     fn invalid_x25519_key() {
-        let key_type = KeyType::X25519StaticSecret;
+        let key_type = KeyType::X25519StaticKeypair;
         let key = UnparsedOpenSshKey::new(
             OPENSSH_X25519_UNKNOWN_ALGORITHM.into(),
             PathBuf::from("/dummy/path"),

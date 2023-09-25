@@ -44,8 +44,8 @@ pub(crate) mod ssh;
 pub enum KeyType {
     /// An Ed25519 keypair.
     Ed25519Keypair,
-    /// A Curve25519 secret key.
-    X25519StaticSecret,
+    /// A Curve25519 keypair.
+    X25519StaticKeypair,
     // ...plus all the other key types we're interested in (TODO)
 }
 
@@ -57,7 +57,7 @@ impl KeyType {
     pub fn arti_extension(&self) -> &'static str {
         match self {
             KeyType::Ed25519Keypair => "ed25519",
-            KeyType::X25519StaticSecret => "x25519",
+            KeyType::X25519StaticKeypair => "x25519",
         }
     }
 
