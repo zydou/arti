@@ -491,6 +491,7 @@ define_pk_keypair! {
 /// Any client who knows the secret key corresponding to this key can decrypt
 /// the inner layer of the onion service descriptor.
 pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
+curve25519_pair as HsClientDescEncKeypair;
 }
 
 impl PartialEq for HsClientDescEncKey {
@@ -510,6 +511,21 @@ pub struct HsSvcDescEncKey(curve25519::PublicKey) / HsSvcDescEncSecretKey(curve2
 impl From<&HsClientDescEncSecretKey> for HsClientDescEncKey {
     fn from(ks: &HsClientDescEncSecretKey) -> Self {
         Self(curve25519::PublicKey::from(&ks.0))
+    }
+}
+
+impl From<&HsClientDescEncKeypair> for HsClientDescEncKey {
+    fn from(ks: &HsClientDescEncKeypair) -> Self {
+        Self(**ks.public())
+    }
+}
+
+impl From<HsClientDescEncKeypair> for curve25519::StaticKeypair {
+    fn from(ks: HsClientDescEncKeypair) -> Self {
+        Self {
+            secret: ks.secret.0,
+            public: ks.public.0,
+        }
     }
 }
 
