@@ -39,6 +39,14 @@
 pub(crate) mod ssh;
 
 /// A type of key stored in the key store.
+//
+// TODO HSS: rewrite this enum as
+// ```
+// pub enum KeyType {
+//     Private(Alogrithm),
+//     Public(Algorithm),
+// }
+// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum KeyType {
