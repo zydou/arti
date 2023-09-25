@@ -4,6 +4,7 @@
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
 use ssh_key::private::KeypairData;
+use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
 
 use crate::{ErasedKey, KeyType, KeystoreError, Result};
@@ -167,6 +168,108 @@ impl HasKind for SshKeyError {
     fn kind(&self) -> ErrorKind {
         ErrorKind::KeystoreCorrupted
     }
+}
+
+/// Parse an OpenSSH key, returning its underlying [`KeyData`], if it's a public key, or
+/// [`KeypairData`], if it's a private one.
+macro_rules! parse_openssh {
+    (PRIVATE $key:expr, $key_type:expr) => {{
+        parse_openssh!(
+            $key,
+            $key_type,
+            ssh_key::private::PrivateKey::from_openssh,
+            convert_ed25519_kp,
+            convert_x25519_kp,
+            KeypairData
+        )
+    }};
+
+    (PUBLIC $key:expr, $key_type:expr) => {{
+        parse_openssh!(
+            $key,
+            $key_type,
+            ssh_key::public::PublicKey::from_openssh,
+            convert_ed25519_pk,
+            convert_x25519_pk,
+            KeyData
+        )
+    }};
+
+    ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
+        let key = $parse_fn(&*$key.inner).map_err(|e| {
+            SshKeyError::SshKeyParse {
+                // TODO: rust thinks this clone is necessary because key.path is also used below (but
+                // if we get to this point, we're going to return an error and never reach the other
+                // error handling branches where we use key.path).
+                path: $key.path.clone(),
+                key_type: $key_type,
+                err: e.into(),
+            }
+        })?;
+
+        let wanted_key_algo = $key_type.ssh_algorithm();
+
+        if SshKeyAlgorithm::from(key.algorithm()) != wanted_key_algo {
+            return Err(SshKeyError::UnexpectedSshKeyType {
+                path: $key.path,
+                wanted_key_algo,
+                found_key_algo: key.algorithm().into(),
+            }
+            .boxed());
+        }
+
+        // Build the expected key type (i.e. convert ssh_key key types to the key types
+        // we're using internally).
+        match key.key_data() {
+            $key_data_ty::Ed25519(key) => Ok($ed25519_fn(key).map(Box::new)?),
+            $key_data_ty::Other(other)
+                if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
+            {
+                Ok($x25519_fn(other).map(Box::new)?)
+            }
+            _ => Err(SshKeyError::UnexpectedSshKeyType {
+                path: $key.path,
+                wanted_key_algo,
+                found_key_algo: key.algorithm().into(),
+            }
+            .boxed()),
+        }
+    }};
+}
+
+/// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
+fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
+    Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
+    .map_err(|_| {
+        internal!("failed to build ed25519 key out of ed25519 OpenSSH key")
+    })?)
+}
+
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::Keypair`].
+fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519::StaticKeypair> {
+    let public: [u8; 32] = key.public.as_ref().try_into()
+        .map_err(|_| internal!("invalid x25519 public key"))?;
+
+    let secret: [u8; 32] = key.private.as_ref().try_into()
+        .map_err(|_| internal!("invalid x25519 secret key"))?;
+
+    Ok(curve25519::StaticKeypair {
+        public: public.into(),
+        secret: secret.into(),
+    })
+}
+
+/// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
+fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
+    Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..]).map_err(|_| internal!("invalid ed25519 public key"))?)
+}
+
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
+fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve25519::PublicKey> {
+    let public: [u8; 32] = key.as_ref().try_into()
+        .map_err(|_| internal!("invalid x25519 public key"))?;
+
+    Ok(curve25519::PublicKey::from(public))
 }
 
 impl KeyType {
