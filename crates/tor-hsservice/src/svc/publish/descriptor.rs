@@ -11,11 +11,11 @@ use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, ToEncodableKey};
 use tor_llcrypto::pk::curve25519;
-use tor_netdoc::doc::hsdesc::{HsDescBuilder, IntroPointDesc};
+use tor_netdoc::doc::hsdesc::HsDescBuilder;
 use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
-use crate::ipt_set::{Ipt, IptSet};
+use crate::ipt_set::IptSet;
 use crate::svc::publish::reactor::ReactorError;
 use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, OnionServiceConfig};
 
@@ -57,7 +57,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     let intro_points = ipt_set
         .ipts
         .iter()
-        .map(|ipt_in_set| build_intro_point_desc(&ipt_in_set.ipt))
+        .map(|ipt_in_set| ipt_in_set.ipt.clone())
         .collect::<Vec<_>>();
 
     let nickname = todo!();
@@ -139,11 +139,6 @@ where
     keymgr
         .get::<K>(&svc_key_spec)?
         .ok_or_else(|| ReactorError::MissingKey(role))
-}
-
-/// Create an [`IntroPointDesc`] from the specified introduction point.
-fn build_intro_point_desc(_ipt: &Ipt) -> IntroPointDesc {
-    todo!()
 }
 
 /// Return the list of authorized public keys from the specified [`DescEncryptionConfig`].
