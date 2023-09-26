@@ -313,10 +313,7 @@ fn convert_expanded_ed25519_kp(
     let secret = ed25519::ExpandedSecretKey::from_bytes(key.private.as_ref())
         .map_err(|_| internal!("invalid expanded ed25519 secret key"))?;
 
-    Ok(ed25519::ExpandedKeypair {
-        public,
-        secret,
-    })
+    Ok(ed25519::ExpandedKeypair { public, secret })
 }
 
 /// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
