@@ -243,7 +243,7 @@ fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519:
         .map_err(|_| internal!("failed to build ed25519 key out of ed25519 OpenSSH key"))?)
 }
 
-/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::Keypair`].
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::StaticKeypair`].
 fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519::StaticKeypair> {
     let public: [u8; 32] = key
         .public
