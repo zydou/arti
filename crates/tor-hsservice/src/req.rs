@@ -6,12 +6,12 @@
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use std::sync::Arc;
-use tor_cell::relaycell::msg::Introduce2;
+use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 
 use tor_error::Bug;
 use tor_proto::{
     circuit::{handshake::hs_ntor::HsNtorServiceInput, ClientCirc},
-    stream::{DataStream, IncomingStream},
+    stream::{DataStream, IncomingStream, IncomingStreamRequest},
 };
 
 use crate::{
@@ -186,20 +186,37 @@ impl RendRequest {
 }
 
 impl StreamRequest {
+    /// Return the message that was used to request this stream.
+    pub fn request(&self) -> &IncomingStreamRequest {
+        self.stream.request()
+    }
+
     /// Accept this request and send the client a `CONNECTED` message.
-    pub async fn accept(self) -> Result<OnionServiceDataStream, ClientError> {
-        todo!()
+    pub async fn accept(
+        self,
+        connected_message: Connected,
+    ) -> Result<OnionServiceDataStream, ClientError> {
+        let stream = self
+            .stream
+            .accept_data(connected_message)
+            .await
+            .map_err(ClientError::AcceptStream)?;
+        Ok(OnionServiceDataStream { inner: stream })
     }
     /// Reject this request, and send the client an `END` message.
     /// TODO HSS: Should this really be fallible?  How might it fail?
-    pub async fn reject(self) -> Result<(), Bug> {
-        todo!()
+    pub async fn reject(mut self, end_message: End) -> Result<(), ClientError> {
+        self.stream
+            .reject(end_message)
+            .await
+            .map_err(ClientError::RejectStream)
     }
     /// Reject this request and close the rendezvous circuit entirely,
     /// along with all other streams attached to the circuit.
     /// TODO HSS: Should this really be fallible?  How might it fail?
     pub fn shutdown_circuit(self) -> Result<(), Bug> {
-        todo!()
+        self.on_circuit.terminate();
+        Ok(())
     }
     // TODO HSS various accessors, including for circuit.
 }
