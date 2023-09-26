@@ -69,6 +69,15 @@ impl KeyType {
     pub fn arti_extension(&self) -> &'static str {
         use KeyType::*;
 
+        // TODO HSS:
+        //
+        // There used to be an explicit _private suffix in the extension, but I ended up dropping it
+        // from the name because the "privateness" of the key is encoded in the ArtiPath: !1586
+        // (comment 2942278).
+        //
+        // However, I suppose KS_hsc_desc_enc.x25519 is less obviously a private key than
+        // KS_hsc_desc_enc.x25519_private. Perhaps we do want some redundancy in the name after
+        // all..
         match self {
             Ed25519Keypair | Ed25519PublicKey => "ed25519",
             X25519StaticKeypair | X25519PublicKey => "x25519",
