@@ -397,6 +397,12 @@ mod tests {
     const OPENSSH_ED25519_PUB: &str = include_str!("../../testdata/ed25519_openssh.public");
     const OPENSSH_ED25519_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.private");
     const OPENSSH_ED25519_PUB_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.public");
+    const OPENSSH_EXP_ED25519: &str =
+        include_str!("../../testdata/ed25519_expanded_openssh.private");
+    const OPENSSH_EXP_ED25519_PUB: &str =
+        include_str!("../../testdata/ed25519_expanded_openssh.public");
+    const OPENSSH_EXP_ED25519_BAD: &str =
+        include_str!("../../testdata/ed25519_expanded_openssh_bad.private");
     const OPENSSH_DSA: &str = include_str!("../../testdata/dsa_openssh.private");
     const OPENSSH_X25519: &str = include_str!("../../testdata/x25519_openssh.private");
     const OPENSSH_X25519_PUB: &str = include_str!("../../testdata/x25519_openssh.public");
@@ -474,6 +480,30 @@ mod tests {
     fn ed25519_key() {
         test_parse_ssh_format_erased!(Ed25519Keypair, OPENSSH_ED25519, ed25519::Keypair);
         test_parse_ssh_format_erased!(Ed25519PublicKey, OPENSSH_ED25519_PUB, ed25519::PublicKey);
+    }
+
+    #[test]
+    fn invalid_expanded_ed25519_key() {
+        test_parse_ssh_format_erased!(
+            Ed25519ExpandedKeypair,
+            OPENSSH_EXP_ED25519_BAD,
+            err = "Failed to parse OpenSSH with type Ed25519ExpandedKeypair"
+        );
+    }
+
+    #[test]
+    fn expanded_ed25519_key() {
+        test_parse_ssh_format_erased!(
+            Ed25519ExpandedKeypair,
+            OPENSSH_EXP_ED25519,
+            ed25519::ExpandedKeypair
+        );
+
+        test_parse_ssh_format_erased!(
+            Ed25519PublicKey,
+            OPENSSH_EXP_ED25519_PUB, // using ed25519-expanded for public keys doesn't make sense
+            err = "Failed to parse OpenSSH with type Ed25519PublicKey"
+        );
     }
 
     #[test]
