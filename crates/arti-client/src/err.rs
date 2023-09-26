@@ -288,6 +288,12 @@ enum ErrorDetail {
     #[error("Invalid onion address")]
     BadOnionAddress(#[from] tor_hscrypto::pk::HsIdParseError),
 
+    /// We were unable to launch an onion service, even though we
+    /// we are configured to be able to do so.
+    #[cfg(feature= "onion-service-service")]
+    #[error("Unable to launch onion service")]
+    LaunchOnionService(#[source] tor_hsservice::StartupError),
+
     /// A programming problem, either in our code or the code calling it.
     #[error("Programming problem")]
     Bug(#[from] tor_error::Bug),
@@ -378,6 +384,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::OnionAddressDisabled => EK::ForbiddenStreamTarget,
             #[cfg(feature = "onion-service-client")]
             E::BadOnionAddress(e) => e.kind(),
+            #[cfg(feature = "onion-service-service")]
+            E::LaunchOnionService(e) => e.kind(),
             // TODO Should delegate to TorAddrError EK
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
