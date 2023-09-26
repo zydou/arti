@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
 use futures::channel::oneshot;
+use futures::Stream;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::ReconfigureError;
 use tor_error::Bug;
@@ -18,6 +19,7 @@ use crate::ipt_set::IptsManagerView;
 use crate::svc::publish::Publisher;
 use crate::OnionServiceConfig;
 use crate::OnionServiceStatus;
+use crate::RendRequest;
 use crate::StartupError;
 
 pub(crate) mod ipt_establish;
@@ -57,7 +59,10 @@ struct SvcInner {
     /// Handles that we'll take ownership of when launching the service.
     ///
     /// (TODO HSS: Having to consume this may indicate a design problem.)
-    unlaunched: Option<Box<dyn Launchable + Send + Sync>>,
+    unlaunched: Option<(
+        mpsc::Receiver<RendRequest>,
+        Box<dyn Launchable + Send + Sync>,
+    )>,
 }
 
 /// Objects and handles needed to launch an onion service.
@@ -164,11 +169,14 @@ impl OnionService {
                 config_tx,
                 shutdown_tx,
                 keymgr,
-                unlaunched: Some(Box::new(ForLaunch {
-                    publisher,
-                    ipt_mgr,
-                    ipt_mgr_view,
-                })),
+                unlaunched: Some((
+                    rend_req_rx,
+                    Box::new(ForLaunch {
+                        publisher,
+                        ipt_mgr,
+                        ipt_mgr_view,
+                    }),
+                )),
             }),
         }))
     }
@@ -195,11 +203,10 @@ impl OnionService {
     // TODO hss let's also have a function that gives you a stream of Status
     // changes?  Or use a publish-based watcher?
 
-    /// Tell this onion service to begin running.
-    //
-    // TODO HSS: Probably return an `impl Stream<RendRequest>`.
-    pub fn launch(self: &Arc<Self>) -> Result<(), StartupError> {
-        let launch = {
+    /// Tell this onion service to begin running, and return a
+    /// stream of rendezvous requests on the service.
+    pub fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest>, StartupError> {
+        let (rend_req_rx, launch) = {
             let mut inner = self.inner.lock().expect("poisoned lock");
             inner
                 .unlaunched
@@ -207,13 +214,16 @@ impl OnionService {
                 .ok_or(StartupError::AlreadyLaunched)?
         };
 
-        launch.launch()
+        launch.launch()?;
+
         // TODO HSS:  This needs to launch at least the following tasks:
         //
         // - If we decide to use separate disk-based key provisioning, a task to
         //   monitor our keys directory.
         // - If we own our identity key, a task to generate per-period sub-keys as
         //   needed.
+
+        Ok(rend_req_rx)
     }
 
     /// Tell this onion service to stop running.
