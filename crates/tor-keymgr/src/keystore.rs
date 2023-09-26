@@ -2,6 +2,8 @@
 
 pub(crate) mod arti;
 
+use std::result::Result as StdResult;
+
 use derive_more::From;
 use rand::{CryptoRng, RngCore};
 use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair};
@@ -93,19 +95,19 @@ pub enum SshKeyData {
 }
 
 impl SshKeyData {
-    /// Returns the [`KeyData`], if this is a public key. Otheriwse returns `None`.
-    pub fn public(self) -> Option<KeyData> {
+    /// Returns the [`KeyData`], if this is a public key. Otheriwse returns `Err(self)`.
+    pub fn into_public(self) -> StdResult<KeyData, Self> {
         match self {
-            SshKeyData::Public(key_data) => Some(key_data),
-            SshKeyData::Private(_) => None,
+            SshKeyData::Public(key_data) => Ok(key_data),
+            SshKeyData::Private(_) => Err(self),
         }
     }
 
-    /// Returns the [`KeypairData`], if this is a private key. Otheriwse returns `None`.
-    pub fn private(self) -> Option<KeypairData> {
+    /// Returns the [`KeypairData`], if this is a private key. Otheriwse returns `Err(self)`.
+    pub fn into_private(self) -> StdResult<KeypairData, Self> {
         match self {
-            SshKeyData::Public(_) => None,
-            SshKeyData::Private(keypair_data) => Some(keypair_data),
+            SshKeyData::Public(_) => Err(self),
+            SshKeyData::Private(keypair_data) => Ok(keypair_data),
         }
     }
 }

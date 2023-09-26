@@ -294,7 +294,7 @@ mod tests {
                     key_type: KeyType,
                 ) -> Result<()> {
                     let key = key.as_ssh_key_data()?;
-                    let key_bytes = key.private().unwrap().encrypted().unwrap().to_vec();
+                    let key_bytes = key.into_private().unwrap().encrypted().unwrap().to_vec();
 
                     let value = String::from_utf8(key_bytes).unwrap();
 
