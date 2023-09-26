@@ -67,6 +67,25 @@ pub enum ClientError {
     /// Failed to complete a rendezvous request.
     #[error("Could not connect rendezvous circuit.")]
     EstablishSession(#[source] EstablishSessionError),
+
+    /// Failed to send a CONNECTED message and get a stream.
+    #[error("Could not accept stream from rendezvous circuit")]
+    AcceptStream(#[source] tor_proto::Error),
+
+    /// Failed to send a END message and reject a stream.
+    #[error("Could not reject stream from rendezvous circuit")]
+    RejectStream(#[source] tor_proto::Error),
+}
+
+impl HasKind for ClientError {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            ClientError::BadIntroduce(e) => e.kind(),
+            ClientError::EstablishSession(e) => e.kind(),
+            ClientError::AcceptStream(e) => e.kind(),
+            ClientError::RejectStream(e) => e.kind(),
+        }
+    }
 }
 
 /// An error which means we cannot continue to try to operate an onion service.

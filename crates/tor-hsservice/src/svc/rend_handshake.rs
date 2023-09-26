@@ -15,7 +15,7 @@ use tor_circmgr::{
     build::circparameters_from_netparameters,
     hspool::{HsCircKind, HsCircPool},
 };
-use tor_error::into_internal;
+use tor_error::{into_internal, HasKind};
 use tor_linkspec::{
     decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget as _,
     OwnedChanTargetBuilder, OwnedCircTarget,
@@ -49,6 +49,18 @@ pub enum IntroRequestError {
     /// We weren't able to build a ChanTarget from the Introduce2 message.
     #[error("Invalid link specifiers in INTRODUCE2 payload")]
     InvalidLinkSpecs(#[source] tor_linkspec::decode::ChanTargetDecodeError),
+}
+
+impl HasKind for IntroRequestError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use IntroRequestError as E;
+        match self {
+            E::InvalidHandshake(e) => e.kind(),
+            E::InvalidPayload(_) => EK::RemoteProtocolViolation,
+            E::InvalidLinkSpecs(_) => EK::RemoteProtocolViolation,
+        }
+    }
 }
 
 /// An error produced while trying to connect to a rendezvous point and open a
@@ -85,6 +97,24 @@ pub enum EstablishSessionError {
     /// An internal error occurred.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl HasKind for EstablishSessionError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use EstablishSessionError as E;
+        match self {
+            E::NetdirUnavailable(e) => e.kind(),
+            E::UnsupportedOnionKey => EK::RemoteProtocolViolation,
+            // TODO HSS Not quite right.
+            EstablishSessionError::RendCirc(e) => EK::RemoteNetworkTimeout,
+            EstablishSessionError::VirtualHop(e) => e.kind(),
+            EstablishSessionError::AcceptBegins(e) => e.kind(),
+            EstablishSessionError::SendRendezvous(e) => e.kind(),
+            EstablishSessionError::ImpossibleIds(_) => EK::RemoteProtocolViolation,
+            EstablishSessionError::Bug(e) => e.kind(),
+        }
+    }
 }
 
 /// A decrypted request from an onion service client which we can
