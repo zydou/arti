@@ -83,7 +83,7 @@ pub trait Keystore: Send + Sync + 'static {
 }
 
 /// A public key or a keypair.
-#[derive(From)]
+#[derive(From, Clone, Debug)]
 #[allow(clippy::exhaustive_enums)]
 pub enum SshKeyData {
     /// The [`KeyData`] of a public key.
