@@ -124,7 +124,7 @@ pub trait EncodableKey: Downcast {
         Self: Sized;
 
     /// Return the [`SshKeyData`] of this key.
-    fn as_ssh_keypair_data(&self) -> Result<SshKeyData>;
+    fn as_ssh_key_data(&self) -> Result<SshKeyData>;
 }
 
 impl_downcast!(EncodableKey);
@@ -147,7 +147,7 @@ impl EncodableKey for curve25519::StaticKeypair {
         Ok(curve25519::StaticKeypair { secret, public })
     }
 
-    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
+    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
@@ -176,7 +176,7 @@ impl EncodableKey for curve25519::PublicKey {
         Err(internal!("cannot generate a public key without a private key!").into())
     }
 
-    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
+    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
@@ -204,7 +204,7 @@ impl EncodableKey for ed25519::Keypair {
         Ok(ed25519::Keypair::generate(&mut rng.rng_compat()))
     }
 
-    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
+    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let keypair = Ed25519Keypair {
             public: Ed25519PublicKey(self.public.to_bytes()),
             private: Ed25519PrivateKey::from_bytes(self.secret.as_bytes()),
@@ -229,7 +229,7 @@ impl EncodableKey for ed25519::PublicKey {
         Err(internal!("cannot generate a public key without a private key!").into())
     }
 
-    fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
+    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let key_data = Ed25519PublicKey(self.to_bytes());
 
         Ok(ssh_key::public::KeyData::Ed25519(key_data).into())

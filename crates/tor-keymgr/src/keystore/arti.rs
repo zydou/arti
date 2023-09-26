@@ -115,7 +115,7 @@ impl Keystore for ArtiNativeKeystore {
             })?;
         }
 
-        let key = key.as_ssh_keypair_data()?;
+        let key = key.as_ssh_key_data()?;
         // TODO HSS: decide what information, if any, to put in the comment
         let comment = "";
 

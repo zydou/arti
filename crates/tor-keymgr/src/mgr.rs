@@ -218,7 +218,7 @@ mod tests {
             Ok("generated_test_key".into())
         }
 
-        fn as_ssh_keypair_data(&self) -> Result<SshKeyData> {
+        fn as_ssh_key_data(&self) -> Result<SshKeyData> {
             // (Ab)use the encrypted variant for testing purposes
             Ok(SshKeyData::Private(
                 ssh_key::private::KeypairData::Encrypted(self.as_bytes().to_vec()),
@@ -293,7 +293,7 @@ mod tests {
                     key_spec: &dyn KeySpecifier,
                     key_type: KeyType,
                 ) -> Result<()> {
-                    let key = key.as_ssh_keypair_data()?;
+                    let key = key.as_ssh_key_data()?;
                     let key_bytes = key.private().unwrap().encrypted().unwrap().to_vec();
 
                     let value = String::from_utf8(key_bytes).unwrap();
