@@ -274,6 +274,9 @@ macro_rules! parse_openssh {
     }};
 }
 
+// TODO HSS: rewrite the convert_* functions to return a better error type (failing to parse a key
+// suggests keystore corruption rather than an internal error).
+
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
 fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
     Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
