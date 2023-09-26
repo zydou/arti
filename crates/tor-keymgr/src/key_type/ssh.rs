@@ -34,28 +34,32 @@ use std::sync::Arc;
 //
 // We reserve the following custom OpenSSH key types:
 //
-//  +---------------------------+--------------------+---------------------+------------------------+
-//  | Public Key Algorithm Name | Public Key Format  | Private Key Format  | Purpose                |
-//  |---------------------------|--------------------|---------------------|------------------------|
-//  | x25519@torproject.org     | [TODO link to spec | [TODO link to spec  | Arti keystore storage  |
-//  |                           | describing the key | describing the key  | format                 |
-//  |                           | format]            | format]             |                        |
-//  |                           |                    |                     |                        |
-//  +---------------------------+--------------------+---------------------+------------------------+
+//  +----------------------------------+--------------------+---------------------+------------------------+
+//  | Public Key Algorithm Name        | Public Key Format  | Private Key Format  | Purpose                |
+//  |----------------------------------|--------------------|---------------------|------------------------|
+//  | x25519@torproject.org            | [TODO link to spec | [TODO link to spec  | Arti keystore storage  |
+//  |                                  | describing the key | describing the key  | format                 |
+//  |                                  | format]            | format]             |                        |
+//  |----------------------------------|--------------------|---------------------|------------------------|
+//  | ed25519-expanded@torproject.org  | [TODO link to spec | [TODO link to spec  | Arti keystore storage  |
+//  |                                  | describing the key | describing the key  | format                 |
+//  |                                  | format]            | format]             |                        |
+//  |                                  |                    |                     |                        |
+//  +----------------------------------+--------------------+---------------------+------------------------+
 //
 // [RFC4251 § 6]: https://www.rfc-editor.org/rfc/rfc4251.html#section-6
 //
-// <The following will go in the document that describes the x25519@torproject.org key format>
+// <The following will go in the document that describes the custom SSH key formats we use in Arti>
 //
-// # x25519@torproject.org OpenSSH Keys
+// # Arti Custom OpenSSH Keys
 //
-// ## Introduction
+// ## x25519@torproject.org
 //
 // X25519 keys do not have a predefined SSH key algorithm name in [IANA's Secure Shell(SSH)
 // Protocol Parameters], so in order to be able to store this type of key in OpenSSH format,
 // we need to define a custom OpenSSH key type.
 //
-// ## Key Format
+// ### Key Format
 //
 // An x25519@torproject.org public key file is encoded in the format specified in
 // [RFC4716 § 3.4].
@@ -64,10 +68,28 @@ use std::sync::Arc;
 //
 // TODO: flesh out the RFC and write down a concrete example for clarity.
 //
+// ## ed25519-expanded@torproject.org
+//
+// Expanded Ed25519 keys do not have a predefined SSH key algorithm name in [IANA's Secure Shell(SSH)
+// Protocol Parameters], so in order to be able to store this type of key in OpenSSH format,
+// we need to define a custom OpenSSH key type.
+//
+// ### Key Format
+//
+// An ed25519-expanded@torproject.org public key file is encoded in the format specified in
+// [RFC4716 § 3.4].
+//
+// Private keys use the format specified in [PROTOCOL.key].
+//
+// TODO: flesh out the RFC and write down a concrete example for clarity.
+
 // [IANA's Secure Shell(SSH) Protocol Parameters]: https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-19
 // [RFC4716 § 3.4]: https://datatracker.ietf.org/doc/html/rfc4716#section-3.4
 // [PROTOCOL.key]: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.key?annotate=HEAD
 pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@torproject.org";
+
+/// The algorithm string for expanded ed25519 SSH keys.
+pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@torproject.org";
 
 /// An unparsed OpenSSH key.
 ///
@@ -105,6 +127,8 @@ pub(crate) enum SshKeyAlgorithm {
     Ecdsa,
     /// Ed25519
     Ed25519,
+    /// Expanded Ed25519
+    Ed25519Expanded,
     /// X25519
     X25519,
     /// RSA
@@ -119,16 +143,18 @@ pub(crate) enum SshKeyAlgorithm {
 
 impl From<Algorithm> for SshKeyAlgorithm {
     fn from(algo: Algorithm) -> SshKeyAlgorithm {
-        match algo {
+        match &algo {
             Algorithm::Dsa => SshKeyAlgorithm::Dsa,
             Algorithm::Ecdsa { .. } => SshKeyAlgorithm::Ecdsa,
             Algorithm::Ed25519 => SshKeyAlgorithm::Ed25519,
             Algorithm::Rsa { .. } => SshKeyAlgorithm::Rsa,
             Algorithm::SkEcdsaSha2NistP256 => SshKeyAlgorithm::SkEcdsaSha2NistP256,
             Algorithm::SkEd25519 => SshKeyAlgorithm::SkEd25519,
-            Algorithm::Other(name) if name.as_str() == X25519_ALGORITHM_NAME => {
-                SshKeyAlgorithm::X25519
-            }
+            Algorithm::Other(name) => match name.as_str() {
+                X25519_ALGORITHM_NAME => SshKeyAlgorithm::X25519,
+                ED25519_EXPANDED_ALGORITHM_NAME => SshKeyAlgorithm::Ed25519Expanded,
+                _ => SshKeyAlgorithm::Unknown(algo),
+            },
             // Note: ssh_key::Algorithm is non_exhaustive, so we need this catch-all variant
             _ => SshKeyAlgorithm::Unknown(algo),
         }
@@ -179,6 +205,7 @@ macro_rules! parse_openssh {
             $key_type,
             ssh_key::private::PrivateKey::from_openssh,
             convert_ed25519_kp,
+            convert_expanded_ed25519_kp,
             convert_x25519_kp,
             KeypairData
         )
@@ -190,12 +217,13 @@ macro_rules! parse_openssh {
             $key_type,
             ssh_key::public::PublicKey::from_openssh,
             convert_ed25519_pk,
+            convert_expanded_ed25519_pk,
             convert_x25519_pk,
             KeyData
         )
     }};
 
-    ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
+    ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $expanded_ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
         let key = $parse_fn(&*$key.inner).map_err(|e| {
             SshKeyError::SshKeyParse {
                 // TODO: rust thinks this clone is necessary because key.path is also used below (but
@@ -222,10 +250,19 @@ macro_rules! parse_openssh {
         // we're using internally).
         match key.key_data() {
             $key_data_ty::Ed25519(key) => Ok($ed25519_fn(key).map(Box::new)?),
-            $key_data_ty::Other(other)
-                if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
-            {
-                Ok($x25519_fn(other).map(Box::new)?)
+            $key_data_ty::Other(other) => {
+                match SshKeyAlgorithm::from(key.algorithm()) {
+                    SshKeyAlgorithm::X25519 => Ok($x25519_fn(other).map(Box::new)?),
+                    SshKeyAlgorithm::Ed25519Expanded => Ok($expanded_ed25519_fn(other).map(Box::new)?),
+                    _ => {
+                        Err(SshKeyError::UnexpectedSshKeyType {
+                            path: $key.path,
+                            wanted_key_algo,
+                            found_key_algo: key.algorithm().into(),
+                        }
+                        .boxed())
+                    }
+                }
             }
             _ => Err(SshKeyError::UnexpectedSshKeyType {
                 path: $key.path,
@@ -236,6 +273,9 @@ macro_rules! parse_openssh {
         }
     }};
 }
+
+// TODO HSS: rewrite the convert_* functions to return a better error type (failing to parse a key
+// suggests keystore corruption rather than an internal error).
 
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
 fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
@@ -263,10 +303,37 @@ fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519
     })
 }
 
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to an [`ed25519::ExpandedKeypair`].
+fn convert_expanded_ed25519_kp(
+    key: &ssh_key::private::OpaqueKeypair,
+) -> Result<ed25519::ExpandedKeypair> {
+    let public = ed25519::PublicKey::from_bytes(key.public.as_ref())
+        .map_err(|_| internal!("invalid expanded ed25519 public key"))?;
+
+    let secret = ed25519::ExpandedSecretKey::from_bytes(key.private.as_ref())
+        .map_err(|_| internal!("invalid expanded ed25519 secret key"))?;
+
+    Ok(ed25519::ExpandedKeypair { public, secret })
+}
+
 /// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
 fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
     Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..])
         .map_err(|_| internal!("invalid ed25519 public key"))?)
+}
+
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to an [`ed25519::PublicKey`].
+///
+/// This function always returns an error because the custom `ed25519-expanded@torproject.org` SSH
+/// algorithm should not be used for ed25519 public keys (only for expanded ed25519 key _pairs_).
+/// This function is needed for the [`parse_openssh!`] macro.
+fn convert_expanded_ed25519_pk(
+    _key: &ssh_key::public::OpaquePublicKey,
+) -> Result<ed25519::PublicKey> {
+    Err(internal!(
+        "invalid ed25519 public key (ed25519 public keys should be stored as ssh-ed25519)"
+    )
+    .into())
 }
 
 /// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
@@ -285,6 +352,7 @@ impl KeyType {
         match self {
             KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => SshKeyAlgorithm::Ed25519,
             KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => SshKeyAlgorithm::X25519,
+            KeyType::Ed25519ExpandedKeypair => SshKeyAlgorithm::Ed25519Expanded,
         }
     }
 
@@ -297,7 +365,9 @@ impl KeyType {
 
         let key_type = *self;
         match key_type {
-            KeyType::Ed25519Keypair | KeyType::X25519StaticKeypair => {
+            KeyType::Ed25519Keypair
+            | KeyType::X25519StaticKeypair
+            | KeyType::Ed25519ExpandedKeypair => {
                 parse_openssh!(PRIVATE key, key_type)
             }
             KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
@@ -327,6 +397,12 @@ mod tests {
     const OPENSSH_ED25519_PUB: &str = include_str!("../../testdata/ed25519_openssh.public");
     const OPENSSH_ED25519_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.private");
     const OPENSSH_ED25519_PUB_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.public");
+    const OPENSSH_EXP_ED25519: &str =
+        include_str!("../../testdata/ed25519_expanded_openssh.private");
+    const OPENSSH_EXP_ED25519_PUB: &str =
+        include_str!("../../testdata/ed25519_expanded_openssh.public");
+    const OPENSSH_EXP_ED25519_BAD: &str =
+        include_str!("../../testdata/ed25519_expanded_openssh_bad.private");
     const OPENSSH_DSA: &str = include_str!("../../testdata/dsa_openssh.private");
     const OPENSSH_X25519: &str = include_str!("../../testdata/x25519_openssh.private");
     const OPENSSH_X25519_PUB: &str = include_str!("../../testdata/x25519_openssh.public");
@@ -404,6 +480,30 @@ mod tests {
     fn ed25519_key() {
         test_parse_ssh_format_erased!(Ed25519Keypair, OPENSSH_ED25519, ed25519::Keypair);
         test_parse_ssh_format_erased!(Ed25519PublicKey, OPENSSH_ED25519_PUB, ed25519::PublicKey);
+    }
+
+    #[test]
+    fn invalid_expanded_ed25519_key() {
+        test_parse_ssh_format_erased!(
+            Ed25519ExpandedKeypair,
+            OPENSSH_EXP_ED25519_BAD,
+            err = "Failed to parse OpenSSH with type Ed25519ExpandedKeypair"
+        );
+    }
+
+    #[test]
+    fn expanded_ed25519_key() {
+        test_parse_ssh_format_erased!(
+            Ed25519ExpandedKeypair,
+            OPENSSH_EXP_ED25519,
+            ed25519::ExpandedKeypair
+        );
+
+        test_parse_ssh_format_erased!(
+            Ed25519PublicKey,
+            OPENSSH_EXP_ED25519_PUB, // using ed25519-expanded for public keys doesn't make sense
+            err = "Failed to parse OpenSSH with type Ed25519PublicKey"
+        );
     }
 
     #[test]
