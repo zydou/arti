@@ -39,6 +39,14 @@
 pub(crate) mod ssh;
 
 /// A type of key stored in the key store.
+//
+// TODO HSS: rewrite this enum as
+// ```
+// pub enum KeyType {
+//     Private(Alogrithm),
+//     Public(Algorithm),
+// }
+// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum KeyType {
@@ -46,6 +54,10 @@ pub enum KeyType {
     Ed25519Keypair,
     /// A Curve25519 keypair.
     X25519StaticKeypair,
+    /// An Ed25519 public key.
+    Ed25519PublicKey,
+    /// A Curve25519 public key.
+    X25519PublicKey,
     // ...plus all the other key types we're interested in (TODO)
 }
 
@@ -55,9 +67,20 @@ impl KeyType {
     // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
     // to decide the file extension should be).
     pub fn arti_extension(&self) -> &'static str {
+        use KeyType::*;
+
+        // TODO HSS:
+        //
+        // There used to be an explicit _private suffix in the extension, but I ended up dropping it
+        // from the name because the "privateness" of the key is encoded in the ArtiPath: !1586
+        // (comment 2942278).
+        //
+        // However, I suppose KS_hsc_desc_enc.x25519 is less obviously a private key than
+        // KS_hsc_desc_enc.x25519_private. Perhaps we do want some redundancy in the name after
+        // all..
         match self {
-            KeyType::Ed25519Keypair => "ed25519",
-            KeyType::X25519StaticKeypair => "x25519",
+            Ed25519Keypair | Ed25519PublicKey => "ed25519",
+            X25519StaticKeypair | X25519PublicKey => "x25519",
         }
     }
 

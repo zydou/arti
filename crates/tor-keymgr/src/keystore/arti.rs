@@ -18,6 +18,8 @@ use fs_mistrust::{CheckedDir, Mistrust};
 use ssh_key::private::PrivateKey;
 use ssh_key::LineEnding;
 
+use super::SshKeyData;
+
 /// The Arti key store.
 #[derive(Debug)]
 pub struct ArtiNativeKeystore {
@@ -77,7 +79,7 @@ impl Keystore for ArtiNativeKeystore {
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
         let path = self.key_path(key_spec, key_type)?;
 
-        let inner = match self.keystore_dir.read(&path) {
+        let inner = match self.keystore_dir.read_to_string(&path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
             Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
                 return Ok(None);
@@ -113,17 +115,25 @@ impl Keystore for ArtiNativeKeystore {
             })?;
         }
 
-        let keypair = key.as_ssh_keypair_data()?;
+        let key = key.as_ssh_key_data()?;
         // TODO HSS: decide what information, if any, to put in the comment
         let comment = "";
 
-        let openssh_key = PrivateKey::new(keypair, comment)
-            .map_err(|_| tor_error::internal!("failed to create SSH private key"))?;
+        let openssh_key = match key {
+            SshKeyData::Public(_key_data) => {
+                todo!()
+            }
+            SshKeyData::Private(keypair) => {
+                let openssh_key = PrivateKey::new(keypair, comment)
+                    .map_err(|_| tor_error::internal!("failed to create SSH private key"))?;
 
-        let openssh_key = openssh_key
-            .to_openssh(LineEnding::LF)
-            .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
-            .to_string();
+                openssh_key
+                    .to_openssh(LineEnding::LF)
+                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
+                    .to_string()
+            }
+        };
+
         Ok(self
             .keystore_dir
             .write_and_replace(&path, openssh_key)
@@ -181,7 +191,7 @@ mod tests {
 
     // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
     // include it once)
-    const OPENSSH_ED25519: &[u8] = include_bytes!("../../testdata/ed25519_openssh.private");
+    const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
 
     struct TestSpecifier;
 

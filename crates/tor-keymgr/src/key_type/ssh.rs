@@ -4,6 +4,7 @@
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
 use ssh_key::private::KeypairData;
+use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
 
 use crate::{ErasedKey, KeyType, KeystoreError, Result};
@@ -76,7 +77,7 @@ pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@torproject.org";
 /// The inner value is zeroed on drop.
 pub(crate) struct UnparsedOpenSshKey {
     /// The contents of an OpenSSH key file.
-    inner: Zeroizing<Vec<u8>>,
+    inner: Zeroizing<String>,
     /// The path of the file (for error reporting).
     path: PathBuf,
 }
@@ -85,7 +86,7 @@ impl UnparsedOpenSshKey {
     /// Create a new [`UnparsedOpenSshKey`].
     ///
     /// The contents of `inner` are erased on drop.
-    pub(crate) fn new(inner: Vec<u8>, path: PathBuf) -> Self {
+    pub(crate) fn new(inner: String, path: PathBuf) -> Self {
         Self {
             inner: Zeroizing::new(inner),
             path,
@@ -169,12 +170,121 @@ impl HasKind for SshKeyError {
     }
 }
 
+/// Parse an OpenSSH key, returning its underlying [`KeyData`], if it's a public key, or
+/// [`KeypairData`], if it's a private one.
+macro_rules! parse_openssh {
+    (PRIVATE $key:expr, $key_type:expr) => {{
+        parse_openssh!(
+            $key,
+            $key_type,
+            ssh_key::private::PrivateKey::from_openssh,
+            convert_ed25519_kp,
+            convert_x25519_kp,
+            KeypairData
+        )
+    }};
+
+    (PUBLIC $key:expr, $key_type:expr) => {{
+        parse_openssh!(
+            $key,
+            $key_type,
+            ssh_key::public::PublicKey::from_openssh,
+            convert_ed25519_pk,
+            convert_x25519_pk,
+            KeyData
+        )
+    }};
+
+    ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
+        let key = $parse_fn(&*$key.inner).map_err(|e| {
+            SshKeyError::SshKeyParse {
+                // TODO: rust thinks this clone is necessary because key.path is also used below (but
+                // if we get to this point, we're going to return an error and never reach the other
+                // error handling branches where we use key.path).
+                path: $key.path.clone(),
+                key_type: $key_type,
+                err: e.into(),
+            }
+        })?;
+
+        let wanted_key_algo = $key_type.ssh_algorithm();
+
+        if SshKeyAlgorithm::from(key.algorithm()) != wanted_key_algo {
+            return Err(SshKeyError::UnexpectedSshKeyType {
+                path: $key.path,
+                wanted_key_algo,
+                found_key_algo: key.algorithm().into(),
+            }
+            .boxed());
+        }
+
+        // Build the expected key type (i.e. convert ssh_key key types to the key types
+        // we're using internally).
+        match key.key_data() {
+            $key_data_ty::Ed25519(key) => Ok($ed25519_fn(key).map(Box::new)?),
+            $key_data_ty::Other(other)
+                if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
+            {
+                Ok($x25519_fn(other).map(Box::new)?)
+            }
+            _ => Err(SshKeyError::UnexpectedSshKeyType {
+                path: $key.path,
+                wanted_key_algo,
+                found_key_algo: key.algorithm().into(),
+            }
+            .boxed()),
+        }
+    }};
+}
+
+/// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
+fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
+    Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
+        .map_err(|_| internal!("failed to build ed25519 key out of ed25519 OpenSSH key"))?)
+}
+
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::StaticKeypair`].
+fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519::StaticKeypair> {
+    let public: [u8; 32] = key
+        .public
+        .as_ref()
+        .try_into()
+        .map_err(|_| internal!("invalid x25519 public key"))?;
+
+    let secret: [u8; 32] = key
+        .private
+        .as_ref()
+        .try_into()
+        .map_err(|_| internal!("invalid x25519 secret key"))?;
+
+    Ok(curve25519::StaticKeypair {
+        public: public.into(),
+        secret: secret.into(),
+    })
+}
+
+/// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
+fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
+    Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..])
+        .map_err(|_| internal!("invalid ed25519 public key"))?)
+}
+
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
+fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve25519::PublicKey> {
+    let public: [u8; 32] = key
+        .as_ref()
+        .try_into()
+        .map_err(|_| internal!("invalid x25519 public key"))?;
+
+    Ok(curve25519::PublicKey::from(public))
+}
+
 impl KeyType {
     /// Get the algorithm of this key type.
     pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
         match self {
-            KeyType::Ed25519Keypair => SshKeyAlgorithm::Ed25519,
-            KeyType::X25519StaticKeypair => SshKeyAlgorithm::X25519,
+            KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => SshKeyAlgorithm::Ed25519,
+            KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => SshKeyAlgorithm::X25519,
         }
     }
 
@@ -186,60 +296,13 @@ impl KeyType {
         // TODO HSS: perhaps this needs to be a method on EncodableKey instead?
 
         let key_type = *self;
-        let sk = ssh_key::PrivateKey::from_openssh(&*key.inner).map_err(|e| {
-            SshKeyError::SshKeyParse {
-                // TODO: rust thinks this clone is necessary because key.path is also used below (but
-                // if we get to this point, we're going to return an error and never reach the other
-                // error handling branches where we use key.path).
-                path: key.path.clone(),
-                key_type,
-                err: e.into(),
+        match key_type {
+            KeyType::Ed25519Keypair | KeyType::X25519StaticKeypair => {
+                parse_openssh!(PRIVATE key, key_type)
             }
-        })?;
-
-        let wanted_key_algo = key_type.ssh_algorithm();
-
-        if SshKeyAlgorithm::from(sk.algorithm()) != wanted_key_algo {
-            return Err(SshKeyError::UnexpectedSshKeyType {
-                path: key.path,
-                wanted_key_algo,
-                found_key_algo: sk.algorithm().into(),
+            KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
+                parse_openssh!(PUBLIC key, key_type)
             }
-            .boxed());
-        }
-
-        // Build the expected key type (i.e. convert ssh_key key types to the key types
-        // we're using internally).
-        match sk.key_data() {
-            KeypairData::Ed25519(key) => Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
-                .map_err(|_| internal!("failed to build ed25519 key out of ed25519 OpenSSH key"))
-                .map(Box::new)?),
-            KeypairData::Other(key)
-                if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
-            {
-                let secret: [u8; 32] = key
-                    .private
-                    .as_ref()
-                    .try_into()
-                    .map_err(|_| internal!("invalid x25519 private key"))?;
-
-                let public: [u8; 32] = key
-                    .public
-                    .as_ref()
-                    .try_into()
-                    .map_err(|_| internal!("invalid x25519 public key"))?;
-
-                Ok(Box::new(curve25519::StaticKeypair {
-                    secret: secret.into(),
-                    public: public.into(),
-                }))
-            }
-            _ => Err(SshKeyError::UnexpectedSshKeyType {
-                path: key.path,
-                wanted_key_algo,
-                found_key_algo: sk.algorithm().into(),
-            }
-            .boxed()),
         }
     }
 }
@@ -260,12 +323,38 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    const OPENSSH_ED25519: &[u8] = include_bytes!("../../testdata/ed25519_openssh.private");
-    const OPENSSH_ED25519_BAD: &[u8] = include_bytes!("../../testdata/ed25519_openssh_bad.private");
-    const OPENSSH_DSA: &[u8] = include_bytes!("../../testdata/dsa_openssh.private");
-    const OPENSSH_X25519: &[u8] = include_bytes!("../../testdata/x25519_openssh.private");
-    const OPENSSH_X25519_UNKNOWN_ALGORITHM: &[u8] =
-        include_bytes!("../../testdata/x25519_openssh_unknown_algorithm.private");
+    const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
+    const OPENSSH_ED25519_PUB: &str = include_str!("../../testdata/ed25519_openssh.public");
+    const OPENSSH_ED25519_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.private");
+    const OPENSSH_ED25519_PUB_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.public");
+    const OPENSSH_DSA: &str = include_str!("../../testdata/dsa_openssh.private");
+    const OPENSSH_X25519: &str = include_str!("../../testdata/x25519_openssh.private");
+    const OPENSSH_X25519_PUB: &str = include_str!("../../testdata/x25519_openssh.public");
+    const OPENSSH_X25519_UNKNOWN_ALGORITHM: &str =
+        include_str!("../../testdata/x25519_openssh_unknown_algorithm.private");
+    const OPENSSH_X25519_PUB_UNKNOWN_ALGORITHM: &str =
+        include_str!("../../testdata/x25519_openssh_unknown_algorithm.public");
+
+    macro_rules! test_parse_ssh_format_erased {
+        ($key_ty:tt, $key:expr, $expected_ty:path) => {{
+            let key_type = KeyType::$key_ty;
+            let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/test/path"));
+            let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
+
+            assert!(erased_key.downcast::<$expected_ty>().is_ok());
+        }};
+
+        ($key_ty:tt, $key:expr, err = $expect_err:expr) => {{
+            let key_type = KeyType::$key_ty;
+            let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/dummy/path"));
+            let err = key_type
+                .parse_ssh_format_erased(key)
+                .map(|_| "<type erased key>")
+                .unwrap_err();
+
+            assert_eq!(err.to_string(), $expect_err);
+        }};
+    }
 
     #[test]
     fn wrong_key_type() {
@@ -284,56 +373,68 @@ mod tests {
                 SshKeyAlgorithm::Dsa
             )
         );
+
+        test_parse_ssh_format_erased!(
+            Ed25519Keypair,
+            OPENSSH_DSA,
+            err = format!(
+                "Unexpected OpenSSH key type: wanted {}, found {}",
+                SshKeyAlgorithm::Ed25519,
+                SshKeyAlgorithm::Dsa
+            )
+        );
     }
 
     #[test]
     fn invalid_ed25519_key() {
-        let key_type = KeyType::Ed25519Keypair;
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519_BAD.into(), PathBuf::from("/test/path"));
-        let err = key_type
-            .parse_ssh_format_erased(key)
-            .map(|_| "<type erased key>")
-            .unwrap_err();
+        test_parse_ssh_format_erased!(
+            Ed25519Keypair,
+            OPENSSH_ED25519_BAD,
+            err = "Failed to parse OpenSSH with type Ed25519Keypair"
+        );
 
-        assert_eq!(
-            err.to_string(),
-            "Failed to parse OpenSSH with type Ed25519Keypair"
+        test_parse_ssh_format_erased!(
+            Ed25519Keypair,
+            OPENSSH_ED25519_PUB_BAD,
+            err = "Failed to parse OpenSSH with type Ed25519Keypair"
         );
     }
 
     #[test]
     fn ed25519_key() {
-        let key_type = KeyType::Ed25519Keypair;
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
-
-        assert!(erased_key.downcast::<ed25519::Keypair>().is_ok());
+        test_parse_ssh_format_erased!(Ed25519Keypair, OPENSSH_ED25519, ed25519::Keypair);
+        test_parse_ssh_format_erased!(Ed25519PublicKey, OPENSSH_ED25519_PUB, ed25519::PublicKey);
     }
 
     #[test]
     fn x25519_key() {
-        let key_type = KeyType::X25519StaticKeypair;
-        let key = UnparsedOpenSshKey::new(OPENSSH_X25519.into(), PathBuf::from("/dummy/path"));
-        let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
+        test_parse_ssh_format_erased!(
+            X25519StaticKeypair,
+            OPENSSH_X25519,
+            curve25519::StaticKeypair
+        );
 
-        assert!(erased_key.downcast::<curve25519::StaticKeypair>().is_ok());
+        test_parse_ssh_format_erased!(X25519PublicKey, OPENSSH_X25519_PUB, curve25519::PublicKey);
     }
 
     #[test]
     fn invalid_x25519_key() {
-        let key_type = KeyType::X25519StaticKeypair;
-        let key = UnparsedOpenSshKey::new(
-            OPENSSH_X25519_UNKNOWN_ALGORITHM.into(),
-            PathBuf::from("/dummy/path"),
+        test_parse_ssh_format_erased!(
+            X25519StaticKeypair,
+            OPENSSH_X25519_UNKNOWN_ALGORITHM,
+            err = "Unexpected OpenSSH key type: wanted X25519, found pangolin@torproject.org"
         );
-        let err = key_type
-            .parse_ssh_format_erased(key)
-            .map(|_| "<type erased key>")
-            .unwrap_err();
 
-        assert_eq!(
-            err.to_string(),
-            "Unexpected OpenSSH key type: wanted X25519, found pangolin@torproject.org"
+        test_parse_ssh_format_erased!(
+            X25519PublicKey,
+            OPENSSH_X25519_UNKNOWN_ALGORITHM, // Note: this is a private key
+            err = "Failed to parse OpenSSH with type X25519PublicKey"
+        );
+
+        test_parse_ssh_format_erased!(
+            X25519PublicKey,
+            OPENSSH_X25519_PUB_UNKNOWN_ALGORITHM,
+            err = "Unexpected OpenSSH key type: wanted X25519, found armadillo@torproject.org"
         );
     }
 }

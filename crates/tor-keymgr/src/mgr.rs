@@ -193,7 +193,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ErasedKey, KeyType};
+    use crate::{ArtiPath, ErasedKey, KeyType, SshKeyData};
     use std::collections::HashMap;
     use std::str::FromStr;
     use std::sync::RwLock;
@@ -218,10 +218,10 @@ mod tests {
             Ok("generated_test_key".into())
         }
 
-        fn as_ssh_keypair_data(&self) -> Result<ssh_key::private::KeypairData> {
+        fn as_ssh_key_data(&self) -> Result<SshKeyData> {
             // (Ab)use the encrypted variant for testing purposes
-            Ok(ssh_key::private::KeypairData::Encrypted(
-                self.as_bytes().to_vec(),
+            Ok(SshKeyData::Private(
+                ssh_key::private::KeypairData::Encrypted(self.as_bytes().to_vec()),
             ))
         }
     }
@@ -293,8 +293,8 @@ mod tests {
                     key_spec: &dyn KeySpecifier,
                     key_type: KeyType,
                 ) -> Result<()> {
-                    let key = key.as_ssh_keypair_data()?;
-                    let key_bytes = key.encrypted().unwrap().to_vec();
+                    let key = key.as_ssh_key_data()?;
+                    let key_bytes = key.into_private().unwrap().encrypted().unwrap().to_vec();
 
                     let value = String::from_utf8(key_bytes).unwrap();
 
