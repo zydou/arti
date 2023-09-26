@@ -314,7 +314,7 @@ fn convert_expanded_ed25519_kp(
         .map_err(|_| internal!("invalid expanded ed25519 secret key"))?;
 
     Ok(ed25519::ExpandedKeypair {
-        public: public.into(),
+        public,
         secret,
     })
 }
