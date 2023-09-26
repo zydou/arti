@@ -532,7 +532,7 @@ impl ClientCirc {
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
         hop_num: HopNum,
-    ) -> Result<impl futures::Stream<Item = Result<IncomingStream>>> {
+    ) -> Result<impl futures::Stream<Item = IncomingStream>> {
         use futures::stream::StreamExt;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
@@ -579,7 +579,7 @@ impl ClientCirc {
                 ended: false,
             };
 
-            Ok(IncomingStream::new(req, target, reader))
+            IncomingStream::new(req, target, reader)
         }))
     }
 
@@ -2010,7 +2010,7 @@ mod test {
                 .unwrap();
 
             let simulate_service = async move {
-                let stream = incoming.next().await.unwrap().unwrap();
+                let stream = incoming.next().await.unwrap();
                 let mut data_stream = stream
                     .accept_data(relaymsg::Connected::new_empty())
                     .await
@@ -2089,7 +2089,7 @@ mod test {
             let simulate_service = async move {
                 // Process 2 incoming streams
                 for i in 0..STREAM_COUNT {
-                    let mut stream = incoming.next().await.unwrap().unwrap();
+                    let mut stream = incoming.next().await.unwrap();
 
                     // Reject the first one
                     if i == 0 {

@@ -123,7 +123,7 @@ pub(crate) struct IntroRequest {
 /// An open session with a single client.
 pub(crate) struct OpenSession {
     /// A stream of incoming BEGIN requests.
-    pub(crate) stream_requests: BoxStream<'static, tor_proto::Result<IncomingStream>>,
+    pub(crate) stream_requests: BoxStream<'static, IncomingStream>,
 
     /// Our circuit with the client in question
     // TODO HSS: If we drop this handle, nothing will keep the circuit alive.

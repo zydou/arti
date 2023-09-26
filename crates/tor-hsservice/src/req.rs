@@ -143,10 +143,9 @@ impl RendRequest {
     /// provided rendezvous point.
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    /// TODO HSS: Using tor_proto::Result here is a bit wonky.
     pub async fn accept(
         mut self,
-    ) -> Result<impl Stream<Item = tor_proto::Result<StreamRequest>>, ClientError> {
+    ) -> Result<impl Stream<Item = StreamRequest> + Unpin, ClientError> {
         // Make sure the request is there.
         self.intro_request().map_err(ClientError::BadIntroduce)?;
         // Take ownership of the request.
@@ -169,15 +168,10 @@ impl RendRequest {
         // closure, which lives for as long as the stream of StreamRequest, and
         // for as long as each individual StreamRequest.  This is how we keep
         // the rendezvous circuit alive.
-        Ok(
-            stream_requests.map(move |incoming: tor_proto::Result<IncomingStream>| {
-                let stream = incoming?;
-                Ok(StreamRequest {
-                    stream,
-                    on_circuit: circuit.clone(),
-                })
-            }),
-        )
+        Ok(stream_requests.map(move |stream| StreamRequest {
+            stream,
+            on_circuit: circuit.clone(),
+        }))
     }
     /// Reject this request.  (The client will receive no notification.)
     ///
