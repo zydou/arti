@@ -205,6 +205,7 @@ macro_rules! parse_openssh {
             $key_type,
             ssh_key::private::PrivateKey::from_openssh,
             convert_ed25519_kp,
+            convert_expanded_ed25519_kp,
             convert_x25519_kp,
             KeypairData
         )
@@ -216,12 +217,13 @@ macro_rules! parse_openssh {
             $key_type,
             ssh_key::public::PublicKey::from_openssh,
             convert_ed25519_pk,
+            convert_expanded_ed25519_pk,
             convert_x25519_pk,
             KeyData
         )
     }};
 
-    ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
+    ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $expanded_ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
         let key = $parse_fn(&*$key.inner).map_err(|e| {
             SshKeyError::SshKeyParse {
                 // TODO: rust thinks this clone is necessary because key.path is also used below (but
@@ -248,10 +250,19 @@ macro_rules! parse_openssh {
         // we're using internally).
         match key.key_data() {
             $key_data_ty::Ed25519(key) => Ok($ed25519_fn(key).map(Box::new)?),
-            $key_data_ty::Other(other)
-                if SshKeyAlgorithm::from(key.algorithm()) == SshKeyAlgorithm::X25519 =>
-            {
-                Ok($x25519_fn(other).map(Box::new)?)
+            $key_data_ty::Other(other) => {
+                match SshKeyAlgorithm::from(key.algorithm()) {
+                    SshKeyAlgorithm::X25519 => Ok($x25519_fn(other).map(Box::new)?),
+                    SshKeyAlgorithm::Ed25519Expanded => Ok($expanded_ed25519_fn(other).map(Box::new)?),
+                    _ => {
+                        Err(SshKeyError::UnexpectedSshKeyType {
+                            path: $key.path,
+                            wanted_key_algo,
+                            found_key_algo: key.algorithm().into(),
+                        }
+                        .boxed())
+                    }
+                }
             }
             _ => Err(SshKeyError::UnexpectedSshKeyType {
                 path: $key.path,
@@ -289,10 +300,40 @@ fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519
     })
 }
 
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to an [`ed25519::ExpandedKeypair`].
+fn convert_expanded_ed25519_kp(
+    key: &ssh_key::private::OpaqueKeypair,
+) -> Result<ed25519::ExpandedKeypair> {
+    let public = ed25519::PublicKey::from_bytes(key.public.as_ref())
+        .map_err(|_| internal!("invalid expanded ed25519 public key"))?;
+
+    let secret = ed25519::ExpandedSecretKey::from_bytes(key.private.as_ref())
+        .map_err(|_| internal!("invalid expanded ed25519 secret key"))?;
+
+    Ok(ed25519::ExpandedKeypair {
+        public: public.into(),
+        secret,
+    })
+}
+
 /// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
 fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
     Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..])
         .map_err(|_| internal!("invalid ed25519 public key"))?)
+}
+
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to an [`ed25519::PublicKey`].
+///
+/// This function always returns an error because the custom `ed25519-expanded@torproject.org` SSH
+/// algorithm should not be used for ed25519 public keys (only for expanded ed25519 key _pairs_).
+/// This function is needed for the [`parse_openssh!`] macro.
+fn convert_expanded_ed25519_pk(
+    _key: &ssh_key::public::OpaquePublicKey,
+) -> Result<ed25519::PublicKey> {
+    Err(internal!(
+        "invalid ed25519 public key (ed25519 public keys should be stored as ssh-ed25519)"
+    )
+    .into())
 }
 
 /// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
