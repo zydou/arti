@@ -57,6 +57,17 @@ define_list_builder_helper! {
    item_build: |value| Ok(value.clone());
 }
 
+impl ProxyConfig {
+    /// Find the configured action to use when receiving a request for a
+    /// connection on a given port.
+    pub(crate) fn resolve_port_for_begin(&self, port: u16) -> Option<&ProxyAction> {
+        self.proxy_ports
+            .iter()
+            .find(|rule| rule.source.matches_port(port))
+            .map(|rule| &rule.target)
+    }
+}
+
 /// A single rule in a `ProxyConfig`.
 ///
 /// Rules take the form of, "When this pattern matches, take this action."
