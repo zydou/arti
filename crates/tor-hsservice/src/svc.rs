@@ -205,6 +205,9 @@ impl OnionService {
 
     /// Tell this onion service to begin running, and return a
     /// stream of rendezvous requests on the service.
+    ///
+    /// You can turn the resulting stream into a stream of [`StreamRequest`](crate::StreamRequest)
+    /// using the [`handle_rend_requests`](crate::handle_rend_requests) helper function
     pub fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest>, StartupError> {
         let (rend_req_rx, launch) = {
             let mut inner = self.inner.lock().expect("poisoned lock");

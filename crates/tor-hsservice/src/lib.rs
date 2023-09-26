@@ -47,6 +47,7 @@ use serde::{Deserialize, Serialize};
 mod anon_level;
 pub mod config;
 mod err;
+mod helpers;
 mod ipt_mgr;
 mod ipt_set;
 mod keys;
@@ -75,3 +76,5 @@ pub use svc::OnionService;
 #[serde(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub(crate) struct IptLocalId([u8; 32]);
+
+pub use helpers::handle_rend_requests;
