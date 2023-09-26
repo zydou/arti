@@ -8,7 +8,6 @@ use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Error as I
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use safelog::sensitive;
-use std::io::ErrorKind::AddrInUse;
 use std::io::Result as IoResult;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[cfg(feature = "rpc")]
@@ -618,10 +617,13 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                             info!("Listening on {:?}.", addr);
                             listeners.push(listener);
                         }
-                        Err(ref e) if e.kind() == AddrInUse => {
-                            return Err(anyhow!("Address already in use {}", addr));
+                        #[cfg(unix)]
+                        Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
+                            warn_report!(e, "Address family not supported {}", addr);
                         }
-                        Err(e) => warn_report!(e, "Can't listen on {}", addr),
+                        Err(ref e) => {
+                            return Err(anyhow!("Can't listen on {}: {e}", addr));
+                        }
                     }
                 }
             }

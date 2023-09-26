@@ -7,7 +7,6 @@ use futures::lock::Mutex;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::collections::HashMap;
-use std::io::ErrorKind::AddrInUse;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
@@ -253,10 +252,13 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                             info!("Listening on {:?}.", addr);
                             listeners.push(listener);
                         }
-                        Err(ref e) if e.kind() == AddrInUse => {
-                            return Err(anyhow!("Address already in use {}", addr));
+                        #[cfg(unix)]
+                        Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
+                            warn_report!(e, "Address family not supported {}", addr);
                         }
-                        Err(e) => warn_report!(e, "Can't listen on {}", addr),
+                        Err(ref e) => {
+                            return Err(anyhow!("Can't listen on {}: {e}", addr));
+                        }
                     }
                 }
             }
