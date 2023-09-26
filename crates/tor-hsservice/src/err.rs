@@ -6,7 +6,7 @@ use futures::task::SpawnError;
 
 use thiserror::Error;
 
-use tor_error::Bug;
+use tor_error::{Bug, ErrorKind, HasKind};
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
 
@@ -49,6 +49,20 @@ pub enum StartupError {
     // Either we should change Publisher::launch() to return a StartupError,
     // or we should figure out how much of PublisherError to expose.
     LaunchPublisher(#[source] Arc<dyn std::error::Error + Send + Sync>),
+}
+
+impl HasKind for StartupError {
+    fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
+        use StartupError as E;
+        match self {
+            E::Spawn { cause, .. } => cause.kind(),
+            E::AlreadyLaunched => EK::BadApiUsage,
+            // TODO HSS: Wrong, but can't fix until we change the type of
+            // error held in LaunchPublisher. See note above.
+            E::LaunchPublisher(_) => EK::Internal,
+        }
+    }
 }
 
 /// An error which occurs trying to communicate with a particular client.
