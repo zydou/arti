@@ -18,7 +18,7 @@ use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeystoreError};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, warn};
 
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
@@ -31,7 +31,7 @@ use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::IptsPublisherView;
@@ -60,6 +60,11 @@ const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 //
 // We should try to decouple this value from the TP parameters.
 const MAX_CONCURRENT_UPLOADS: usize = 16;
+
+/// The maximum time allowed for uploading a descriptor to an HSDirs.
+//
+// TODO HSS: this value is probably not right.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
@@ -851,20 +856,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
 
         let mut inner = self.inner.lock().expect("poisoned lock");
-
-        let netdir = Arc::clone(&inner.netdir);
-
-        let imm = Arc::clone(&self.imm);
-        let hsid_key = self.hsid_key.clone();
-        let upload_task_complete_tx = self.upload_task_complete_tx.clone();
-        let keymgr = Arc::clone(&imm.keymgr);
-
         let inner = &mut *inner;
 
         let upload_tasks = inner
             .time_periods
             .iter_mut()
             .map(|period| {
+                let upload_task_complete_tx = self.upload_task_complete_tx.clone();
+
                 // Figure out which HsDirs we need to upload the descriptor to (some of them might already
                 // have our latest descriptor, so we filter them out).
                 let hs_dirs = period
@@ -885,10 +884,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
                 // revision counter a timestamp encrypted using an OPE cipher
                 let revision_counter = period.inc_revision_counter();
+
+                let time_period = period.period;
+
+                // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
+                // here. See the TODO HSS about note_publication_attempt() below.
+                let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
                 // This scope exists because rng is not Send, so it needs to fall out of scope before we
                 // await anything.
                 let hsdesc = {
-                    let mut rng = imm.mockable.thread_rng();
+                    let mut rng = self.imm.mockable.thread_rng();
 
                     let mut ipt_set = self.ipt_watcher.borrow_for_publish();
                     let Some(ipt_set) = ipt_set.as_mut() else {
@@ -896,16 +901,38 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     };
 
                     let desc = build_sign(
-                        Arc::clone(&keymgr),
+                        Arc::clone(&self.imm.keymgr),
                         Arc::clone(&inner.config),
                         ipt_set,
-                        period.period,
+                        time_period,
                         revision_counter,
                         &mut rng,
-                        imm.runtime.wallclock(),
+                        self.imm.runtime.wallclock(),
                     )?;
 
-                    let worst_case_end = todo!();
+                    // TODO HSS: this is wrong!!! note_publication_attempt() should be called
+                    // before _each_ publication attempt (i.e. before each upload_descriptor()
+                    // call).
+                    //
+                    // However, this turns out to be non-trivial:
+                    //
+                    //   * We can't simply move the ipt_set.note_publication_attempt() call into
+                    //   upload_for_time_period(), because the ipt_set is a mutable reference (so it
+                    //   can't be moved into the upload task).
+                    //
+                    //   * The ipt_set is obtained by calling IptsPublisherView::borrow_for_publish, so
+                    //   ideally we could solve this by simply calling borrow_for_publish from the
+                    //   upload task, but that won't work either, because IptsPublisherView is not
+                    //   Clone.
+                    //
+                    //   * Also, we can't simply put IptsPublisherView behind an Arc, because we
+                    //   need to mutably borrow it to call await_update in the main loop.
+                    //
+                    //   * On the surface, the solution appears to be to make the IptsPublisherView
+                    //   an Arc<Mutex<..>>, but that would create another, equally bad problem,
+                    //   because that mutex will have to be locked for each iteration of the
+                    //   reactor loop (in order to select_biased! on await_update(&mut self)),
+                    //   which would block any existing publish task.
                     ipt_set
                         .note_publication_attempt(worst_case_end)
                         .map_err(|_| internal!("failed to note publication attempt"))?;
@@ -913,9 +940,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     desc
                 };
 
-                let _handle: () = imm
+                let netdir = Arc::clone(&inner.netdir);
+                let imm = Arc::clone(&self.imm);
+                let _handle: () = self
+                    .imm
                     .runtime
-                    .spawn(async {
+                    .spawn(async move {
                         let hsdesc = VersionedDescriptor {
                             desc: hsdesc.clone(),
                             revision_counter,
@@ -924,9 +954,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             hsdesc,
                             hs_dirs,
                             &netdir,
-                            period.period,
+                            time_period,
                             imm,
                             upload_task_complete_tx,
+                            worst_case_end,
                         )
                         .await
                         {
@@ -971,6 +1002,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         time_period: TimePeriod,
         imm: Arc<Immutable<R, M>>,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
+        worst_case_end: Instant,
     ) -> Result<(), ReactorError> {
         let VersionedDescriptor {
             desc,
@@ -1003,22 +1035,41 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         .await
                     };
 
-                    let upload_res = match run_upload().await {
-                        Ok(()) => UploadStatus::Success,
-                        Err(e) => {
-                            let ed_id = relay_ids
-                                .rsa_identity()
-                                .map(|id| id.to_string())
-                                .unwrap_or_else(|| "unknown".into());
-                            let rsa_id = relay_ids
-                                .rsa_identity()
-                                .map(|id| id.to_string())
-                                .unwrap_or_else(|| "unknown".into());
+                    // TODO HSS: We should compute worst_case_end and call note_publication_attempt here
+                    // See the TODO about note_publication_attempt
 
-                            // TODO: extend warn_report to support key-value fields like warn!
-                            warn_report!(
-                                e,
-                                "failed to upload descriptor for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
+                    // How long until we're supposed to time out?
+                    let duration = worst_case_end
+                        .checked_duration_since(imm.runtime.now())
+                        .unwrap_or_default();
+
+                    let ed_id = relay_ids
+                        .rsa_identity()
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "unknown".into());
+                    let rsa_id = relay_ids
+                        .rsa_identity()
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "unknown".into());
+
+                    let upload_res = match imm.runtime.timeout(duration, run_upload()).await {
+                        Ok(res) => {
+                            match res {
+                                Ok(()) => UploadStatus::Success,
+                                Err(e) => {
+                                    warn_report!(
+                                        e,
+                                        "failed to upload descriptor for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
+                                        imm.hsid, ed_id, rsa_id
+                                    );
+
+                                    UploadStatus::Failure
+                                }
+                            }
+                        },
+                        Err(_e) => {
+                            warn!(
+                                "descriptor upload timed out for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
                                 imm.hsid, ed_id, rsa_id
                             );
 
