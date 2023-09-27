@@ -905,6 +905,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         imm.runtime.wallclock(),
                     )?;
 
+                    // TODO HSS: this line is suppressing a bunch of lifetime errors happening due
+                    // to the async block below (removing it, commenting it out, or replacing it
+                    // with a concrete value reveals the errors).
+                    //
+                    // This code needs to be rewritten to fix the lifetime issues.
                     let worst_case_end = todo!();
                     ipt_set
                         .note_publication_attempt(worst_case_end)
