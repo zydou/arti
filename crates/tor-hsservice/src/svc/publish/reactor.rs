@@ -18,7 +18,7 @@ use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeystoreError};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, warn};
 
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
@@ -31,7 +31,7 @@ use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::IptsPublisherView;
@@ -60,6 +60,11 @@ const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 //
 // We should try to decouple this value from the TP parameters.
 const MAX_CONCURRENT_UPLOADS: usize = 16;
+
+/// The maximum time allowed for uploading a descriptor to an HSDirs.
+//
+// TODO HSS: this value is probably not right.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
@@ -881,6 +886,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let revision_counter = period.inc_revision_counter();
 
                 let time_period = period.period;
+
+                // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
+                // here. See the TODO HSS about note_publication_attempt() below.
+                let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
                 // This scope exists because rng is not Send, so it needs to fall out of scope before we
                 // await anything.
                 let hsdesc = {
@@ -924,7 +933,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     //   because that mutex will have to be locked for each iteration of the
                     //   reactor loop (in order to select_biased! on await_update(&mut self)),
                     //   which would block any existing publish task.
-                    let worst_case_end = todo!();
                     ipt_set
                         .note_publication_attempt(worst_case_end)
                         .map_err(|_| internal!("failed to note publication attempt"))?;
@@ -949,6 +957,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             time_period,
                             imm,
                             upload_task_complete_tx,
+                            worst_case_end,
                         )
                         .await
                         {
@@ -993,6 +1002,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         time_period: TimePeriod,
         imm: Arc<Immutable<R, M>>,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
+        worst_case_end: Instant,
     ) -> Result<(), ReactorError> {
         let VersionedDescriptor {
             desc,
@@ -1025,22 +1035,41 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         .await
                     };
 
-                    let upload_res = match run_upload().await {
-                        Ok(()) => UploadStatus::Success,
-                        Err(e) => {
-                            let ed_id = relay_ids
-                                .rsa_identity()
-                                .map(|id| id.to_string())
-                                .unwrap_or_else(|| "unknown".into());
-                            let rsa_id = relay_ids
-                                .rsa_identity()
-                                .map(|id| id.to_string())
-                                .unwrap_or_else(|| "unknown".into());
+                    // TODO HSS: We should compute worst_case_end and call note_publication_attempt here
+                    // See the TODO about note_publication_attempt
 
-                            // TODO: extend warn_report to support key-value fields like warn!
-                            warn_report!(
-                                e,
-                                "failed to upload descriptor for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
+                    // How long until we're supposed to time out?
+                    let duration = worst_case_end
+                        .checked_duration_since(imm.runtime.now())
+                        .unwrap_or_default();
+
+                    let ed_id = relay_ids
+                        .rsa_identity()
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "unknown".into());
+                    let rsa_id = relay_ids
+                        .rsa_identity()
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "unknown".into());
+
+                    let upload_res = match imm.runtime.timeout(duration, run_upload()).await {
+                        Ok(res) => {
+                            match res {
+                                Ok(()) => UploadStatus::Success,
+                                Err(e) => {
+                                    warn_report!(
+                                        e,
+                                        "failed to upload descriptor for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
+                                        imm.hsid, ed_id, rsa_id
+                                    );
+
+                                    UploadStatus::Failure
+                                }
+                            }
+                        },
+                        Err(_e) => {
+                            warn!(
+                                "descriptor upload timed out for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
                                 imm.hsid, ed_id, rsa_id
                             );
 
