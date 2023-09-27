@@ -17,10 +17,9 @@ use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::ipt_set::IptsPublisherView;
 use crate::OnionServiceConfig;
+use crate::{ipt_set::IptsPublisherView, StartupError};
 
-use err::PublisherError;
 use reactor::{Reactor, ReactorError, ReactorState};
 
 /// A handle for the Hsdir Publisher for an onion service.
@@ -85,7 +84,7 @@ impl<R: Runtime> Publisher<R> {
     }
 
     /// Launch the publisher reactor.
-    pub(crate) fn launch(self) -> Result<(), PublisherError> {
+    pub(crate) fn launch(self) -> Result<(), StartupError> {
         let Publisher {
             runtime,
             hsid,
@@ -113,7 +112,10 @@ impl<R: Runtime> Publisher<R> {
             .spawn(async move {
                 let _result: Result<(), ReactorError> = reactor.run().await;
             })
-            .map_err(|e| PublisherError::from_spawn("publisher reactor task", e))?;
+            .map_err(|e| StartupError::Spawn {
+                spawning: "publisher reactor task",
+                cause: e.into(),
+            })?;
 
         Ok(())
     }
