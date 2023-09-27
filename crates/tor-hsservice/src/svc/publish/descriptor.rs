@@ -5,7 +5,6 @@ use std::time::{Duration, SystemTime};
 
 use rand_core::{CryptoRng, RngCore};
 
-use tor_cert::Ed25519Cert;
 use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
@@ -75,7 +74,6 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         nickname,
         HsSvcKeyRole::DescSigningKeypair(period),
     )?;
-    let hs_desc_sign_cert: Ed25519Cert = todo!();
 
     // TODO HSS: support introduction-layer authentication.
     let auth_required = None;
@@ -83,8 +81,11 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     let is_single_onion_service =
         matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
 
+    // TODO HSS: perhaps the certificates should be read from the keystore, rather than created
+    // when building the descriptor. See #1048
     let intro_auth_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
     let intro_enc_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
+    let hs_desc_sign_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
 
     // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
     // work; see #1028
@@ -100,7 +101,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     Ok(HsDescBuilder::default()
         .blinded_id(&blind_id_kp)
         .hs_desc_sign(&hs_desc_sign.into())
-        .hs_desc_sign_cert_expiry(hs_desc_sign_cert.expiry())
+        .hs_desc_sign_cert_expiry(hs_desc_sign_cert_expiry)
         .create2_formats(CREATE2_FORMATS)
         .auth_required(auth_required)
         .is_single_onion_service(is_single_onion_service)
