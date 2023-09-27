@@ -450,7 +450,7 @@ pub(crate) enum UploadError {
 impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
     #[allow(clippy::too_many_arguments)]
-    pub(super) async fn new(
+    pub(super) fn new(
         runtime: R,
         hsid: HsId,
         dir_provider: Arc<dyn NetDirProvider>,
@@ -459,7 +459,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         keymgr: Arc<KeyMgr>,
-    ) -> Result<Self, ReactorError> {
+    ) -> Self {
         /// The maximum size of the upload completion notifier channel.
         ///
         /// The channel we use this for is a futures::mpsc channel, which has a capacity of
@@ -490,7 +490,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             last_uploaded: None,
         };
 
-        Ok(Self {
+        Self {
             imm: Arc::new(imm),
             inner: Arc::new(Mutex::new(inner)),
             hsid_key,
@@ -502,7 +502,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             rate_lim_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
-        })
+        }
     }
 
     /// Start the reactor.

@@ -97,7 +97,6 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
         self.ipt_mgr.launch_background_tasks(self.ipt_mgr_view)?;
         self.publisher
             .launch()
-            .await
             .map_err(|e| StartupError::LaunchPublisher(Arc::new(e)))?;
         Ok(())
     }

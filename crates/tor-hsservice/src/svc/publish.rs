@@ -85,11 +85,7 @@ impl<R: Runtime> Publisher<R> {
     }
 
     /// Launch the publisher reactor.
-    pub(crate) async fn launch(self) -> Result<(), PublisherError> {
-        // TODO HSS: It might be useful if this Reactor::new happened inside
-        // the subtask, or if it did not have to be `async`, so that this
-        // launch task could complete immediately and we could make
-        // OnionService::launch a non-async function.
+    pub(crate) fn launch(self) -> Result<(), PublisherError> {
         let Publisher {
             runtime,
             hsid,
@@ -111,8 +107,7 @@ impl<R: Runtime> Publisher<R> {
             ipt_watcher,
             config_rx,
             keymgr,
-        )
-        .await?;
+        );
 
         runtime
             .spawn(async move {
