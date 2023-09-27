@@ -4,7 +4,6 @@
 
 mod backoff;
 mod descriptor;
-mod err;
 mod reactor;
 
 use futures::task::SpawnExt;
