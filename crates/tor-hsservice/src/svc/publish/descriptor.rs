@@ -60,11 +60,11 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         .map(|ipt_in_set| ipt_in_set.ipt.clone())
         .collect::<Vec<_>>();
 
-    let nickname = config.name.clone();
+    let nickname = &config.name;
 
-    let hsid = read_svc_key::<HsIdKey>(&keymgr, nickname.clone(), HsSvcKeyRole::HsIdPublicKey)?;
+    let hsid = read_svc_key::<HsIdKey>(&keymgr, nickname, HsSvcKeyRole::HsIdPublicKey)?;
     let blind_id_kp =
-        read_svc_key::<HsBlindIdKeypair>(&keymgr, nickname.clone(), HsSvcKeyRole::BlindIdKeypair(period))?;
+        read_svc_key::<HsBlindIdKeypair>(&keymgr, nickname, HsSvcKeyRole::BlindIdKeypair(period))?;
     let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
 
@@ -117,7 +117,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 /// Read the specified key from the keystore.
 fn read_svc_key<K>(
     keymgr: &Arc<KeyMgr>,
-    nickname: HsNickname,
+    nickname: &HsNickname,
     role: HsSvcKeyRole,
 ) -> Result<K, ReactorError>
 where
