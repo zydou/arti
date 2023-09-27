@@ -41,14 +41,6 @@ pub enum StartupError {
     /// Tried to launch an onion service that has already been launched.
     #[error("Onion service has already been launched")]
     AlreadyLaunched,
-
-    /// Tried to launch a descriptor publisher, but encountered an error.
-    #[error("Unable to launch descriptor publisher.")]
-    // TODO HSS: This is actually a PublisherError, but that type isn't exposed,
-    // and it contains a whole ecosystem of other crate-internal errors.
-    // Either we should change Publisher::launch() to return a StartupError,
-    // or we should figure out how much of PublisherError to expose.
-    LaunchPublisher(#[source] Arc<dyn std::error::Error + Send + Sync>),
 }
 
 impl HasKind for StartupError {
@@ -58,9 +50,6 @@ impl HasKind for StartupError {
         match self {
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
-            // TODO HSS: Wrong, but can't fix until we change the type of
-            // error held in LaunchPublisher. See note above.
-            E::LaunchPublisher(_) => EK::Internal,
         }
     }
 }

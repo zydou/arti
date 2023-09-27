@@ -4,7 +4,6 @@
 
 mod backoff;
 mod descriptor;
-mod err;
 mod reactor;
 
 use futures::task::SpawnExt;
@@ -17,10 +16,9 @@ use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::ipt_set::IptsPublisherView;
 use crate::OnionServiceConfig;
+use crate::{ipt_set::IptsPublisherView, StartupError};
 
-use err::PublisherError;
 use reactor::{Reactor, ReactorError, ReactorState};
 
 /// A handle for the Hsdir Publisher for an onion service.
@@ -85,11 +83,7 @@ impl<R: Runtime> Publisher<R> {
     }
 
     /// Launch the publisher reactor.
-    pub(crate) async fn launch(self) -> Result<(), PublisherError> {
-        // TODO HSS: It might be useful if this Reactor::new happened inside
-        // the subtask, or if it did not have to be `async`, so that this
-        // launch task could complete immediately and we could make
-        // OnionService::launch a non-async function.
+    pub(crate) fn launch(self) -> Result<(), StartupError> {
         let Publisher {
             runtime,
             hsid,
@@ -111,14 +105,16 @@ impl<R: Runtime> Publisher<R> {
             ipt_watcher,
             config_rx,
             keymgr,
-        )
-        .await?;
+        );
 
         runtime
             .spawn(async move {
                 let _result: Result<(), ReactorError> = reactor.run().await;
             })
-            .map_err(|e| PublisherError::from_spawn("publisher reactor task", e))?;
+            .map_err(|e| StartupError::Spawn {
+                spawning: "publisher reactor task",
+                cause: e.into(),
+            })?;
 
         Ok(())
     }

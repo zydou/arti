@@ -84,21 +84,15 @@ struct ForLaunch<R: Runtime> {
 
 /// Private trait used to type-erase `ForLaunch<R>`, so that we don't need to
 /// parameterize OnionService on `<R>`.
-// TODO HSS: It would be neat if this didn't have to be async.
-#[async_trait::async_trait]
 trait Launchable: Send + Sync {
     /// Launch
-    async fn launch(self: Box<Self>) -> Result<(), StartupError>;
+    fn launch(self: Box<Self>) -> Result<(), StartupError>;
 }
 
-#[async_trait::async_trait]
 impl<R: Runtime> Launchable for ForLaunch<R> {
-    async fn launch(self: Box<Self>) -> Result<(), StartupError> {
+    fn launch(self: Box<Self>) -> Result<(), StartupError> {
         self.ipt_mgr.launch_background_tasks(self.ipt_mgr_view)?;
-        self.publisher
-            .launch()
-            .await
-            .map_err(|e| StartupError::LaunchPublisher(Arc::new(e)))?;
+        self.publisher.launch()?;
         Ok(())
     }
 }
@@ -204,7 +198,7 @@ impl OnionService {
     /// Tell this onion service to begin running.
     //
     // TODO HSS: Probably return an `impl Stream<RendRequest>`.
-    pub async fn launch(self: &Arc<Self>) -> Result<(), StartupError> {
+    pub fn launch(self: &Arc<Self>) -> Result<(), StartupError> {
         let launch = {
             let mut inner = self.inner.lock().expect("poisoned lock");
             inner
@@ -213,7 +207,7 @@ impl OnionService {
                 .ok_or(StartupError::AlreadyLaunched)?
         };
 
-        launch.launch().await
+        launch.launch()
         // TODO HSS:  This needs to launch at least the following tasks:
         //
         // - If we decide to use separate disk-based key provisioning, a task to
