@@ -62,7 +62,7 @@ pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
 pub use keys::{HsSvcKeyRole, HsSvcKeySpecifier};
 pub use nickname::{HsNickname, InvalidNickname};
-pub use req::{OnionServiceDataStream, RendRequest, StreamRequest};
+pub use req::{RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
 pub use svc::OnionService;
 

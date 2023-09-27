@@ -89,15 +89,6 @@ pub struct StreamRequest {
     on_circuit: Arc<ClientCirc>,
 }
 
-/// A stream opened over an onion service.
-//
-// TODO HSS: This may belong in another module.
-#[derive(Debug)]
-pub struct OnionServiceDataStream {
-    /// The underlying data stream; this type is just a thin wrapper.
-    inner: DataStream,
-}
-
 /// Keys and objects needed to answer a RendRequest.
 pub(crate) struct RendRequestContext {
     /// Keys we'll use to decrypt the rendezvous request.
@@ -192,16 +183,11 @@ impl StreamRequest {
     }
 
     /// Accept this request and send the client a `CONNECTED` message.
-    pub async fn accept(
-        self,
-        connected_message: Connected,
-    ) -> Result<OnionServiceDataStream, ClientError> {
-        let stream = self
-            .stream
+    pub async fn accept(self, connected_message: Connected) -> Result<DataStream, ClientError> {
+        self.stream
             .accept_data(connected_message)
             .await
-            .map_err(ClientError::AcceptStream)?;
-        Ok(OnionServiceDataStream { inner: stream })
+            .map_err(ClientError::AcceptStream)
     }
     /// Reject this request, and send the client an `END` message.
     /// TODO HSS: Should this really be fallible?  How might it fail?
