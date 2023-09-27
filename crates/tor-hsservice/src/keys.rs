@@ -9,16 +9,16 @@ use crate::HsNickname;
 
 /// An identifier for a particular instance of a hidden service key.
 #[derive(Clone, Debug, PartialEq)]
-pub struct HsSvcKeySpecifier {
+pub struct HsSvcKeySpecifier<'a> {
     /// The nickname of the  hidden service.
-    nickname: HsNickname,
+    nickname: &'a HsNickname,
     /// The role of this key
     role: HsSvcKeyRole,
 }
 
-impl HsSvcKeySpecifier {
+impl<'a> HsSvcKeySpecifier<'a> {
     /// Create a new specifier for service the service with the specified `nickname`.
-    pub fn new(nickname: HsNickname, role: HsSvcKeyRole) -> Self {
+    pub fn new(nickname: &'a HsNickname, role: HsSvcKeyRole) -> Self {
         Self { nickname, role }
     }
 }
@@ -57,7 +57,7 @@ impl fmt::Display for HsSvcKeyRole {
     }
 }
 
-impl KeySpecifier for HsSvcKeySpecifier {
+impl<'a> KeySpecifier for HsSvcKeySpecifier<'a> {
     fn arti_path(&self) -> tor_keymgr::Result<ArtiPath> {
         ArtiPath::new(format!("hs/{}/{}", self.nickname, self.role))
     }
