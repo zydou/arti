@@ -25,7 +25,7 @@ use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::request::Requestable;
 use tor_dirclient::{send_request, Error as DirClientError, RequestError};
-use tor_error::{internal, into_internal, warn_report};
+use tor_error::{internal, into_internal, warn_report, Bug};
 use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
@@ -216,7 +216,9 @@ struct Inner {
     /// publishing descriptors for.
     time_periods: Vec<TimePeriodContext>,
     /// Our most up to date netdir.
-    netdir: Arc<NetDir>,
+    ///
+    /// This is initialized in [`Reactor::run`].
+    netdir: Option<Arc<NetDir>>,
     /// The timestamp of our last upload.
     ///
     /// Note: This is only used for deciding when to reschedule a rate-limited upload. It is _not_
@@ -468,9 +470,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let hsid_key: HsIdKey = hsid
             .try_into()
             .expect("failed to recover ed25519 public key from hsid?!");
-        let netdir = wait_for_netdir(dir_provider.as_ref(), Timeliness::Timely).await?;
-
-        let time_periods = Self::compute_time_periods(&netdir, &hsid_key)?;
 
         let (upload_task_complete_tx, upload_task_complete_rx) =
             mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
@@ -485,9 +484,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         };
 
         let inner = Inner {
-            time_periods,
+            time_periods: vec![],
             config,
-            netdir,
+            netdir: None,
             last_uploaded: None,
         };
 
@@ -514,6 +513,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// get rate-limited.
     pub(super) async fn run(mut self) -> Result<(), ReactorError> {
         debug!("starting descriptor publisher reactor");
+
+        {
+            let netdir = wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely).await?;
+            let time_periods = Self::compute_time_periods(&netdir, &self.hsid_key)?;
+
+            let mut inner = self.inner.lock().expect("poisoned lock");
+
+            inner.netdir = Some(netdir);
+            inner.time_periods = time_periods;
+        }
 
         // There will be at most one pending upload.
         let (rate_lim_upload_tx, mut rate_lim_upload_rx) = watch::channel();
@@ -674,7 +683,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Maybe update our list of HsDirs.
     async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
-        let _old: Arc<NetDir> = self.replace_netdir(netdir);
+        let _old: Option<Arc<NetDir>> = self.replace_netdir(netdir);
 
         self.recompute_hs_dirs()?;
         self.update_publish_status(PublishStatus::UploadScheduled)
@@ -688,11 +697,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
+        let netdir = Arc::clone(
+            inner
+                .netdir
+                .as_ref()
+                .ok_or_else(|| internal!("started upload task without a netdir"))?,
+        );
+
         // Update our list of relevant time periods.
-        inner.time_periods = Self::compute_time_periods(&inner.netdir, &self.hsid_key)?;
+        inner.time_periods = Self::compute_time_periods(&netdir, &self.hsid_key)?;
 
         for period in inner.time_periods.iter_mut() {
-            period.recompute_hs_dirs(&inner.netdir)?;
+            period.recompute_hs_dirs(&netdir)?;
         }
 
         Ok(())
@@ -716,11 +732,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Replace the old netdir with the new, returning the old.
-    fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Arc<NetDir> {
-        std::mem::replace(
-            &mut self.inner.lock().expect("poisoned lock").netdir,
-            new_netdir,
-        )
+    fn replace_netdir(&self, new_netdir: Arc<NetDir>) -> Option<Arc<NetDir>> {
+        self.inner
+            .lock()
+            .expect("poisoned lock")
+            .netdir
+            .replace(new_netdir)
     }
 
     /// Replace our view of the service config with `new_config` if `new_config` contains changes
@@ -832,6 +849,17 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .for_each(|tp| tp.mark_all_dirty());
     }
 
+    /// Get a reference to our most up-to-date `NetDir`.
+    ///
+    /// Returns an error if called before [`Reactor::run`].
+    fn netdir(&self) -> Result<Arc<NetDir>, Bug> {
+        let inner = self.inner.lock().expect("poisoned lock");
+
+        Ok(Arc::clone(inner.netdir.as_ref().ok_or_else(|| {
+            internal!("started upload task without a netdir")
+        })?))
+    }
+
     /// Try to upload our descriptor to the HsDirs that need it.
     ///
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
@@ -940,7 +968,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     desc
                 };
 
-                let netdir = Arc::clone(&inner.netdir);
+                let netdir = self.netdir()?;
                 let imm = Arc::clone(&self.imm);
                 let _handle: () = self
                     .imm
