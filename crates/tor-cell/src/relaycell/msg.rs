@@ -200,6 +200,21 @@ impl Begin {
             flags: flags.into(),
         })
     }
+
+    /// Return the address requested in this message.
+    pub fn addr(&self) -> &[u8] {
+        &self.addr[..]
+    }
+
+    /// Return the port requested by this message.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// Return the set of flags provided in this message.
+    pub fn flags(&self) -> BeginFlags {
+        self.flags
+    }
 }
 
 impl Body for Begin {

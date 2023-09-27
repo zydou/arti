@@ -6,12 +6,12 @@
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use std::sync::Arc;
-use tor_cell::relaycell::msg::Introduce2;
+use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 
 use tor_error::Bug;
 use tor_proto::{
     circuit::{handshake::hs_ntor::HsNtorServiceInput, ClientCirc},
-    stream::{DataStream, IncomingStream},
+    stream::{DataStream, IncomingStream, IncomingStreamRequest},
 };
 
 use crate::{
@@ -89,15 +89,6 @@ pub struct StreamRequest {
     on_circuit: Arc<ClientCirc>,
 }
 
-/// A stream opened over an onion service.
-//
-// TODO HSS: This may belong in another module.
-#[derive(Debug)]
-pub struct OnionServiceDataStream {
-    /// The underlying data stream; this type is just a thin wrapper.
-    inner: DataStream,
-}
-
 /// Keys and objects needed to answer a RendRequest.
 pub(crate) struct RendRequestContext {
     /// Keys we'll use to decrypt the rendezvous request.
@@ -143,10 +134,9 @@ impl RendRequest {
     /// provided rendezvous point.
     ///
     /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    /// TODO HSS: Using tor_proto::Result here is a bit wonky.
     pub async fn accept(
         mut self,
-    ) -> Result<impl Stream<Item = tor_proto::Result<StreamRequest>>, ClientError> {
+    ) -> Result<impl Stream<Item = StreamRequest> + Unpin, ClientError> {
         // Make sure the request is there.
         self.intro_request().map_err(ClientError::BadIntroduce)?;
         // Take ownership of the request.
@@ -169,15 +159,10 @@ impl RendRequest {
         // closure, which lives for as long as the stream of StreamRequest, and
         // for as long as each individual StreamRequest.  This is how we keep
         // the rendezvous circuit alive.
-        Ok(
-            stream_requests.map(move |incoming: tor_proto::Result<IncomingStream>| {
-                let stream = incoming?;
-                Ok(StreamRequest {
-                    stream,
-                    on_circuit: circuit.clone(),
-                })
-            }),
-        )
+        Ok(stream_requests.map(move |stream| StreamRequest {
+            stream,
+            on_circuit: circuit.clone(),
+        }))
     }
     /// Reject this request.  (The client will receive no notification.)
     ///
@@ -192,20 +177,32 @@ impl RendRequest {
 }
 
 impl StreamRequest {
+    /// Return the message that was used to request this stream.
+    pub fn request(&self) -> &IncomingStreamRequest {
+        self.stream.request()
+    }
+
     /// Accept this request and send the client a `CONNECTED` message.
-    pub async fn accept(self) -> Result<OnionServiceDataStream, ClientError> {
-        todo!()
+    pub async fn accept(self, connected_message: Connected) -> Result<DataStream, ClientError> {
+        self.stream
+            .accept_data(connected_message)
+            .await
+            .map_err(ClientError::AcceptStream)
     }
     /// Reject this request, and send the client an `END` message.
     /// TODO HSS: Should this really be fallible?  How might it fail?
-    pub async fn reject(self) -> Result<(), Bug> {
-        todo!()
+    pub async fn reject(mut self, end_message: End) -> Result<(), ClientError> {
+        self.stream
+            .reject(end_message)
+            .await
+            .map_err(ClientError::RejectStream)
     }
     /// Reject this request and close the rendezvous circuit entirely,
     /// along with all other streams attached to the circuit.
     /// TODO HSS: Should this really be fallible?  How might it fail?
     pub fn shutdown_circuit(self) -> Result<(), Bug> {
-        todo!()
+        self.on_circuit.terminate();
+        Ok(())
     }
     // TODO HSS various accessors, including for circuit.
 }

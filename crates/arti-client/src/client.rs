@@ -1366,7 +1366,7 @@ impl<R: Runtime> TorClient<R> {
             self.statemgr.clone(),
         )
         .map_err(ErrorDetail::LaunchOnionService)?;
-        service.launch().map_err(ErrorDetail::LaunchOnionService)?;
+        let _stream = service.launch().map_err(ErrorDetail::LaunchOnionService)?;
         // TODO HSS: Once OnionService::launch is non-async, make this function non-async.
         // TODO HSS: Once OnionService::launch returns a stream of something
         // reasonable, return that from here as well.

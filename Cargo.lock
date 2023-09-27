@@ -4953,12 +4953,21 @@ name = "tor-hsrproxy"
 version = "0.1.0"
 dependencies = [
  "derive_builder_fork_arti",
+ "futures",
  "rangemap",
+ "safelog",
  "serde",
  "serde_json",
  "serde_with",
  "thiserror",
+ "tor-cell",
  "tor-config",
+ "tor-error",
+ "tor-hsservice",
+ "tor-proto",
+ "tor-rtcompat",
+ "tracing",
+ "void",
 ]
 
 [[package]]
