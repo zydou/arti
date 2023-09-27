@@ -214,6 +214,8 @@ struct Inner {
     ///
     /// This includes the current time period, as well as any other time periods we need to be
     /// publishing descriptors for.
+    ///
+    /// This is empty until we fetch our first netdir in [`Reactor::run`].
     time_periods: Vec<TimePeriodContext>,
     /// Our most up to date netdir.
     ///
