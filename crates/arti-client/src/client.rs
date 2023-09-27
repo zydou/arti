@@ -33,7 +33,6 @@ use tor_rtcompat::PreferredRuntime;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 #[cfg(feature = "onion-service-client")]
 use {
-    tor_circmgr::hspool::HsCircPool,
     tor_config::BoolOrAuto,
     tor_hsclient::{
         HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
@@ -114,6 +113,9 @@ pub struct TorClient<R: Runtime> {
     /// HS client connector
     #[cfg(feature = "onion-service-client")]
     hsclient: HsClientConnector<R>,
+    /// Circuit pool for providing onion services with circuits.
+    #[cfg(feature = "onion-service-service")]
+    hs_circ_pool: Arc<tor_circmgr::hspool::HsCircPool<R>>,
     /// The key manager.
     ///
     /// This is used for retrieving private keys, certificates, and other sensitive data (for
@@ -612,14 +614,17 @@ impl<R: Runtime> TorClient<R> {
         #[cfg(feature = "bridge-client")]
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
-        #[cfg(feature = "onion-service-client")]
-        let hsclient = {
-            let circpool = HsCircPool::new(&circmgr);
-
+        #[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
+        let hs_circ_pool = {
+            let circpool = tor_circmgr::hspool::HsCircPool::new(&circmgr);
             circpool
                 .launch_background_tasks(&runtime, &dirmgr.clone().upcast_arc())
                 .map_err(ErrorDetail::CircMgrSetup)?;
+            circpool
+        };
 
+        #[cfg(feature = "onion-service-client")]
+        let hsclient = {
             // Prompt the hs connector to do its data housekeeping when we get a new consensus.
             // That's a time we're doing a bunch of thinking anyway, and it's not very frequent.
             let housekeeping = dirmgr.events().filter_map(|event| async move {
@@ -630,7 +635,7 @@ impl<R: Runtime> TorClient<R> {
             });
             let housekeeping = Box::pin(housekeeping);
 
-            HsClientConnector::new(runtime.clone(), circpool, config, housekeeping)?
+            HsClientConnector::new(runtime.clone(), hs_circ_pool.clone(), config, housekeeping)?
         };
 
         let keystore = config.storage.keystore();
@@ -693,6 +698,8 @@ impl<R: Runtime> TorClient<R> {
             pt_mgr,
             #[cfg(feature = "onion-service-client")]
             hsclient,
+            #[cfg(feature = "onion-service-service")]
+            hs_circ_pool,
             keymgr,
             guardmgr,
             statemgr,
@@ -1327,6 +1334,47 @@ impl<R: Runtime> TorClient<R> {
         }
         // Failure should be impossible with this builder.
         b.build().expect("Failed to construct StreamIsolation")
+    }
+
+    /// Try to launch an onion service with a given configuration.
+    ///
+    /// This onion service will not actually handle any requests on its own: you
+    /// will need to ... (TODO HSS describe what the user needs to do.)
+    ///
+    /// TODO HSS: This feature does not yet work.
+    #[cfg(feature = "onion-service-service")]
+    pub async fn launch_onion_service(
+        &self,
+        config: tor_hsservice::OnionServiceConfig,
+    ) -> crate::Result<Arc<tor_hsservice::OnionService>> {
+        let keymgr = self
+            .keymgr
+            .as_ref()
+            // TODO HSS: Use a real error.  But which error is appropriate in
+            // this ase?
+            .ok_or_else(|| internal!("Tried to launch onion service with no key storage enabled"))
+            .map_err(ErrorDetail::from)?
+            .clone();
+        let service = tor_hsservice::OnionService::new(
+            self.runtime.clone(),
+            config,
+            self.dirmgr.clone().upcast_arc(),
+            self.hs_circ_pool.clone(),
+            // TODO HSS: Allow override of KeyMgr for "ephemeral" operation?
+            keymgr,
+            // TODO HSS: Allow override of StateMgr for :"ephemeral" operation?
+            self.statemgr.clone(),
+        )
+        .map_err(ErrorDetail::LaunchOnionService)?;
+        service
+            .launch()
+            .await
+            .map_err(ErrorDetail::LaunchOnionService)?;
+        // TODO HSS: Once OnionService::launch is non-async, make this function non-async.
+        // TODO HSS: Once OnionService::launch returns a stream of something
+        // reasonable, return that from here as well.
+
+        Ok(service)
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client

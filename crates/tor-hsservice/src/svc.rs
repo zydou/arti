@@ -204,7 +204,7 @@ impl OnionService {
     /// Tell this onion service to begin running.
     //
     // TODO HSS: Probably return an `impl Stream<RendRequest>`.
-    pub async fn launch(self: Arc<Self>) -> Result<(), StartupError> {
+    pub async fn launch(self: &Arc<Self>) -> Result<(), StartupError> {
         let launch = {
             let mut inner = self.inner.lock().expect("poisoned lock");
             inner
