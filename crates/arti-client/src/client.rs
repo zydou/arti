@@ -1368,7 +1368,6 @@ impl<R: Runtime> TorClient<R> {
         .map_err(ErrorDetail::LaunchOnionService)?;
         service
             .launch()
-            .await
             .map_err(ErrorDetail::LaunchOnionService)?;
         // TODO HSS: Once OnionService::launch is non-async, make this function non-async.
         // TODO HSS: Once OnionService::launch returns a stream of something
