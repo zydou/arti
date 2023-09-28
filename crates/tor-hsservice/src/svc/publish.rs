@@ -10,7 +10,9 @@ use futures::task::SpawnExt;
 use postage::watch;
 use std::sync::Arc;
 use tor_keymgr::KeyMgr;
+use tracing::warn;
 
+use tor_error::warn_report;
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
@@ -18,7 +20,7 @@ use tor_rtcompat::Runtime;
 use crate::OnionServiceConfig;
 use crate::{ipt_set::IptsPublisherView, StartupError};
 
-use reactor::{Reactor, ReactorError};
+use reactor::Reactor;
 
 pub(crate) use reactor::{Mockable, Real};
 
@@ -111,7 +113,10 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
 
         runtime
             .spawn(async move {
-                let _result: Result<(), ReactorError> = reactor.run().await;
+                match reactor.run().await {
+                    Ok(()) => warn!("the publisher reactor has shut down"),
+                    Err(e) => warn_report!(e, "the publisher reactor has shut down"),
+                }
             })
             .map_err(|e| StartupError::Spawn {
                 spawning: "publisher reactor task",

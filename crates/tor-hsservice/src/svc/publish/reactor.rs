@@ -562,7 +562,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         };
 
-        debug!("reactor stoped: {err}");
+        debug!("reactor stopped: {err}");
 
         Err(err)
     }
