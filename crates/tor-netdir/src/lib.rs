@@ -1608,16 +1608,17 @@ impl NetDir {
         let spread = self.spread(HsDirOp::Upload);
 
         // For each HsBlindId, determine which HsDirRing to use.
-        let mut rings = self
+        let rings = self
             .hsdir_rings
             .iter()
             .cartesian_product(hsids.clone())
             .filter_map(move |(ring, (hsid, period))| {
                 // Make sure the ring matches the TP of the hsid it's matched with.
                 (ring.params().time_period == period).then_some((ring, hsid, period))
-            });
+            }).collect::<Vec<_>>();
 
-        if hsids.all(|(_hsid, period)| rings.any(|(_, _, tp)| tp == period)) {
+        // Each of the specified hsids should have an associated ring.
+        if !hsids.all(|(_hsid, period)| rings.iter().any(|(_, _, tp)| *tp == period)) {
             return Err(internal!(
                 "some of the specified time periods do not have an associated ring"
             ));
@@ -1625,7 +1626,7 @@ impl NetDir {
 
         // Now that we've matched each `hsid` with the ring associated with its TP, we can start
         // selecting replicas from each ring.
-        Ok(rings.flat_map(move |(ring, hsid, period)| {
+        Ok(rings.into_iter().flat_map(move |(ring, hsid, period)| {
             iter::repeat(period).zip(self.select_hsdirs(hsid, ring, spread))
         }))
     }
