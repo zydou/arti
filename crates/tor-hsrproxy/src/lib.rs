@@ -40,8 +40,6 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(dead_code)] // TODO HSS: remove this.
-
 pub mod config;
 mod proxy;
 
