@@ -29,8 +29,12 @@ impl<'a> HsSvcKeySpecifier<'a> {
 pub enum HsSvcKeyRole {
     /// The public part of the identity key of the service.
     HsIdPublicKey,
+    /// The long-term identity keypair of the service.
+    HsIdKeypair,
     /// The blinded signing keypair.
     BlindIdKeypair(TimePeriod),
+    /// The public part of the blinded signing keypair.
+    BlindIdPublicKey(TimePeriod),
     /// The descriptor signing key.
     DescSigningKeypair(TimePeriod),
 }
@@ -46,6 +50,13 @@ impl fmt::Display for HsSvcKeyRole {
                 period.interval_num(),
                 period.length()
             ),
+            BlindIdPublicKey(period) => write!(
+                f,
+                "KP_hs_blind_id_{}_{}",
+                period.interval_num(),
+                period.length()
+            ),
+            HsIdKeypair => write!(f, "KS_hs_id"),
             HsIdPublicKey => write!(f, "KP_hs_id"),
             DescSigningKeypair(period) => write!(
                 f,
