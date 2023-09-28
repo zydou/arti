@@ -1339,19 +1339,31 @@ impl<R: Runtime> TorClient<R> {
     /// Try to launch an onion service with a given configuration.
     ///
     /// This onion service will not actually handle any requests on its own: you
-    /// will need to ... (TODO HSS describe what the user needs to do.)
+    /// will need to
+    /// pull [`RendRequest`](tor_hsservice::RendRequest) objects from the returned stream,
+    /// [`accept`](tor_hsservice::RendRequest::accept) the ones that you want to
+    /// answer, and then wait for them to give you [`StreamRequest`](tor_hsservice::StreamRequest)s.
+    ///
+    /// You may find the [`tor_hsservice::handle_rend_requests`] API helpful for
+    /// translating `RendRequest`s into `StreamRequest`s.
+    ///
+    /// If you want to forward all the requests from an onion service to a set
+    /// of local ports, you may want to use the `tor-hsrproxy` crate.
     ///
     /// TODO HSS: This feature does not yet work.
     #[cfg(feature = "onion-service-service")]
-    pub async fn launch_onion_service(
+    pub fn launch_onion_service(
         &self,
         config: tor_hsservice::OnionServiceConfig,
-    ) -> crate::Result<Arc<tor_hsservice::OnionService>> {
+    ) -> crate::Result<(
+        Arc<tor_hsservice::OnionService>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest>,
+    )> {
         let keymgr = self
             .keymgr
             .as_ref()
             // TODO HSS: Use a real error.  But which error is appropriate in
-            // this ase?
+            // this case?
             .ok_or_else(|| internal!("Tried to launch onion service with no key storage enabled"))
             .map_err(ErrorDetail::from)?
             .clone();
@@ -1362,16 +1374,13 @@ impl<R: Runtime> TorClient<R> {
             self.hs_circ_pool.clone(),
             // TODO HSS: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
-            // TODO HSS: Allow override of StateMgr for :"ephemeral" operation?
+            // TODO HSS: Allow override of StateMgr for "ephemeral" operation?
             self.statemgr.clone(),
         )
         .map_err(ErrorDetail::LaunchOnionService)?;
-        let _stream = service.launch().map_err(ErrorDetail::LaunchOnionService)?;
-        // TODO HSS: Once OnionService::launch is non-async, make this function non-async.
-        // TODO HSS: Once OnionService::launch returns a stream of something
-        // reasonable, return that from here as well.
+        let stream = service.launch().map_err(ErrorDetail::LaunchOnionService)?;
 
-        Ok(service)
+        Ok((service, stream))
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
