@@ -439,12 +439,8 @@ pub(crate) mod tor1 {
             d: &mut D,
             used_digest: &mut GenericArray<u8, D::OutputSize>,
         ) {
-            self.0[1] = 0;
-            self.0[2] = 0;
-            self.0[5] = 0;
-            self.0[6] = 0;
-            self.0[7] = 0;
-            self.0[8] = 0;
+            self.0[1..3].fill(0); // Set 'Recognized' to zero
+            self.0[5..9].fill(0); // Set Digest to zero
 
             d.update(&self.0[..]);
             // TODO(nickm) can we avoid this clone?  Probably not.
