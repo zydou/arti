@@ -51,6 +51,12 @@ pub mod pt {
     pub use tor_ptmgr::config::{ManagedTransportConfig, ManagedTransportConfigBuilder};
 }
 
+/// Types for configuring onion services.
+#[cfg(feature = "onion-service-service")]
+pub mod onion_service {
+    pub use tor_hsservice::config::{OnionServiceConfig, OnionServiceConfigBuilder};
+}
+
 /// Configuration for client behavior relating to addresses.
 ///
 /// This type is immutable once constructed. To create an object of this type,
