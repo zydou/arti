@@ -24,7 +24,6 @@ use tor_llcrypto::util::{ct::ct_lookup, rand_compat::RngCompatExt};
 use cipher::{KeyIvInit, StreamCipher};
 
 use crate::crypto::handshake::KeyGenerator;
-use generic_array::GenericArray;
 use rand_core::{CryptoRng, RngCore};
 use subtle::{Choice, ConstantTimeEq};
 use tor_cell::relaycell::extend::NtorV3Extension;
@@ -138,7 +137,7 @@ fn hash(t: &Encap<'_>, data: &[u8]) -> DigestVal {
 /// do that in this protocol.)
 fn encrypt(key: &EncKey, m: &[u8]) -> Vec<u8> {
     let mut d = m.to_vec();
-    let zero_iv = GenericArray::default();
+    let zero_iv = Default::default();
     let mut cipher = Aes256Ctr::new(key.as_ref().into(), &zero_iv);
     cipher.apply_keystream(&mut d);
     d

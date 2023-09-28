@@ -34,7 +34,6 @@ use tor_llcrypto::util::rand_compat::RngCompatExt;
 
 use cipher::{KeyIvInit, StreamCipher};
 
-use generic_array::GenericArray;
 use tor_error::into_internal;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::{Zeroize as _, Zeroizing};
@@ -280,7 +279,7 @@ fn encrypt_and_mac(
 ) -> (Vec<u8>, MacTag) {
     let mut ciphertext = plaintext.to_vec();
     // Encrypt the introduction data using 'enc_key'
-    let zero_iv = GenericArray::default();
+    let zero_iv = Default::default();
     let mut cipher = Aes256Ctr::new(enc_key.as_ref().into(), &zero_iv);
     cipher.apply_keystream(&mut ciphertext);
 
@@ -425,7 +424,7 @@ fn server_receive_intro_no_keygen(
     };
 
     // Decrypt the ENCRYPTED_DATA from the intro cell
-    let zero_iv = GenericArray::default();
+    let zero_iv = Default::default();
     let mut cipher = Aes256Ctr::new(dec_key.as_ref().into(), &zero_iv);
     cipher.apply_keystream(ciphertext);
     let plaintext = ciphertext; // it's now decrypted

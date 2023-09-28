@@ -5,7 +5,6 @@
 //! this is where I'm putting them.
 
 use super::*;
-use generic_array::GenericArray;
 
 // ----------------------------------------------------------------------
 
@@ -47,15 +46,11 @@ impl Writeable for Vec<u8> {
     }
 }
 
-// The GenericArray type is defined to work around a limitation in Rust's
-// type system.  Ideally we can get rid of GenericArray entirely at some
-// point down the line.
-//
-// For now, we only use `GenericArray<u8>`, so that's all we'll declare, since
-// it permits a faster implementation.
-impl<N> Readable for GenericArray<u8, N>
+// We also need to implement our traits for an older version (0.14) of
+// generic_array, since that's what the digest crate uses (as of digest 0.10.)
+impl<N> Readable for digest::generic_array::GenericArray<u8, N>
 where
-    N: generic_array::ArrayLength<u8>,
+    N: digest::generic_array::ArrayLength<u8>,
 {
     fn take_from(b: &mut Reader<'_>) -> Result<Self> {
         // safety -- "take" returns the requested bytes or error.
@@ -63,9 +58,9 @@ where
     }
 }
 
-impl<N> Writeable for GenericArray<u8, N>
+impl<N> Writeable for digest::generic_array::GenericArray<u8, N>
 where
-    N: generic_array::ArrayLength<u8>,
+    N: digest::generic_array::ArrayLength<u8>,
 {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
         b.write_all(self.as_slice());
@@ -271,7 +266,7 @@ mod digest_impls {
     }
     impl<T: OutputSizeUser> Readable for CtOutput<T> {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
-            let array = GenericArray::take_from(b)?;
+            let array = digest::generic_array::GenericArray::take_from(b)?;
             Ok(CtOutput::new(array))
         }
     }
@@ -359,7 +354,7 @@ mod tests {
 
     #[test]
     fn genarray() {
-        use generic_array as ga;
+        use digest::generic_array as ga;
         let a: ga::GenericArray<u8, ga::typenum::U7> = [4, 5, 6, 7, 8, 9, 10].into();
         check_roundtrip!(ga::GenericArray<u8, ga::typenum::U7>,
                          a,
