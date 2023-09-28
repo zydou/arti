@@ -3,6 +3,7 @@
 // TODO HSS: We may want rename some of the types and members here!
 
 use base64ct::{Base64Unpadded, Encoding as _};
+use derive_adhoc::Adhoc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -13,9 +14,10 @@ use tor_llcrypto::pk::curve25519;
 use crate::HsNickname;
 
 /// Configuration for one onion service.
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Serialize, Deserialize))]
+#[builder(derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq))]
+#[builder_struct_attr(derive_adhoc(tor_config::Flattenable))]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc,
     //
@@ -104,7 +106,7 @@ impl OnionServiceConfigBuilder {
 //
 // TODO: Do we want to parameterize this, or make it always u32?  Do we want to
 // specify "per second"?
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TokenBucketConfig {
     /// The maximum number of items to process per second.
     rate: u32,
