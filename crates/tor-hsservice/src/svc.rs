@@ -21,6 +21,7 @@ use crate::OnionServiceConfig;
 use crate::OnionServiceStatus;
 use crate::RendRequest;
 use crate::StartupError;
+use crate::svc::publish::ReactorState;
 
 pub(crate) mod ipt_establish;
 pub(crate) mod publish;
@@ -72,7 +73,7 @@ struct ForLaunch<R: Runtime> {
     /// This publisher is responsible for determining when we need to upload a
     /// new set of HsDescs, building them, and publishing them at the correct
     /// HsDirs.
-    publisher: Publisher<R>,
+    publisher: Publisher<R, ReactorState<R>>,
 
     /// Our handler for the introduction point manager.
     ///
@@ -150,7 +151,7 @@ impl OnionService {
         };
 
         // TODO HSS Why does this not need a keymgr?
-        let publisher = Publisher::new(
+        let publisher: Publisher<R, ReactorState<R>> = Publisher::new(
             runtime,
             hs_id,
             netdir_provider,

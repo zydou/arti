@@ -19,6 +19,7 @@ use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeystoreError};
 use tracing::{debug, error, trace, warn};
+use derive_more::{From, Into};
 
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
@@ -156,7 +157,7 @@ struct Immutable<R: Runtime, M: Mockable> {
 ///
 /// This enables us to mock parts of the [`Reactor`] for testing purposes.
 #[async_trait]
-pub(super) trait Mockable: Clone + Send + Sync + Sized + 'static {
+pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
     /// The type of random number generator.
     type Rng: rand::Rng + rand::CryptoRng;
 
@@ -175,8 +176,8 @@ pub(super) trait Mockable: Clone + Send + Sync + Sized + 'static {
 }
 
 /// The mockable state of the reactor.
-#[derive(Clone)]
-pub(super) struct ReactorState<R: Runtime>(Arc<HsCircPool<R>>);
+#[derive(Clone, From, Into)]
+pub(crate) struct ReactorState<R: Runtime>(Arc<HsCircPool<R>>);
 
 impl<R: Runtime> ReactorState<R> {
     /// Create a new `ReactorState`.

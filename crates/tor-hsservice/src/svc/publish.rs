@@ -11,7 +11,6 @@ use postage::watch;
 use std::sync::Arc;
 use tor_keymgr::KeyMgr;
 
-use tor_circmgr::hspool::HsCircPool;
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
@@ -19,7 +18,9 @@ use tor_rtcompat::Runtime;
 use crate::OnionServiceConfig;
 use crate::{ipt_set::IptsPublisherView, StartupError};
 
-use reactor::{Reactor, ReactorError, ReactorState};
+use reactor::{Reactor, ReactorError};
+
+pub(crate) use reactor::{Mockable, ReactorState};
 
 /// A handle for the Hsdir Publisher for an onion service.
 ///
@@ -27,7 +28,7 @@ use reactor::{Reactor, ReactorError, ReactorState};
 /// relevant time period, construct descriptors, publish them, and keep them
 /// up-to-date.
 #[must_use = "If you don't call launch() on the publisher, it won't publish any descriptors."]
-pub(crate) struct Publisher<R: Runtime> {
+pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     /// The runtime.
     runtime: R,
     /// The HsId of the service.
@@ -37,8 +38,10 @@ pub(crate) struct Publisher<R: Runtime> {
     /// A source for new network directories that we use to determine
     /// our HsDirs.
     dir_provider: Arc<dyn NetDirProvider>,
-    /// A [`HsCircPool`] for building circuits to HSDirs.
-    circpool: Arc<HsCircPool<R>>,
+    /// Mockable state.
+    ///
+    /// This is used for launching circuits and for obtaining random number generators.
+    mockable: M,
     /// The onion service config.
     config: Arc<OnionServiceConfig>,
     /// A channel for receiving IPT change notifications.
@@ -49,7 +52,7 @@ pub(crate) struct Publisher<R: Runtime> {
     keymgr: Arc<KeyMgr>,
 }
 
-impl<R: Runtime> Publisher<R> {
+impl<R: Runtime, M: Mockable> Publisher<R, M> {
     /// Create a new publisher.
     ///
     /// When it launches, it will know no keys or introduction points,
@@ -64,7 +67,7 @@ impl<R: Runtime> Publisher<R> {
         runtime: R,
         hsid: HsId,
         dir_provider: Arc<dyn NetDirProvider>,
-        circpool: Arc<HsCircPool<R>>,
+        mockable: impl Into<M>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         keymgr: Arc<KeyMgr>,
@@ -74,7 +77,7 @@ impl<R: Runtime> Publisher<R> {
             runtime,
             hsid,
             dir_provider,
-            circpool,
+            mockable: mockable.into(),
             config,
             ipt_watcher,
             config_rx,
@@ -88,19 +91,18 @@ impl<R: Runtime> Publisher<R> {
             runtime,
             hsid,
             dir_provider,
-            circpool,
+            mockable,
             config,
             ipt_watcher,
             config_rx,
             keymgr,
         } = self;
 
-        let state = ReactorState::new(circpool);
         let reactor = Reactor::new(
             runtime.clone(),
             hsid,
             dir_provider,
-            state,
+            mockable,
             config,
             ipt_watcher,
             config_rx,
