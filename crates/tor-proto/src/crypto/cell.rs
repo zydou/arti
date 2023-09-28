@@ -34,7 +34,7 @@ use crate::{Error, Result};
 use tor_cell::chancell::BoxedCellBody;
 use tor_error::internal;
 
-use generic_array::GenericArray;
+use digest::generic_array::GenericArray;
 
 use super::binding::CircuitBinding;
 

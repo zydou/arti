@@ -15,7 +15,6 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 bytes = "1"
 digest = { version = "0.10.0", features = ["subtle", "mac"] }
 educe = "0.4.6"
-generic-array = "0.14.3"
 signature = "1"
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.5.4" }

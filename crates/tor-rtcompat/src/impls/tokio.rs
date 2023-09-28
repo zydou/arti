@@ -171,10 +171,9 @@ impl crate::traits::UdpProvider for TokioRuntimeHandle {
 
 /// Create and return a new Tokio multithreaded runtime.
 pub(crate) fn create_runtime() -> IoResult<TokioRuntimeHandle> {
-    let mut builder = async_executors::TokioTpBuilder::new();
-    builder.tokio_builder().enable_all();
-    let owned = builder.build()?;
-    Ok(owned.into())
+    let runtime = async_executors::exec::TokioTp::new()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    Ok(runtime.into())
 }
 
 /// Wrapper around a Handle to a tokio runtime.

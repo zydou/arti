@@ -418,7 +418,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c48ccdbf6ca6b121e0f586cbc0e73ae440e56c67c30fa0873b4e110d9c26d2b"
 dependencies = [
- "event-listener",
+ "event-listener 2.5.3",
  "futures-core",
 ]
 
@@ -429,7 +429,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81953c529336010edd6d8e358f886d9581267795c61b19475b71314bffa46d35"
 dependencies = [
  "concurrent-queue",
- "event-listener",
+ "event-listener 2.5.3",
  "futures-core",
 ]
 
@@ -513,7 +513,7 @@ version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "287272293e9d8c41773cec55e365490fe034813a2f172f502d6ddcf75b2f582b"
 dependencies = [
- "event-listener",
+ "event-listener 2.5.3",
 ]
 
 [[package]]
@@ -539,7 +539,7 @@ dependencies = [
  "autocfg",
  "blocking",
  "cfg-if",
- "event-listener",
+ "event-listener 2.5.3",
  "futures-lite",
  "rustix 0.37.23",
  "signal-hook",
@@ -602,9 +602,9 @@ dependencies = [
 
 [[package]]
 name = "async_executors"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0b2463773401e1f684136f9cdb956cf611f22172472cf3f049e72123f59e359"
+checksum = "a982d2f86de6137cc05c9db9a915a19886c97911f9790d04f174cede74be01a5"
 dependencies = [
  "async-std",
  "blanket",
@@ -771,13 +771,13 @@ dependencies = [
 
 [[package]]
 name = "blanket"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b04ce3d2372d05d1ef4ea3fdf427da6ae3c17ca06d688a107b5344836276bc3"
+checksum = "e0b121a9fe0df916e362fb3271088d071159cdf11db0e4182d02152850756eff"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1639,6 +1639,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
+name = "event-listener"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29e56284f00d94c1bc7fd3c77027b4623c88c1f53d8d2394c6199f2921dea325"
+dependencies = [
+ "concurrent-queue",
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1652,11 +1663,12 @@ checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
 name = "fast-socks5"
-version = "0.8.2"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "961ce1761191c157145a8c9f0c3ceabecd3a729d65c9a8d443674eaee3420f7e"
+checksum = "aa6a4a9ab1f87e2d8e9345ce944de7c45d065ee89f5942512f32698e48a8429a"
 dependencies = [
  "anyhow",
+ "async-trait",
  "log",
  "thiserror",
  "tokio",
@@ -2486,9 +2498,9 @@ dependencies = [
 
 [[package]]
 name = "memmap2"
-version = "0.7.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f49388d20533534cd19360ad3d6a7dadc885944aa802ba3995040c5ec11288c6"
+checksum = "43a5a03cefb0d953ec0be133036f14e109412fa594edc2f77227249db66cc3ed"
 dependencies = [
  "libc",
 ]
@@ -4505,7 +4517,6 @@ dependencies = [
  "bytes",
  "digest 0.10.7",
  "educe",
- "generic-array",
  "getrandom 0.2.10",
  "hex-literal",
  "signature 1.6.4",
@@ -4738,7 +4749,7 @@ dependencies = [
  "derive_more",
  "digest 0.10.7",
  "educe",
- "event-listener",
+ "event-listener 3.0.0",
  "float_eq",
  "fs-mistrust",
  "fslock",
@@ -4748,7 +4759,7 @@ dependencies = [
  "humantime 2.1.0",
  "humantime-serde",
  "itertools",
- "memmap2 0.7.1",
+ "memmap2 0.8.0",
  "once_cell",
  "paste",
  "postage",
@@ -5217,7 +5228,6 @@ dependencies = [
  "digest 0.10.7",
  "educe",
  "futures",
- "generic-array",
  "hex",
  "hex-literal",
  "hkdf",
