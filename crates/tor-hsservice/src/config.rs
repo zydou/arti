@@ -51,11 +51,12 @@ pub struct OnionServiceConfig {
     /// this service?
     #[builder(default = "65535")]
     max_concurrent_streams_per_circuit: u32,
+    //  --- The POW items are disabled for now, since they aren't implemented.
+    // /// If true, we will require proof-of-work when we're under heavy load.
+    // // enable_pow: bool,
+    // /// Disable the compiled backend for proof-of-work.
+    // // disable_pow_compilation: bool,
 
-    /// If true, we will require proof-of-work when we're under heavy load.
-    enable_pow: bool,
-    /// Disable the compiled backend for proof-of-work.
-    disable_pow_compilation: bool,
     // TODO HSS: C tor has this, but I don't know if we want it.
     //
     // TODO HSS: It's possible that we want this to relate, somehow, to our
