@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use fast_socks5::client::{Config, Socks5Stream};
-use fast_socks5::server::Socks5Server;
+use fast_socks5::server::{AcceptAuthentication, Socks5Server};
 use std::str::FromStr;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -232,7 +232,7 @@ async fn run_forwarding_server(endpoint: &str, forward_creds: ForwardingCreds) -
 /// Run the final hop of the connection, which finally makes the actual
 /// network request to the intended host and relays it back
 async fn run_socks5_server(endpoint: &str) -> Result<oneshot::Receiver<bool>> {
-    let listener = Socks5Server::bind(endpoint).await?;
+    let listener = Socks5Server::<AcceptAuthentication>::bind(endpoint).await?;
     let (tx, rx) = oneshot::channel::<bool>();
     tokio::spawn(async move {
         while let Some(Ok(socks_socket)) = listener.incoming().next().await {

@@ -10,7 +10,7 @@ publish = false
 anyhow = "1.0.72"
 arti-client = { path = "../../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
 clap = { version = "4.3.21", features = [ "derive" ] }
-fast-socks5 = "0.8.2"
+fast-socks5 = "0.9.1"
 thiserror = "1.0.44"
 tokio = { version = "1.7", features = ["full"] }
 tokio-stream = "0.1.14"
