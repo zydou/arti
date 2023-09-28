@@ -33,6 +33,7 @@ pub struct OnionServiceConfig {
     /// Whether we want this to be a non-anonymous "single onion service".
     /// We could skip this in v1.  We should make sure that our state
     /// is built to make it hard to accidentally set this.
+    #[builder(default)]
     pub(crate) anonymity: crate::Anonymity,
 
     /// Number of intro points; defaults to 3; max 20.
@@ -43,6 +44,7 @@ pub struct OnionServiceConfig {
     ///
     /// We send this to the send to the introduction point to configure how many
     /// introduction requests it sends us.
+    #[builder(default)]
     rate_limit_at_intro: Option<TokenBucketConfig>,
 
     /// How many streams will we allow to be open at once for a single circuit on
