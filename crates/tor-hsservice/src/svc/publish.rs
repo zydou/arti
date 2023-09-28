@@ -20,7 +20,7 @@ use crate::{ipt_set::IptsPublisherView, StartupError};
 
 use reactor::{Reactor, ReactorError};
 
-pub(crate) use reactor::{Mockable, ReactorState};
+pub(crate) use reactor::{Mockable, Real};
 
 /// A handle for the Hsdir Publisher for an onion service.
 ///

@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+use derive_more::{From, Into};
 use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, FutureExt, SinkExt, StreamExt};
@@ -19,7 +20,6 @@ use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeystoreError};
 use tracing::{debug, error, trace, warn};
-use derive_more::{From, Into};
 
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
@@ -175,19 +175,12 @@ pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
         T: CircTarget + Send + Sync;
 }
 
-/// The mockable state of the reactor.
+/// The real version of the mockable state of the reactor.
 #[derive(Clone, From, Into)]
-pub(crate) struct ReactorState<R: Runtime>(Arc<HsCircPool<R>>);
-
-impl<R: Runtime> ReactorState<R> {
-    /// Create a new `ReactorState`.
-    pub(super) fn new(circpool: Arc<HsCircPool<R>>) -> Self {
-        Self(circpool)
-    }
-}
+pub(crate) struct Real<R: Runtime>(Arc<HsCircPool<R>>);
 
 #[async_trait]
-impl<R: Runtime> Mockable for ReactorState<R> {
+impl<R: Runtime> Mockable for Real<R> {
     type Rng = rand::rngs::ThreadRng;
 
     fn thread_rng(&self) -> Self::Rng {
