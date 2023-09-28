@@ -598,7 +598,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 // Unless we're waiting for IPTs, reattempt the rate-limited upload in the next
                 // iteration.
-                self.update_publish_status(PublishStatus::UploadScheduled).await?;
+                self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled).await?;
             },
             should_upload = self.publish_status_rx.next().fuse() => {
                 let should_upload = should_upload.ok_or(ReactorError::ShuttingDown)?;
@@ -607,7 +607,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 if should_upload == PublishStatus::UploadScheduled {
                     // TODO HSS: if upload_all fails, we don't reattempt the upload until a state
                     // change is triggered by an external event (such as a consensus or IPT change)
-                    self.update_publish_status(PublishStatus::Idle).await?;
+                    self.update_publish_status_unless_waiting(PublishStatus::Idle).await?;
                     self.upload_all().await?;
                 }
             }
@@ -682,7 +682,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let _old: Option<Arc<NetDir>> = self.replace_netdir(netdir);
 
         self.recompute_hs_dirs()?;
-        self.update_publish_status(PublishStatus::UploadScheduled)
+        self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled)
             .await?;
 
         Ok(())
@@ -789,6 +789,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         match update {
             Some(Ok(())) => {
                 let should_upload = self.note_ipt_change();
+                trace!("the introduction points have changed");
 
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
@@ -799,17 +800,33 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Update the `PublishStatus` of the reactor with `new_state`,
     /// unless the current state is `AwaitingIpts`.
-    async fn update_publish_status(
+    async fn update_publish_status_unless_waiting(
         &mut self,
         new_state: PublishStatus,
     ) -> Result<(), ReactorError> {
         // Only update the state if we're not waiting for intro points.
         if self.status() != PublishStatus::AwaitingIpts {
-            self.publish_status_tx
-                .send(new_state)
-                .await
-                .map_err(|_: SendError<_>| internal!("failed to send upload notification?!"))?;
+            self.update_publish_status(new_state).await?;
         }
+
+        Ok(())
+    }
+
+    /// Update the `PublishStatus` of the reactor with `new_state`.
+    async fn update_publish_status(
+        &mut self,
+        new_state: PublishStatus,
+    ) -> Result<(), ReactorError> {
+        trace!(
+            "publisher reactor status change: {:?} -> {:?}",
+            self.status(),
+            new_state
+        );
+
+        self.publish_status_tx
+            .send(new_state)
+            .await
+            .map_err(|_: SendError<_>| internal!("failed to send upload notification?!"))?;
 
         Ok(())
     }
@@ -828,7 +845,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             self.mark_all_dirty();
 
             // Schedule an upload, unless we're still waiting for IPTs.
-            self.update_publish_status(PublishStatus::UploadScheduled)
+            self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled)
                 .await?;
         }
 
