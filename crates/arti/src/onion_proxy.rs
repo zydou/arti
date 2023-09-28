@@ -4,7 +4,7 @@
 #![allow(unreachable_pub, dead_code)]
 
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
-use tor_config::{impl_standard_builder, ConfigBuildError, Flatten};
+use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten};
 use tor_hsrproxy::{config::ProxyConfigBuilder, ProxyConfig};
 
 /// Configuration for running an onion service from `arti`.
@@ -54,3 +54,17 @@ impl OnionServiceProxyConfigBuilder {
 }
 
 impl_standard_builder! { OnionServiceProxyConfig: !Default }
+
+/// Alias for a `Vec` of `OnionServiceProxyConfig`; used to make derive_builder
+/// happy.
+#[cfg(feature = "onion-service-service")]
+pub(crate) type OnionServiceProxyConfigList = Vec<OnionServiceProxyConfig>;
+
+#[cfg(feature = "onion-service-service")]
+define_list_builder_helper! {
+    pub struct OnionServiceProxyConfigListBuilder {
+        transports: [OnionServiceProxyConfigBuilder],
+    }
+    built: OnionServiceProxyConfigList = transports;
+    default = vec![];
+}

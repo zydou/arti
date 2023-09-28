@@ -7,10 +7,14 @@ use paste::paste;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "onion-service-service")]
+use crate::onion_proxy::{
+    OnionServiceProxyConfigBuilder, OnionServiceProxyConfigList, OnionServiceProxyConfigListBuilder,
+};
 use arti_client::TorClientConfig;
-use tor_config::resolve_alternative_specs;
 #[cfg(feature = "rpc")]
 use tor_config::CfgPath;
+use tor_config::{define_list_builder_accessors, resolve_alternative_specs};
 pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
@@ -231,12 +235,26 @@ pub struct ArtiConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
+
+    /// Configured list of proxied onion services.
+    #[builder(sub_builder, setter(custom))]
+    #[builder_field_attr(serde(default))]
+    #[cfg(feature = "onion-service-service")]
+    pub(crate) onion_service: OnionServiceProxyConfigList,
 }
+
 impl_standard_builder! { ArtiConfig }
 
 impl tor_config::load::TopLevel for ArtiConfig {
     type Builder = ArtiConfigBuilder;
     const DEPRECATED_KEYS: &'static [&'static str] = &["proxy.socks_port", "proxy.dns_port"];
+}
+
+#[cfg(feature = "onion-service-service")]
+define_list_builder_accessors! {
+    struct ArtiConfigBuilder {
+        pub(crate) onion_service: [OnionServiceProxyConfigBuilder],
+    }
 }
 
 /// Convenience alias for the config for a whole `arti` program
@@ -527,6 +545,16 @@ mod test {
                 // RPC-only settings
                 "rpc",
                 "rpc.rpc_listen",
+            ],
+        );
+
+        declare_exceptions(
+            None,
+            None,
+            FeatureDependent,
+            &[
+                // onion-service only settings.
+                "onion_service",
             ],
         );
 
