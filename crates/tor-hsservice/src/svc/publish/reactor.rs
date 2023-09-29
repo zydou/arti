@@ -910,6 +910,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 })
                 .collect::<Vec<_>>();
 
+            if hs_dirs.is_empty() {
+                trace!("the descriptor is clean for all HSDirs. Nothing to do");
+                return Ok(());
+            }
+
             // We're about to generate a new version of the descriptor: increment the revision
             // counter.
             //
