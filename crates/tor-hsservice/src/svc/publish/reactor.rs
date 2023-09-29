@@ -854,6 +854,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Mark the descriptor dirty for all time periods.
     fn mark_all_dirty(&self) {
+        trace!("marking the descriptor dirty for all time periods");
+
         self.inner
             .lock()
             .expect("poisoned lock")
@@ -874,6 +876,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     #[allow(unreachable_code)] // TODO HSS: remove
     #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&mut self) -> Result<(), ReactorError> {
+        trace!("starting descriptor upload task...");
+
         let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
         let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
@@ -881,6 +885,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let duration_since_upload = last_uploaded.duration_since(now);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
+                trace!("we are rate-limited; deferring descriptor upload");
                 return self.schedule_pending_upload().await;
             }
         }
@@ -923,10 +928,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // This scope exists because rng is not Send, so it needs to fall out of scope before we
                 // await anything.
                 let hsdesc = {
+                    trace!("building descriptor");
                     let mut rng = self.imm.mockable.thread_rng();
 
                     let mut ipt_set = self.ipt_watcher.borrow_for_publish();
                     let Some(ipt_set) = ipt_set.as_mut() else {
+                        trace!("no introduction points; skipping upload");
                         return Ok(());
                     };
 
@@ -978,6 +985,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 );
 
                 let imm = Arc::clone(&self.imm);
+
+                trace!("spawning upload task");
                 let _handle: () = self
                     .imm
                     .runtime
@@ -1040,6 +1049,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
         worst_case_end: Instant,
     ) -> Result<(), ReactorError> {
+        trace!("uploading descriptor");
         let VersionedDescriptor {
             desc,
             revision_counter,
