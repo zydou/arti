@@ -26,7 +26,7 @@ use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::request::Requestable;
 use tor_dirclient::{send_request, Error as DirClientError, RequestError};
-use tor_error::{internal, into_internal, warn_report, Bug};
+use tor_error::{internal, into_internal, warn_report};
 use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
@@ -862,17 +862,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .for_each(|tp| tp.mark_all_dirty());
     }
 
-    /// Get a reference to our most up-to-date `NetDir`.
-    ///
-    /// Returns an error if called before [`Reactor::run`].
-    fn netdir(&self) -> Result<Arc<NetDir>, Bug> {
-        let inner = self.inner.lock().expect("poisoned lock");
-
-        Ok(Arc::clone(inner.netdir.as_ref().ok_or_else(|| {
-            internal!("started upload task without a netdir")
-        })?))
-    }
-
     /// Try to upload our descriptor to the HsDirs that need it.
     ///
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
@@ -981,7 +970,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     desc
                 };
 
-                let netdir = self.netdir()?;
+                let netdir = Arc::clone(
+                    inner
+                        .netdir
+                        .as_ref()
+                        .ok_or_else(|| internal!("started upload task without a netdir"))?,
+                );
+
                 let imm = Arc::clone(&self.imm);
                 let _handle: () = self
                     .imm
