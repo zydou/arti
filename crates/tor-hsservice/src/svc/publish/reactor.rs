@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use derive_more::{From, Into};
 use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::task::{SpawnError, SpawnExt};
-use futures::{select_biased, FutureExt, SinkExt, StreamExt};
+use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt};
 use postage::sink::SendError;
 use postage::watch;
 use retry_error::RetryError;
@@ -161,6 +161,9 @@ pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
     /// The type of random number generator.
     type Rng: rand::Rng + rand::CryptoRng;
 
+    /// The type of client circuit.
+    type ClientCirc: MockableClientCirc;
+
     /// Return a random number generator.
     fn thread_rng(&self) -> Self::Rng;
 
@@ -170,9 +173,29 @@ pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
         netdir: &NetDir,
         kind: HsCircKind,
         target: T,
-    ) -> Result<Arc<ClientCirc>, tor_circmgr::Error>
+    ) -> Result<Arc<Self::ClientCirc>, tor_circmgr::Error>
     where
         T: CircTarget + Send + Sync;
+}
+
+/// Mockable client circuit
+#[async_trait]
+pub(crate) trait MockableClientCirc: Send + Sync {
+    /// The data stream type.
+    type DataStream: AsyncRead + AsyncWrite + Send + Unpin;
+
+    /// Start a new stream to the last relay in the circuit, using
+    /// a BEGIN_DIR cell.
+    async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error>;
+}
+
+#[async_trait]
+impl MockableClientCirc for ClientCirc {
+    type DataStream = tor_proto::stream::DataStream;
+
+    async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error> {
+        ClientCirc::begin_dir_stream(self).await
+    }
 }
 
 /// The real version of the mockable state of the reactor.
@@ -182,6 +205,7 @@ pub(crate) struct Real<R: Runtime>(Arc<HsCircPool<R>>);
 #[async_trait]
 impl<R: Runtime> Mockable for Real<R> {
     type Rng = rand::rngs::ThreadRng;
+    type ClientCirc = ClientCirc;
 
     fn thread_rng(&self) -> Self::Rng {
         rand::thread_rng()
