@@ -30,6 +30,17 @@ impl From<[u8; CIRC_BINDING_LEN]> for CircuitBinding {
     }
 }
 
+impl TryFrom<&[u8]> for CircuitBinding {
+    type Error = crate::Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let value: &[u8; CIRC_BINDING_LEN] = &value
+            .try_into()
+            .or(Err(Self::Error::InvalidKDFOutputLength))?;
+        Ok(Self::from(*value))
+    }
+}
+
 impl CircuitBinding {
     /// Return a view of this key suitable for computing the MAC function used
     /// to authenticate onion services' ESTABLISH_INTRODUCE messages.

@@ -333,7 +333,7 @@ pub(crate) mod tor1 {
         fn seed_len() -> usize {
             SC::KeySize::to_usize() * 2 + D::OutputSize::to_usize() * 2 + CIRC_BINDING_LEN
         }
-        fn initialize(seed: &[u8]) -> Result<Self> {
+        fn initialize(mut seed: &[u8]) -> Result<Self> {
             // This corresponds to the use of the KDF algorithm as described in
             // tor-spec 5.2.2
             if seed.len() != Self::seed_len() {
@@ -342,27 +342,43 @@ pub(crate) mod tor1 {
                     seed.len()
                 )));
             }
-            let keylen = SC::KeySize::to_usize();
+
+            // Advances `seed` by `n` bytes, returning the advanced bytes
+            let mut take_seed = |n: usize| -> &[u8] {
+                let res = &seed[..n];
+                seed = &seed[n..];
+                res
+            };
+
             let dlen = D::OutputSize::to_usize();
-            let fdinit = &seed[0..dlen]; // This is Df in the spec.
-            let bdinit = &seed[dlen..dlen * 2]; // This is Db in the spec.
-            let fckey = &seed[dlen * 2..dlen * 2 + keylen]; // This is Kf in the spec.
-            let bckey = &seed[dlen * 2 + keylen..dlen * 2 + keylen * 2]; // this is Kb in the spec.
-            let binding_key: &[u8; CIRC_BINDING_LEN] = &seed
-                [dlen * 2 + keylen * 2..dlen * 2 + keylen * 2 + CIRC_BINDING_LEN]
-                .try_into()
-                .expect("Unable to convert a 20-byte slice to a 20-byte array!?");
+            let keylen = SC::KeySize::to_usize();
+
+            let df = take_seed(dlen);
+            let db = take_seed(dlen);
+            let kf = take_seed(keylen);
+            let kb = take_seed(keylen);
+            let binding_key = take_seed(CIRC_BINDING_LEN);
+
             let fwd = CryptState {
-                cipher: SC::new(fckey.try_into().expect("Wrong length"), &Default::default()),
-                digest: D::new().chain_update(fdinit),
+                cipher: SC::new(
+                    kf.try_into()
+                        .or(Err(crate::Error::InvalidKDFOutputLength))?,
+                    &Default::default(),
+                ),
+                digest: D::new().chain_update(df),
                 last_digest_val: GenericArray::default(),
             };
             let back = CryptState {
-                cipher: SC::new(bckey.try_into().expect("Wrong length"), &Default::default()),
-                digest: D::new().chain_update(bdinit),
+                cipher: SC::new(
+                    kb.try_into()
+                        .or(Err(crate::Error::InvalidKDFOutputLength))?,
+                    &Default::default(),
+                ),
+                digest: D::new().chain_update(db),
                 last_digest_val: GenericArray::default(),
             };
-            let binding = CircuitBinding::from(*binding_key);
+            let binding = CircuitBinding::try_from(binding_key)?;
+
             Ok(CryptStatePair { fwd, back, binding })
         }
     }
