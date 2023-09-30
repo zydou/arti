@@ -10,7 +10,7 @@ use safelog::sensitive as sv;
 use std::io::{Error as IoError, Result as IoResult};
 use tor_cell::relaycell::msg as relaymsg;
 use tor_error::{debug_report, ErrorKind, HasKind};
-use tor_hsservice::StreamRequest;
+use tor_hsservice::{RendRequest, StreamRequest};
 use tor_proto::stream::{DataStream, IncomingStreamRequest};
 use tor_rtcompat::Runtime;
 
@@ -92,7 +92,7 @@ impl OnionServiceReverseProxy {
     ) -> Result<(), HandleRequestsError>
     where
         R: Runtime,
-        S: Stream<Item = tor_hsservice::RendRequest> + Unpin,
+        S: Stream<Item = RendRequest> + Unpin,
     {
         let mut stream_requests = tor_hsservice::handle_rend_requests(requests).fuse();
         let mut shutdown_rx = self
