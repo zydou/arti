@@ -1,6 +1,6 @@
 [package]
 name = "arti-bench"
-version = "0.8.8"
+version = "0.8.9"
 edition = "2021"
 rust-version = "1.65"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]

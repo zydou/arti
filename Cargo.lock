@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.8.8"
+version = "0.8.9"
 dependencies = [
  "anyhow",
  "arti",
@@ -4848,7 +4848,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -5129,7 +5129,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "bitflags 2.4.0",
  "derive_builder_fork_arti",
