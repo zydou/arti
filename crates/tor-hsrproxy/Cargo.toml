@@ -15,7 +15,7 @@ publish = false
 
 [features]
 default = []
-full = []
+full = ["safelog/full", "tor-cell/full", "tor-config/full", "tor-error/full", "tor-hsservice/full", "tor-proto/full", "tor-rtcompat/full"]
 
 [dependencies]
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }

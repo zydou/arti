@@ -50,7 +50,7 @@ full = [
     "tor-ptmgr?/full",
     "tor-rpcbase?/full",
     "tor-keymgr/full",
-    "tor-linkspec/full",
+    "tor-linkspec/full", "tor-geoip?/full", "tor-hsservice?/full",
 ]
 
 async-std = ["tor-rtcompat/async-std"]

@@ -30,7 +30,7 @@ full = [
     "tor-netdoc/full",
     "tor-persist/full",
     "tor-proto/full",
-    "tor-rtcompat/full",
+    "tor-rtcompat/full", "tor-geoip?/full",
 ]
 specific-relay = []
 
