@@ -10,6 +10,7 @@ use crate::{RequestError, RequestFailedError};
 /// A successful (or at any rate, well-formed) response to a directory
 /// request.
 #[derive(Debug, Clone)]
+#[must_use = "You need to check whether the response was successful."]
 pub struct DirResponse {
     /// An HTTP status code.
     status: u16,
