@@ -3,6 +3,166 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.9 — 2 October 2023
+
+Arti 1.1.8 continues work on support for onion services in arti.
+The pieces are now (mostly) connected; the next month of development
+will see extensive testing, bugfixing, and refinement.
+
+### Breaking changes in lower-level crates
+
+- In `tor-hsclient` and `tor-netdoc`'s APIs, secret authentication
+  keys are now handled as `HsClientDescKeypair`, rather than as
+  individual keys.
+- In `tor-circmgr`, the `NoExit` error now includes a possible country
+  code.
+- In `tor-ptmgr`, `ClientTransportGaveError` have been renamed to
+  `TransportGaveError`.
+
+### Onion service development
+
+- The onion service descriptor publisher is now in conformance with
+  our spec with respect to how it handles time periods.  ([!1564])
+- The descriptor publisher now runs in parallel, so that a blocked
+  upload doesn't prevent successful uploads from succeeding. ([!1580])
+- The descriptor publisher now includes correct retry and timing
+  logic. ([!1592], [!1623])
+- The introduction point manager code is now able to integrate with
+  the descriptor publisher. ([!1575], [!1576], [!1577] [!1578], [!1603])
+- The descriptor publisher code is now integrated with the key
+  management system. ([#1042], [!1615])
+- The introduction point manager is now integrated with the code that
+  accepts user requests via introduction points. ([!1597], [!1598])
+- The code responsible for selecting and maintaining introduction
+  points is now more robust in the presence of relay selection
+  failure. ([!1585])
+- We now have a `tor-hsrproxy` crate, to handle running an onion
+  service that directs incoming connections to local ports.  Users
+  will need this if they want their onion services to run in a
+  separate process and not use Rust. ([01f954d3782df57a], [!1622])
+- Added configuration logic for onion services. ([!1557], [!1599],
+  [!1605], [!1611])
+- The `downgrade_dependencies` script now honors the `$CARGO` variable.
+  ([!1596])
+- We now use a keypair type for `hs_ntor` secret keys. ([#1030],
+  [!1590])
+- There is now a set of (not working yet!) APIs to actually launch and
+  run onion services, by invoking the necessary pieces of the backend,
+  and pass requests back to the caller ([!1604], [!1608], [!1610],
+  [!1616], [!1620], [!1625])
+
+
+### Client features
+
+- We now have an experimental feature to select exits by country, with
+  geoip support. It is Rust-only, and not yet exposed via a
+  configuration option. ([!1537])
+- When contacting an onion service, we now pad our `INTRODUCE2`
+  message payload to a uniform size in order to conceal what kind of
+  data and extensions it contains.  ([#1031], [!1602])
+
+### Documentation and examples
+
+- We've merged several example programs from Saksham Mittal's
+  project for this year's [Google Summer of Code].  They include a
+  downloading tool, a relay checker, and obfs4 checker, a
+  tool to lookup DNS over tor, and a program to run a proxy over
+  a pluggable transport. You can find them in `examples/gsoc2023`.
+  ([!1574])
+- Documentation fixes around our description of
+  `localhost_port_legacy`.  ([!1588])
+
+### Infrastructure
+
+- Our version-bumping script now allows options to be applied to
+  "$CARGO". ([!1573])
+- Our CI scripts now use `cargo install --locked` to avoid
+  certain compatibility issues in our tools and their dependencies.
+  ([!1587])
+- The `ArtiPath` types recognized by the key manager are now better
+  documented. ([!1586])
+
+
+### Testing
+
+- New tests for our `tor-ptmgr` string-escaping logic. ([!1579])
+- Our runtime mock code now displays more and better information about
+  when and where tasks are sleeping. ([!1591], [!1595])
+
+### Cleanups, minor features, and bugfixes
+
+- Refactoring and API revisions to our experimental backend support
+  for launching pluggable transports in server mode. ([!1581])
+- Our low-level cryptographic wrappers now have a type to represent
+  x25519 (Montgomery) keypairs.  Several internal APIs have adapted
+  accordingly. ([!1617])
+- The key manager system now supports public keys, for cases where the
+  secret key is kept offline. ([!1618])
+- The key manager system now supports expanded ed25519 keypairs, so that
+  it can represent blinded onion identity keys. ([!1619])
+- Cleanups to encryption logic in `tor-proto`. ([!1627])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Emil Engler and Saksham Mittal!
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+
+[!1537]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1537
+[!1557]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1557
+[!1564]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1564
+[!1573]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1573
+[!1574]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1574
+[!1575]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1575
+[!1576]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1576
+[!1577]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1577
+[!1578]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1578
+[!1579]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1579
+[!1580]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1580
+[!1581]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1581
+[!1585]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1585
+[!1586]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1586
+[!1587]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1587
+[!1588]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1588
+[!1590]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1590
+[!1591]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1591
+[!1592]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1592
+[!1595]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1595
+[!1596]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1596
+[!1597]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1597
+[!1598]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1598
+[!1599]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1599
+[!1602]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1602
+[!1603]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603
+[!1604]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1604
+[!1605]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1605
+[!1608]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1608
+[!1610]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1610
+[!1611]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1611
+[!1615]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615
+[!1616]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1616
+[!1617]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1617
+[!1618]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1618
+[!1619]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1619
+[!1620]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1620
+[!1622]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1622
+[!1623]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1623
+[!1625]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1625
+[!1627]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1627
+[#1030]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1030
+[#1031]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1031
+[#1042]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1042
+[01f954d3782df57a]: https://gitlab.torproject.org/tpo/core/arti/-/commit/01f954d3782df57a4ac1d2cd1d323584ccaaac76
+[Google Summer of Code]: https://summerofcode.withgoogle.com/
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[other sponsors]: https://www.torproject.org/about/sponsors/
+
+
+
+
 # Arti 1.1.8 — 5 September 2023
 
 Arti 1.1.8 continues work on support for onion services in arti.  It includes
