@@ -1223,7 +1223,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .into(),
                     e => into_internal!("unexpected error")(e).into(),
                 }
-            })?;
+            })?
+            .into_output_string()?; // This returns an error if we received an error response
 
         trace!(
             hsid=%imm.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
