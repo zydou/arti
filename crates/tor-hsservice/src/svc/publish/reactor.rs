@@ -893,10 +893,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
-        let upload_tasks = inner
-            .time_periods
-            .iter_mut()
-            .map(|period| {
+        for period in inner.time_periods.iter_mut() {
                 let upload_task_complete_tx = self.upload_task_complete_tx.clone();
 
                 // Figure out which HsDirs we need to upload the descriptor to (some of them might already
@@ -1010,10 +1007,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         }
                     })
                     .map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
-
-                Ok::<_, ReactorError>(())
-            })
-            .collect::<Result<Vec<_>, ReactorError>>()?;
+            }
 
         Ok(())
     }
