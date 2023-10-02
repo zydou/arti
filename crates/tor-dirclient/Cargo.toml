@@ -57,17 +57,17 @@ memchr = "2.5"
 thiserror = "1"
 tor-circmgr = { path = "../tor-circmgr", version = "0.10.0" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.2", optional = true }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.3", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.3" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.4" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.8.3" }
-tor-proto = { path = "../tor-proto", version = "0.12.1" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1" }
+tor-proto = { path = "../tor-proto", version = "0.12.2" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5" }
 tracing = "0.1.36"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.9.1" }
 [package.metadata.docs.rs]
 all-features = true

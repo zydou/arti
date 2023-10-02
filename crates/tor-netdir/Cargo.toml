@@ -64,12 +64,12 @@ thiserror = "1"
 time = { version = "0.3.17", features = ["macros"], optional = true }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.3" }
-tor-config = { path = "../tor-config", version = "0.9.4" }
+tor-config = { path = "../tor-config", version = "0.9.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
 tor-geoip = { path = "../tor-geoip", version = "0.1.1", optional = true }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.2", optional = true }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.3", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.3" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.4" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.8.3" }
 tor-protover = { path = "../tor-protover", version = "0.5.1" }
 tor-units = { path = "../tor-units", version = "0.6.1" }

@@ -191,7 +191,7 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "arti"
-version = "1.1.8"
+version = "1.1.9"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -264,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -1592,7 +1592,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "equix"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2039,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -4524,7 +4524,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -4540,7 +4540,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "bitflags 2.4.0",
  "bytes",
@@ -4671,7 +4671,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "config",
  "derive-adhoc",
@@ -4752,7 +4752,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4933,7 +4933,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -5093,7 +5093,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "aes",
  "base64ct",
@@ -5229,7 +5229,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.12.1"
+version = "0.12.2"
 dependencies = [
  "asynchronous-codec",
  "bytes",
@@ -5332,7 +5332,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "async-io",
  "async-native-tls",

@@ -1,6 +1,6 @@
 [package]
 name = "tor-proto"
-version = "0.12.1"
+version = "0.12.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -73,17 +73,17 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.4" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
-tor-bytes = { path = "../tor-bytes", version = "0.7.4" }
-tor-cell = { path = "../tor-cell", version = "0.12.2" }
+tor-bytes = { path = "../tor-bytes", version = "0.7.5" }
+tor-cell = { path = "../tor-cell", version = "0.12.3" }
 tor-cert = { path = "../tor-cert", version = "0.7.4" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.3" }
-tor-config = { path = "../tor-config", version = "0.9.4" }
+tor-config = { path = "../tor-config", version = "0.9.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.2", optional = true }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.3", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.3" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.4" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 tor-protover = { path = "../tor-protover", version = "0.5.1" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.9.1" }
 tor-units = { path = "../tor-units", version = "0.6.1" }
 tracing = "0.1.36"
@@ -100,7 +100,7 @@ itertools = "0.11.0"
 regex = { version = "1", default-features = false, features = ["std"] }
 statrs = "0.16.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", features = ["tokio", "native-tls"] }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
