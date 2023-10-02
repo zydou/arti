@@ -32,7 +32,7 @@ full = [
     "tor-netdir/full",
     "tor-netdoc/full",
     "tor-proto/full",
-    "tor-rtcompat/full",
+    "tor-rtcompat/full", "tor-geoip?/full",
 ]
 experimental = ["experimental-api", "dirfilter", "geoip"]
 bridge-client = ["tor-circmgr/specific-relay", "tor-guardmgr/bridge-client", "routerdesc"]
