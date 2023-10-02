@@ -56,7 +56,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 tor-netdir = { path = "../tor-netdir", version = "0.9.4" }
 tor-proto = { path = "../tor-proto", version = "0.12.2" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5" }
-tor-socksproto = { path = "../tor-socksproto", version = "0.7.2", default-features = false, features = [
+tor-socksproto = { path = "../tor-socksproto", version = "0.7.5", default-features = false, features = [
     "client-handshake",
 ] }
 tor-units = { path = "../tor-units", version = "0.6.1" }

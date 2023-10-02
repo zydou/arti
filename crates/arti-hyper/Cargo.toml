@@ -1,6 +1,6 @@
 [package]
 name = "arti-hyper"
-version = "0.10.2"
+version = "0.10.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"

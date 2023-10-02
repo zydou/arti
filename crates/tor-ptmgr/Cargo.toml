@@ -41,7 +41,7 @@ tor-config = { version = "0.9.5", path = "../tor-config" }
 tor-error = { version = "0.5.4", path = "../tor-error", features = ["tracing"] }
 tor-linkspec = { version = "0.8.3", path = "../tor-linkspec", features = ["pt-client"] }
 tor-rtcompat = { version = "0.9.5", path = "../tor-rtcompat" }
-tor-socksproto = { version = "0.7.2", path = "../tor-socksproto" }
+tor-socksproto = { version = "0.7.5", path = "../tor-socksproto" }
 tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }
 

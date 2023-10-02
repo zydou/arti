@@ -128,7 +128,7 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.1.4" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-cell = { path = "../tor-cell", version = "0.12.3" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.10.1" }
-tor-checkable = { path = "../tor-checkable", version = "0.5.3" }
+tor-checkable = { path = "../tor-checkable", version = "0.5.5" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.11.0" }
 tor-config = { path = "../tor-config", version = "0.9.5" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.11.2", default-features = false, features = ["mmap"] }

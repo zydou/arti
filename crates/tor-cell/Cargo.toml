@@ -48,7 +48,7 @@ rand = "0.8"
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-bytes = { path = "../tor-bytes", version = "0.7.5" }
-tor-cert = { path = "../tor-cert", version = "0.7.4" }
+tor-cert = { path = "../tor-cert", version = "0.7.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.3", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.3" }
