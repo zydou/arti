@@ -1615,7 +1615,8 @@ impl NetDir {
             .filter_map(move |(ring, (hsid, period))| {
                 // Make sure the ring matches the TP of the hsid it's matched with.
                 (ring.params().time_period == period).then_some((ring, hsid, period))
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
         // Each of the specified hsids should have an associated ring.
         if !hsids.all(|(_hsid, period)| rings.iter().any(|(_, _, tp)| *tp == period)) {
