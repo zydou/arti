@@ -1,6 +1,6 @@
 [package]
 name = "tor-ptmgr"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -37,18 +37,18 @@ futures = "0.3.14"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-chanmgr = { version = "0.10.1", path = "../tor-chanmgr", features = ["pt-client"] }
-tor-config = { version = "0.9.4", path = "../tor-config" }
+tor-config = { version = "0.9.5", path = "../tor-config" }
 tor-error = { version = "0.5.4", path = "../tor-error", features = ["tracing"] }
 tor-linkspec = { version = "0.8.3", path = "../tor-linkspec", features = ["pt-client"] }
-tor-rtcompat = { version = "0.9.1", path = "../tor-rtcompat" }
-tor-socksproto = { version = "0.7.2", path = "../tor-socksproto" }
+tor-rtcompat = { version = "0.9.5", path = "../tor-rtcompat" }
+tor-socksproto = { version = "0.7.5", path = "../tor-socksproto" }
 tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.23"
 tokio = { version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.1", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.0"
 
 [[example]]

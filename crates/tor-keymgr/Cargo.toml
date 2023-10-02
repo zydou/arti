@@ -1,6 +1,6 @@
 [package]
 name = "tor-keymgr"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["The Tor Project, Inc.", "Gabriela Moldovan <gabi@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -34,10 +34,10 @@ rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "1"
-tor-config = { path = "../tor-config", version = "0.9.4" }
+tor-config = { path = "../tor-config", version = "0.9.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.2" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.4", features = ["keymgr"] }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.3" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5", features = ["keymgr"] }
 zeroize = "1"
 
 [dev-dependencies]

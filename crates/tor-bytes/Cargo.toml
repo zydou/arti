@@ -1,6 +1,6 @@
 [package]
 name = "tor-bytes"
-version = "0.7.4"
+version = "0.7.5"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -18,7 +18,7 @@ educe = "0.4.6"
 signature = "1"
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.5.4" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.4" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 zeroize = "1"
 
 [dev-dependencies]

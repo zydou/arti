@@ -191,7 +191,7 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "arti"
-version = "1.1.8"
+version = "1.1.9"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.8.8"
+version = "0.8.9"
 dependencies = [
  "anyhow",
  "arti",
@@ -264,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -323,7 +323,7 @@ version = "0.6.4"
 
 [[package]]
 name = "arti-hyper"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -342,7 +342,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpcserver"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "arti-client",
  "asynchronous-codec",
@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.8.8"
+version = "0.8.9"
 dependencies = [
  "anyhow",
  "arti",
@@ -1592,7 +1592,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "equix"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2039,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -4524,7 +4524,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -4540,7 +4540,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "bitflags 2.4.0",
  "bytes",
@@ -4564,7 +4564,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "base64ct",
  "caret",
@@ -4616,7 +4616,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "humantime 2.1.0",
  "signature 1.6.4",
@@ -4626,7 +4626,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -4671,7 +4671,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "config",
  "derive-adhoc",
@@ -4714,7 +4714,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.5.5"
+version = "0.5.6"
 dependencies = [
  "digest 0.10.7",
  "hex",
@@ -4752,7 +4752,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4848,7 +4848,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -4888,7 +4888,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsclient"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -4933,7 +4933,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -4959,7 +4959,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hspow"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -4995,7 +4995,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "base64ct",
@@ -5042,7 +5042,7 @@ dependencies = [
 
 [[package]]
 name = "tor-keymgr"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "derive_builder_fork_arti",
  "derive_more",
@@ -5093,7 +5093,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "aes",
  "base64ct",
@@ -5129,7 +5129,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "bitflags 2.4.0",
  "derive_builder_fork_arti",
@@ -5168,7 +5168,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.8.3"
+version = "0.9.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -5229,7 +5229,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.12.1"
+version = "0.12.2"
 dependencies = [
  "asynchronous-codec",
  "bytes",
@@ -5288,7 +5288,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5332,7 +5332,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "async-io",
  "async-native-tls",
@@ -5353,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -5379,7 +5379,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "arbitrary",
  "caret",

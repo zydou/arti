@@ -395,7 +395,7 @@ checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
 name = "hashx"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arrayvec",
  "blake2",

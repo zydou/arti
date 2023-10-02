@@ -45,9 +45,9 @@ serde_with = "3.0.0"
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
-tor-bytes = { path = "../tor-bytes", version = "0.7.4" }
-tor-config = { path = "../tor-config", version = "0.9.4" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.4" }
+tor-bytes = { path = "../tor-bytes", version = "0.7.5" }
+tor-config = { path = "../tor-config", version = "0.9.5" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 tor-protover = { path = "../tor-protover", version = "0.5.1" }
 
 [dev-dependencies]
