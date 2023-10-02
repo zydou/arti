@@ -25,7 +25,7 @@ use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::request::Requestable;
-use tor_dirclient::{send_request, Error as DirClientError, RequestError};
+use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::{internal, into_internal, warn_report};
 use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
 use tor_hscrypto::time::TimePeriod;
@@ -452,7 +452,7 @@ impl ReactorError {
 pub(crate) enum UploadError {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
     #[error("descriptor upload request failed")]
-    Request(#[from] RequestError),
+    Request(#[from] RequestFailedError),
 
     /// Failed to establish circuit to hidden service directory
     #[error("circuit failed")]
@@ -1216,7 +1216,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .await
             .map_err(|dir_error| -> UploadError {
                 match dir_error {
-                    DirClientError::RequestFailed(e) => e.error.into(),
+                    DirClientError::RequestFailed(e) => e.into(),
                     DirClientError::CircMgr(e) => into_internal!(
                         "tor-dirclient complains about circmgr going wrong but we gave it a stream"
                     )(e)
