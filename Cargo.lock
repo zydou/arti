@@ -4626,7 +4626,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -4888,7 +4888,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsclient"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -4995,7 +4995,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "base64ct",
@@ -5042,7 +5042,7 @@ dependencies = [
 
 [[package]]
 name = "tor-keymgr"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "derive_builder_fork_arti",
  "derive_more",
@@ -5168,7 +5168,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.8.3"
+version = "0.9.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -5288,7 +5288,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5353,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "amplify",
  "async-trait",

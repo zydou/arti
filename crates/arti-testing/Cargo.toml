@@ -42,7 +42,7 @@ tor-checkable = { path = "../tor-checkable", version = "0.5.3", features = ["exp
 tor-config = { path = "../tor-config", version = "0.9.5" }
 tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.11.2", features = ["dirfilter"] }
 tor-error = { path = "../tor-error", version = "0.5.4" }
-tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.8.3", features = [
+tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.9.0", features = [
     "experimental-api",
     "dangerous-expose-struct-fields",
 ] }

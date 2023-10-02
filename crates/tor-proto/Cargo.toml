@@ -84,7 +84,7 @@ tor-linkspec = { path = "../tor-linkspec", version = "0.8.3" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 tor-protover = { path = "../tor-protover", version = "0.5.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5" }
-tor-rtmock = { path = "../tor-rtmock", version = "0.9.1" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.10.0" }
 tor-units = { path = "../tor-units", version = "0.6.1" }
 tracing = "0.1.36"
 typenum = "1.12"

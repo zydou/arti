@@ -29,7 +29,7 @@ thiserror = "1"
 tor-cell = { version = "0.12.3", path = "../tor-cell" }
 tor-config = { version = "0.9.5", path = "../tor-config" }
 tor-error = { version = "0.5.4", path = "../tor-error" }
-tor-hsservice = { path = "../tor-hsservice", version = "0.2.4" }
+tor-hsservice = { path = "../tor-hsservice", version = "0.3.0" }
 tor-proto = { version = "0.12.2", path = "../tor-proto", features = ["experimental-api", "hs-service"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5" }
 tracing = "0.1.36"

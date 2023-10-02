@@ -72,7 +72,7 @@ tor-cell = { path = "../tor-cell", version = "0.12.3", features = ["testing"] }
 tor-netdir = { path = "../tor-netdir", version = "0.9.4", features = ["testing"] }
 tor-proto = { path = "../tor-proto", version = "0.12.2", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.9.1" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.10.0" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
