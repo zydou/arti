@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.9 — 2 October 2023
 
-Arti 1.1.8 continues work on support for onion services in arti.
+Arti 1.1.9 continues work on support for onion services in arti.
 The pieces are now (mostly) connected; the next month of development
 will see extensive testing, bugfixing, and refinement.
 
