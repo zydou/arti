@@ -70,10 +70,9 @@ type NamedProxyMap = HashMap<HsNickname, OnionServiceProxyConfigBuilder>;
 #[cfg(feature = "onion-service-service")]
 define_list_builder_helper! {
     pub struct OnionServiceProxyConfigListBuilder {
-        // TODO HSS: whoops, rename this.
-        transports: [OnionServiceProxyConfigBuilder],
+        services: [OnionServiceProxyConfigBuilder],
     }
-    built: OnionServiceProxyConfigList = transports;
+    built: OnionServiceProxyConfigList = services;
     default = vec![];
     #[serde(from="NamedProxyMap", into="NamedProxyMap")]
 }
@@ -95,7 +94,7 @@ impl From<NamedProxyMap> for OnionServiceProxyConfigListBuilder {
 impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
     fn from(value: OnionServiceProxyConfigListBuilder) -> Self {
         let mut map = HashMap::new();
-        for cfg in value.transports.into_iter().flatten() {
+        for cfg in value.services.into_iter().flatten() {
             // TODO HSS: deduplicate nicknames!
             let nickname = cfg.0 .0.peek_nickname().cloned().unwrap_or_else(|| {
                 "Unnamed"
