@@ -1,6 +1,7 @@
 //! Completely mock runtime
 
 use std::fmt::{Debug, Display};
+use std::ops::ControlFlow;
 
 use amplify::Getters;
 use futures::FutureExt as _;
@@ -161,15 +162,15 @@ impl MockRuntime {
     ///
     /// See [`progress_until_stalled`](MockRuntime::progress_until_stalled)
     pub async fn advance_until_stalled(&self) {
-        loop {
-            self.progress_until_stalled().await;
+        self.advance_inner(|| {
             let Some(timeout) = self.time_until_next_timeout() else {
                 // Nothing is waiting on timeouts
-                return;
+                return ControlFlow::Break(());
             };
             assert_ne!(timeout, Duration::ZERO);
-            self.sleep.advance(timeout);
-        }
+            ControlFlow::Continue(timeout)
+        })
+        .await;
     }
 
     /// Run tasks in the current executor until every task except this one is waiting
@@ -219,9 +220,7 @@ impl MockRuntime {
     ///
     /// And, see [`progress_until_stalled`](MockRuntime::progress_until_stalled)
     pub async fn advance_until(&self, limit: Instant) -> Option<Duration> {
-        loop {
-            self.task.progress_until_stalled().await;
-
+        self.advance_inner(|| {
             let timeout = self.time_until_next_timeout();
 
             let limit = limit
@@ -230,12 +229,34 @@ impl MockRuntime {
 
             if limit == Duration::ZERO {
                 // Time has reached `limit`
-                return timeout;
+                return ControlFlow::Break(timeout);
             }
 
             let advance = chain!(timeout, [limit]).min().expect("empty!");
             assert_ne!(advance, Duration::ZERO);
-            self.sleep.advance(advance);
+
+            ControlFlow::Continue(advance)
+        })
+        .await
+    }
+
+    /// Advance time, firing events and other tasks - internal implementaton
+    ///
+    /// Common code for `advance_*`.
+    ///
+    /// `body` will called after `progress_until_stalled`.
+    /// It should examine the simulated time, and the next timeout,
+    /// and decide what to do - returning
+    /// `Break` to break the loop, or
+    /// `Continue` giving the `Duration` by which to advance time and go round again.
+    async fn advance_inner<B>(&self, mut body: impl FnMut() -> ControlFlow<B, Duration>) -> B {
+        loop {
+            self.task.progress_until_stalled().await;
+
+            match body() {
+                ControlFlow::Break(v) => break v,
+                ControlFlow::Continue(advance) => self.sleep.advance(advance),
+            }
         }
     }
 
