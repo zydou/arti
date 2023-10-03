@@ -249,13 +249,33 @@ impl MockRuntime {
     /// and decide what to do - returning
     /// `Break` to break the loop, or
     /// `Continue` giving the `Duration` by which to advance time and go round again.
+    #[allow(clippy::print_stderr)]
     async fn advance_inner<B>(&self, mut body: impl FnMut() -> ControlFlow<B, Duration>) -> B {
+        /// Warn when we loop more than this many times per call
+        const WARN_AT: u32 = 1000;
+        let mut counter = Some(WARN_AT);
+
         loop {
             self.task.progress_until_stalled().await;
 
             match body() {
                 ControlFlow::Break(v) => break v,
-                ControlFlow::Continue(advance) => self.sleep.advance(advance),
+                ControlFlow::Continue(advance) => {
+                    counter = match counter.map(|v| v.checked_sub(1)) {
+                        None => None,
+                        Some(Some(v)) => Some(v),
+                        Some(None) => {
+                            eprintln!(
+ "warning: MockRuntime advance_* looped >{WARN_AT} (next sleep: {}ms)\n{:?}",
+                                advance.as_millis(),
+                                self.mock_task().as_debug_dump(),
+                            );
+                            None
+                        }
+                    };
+
+                    self.sleep.advance(advance);
+                }
             }
         }
     }
