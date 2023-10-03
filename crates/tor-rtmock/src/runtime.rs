@@ -12,7 +12,7 @@ use crate::util::impl_runtime_prelude::*;
 
 use crate::net::MockNetProvider;
 use crate::task::{MockExecutor, SchedulingPolicy};
-use crate::simple_time::Provider as MockSleepProvider; // XXXX fix this misleading alias
+use crate::simple_time::SimpleMockTimeProvider;
 
 /// Completely mock runtime
 ///
@@ -68,7 +68,7 @@ pub struct MockRuntime {
     task: MockExecutor,
     /// Time provider
     #[adhoc(mock(sleep))]
-    sleep: MockSleepProvider,
+    sleep: SimpleMockTimeProvider,
     /// Net provider
     #[adhoc(mock(net))]
     net: MockNetProvider,
@@ -241,7 +241,7 @@ impl MockRuntime {
 
     /// Advances time by `dur`, firing time events and other tasks in order
     ///
-    /// Prefer this to [`MockSleepProvider::advance()`];
+    /// Prefer this to [`SimpleMockTimeProvider::advance()`];
     /// it works more faithfully.
     ///
     /// Specifically, it advances time in successive stages,
@@ -261,7 +261,7 @@ impl MockRuntime {
         self.advance_until(limit).await
     }
 
-    /// See [`MockSleepProvider::jump_wallclock()`]
+    /// See [`SimpleMockTimeProvider::jump_wallclock()`]
     pub fn jump_to(&self, new_wallclock: SystemTime) {
         self.sleep.jump_wallclock(new_wallclock);
     }
@@ -287,7 +287,7 @@ impl MockRuntime {
         self.sleep.time_until_next_timeout()
     }
 
-    /// Dispatches to [`MockSleepProvider::advance()`]
+    /// Dispatches to [`SimpleMockTimeProvider::advance()`]
     ///
     /// ### Deprecated
     ///
@@ -299,7 +299,7 @@ impl MockRuntime {
     ///
     /// If you want to step the time in one go,
     /// use `runtime.mock_sleep().advance()`.
-    #[deprecated(note = "use MockRuntime::advance_by, or MockSleepProvider::advance()")]
+    #[deprecated(note = "use MockRuntime::advance_by, or SimpleMockTimeProvider::advance()")]
     pub async fn advance(&self, dur: Duration) {
         self.sleep.advance(dur);
     }
@@ -326,9 +326,9 @@ impl MockRuntimeBuilder {
         } = self;
 
         let sleep = if let Some(starting_wallclock) = starting_wallclock {
-            MockSleepProvider::from_wallclock(starting_wallclock)
+            SimpleMockTimeProvider::from_wallclock(starting_wallclock)
         } else {
-            MockSleepProvider::default()
+            SimpleMockTimeProvider::default()
         };
 
         let task = MockExecutor::with_scheduling(scheduling);
