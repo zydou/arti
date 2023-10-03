@@ -26,7 +26,7 @@ pub struct OnionServiceConfig {
     // which the service's configuration is stored.  We'll see how the code
     // evolves.
     // (^ ipt_mgr::IptManager contains a copy of this nickname, that should be fixed too)
-    pub(crate) name: HsNickname,
+    pub(crate) nickname: HsNickname,
 
     // TODO HSS: Perhaps this belongs at a higher level.
     // enabled: bool,

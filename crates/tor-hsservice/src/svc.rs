@@ -116,7 +116,7 @@ impl OnionService {
         R: Runtime,
         S: tor_persist::StateMgr + Send + Sync + 'static,
     {
-        let nickname = config.name.clone();
+        let nickname = config.nickname.clone();
         // TODO HSS: Maybe, adjust tor_persist::fs to handle subdirectories, and
         // use onion/{nickname}?
         let storage_key = format!("onion_svc_{nickname}");

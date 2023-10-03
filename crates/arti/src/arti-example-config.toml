@@ -392,7 +392,7 @@
 # A local nickname for this onion service. This is saved on disk, and used to
 # tell onion services apart; it is not visible outside your own Arti instance.
 #
-# name = "allium-cepa"
+# nickname = "allium-cepa"
 
 # A description of what to do with incoming connections to different ports.
 # This is given as a list of rules; the first matching rule applies.
