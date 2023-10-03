@@ -1046,21 +1046,32 @@ example config file {which:?}, uncommented={uncommented:?}
         }
     }
 
-    /// Helper for fishing out parts of the config file and uncommenting them
+    /// Helper for fishing out parts of the config file and uncommenting them.
+    ///
+    /// It represents a part of a configuration file.
     ///
     /// This can be used to find part of the config file by ad-hoc regexp matching,
     /// uncomment it, and parse it.  This is useful as part of a test to check
     /// that we can parse more complex config.
     #[derive(Debug, Clone)]
     struct ExampleSectionLines {
+        /// The header for the section that we are parsing.  It is
+        /// prepended to the lines before parsing them.
         section: String,
+        /// The lines in the section.
         lines: Vec<String>,
     }
 
+    /// A 2-tuple of a regular expression and a flag describing whether the line
+    /// containing the expression should be included in the result of `narrow()`.
     type NarrowInstruction<'s> = (&'s str, bool);
+    /// A NarrowInstruction that does not match anything.
     const NARROW_NONE: NarrowInstruction<'static> = ("?<none>", false);
 
     impl ExampleSectionLines {
+        /// Construct a new ExampleSectionLines from `ARTI_EXAMPLE_CONFIG`, containing
+        /// everything that starts with `[section]`, up to but not including the
+        /// next line that begins with a `[`.
         fn new(section: &str) -> Self {
             let section = format!("[{}]", section);
 
@@ -1075,6 +1086,8 @@ example config file {which:?}, uncommented={uncommented:?}
             ExampleSectionLines { section, lines }
         }
 
+        /// Remove all lines from this section, except those between the (unique) line matching
+        /// "start" and the (unique) line matching "end".
         fn narrow(&mut self, start: NarrowInstruction, end: NarrowInstruction) {
             let find_index = |(re, include), adjust: [isize; 2]| {
                 if (re, include) == NARROW_NONE {
@@ -1106,16 +1119,20 @@ example config file {which:?}, uncommented={uncommented:?}
             self.lines = self.lines.drain(..).take(end).skip(start).collect_vec();
         }
 
+        /// Assert that this section contains exactly `n` lines.
         fn expect_lines(&self, n: usize) {
             assert_eq!(self.lines.len(), n);
         }
 
+        /// Remove `#` from the start of every line that begins with it.
         fn uncomment(&mut self) {
             for l in &mut self.lines {
                 *l = l.strip_prefix('#').expect(l).to_string();
             }
         }
 
+        /// Write out this section and parse it as a complete configuration.
+        /// Panic if the section cannot be parsed.
         fn parse(&self) -> config::Config {
             let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
             eprintln!("parsing\n  --\n{}\n  --", &s);
