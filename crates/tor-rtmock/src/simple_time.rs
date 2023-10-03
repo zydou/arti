@@ -184,14 +184,16 @@ impl SleepProvider for Provider {
         let id = state.wakers.insert(None);
         state.pq.push(id, Reverse(until));
 
+        let fut = SleepFuture {
+            id,
+            prov: self.clone(),
+        };
+
         // Possibly, `until` isn't *strictly* greater than `state.now`, since d might be 0.
         // If so, .wake_any() will restore the invariant by immediately waking.
         state.wake_any();
 
-        SleepFuture {
-            id,
-            prov: self.clone(),
-        }
+        fut
     }
 
     fn now(&self) -> Instant {
