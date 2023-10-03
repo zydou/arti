@@ -104,6 +104,11 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
 
 impl OnionService {
     /// Create (but do not launch) a new onion service.
+    //
+    // TODO HSS: How do we handle the case where somebody tries to launch two
+    // onion services with the same nickname?  They will conflict by trying to
+    // use the same state and the same keys.  Do we stop it here, or in
+    // arti_client?
     pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,

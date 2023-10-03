@@ -104,7 +104,7 @@ impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
     fn from(value: OnionServiceProxyConfigListBuilder) -> Self {
         let mut map = HashMap::new();
         for cfg in value.services.into_iter().flatten() {
-            // TODO HSS: deduplicate nicknames!
+            // TODO HSS: Validate that nicknames are unique, somehow.
             let nickname = cfg.0 .0.peek_nickname().cloned().unwrap_or_else(|| {
                 "Unnamed"
                     .to_string()
