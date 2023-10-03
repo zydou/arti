@@ -385,9 +385,9 @@
 # NOTE: This is not yet supported.
 #
 # Configuration for an onion service.  You can include multiple
-# `[[onion_service]]` sections in order to configure multiple onion services.
+# `[[onion_services]]` sections in order to configure multiple onion services.
 #
-# [[onion_service]]
+# [[onion_services]]
 #
 # A local nickname for this onion service. This is saved on disk, and used to
 # tell onion services apart; it is not visible outside your own Arti instance.

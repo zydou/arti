@@ -240,7 +240,7 @@ pub struct ArtiConfig {
     #[builder(sub_builder, setter(custom))]
     #[builder_field_attr(serde(default))]
     #[cfg(feature = "onion-service-service")]
-    pub(crate) onion_service: OnionServiceProxyConfigList,
+    pub(crate) onion_services: OnionServiceProxyConfigList,
 }
 
 impl_standard_builder! { ArtiConfig }
@@ -253,7 +253,7 @@ impl tor_config::load::TopLevel for ArtiConfig {
 #[cfg(feature = "onion-service-service")]
 define_list_builder_accessors! {
     struct ArtiConfigBuilder {
-        pub(crate) onion_service: [OnionServiceProxyConfigBuilder],
+        pub(crate) onion_services: [OnionServiceProxyConfigBuilder],
     }
 }
 
@@ -554,7 +554,7 @@ mod test {
             FeatureDependent,
             &[
                 // onion-service only settings.
-                "onion_service",
+                "onion_services",
             ],
         );
 
