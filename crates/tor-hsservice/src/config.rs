@@ -101,6 +101,11 @@ impl OnionServiceConfigBuilder {
         }
         Ok(())
     }
+
+    /// Return the configured nickname for this service, if it has one.
+    pub fn peek_nickname(&self) -> Option<&HsNickname> {
+        self.nickname.as_ref()
+    }
 }
 
 /// Configure a token-bucket style limit on some process.

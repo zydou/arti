@@ -229,6 +229,7 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-hsrproxy",
+ "tor-hsservice",
  "tor-rpcbase",
  "tor-rtcompat",
  "tor-socksproto",

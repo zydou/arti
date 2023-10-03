@@ -3,9 +3,12 @@
 // TODO HSS remove or justify.
 #![allow(unreachable_pub, dead_code)]
 
+use std::collections::HashMap;
+
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
 use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten};
 use tor_hsrproxy::{config::ProxyConfigBuilder, ProxyConfig};
+use tor_hsservice::HsNickname;
 
 /// Configuration for running an onion service from `arti`.
 ///
@@ -60,11 +63,48 @@ impl_standard_builder! { OnionServiceProxyConfig: !Default }
 #[cfg(feature = "onion-service-service")]
 pub(crate) type OnionServiceProxyConfigList = Vec<OnionServiceProxyConfig>;
 
+/// The serialized format of an OnionServiceProxyConfigListBuilder:
+/// a map from nickname to `OnionServiceConfigBuilder`
+type NamedProxyMap = HashMap<HsNickname, OnionServiceProxyConfigBuilder>;
+
 #[cfg(feature = "onion-service-service")]
 define_list_builder_helper! {
     pub struct OnionServiceProxyConfigListBuilder {
+        // TODO HSS: whoops, rename this.
         transports: [OnionServiceProxyConfigBuilder],
     }
     built: OnionServiceProxyConfigList = transports;
     default = vec![];
+    #[serde(from="NamedProxyMap", into="NamedProxyMap")]
+}
+
+impl From<NamedProxyMap> for OnionServiceProxyConfigListBuilder {
+    fn from(value: NamedProxyMap) -> Self {
+        // TODO HSS: validate that nicknames are unique, somehow?
+        let mut list_builder = OnionServiceProxyConfigListBuilder::default();
+        for (nickname, mut cfg) in value {
+            if cfg.0 .0.peek_nickname().is_none() {
+                cfg.0 .0.nickname(nickname);
+            }
+            list_builder.access().push(cfg);
+        }
+        list_builder
+    }
+}
+
+impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
+    fn from(value: OnionServiceProxyConfigListBuilder) -> Self {
+        let mut map = HashMap::new();
+        for cfg in value.transports.into_iter().flatten() {
+            // TODO HSS: deduplicate nicknames!
+            let nickname = cfg.0 .0.peek_nickname().cloned().unwrap_or_else(|| {
+                "Unnamed"
+                    .to_string()
+                    .try_into()
+                    .expect("'Unnamed' was not a valid nickname")
+            });
+            map.insert(nickname, cfg);
+        }
+        map
+    }
 }
