@@ -691,7 +691,7 @@ mod test {
         let kp_hss_ntor: HsSvcNtorKey = curve25519::PublicKey::from(kp_hss_ntor).into();
 
         let service_info = HsNtorServiceInfo {
-            B: kp_hss_ntor.clone(),
+            B: kp_hss_ntor,
             auth_key: kp_hs_ipt_sid.clone(),
             subcredential: subcredential.clone(),
         };

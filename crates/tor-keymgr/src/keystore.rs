@@ -11,8 +11,8 @@ use ssh_key::public::{Ed25519PublicKey, KeyData, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
 use tor_hscrypto::pk::{
-    HsBlindIdKeypair, HsClientDescEncKeypair, HsClientIntroAuthKeypair, HsDescSigningKeypair,
-    HsIdKey,
+    HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair, HsClientIntroAuthKeypair,
+    HsDescSigningKeypair, HsIdKey, HsIdKeypair,
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
 
@@ -328,6 +328,30 @@ impl ToEncodableKey for HsBlindIdKeypair {
 
     fn from_encodable_key(key: Self::Key) -> Self {
         HsBlindIdKeypair::from(key)
+    }
+}
+
+impl ToEncodableKey for HsBlindIdKey {
+    type Key = ed25519::PublicKey;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsBlindIdKey::from(key)
+    }
+}
+
+impl ToEncodableKey for HsIdKeypair {
+    type Key = ed25519::ExpandedKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsIdKeypair::from(key)
     }
 }
 

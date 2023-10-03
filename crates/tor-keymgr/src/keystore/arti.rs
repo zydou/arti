@@ -16,7 +16,7 @@ use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use ssh_key::private::PrivateKey;
-use ssh_key::LineEnding;
+use ssh_key::{LineEnding, PublicKey};
 
 use super::SshKeyData;
 
@@ -120,8 +120,12 @@ impl Keystore for ArtiNativeKeystore {
         let comment = "";
 
         let openssh_key = match key {
-            SshKeyData::Public(_key_data) => {
-                todo!()
+            SshKeyData::Public(key_data) => {
+                let openssh_key = PublicKey::new(key_data, comment);
+
+                openssh_key
+                    .to_openssh()
+                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
             }
             SshKeyData::Private(keypair) => {
                 let openssh_key = PrivateKey::new(keypair, comment)

@@ -583,12 +583,12 @@ impl Requestable for HsDescUploadRequest {
     }
 
     fn max_response_len(&self) -> usize {
-        // We expect the response body to be empty
+        // We expect the response _body_ to be empty, but the max_response_len is not zero because
+        // it represents the _total_ length of the response (which includes the length of the
+        // status line and headers)
         //
-        // TODO HSS: perhaps we shouldn't? In the case of an error response, do we expect the body
-        // to contain e.g. an explanation for the error? If so, we should document this behaviour
-        // in rend-spec.
-        0
+        // TODO HSS: check what headers real HSDirs send, and adjust this value accordingly
+        1024
     }
 }
 

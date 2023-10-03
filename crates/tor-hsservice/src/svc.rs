@@ -72,7 +72,7 @@ struct ForLaunch<R: Runtime> {
     /// This publisher is responsible for determining when we need to upload a
     /// new set of HsDescs, building them, and publishing them at the correct
     /// HsDirs.
-    publisher: Publisher<R>,
+    publisher: Publisher<R, publish::Real<R>>,
 
     /// Our handler for the introduction point manager.
     ///
@@ -150,7 +150,7 @@ impl OnionService {
         };
 
         // TODO HSS Why does this not need a keymgr?
-        let publisher = Publisher::new(
+        let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
             hs_id,
             netdir_provider,

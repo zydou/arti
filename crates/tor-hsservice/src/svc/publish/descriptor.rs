@@ -27,8 +27,6 @@ use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, OnionServiceConfig};
 ///
 /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
 /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
-#[allow(unreachable_code)] // TODO HSS: remove
-#[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
 pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     keymgr: Arc<KeyMgr>,
     config: Arc<OnionServiceConfig>,
