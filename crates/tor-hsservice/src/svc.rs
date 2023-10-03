@@ -144,7 +144,6 @@ impl OnionService {
             },
         )?;
 
-        // TODO HSS Why does this not need a keymgr?
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
             nickname,
