@@ -104,6 +104,11 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
 
 impl OnionService {
     /// Create (but do not launch) a new onion service.
+    //
+    // TODO HSS: How do we handle the case where somebody tries to launch two
+    // onion services with the same nickname?  They will conflict by trying to
+    // use the same state and the same keys.  Do we stop it here, or in
+    // arti_client?
     pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
@@ -116,7 +121,7 @@ impl OnionService {
         R: Runtime,
         S: tor_persist::StateMgr + Send + Sync + 'static,
     {
-        let nickname = config.name.clone();
+        let nickname = config.nickname.clone();
         // TODO HSS: Maybe, adjust tor_persist::fs to handle subdirectories, and
         // use onion/{nickname}?
         let storage_key = format!("onion_svc_{nickname}");

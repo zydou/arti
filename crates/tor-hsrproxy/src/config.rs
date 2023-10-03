@@ -1,14 +1,17 @@
 //! Configuration logic for onion service reverse proxy.
 
+use derive_adhoc::Adhoc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, ops::RangeInclusive, path::PathBuf, str::FromStr};
+//use tor_config::derive_adhoc_template_Flattenable;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 
 /// Configuration for a reverse proxy running for one onion service.
-#[derive(Clone, Debug, Builder)]
+#[derive(Clone, Debug, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize, Adhoc, Eq, PartialEq))]
+#[builder_struct_attr(derive_adhoc(tor_config::Flattenable))]
 pub struct ProxyConfig {
     /// A list of rules to apply to incoming requests.  If no rule
     /// matches, we take the DestroyCircuit action.
@@ -49,6 +52,7 @@ define_list_builder_accessors! {
 type ProxyRuleList = Vec<ProxyRule>;
 
 define_list_builder_helper! {
+   #[derive(Eq, PartialEq)]
    pub struct ProxyRuleListBuilder {
        pub(crate) values: [ProxyRule],
    }

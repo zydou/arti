@@ -81,7 +81,7 @@ impl OnionServiceReverseProxy {
         let _ = state.shutdown_tx.take();
     }
 
-    /// Use this proxy to handle a stream of [`RendRequest`] requests.
+    /// Use this proxy to handle a stream of [`RendRequest`]s.
     ///
     /// The future returned by this function blocks indefinitely, so you may
     /// want to spawn a separate task for it.

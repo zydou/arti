@@ -228,6 +228,8 @@ dependencies = [
  "toml 0.7.8",
  "tor-config",
  "tor-error",
+ "tor-hsrproxy",
+ "tor-hsservice",
  "tor-rpcbase",
  "tor-rtcompat",
  "tor-socksproto",
@@ -4975,6 +4977,7 @@ dependencies = [
 name = "tor-hsrproxy"
 version = "0.1.0"
 dependencies = [
+ "derive-adhoc",
  "derive_builder_fork_arti",
  "futures",
  "rangemap",

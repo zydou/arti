@@ -3,6 +3,7 @@
 // TODO HSS: We may want rename some of the types and members here!
 
 use base64ct::{Base64Unpadded, Encoding as _};
+use derive_adhoc::Adhoc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -13,9 +14,10 @@ use tor_llcrypto::pk::curve25519;
 use crate::HsNickname;
 
 /// Configuration for one onion service.
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Serialize, Deserialize))]
+#[builder(derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq))]
+#[builder_struct_attr(derive_adhoc(tor_config::Flattenable))]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc,
     //
@@ -24,13 +26,14 @@ pub struct OnionServiceConfig {
     // which the service's configuration is stored.  We'll see how the code
     // evolves.
     // (^ ipt_mgr::IptManager contains a copy of this nickname, that should be fixed too)
-    pub(crate) name: HsNickname,
+    pub(crate) nickname: HsNickname,
 
     // TODO HSS: Perhaps this belongs at a higher level.
     // enabled: bool,
     /// Whether we want this to be a non-anonymous "single onion service".
     /// We could skip this in v1.  We should make sure that our state
     /// is built to make it hard to accidentally set this.
+    #[builder(default)]
     pub(crate) anonymity: crate::Anonymity,
 
     /// Number of intro points; defaults to 3; max 20.
@@ -41,17 +44,19 @@ pub struct OnionServiceConfig {
     ///
     /// We send this to the send to the introduction point to configure how many
     /// introduction requests it sends us.
+    #[builder(default)]
     rate_limit_at_intro: Option<TokenBucketConfig>,
 
     /// How many streams will we allow to be open at once for a single circuit on
     /// this service?
     #[builder(default = "65535")]
     max_concurrent_streams_per_circuit: u32,
+    //  --- The POW items are disabled for now, since they aren't implemented.
+    // /// If true, we will require proof-of-work when we're under heavy load.
+    // // enable_pow: bool,
+    // /// Disable the compiled backend for proof-of-work.
+    // // disable_pow_compilation: bool,
 
-    /// If true, we will require proof-of-work when we're under heavy load.
-    enable_pow: bool,
-    /// Disable the compiled backend for proof-of-work.
-    disable_pow_compilation: bool,
     // TODO HSS: C tor has this, but I don't know if we want it.
     //
     // TODO HSS: It's possible that we want this to relate, somehow, to our
@@ -96,6 +101,11 @@ impl OnionServiceConfigBuilder {
         }
         Ok(())
     }
+
+    /// Return the configured nickname for this service, if it has one.
+    pub fn peek_nickname(&self) -> Option<&HsNickname> {
+        self.nickname.as_ref()
+    }
 }
 
 /// Configure a token-bucket style limit on some process.
@@ -104,7 +114,7 @@ impl OnionServiceConfigBuilder {
 //
 // TODO: Do we want to parameterize this, or make it always u32?  Do we want to
 // specify "per second"?
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TokenBucketConfig {
     /// The maximum number of items to process per second.
     rate: u32,

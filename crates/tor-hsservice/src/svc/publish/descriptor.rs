@@ -57,7 +57,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         .map(|ipt_in_set| ipt_in_set.ipt.clone())
         .collect::<Vec<_>>();
 
-    let nickname = &config.name;
+    let nickname = &config.nickname;
 
     let hsid = read_svc_key::<HsIdKey>(&keymgr, nickname, HsSvcKeyRole::HsIdPublicKey)?;
     let blind_id_kp =

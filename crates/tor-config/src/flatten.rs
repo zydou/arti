@@ -184,7 +184,7 @@ define_derive_adhoc! {
 // We derive Adhoc on Flatten itself so we can use
 // truly-adhoc derive_adhoc! to iterate over Flatten's two fields.
 // This avoids us accidentally (for example) checking T's fields for passing to U.
-#[derive(Adhoc, Debug, Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Adhoc, Debug, Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq, Default)]
 #[allow(clippy::exhaustive_structs)]
 pub struct Flatten<T, U>(pub T, pub U);
 

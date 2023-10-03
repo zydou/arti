@@ -82,8 +82,9 @@ compression = ["arti-client/compression"]
 
 # This feature flag enables experimental features that are not supported. Turning it on may
 # void your API.
-experimental = ["arti-client/experimental", "experimental-api", "rpc"]
+experimental = ["arti-client/experimental", "experimental-api", "onion-service-service", "rpc"]
 rpc = ["arti-rpcserver", "tor-rpcbase", "__is_experimental"]
+onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
@@ -118,6 +119,8 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-config = { path = "../tor-config", version = "0.9.5" }
 tor-error = { path = "../tor-error", version = "0.5.4", default-features = false, features = ["tracing"] }
+tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.1.0", optional = true }
+tor-hsservice = { path = "../tor-hsservice", version = "0.3.0", optional = true }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.1.2", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", default-features = false }
 tor-socksproto = { path = "../tor-socksproto", version = "0.7.5" }
