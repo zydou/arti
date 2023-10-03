@@ -27,7 +27,7 @@ use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::request::Requestable;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::{internal, into_internal, warn_report};
-use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
+use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
@@ -39,7 +39,7 @@ use crate::ipt_set::IptsPublisherView;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::HsSvcKeyRole;
+use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier};
 
 /// The upload rate-limiting threshold.
 ///
@@ -82,8 +82,6 @@ const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// The immutable, shared inner state.
     imm: Arc<Immutable<R, M>>,
-    /// The public key of the service.
-    hsid_key: HsIdKey,
     /// A source for new network directories that we use to determine
     /// our HsDirs.
     dir_provider: Arc<dyn NetDirProvider>,
@@ -148,7 +146,7 @@ struct Immutable<R: Runtime, M: Mockable> {
     /// This is used for launching circuits and for obtaining random number generators.
     mockable: M,
     /// The service for which we're publishing descriptors.
-    hsid: HsId,
+    nickname: HsNickname,
     /// The key manager,
     keymgr: Arc<KeyMgr>,
 }
@@ -472,7 +470,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         runtime: R,
-        hsid: HsId,
+        nickname: HsNickname,
         dir_provider: Arc<dyn NetDirProvider>,
         mockable: M,
         config: Arc<OnionServiceConfig>,
@@ -487,10 +485,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         /// each sender will send exactly one message.
         const UPLOAD_CHAN_BUF_SIZE: usize = 0;
 
-        let hsid_key: HsIdKey = hsid
-            .try_into()
-            .expect("failed to recover ed25519 public key from hsid?!");
-
         let (upload_task_complete_tx, upload_task_complete_rx) =
             mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
@@ -499,7 +493,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let imm = Immutable {
             runtime,
             mockable,
-            hsid,
+            nickname,
             keymgr,
         };
 
@@ -513,7 +507,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Self {
             imm: Arc::new(imm),
             inner: Arc::new(Mutex::new(inner)),
-            hsid_key,
             dir_provider,
             ipt_watcher,
             config_rx,
@@ -536,7 +529,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         {
             let netdir = wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely).await?;
-            let time_periods = Self::compute_time_periods(&netdir, &self.hsid_key)?;
+            let time_periods = self.compute_time_periods(&netdir)?;
 
             let mut inner = self.inner.lock().expect("poisoned lock");
 
@@ -725,7 +718,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         );
 
         // Update our list of relevant time periods.
-        inner.time_periods = Self::compute_time_periods(&netdir, &self.hsid_key)?;
+        inner.time_periods = self.compute_time_periods(&netdir)?;
 
         for period in inner.time_periods.iter_mut() {
             period.recompute_hs_dirs(&netdir)?;
@@ -736,16 +729,25 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Compute the [`TimePeriodContext`]s for the time periods from the specified [`NetDir`].
     fn compute_time_periods(
+        &self,
         netdir: &Arc<NetDir>,
-        hsid_key: &HsIdKey,
     ) -> Result<Vec<TimePeriodContext>, ReactorError> {
         netdir
             .hs_all_time_periods()
             .iter()
             .map(|period| {
-                let (blind_id, _subcredential) = hsid_key
-                    .compute_blinded_key(*period)
-                    .expect("failed to compute blinded key?!"); // TODO HSS: perhaps this should be an Err
+                let role = HsSvcKeyRole::BlindIdPublicKey(*period);
+                let key_spec = HsSvcKeySpecifier::new(&self.imm.nickname, role);
+
+                // TODO HSS: most of the time, we don't want to return a MissingKey error.
+                //
+                // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946313
+                let blind_id = self
+                    .imm
+                    .keymgr
+                    .get::<HsBlindIdKey>(&key_spec)?
+                    .ok_or_else(|| ReactorError::MissingKey(role))?;
+
                 TimePeriodContext::new(*period, blind_id.into(), netdir)
             })
             .collect::<Result<Vec<TimePeriodContext>, ReactorError>>()
@@ -1128,8 +1130,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 Err(e) => {
                                     warn_report!(
                                         e,
-                                        "failed to upload descriptor for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
-                                        imm.hsid, ed_id, rsa_id
+                                        "failed to upload descriptor for service {} (hsdir_id={}, hsdir_rsa_id={})",
+                                        imm.nickname, ed_id, rsa_id
                                     );
 
                                     UploadStatus::Failure
@@ -1138,8 +1140,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         },
                         Err(_e) => {
                             warn!(
-                                "descriptor upload timed out for hsid={} (hsdir_id={}, hsdir_rsa_id={})",
-                                imm.hsid, ed_id, rsa_id
+                                "descriptor upload timed out for service {} (hsdir_id={}, hsdir_rsa_id={})",
+                                imm.nickname, ed_id, rsa_id
                             );
 
                             UploadStatus::Failure
@@ -1162,7 +1164,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(hsid=%imm.hsid, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
+        trace!(nickname=%imm.nickname, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
@@ -1193,7 +1195,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), UploadError> {
         let request = HsDescUploadRequest::new(hsdesc);
 
-        trace!(hsid=%imm.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
+        trace!(nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
             "trying to upload descriptor. HTTP request:\n{:?}",
             request.make_request()
         );
@@ -1227,7 +1229,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .into_output_string()?; // This returns an error if we received an error response
 
         trace!(
-            hsid=%imm.hsid, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
+            nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
             "successfully uploaded descriptor"
         );
 

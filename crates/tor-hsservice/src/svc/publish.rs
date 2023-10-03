@@ -13,12 +13,11 @@ use tor_keymgr::KeyMgr;
 use tracing::warn;
 
 use tor_error::warn_report;
-use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
-use crate::OnionServiceConfig;
 use crate::{ipt_set::IptsPublisherView, StartupError};
+use crate::{HsNickname, OnionServiceConfig};
 
 use reactor::Reactor;
 
@@ -33,10 +32,8 @@ pub(crate) use reactor::{Mockable, Real};
 pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     /// The runtime.
     runtime: R,
-    /// The HsId of the service.
-    //
-    // TODO HSS: read this from the KeyMgr instead?
-    hsid: HsId,
+    /// The service for which we're publishing descriptors.
+    nickname: HsNickname,
     /// A source for new network directories that we use to determine
     /// our HsDirs.
     dir_provider: Arc<dyn NetDirProvider>,
@@ -67,7 +64,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         runtime: R,
-        hsid: HsId,
+        nickname: HsNickname,
         dir_provider: Arc<dyn NetDirProvider>,
         mockable: impl Into<M>,
         ipt_watcher: IptsPublisherView,
@@ -77,7 +74,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         let config = config_rx.borrow().clone();
         Self {
             runtime,
-            hsid,
+            nickname,
             dir_provider,
             mockable: mockable.into(),
             config,
@@ -91,7 +88,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     pub(crate) fn launch(self) -> Result<(), StartupError> {
         let Publisher {
             runtime,
-            hsid,
+            nickname,
             dir_provider,
             mockable,
             config,
@@ -102,7 +99,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
 
         let reactor = Reactor::new(
             runtime.clone(),
-            hsid,
+            nickname,
             dir_provider,
             mockable,
             config,
@@ -200,7 +197,7 @@ mod test {
 
     use tor_basic_utils::test_rng::{testing_rng, TestingRng};
     use tor_circmgr::hspool::HsCircKind;
-    use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsIdKey, HsIdKeypair};
+    use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
     use tor_keymgr::{ArtiNativeKeystore, ToEncodableKey};
     use tor_llcrypto::pk::{ed25519, rsa};
     use tor_llcrypto::util::rand_compat::RngCompatExt;
@@ -435,6 +432,13 @@ mod test {
         );
 
         insert_svc_key(
+            hs_blind_id_key.clone(),
+            &keymgr,
+            nickname,
+            HsSvcKeyRole::BlindIdPublicKey(period),
+        );
+
+        insert_svc_key(
             HsDescSigningKeypair::from(ed25519::Keypair::generate(&mut rng)),
             &keymgr,
             nickname,
@@ -482,7 +486,7 @@ mod test {
 
             let publisher: Publisher<MockRuntime, MockReactorState<_>> = Publisher::new(
                 runtime.clone(),
-                hsid,
+                nickname,
                 netdir_provider,
                 circpool,
                 pv,

@@ -135,7 +135,7 @@ impl OnionService {
         let ipt_mgr = IptManager::new(
             runtime.clone(),
             netdir_provider.clone(),
-            nickname,
+            nickname.clone(),
             config_rx.clone(),
             rend_req_tx,
             shutdown_rx,
@@ -143,16 +143,10 @@ impl OnionService {
                 circ_pool: circ_pool.clone(),
             },
         )?;
-        let hs_id = {
-            // TODO HSS BLOCKER: Look up HsId by KeyMgr based on nickname.  This
-            // is just a placeholder so the function will compile.
-            tor_hscrypto::pk::HsId::from([0xff; 32])
-        };
 
-        // TODO HSS Why does this not need a keymgr?
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
-            hs_id,
+            nickname,
             netdir_provider,
             circ_pool,
             publisher_view,
