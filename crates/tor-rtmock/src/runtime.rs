@@ -11,8 +11,8 @@ use void::{ResultVoidExt as _, Void};
 use crate::util::impl_runtime_prelude::*;
 
 use crate::net::MockNetProvider;
-use crate::task::{MockExecutor, SchedulingPolicy};
 use crate::simple_time::SimpleMockTimeProvider;
+use crate::task::{MockExecutor, SchedulingPolicy};
 
 /// Completely mock runtime
 ///
