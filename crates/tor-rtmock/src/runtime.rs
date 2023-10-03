@@ -185,7 +185,7 @@ impl MockRuntime {
     /// you must use
     /// [`advance()`](MockRuntime::advance)
     /// or
-    /// [`jump_to()`](MockRuntime::jump_to)
+    /// [`jump_wallclock()`](MockRuntime::jump_wallclock)
     /// to ensure the simulated time progresses as required.
     ///
     /// # Panics
@@ -262,7 +262,7 @@ impl MockRuntime {
     }
 
     /// See [`SimpleMockTimeProvider::jump_wallclock()`]
-    pub fn jump_to(&self, new_wallclock: SystemTime) {
+    pub fn jump_wallclock(&self, new_wallclock: SystemTime) {
         self.sleep.jump_wallclock(new_wallclock);
     }
 
