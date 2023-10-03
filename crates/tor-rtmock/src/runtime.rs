@@ -21,13 +21,8 @@ use crate::time::MockSleepProvider;
 ///
 /// ### Restrictions
 ///
-/// The test case must advance the mock time explicitly as desired.
-/// There is not currently any facility for automatically
-/// making progress by advancing the mock time by the right amounts
-/// for the timeouts set by the futures under test.
-// ^ I think such a facility could be provided.  `MockSleepProvider` would have to
-//   provide a method to identify the next interesting time event.
-//   The waitfor machinery in MockSleepProvider and MockSleepRuntime doesn't seem suitable.
+/// The test case must advance the mock time explicitly as desired,
+/// typically by calling one of the `MockRuntime::advance_*` methods.
 ///
 /// Tests that use this runtime *must not* interact with the outside world;
 /// everything must go through this runtime (and its pieces).
