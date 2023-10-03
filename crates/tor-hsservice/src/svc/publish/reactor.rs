@@ -536,7 +536,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         {
             let netdir = wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely).await?;
-            let time_periods = Self::compute_time_periods(&netdir, &self.hsid_key)?;
+            let time_periods = self.compute_time_periods(&netdir)?;
 
             let mut inner = self.inner.lock().expect("poisoned lock");
 
@@ -725,7 +725,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         );
 
         // Update our list of relevant time periods.
-        inner.time_periods = Self::compute_time_periods(&netdir, &self.hsid_key)?;
+        inner.time_periods = self.compute_time_periods(&netdir)?;
 
         for period in inner.time_periods.iter_mut() {
             period.recompute_hs_dirs(&netdir)?;
@@ -736,14 +736,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Compute the [`TimePeriodContext`]s for the time periods from the specified [`NetDir`].
     fn compute_time_periods(
+        &self,
         netdir: &Arc<NetDir>,
-        hsid_key: &HsIdKey,
     ) -> Result<Vec<TimePeriodContext>, ReactorError> {
         netdir
             .hs_all_time_periods()
             .iter()
             .map(|period| {
-                let (blind_id, _subcredential) = hsid_key
+                let (blind_id, _subcredential) = self.hsid_key
                     .compute_blinded_key(*period)
                     .expect("failed to compute blinded key?!"); // TODO HSS: perhaps this should be an Err
                 TimePeriodContext::new(*period, blind_id.into(), netdir)
