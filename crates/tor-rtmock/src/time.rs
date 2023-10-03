@@ -3,6 +3,19 @@
 //! We do this by providing [`MockSleepProvider`], a "SleepProvider"
 //! instance that can simulate timeouts and retries without requiring
 //! the actual system clock to advance.
+//!
+//! ### Deprecated
+//!
+//! This mock time facility has some limitations, notably lack of support for tasks,
+//! and a confusing API for controlling the mock time.
+//!
+//! New test cases should probably use `MockRuntime`
+//! which incorporates `MockSimpletimeProvider`.
+//
+// TODO: at some point we should add #[deprecated] to this type
+// and to the block_advance etc. methods in SleepProvider.
+// But right now that would involve rewriting a whole bunch of tests,
+// or generous sprinklings of #[allow].
 
 #![allow(clippy::missing_docs_in_private_items)]
 
