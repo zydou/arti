@@ -550,7 +550,7 @@ mod test {
 
         declare_exceptions(
             None,
-            None,
+            None, // TODO HSS actually test the example config using semi-ad-hoc approach
             FeatureDependent,
             &[
                 // onion-service only settings.
