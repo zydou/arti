@@ -1046,6 +1046,36 @@ example config file {which:?}, uncommented={uncommented:?}
         }
     }
 
+    #[test]
+    fn onion_services() {
+        // Here we require that the onion services configuration is between
+        // lines labeled with "##### (END )? ONION SERVICES",
+        // and that each line of _real_ configuration in that section begins
+        // with "#    ".
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        file.narrow(
+            (r"^##### ONION SERVICES", true),
+            (r"^##### END ONION SERVICES", true),
+        );
+        file.lines.retain(|line| line.starts_with("#    "));
+        file.strip_prefix("#    ");
+
+        let result = file.resolve::<(TorClientConfig, ArtiConfig)>();
+        #[cfg(feature = "onion-service-service")]
+        {
+            let cfg = result.unwrap();
+            let services = cfg.1.onion_services;
+            assert_eq!(services.len(), 1);
+            let _svc = &services[0];
+            // TODO HSS: Actually test that this is as expected, somehow.
+        }
+        #[cfg(not(feature = "onion-service-service"))]
+        {
+            // TODO HSS: Make us get an error when we configure onion services
+            // without onion service support.
+        }
+    }
+
     /// Helper for fishing out parts of the config file and uncommenting them.
     ///
     /// It represents a part of a configuration file.
@@ -1083,6 +1113,16 @@ example config file {which:?}, uncommented={uncommented:?}
                 .map(|l| l.to_string())
                 .collect_vec();
 
+            ExampleSectionLines { section, lines }
+        }
+
+        /// Construct a new ExampleSectionsLine from a provided configuration file,
+        /// without cutting out any sections.
+        ///
+        /// That will happen later.
+        fn from_string(contents: &str) -> Self {
+            let section = "".into();
+            let lines = contents.lines().map(|s| s.to_string()).collect_vec();
             ExampleSectionLines { section, lines }
         }
 
@@ -1126,15 +1166,25 @@ example config file {which:?}, uncommented={uncommented:?}
 
         /// Remove `#` from the start of every line that begins with it.
         fn uncomment(&mut self) {
+            self.strip_prefix("#");
+        }
+
+        /// Remove `prefix` from the start of every line that begins with it.
+        fn strip_prefix(&mut self, prefix: &str) {
             for l in &mut self.lines {
-                *l = l.strip_prefix('#').expect(l).to_string();
+                *l = l.strip_prefix(prefix).expect(l).to_string();
             }
+        }
+
+        /// Join the parts of this object together into a single string.
+        fn build_string(&self) -> String {
+            chain!(iter::once(&self.section), self.lines.iter(),).join("\n")
         }
 
         /// Write out this section and parse it as a complete configuration.
         /// Panic if the section cannot be parsed.
         fn parse(&self) -> config::Config {
-            let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
+            let s = self.build_string();
             eprintln!("parsing\n  --\n{}\n  --", &s);
             let c: toml::Value = toml::from_str(&s).expect(&s);
             config::Config::try_from(&c).expect(&s)

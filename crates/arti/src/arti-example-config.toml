@@ -382,6 +382,8 @@
 # to Arti when we launch?
 #max_files = 16384
 
+##### ONION SERVICES
+#
 # NOTE: This is not yet supported.
 #
 # Configuration for an onion service.  You can include multiple
@@ -391,39 +393,41 @@
 # This is saved on disk, and used to tell onion services apart; it is not
 # visible outside your own Arti instance.
 #
-# [onion_services."allium-cepa"]
+#    [onion_services."allium-cepa"]
 
 # A description of what to do with incoming connections to different ports.
 # This is given as a list of rules; the first matching rule applies.
 #
-# proxy_ports = [
-#    # Forward port 80 on the service to localhost:10080.
-#    (80, "127.0.0.1:10080"),
-#    # Tear down the circuit on attempts to conenct to port 22.
-#    (22, "destroy"),
-#    # Ignore attempts to connect to port 265.
-#    # ("ignore" is not generally a good idea for an anoymous service;
-#    #  "destroy" is safer.)
-#    (265, "ignore"),
-#    # Forward connections to other ports in range 1-1024 to
-#    # a local UNIX-domain socket.  (Unix only)
-#    ("1-1024", "unix:/var/run/allium-cepa/socket"),
-#    # Any other connection attempts will make us destroy the circuit.
-#    # (This is the default; you do not need to include this line.)
-#    ("*", "destroy"),
-# ]
+#    proxy_ports = [ 
+#        # Forward port 80 on the service to localhost:10080.
+#        ["80", "127.0.0.1:10080"],
+#        # Tear down the circuit on attempts to conenct to port 22.
+#        ["22", "destroy"],
+#        # Ignore attempts to connect to port 265.
+#        # ("ignore" is not generally a good idea for an anonymous service;
+#        #  "destroy" is safer.)
+#        ["265", "ignore"],
+#        # Forward connections to other ports in range 1-1024 to
+#        # a local UNIX-domain socket.  (Unix only)
+#        ["1-1024", "unix:/var/run/allium-cepa/socket"],
+#        # Any other connection attempts will make us destroy the circuit.
+#        # (This is the default; you do not need to include this line.)
+#        ["*", "destroy"]
+#    ]
 
 # Whether to run an _anonymous_ onion service, or non-anonymous service
 # (also called a "single onion service"). Anonymity is the default.
 # In order to run a non-anonymous service, set this value to the
 # string "not_anonymous".
 #
-# anonymity = true
+#    anonymity = true
 
 # Number of introduction points to establish and advertise.
 #
-# num_intro_points = 3
+#    num_intro_points = 3
 
 # How many streams will we allow at a time for each circuit?
 # 
-# max_concurrent_streams_per_circuit = 65535
+#    max_concurrent_streams_per_circuit = 65535
+
+##### END ONION SERVICES

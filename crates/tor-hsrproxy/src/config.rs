@@ -115,6 +115,8 @@ impl ProxyRule {
 )]
 pub struct ProxyPattern(RangeInclusive<u16>);
 
+// TODO HSS: Allow ProxyPattern to also be deserialized from an integer.
+
 impl FromStr for ProxyPattern {
     type Err = ProxyConfigError;
 
@@ -507,5 +509,23 @@ mod test {
         }"#;
         let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
         assert!(bld.build().is_ok());
+    }
+
+    #[test]
+    fn demo() {
+        let b: ProxyConfigBuilder = toml::de::from_str(
+            r#"
+proxy_ports = [
+    ["80", "127.0.0.1:10080"],
+    ["22", "destroy"],
+    ["265", "ignore"],
+    ["1-1024", "unix:/var/run/allium-cepa/socket"],
+]
+"#,
+        )
+        .unwrap();
+        let c = b.build().unwrap();
+        assert_eq!(c.proxy_ports.len(), 4);
+        // TODO HSS: test actual contents.
     }
 }

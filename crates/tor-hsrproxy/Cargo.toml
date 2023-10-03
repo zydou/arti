@@ -15,7 +15,15 @@ publish = false
 
 [features]
 default = []
-full = ["safelog/full", "tor-cell/full", "tor-config/full", "tor-error/full", "tor-hsservice/full", "tor-proto/full", "tor-rtcompat/full"]
+full = [
+    "safelog/full",
+    "tor-cell/full",
+    "tor-config/full",
+    "tor-error/full",
+    "tor-hsservice/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+]
 
 [dependencies]
 derive-adhoc = "0.7.3"
@@ -38,3 +46,4 @@ void = "1"
 
 [dev-dependencies]
 serde_json = "1.0.50"
+toml = "0.7.2"
