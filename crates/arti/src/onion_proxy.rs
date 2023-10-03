@@ -74,20 +74,29 @@ define_list_builder_helper! {
     }
     built: OnionServiceProxyConfigList = services;
     default = vec![];
-    #[serde(from="NamedProxyMap", into="NamedProxyMap")]
+    #[serde(try_from="NamedProxyMap", into="NamedProxyMap")]
 }
 
-impl From<NamedProxyMap> for OnionServiceProxyConfigListBuilder {
-    fn from(value: NamedProxyMap) -> Self {
-        // TODO HSS: validate that nicknames are unique, somehow?
+impl TryFrom<NamedProxyMap> for OnionServiceProxyConfigListBuilder {
+    type Error = ConfigBuildError;
+
+    fn try_from(value: NamedProxyMap) -> Result<Self, Self::Error> {
         let mut list_builder = OnionServiceProxyConfigListBuilder::default();
         for (nickname, mut cfg) in value {
-            if cfg.0 .0.peek_nickname().is_none() {
-                cfg.0 .0.nickname(nickname);
+            match cfg.0 .0.peek_nickname() {
+                Some(n) if n == &nickname => (),
+                None => (),
+                Some(other) => {
+                    return Err(ConfigBuildError::Inconsistent {
+                        fields: vec![nickname.to_string(), format!("{nickname}.{other}")],
+                        problem: "mismatched nicknames on onion service.".into(),
+                    });
+                }
             }
+            cfg.0 .0.nickname(nickname);
             list_builder.access().push(cfg);
         }
-        list_builder
+        Ok(list_builder)
     }
 }
 
