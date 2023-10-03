@@ -183,9 +183,9 @@ impl MockRuntime {
     /// Usually
     /// (and especially if the tasks under test are waiting for timeouts or periodic events)
     /// you must use
-    /// [`advance()`](MockRuntime::advance)
+    /// [`advance_by()`](MockRuntime::advance_by)
     /// or
-    /// [`jump_wallclock()`](MockRuntime::jump_wallclock)
+    /// [`advance_until()`](MockRuntime::advance_until)
     /// to ensure the simulated time progresses as required.
     ///
     /// # Panics
