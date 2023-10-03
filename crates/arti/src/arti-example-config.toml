@@ -385,14 +385,13 @@
 # NOTE: This is not yet supported.
 #
 # Configuration for an onion service.  You can include multiple
-# `[[onion_services]]` sections in order to configure multiple onion services.
+# `[onion_services]` sections in order to configure multiple onion services.
 #
-# [[onion_services]]
+# The second part of this section's name is a local nickname for this onion service.
+# This is saved on disk, and used to tell onion services apart; it is not
+# visible outside your own Arti instance.
 #
-# A local nickname for this onion service. This is saved on disk, and used to
-# tell onion services apart; it is not visible outside your own Arti instance.
-#
-# nickname = "allium-cepa"
+# [onion_services."allium-cepa"]
 
 # A description of what to do with incoming connections to different ports.
 # This is given as a list of rules; the first matching rule applies.
