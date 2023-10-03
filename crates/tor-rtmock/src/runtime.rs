@@ -286,23 +286,6 @@ impl MockRuntime {
     pub fn time_until_next_timeout(&self) -> Option<Duration> {
         self.sleep.time_until_next_timeout()
     }
-
-    /// Dispatches to [`SimpleMockTimeProvider::advance()`]
-    ///
-    /// ### Deprecated
-    ///
-    /// Usually, you will want `MockRuntime::advance_by`,
-    /// which advances the time in stages,
-    /// ensuring that all timeouts trigger in the expected sequence.
-    /// Changing from `advance` to `advance_by` should be correct,
-    /// but it can expose new bugs.
-    ///
-    /// If you want to step the time in one go,
-    /// use `runtime.mock_sleep().advance()`.
-    #[deprecated(note = "use MockRuntime::advance_by, or SimpleMockTimeProvider::advance()")]
-    pub async fn advance(&self, dur: Duration) {
-        self.sleep.advance(dur);
-    }
 }
 
 impl MockRuntimeBuilder {
