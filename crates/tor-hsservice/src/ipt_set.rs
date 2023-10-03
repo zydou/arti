@@ -133,6 +133,28 @@ pub(crate) struct IptsPublisherView {
     notify: mpsc::Receiver<()>,
 }
 
+/// Shared view of introduction points - IPT publisher's publication-only view
+///
+/// This is a restricted version of [`IptsPublisherView`]
+/// which can only be used to:
+///
+///   - check that a publication attempt should still continue; and
+///   - note publication attempts.
+///
+/// via the [`.borrow_for_publish()`](IptsPublisherUploadView::borrow_for_publish) method.
+///
+/// This is useful because multiple `IptsPublisherUploadView`
+/// can exist (so, for example, it is `Clone`);
+/// unlike `IptsPublisherView`, of which there is one per IPTs channel.
+/// So the publisher's individual upload tasks can each have one.
+///
+/// Obtained from [`IptsPublisherView::upload_view`].
+#[derive(Debug, Clone)]
+pub(crate) struct IptsPublisherUploadView {
+    /// Actual shared data
+    shared: Shared,
+}
+
 /// Core shared state
 type Shared = Arc<Mutex<PublishIptSet>>;
 
@@ -246,6 +268,21 @@ impl IptsPublisherView {
     pub(crate) fn borrow_for_publish(&self) -> impl DerefMut<Target = PublishIptSet> + '_ {
         lock_shared(&self.shared)
     }
+
+    /// Obtain an [`IptsPublisherUploadView`], for use just prior to a publication attempt
+    pub(crate) fn upload_view(&self) -> IptsPublisherUploadView {
+        let shared = self.shared.clone();
+        IptsPublisherUploadView { shared }
+    }
+}
+
+impl IptsPublisherUploadView {
+    /// Look at the list of introduction points to publish
+    ///
+    /// See [`IptsPublisherView::borrow_for_publish`].
+    pub(crate) fn borrow_for_publish(&self) -> impl DerefMut<Target = PublishIptSet> + '_ {
+        lock_shared(&self.shared)
+    }
 }
 
 impl IptSet {
@@ -352,6 +389,11 @@ mod test {
             // borrowing publisher view for publish doesn't cause an update
 
             let pg = pv.borrow_for_publish();
+            assert!(pg.is_none());
+            drop(pg);
+
+            let uv = pv.upload_view();
+            let pg = uv.borrow_for_publish();
             assert!(pg.is_none());
             drop(pg);
 
