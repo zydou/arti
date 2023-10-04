@@ -1,8 +1,5 @@
 //! Configure and implement onion service reverse-proxy feature.
 
-// TODO HSS remove or justify.
-#![allow(unreachable_pub, dead_code)]
-
 use std::{collections::HashMap, sync::Arc};
 
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
@@ -125,6 +122,7 @@ impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
 ///
 /// This is what a user configures when they add an onion service to their
 /// configuration.
+#[allow(dead_code)] //TODO HSS remove once reconfigure is written.
 struct Proxy {
     /// The onion service.
     ///
@@ -168,7 +166,7 @@ impl Proxy {
 }
 
 /// A set of configured onion service proxies.
-#[derive(Default)]
+#[allow(dead_code)] //TODO HSS remove once reconfigure is written.
 pub(crate) struct ProxySet {
     /// The proxies themselves, indexed by nickname.
     proxies: HashMap<HsNickname, Proxy>,
