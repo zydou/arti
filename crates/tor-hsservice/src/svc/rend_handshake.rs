@@ -167,7 +167,7 @@ pub(crate) struct OpenSession {
 /// We need this so that we can hold an `Arc<HsCircPool<R>>` in
 /// `RendRequestContext` without needing to parameterize on R.
 #[async_trait]
-pub(crate) trait RendCircConnector {
+pub(crate) trait RendCircConnector: Send + Sync {
     async fn get_or_launch_specific(
         &self,
         netdir: &tor_netdir::NetDir,
