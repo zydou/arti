@@ -184,6 +184,15 @@ async fn run<R: Runtime>(
         .config(client_config)
         .bootstrap_behavior(OnDemand);
     let client = client_builder.create_unbootstrapped()?;
+
+    #[cfg(feature = "onion-service-service")]
+    {
+        // TODO HSS: Support reconfiguration.
+        let _onion_services =
+            onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
+    }
+
+    // TODO HSS: We need to feed changes to onion services as well.
     reload_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
 
     #[cfg(all(feature = "rpc", feature = "tokio"))]
