@@ -965,7 +965,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(());
                 };
 
-                let desc = build_sign(
+                build_sign(
                     Arc::clone(&self.imm.keymgr),
                     Arc::clone(&inner.config),
                     ipt_set,
@@ -973,9 +973,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     revision_counter,
                     &mut rng,
                     self.imm.runtime.wallclock(),
-                )?;
-
-                desc
+                )?
             };
 
             let netdir = Arc::clone(
