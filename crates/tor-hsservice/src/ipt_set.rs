@@ -32,6 +32,11 @@ pub(crate) type PublishIptSet = Option<IptSet>;
 ///
 /// This is shared between the manager and the publisher.
 /// Each leaf field says who sets it.
+///
+/// This is not `Clone` and its contents should not be cloned.
+/// When its contents are copied out into a descriptor by the publisher,
+/// this should be accompanied by a call to
+/// [`note_publication_attempt`](IptSet::note_publication_attempt).
 #[derive(Debug)]
 pub(crate) struct IptSet {
     /// The actual introduction points
@@ -259,9 +264,9 @@ impl IptsPublisherView {
 
     /// Look at the list of introduction points to publish
     ///
-    /// Whenever a a publication attempt is started,
+    /// Whenever a a publication attempt is started
     /// [`note_publication_attempt`](IptSet::note_publication_attempt)
-    /// must be called.
+    /// must be called on this same [`IptSet`].
     ///
     /// The returned value is a lock guard.
     /// (It is not `Send` so cannot be held across await points.)
@@ -288,7 +293,8 @@ impl IptsPublisherUploadView {
 impl IptSet {
     /// Update all the `last_descriptor_expiry_including_slop` for a publication attempt
     ///
-    /// Called by the publisher when it starts a publication attempt.
+    /// Called by the publisher when it starts a publication attempt
+    /// which will advertise this set of introduction points.
     ///
     /// When calling this, the publisher promises that the publication attempt
     /// will either complete, or be abandoned, before `worst_case_end`.
