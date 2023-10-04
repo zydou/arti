@@ -451,11 +451,9 @@ mod test {
 
     fn build_test_config(nickname: HsNickname) -> OnionServiceConfig {
         OnionServiceConfigBuilder::default()
-            .name(nickname)
+            .nickname(nickname)
             .anonymity(Anonymity::Anonymous)
             .rate_limit_at_intro(None)
-            .enable_pow(false)
-            .disable_pow_compilation(false)
             .build()
             .unwrap()
     }
