@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use derive_more::{From, Into};
 use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::task::{SpawnError, SpawnExt};
-use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt};
+use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
 use postage::watch;
 use retry_error::RetryError;
@@ -35,7 +35,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::config::OnionServiceConfig;
-use crate::ipt_set::IptsPublisherView;
+use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -965,7 +965,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(());
                 };
 
-                let desc = build_sign(
+                build_sign(
                     Arc::clone(&self.imm.keymgr),
                     Arc::clone(&inner.config),
                     ipt_set,
@@ -973,36 +973,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     revision_counter,
                     &mut rng,
                     self.imm.runtime.wallclock(),
-                )?;
-
-                // TODO HSS: this is wrong!!! note_publication_attempt() should be called
-                // before _each_ publication attempt (i.e. before each upload_descriptor()
-                // call).
-                //
-                // However, this turns out to be non-trivial:
-                //
-                //   * We can't simply move the ipt_set.note_publication_attempt() call into
-                //   upload_for_time_period(), because the ipt_set is a mutable reference (so it
-                //   can't be moved into the upload task).
-                //
-                //   * The ipt_set is obtained by calling IptsPublisherView::borrow_for_publish, so
-                //   ideally we could solve this by simply calling borrow_for_publish from the
-                //   upload task, but that won't work either, because IptsPublisherView is not
-                //   Clone.
-                //
-                //   * Also, we can't simply put IptsPublisherView behind an Arc, because we
-                //   need to mutably borrow it to call await_update in the main loop.
-                //
-                //   * On the surface, the solution appears to be to make the IptsPublisherView
-                //   an Arc<Mutex<..>>, but that would create another, equally bad problem,
-                //   because that mutex will have to be locked for each iteration of the
-                //   reactor loop (in order to select_biased! on await_update(&mut self)),
-                //   which would block any existing publish task.
-                ipt_set
-                    .note_publication_attempt(worst_case_end)
-                    .map_err(|_| internal!("failed to note publication attempt"))?;
-
-                desc
+                )?
             };
 
             let netdir = Arc::clone(
@@ -1013,6 +984,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             );
 
             let imm = Arc::clone(&self.imm);
+            let ipt_upload_view = self.ipt_watcher.upload_view();
 
             trace!("spawning upload task");
             let _handle: () = self
@@ -1029,8 +1001,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         &netdir,
                         time_period,
                         imm,
+                        ipt_upload_view.clone(),
                         upload_task_complete_tx,
-                        worst_case_end,
                     )
                     .await
                     {
@@ -1071,8 +1043,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         netdir: &Arc<NetDir>,
         time_period: TimePeriod,
         imm: Arc<Immutable<R, M>>,
+        ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
-        worst_case_end: Instant,
     ) -> Result<(), ReactorError> {
         trace!("uploading descriptor");
         let VersionedDescriptor {
@@ -1084,6 +1056,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .map(|relay_ids| {
                 let netdir = netdir.clone();
                 let imm = Arc::clone(&imm);
+                let ipt_upload_view = ipt_upload_view.clone();
 
                 async move {
                     let run_upload = || async {
@@ -1106,14 +1079,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         .await
                     };
 
-                    // TODO HSS: We should compute worst_case_end and call note_publication_attempt here
-                    // See the TODO about note_publication_attempt
-
-                    // How long until we're supposed to time out?
-                    let duration = worst_case_end
-                        .checked_duration_since(imm.runtime.now())
-                        .unwrap_or_default();
-
                     let ed_id = relay_ids
                         .rsa_identity()
                         .map(|id| id.to_string())
@@ -1123,7 +1088,46 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         .map(|id| id.to_string())
                         .unwrap_or_else(|| "unknown".into());
 
-                    let upload_res = match imm.runtime.timeout(duration, run_upload()).await {
+                    // How long until we're supposed to time out?
+                    let worst_case_end = imm.runtime.now() + UPLOAD_TIMEOUT;
+
+                    {
+                        // This scope is needed because the ipt_set MutexGuard is not Send, so it
+                        // needs to fall out of scope before the await point below
+                        let mut ipt_set = ipt_upload_view.borrow_for_publish();
+
+                        // If there are no IPTs, we abort the upload. At this point, we might have
+                        // uploaded the descriptor to some, but not all, HSDirs from the specified
+                        // time period.
+                        //
+                        // Returning an error here means the upload completion task is never
+                        // notified of the outcome of any of these uploads (which means the
+                        // descriptor is not marked clean). This is OK, because if we suddenly find
+                        // out we have no IPTs, it means our built `hsdesc` has an outdated set of
+                        // IPTs, so we need to go back to the main loop to wait for IPT changes,
+                        // and generate a fresh descriptor anyway.
+                        //
+                        // Ideally, this shouldn't happen very often (if at all).
+                        let Some(ipt_set) = ipt_set.as_mut() else {
+                            // TODO HSS: maybe it's worth defining an separate error type for this.
+                            //
+                            // This is due to a TOCTOU race: after the check from upload_all succeeds
+                            // (i.e. borrow_for_publish returns Some), the IPT manager decides none of
+                            // its IPTs are suitable anymore, so when we borrow_for_publish here, just
+                            // before publishing, we find out the IPTs from hsdesc no longer exist).
+                            //
+                            // TODO HSS: it's possible the IPTs from `ipt_set` are different from the
+                            // ones from the built `hsdesc` (due to the race described above). Maybe
+                            // the hsdesc should be built here instead?
+                            return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
+                        };
+
+                        ipt_set
+                            .note_publication_attempt(worst_case_end)
+                            .map_err(|_| internal!("failed to note publication attempt"))?;
+                    }
+
+                    let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload()).await {
                         Ok(res) => {
                             match res {
                                 Ok(()) => UploadStatus::Success,
@@ -1148,17 +1152,17 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         }
                     };
 
-                    HsDirUploadStatus {
+                    Ok(HsDirUploadStatus {
                         relay_ids,
                         upload_res,
-                    }
+                    })
                 }
             })
             // This fails to compile unless the stream is boxed. See https://github.com/rust-lang/rust/issues/104382
             .boxed()
             .buffer_unordered(MAX_CONCURRENT_UPLOADS)
-            .collect::<Vec<_>>()
-            .await;
+            .try_collect::<Vec<_>>()
+            .await?;
 
         let (succeeded, failed): (Vec<_>, Vec<_>) = upload_results
             .iter()
