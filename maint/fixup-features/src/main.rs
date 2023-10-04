@@ -31,6 +31,7 @@
 //! 5. Every feature reachable from `default` is reachable from `full`.
 //! 6. No non-additive feature is reachable from `full` or `experimental`.
 //! 7. No experimental is reachable from `full`.
+//! 8. No in-workspace dependency uses the `*` wildcard version.
 //!
 //! This tool can edit Cargo.toml files to enforce the rules 1-3
 //! automatically.  For rules 4-7, it can annotate any offending features with
@@ -61,13 +62,15 @@ use changes::{Change, Changes};
 #[derive(Debug, Clone)]
 struct Warning(String);
 
-/// A dependency from a crate.  
+/// A dependency from a crate.
 ///
-/// All we care about is the dependency's name, and whether it is optional.
+/// All we care about is the dependency's name, its version,
+/// and whether it is optional.
 #[derive(Debug, Clone)]
 struct Dependency {
     name: String,
     optional: bool,
+    version: Option<String>,
 }
 
 /// Stored information about a crate.
@@ -105,10 +108,16 @@ fn arti_dependencies(dependencies: &Table) -> Vec<Dependency> {
             .and_then(Item::as_value)
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let version = table
+            .get("version")
+            .and_then(Item::as_value)
+            .and_then(Value::as_str)
+            .map(str::to_string);
 
         deps.push(Dependency {
             name: depname.to_string(),
             optional,
+            version,
         });
     }
 
@@ -275,6 +284,21 @@ impl Crate {
             for f in reachable_from_full.intersection(&defined_experimental) {
                 w(format!("experimental feature {f} is reachable from full!"));
                 changes.push(Change::Annotate(f.clone(), complaint.to_string()));
+            }
+        }
+
+        // 8. Every dependency is a real version.
+        for dep in dependencies {
+            match dep.version.as_deref() {
+                Some("*") => w(format!(
+                    "Dependency for {:?} is given as version='*'",
+                    &dep.name
+                )),
+                None => w(format!(
+                    "No version found for dependency on {:?}",
+                    &dep.name
+                )),
+                _ => {}
             }
         }
 
