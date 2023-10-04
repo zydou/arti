@@ -15,7 +15,7 @@
 //! a TOCTOU race).
 
 use crate::{
-    EncodableKey, KeySpecifier, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
+    EncodableKey, KeySpecifier, Keygen, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
     ToEncodableKey,
 };
 
@@ -71,13 +71,17 @@ impl KeyMgr {
     //
     // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
-    pub fn generate<K: ToEncodableKey>(
+    pub fn generate<K>(
         &self,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
         rng: &mut dyn KeygenRng,
         overwrite: bool,
-    ) -> Result<Option<()>> {
+    ) -> Result<Option<()>>
+    where
+        K: ToEncodableKey,
+        K::Key: Keygen,
+    {
         let store = self.select_keystore(&selector)?;
         let key_type = K::Key::key_type();
 
@@ -202,6 +206,15 @@ mod tests {
     /// The type of "key" stored in the test key stores.
     type TestKey = String;
 
+    impl Keygen for TestKey {
+        fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
+        where
+            Self: Sized,
+        {
+            Ok("generated_test_key".into())
+        }
+    }
+
     impl EncodableKey for TestKey {
         fn key_type() -> KeyType
         where
@@ -209,13 +222,6 @@ mod tests {
         {
             // Dummy value
             KeyType::Ed25519Keypair
-        }
-
-        fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
-        where
-            Self: Sized,
-        {
-            Ok("generated_test_key".into())
         }
 
         fn as_ssh_key_data(&self) -> Result<SshKeyData> {
