@@ -975,29 +975,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     self.imm.runtime.wallclock(),
                 )?;
 
-                // TODO HSS: this is wrong!!! note_publication_attempt() should be called
-                // before _each_ publication attempt (i.e. before each upload_descriptor()
-                // call).
-                //
-                // However, this turns out to be non-trivial:
-                //
-                //   * We can't simply move the ipt_set.note_publication_attempt() call into
-                //   upload_for_time_period(), because the ipt_set is a mutable reference (so it
-                //   can't be moved into the upload task).
-                //
-                //   * The ipt_set is obtained by calling IptsPublisherView::borrow_for_publish, so
-                //   ideally we could solve this by simply calling borrow_for_publish from the
-                //   upload task, but that won't work either, because IptsPublisherView is not
-                //   Clone.
-                //
-                //   * Also, we can't simply put IptsPublisherView behind an Arc, because we
-                //   need to mutably borrow it to call await_update in the main loop.
-                //
-                //   * On the surface, the solution appears to be to make the IptsPublisherView
-                //   an Arc<Mutex<..>>, but that would create another, equally bad problem,
-                //   because that mutex will have to be locked for each iteration of the
-                //   reactor loop (in order to select_biased! on await_update(&mut self)),
-                //   which would block any existing publish task.
                 desc
             };
 
