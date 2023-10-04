@@ -32,10 +32,12 @@
 //! 6. No non-additive feature is reachable from `full` or `experimental`.
 //! 7. No experimental is reachable from `full`.
 //! 8. No in-workspace dependency uses the `*` wildcard version.
+//! 9. Only unpublished crates may depend on unpublished crates.
 //!
 //! This tool can edit Cargo.toml files to enforce the rules 1-3
 //! automatically.  For rules 4-7, it can annotate any offending features with
-//! comments complaining about how they need to be fixed.
+//! comments complaining about how they need to be fixed. For rules 8 and 9,
+//! it generates warnings.
 //!
 //! # To use:
 //!
@@ -50,7 +52,7 @@ mod changes;
 mod graph;
 
 use anyhow::{anyhow, Context, Result};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use toml_edit::{Document, Item, Table, Value};
 
@@ -84,6 +86,12 @@ struct Crate {
     toml_doc: Document,
     /// Parsed and un-manipulated copy of Cargo.toml.
     toml_doc_orig: Document,
+}
+
+/// Information about a crate that we use in other crates.
+#[derive(Debug, Clone)]
+struct CrateInfo {
+    published: bool,
 }
 
 /// Given a `[dependencies]` table from a Cargo.toml, find all of the
@@ -143,9 +151,30 @@ impl Crate {
         })
     }
 
+    /// Extract information about this crate that other crates will need.
+    fn info(&self) -> CrateInfo {
+        let package = self
+            .toml_doc
+            .get("package")
+            .expect("no package table!")
+            .as_table()
+            .expect("[package] was not a table");
+        let publish_option = package
+            .get("publish")
+            .and_then(Item::as_value)
+            .and_then(Value::as_bool);
+        let published = publish_option != Some(false);
+        CrateInfo { published }
+    }
+
     /// Try to fix all the issues we find with a Cargo.toml.  Return a list of warnings.
-    fn fix(&mut self, no_annotate: bool) -> Result<Vec<Warning>> {
+    fn fix(
+        &mut self,
+        no_annotate: bool,
+        other_crates: &HashMap<String, CrateInfo>,
+    ) -> Result<Vec<Warning>> {
         let mut warnings = Vec::new();
+        let my_info = self.info();
         let mut w = |s| warnings.push(Warning(s));
         let dependencies = self
             .toml_doc
@@ -288,7 +317,7 @@ impl Crate {
         }
 
         // 8. Every dependency is a real version.
-        for dep in dependencies {
+        for dep in &dependencies {
             match dep.version.as_deref() {
                 Some("*") => w(format!(
                     "Dependency for {:?} is given as version='*'",
@@ -299,6 +328,25 @@ impl Crate {
                     &dep.name
                 )),
                 _ => {}
+            }
+        }
+
+        // Enforce rule 9. (every arti crate we depend on is published if
+        // we are published.)
+        if my_info.published {
+            println!("in {}", self.name);
+            for dep in &dependencies {
+                match other_crates.get(&dep.name) {
+                    None => w(format!(
+                        "Dependency on crate {:?}, which I could not find.",
+                        &dep.name
+                    )),
+                    Some(info) if !info.published => w(format!(
+                        "Dependency on crate {:?}, which has `publish = false`",
+                        &dep.name
+                    )),
+                    _ => {}
+                }
             }
         }
 
@@ -360,18 +408,20 @@ fn main() -> Result<()> {
         .expect("How is your Cargo.toml file `/`?")
         .to_path_buf();
     let mut crates = Vec::new();
+    let mut crate_info = HashMap::new();
     for p in list_crate_paths(&toplevel_toml_file)? {
         let mut crate_toml_path = toplevel_dir.clone();
         crate_toml_path.push(p);
         crate_toml_path.push("Cargo.toml");
-        crates.push(
-            Crate::load(&crate_toml_path).with_context(|| format!("In {crate_toml_path:?}"))?,
-        );
+        let cr =
+            Crate::load(&crate_toml_path).with_context(|| format!("In {crate_toml_path:?}"))?;
+        crate_info.insert(cr.name.clone(), cr.info());
+        crates.push(cr);
     }
 
     for cr in crates.iter_mut() {
         for w in cr
-            .fix(no_annotate)
+            .fix(no_annotate, &crate_info)
             .with_context(|| format!("In {}", cr.name))?
         {
             println!("{}: {}", cr.name, w.0);
