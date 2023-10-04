@@ -7,6 +7,7 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 use tor_error::{Bug, ErrorKind, HasKind};
+use tor_keymgr::KeystoreError;
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
 
@@ -19,6 +20,20 @@ pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub enum StartupError {
+    /// A keystore operation failed.
+    #[error("Keystore error while attempting to {action}")]
+    Keystore {
+        /// The action we were trying to perform.
+        action: &'static str,
+        /// The underlying error
+        #[source]
+        cause: Box<dyn KeystoreError>,
+    },
+
+    /// Keystore corruption.
+    #[error("The keystore is unrecoverably corrupt")]
+    KeystoreCorrupted,
+
     /// Unable to spawn task
     //
     // TODO too many types have an open-coded version of FooError::Spawn
@@ -48,6 +63,8 @@ impl HasKind for StartupError {
         use ErrorKind as EK;
         use StartupError as E;
         match self {
+            E::Keystore { cause, .. } => cause.kind(),
+            E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
         }
