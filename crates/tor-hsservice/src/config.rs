@@ -89,6 +89,32 @@ impl OnionServiceConfig {
     pub fn nickname(&self) -> &HsNickname {
         &self.nickname
     }
+
+    /// Check whether an onion service running with this configuration can
+    /// switch over `other` according to the rules of `how`.
+    ///
+    //  Return an error if it can't; otherwise return the new config that we
+    //  should change to.
+    pub(crate) fn for_transition_to(
+        &self,
+        mut other: OnionServiceConfig,
+        how: tor_config::Reconfigure,
+    ) -> Result<OnionServiceConfig, tor_config::ReconfigureError> {
+        if self.nickname != other.nickname {
+            how.cannot_change("nickname")?;
+            // If we reach here, then `how` is WarnOnFailures, so we keep the
+            // original nickname.
+            other.nickname = self.nickname.clone();
+        }
+        if self.anonymity != other.anonymity {
+            // TODO HSS: C Tor absolutely forbids changing between different
+            // values here.  We may want to ease this requirement.
+            how.cannot_change("anonymity")?;
+            other.anonymity = self.anonymity;
+        }
+
+        Ok(other)
+    }
 }
 
 impl OnionServiceConfigBuilder {

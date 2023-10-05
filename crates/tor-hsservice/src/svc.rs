@@ -6,8 +6,9 @@ use std::sync::{Arc, Mutex};
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::Stream;
+use tor_async_utils::PostageWatchSenderExt as _;
 use tor_circmgr::hspool::HsCircPool;
-use tor_config::ReconfigureError;
+use tor_config::{Reconfigure, ReconfigureError};
 use tor_error::Bug;
 use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::curve25519;
@@ -185,8 +186,21 @@ impl OnionService {
     /// (Not everything can be changed here. At the very least we'll need to say
     /// that the identity of a service is fixed. We might want to make the
     /// storage  backing this, and the anonymity status, unchangeable.)
-    pub fn reconfigure(&self, new_config: ()) -> Result<(), ReconfigureError> {
-        todo!() // TODO hss
+    pub fn reconfigure(
+        &self,
+        new_config: OnionServiceConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        inner.config_tx.try_maybe_send(|cur_config| {
+            let new_config = cur_config.for_transition_to(new_config, how)?;
+            Ok(match how {
+                // We're only checking, so return the current configuration.
+                tor_config::Reconfigure::CheckAllOrNothing => Arc::clone(cur_config),
+                // We're replacing the configuration, and we didn't get an error.
+                _ => Arc::new(new_config),
+            })
+        })
     }
 
     /// Tell this onion service about some new short-term keys it can use.
