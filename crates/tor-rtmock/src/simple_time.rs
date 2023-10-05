@@ -66,7 +66,7 @@ pub struct SleepFuture {
 /// | READY       | exists           | present, `None`  | absent             |
 /// | DROPPED     | dropped          | absent           | absent             |
 #[derive(Debug, AsMut)]
-pub struct State {
+struct State {
     /// Current time
     now: Instant,
 
