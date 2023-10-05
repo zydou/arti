@@ -108,6 +108,9 @@ impl KeyMgr {
     ///
     /// Returns `Ok(Some(())` if a new keypair was created, and `Ok(None)` otherwise.
     ///
+    /// **NOTE**: If the keypair and its corresponding public key already exist in the keystore,
+    /// this function checks if they match. If they do not, it returns an error.
+    ///
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
     /// outcome of [`KeyMgr::generate_with_derived`] depends on whether the selected key store
@@ -127,7 +130,7 @@ impl KeyMgr {
     where
         SK: ToEncodableKey,
         SK::Key: Keygen,
-        PK: EncodableKey,
+        PK: EncodableKey + PartialEq,
     {
         // TODO HSS: at some point we may want to support putting the keypair and public key in
         // different keystores.
@@ -154,7 +157,31 @@ impl KeyMgr {
                 // keypair, as we're about to replace the keypair with a newly generated one
                 true
             }
-            (Some(_), Some(_)) => {
+            (Some(keypair), Some(public)) => {
+                let keypair: SK::Key = keypair
+                    .downcast::<SK::Key>()
+                    .map(|k| *k)
+                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
+
+                let public: PK = public
+                    .downcast::<PK>()
+                    .map(|k| *k)
+                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
+
+                // Check that the existing public key matches the keypair
+                //
+                // TODO HSS: I'm not sure this validation belongs here.
+                let expected_public = derive_pub(&keypair);
+
+                if expected_public != public {
+                    // TODO HSS: internal! is not right, create an error type for KeyMgr errors and
+                    // add context
+                    return Err(internal!(
+                        "keystore corruption: public key does not match keypair"
+                    )
+                    .into());
+                }
+
                 // Both keys exist, so we only need to generate new keys if overwrite = true
                 overwrite
             }
@@ -628,7 +655,16 @@ mod tests {
             &TestKeySpecifier1,
             &TestPublicKeySpecifier1,
             KeystoreSelector::Default,
-            |sk| TestKey::from(sk),
+            // We prefix the "key" with the id of the keystore it was retrieved from, because its
+            // value needs to match that of the public key that already exists in the keystore (the
+            // get() implementations of our test keystores prefix the keys with their keystore ID,
+            // for testing purposes).
+            //
+            // TODO(gabi): knowing which keystore a key came from is useful, because it enables us
+            // to check that KeyMgr::get works as expected (i.e. reads from the correct keystore),
+            // but encoding this information in the key itself makes these tests rather confusing
+            // to read. We should make the keystores return a (TestKey, KeystoreID) instead.
+            |sk| format!("keystore1_{sk}"),
             &mut testing_rng(),
             true,
         )
@@ -648,7 +684,7 @@ mod tests {
         // From<String> impl for String).
         assert_eq!(
             mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
-            Some("keystore1_generated_test_key".to_string())
+            Some("keystore1_keystore1_generated_test_key".to_string())
         );
     }
 }
