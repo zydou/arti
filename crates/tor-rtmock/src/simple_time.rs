@@ -230,8 +230,11 @@ impl State {
                 // Keep picking off entries with scheduled <= now
                 Some((_, Reverse(scheduled))) if *scheduled <= self.now => {
                     let (id, _) = self.pq.pop().expect("vanished");
-                    if let Some(waker) = self.wakers.get(id).expect("stale pq entry") {
-                        waker.wake_by_ref();
+                    // We can .take() the waker since this can only ever run once
+                    // per sleep future (since it happens when we pop it from pq).
+                    let wakers_entry = self.wakers.get_mut(id).expect("stale pq entry");
+                    if let Some(waker) = wakers_entry.take() {
+                        waker.wake();
                     }
                 }
                 _ => break,
