@@ -6,38 +6,9 @@
 //!
 //! ### Deprecated
 //!
-//! This mock time facility has some limitations, notably lack of support for tasks,
-//! and a confusing API for controlling the mock time.
-//!
-//! New test cases should probably use `MockRuntime`
-//! which incorporates `MockSimpletimeProvider`.
-//!
-//! Comparison of `MockSleepProvider` with `SimpleMockTimeProvider`:
-//!
-//!  * `SimpleMockTimeProvider` does not support, or expect the use of,
-//!    `block_advance` et al.
-//!    Instead, the advancement of simulated time is typically done automatically
-//!    in cooperation with the executor,
-//!    using `MockRuntime`'s `advance_*` methods.
-//!
-//!  * Consequently, `SimpleMockTimeProvider` can be used in test cases that
-//!    spawn tasks and perform sleeps in them.
-//!
-//!  * And, consequently, `SimpleMockTimeProvider` does not need non-test code to
-//!    contain calls which are solely related to getting the time mocking to work right.
-//!
-//!  * `SimpleMockTimeProvider` gives correct sleeping locations
-//!    with `MockExecutor`'s dump of sleeping tasks' stack traces.
-//!
-//!  * Conversely, to use `SimpleMockTimeProvider` in all but the most simple test cases,
-//!    coordination with the executor is required.
-//!    This coordination is provided by the integrated `MockRuntime`;
-//!    `SimpleMockTimeProvider` is of limited usefulness by itself.
-//
-// TODO: at some point we should add #[deprecated] to this type
-// and to the block_advance etc. methods in SleepProvider.
-// But right now that would involve rewriting a whole bunch of tests,
-// or generous sprinklings of #[allow].
+//! This mock time facility has some limitations.
+//! See [`MockSleepProvider`] for more information.
+//! Use [`MockRuntime`](crate::MockRuntime) for new tests.
 
 #![allow(clippy::missing_docs_in_private_items)]
 
@@ -66,6 +37,41 @@ use tor_rtcompat::SleepProvider;
 /// jumps in the system clock by calling `jump()`.
 ///
 /// This is *not* for production use.
+///
+/// ### Deprecated
+///
+/// This mock time facility has some limitations, notably lack of support for tasks,
+/// and a confusing API for controlling the mock time.
+///
+/// New test cases should probably use `MockRuntime`
+/// which incorporates `MockSimpletimeProvider`.
+///
+/// Comparison of `MockSleepProvider` with `SimpleMockTimeProvider`:
+///
+///  * `SimpleMockTimeProvider` does not support, or expect the use of,
+///    `block_advance` et al.
+///    Instead, the advancement of simulated time is typically done automatically
+///    in cooperation with the executor,
+///    using `MockRuntime`'s `advance_*` methods.
+///
+///  * Consequently, `SimpleMockTimeProvider` can be used in test cases that
+///    spawn tasks and perform sleeps in them.
+///
+///  * And, consequently, `SimpleMockTimeProvider` does not need non-test code to
+///    contain calls which are solely related to getting the time mocking to work right.
+///
+///  * `SimpleMockTimeProvider` gives correct sleeping locations
+///    with `MockExecutor`'s dump of sleeping tasks' stack traces.
+///
+///  * Conversely, to use `SimpleMockTimeProvider` in all but the most simple test cases,
+///    coordination with the executor is required.
+///    This coordination is provided by the integrated `MockRuntime`;
+///    `SimpleMockTimeProvider` is of limited usefulness by itself.
+//
+// TODO: at some point we should add #[deprecated] to this type
+// and to the block_advance etc. methods in SleepProvider.
+// But right now that would involve rewriting a whole bunch of tests,
+// or generous sprinklings of #[allow].
 #[derive(Clone)]
 pub struct MockSleepProvider {
     /// The shared backend for this MockSleepProvider and its futures.
