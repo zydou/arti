@@ -174,6 +174,13 @@ before you continue!
    Now _that_ crate counts as changed,
    and needs a version bump of its own.
 
+   You can list all crates that have changed
+   since the last version,
+   but not had their versions bumped,
+   with the command
+   `./maint/changed_crates -u ${LAST_VERSION}`.
+   (Note the `-u`.)
+
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
 

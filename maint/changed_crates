@@ -2,9 +2,55 @@
 
 set -euo pipefail
 
+SCRIPT=$(basename "$0")
 TOP=$(dirname "$0")/..
 
+function usage()
+{
+    cat <<EOF
+${SCRIPT}: List crates that have changed since a given tag
+
+Usage:
+  ${SCRIPT} [opts] TAG
+
+Options:
+  -h: Print this message.
+  -u: Exclude all crates whose version numbers have changed.
+EOF
+}
+
+CHECK_VERSION=no
+VERBOSE=no
+
+while getopts "uvh" opt ; do
+    case "$opt" in
+	h) usage
+	   exit 0
+	   ;;
+	u) CHECK_VERSION=yes
+	   ;;
+	v) VERBOSE=yes
+	   ;;
+	*) echo "Unknown option. Run with -h for help."
+	   exit 1
+	   ;;
+    esac
+done
+
+# Discard parsed options.
+shift $((OPTIND-1))
+
 TAG="${1:-}"
+
+if [ $VERBOSE = "yes" ]; then
+    function whisper() {
+	echo "    " "$*" >&2
+    }
+else
+    function whisper() {
+	:
+    }
+fi
 
 if [ -z "$TAG" ]; then
     echo "You need to give a git revision as an argument."
@@ -12,10 +58,25 @@ if [ -z "$TAG" ]; then
 fi
 
 for crate in $("${TOP}/maint/list_crates"); do
+    if [ ! -d "${TOP}/crates/${crate}" ]; then
+	echo "    Skipping example crate ${crate}" >&2
+	continue
+    fi
+
     if git diff --quiet "$TAG..HEAD" "${TOP}/crates/${crate}"; then
-	# echo "$crate: ...:"
+	whisper "$crate: No change."
 	:
     else
-	echo "$crate"
+	if [ $CHECK_VERSION = 'no' ]; then
+	    echo "$crate"
+	else
+	    V0=$(git show "$TAG:crates/${crate}/Cargo.toml" | grep -m1 '^version ' || true)
+	    V1=$(git show "HEAD:crates/${crate}/Cargo.toml" | grep -m1 '^version ' || true)
+	    if [ "$V0" != "$V1" ] ; then
+		whisper "$crate: changed, and version has been bumped."
+	    else
+		echo "$crate"
+	    fi
+	fi
     fi
 done
