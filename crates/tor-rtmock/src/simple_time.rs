@@ -140,8 +140,14 @@ impl Provider {
     /// and `SystemTime` (wallclock time)
     /// by the same amount.
     ///
-    /// Will wake sleeping [`SleepFuture`]s, as appropriate,
-    /// but does not yield to the executor.
+    /// Will wake sleeping [`SleepFuture`]s, as appropriate.
+    ///
+    /// Note that the tasks which were waiting on those now-expired `SleepFuture`s
+    /// will only actually execute when they are next polled.
+    /// `advance` does not yield to the executor or poll any futures.
+    /// The executor will (presumably) poll those woken tasks, when it regains control.
+    /// But the order in which the tasks run will depend on its scheduling policy,
+    /// and might be different to the order implied by the futures' timeout values.
     ///
     /// To simulate normal time advancement, wakeups, and task activations,
     /// use [`MockExecutor::advance_*()`](crate::MockRuntime).
