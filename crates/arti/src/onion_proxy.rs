@@ -1,14 +1,15 @@
 //! Configure and implement onion service reverse-proxy feature.
 
-// TODO HSS remove or justify.
-#![allow(unreachable_pub, dead_code)]
-
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
+use futures::task::SpawnExt;
 use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten};
-use tor_hsrproxy::{config::ProxyConfigBuilder, ProxyConfig};
-use tor_hsservice::HsNickname;
+use tor_error::warn_report;
+use tor_hsrproxy::{config::ProxyConfigBuilder, OnionServiceReverseProxy, ProxyConfig};
+use tor_hsservice::{HsNickname, OnionService};
+use tor_rtcompat::Runtime;
+use tracing::debug;
 
 /// Configuration for running an onion service from `arti`.
 ///
@@ -115,4 +116,80 @@ impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
         }
         map
     }
+}
+
+/// A running onion service and an associated reverse proxy.
+///
+/// This is what a user configures when they add an onion service to their
+/// configuration.
+#[allow(dead_code)] //TODO HSS remove once reconfigure is written.
+struct Proxy {
+    /// The onion service.
+    ///
+    /// This is launched and running.
+    svc: Arc<OnionService>,
+    /// The reverse proxy that accepts connections from the onion service.
+    ///
+    /// This is also launched and running.
+    proxy: Arc<OnionServiceReverseProxy>,
+}
+
+impl Proxy {
+    /// Create and launch a new onion service proxy, using a given `client`,
+    /// to handle connections according to `config`.
+    pub(crate) fn launch_new<R: Runtime>(
+        client: &arti_client::TorClient<R>,
+        config: OnionServiceProxyConfig,
+    ) -> anyhow::Result<Self> {
+        let OnionServiceProxyConfig { svc_cfg, proxy_cfg } = config;
+        let nickname = svc_cfg.nickname().clone();
+        let (svc, request_stream) = client.launch_onion_service(svc_cfg)?;
+        let proxy = OnionServiceReverseProxy::new(proxy_cfg);
+
+        {
+            let proxy = proxy.clone();
+            let runtime_clone = client.runtime().clone();
+            client.runtime().spawn(async move {
+                match proxy.handle_requests(runtime_clone, request_stream).await {
+                    Ok(()) => {
+                        debug!("Onion service {} exited cleanly.", nickname);
+                    }
+                    Err(e) => {
+                        warn_report!(e, "Onion service {} exited with an error", nickname);
+                    }
+                }
+            })?;
+        }
+
+        Ok(Proxy { svc, proxy })
+    }
+}
+
+/// A set of configured onion service proxies.
+#[allow(dead_code)] //TODO HSS remove once reconfigure is written.
+pub(crate) struct ProxySet {
+    /// The proxies themselves, indexed by nickname.
+    proxies: HashMap<HsNickname, Proxy>,
+}
+
+impl ProxySet {
+    /// Create and launch a set of onion service proxies.
+    pub(crate) fn launch_new<R: Runtime>(
+        client: &arti_client::TorClient<R>,
+        config_list: OnionServiceProxyConfigList,
+    ) -> anyhow::Result<Self> {
+        // TODO HSS: Perhaps OnionServiceProxyConfigList needs to enforce no
+        // duplicate nicknames?
+        let proxies: HashMap<_, _> = config_list
+            .into_iter()
+            .map(|cfg| {
+                let nickname = cfg.svc_cfg.nickname().clone();
+                Ok((nickname, Proxy::launch_new(client, cfg)?))
+            })
+            .collect::<anyhow::Result<HashMap<_, _>>>()?;
+
+        Ok(Self { proxies })
+    }
+
+    // TODO HSS: reconfigure
 }

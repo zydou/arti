@@ -38,6 +38,8 @@ impl ProxyConfigBuilder {
             covered.insert(range.clone());
         }
 
+        // TODO HSS: Eventually we may want to warn if there are no `Forward`
+        // rules, or if the rule list is empty, since this is likely an accident.
         Ok(())
     }
 }

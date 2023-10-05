@@ -84,6 +84,13 @@ pub struct OnionServiceConfig {
     // one.
 }
 
+impl OnionServiceConfig {
+    /// Return a reference to this configuration's nickname.
+    pub fn nickname(&self) -> &HsNickname {
+        &self.nickname
+    }
+}
+
 impl OnionServiceConfigBuilder {
     /// Builder helper: check wither the options in this builder are consistent.
     fn validate(&self) -> Result<(), ConfigBuildError> {
