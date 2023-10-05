@@ -45,7 +45,7 @@ type Id = slotmap::DefaultKey;
 
 /// Future for `sleep`
 ///
-/// Iff this struct exists, there is an entry for `id` in `prov.wakers`.
+/// Iff this struct exists, there is an entry for `id` in `prov.futures`.
 /// (It might contain `None`.)
 pub struct SleepFuture {
     /// Reference to our state
@@ -59,7 +59,7 @@ pub struct SleepFuture {
 ///
 /// Each sleep ([`Id`], [`SleepFuture`]) is in one of the following states:
 ///
-/// | state       | [`SleepFuture`]  | `wakers`         | `unready`          |
+/// | state       | [`SleepFuture`]  | `futures`         | `unready`          |
 /// |-------------|------------------|------------------|--------------------|
 /// | UNPOLLLED   | exists           | present, `None`  | present, `> now`   |
 /// | WAITING     | exists           | present, `Some`  | present, `> now`   |
@@ -73,7 +73,7 @@ pub struct State {
     /// Current wallclock time
     wallclock: SystemTime,
 
-    /// Wakers; record of every existing [`SleepFuture`]
+    /// Futures; record of every existing [`SleepFuture`], including any `Waker`
     ///
     /// Entry exists iff `SleepFuture` exists.
     ///
@@ -82,11 +82,11 @@ pub struct State {
     ///
     /// We could use a `Vec` or `TiVec`
     /// but using a slotmap is more robust against bugs here.
-    wakers: DenseSlotMap<Id, Option<Waker>>,
+    futures: DenseSlotMap<Id, Option<Waker>>,
 
     /// Priority queue
     ///
-    /// Subset of `wakers`.
+    /// Subset of `futures`.
     ///
     /// An entry is present iff the `Instant` is *strictly* after `State.now`,
     /// in which case that's when the future should be woken.
@@ -108,7 +108,7 @@ impl Provider {
         let state = State {
             now,
             wallclock,
-            wakers: Default::default(),
+            futures: Default::default(),
             unready: Default::default(),
         };
         Provider {
@@ -202,7 +202,7 @@ impl SleepProvider for Provider {
         let mut state = self.lock();
         let until = state.now + d;
 
-        let id = state.wakers.insert(None);
+        let id = state.futures.insert(None);
         state.unready.push(id, Reverse(until));
 
         let fut = SleepFuture {
@@ -239,7 +239,7 @@ impl Future for SleepFuture {
             assert!(*scheduled > state.now);
             let waker = Some(cx.waker().clone());
             // Make this be WAITING.  (If we're re-polled, we simply drop any previous waker.)
-            *state.wakers.get_mut(self.id).expect("polling wakers entry") = waker;
+            *state.futures.get_mut(self.id).expect("polling futures entry") = waker;
             Poll::Pending
         } else {
             // Absence implies scheduled (no longer stored) <= now: we are READY
@@ -262,8 +262,8 @@ impl State {
                     let (id, _) = self.unready.pop().expect("vanished");
                     // We can .take() the waker since this can only ever run once
                     // per sleep future (since it happens when we pop it from unready).
-                    let wakers_entry = self.wakers.get_mut(id).expect("stale unready entry");
-                    if let Some(waker) = wakers_entry.take() {
+                    let futures_entry = self.futures.get_mut(id).expect("stale unready entry");
+                    if let Some(waker) = futures_entry.take() {
                         waker.wake();
                     }
                 }
@@ -276,7 +276,7 @@ impl State {
 impl Drop for SleepFuture {
     fn drop(&mut self) {
         let mut state = self.prov.lock();
-        let _: Option<Waker> = state.wakers.remove(self.id).expect("entry vanished");
+        let _: Option<Waker> = state.futures.remove(self.id).expect("entry vanished");
         let _: Option<(Id, Reverse<Instant>)> = state.unready.remove(&self.id);
         // Now it is DROPPED.
     }
