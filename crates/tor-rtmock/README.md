@@ -17,9 +17,14 @@ crates in Arti that rely on asynchronous runtimes.
 
 This crate should only be used for writing tests.
 
-Currently, we support mocking the passage of time (via
-[`MockSleepRuntime`]), and impersonating the internet (via
-[`MockNetRuntime`]).
+The principal entrypoint for writing tests is [`MockRuntime`],
+particularly [`test_with_various`](MockRuntime::test_with_various).
+
+It supports mocking the passage of time
+(via [`SimpleMockTimeProvider`](simple_time::SimpleMockTimeProvider)
+and
+[`MockExecutor`](task::MockExecutor)),
+and impersonating the internet (via [`MockNetRuntime`]).
 
 (TODO: Add an example for the timeout case.)
 
