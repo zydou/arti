@@ -1,6 +1,7 @@
 //! Completely mock runtime
 
 use std::fmt::{Debug, Display};
+use std::ops::ControlFlow;
 
 use amplify::Getters;
 use futures::FutureExt as _;
@@ -11,8 +12,8 @@ use void::{ResultVoidExt as _, Void};
 use crate::util::impl_runtime_prelude::*;
 
 use crate::net::MockNetProvider;
+use crate::simple_time::SimpleMockTimeProvider;
 use crate::task::{MockExecutor, SchedulingPolicy};
-use crate::time::MockSleepProvider;
 
 /// Completely mock runtime
 ///
@@ -21,13 +22,8 @@ use crate::time::MockSleepProvider;
 ///
 /// ### Restrictions
 ///
-/// The test case must advance the mock time explicitly as desired.
-/// There is not currently any facility for automatically
-/// making progress by advancing the mock time by the right amounts
-/// for the timeouts set by the futures under test.
-// ^ I think such a facility could be provided.  `MockSleepProvider` would have to
-//   provide a method to identify the next interesting time event.
-//   The waitfor machinery in MockSleepProvider and MockSleepRuntime doesn't seem suitable.
+/// The test case must advance the mock time explicitly as desired,
+/// typically by calling one of the `MockRuntime::advance_*` methods.
 ///
 /// Tests that use this runtime *must not* interact with the outside world;
 /// everything must go through this runtime (and its pieces).
@@ -73,7 +69,7 @@ pub struct MockRuntime {
     task: MockExecutor,
     /// Time provider
     #[adhoc(mock(sleep))]
-    sleep: MockSleepProvider,
+    sleep: SimpleMockTimeProvider,
     /// Net provider
     #[adhoc(mock(net))]
     net: MockNetProvider,
@@ -166,15 +162,15 @@ impl MockRuntime {
     ///
     /// See [`progress_until_stalled`](MockRuntime::progress_until_stalled)
     pub async fn advance_until_stalled(&self) {
-        loop {
-            self.progress_until_stalled().await;
+        self.advance_inner(|| {
             let Some(timeout) = self.time_until_next_timeout() else {
                 // Nothing is waiting on timeouts
-                return;
+                return ControlFlow::Break(());
             };
             assert_ne!(timeout, Duration::ZERO);
-            self.sleep.advance(timeout).await;
-        }
+            ControlFlow::Continue(timeout)
+        })
+        .await;
     }
 
     /// Run tasks in the current executor until every task except this one is waiting
@@ -188,9 +184,9 @@ impl MockRuntime {
     /// Usually
     /// (and especially if the tasks under test are waiting for timeouts or periodic events)
     /// you must use
-    /// [`advance()`](MockRuntime::advance)
+    /// [`advance_by()`](MockRuntime::advance_by)
     /// or
-    /// [`jump_to()`](MockRuntime::jump_to)
+    /// [`advance_until()`](MockRuntime::advance_until)
     /// to ensure the simulated time progresses as required.
     ///
     /// # Panics
@@ -224,9 +220,7 @@ impl MockRuntime {
     ///
     /// And, see [`progress_until_stalled`](MockRuntime::progress_until_stalled)
     pub async fn advance_until(&self, limit: Instant) -> Option<Duration> {
-        loop {
-            self.task.progress_until_stalled().await;
-
+        self.advance_inner(|| {
             let timeout = self.time_until_next_timeout();
 
             let limit = limit
@@ -235,19 +229,61 @@ impl MockRuntime {
 
             if limit == Duration::ZERO {
                 // Time has reached `limit`
-                return timeout;
+                return ControlFlow::Break(timeout);
             }
 
             let advance = chain!(timeout, [limit]).min().expect("empty!");
             assert_ne!(advance, Duration::ZERO);
-            self.sleep.advance(advance).await;
+
+            ControlFlow::Continue(advance)
+        })
+        .await
+    }
+
+    /// Advance time, firing events and other tasks - internal implementaton
+    ///
+    /// Common code for `advance_*`.
+    ///
+    /// `body` will called after `progress_until_stalled`.
+    /// It should examine the simulated time, and the next timeout,
+    /// and decide what to do - returning
+    /// `Break` to break the loop, or
+    /// `Continue` giving the `Duration` by which to advance time and go round again.
+    #[allow(clippy::print_stderr)]
+    async fn advance_inner<B>(&self, mut body: impl FnMut() -> ControlFlow<B, Duration>) -> B {
+        /// Warn when we loop more than this many times per call
+        const WARN_AT: u32 = 1000;
+        let mut counter = Some(WARN_AT);
+
+        loop {
+            self.task.progress_until_stalled().await;
+
+            match body() {
+                ControlFlow::Break(v) => break v,
+                ControlFlow::Continue(advance) => {
+                    counter = match counter.map(|v| v.checked_sub(1)) {
+                        None => None,
+                        Some(Some(v)) => Some(v),
+                        Some(None) => {
+                            eprintln!(
+ "warning: MockRuntime advance_* looped >{WARN_AT} (next sleep: {}ms)\n{:?}",
+                                advance.as_millis(),
+                                self.mock_task().as_debug_dump(),
+                            );
+                            None
+                        }
+                    };
+
+                    self.sleep.advance(advance);
+                }
+            }
         }
     }
 
     /// Advances time by `dur`, firing time events and other tasks in order
     ///
-    /// Prefer this to [`MockSleepProvider::advance()`];
-    /// it works more correctly.
+    /// Prefer this to [`SimpleMockTimeProvider::advance()`];
+    /// it works more faithfully.
     ///
     /// Specifically, it advances time in successive stages,
     /// so that timeouts occur sequentially, in the right order.
@@ -266,9 +302,9 @@ impl MockRuntime {
         self.advance_until(limit).await
     }
 
-    /// See [`MockSleepProvider::jump_to()`]
-    pub fn jump_to(&self, new_wallclock: SystemTime) {
-        self.sleep.jump_to(new_wallclock);
+    /// See [`SimpleMockTimeProvider::jump_wallclock()`]
+    pub fn jump_wallclock(&self, new_wallclock: SystemTime) {
+        self.sleep.jump_wallclock(new_wallclock);
     }
 
     /// Return the amount of virtual time until the next timeout
@@ -288,29 +324,8 @@ impl MockRuntime {
     /// can depend on whether tasks have actually yet polled various futures.
     /// The answer should be correct after
     /// [`progress_until_stalled`](Self::progress_until_stalled).
-    //
-    // The corresponding method on MockSleepProvider is still only pub(crate),
-    // mostly because I think's very hard (or maybe impossible) to use correctly,
-    // other than as part of the implementation, without `progress_until_stalled`.
     pub fn time_until_next_timeout(&self) -> Option<Duration> {
         self.sleep.time_until_next_timeout()
-    }
-
-    /// Dispatches to [`MockSleepProvider::advance()`]
-    ///
-    /// ### Deprecated
-    ///
-    /// Usually, you will want `MockRuntime::advance_by`,
-    /// which advances the time in stages,
-    /// ensuring that all timeouts trigger in the expected sequence.
-    /// Changing from `advance` to `advance_by` should be correct,
-    /// but it can expose new bugs.
-    ///
-    /// If you want to step the time in one go,
-    /// use `runtime.mock_sleep().advance()`.
-    #[deprecated(note = "use MockRuntime::advance_by, or MockSleepProvider::advance()")]
-    pub async fn advance(&self, dur: Duration) {
-        self.sleep.advance(dur).await;
     }
 }
 
@@ -335,9 +350,9 @@ impl MockRuntimeBuilder {
         } = self;
 
         let sleep = if let Some(starting_wallclock) = starting_wallclock {
-            MockSleepProvider::new(starting_wallclock)
+            SimpleMockTimeProvider::from_wallclock(starting_wallclock)
         } else {
-            MockSleepProvider::default()
+            SimpleMockTimeProvider::default()
         };
 
         let task = MockExecutor::with_scheduling(scheduling);

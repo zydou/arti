@@ -7,8 +7,14 @@ use crate::time::MockSleepProvider;
 
 use crate::util::impl_runtime_prelude::*;
 
-/// A wrapper Runtime that overrides the SleepProvider trait for the
+/// A deprecated wrapper Runtime that overrides SleepProvider for the
 /// underlying runtime.
+///
+/// ### Deprecated
+///
+/// The [`MockSleepProvider`] used here has some limitations.
+/// See its documentation for more information.
+/// Use [`MockRuntime`](crate::MockRuntime) for new tests.
 #[derive(Clone, Debug, Adhoc)]
 #[derive_adhoc(SomeMockRuntime)]
 pub struct MockSleepRuntime<R: Runtime> {

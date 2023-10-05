@@ -574,7 +574,7 @@ mod test {
             // (just jump the clock)
             runtime.advance_by(Duration::from_secs(1000000)).await;
             // set SystemTime to a known value
-            runtime.jump_to(earliest_systemtime());
+            runtime.jump_wallclock(earliest_systemtime());
 
             let (tx, mut rx) = oneshot::channel();
 

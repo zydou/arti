@@ -962,7 +962,7 @@ pub(crate) mod test {
                     // let expiry task get going and choose its expiry (wakeup) time
                     runtime.progress_until_stalled().await;
                     // TODO: Make this use runtime.advance_by() when that's not very slow
-                    runtime.mock_sleep().advance(duration).await;
+                    runtime.mock_sleep().advance(duration);
                     // let expiry task run
                     runtime.progress_until_stalled().await;
                     hsconn.services().unwrap().run_housekeeping(runtime.now());
