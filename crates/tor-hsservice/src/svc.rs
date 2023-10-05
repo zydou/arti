@@ -201,6 +201,10 @@ impl OnionService {
                 _ => Arc::new(new_config),
             })
         })
+
+        // TODO HSS: We need to make sure that the various tasks listening on
+        // config_rx actually enforce the configuration, not only on new
+        // connections, but existing ones.
     }
 
     /// Tell this onion service about some new short-term keys it can use.
