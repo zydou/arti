@@ -170,9 +170,15 @@ impl Provider {
     ///
     /// Advancing time by at least this amount will wake up that future,
     /// and any others with the same wakeup time.
+    ///
+    /// Will never return `Some(ZERO)`:
+    /// any future that is supposed to wake up now (or earlier) has indeed already been woken,
+    /// so it is no longer sleeping and isn't included in the calculation.
     pub fn time_until_next_timeout(&self) -> Option<Duration> {
         let state = self.lock();
         let Reverse(until) = state.pq.peek()?.1;
+        // The invariant (see `State`) guarantees that entries in `pq` are always `> now`,
+        // so we don't whether duration_since would panic or saturate.
         let d = until.duration_since(state.now);
         Some(d)
     }
