@@ -23,6 +23,7 @@ use tracing::{debug, trace, warn};
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
 use crate::svc::publish::Publisher;
+use crate::HsNickname;
 use crate::HsSvcKeyRole;
 use crate::HsSvcKeySpecifier;
 use crate::OnionServiceConfig;
@@ -162,65 +163,7 @@ impl OnionService {
         //let offline_hsid = config.offline_hsid;
         let offline_hsid = false;
 
-        let hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcKeyRole::HsIdKeypair);
-        let pub_hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcKeyRole::HsIdPublicKey);
-
-        let has_hsid_kp = keymgr
-            .get::<HsIdKeypair>(&hsid_spec)
-            .map_err(|cause| StartupError::Keystore {
-                action: "read",
-                cause,
-            })?
-            .is_some();
-
-        let has_hsid_pub = keymgr
-            .get::<HsIdKey>(&pub_hsid_spec)
-            .map_err(|cause| StartupError::Keystore {
-                action: "read",
-                cause,
-            })?
-            .is_some();
-
-        // If KS_hs_id is missing (and not stored offline), generate a new keypair.
-        //
-        // TODO HSS: if the hsid is missing but the service key directory exists, should we remove
-        // any preexisting keys from it?
-        if !offline_hsid {
-            if !has_hsid_kp && has_hsid_pub {
-                // The hsid keypair is missing, but the hsid public key is not, so we can't
-                // generate a fresh keypair. We also cannot proceed, because the hsid is not
-                // supposed to be offline
-                warn!("offline_hsid is false, but KS_hs_id missing!");
-
-                return Err(StartupError::KeystoreCorrupted);
-            }
-
-            // TODO HSS: make the selector configurable
-            let keystore_sel = KeystoreSelector::Default;
-            let mut rng = rand::thread_rng();
-
-            // NOTE: KeyMgr::generate will generate a new hsid keypair and corresponding public
-            // key.
-            if keymgr
-                .generate_with_derived::<HsIdKeypair, ed25519::PublicKey>(
-                    &hsid_spec,
-                    &pub_hsid_spec,
-                    keystore_sel,
-                    |sk| sk.public,
-                    &mut rng,
-                    false, /* overwrite */
-                )
-                .map_err(|cause| StartupError::Keystore {
-                    action: "generate key",
-                    cause,
-                })?
-                .is_none()
-            {
-                debug!("Generated a new identity for service {nickname}");
-            } else {
-                trace!("Using existing identity for service {nickname}");
-            }
-        }
+        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
@@ -327,4 +270,73 @@ impl OnionService {
     pub fn stop(&self) {
         todo!() // TODO hss
     }
+}
+
+/// Generate the identity key of the service, unless it already exists or `offline_hsid` is `true`.
+fn maybe_generate_hsid(
+    keymgr: &Arc<KeyMgr>,
+    nickname: &HsNickname,
+    offline_hsid: bool,
+) -> Result<(), StartupError> {
+    let hsid_spec = HsSvcKeySpecifier::new(nickname, HsSvcKeyRole::HsIdKeypair);
+    let pub_hsid_spec = HsSvcKeySpecifier::new(nickname, HsSvcKeyRole::HsIdPublicKey);
+
+    let has_hsid_kp = keymgr
+        .get::<HsIdKeypair>(&hsid_spec)
+        .map_err(|cause| StartupError::Keystore {
+            action: "read",
+            cause,
+        })?
+        .is_some();
+
+    let has_hsid_pub = keymgr
+        .get::<HsIdKey>(&pub_hsid_spec)
+        .map_err(|cause| StartupError::Keystore {
+            action: "read",
+            cause,
+        })?
+        .is_some();
+
+    // If KS_hs_id is missing (and not stored offline), generate a new keypair.
+    //
+    // TODO HSS: if the hsid is missing but the service key directory exists, should we remove
+    // any preexisting keys from it?
+    if !offline_hsid {
+        if !has_hsid_kp && has_hsid_pub {
+            // The hsid keypair is missing, but the hsid public key is not, so we can't
+            // generate a fresh keypair. We also cannot proceed, because the hsid is not
+            // supposed to be offline
+            warn!("offline_hsid is false, but KS_hs_id missing!");
+
+            return Err(StartupError::KeystoreCorrupted);
+        }
+
+        // TODO HSS: make the selector configurable
+        let keystore_sel = KeystoreSelector::Default;
+        let mut rng = rand::thread_rng();
+
+        // NOTE: KeyMgr::generate will generate a new hsid keypair and corresponding public
+        // key.
+        if keymgr
+            .generate_with_derived::<HsIdKeypair, ed25519::PublicKey>(
+                &hsid_spec,
+                &pub_hsid_spec,
+                keystore_sel,
+                |sk| sk.public,
+                &mut rng,
+                false, /* overwrite */
+            )
+            .map_err(|cause| StartupError::Keystore {
+                action: "generate key",
+                cause,
+            })?
+            .is_none()
+        {
+            debug!("Generated a new identity for service {nickname}");
+        } else {
+            trace!("Using existing identity for service {nickname}");
+        }
+    }
+
+    Ok(())
 }
