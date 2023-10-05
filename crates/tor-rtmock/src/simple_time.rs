@@ -239,7 +239,10 @@ impl Future for SleepFuture {
             assert!(*scheduled > state.now);
             let waker = Some(cx.waker().clone());
             // Make this be WAITING.  (If we're re-polled, we simply drop any previous waker.)
-            *state.futures.get_mut(self.id).expect("polling futures entry") = waker;
+            *state
+                .futures
+                .get_mut(self.id)
+                .expect("polling futures entry") = waker;
             Poll::Pending
         } else {
             // Absence implies scheduled (no longer stored) <= now: we are READY
