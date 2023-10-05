@@ -59,7 +59,7 @@ pub struct SleepFuture {
 ///
 /// Each sleep ([`Id`], [`SleepFuture`]) is in one of the following states:
 ///
-/// | state       | [`SleepFuture`]  | `wakers`         | `pq`               |
+/// | state       | [`SleepFuture`]  | `wakers`         | `unready`          |
 /// |-------------|------------------|------------------|--------------------|
 /// | UNPOLLLED   | exists           | present, `None`  | present, `> now`   |
 /// | WAITING     | exists           | present, `Some`  | present, `> now`   |
@@ -92,7 +92,7 @@ pub struct State {
     /// in which case that's when the future should be woken.
     ///
     /// `PriorityQueue` is a max-heap but we want earliest times, hence `Reverse`
-    pq: PriorityQueue<Id, Reverse<Instant>>,
+    unready: PriorityQueue<Id, Reverse<Instant>>,
 }
 
 /// `Default` makes a `Provider` which starts at whatever the current real time is
@@ -109,7 +109,7 @@ impl Provider {
             now,
             wallclock,
             wakers: Default::default(),
-            pq: Default::default(),
+            unready: Default::default(),
         };
         Provider {
             state: Arc::new(Mutex::new(state)),
@@ -182,8 +182,8 @@ impl Provider {
     /// so it is no longer sleeping and isn't included in the calculation.
     pub fn time_until_next_timeout(&self) -> Option<Duration> {
         let state = self.lock();
-        let Reverse(until) = state.pq.peek()?.1;
-        // The invariant (see `State`) guarantees that entries in `pq` are always `> now`,
+        let Reverse(until) = state.unready.peek()?.1;
+        // The invariant (see `State`) guarantees that entries in `unready` are always `> now`,
         // so we don't whether duration_since would panic or saturate.
         let d = until.duration_since(state.now);
         Some(d)
@@ -203,7 +203,7 @@ impl SleepProvider for Provider {
         let until = state.now + d;
 
         let id = state.wakers.insert(None);
-        state.pq.push(id, Reverse(until));
+        state.unready.push(id, Reverse(until));
 
         let fut = SleepFuture {
             id,
@@ -234,7 +234,7 @@ impl Future for SleepFuture {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         let mut state = self.prov.lock();
-        if let Some((_, Reverse(scheduled))) = state.pq.get(&self.id) {
+        if let Some((_, Reverse(scheduled))) = state.unready.get(&self.id) {
             // Presence of this entry implies scheduled > now: we are UNPOLLED or WAITING
             assert!(*scheduled > state.now);
             let waker = Some(cx.waker().clone());
@@ -249,20 +249,20 @@ impl Future for SleepFuture {
 }
 
 impl State {
-    /// Restore the invariant for `pq` after `now` has been increased
+    /// Restore the invariant for `unready` after `now` has been increased
     ///
     /// Ie, ensures that any sleeps which are
     /// WAITING/UNPOLLED except that they are `<= now`,
     /// are moved to state READY.
     fn wake_any(&mut self) {
         loop {
-            match self.pq.peek() {
+            match self.unready.peek() {
                 // Keep picking off entries with scheduled <= now
                 Some((_, Reverse(scheduled))) if *scheduled <= self.now => {
-                    let (id, _) = self.pq.pop().expect("vanished");
+                    let (id, _) = self.unready.pop().expect("vanished");
                     // We can .take() the waker since this can only ever run once
-                    // per sleep future (since it happens when we pop it from pq).
-                    let wakers_entry = self.wakers.get_mut(id).expect("stale pq entry");
+                    // per sleep future (since it happens when we pop it from unready).
+                    let wakers_entry = self.wakers.get_mut(id).expect("stale unready entry");
                     if let Some(waker) = wakers_entry.take() {
                         waker.wake();
                     }
@@ -277,7 +277,7 @@ impl Drop for SleepFuture {
     fn drop(&mut self) {
         let mut state = self.prov.lock();
         let _: Option<Waker> = state.wakers.remove(self.id).expect("entry vanished");
-        let _: Option<(Id, Reverse<Instant>)> = state.pq.remove(&self.id);
+        let _: Option<(Id, Reverse<Instant>)> = state.unready.remove(&self.id);
         // Now it is DROPPED.
     }
 }
