@@ -88,7 +88,7 @@ pub struct State {
     ///
     /// Subset of `wakers`.
     ///
-    /// An entry is present iff the `Instant` is *strictly* less than `State.now`,
+    /// An entry is present iff the `Instant` is *strictly* after `State.now`,
     /// in which case that's when the future should be woken.
     ///
     /// `PriorityQueue` is a max-heap but we want earliest times, hence `Reverse`
@@ -206,7 +206,7 @@ impl SleepProvider for Provider {
 
         // This sleep is now UNPOLLLED, except that its time might be `<= now`:
 
-        // Possibly, `until` isn't *strictly* greater than `state.now`, since d might be 0.
+        // Possibly, `until` isn't *strictly* after than `state.now`, since d might be 0.
         // If so, .wake_any() will restore the invariant by immediately waking.
         state.wake_any();
 
