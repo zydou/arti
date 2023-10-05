@@ -56,6 +56,15 @@ pub struct SleepFuture {
 }
 
 /// Mutable state for a [`Provider`]
+///
+/// Each sleep ([`Id`], [`SleepFuture`]) is in one of the following states:
+///
+/// | state       | [`SleepFuture`]  | `wakers`         | `pq`               |
+/// |-------------|------------------|------------------|--------------------|
+/// | UNPOLLLED   | exists           | present, `None`  | present, `> now`   |
+/// | WAITING     | exists           | present, `Some`  | present, `> now`   |
+/// | READY       | exists           | present, `None`  | absent             |
+/// | DROPPED     | dropped          | absent           | absent             |
 #[derive(Debug, AsMut)]
 pub struct State {
     /// Current time
@@ -189,9 +198,13 @@ impl SleepProvider for Provider {
             prov: self.clone(),
         };
 
+        // This sleep is now UNPOLLLED, except that its time might be `<= now`:
+
         // Possibly, `until` isn't *strictly* greater than `state.now`, since d might be 0.
         // If so, .wake_any() will restore the invariant by immediately waking.
         state.wake_any();
+
+        // This sleep is now UNPOLLED or READY, according to whether duration was 0.
 
         fut
     }
@@ -210,13 +223,14 @@ impl Future for SleepFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         let mut state = self.prov.lock();
         if let Some((_, Reverse(scheduled))) = state.pq.get(&self.id) {
-            // Presence of this entry implies scheduled > now
+            // Presence of this entry implies scheduled > now: we are UNPOLLED or WAITING
             assert!(*scheduled > state.now);
             let waker = Some(cx.waker().clone());
+            // Make this be WAITING.  (If we're re-polled, we simply drop any previous waker.)
             *state.wakers.get_mut(self.id).expect("polling wakers entry") = waker;
             Poll::Pending
         } else {
-            // Absence implies scheduled (no longer stored) <= now
+            // Absence implies scheduled (no longer stored) <= now: we are READY
             Poll::Ready(())
         }
     }
@@ -224,6 +238,10 @@ impl Future for SleepFuture {
 
 impl State {
     /// Restore the invariant for `pq` after `now` has been increased
+    ///
+    /// Ie, ensures that any sleeps which are
+    /// WAITING/UNPOLLED except that they are `<= now`,
+    /// are moved to state READY.
     fn wake_any(&mut self) {
         loop {
             match self.pq.peek() {
@@ -248,6 +266,7 @@ impl Drop for SleepFuture {
         let mut state = self.prov.lock();
         let _: Option<Waker> = state.wakers.remove(self.id).expect("entry vanished");
         let _: Option<(Id, Reverse<Instant>)> = state.pq.remove(&self.id);
+        // Now it is DROPPED.
     }
 }
 
