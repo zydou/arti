@@ -116,7 +116,7 @@ We plan to improve the security, and will then enable `.onion` connections by de
 
 In the meantime, if you would like to try it out,
 you can
-enable it on the command line (`cargo run -p arti -o address_filter.allow_onion_addrs=true proxy`).
+enable it on the command line (`cargo run -p arti -- -o address_filter.allow_onion_addrs=true proxy`).
 or
 edit your config file (set `allow_onion_addrs = true` in the section `[address_filter]`)
 
