@@ -24,6 +24,7 @@ use tor_hscrypto::{
     pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair},
     Subcredential,
 };
+use tor_keymgr::KeyMgr;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
@@ -198,6 +199,7 @@ impl IptEstablisher {
         runtime: R,
         params: IptParameters,
         pool: Arc<HsCircPool<R>>,
+        keymgr: Arc<KeyMgr>,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
         // This exhaustive deconstruction ensures that we don't
         // accidentally forget to handle any of our inputs.

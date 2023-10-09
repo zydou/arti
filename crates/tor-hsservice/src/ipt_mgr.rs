@@ -25,6 +25,7 @@ use postage::watch;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tor_keymgr::KeyMgr;
 use tracing::{debug, error, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
@@ -106,7 +107,8 @@ pub(crate) struct Immutable<R> {
 }
 
 /// State of an IPT Manager
-#[derive(Debug)]
+#[derive(Educe)]
+#[educe(Debug(bound))]
 pub(crate) struct State<R, M> {
     /// Source of configuration updates
     new_configs: watch::Receiver<Arc<OnionServiceConfig>>,
@@ -144,6 +146,10 @@ pub(crate) struct State<R, M> {
     /// even though the main code doesn't need `mut`
     /// since `HsCircPool` is a service with interior mutability.
     mockable: M,
+
+    /// The key manager.
+    #[educe(Debug(ignore))]
+    keymgr: Arc<KeyMgr>,
 
     /// Runtime (to placate compiler)
     runtime: PhantomData<R>,
@@ -343,6 +349,7 @@ impl IptRelay {
         &mut self,
         imm: &Immutable<R>,
         mockable: &mut M,
+        keymgr: Arc<KeyMgr>,
     ) -> Result<(), FatalError> {
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
@@ -364,7 +371,7 @@ impl IptRelay {
             k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
-        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
+        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params, keymgr)?;
 
         imm.runtime
             .spawn({
@@ -437,6 +444,7 @@ impl Ipt {
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Create a new IptManager
     #[allow(clippy::unnecessary_wraps)] // TODO HSS remove
+    #[allow(clippy::too_many_arguments)] // TODO HSS
     pub(crate) fn new(
         runtime: R,
         dirprovider: Arc<dyn NetDirProvider>,
@@ -445,6 +453,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         output_rend_reqs: mpsc::Sender<RendRequest>,
         shutdown: oneshot::Receiver<Void>,
         mockable: M,
+        keymgr: Arc<KeyMgr>,
     ) -> Result<Self, StartupError> {
         // TODO HSS-IPT-PERSIST load persistent state
 
@@ -470,6 +479,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             irelays: vec![],
             last_irelay_selection_outcome: Ok(()),
             runtime: PhantomData,
+            keymgr,
         };
         let mgr = IptManager { imm, state };
 
@@ -719,7 +729,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
-                ir.make_new_ipt(&self.imm, &mut self.state.mockable)?;
+                ir.make_new_ipt(
+                    &self.imm,
+                    &mut self.state.mockable,
+                    self.state.keymgr.clone(),
+                )?;
                 return CONTINUE;
             }
         }
@@ -1195,6 +1209,7 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
+        keymgr: Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
 
     /// Call `IptEstablisher::start_accepting`
@@ -1216,8 +1231,9 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
+        keymgr: Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
-        IptEstablisher::new(imm.runtime.clone(), params, self.circ_pool.clone())
+        IptEstablisher::new(imm.runtime.clone(), params, self.circ_pool.clone(), keymgr)
     }
 
     fn start_accepting(&self, establisher: &ErasedIptEstablisher) {
@@ -1290,6 +1306,7 @@ mod test {
     use slotmap::DenseSlotMap;
     use std::sync::Mutex;
     use tor_basic_utils::test_rng::TestingRng;
+    use tor_keymgr::Keystore;
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
@@ -1333,6 +1350,7 @@ mod test {
             &mut self,
             _imm: &Immutable<MockRuntime>,
             _params: IptParameters,
+            _keymgr: Arc<KeyMgr>,
         ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
             let (st_tx, st_rx) = watch::channel();
             let estab = MockEstabState { st_tx };
@@ -1353,6 +1371,52 @@ mod test {
             let _: MockEstabState = estabs
                 .remove(self.esid)
                 .expect("dropping non-recorded MockEstab");
+        }
+    }
+
+    // TODO HSS: make tor-keymgr provide a mock keystore.
+    struct TestKeystore;
+
+    impl Keystore for TestKeystore {
+        fn id(&self) -> &tor_keymgr::KeystoreId {
+            todo!()
+        }
+
+        fn contains(
+            &self,
+            _key_spec: &dyn tor_keymgr::KeySpecifier,
+            _key_type: &tor_keymgr::KeyType,
+        ) -> tor_keymgr::Result<bool> {
+            todo!()
+        }
+
+        fn get(
+            &self,
+            _key_spec: &dyn tor_keymgr::KeySpecifier,
+            _key_type: &tor_keymgr::KeyType,
+        ) -> tor_keymgr::Result<Option<tor_keymgr::ErasedKey>> {
+            todo!()
+        }
+
+        fn insert(
+            &self,
+            _key: &dyn tor_keymgr::EncodableKey,
+            _key_spec: &dyn tor_keymgr::KeySpecifier,
+            _key_type: &tor_keymgr::KeyType,
+        ) -> tor_keymgr::Result<()> {
+            todo!()
+        }
+
+        fn remove(
+            &self,
+            _key_spec: &dyn tor_keymgr::KeySpecifier,
+            _key_type: &tor_keymgr::KeyType,
+        ) -> tor_keymgr::Result<Option<()>> {
+            todo!()
+        }
+
+        fn list(&self) -> tor_keymgr::Result<Vec<(tor_keymgr::KeyPath, tor_keymgr::KeyType)>> {
+            todo!()
         }
     }
 
@@ -1385,6 +1449,7 @@ mod test {
 
             let (mgr_view, pub_view) = ipt_set::ipts_channel(None);
 
+            let keymgr = Arc::new(KeyMgr::new(TestKeystore, Default::default()));
             let mgr = IptManager::new(
                 runtime.clone(),
                 Arc::new(dir),
@@ -1393,6 +1458,7 @@ mod test {
                 rend_tx,
                 shut_rx,
                 mocks,
+                keymgr,
             )
             .unwrap();
 

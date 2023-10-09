@@ -157,6 +157,7 @@ impl OnionService {
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
             },
+            keymgr.clone(),
         )?;
 
         // TODO HSS: add a config option for specifying whether to expect the KS_hsid to be stored
