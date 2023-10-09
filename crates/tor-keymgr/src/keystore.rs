@@ -84,6 +84,14 @@ pub trait Keystore: Send + Sync + 'static {
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>>;
 }
 
+/// A trait for generating fresh keys.
+pub trait Keygen {
+    /// Generate a new key of this type.
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized;
+}
+
 /// A public key or a keypair.
 #[derive(From, Clone, Debug)]
 #[non_exhaustive]
@@ -120,25 +128,13 @@ pub trait EncodableKey: Downcast {
     where
         Self: Sized;
 
-    /// Generate a new key of this type.
-    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
-    where
-        Self: Sized;
-
     /// Return the [`SshKeyData`] of this key.
     fn as_ssh_key_data(&self) -> Result<SshKeyData>;
 }
 
 impl_downcast!(EncodableKey);
 
-impl EncodableKey for curve25519::StaticKeypair {
-    fn key_type() -> KeyType
-    where
-        Self: Sized,
-    {
-        KeyType::X25519StaticKeypair
-    }
-
+impl Keygen for curve25519::StaticKeypair {
     fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
@@ -147,6 +143,15 @@ impl EncodableKey for curve25519::StaticKeypair {
         let public = curve25519::PublicKey::from(&secret);
 
         Ok(curve25519::StaticKeypair { secret, public })
+    }
+}
+
+impl EncodableKey for curve25519::StaticKeypair {
+    fn key_type() -> KeyType
+    where
+        Self: Sized,
+    {
+        KeyType::X25519StaticKeypair
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
@@ -171,13 +176,6 @@ impl EncodableKey for curve25519::PublicKey {
         KeyType::X25519PublicKey
     }
 
-    fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        Err(internal!("cannot generate a public key without a private key!").into())
-    }
-
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
@@ -189,14 +187,7 @@ impl EncodableKey for curve25519::PublicKey {
     }
 }
 
-impl EncodableKey for ed25519::Keypair {
-    fn key_type() -> KeyType
-    where
-        Self: Sized,
-    {
-        KeyType::Ed25519Keypair
-    }
-
+impl Keygen for ed25519::Keypair {
     fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
@@ -204,6 +195,15 @@ impl EncodableKey for ed25519::Keypair {
         use tor_llcrypto::util::rand_compat::RngCompatExt;
 
         Ok(ed25519::Keypair::generate(&mut rng.rng_compat()))
+    }
+}
+
+impl EncodableKey for ed25519::Keypair {
+    fn key_type() -> KeyType
+    where
+        Self: Sized,
+    {
+        KeyType::Ed25519Keypair
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
@@ -224,17 +224,21 @@ impl EncodableKey for ed25519::PublicKey {
         KeyType::Ed25519PublicKey
     }
 
-    fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        Err(internal!("cannot generate a public key without a private key!").into())
-    }
-
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let key_data = Ed25519PublicKey(self.to_bytes());
 
         Ok(ssh_key::public::KeyData::Ed25519(key_data).into())
+    }
+}
+
+impl Keygen for ed25519::ExpandedKeypair {
+    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let keypair = <ed25519::Keypair as Keygen>::generate(rng)?;
+
+        Ok((&keypair).into())
     }
 }
 
@@ -244,15 +248,6 @@ impl EncodableKey for ed25519::ExpandedKeypair {
         Self: Sized,
     {
         KeyType::Ed25519ExpandedKeypair
-    }
-
-    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let keypair = <ed25519::Keypair as EncodableKey>::generate(rng)?;
-
-        Ok((&keypair).into())
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {

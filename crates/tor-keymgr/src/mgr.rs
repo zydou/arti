@@ -9,13 +9,13 @@
 //! order to implement this safely without locking, the key store operations (get,
 //! insert, remove) will need to be atomic.
 //!
-//! **Note**: [`KeyMgr::generate`] should **not** be used concurrently with any other `KeyMgr`
-//! operation that mutates the state of key stores, because its outcome depends on whether the
-//! selected key store [`contains`][Keystore::contains] the specified key (and thus suffers from a
-//! a TOCTOU race).
+//! **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
+//! concurrently with any other `KeyMgr` operation that mutates the state of key stores, because
+//! their outcome depends on whether the selected key store [`contains`][Keystore::contains] the
+//! specified key (and thus suffers from a a TOCTOU race).
 
 use crate::{
-    EncodableKey, KeySpecifier, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
+    EncodableKey, KeySpecifier, Keygen, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
     ToEncodableKey,
 };
 
@@ -71,19 +71,139 @@ impl KeyMgr {
     //
     // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
-    pub fn generate<K: ToEncodableKey>(
+    pub fn generate<K>(
         &self,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
         rng: &mut dyn KeygenRng,
         overwrite: bool,
-    ) -> Result<Option<()>> {
+    ) -> Result<Option<()>>
+    where
+        K: ToEncodableKey,
+        K::Key: Keygen,
+    {
         let store = self.select_keystore(&selector)?;
         let key_type = K::Key::key_type();
 
         if overwrite || !store.contains(key_spec, key_type)? {
             let key = K::Key::generate(rng)?;
             store.insert(&key, key_spec, key_type).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Generate a new keypair of type `SK` and the corresponding public key of type `PK`, and
+    /// insert them into the key store specified by `selector`.
+    ///
+    /// If the keypair already exists in the specified key store, the `overwrite` flag is used to
+    /// decide whether to overwrite it with a newly generated key.
+    ///
+    /// If `overwrite` is `false` and the keypair already exists in the keystore, but the
+    /// corresponding public key does not, ththe public key will be derived from the existing
+    /// keypair and inserted into the keystore.
+    ///
+    /// If `overwrite` is `false` and the keypair does not exist in the keystore, but its
+    /// corresponding public key does, this will **not** generate a fresh keypair.
+    ///
+    /// Returns `Ok(Some(())` if a new keypair was created, and `Ok(None)` otherwise.
+    ///
+    /// **NOTE**: If the keypair and its corresponding public key already exist in the keystore,
+    /// this function checks if they match. If they do not, it returns an error.
+    ///
+    /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
+    /// mutates the key store state is **not** recommended, as it can yield surprising results! The
+    /// outcome of [`KeyMgr::generate_with_derived`] depends on whether the selected key store
+    /// [`contains`][Keystore::contains] the specified keypair, and thus suffers from a a TOCTOU race.
+    //
+    // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
+    // overwrite any existing keys.
+    pub fn generate_with_derived<SK, PK>(
+        &self,
+        keypair_key_spec: &dyn KeySpecifier,
+        public_key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+        mut derive_pub: impl FnMut(&SK::Key) -> PK,
+        rng: &mut dyn KeygenRng,
+        overwrite: bool,
+    ) -> Result<Option<()>>
+    where
+        SK: ToEncodableKey,
+        SK::Key: Keygen,
+        PK: EncodableKey + PartialEq,
+    {
+        // TODO HSS: at some point we may want to support putting the keypair and public key in
+        // different keystores.
+        let store = self.select_keystore(&selector)?;
+        let keypair = store.get(keypair_key_spec, SK::Key::key_type())?;
+        let public_key = store.get(public_key_spec, PK::key_type())?;
+
+        let generate_key = match (keypair, public_key) {
+            (Some(keypair), None) if !overwrite => {
+                // The keypair exists, but its corresponding public key entry does not, so we derive
+                // the public key and create a new entry for it.
+                let keypair: SK::Key = keypair
+                    .downcast::<SK::Key>()
+                    .map(|k| *k)
+                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
+                let public_key = derive_pub(&keypair);
+
+                let _ = store.insert(&public_key, public_key_spec, PK::key_type())?;
+
+                false
+            }
+            (Some(_), None) => {
+                // overwrite = true, so we don't need to extract the public key from the existing
+                // keypair, as we're about to replace the keypair with a newly generated one
+                true
+            }
+            (Some(keypair), Some(public)) => {
+                let keypair: SK::Key = keypair
+                    .downcast::<SK::Key>()
+                    .map(|k| *k)
+                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
+
+                let public: PK = public
+                    .downcast::<PK>()
+                    .map(|k| *k)
+                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
+
+                // Check that the existing public key matches the keypair
+                //
+                // TODO HSS: I'm not sure this validation belongs here.
+                let expected_public = derive_pub(&keypair);
+
+                if expected_public != public {
+                    // TODO HSS: internal! is not right, create an error type for KeyMgr errors and
+                    // add context
+                    return Err(internal!(
+                        "keystore corruption: public key does not match keypair"
+                    )
+                    .into());
+                }
+
+                // Both keys exist, so we only need to generate new keys if overwrite = true
+                overwrite
+            }
+            (None, None) => {
+                // Both keys are missing, so we have to generate them.
+                true
+            }
+            (None, Some(_)) => {
+                // The public key exists, but its corresponding keypair is missing. We can't
+                // generate a new keypair, as that would have a different public key entry.
+                false
+            }
+        };
+
+        if generate_key {
+            let keypair = SK::Key::generate(rng)?;
+            let _ = store.insert(&keypair, keypair_key_spec, SK::Key::key_type())?;
+
+            let public_key = derive_pub(&keypair);
+            let _ = store.insert(&public_key, public_key_spec, PK::key_type())?;
+
+            Ok(Some(()))
         } else {
             Ok(None)
         }
@@ -202,6 +322,18 @@ mod tests {
     /// The type of "key" stored in the test key stores.
     type TestKey = String;
 
+    /// The corresponding fake public key type.
+    type TestPublicKey = String;
+
+    impl Keygen for TestKey {
+        fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
+        where
+            Self: Sized,
+        {
+            Ok("generated_test_key".into())
+        }
+    }
+
     impl EncodableKey for TestKey {
         fn key_type() -> KeyType
         where
@@ -209,13 +341,6 @@ mod tests {
         {
             // Dummy value
             KeyType::Ed25519Keypair
-        }
-
-        fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
-        where
-            Self: Sized,
-        {
-            Ok("generated_test_key".into())
         }
 
         fn as_ssh_key_data(&self) -> Result<SshKeyData> {
@@ -345,6 +470,8 @@ mod tests {
     impl_specifier!(TestKeySpecifier1, "spec1");
     impl_specifier!(TestKeySpecifier2, "spec2");
     impl_specifier!(TestKeySpecifier3, "spec3");
+
+    impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
 
     #[test]
     fn insert_and_get() {
@@ -493,24 +620,51 @@ mod tests {
         )
         .unwrap();
 
+        // There is no corresponding public key entry.
+        assert_eq!(
+            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
+            None
+        );
+
         // Try to generate a new key (overwrite = false)
-        mgr.generate::<TestKey>(
+        mgr.generate_with_derived::<TestKey, TestPublicKey>(
             &TestKeySpecifier1,
+            &TestPublicKeySpecifier1,
             KeystoreSelector::Default,
+            |sk| TestKey::from(sk),
             &mut testing_rng(),
             false,
         )
         .unwrap();
 
+        // The previous entry was not overwritten because overwrite = false
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
             Some("keystore1_coot".to_string())
         );
 
+        // Because overwrite = false and the keypair already exists in the keystore,
+        // generate() creates a new public key entry derived from the existing keypair.
+        assert_eq!(
+            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
+            Some("keystore1_keystore1_coot".to_string())
+        );
+
         // Try to generate a new key (overwrite = true)
-        mgr.generate::<TestKey>(
+        mgr.generate_with_derived::<TestKey, TestPublicKey>(
             &TestKeySpecifier1,
+            &TestPublicKeySpecifier1,
             KeystoreSelector::Default,
+            // We prefix the "key" with the id of the keystore it was retrieved from, because its
+            // value needs to match that of the public key that already exists in the keystore (the
+            // get() implementations of our test keystores prefix the keys with their keystore ID,
+            // for testing purposes).
+            //
+            // TODO(gabi): knowing which keystore a key came from is useful, because it enables us
+            // to check that KeyMgr::get works as expected (i.e. reads from the correct keystore),
+            // but encoding this information in the key itself makes these tests rather confusing
+            // to read. We should make the keystores return a (TestKey, KeystoreID) instead.
+            |sk| format!("keystore1_{sk}"),
             &mut testing_rng(),
             true,
         )
@@ -519,6 +673,18 @@ mod tests {
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
             Some("keystore1_generated_test_key".to_string())
+        );
+
+        // The public part of the key was overwritten too
+        //
+        // TODO HSS: instead of making the keys Strings, we should create a real test key type.
+        // This will enable us to test that the public key is indeed derived from the keypair using
+        // its From impl (as this assertion shows, the retrieved public key,
+        // keystore1_generated_test_key, looks the same as the keyapir, because it's using the
+        // From<String> impl for String).
+        assert_eq!(
+            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
+            Some("keystore1_keystore1_generated_test_key".to_string())
         );
     }
 }
