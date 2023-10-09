@@ -66,12 +66,24 @@ impl OnionServiceReverseProxy {
     }
 
     /// Try to change the configuration of this proxy.
-    pub fn reconfigure(&self, config: ProxyConfig) -> Result<(), tor_config::ReconfigureError> {
+    ///
+    /// This change applies only to new connections through the proxy; existing
+    /// connections are not affected. (TODO HSS: Is this the desired behavior?)
+    pub fn reconfigure(
+        &self,
+        config: ProxyConfig,
+        how: tor_config::Reconfigure,
+    ) -> Result<(), tor_config::ReconfigureError> {
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            // Every possible reconfiguration is allowed.
+            return Ok(());
+        }
         let mut state = self.state.lock().expect("poisoned lock");
         state.config = config;
         // Note: we don't need to use a postage::watch here, since we just want
         // to lock this configuration whenever we get a request.  We could use a
         // Mutex<Arc<>> instead, but the performance shouldn't matter.
+        //
         Ok(())
     }
 
