@@ -17,6 +17,8 @@
 
 // We want to use the exact variable names from the rend-spec-v3.txt proposal.
 // This means that we allow variables to be named x (privkey) and X (pubkey).
+// FIXME: this particular allow is rather hazardous since it can stop warnings
+//        about match statements containing bindings rather than variant names.
 #![allow(non_snake_case)]
 
 use crate::crypto::handshake::KeyGenerator;
