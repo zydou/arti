@@ -1049,14 +1049,11 @@ example config file {which:?}, uncommented={uncommented:?}
     #[test]
     fn onion_services() {
         // Here we require that the onion services configuration is between
-        // lines labeled with "##### (END )? ONION SERVICES",
+        // lines labeled with "##### ONION SERVICES" and "#### (something)",
         // and that each line of _real_ configuration in that section begins
         // with "#    ".
         let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow(
-            (r"^##### ONION SERVICES", true),
-            (r"^##### END ONION SERVICES", true),
-        );
+        file.narrow((r"^##### ONION SERVICES", true), (r"^##### ", true));
         file.lines.retain(|line| line.starts_with("#    "));
         file.strip_prefix("#    ");
 
@@ -1127,9 +1124,9 @@ example config file {which:?}, uncommented={uncommented:?}
         }
 
         /// Remove all lines from this section, except those between the (unique) line matching
-        /// "start" and the (unique) line matching "end".
+        /// "start" and the next line matching "end" (or the end of the file).
         fn narrow(&mut self, start: NarrowInstruction, end: NarrowInstruction) {
-            let find_index = |(re, include), adjust: [isize; 2]| {
+            let find_index = |(re, include), start_pos, exactly_one: bool, adjust: [isize; 2]| {
                 if (re, include) == NARROW_NONE {
                     return None;
                 }
@@ -1139,11 +1136,16 @@ example config file {which:?}, uncommented={uncommented:?}
                     .lines
                     .iter()
                     .enumerate()
+                    .skip(start_pos)
                     .filter(|(_, l)| re.is_match(l))
                     .map(|(i, _)| i);
-                let i = i.clone().exactly_one().unwrap_or_else(|_| {
-                    panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
-                });
+                let i = if exactly_one {
+                    i.clone().exactly_one().unwrap_or_else(|_| {
+                        panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
+                    })
+                } else {
+                    i.clone().next()?
+                };
 
                 let adjust = adjust[usize::from(include)];
                 let i = (i as isize + adjust) as usize;
@@ -1151,8 +1153,8 @@ example config file {which:?}, uncommented={uncommented:?}
             };
 
             eprint!("narrow {:?} {:?}: ", start, end);
-            let start = find_index(start, [1, 0]).unwrap_or(0);
-            let end = find_index(end, [0, 1]).unwrap_or(self.lines.len());
+            let start = find_index(start, 0, true, [1, 0]).unwrap_or(0);
+            let end = find_index(end, start + 1, false, [0, 1]).unwrap_or(self.lines.len());
             eprintln!("{:?} {:?}", start, end);
             // don't tolerate empty
             assert!(start < end, "empty, from {:#?}", &self.lines);
