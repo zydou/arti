@@ -56,6 +56,13 @@ pub use paste::paste;
 
 use rand::Rng;
 
+/// Sealed
+mod sealed {
+    /// Sealed
+    pub trait Sealed {}
+}
+use sealed::Sealed;
+
 // ----------------------------------------------------------------------
 
 /// Function with the signature of `Debug::fmt` that just prints `".."`
@@ -221,10 +228,11 @@ impl GenRangeInfallible for Duration {
 // ----------------------------------------------------------------------
 
 /// Implementation of `ErrorKind::NotADirectory` that doesn't require Nightly
-pub trait IoErrorExt {
+pub trait IoErrorExt: Sealed {
     /// Is this `io::ErrorKind::NotADirectory` ?
     fn is_not_a_directory(&self) -> bool;
 }
+impl Sealed for std::io::Error {}
 impl IoErrorExt for std::io::Error {
     fn is_not_a_directory(&self) -> bool {
         self.raw_os_error()
