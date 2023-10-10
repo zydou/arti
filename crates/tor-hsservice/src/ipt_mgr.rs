@@ -1257,7 +1257,176 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::match_single_binding)] // false positives, need the lifetime extension
     use super::*;
+
+    use crate::config::OnionServiceConfigBuilder;
+    use crate::svc::ipt_establish::GoodIptDetails;
+    use rand::SeedableRng as _;
+    use slotmap::DenseSlotMap;
+    use std::sync::Mutex;
+    use tor_basic_utils::test_rng::TestingRng;
+    use tor_netdir::testprovider::TestNetDirProvider;
+    use tor_rtmock::MockRuntime;
+    use tracing_test::traced_test;
+
+    slotmap::new_key_type! {
+        struct MockEstabId;
+    }
+
+    type MockEstabs = Arc<Mutex<DenseSlotMap<MockEstabId, MockEstabState>>>;
+
+    fn ms(ms: u64) -> Duration {
+        Duration::from_millis(ms)
+    }
+
+    #[derive(Debug)]
+    struct Mocks {
+        rng: TestingRng,
+        estabs: MockEstabs,
+    }
+
+    #[derive(Debug)]
+    struct MockEstabState {
+        st_tx: watch::Sender<IptStatus>,
+    }
+
+    #[derive(Debug)]
+    struct MockEstab {
+        esid: MockEstabId,
+        estabs: MockEstabs,
+    }
+
+    impl Mockable<MockRuntime> for Mocks {
+        type IptEstablisher = MockEstab;
+        type Rng<'m> = &'m mut TestingRng;
+
+        fn thread_rng(&mut self) -> Self::Rng<'_> {
+            &mut self.rng
+        }
+
+        fn make_new_ipt(
+            &mut self,
+            _imm: &Immutable<MockRuntime>,
+            _params: IptParameters,
+        ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
+            let (st_tx, st_rx) = watch::channel();
+            let estab = MockEstabState { st_tx };
+            let esid = self.estabs.lock().unwrap().insert(estab);
+            let estab = MockEstab {
+                esid,
+                estabs: self.estabs.clone(),
+            };
+            Ok((estab, st_rx))
+        }
+
+        fn start_accepting(&self, _establisher: &ErasedIptEstablisher) {
+        }
+    }
+
+    impl Drop for MockEstab {
+        fn drop(&mut self) {
+            let mut estabs = self.estabs.lock().unwrap();
+            let _: MockEstabState = estabs.remove(self.esid)
+                .expect("dropping non-recorded MockEstab");
+        }
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_mgr_shutdown() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
+                .unwrap_if_sufficient()
+                .unwrap()
+                .into();
+
+            let nick: HsNickname = "nick".to_string().try_into().unwrap();
+
+            let cfg = OnionServiceConfigBuilder::default()
+                .nickname(nick.clone())
+                .build()
+                .unwrap();
+
+            let (_cfg_tx, cfg_rx) = watch::channel_with(Arc::new(cfg));
+            let (rend_tx, _rend_rx) = mpsc::channel(10);
+            let (shut_tx, shut_rx) = oneshot::channel::<Void>();
+
+            let estabs: MockEstabs = Default::default();
+
+            let mocks = Mocks {
+                rng: TestingRng::seed_from_u64(0),
+                estabs: estabs.clone(),
+            };
+
+            let (mgr_view, pub_view) = ipt_set::ipts_channel(None);
+
+            let mgr = IptManager::new(
+                runtime.clone(),
+                Arc::new(dir),
+                nick,
+                cfg_rx,
+                rend_tx,
+                shut_rx,
+                mocks,
+            )
+            .unwrap();
+
+            mgr.launch_background_tasks(mgr_view).unwrap();
+            runtime.progress_until_stalled().await;
+
+            // We expect it to try to establish 3 IPTs
+            const EXPECT_N_IPTS: usize = 3;
+            assert_eq!(estabs.lock().unwrap().len(), EXPECT_N_IPTS);
+            assert!(pub_view.borrow_for_publish().is_none());
+
+            // Advancing time a bit and it still shouldn't publish anything
+            runtime.advance_by(ms(500)).await;
+            runtime.progress_until_stalled().await;
+            assert!(pub_view.borrow_for_publish().is_none());
+
+            let good = GoodIptDetails {
+                link_specifiers: vec![],
+                ipt_kp_ntor: [0x55; 32].into(),
+            };
+
+            // Imagine that one of our IPTs becomes good
+            estabs.lock().unwrap().values_mut().next().unwrap().st_tx.borrow_mut().status =
+                IptStatusStatus::Good(good.clone());
+
+            // It won't publish until a further fastest establish time
+            // Ie, until a further 500ms = 1000ms
+            runtime.progress_until_stalled().await;
+            assert!(pub_view.borrow_for_publish().is_none());
+            runtime.advance_by(ms(499)).await;
+            assert!(pub_view.borrow_for_publish().is_none());
+            runtime.advance_by(ms(1)).await;
+            match pub_view.borrow_for_publish().as_mut().unwrap() {
+                pub_view => {
+                    assert_eq!(pub_view.ipts.len(), 1);
+                    assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
+                }
+            };
+
+            // Set the other IPTs to be Good too
+            for e in estabs.lock().unwrap().values_mut().skip(1) {
+                e.st_tx.borrow_mut().status = IptStatusStatus::Good(good.clone());
+            }
+            runtime.progress_until_stalled().await;
+            match pub_view.borrow_for_publish().as_mut().unwrap() {
+                pub_view => {
+                    assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
+                    assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));
+                }
+            };
+
+            // Shut down
+            drop(shut_tx);
+            runtime.progress_until_stalled().await;
+
+            assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
+        });
+    }
 
     #[test]
     fn test_merge_join_subset_by() {
