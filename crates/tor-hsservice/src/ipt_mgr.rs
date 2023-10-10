@@ -1161,10 +1161,10 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
     type IptEstablisher: Send + Sync + 'static;
 
     /// A random number generator
-    type Rng: rand::Rng + rand::CryptoRng;
+    type Rng<'m>: rand::Rng + rand::CryptoRng + 'm;
 
     /// Return a random number generator
-    fn thread_rng(&self) -> Self::Rng;
+    fn thread_rng(&mut self) -> Self::Rng<'_>;
 
     /// Call `IptEstablisher::new`
     fn make_new_ipt(
@@ -1181,10 +1181,10 @@ impl<R: Runtime> Mockable<R> for Real<R> {
     type IptEstablisher = IptEstablisher;
 
     /// A random number generator
-    type Rng = rand::rngs::ThreadRng;
+    type Rng<'m> = rand::rngs::ThreadRng;
 
     /// Return a random number generator
-    fn thread_rng(&self) -> Self::Rng {
+    fn thread_rng(&mut self) -> Self::Rng<'_> {
         rand::thread_rng()
     }
 
