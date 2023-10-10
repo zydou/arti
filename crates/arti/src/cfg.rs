@@ -1116,7 +1116,7 @@ example config file {which:?}, uncommented={uncommented:?}
         /// Construct a new ExampleSectionsLine from a provided configuration file,
         /// without cutting out any sections.
         ///
-        /// That will happen later.
+        /// The caller must do any needed section selection, later.
         fn from_string(contents: &str) -> Self {
             let section = "".into();
             let lines = contents.lines().map(|s| s.to_string()).collect_vec();
@@ -1183,7 +1183,7 @@ example config file {which:?}, uncommented={uncommented:?}
             chain!(iter::once(&self.section), self.lines.iter(),).join("\n")
         }
 
-        /// Write out this section and parse it as a complete configuration.
+        /// Make a TOML document of this section and parse it as a complete configuration.
         /// Panic if the section cannot be parsed.
         fn parse(&self) -> config::Config {
             let s = self.build_string();
