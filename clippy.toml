@@ -1,4 +1,9 @@
+disallowed-types = [
+    { path = "futures::channel::oneshot::Sender", reason = "Use tor_async_utils::oneshot to avoid bug with select macro" },
+    { path = "futures::channel::oneshot::Receiver", reason = "Use tor_async_utils::oneshot to avoid bug with select macro" },
+]
 disallowed-methods = [
     { path = "rand::Rng::gen_range", reason = "Prefer tor_basic_utils::RngExt::gen_range_checked to avoid uncontrolled panics, or gen_range_infallible if applicable" },
+    { path = "futures::channel::oneshot::channel", reason = "Use tor_async_utils::oneshot to avoid bug with select macro" },
 #    { path = "std::time::SystemTime::now", reason = "prefer using SleepProvider::wallclock instead when possible" },
 ]
