@@ -1048,12 +1048,12 @@ example config file {which:?}, uncommented={uncommented:?}
 
     #[test]
     fn onion_services() {
-        // Here we require that the onion services configuration is between
-        // lines labeled with "##### ONION SERVICES" and "#### (something)",
-        // and that each line of _real_ configuration in that section begins
-        // with "#    ".
+        // Here we require that the onion services configuration is between a
+        // line labeled with "#     [onion_service" a line that looks like a
+        // section opener, and that each line of _real_ configuration in that
+        // section begins with "#    ".
         let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow((r"^##### ONION SERVICES", true), (r"^##### ", true));
+        file.narrow((r"^#    \[onion_service", true), (r"^#? *\[", true));
         file.lines.retain(|line| line.starts_with("#    "));
         file.strip_prefix("#    ");
 

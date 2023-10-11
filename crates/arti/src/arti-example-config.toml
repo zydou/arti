@@ -432,5 +432,3 @@
 # How many streams will we allow at a time for each circuit?
 # 
 #    max_concurrent_streams_per_circuit = 65535
-
-##### (next section here)
