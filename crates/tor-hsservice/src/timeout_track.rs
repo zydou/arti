@@ -451,7 +451,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)] // TODO hoist into standard lint block
 
     use super::*;
-    use futures::channel::oneshot;
+    use tor_async_utils::oneshot;
     use futures::poll;
     use std::future::Future;
     use std::task::Poll;

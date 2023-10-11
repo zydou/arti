@@ -217,8 +217,7 @@ mod tests {
     use std::iter;
     use std::sync::RwLock;
 
-    use futures::channel::oneshot;
-
+    use tor_async_utils::oneshot;
     use tor_rtcompat::{BlockOn, SleepProvider};
     use tor_rtmock::MockRuntime;
 
