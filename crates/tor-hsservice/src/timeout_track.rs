@@ -452,7 +452,9 @@ mod test {
 
     use super::*;
     use futures::channel::oneshot;
+    use futures::poll;
     use std::future::Future;
+    use std::task::Poll;
     use tor_rtcompat::BlockOn;
     use tor_rtmock::MockRuntime;
 
@@ -576,7 +578,7 @@ mod test {
             // set SystemTime to a known value
             runtime.jump_wallclock(earliest_systemtime());
 
-            let (tx, mut rx) = oneshot::channel();
+            let (tx, rx) = oneshot::channel();
 
             runtime.mock_task().spawn_identified("timeout task", {
                 let runtime = runtime.clone();
@@ -589,7 +591,7 @@ mod test {
             runtime.mock_task().progress_until_stalled().await;
 
             if expected_wait == Some(Duration::ZERO) {
-                assert_eq!(rx.try_recv().unwrap(), Some(()));
+                assert_eq!(poll!(rx), Poll::Ready(Ok(())));
             } else {
                 let actual_wait = runtime.time_until_next_timeout();
                 assert_eq!(actual_wait, expected_wait);
