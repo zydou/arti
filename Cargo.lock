@@ -4661,6 +4661,7 @@ dependencies = [
  "serde",
  "static_assertions",
  "thiserror",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-chanmgr",
  "tor-config",

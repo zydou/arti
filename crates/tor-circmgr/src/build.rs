@@ -4,7 +4,7 @@ use crate::path::{OwnedPath, TorPath};
 use crate::timeouts::{self, Action};
 use crate::{Error, Result};
 use async_trait::async_trait;
-use futures::channel::oneshot;
+use tor_async_utils::oneshot;
 use futures::task::SpawnExt;
 use futures::Future;
 use std::sync::{
@@ -538,7 +538,6 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::timeouts::TimeoutEstimator;
-    use futures::channel::oneshot;
     use std::sync::Mutex;
     use tor_chanmgr::ChannelConfig;
     use tor_chanmgr::ChannelUsage as CU;

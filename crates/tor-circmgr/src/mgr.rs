@@ -33,7 +33,8 @@ use tor_error::{debug_report, info_report, internal, warn_report, AbsRetryTime, 
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
+use tor_async_utils::oneshot;
 use futures::future::{FutureExt, Shared};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::task::SpawnExt;
