@@ -4996,6 +4996,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "thiserror",
+ "toml 0.7.8",
  "tor-cell",
  "tor-config",
  "tor-error",

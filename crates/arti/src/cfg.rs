@@ -1046,21 +1046,59 @@ example config file {which:?}, uncommented={uncommented:?}
         }
     }
 
-    /// Helper for fishing out parts of the config file and uncommenting them
+    #[test]
+    fn onion_services() {
+        // Here we require that the onion services configuration is between a
+        // line labeled with "#     [onion_service" a line that looks like a
+        // section opener, and that each line of _real_ configuration in that
+        // section begins with "#    ".
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        file.narrow((r"^#    \[onion_service", true), (r"^#? *\[", true));
+        file.lines.retain(|line| line.starts_with("#    "));
+        file.strip_prefix("#    ");
+
+        let result = file.resolve::<(TorClientConfig, ArtiConfig)>();
+        #[cfg(feature = "onion-service-service")]
+        {
+            let cfg = result.unwrap();
+            let services = cfg.1.onion_services;
+            assert_eq!(services.len(), 1);
+            let _svc = &services[0];
+            // TODO HSS: Actually test that this is as expected, somehow.
+        }
+        #[cfg(not(feature = "onion-service-service"))]
+        {
+            // TODO HSS: Make us get an error when we configure onion services
+            // without onion service support.
+        }
+    }
+
+    /// Helper for fishing out parts of the config file and uncommenting them.
+    ///
+    /// It represents a part of a configuration file.
     ///
     /// This can be used to find part of the config file by ad-hoc regexp matching,
     /// uncomment it, and parse it.  This is useful as part of a test to check
     /// that we can parse more complex config.
     #[derive(Debug, Clone)]
     struct ExampleSectionLines {
+        /// The header for the section that we are parsing.  It is
+        /// prepended to the lines before parsing them.
         section: String,
+        /// The lines in the section.
         lines: Vec<String>,
     }
 
+    /// A 2-tuple of a regular expression and a flag describing whether the line
+    /// containing the expression should be included in the result of `narrow()`.
     type NarrowInstruction<'s> = (&'s str, bool);
+    /// A NarrowInstruction that does not match anything.
     const NARROW_NONE: NarrowInstruction<'static> = ("?<none>", false);
 
     impl ExampleSectionLines {
+        /// Construct a new ExampleSectionLines from `ARTI_EXAMPLE_CONFIG`, containing
+        /// everything that starts with `[section]`, up to but not including the
+        /// next line that begins with a `[`.
         fn new(section: &str) -> Self {
             let section = format!("[{}]", section);
 
@@ -1075,8 +1113,20 @@ example config file {which:?}, uncommented={uncommented:?}
             ExampleSectionLines { section, lines }
         }
 
+        /// Construct a new ExampleSectionsLine from a provided configuration file,
+        /// without cutting out any sections.
+        ///
+        /// The caller must do any needed section selection, later.
+        fn from_string(contents: &str) -> Self {
+            let section = "".into();
+            let lines = contents.lines().map(|s| s.to_string()).collect_vec();
+            ExampleSectionLines { section, lines }
+        }
+
+        /// Remove all lines from this section, except those between the (unique) line matching
+        /// "start" and the next line matching "end" (or the end of the file).
         fn narrow(&mut self, start: NarrowInstruction, end: NarrowInstruction) {
-            let find_index = |(re, include), adjust: [isize; 2]| {
+            let find_index = |(re, include), start_pos, exactly_one: bool, adjust: [isize; 2]| {
                 if (re, include) == NARROW_NONE {
                     return None;
                 }
@@ -1086,11 +1136,16 @@ example config file {which:?}, uncommented={uncommented:?}
                     .lines
                     .iter()
                     .enumerate()
+                    .skip(start_pos)
                     .filter(|(_, l)| re.is_match(l))
                     .map(|(i, _)| i);
-                let i = i.clone().exactly_one().unwrap_or_else(|_| {
-                    panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
-                });
+                let i = if exactly_one {
+                    i.clone().exactly_one().unwrap_or_else(|_| {
+                        panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
+                    })
+                } else {
+                    i.clone().next()?
+                };
 
                 let adjust = adjust[usize::from(include)];
                 let i = (i as isize + adjust) as usize;
@@ -1098,26 +1153,40 @@ example config file {which:?}, uncommented={uncommented:?}
             };
 
             eprint!("narrow {:?} {:?}: ", start, end);
-            let start = find_index(start, [1, 0]).unwrap_or(0);
-            let end = find_index(end, [0, 1]).unwrap_or(self.lines.len());
+            let start = find_index(start, 0, true, [1, 0]).unwrap_or(0);
+            let end = find_index(end, start + 1, false, [0, 1]).unwrap_or(self.lines.len());
             eprintln!("{:?} {:?}", start, end);
             // don't tolerate empty
             assert!(start < end, "empty, from {:#?}", &self.lines);
             self.lines = self.lines.drain(..).take(end).skip(start).collect_vec();
         }
 
+        /// Assert that this section contains exactly `n` lines.
         fn expect_lines(&self, n: usize) {
             assert_eq!(self.lines.len(), n);
         }
 
+        /// Remove `#` from the start of every line that begins with it.
         fn uncomment(&mut self) {
+            self.strip_prefix("#");
+        }
+
+        /// Remove `prefix` from the start of every line that begins with it.
+        fn strip_prefix(&mut self, prefix: &str) {
             for l in &mut self.lines {
-                *l = l.strip_prefix('#').expect(l).to_string();
+                *l = l.strip_prefix(prefix).expect(l).to_string();
             }
         }
 
+        /// Join the parts of this object together into a single string.
+        fn build_string(&self) -> String {
+            chain!(iter::once(&self.section), self.lines.iter(),).join("\n")
+        }
+
+        /// Make a TOML document of this section and parse it as a complete configuration.
+        /// Panic if the section cannot be parsed.
         fn parse(&self) -> config::Config {
-            let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
+            let s = self.build_string();
             eprintln!("parsing\n  --\n{}\n  --", &s);
             let c: toml::Value = toml::from_str(&s).expect(&s);
             config::Config::try_from(&c).expect(&s)
