@@ -5387,6 +5387,7 @@ dependencies = [
  "slotmap",
  "strum",
  "thiserror",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-error",
  "tor-rtcompat",

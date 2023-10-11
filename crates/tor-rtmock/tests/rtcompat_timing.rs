@@ -5,7 +5,7 @@ use tor_rtcompat::{SleepProvider, SleepProviderExt, Timeout, TimeoutError};
 
 use tor_rtmock::time::MockSleepProvider;
 
-use futures::channel::oneshot;
+use tor_async_utils::oneshot;
 use futures::FutureExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
