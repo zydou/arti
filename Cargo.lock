@@ -4610,6 +4610,7 @@ dependencies = [
  "safelog",
  "serde",
  "thiserror",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-cell",
  "tor-config",

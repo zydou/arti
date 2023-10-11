@@ -5,7 +5,7 @@ use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result
 
 use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
-use futures::channel::oneshot;
+use tor_async_utils::oneshot;
 use futures::future::{FutureExt, Shared};
 use std::result::Result as StdResult;
 use std::sync::Arc;
