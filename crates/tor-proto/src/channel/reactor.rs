@@ -18,7 +18,8 @@ use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg::AnyChanMsg, AnyChanCell, CircId};
 use tor_rtcompat::SleepProvider;
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
+use tor_async_utils::oneshot;
 
 use futures::sink::SinkExt;
 use futures::stream::Stream;
@@ -665,7 +666,7 @@ pub(crate) mod test {
     fn deliver_relay() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use crate::circuit::celltypes::ClientCircChanMsg;
-            use futures::channel::oneshot;
+            use tor_async_utils::oneshot;
             use tor_cell::chancell::msg;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
@@ -748,7 +749,7 @@ pub(crate) mod test {
     fn deliver_destroy() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use crate::circuit::celltypes::*;
-            use futures::channel::oneshot;
+            use tor_async_utils::oneshot;
             use tor_cell::chancell::msg;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);

@@ -80,7 +80,8 @@ use {
     tor_cell::relaycell::msg as relaymsg,
 };
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
+use tor_async_utils::oneshot;
 
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::{FutureExt as _, SinkExt as _};

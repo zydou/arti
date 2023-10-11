@@ -98,7 +98,8 @@ pub use testing_exports::*;
 use testing_exports::*;
 
 use asynchronous_codec as futures_codec;
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
+use tor_async_utils::oneshot;
 use futures::io::{AsyncRead, AsyncWrite};
 
 use educe::Educe;
