@@ -81,7 +81,8 @@ use tor_netdir::params::NetParameters;
 use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
-use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
+use futures::{stream::BoxStream, task::SpawnExt};
+use tor_async_utils::oneshot;
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};

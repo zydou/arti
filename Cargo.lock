@@ -4800,6 +4800,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "time",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-checkable",
  "tor-circmgr",

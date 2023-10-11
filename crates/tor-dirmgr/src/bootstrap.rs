@@ -18,7 +18,7 @@ use crate::{
     upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
 };
 
-use futures::channel::oneshot;
+use tor_async_utils::oneshot;
 use futures::FutureExt;
 use futures::StreamExt;
 use tor_dirclient::DirResponse;
