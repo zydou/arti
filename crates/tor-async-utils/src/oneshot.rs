@@ -28,7 +28,7 @@ pub use fut_oneshot::Canceled;
 // (i) call sites don't trip the "disallowed types" lint
 // (ii) we can apply a fine-grained allow, here.
 #[allow(clippy::disallowed_types)]
-pub type Sender<T> =  fut_oneshot::Sender<T>;
+pub type Sender<T> = fut_oneshot::Sender<T>;
 
 /// `oneshot::Receiver` that works properly with [`futures::select!`]
 #[allow(clippy::disallowed_types)]

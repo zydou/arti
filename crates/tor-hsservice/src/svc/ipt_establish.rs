@@ -8,13 +8,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::{
-    channel::mpsc,
-    task::SpawnExt as _,
-    Future, FutureExt as _,
-};
-use tor_async_utils::oneshot;
+use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
 use safelog::Redactable as _;
+use tor_async_utils::oneshot;
 use tor_async_utils::DropNotifyWatchSender;
 use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},

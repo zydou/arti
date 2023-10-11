@@ -3,12 +3,12 @@
 use std::sync::{Arc, Mutex};
 
 use futures::{
-    select_biased, task::SpawnExt as _, AsyncRead, AsyncReadExt, AsyncWrite,
-    AsyncWriteExt, Future, FutureExt as _, Stream, StreamExt as _,
+    select_biased, task::SpawnExt as _, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future,
+    FutureExt as _, Stream, StreamExt as _,
 };
-use tor_async_utils::oneshot;
 use safelog::sensitive as sv;
 use std::io::{Error as IoError, Result as IoResult};
+use tor_async_utils::oneshot;
 use tor_cell::relaycell::msg as relaymsg;
 use tor_error::{debug_report, ErrorKind, HasKind};
 use tor_hsservice::{RendRequest, StreamRequest};

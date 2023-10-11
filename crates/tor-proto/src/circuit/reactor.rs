@@ -43,9 +43,9 @@ use {
 };
 
 use futures::channel::mpsc;
-use tor_async_utils::oneshot;
 use futures::Stream;
 use futures::{Sink, StreamExt};
+use tor_async_utils::oneshot;
 use tor_error::internal;
 
 use std::sync::{Arc, Mutex};

@@ -51,7 +51,6 @@ use crate::ipc::{
     PtClientMethod, PtClientParameters, PtCommonParameters,
 };
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tor_async_utils::oneshot;
 use futures::stream::FuturesUnordered;
 use futures::task::SpawnExt;
 use futures::{select, FutureExt, StreamExt};
@@ -60,6 +59,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
+use tor_async_utils::oneshot;
 use tor_error::error_report;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;

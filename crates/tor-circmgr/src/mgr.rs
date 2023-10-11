@@ -34,7 +34,6 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
-use tor_async_utils::oneshot;
 use futures::future::{FutureExt, Shared};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::task::SpawnExt;
@@ -44,6 +43,7 @@ use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
+use tor_async_utils::oneshot;
 use tracing::{debug, warn};
 use weak_table::PtrWeakHashSet;
 

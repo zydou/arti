@@ -6,9 +6,9 @@
 use crate::pending::{GuardStatus, RequestId};
 use crate::GuardMgrInner;
 
+use futures::{channel::mpsc, stream::StreamExt};
 #[cfg(test)]
 use tor_async_utils::oneshot;
-use futures::{channel::mpsc, stream::StreamExt};
 use tor_proto::ClockSkew;
 
 use std::sync::{Mutex, Weak};

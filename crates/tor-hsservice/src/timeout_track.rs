@@ -451,10 +451,10 @@ mod test {
     #![allow(clippy::needless_pass_by_value)] // TODO hoist into standard lint block
 
     use super::*;
-    use tor_async_utils::oneshot;
     use futures::poll;
     use std::future::Future;
     use std::task::Poll;
+    use tor_async_utils::oneshot;
     use tor_rtcompat::BlockOn;
     use tor_rtmock::MockRuntime;
 

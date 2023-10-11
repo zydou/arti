@@ -4,8 +4,8 @@ mod netdir;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use tor_async_utils::oneshot;
 use futures::Stream;
+use tor_async_utils::oneshot;
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::{Reconfigure, ReconfigureError};

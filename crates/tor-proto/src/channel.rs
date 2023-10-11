@@ -99,8 +99,8 @@ use testing_exports::*;
 
 use asynchronous_codec as futures_codec;
 use futures::channel::mpsc;
-use tor_async_utils::oneshot;
 use futures::io::{AsyncRead, AsyncWrite};
+use tor_async_utils::oneshot;
 
 use educe::Educe;
 use futures::{FutureExt as _, Sink, SinkExt as _};

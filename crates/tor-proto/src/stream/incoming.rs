@@ -5,8 +5,8 @@
 use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::StreamTarget;
 use crate::{Error, Result};
-use tor_async_utils::oneshot;
 use std::result::Result as StdResult;
+use tor_async_utils::oneshot;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayCell};
 use tor_cell::restricted_msg;
 use tor_error::{internal, Bug};

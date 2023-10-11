@@ -5,11 +5,11 @@ use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result
 
 use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
-use tor_async_utils::oneshot;
 use futures::future::{FutureExt, Shared};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
+use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, RelayIds};
