@@ -49,6 +49,7 @@ safelog = { path = "../safelog", version = "0.3.2" }
 slotmap = "1.0.6"
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
+tor-async-utils = { version = "0.1.4", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-bytes = { path = "../tor-bytes", version = "0.7.5" }
 tor-cell = { path = "../tor-cell", version = "0.12.3", features = ["hs"] }
