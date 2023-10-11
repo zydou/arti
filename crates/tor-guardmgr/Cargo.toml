@@ -64,6 +64,7 @@ safelog = { path = "../safelog", version = "0.3.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
+tor-async-utils = { version = "0.1.4", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-config = { path = "../tor-config", version = "0.9.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }

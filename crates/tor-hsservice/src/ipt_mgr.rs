@@ -15,7 +15,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 use futures::task::SpawnExt as _;
 use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
@@ -28,6 +28,7 @@ use thiserror::Error;
 use tracing::{error, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
+use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::error_report;

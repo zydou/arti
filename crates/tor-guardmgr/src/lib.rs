@@ -91,6 +91,9 @@ pub mod bridge;
 #[cfg(any(test, feature = "testing"))]
 pub use config::testing::TestConfig;
 
+#[cfg(test)]
+use tor_async_utils::oneshot;
+
 pub use config::GuardMgrConfig;
 pub use err::{GuardMgrConfigError, GuardMgrError, PickGuardError};
 pub use events::ClockSkewEvents;
@@ -690,7 +693,7 @@ impl<R: Runtime> GuardMgr<R> {
     /// the next step.  Used for testing.
     #[cfg(test)]
     async fn flush_msg_queue(&self) {
-        let (snd, rcv) = futures::channel::oneshot::channel();
+        let (snd, rcv) = oneshot::channel();
         let pingmsg = daemon::Msg::Ping(snd);
         {
             let inner = self.inner.lock().expect("Poisoned lock");

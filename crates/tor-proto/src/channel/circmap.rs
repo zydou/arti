@@ -9,7 +9,8 @@ use tor_cell::chancell::CircId;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::halfcirc::HalfCirc;
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
+use tor_async_utils::oneshot;
 
 use rand::distributions::Distribution;
 use rand::Rng;
@@ -252,7 +253,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use futures::channel::{mpsc, oneshot};
+    use futures::channel::mpsc;
+    use tor_async_utils::oneshot;
     use tor_basic_utils::test_rng::testing_rng;
 
     #[test]

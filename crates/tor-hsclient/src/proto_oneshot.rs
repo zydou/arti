@@ -4,8 +4,7 @@
 //!
 //! Used by [`connect`](crate::connect)
 
-use futures::channel::oneshot;
-
+use tor_async_utils::oneshot;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::RelayMsg;
 use tor_error::internal;

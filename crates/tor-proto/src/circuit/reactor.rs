@@ -42,9 +42,10 @@ use {
     tor_cell::relaycell::msg::Begin,
 };
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 use futures::Stream;
 use futures::{Sink, StreamExt};
+use tor_async_utils::oneshot;
 use tor_error::internal;
 
 use std::sync::{Arc, Mutex};

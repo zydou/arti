@@ -6,6 +6,7 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
+use tor_async_utils::oneshot;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
@@ -158,8 +159,8 @@ pub enum Error {
 tor_error::define_asref_dyn_std_error!(Error);
 tor_error::define_asref_dyn_std_error!(Box<Error>);
 
-impl From<futures::channel::oneshot::Canceled> for Error {
-    fn from(_: futures::channel::oneshot::Canceled) -> Error {
+impl From<oneshot::Canceled> for Error {
+    fn from(_: oneshot::Canceled) -> Error {
         Error::PendingCanceled
     }
 }
