@@ -5001,6 +5001,7 @@ dependencies = [
  "serde_with",
  "thiserror",
  "toml 0.7.8",
+ "tor-async-utils",
  "tor-cell",
  "tor-config",
  "tor-error",
