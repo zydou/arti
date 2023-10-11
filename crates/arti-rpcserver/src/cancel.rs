@@ -124,6 +124,7 @@ mod test {
 
     use super::*;
     use futures_await_test::async_test;
+    use tor_async_utils::oneshot;
 
     #[async_test]
     async fn not_cancelled() {
@@ -141,7 +142,7 @@ mod test {
         });
         assert!(matches!(r, Err(Cancelled)));
 
-        let (_tx, rx) = futures::channel::oneshot::channel::<()>();
+        let (_tx, rx) = oneshot::channel::<()>();
         let (h, f) = Cancel::new(rx);
         let (r, ()) = futures::join!(f, async {
             h.cancel();
