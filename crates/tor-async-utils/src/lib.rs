@@ -45,6 +45,8 @@ mod prepare_send;
 mod sinkext;
 mod watch;
 
+pub mod oneshot;
+
 pub use join_read_write::*;
 
 pub use prepare_send::{SinkPrepareExt, SinkPrepareSendFuture, SinkSendable};
