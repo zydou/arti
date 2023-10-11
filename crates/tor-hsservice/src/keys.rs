@@ -48,11 +48,11 @@ impl Sealed for TimePeriod {}
 
 impl KeyMetadata for TimePeriod {
     fn display(&self) -> String {
-        format!("{}_{}", self.interval_num(), self.length())
+        format!("{}_{}_{}", self.interval_num(), self.length(), self.epoch_offset_in_sec())
     }
 
     fn meta_glob() -> String {
-        "*_*".into()
+        "*_*_*".into()
     }
 }
 
