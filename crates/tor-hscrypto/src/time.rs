@@ -79,6 +79,25 @@ impl TimePeriod {
         })
     }
 
+    /// Compute the `TimePeriod`, given its length (in **minutes**), index (the number of time
+    /// periods that have passed since the unix epoch), and offset from the epoch (in seconds).
+    ///
+    /// The `epoch_offset_in_sec` value is the number of seconds after the Unix epoch when our
+    /// epoch begins, rounded down to the nearest second.
+    /// Note that this is *not* the time_t at which this *Time Period* begins.
+    ///
+    /// The returned TP begins at the time_t `interval_num * length * 60 + epoch_offset_in_sec`
+    /// and ends `length * 60` seconds later.
+    pub fn from_parts(length: u32, interval_num: u64, epoch_offset_in_sec: u32) -> Self {
+        let length_in_sec = length * 60;
+
+        Self {
+            interval_num,
+            length: length.into(),
+            epoch_offset_in_sec,
+        }
+    }
+
     /// Return the time period after this one.
     ///
     /// Return None if this is the last representable time period.
@@ -144,6 +163,14 @@ impl TimePeriod {
     pub fn length(&self) -> IntegerMinutes<u32> {
         self.length
     }
+
+    /// Return our offset from the epoch, in seconds.
+    ///
+    /// Note that this is *not* the start of the TP.
+    /// See `TimePeriod::from_parts`.
+    pub fn epoch_offset_in_sec(&self) -> u32 {
+        self.epoch_offset_in_sec
+    }
 }
 
 /// An error that occurs when creating or manipulating a [`TimePeriod`]
@@ -188,6 +215,18 @@ mod test {
     use super::*;
     use humantime::{parse_duration, parse_rfc3339};
 
+    /// Check reconstructing `period` from parts produces an identical `TimePeriod`.
+    fn assert_eq_from_parts(period: TimePeriod) {
+        assert_eq!(
+            period,
+            TimePeriod::from_parts(
+                period.length().as_minutes(),
+                period.interval_num(),
+                period.epoch_offset_in_sec()
+            )
+        );
+    }
+
     #[test]
     fn check_testvec() {
         // Test case from C tor, taken from rend-spec.
@@ -197,11 +236,13 @@ mod test {
         let period = TimePeriod::new(one_day, time, offset).unwrap();
         assert_eq!(period.interval_num, 16903);
         assert!(period.contains(time));
+        assert_eq_from_parts(period);
 
         let time = parse_rfc3339("2016-04-13T11:59:59Z").unwrap();
         let period = TimePeriod::new(one_day, time, offset).unwrap();
         assert_eq!(period.interval_num, 16903); // still the same.
         assert!(period.contains(time));
+        assert_eq_from_parts(period);
 
         assert_eq!(period.prev().unwrap().interval_num, 16902);
         assert_eq!(period.next().unwrap().interval_num, 16904);
@@ -227,5 +268,6 @@ mod test {
             parse_rfc3339("2016-04-13T12:00:00Z").unwrap()
                 ..parse_rfc3339("2016-04-14T12:00:00Z").unwrap()
         );
+        assert_eq_from_parts(period2);
     }
 }
