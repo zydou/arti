@@ -169,6 +169,7 @@ impl TokenBucketConfig {
 /// Configuration for descriptor encryption.
 #[derive(Debug, Clone, Builder, PartialEq)]
 #[builder(derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub struct DescEncryptionConfig {
     /// A list of our authorized clients.
     ///
@@ -178,7 +179,7 @@ pub struct DescEncryptionConfig {
     // we can let callers give us a ClientKeyProvider or some plug-in that reads
     // keys from somewhere else. On the other hand, we might have this configure
     // our default ClientKeyProvider, and only allow programmatic ClientKeyProviders
-    authorized_client: Vec<AuthorizedClientConfig>,
+    pub authorized_client: Vec<AuthorizedClientConfig>,
 }
 
 /// A single client (or a collection of clients) authorized using the descriptor encryption mechanism.
