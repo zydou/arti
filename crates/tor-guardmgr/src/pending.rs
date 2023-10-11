@@ -11,9 +11,10 @@ use crate::{daemon, FirstHopId};
 
 use educe::Educe;
 use futures::{
-    channel::{mpsc::UnboundedSender, oneshot},
+    channel::mpsc::UnboundedSender,
     Future,
 };
+use tor_async_utils::oneshot;
 use pin_project::pin_project;
 use std::fmt::Debug;
 use std::pin::Pin;
