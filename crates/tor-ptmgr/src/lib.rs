@@ -51,7 +51,7 @@ use crate::ipc::{
     PtClientMethod, PtClientParameters, PtCommonParameters,
 };
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use futures::channel::oneshot;
+use tor_async_utils::oneshot;
 use futures::stream::FuturesUnordered;
 use futures::task::SpawnExt;
 use futures::{select, FutureExt, StreamExt};

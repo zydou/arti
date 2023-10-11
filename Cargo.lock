@@ -5316,6 +5316,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tokio",
+ "tor-async-utils",
  "tor-chanmgr",
  "tor-config",
  "tor-error",
