@@ -31,6 +31,7 @@
 //!  * [`TrackingInstantOffsetNow`]: `InstantTrackingNow` but with an offset applied
 
 #![allow(unreachable_pub)] // TODO - eventually we hope this will become pub, in another crate
+#![allow(dead_code)] // TODO - eventually we hope this will become pub, in another crate
 
 use std::cell::Cell;
 use std::cmp::Ordering;
