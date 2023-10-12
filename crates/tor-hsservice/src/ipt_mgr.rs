@@ -299,7 +299,7 @@ enum ShutdownStatus {
 }
 
 impl From<oneshot::Canceled> for ShutdownStatus {
-    fn from(cancelled: oneshot::Canceled) -> ShutdownStatus {
+    fn from(_: oneshot::Canceled) -> ShutdownStatus {
         ShutdownStatus::Terminate
     }
 }
