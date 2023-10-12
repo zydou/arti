@@ -18,7 +18,7 @@ use tor_error::internal;
 //
 // TODO HSS: Create an error type for ArtiPath errors instead of relying on internal!
 // TODO HSS: disallow consecutive `.` to prevent path traversal.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct ArtiPath(String);
 
 /// A separator for `ArtiPath`s.
@@ -114,7 +114,7 @@ impl AsRef<str> for ArtiPathComponent {
 }
 
 /// The path of a key in the C Tor key store.
-#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct CTorPath(String);
 
 /// The "specifier" of a key, which identifies an instance of a key.
