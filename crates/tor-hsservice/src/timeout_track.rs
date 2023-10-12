@@ -10,7 +10,18 @@
 //! and via implementations of [`PartialOrd`] (including via `<` operators etc.)
 //!
 //! Each tracks every such comparison,
-//! and can yield the earliest timeout that was asked about.
+//! and can yield the earliest *unexpired* timeout that was asked about.
+//!
+//! I.e., the timeout tracker tells you when (in the future)
+//! any of the comparisons you have made, might produce different answers.
+//! So, that can be used to know how long to sleep for when waiting for timeout(s).
+//!
+//! This approach means you must be sure to actually perform the timeout action
+//! whenever a comparison tells you the relevant period has elapsed.
+//! If you fail to do so, the timeout tracker will still disregard the event
+//! for the purposes of calculating how to wait, since it is in the past.
+//! So if you use the timeout tracker to decide how long to sleep,
+//! you won't be woken up until *something else* occurs.
 //!
 //! Each has interior mutability,
 //! which is necessary because `PartialOrd` (`<=` etc.) only passes immutable references.
@@ -83,11 +94,26 @@ define_derive_adhoc! {
         }
 
         /// Core of a tracked update: updates `earliest` with `maybe_earlier`
-        fn update_inner(earliest: &Cell<Option<$TRACK>>, maybe_earlier: $TRACK) {
+        fn update_unconditional(earliest: &Cell<Option<$TRACK>>, maybe_earlier: $TRACK) {
             earliest.set(chain!(
                 earliest.take(),
                 [maybe_earlier],
             ).min())
+        }
+
+        /// Core of a tracked update: updates `earliest` with `maybe_earlier`, if necessary
+        ///
+        /// `o` is what we are about to return:
+        /// `Less` if the current time hasn't reached `maybe_earlier` yet.
+        fn update_conditional(
+            o: Ordering,
+            earliest: &Cell<Option<$TRACK>>,
+            maybe_earlier: $TRACK,
+        ) {
+            match o {
+                Ordering::Greater | Ordering::Equal => {},
+                Ordering::Less => Self::update_unconditional(earliest, maybe_earlier),
+            }
         }
     }
 }
@@ -122,7 +148,7 @@ define_derive_adhoc! {
         }
       )
 
-        /// Return the shortest `Duration` until any time with which this has been compared
+        /// Return the shortest `Duration` until any future time with which this has been compared
         pub fn shortest(self) -> Option<Duration> {
             chain!( $(
                 self.$fname.shortest(),
@@ -144,7 +170,7 @@ define_derive_adhoc! {
     impl $ttype {
         /// Wait for the earliest timeout implied by any of the comparisons
         ///
-        /// Waits until the earliest time at which any of the comparisons performed
+        /// Waits until the earliest future time at which any of the comparisons performed
         /// might change their answer.
         ///
         /// If there were no comparisons there are no timeouts, so we wait forever.
@@ -169,7 +195,7 @@ define_derive_adhoc! {
 macro_rules! define_PartialOrd_via_cmp { {
     $ttype:ty, $NOW:ty, $( $field:tt )*
 } => {
-    /// Check if time `t` has been reached yet (and remember that we want to wake up then)
+    /// Check if time `t` has been reached yet (and if not, remember that we want to wake up then)
     ///
     /// Always returns `Some`.
     impl PartialEq<$NOW> for $ttype {
@@ -178,7 +204,7 @@ macro_rules! define_PartialOrd_via_cmp { {
         }
     }
 
-    /// Check if time `t` has been reached yet (and remember that we want to wake up then)
+    /// Check if time `t` has been reached yet (and if not, remember that we want to wake up then)
     ///
     /// Always returns `Some`.
     impl PartialOrd<$NOW> for $ttype {
@@ -187,7 +213,7 @@ macro_rules! define_PartialOrd_via_cmp { {
         }
     }
 
-    /// Check if we have reached time `t` yet (and remember that we want to wake up then)
+    /// Check if we have reached time `t` yet (and if not, remember that we want to wake up then)
     ///
     /// Always returns `Some`.
     impl PartialEq<$ttype> for $NOW {
@@ -196,7 +222,7 @@ macro_rules! define_PartialOrd_via_cmp { {
         }
     }
 
-    /// Check if we have reached time `t` yet (and remember that we want to wake up then)
+    /// Check if we have reached time `t` yet (and if not, remember that we want to wake up then)
     ///
     /// Always returns `Some`.
     impl PartialOrd<$ttype> for $NOW {
@@ -305,12 +331,12 @@ pub struct TrackingNow {
 //----- earliest accessor ----
 
 impl TrackingSystemTimeNow {
-    /// Return the earliest `SystemTime` with which this has been compared
+    /// Return the earliest future `SystemTime` with which this has been compared
     pub fn earliest(self) -> Option<SystemTime> {
         self.earliest.into_inner()
     }
 
-    /// Return the shortest `Duration` until any `SystemTime` with which this has been compared
+    /// Return the shortest `Duration` until any future `SystemTime` with which this has been compared
     pub fn shortest(self) -> Option<Duration> {
         self.earliest.into_inner().map(|earliest| {
             earliest
@@ -321,7 +347,7 @@ impl TrackingSystemTimeNow {
 }
 
 impl TrackingInstantNow {
-    /// Return the shortest `Duration` until any `Instant` with which this has been compared
+    /// Return the shortest `Duration` until any future `Instant` with which this has been compared
     pub fn shortest(self) -> Option<Duration> {
         self.earliest.into_inner()
     }
@@ -332,26 +358,35 @@ impl TrackingInstantNow {
 impl TrackingSystemTimeNow {
     /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
     ///
-    /// (Equivalent to comparing with `t` but discarding the answer.)
+    /// This is an *unconditional* update.
+    /// Usually, `t` should not be in the past.
+    ///
     /// TODO HSS add a test case
     pub fn update(&self, t: SystemTime) {
-        Self::update_inner(&self.earliest, t);
+        Self::update_unconditional(&self.earliest, t);
     }
 }
 
 impl TrackingInstantNow {
     /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
     ///
+    /// This is an *unconditional* update.
+    /// Usually, `t` should not be in the past.
     /// Equivalent to comparing with `t` but discarding the answer.
+    ///
     /// TODO HSS make this pub and test it
     fn update_abs(&self, t: Instant) {
         self.update_rel(t.checked_duration_since(self.now).unwrap_or_default());
     }
 
     /// Update the "earliest timeout" notion, to ensure it's at no later than `d` from now
+    ///
+    /// This is an *unconditional* update.
+    /// Usually, `d` should not be zero.
+    ///
     /// TODO HSS make this pub and test it
     fn update_rel(&self, d: Duration) {
-        Self::update_inner(&self.earliest, d);
+        Self::update_unconditional(&self.earliest, d);
     }
 }
 
@@ -362,8 +397,9 @@ impl TrackingSystemTimeNow {
     ///
     /// Also available via [`PartialOrd`]
     fn cmp(&self, t: SystemTime) -> std::cmp::Ordering {
-        Self::update_inner(&self.earliest, t);
-        self.now.cmp(&t)
+        let o = self.now.cmp(&t);
+        Self::update_conditional(o, &self.earliest, t);
+        o
     }
 }
 define_PartialOrd_via_cmp! { TrackingSystemTimeNow, SystemTime, }
@@ -374,12 +410,12 @@ define_PartialOrd_via_cmp! { TrackingSystemTimeNow, SystemTime, }
 /// `cmp`.
 fn instant_cmp(earliest: &InstantEarliest, threshold: Instant, t: Instant) -> Ordering {
     let Some(d) = t.checked_duration_since(threshold) else {
-        earliest.set(Some(Duration::ZERO));
         return Ordering::Greater;
     };
 
-    TrackingInstantNow::update_inner(earliest, d);
-    Duration::ZERO.cmp(&d)
+    let o = Duration::ZERO.cmp(&d);
+    TrackingInstantNow::update_conditional(o, earliest, d);
+    o
 }
 
 impl TrackingInstantNow {
@@ -523,8 +559,8 @@ mod test {
         {
             let tt = TrackingSystemTimeNow::new(middle);
             assert_eq!(tt.cmp(earliest), Ordering::Greater);
-            assert_eq!(tt.clone().shortest(), Some(days(0)));
-            assert_eq!(tt.earliest(), Some(earliest));
+            assert_eq!(tt.clone().shortest(), None);
+            assert_eq!(tt.earliest(), None);
         }
         {
             let tt = TrackingSystemTimeNow::new(middle);
@@ -535,8 +571,8 @@ mod test {
         {
             let tt = TrackingSystemTimeNow::new(middle);
             check_orderings(&tt, earliest, middle, later);
-            assert_eq!(tt.clone().shortest(), Some(days(0)));
-            assert_eq!(tt.earliest(), Some(earliest));
+            assert_eq!(tt.clone().shortest(), Some(days(365)));
+            assert_eq!(tt.earliest(), Some(later));
         }
     }
 
@@ -556,12 +592,12 @@ mod test {
         {
             let tt = TrackingInstantNow::new(middle);
             assert_eq!(tt.cmp(earliest), Ordering::Greater);
-            assert_eq!(tt.shortest(), Some(Duration::ZERO));
+            assert_eq!(tt.shortest(), None);
         }
         {
             let tt = TrackingInstantNow::new(middle);
             check_orderings(&tt, earliest, middle, later);
-            assert_eq!(tt.shortest(), Some(Duration::ZERO));
+            assert_eq!(tt.shortest(), Some(Duration::from_secs(300)));
         }
         {
             let tt = TrackingInstantNow::new(middle);
@@ -573,7 +609,7 @@ mod test {
             let tt = TrackingInstantNow::new(middle);
             let off = tt.checked_sub(Duration::ZERO).unwrap();
             check_orderings(&off, earliest, middle, later);
-            assert_eq!(tt.shortest(), Some(Duration::ZERO));
+            assert_eq!(tt.shortest(), Some(Duration::from_secs(300)));
         }
 
         let (earliest_st, middle_st, later_st) = test_systemtimes();
@@ -583,10 +619,10 @@ mod test {
             check_orderings(&tt, earliest, middle, later);
             check_orderings(&off, earliest, middle, later);
             check_orderings(&tt, earliest_st, middle_st, later_st);
-            assert_eq!(tt.clone().shortest(), Some(Duration::ZERO));
-            assert_eq!(tt.instant().clone().shortest(), Some(Duration::ZERO));
-            assert_eq!(tt.system_time().clone().shortest(), Some(Duration::ZERO));
-            assert_eq!(tt.system_time().clone().earliest(), Some(earliest_st));
+            assert_eq!(tt.clone().shortest(), Some(Duration::from_secs(300)));
+            assert_eq!(tt.instant().clone().shortest(), Some(Duration::from_secs(300)));
+            assert_eq!(tt.system_time().clone().shortest(), Some(days(365)));
+            assert_eq!(tt.system_time().clone().earliest(), Some(later_st));
         }
     }
 
@@ -642,14 +678,14 @@ mod test {
         let d = Duration::from_secs(42);
 
         test_sleeper_combined(None, |_rt, _tt| {});
-        test_sleeper_combined(Some(Duration::ZERO), move |_rt, tt| {
+        test_sleeper_combined(None, move |_rt, tt| {
             assert!(*tt > (s - d));
         });
         test_sleeper_combined(Some(d), move |_rt, tt| {
             assert!(*tt < (s + d));
         });
 
-        test_sleeper_combined(Some(Duration::ZERO), move |rt, tt| {
+        test_sleeper_combined(None, move |rt, tt| {
             let i = rt.now();
             assert!(*tt > (i - d));
         });
