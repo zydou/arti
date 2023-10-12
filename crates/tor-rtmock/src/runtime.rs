@@ -100,6 +100,8 @@ impl MockRuntime {
     /// `test_case` is an async closure which receives a `MockRuntime`.
     /// It will be run with a number of differently configured executors.
     ///
+    /// Each run will be preceded by an [`eprintln!`] showing the runtime configuration.
+    ///
     /// ### Variations
     ///
     /// The only variation currently implemented is this:
@@ -124,13 +126,16 @@ impl MockRuntime {
     /// and returns the first `Err` to the caller.
     ///
     /// See [`test_with_various()`](MockRuntime::test_with_various) for more details.
+    #[allow(clippy::print_stderr)]
     pub fn try_test_with_various<TC, FUT, E>(mut test_case: TC) -> Result<(), E>
     where
         TC: FnMut(MockRuntime) -> FUT,
         FUT: Future<Output = Result<(), E>>,
     {
         for scheduling in SchedulingPolicy::iter() {
-            let runtime = MockRuntime::builder().scheduling(scheduling).build();
+            let config = MockRuntime::builder().scheduling(scheduling);
+            eprintln!("running test with MockRuntime configuration {config:?}");
+            let runtime = config.build();
             runtime.block_on(test_case(runtime.clone()))?;
         }
         Ok(())
