@@ -811,7 +811,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ) -> Result<(), FatalError> {
         //---------- tell the publisher what to announce ----------
 
-        let very_recently: Option<TrackingInstantOffsetNow> = (|| {
+        let very_recently: Option<(TrackingInstantOffsetNow, Duration)> = (|| {
             // on time overflow, don't treat any as started establishing very recently
 
             let fastest_good_establish_time = self
@@ -829,23 +829,28 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // our fastest IPT is a better estimator here (and we want an optimistic,
             // rather than pessimistic estimate).
             //
-            // TODO HSS fastest_good_establish_time factor 2 should be tuneable
-            let very_recently = fastest_good_establish_time.checked_mul(2)?;
+            // TODO HSS fastest_good_establish_time factor 1 should be tuneable
+            let wait_more = fastest_good_establish_time;
+            let very_recently = fastest_good_establish_time.checked_add(wait_more)?;
 
-            now.checked_sub(very_recently)
+            let very_recently = now.checked_sub(very_recently)?;
+            Some((very_recently, wait_more))
         })();
 
         let started_establishing_very_recently = || {
-            self.current_ipts()
+            let (very_recently, wait_more) = very_recently?;
+            let lid = self
+                .current_ipts()
                 .filter_map(|(_ir, ipt)| {
                     let started = match ipt.status_last {
                         TS::Establishing { started } => Some(started),
                         TS::Good { .. } | TS::Faulty => None,
                     }?;
 
-                    (&started > very_recently.as_ref()?).then_some(ipt.lid)
+                    (started > very_recently).then_some(ipt.lid)
                 })
-                .next()
+                .next()?;
+            Some((lid, wait_more))
         };
 
         let n_good_ipts = self.good_ipts().count();
@@ -860,11 +865,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // "Unknown" - we have no idea which IPTs to publish.
             debug!("HS service {}: no good IPTs", &self.imm.nick);
             None
-        } else if let Some(wait_for) = started_establishing_very_recently() {
+        } else if let Some((wait_for, wait_more)) = started_establishing_very_recently() {
             // "Unknown" - we say have no idea which IPTs to publish:
             // although we have *some* idea, we hold off a bit to see if things improve.
-            debug!("HS service {}: {} good IPTs, < target {}, waiting hopefully for {:?}",
-                   &self.imm.nick, n_good_ipts, self.target_n_intro_points(), wait_for);
+            // The wait_more period started counting when the fastest IPT became ready,
+            // so the printed value isn't an offset from the message timestamp.
+            debug!("HS service {}: {} good IPTs, < target {}, waiting up to {}ms for {:?}",
+                   &self.imm.nick, n_good_ipts, self.target_n_intro_points(),
+                   wait_more.as_millis(), wait_for);
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
