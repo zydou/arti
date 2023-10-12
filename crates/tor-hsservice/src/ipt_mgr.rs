@@ -1029,7 +1029,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             self.import_new_expiry_times(&publish_set);
 
+            let mut loop_limit = 0..(
+                // Work we do might be O(number of intro points),
+                // but we might also have cycled the intro points due to many requests.
+                // 10K is a guess at a stupid upper bound on the number of times we
+                // might cycle ipts during a descriptor lifetime.
+                // We don't need a tight bound; if we're going to crash. we can spin a bit first.
+                (self.target_n_intro_points() + 1) * 10_000
+            );
             let now = loop {
+                let _: usize = loop_limit.next().expect("IPT manager is looping");
+
                 if let Some(now) = self.idempotently_progress_things_now()? {
                     break now;
                 }
