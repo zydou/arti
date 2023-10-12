@@ -41,6 +41,9 @@
 //!  * [`TrackingInstantNow`]: tracks timeouts based on [`Instant`]
 //!  * [`TrackingInstantOffsetNow`]: `InstantTrackingNow` but with an offset applied
 
+// TODO HSS explain and demonstrate this some more.  Good prompts here:
+// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1659#note_2954264
+
 #![allow(unreachable_pub)] // TODO - eventually we hope this will become pub, in another crate
 #![allow(dead_code)] // TODO - eventually we hope this will become pub, in another crate
 
