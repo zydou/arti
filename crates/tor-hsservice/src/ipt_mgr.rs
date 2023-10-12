@@ -811,6 +811,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(clippy::unnecessary_wraps)] // for regularity
+    #[allow(clippy::cognitive_complexity)] // TODO HSS consider whether to split this up somehow
     fn compute_iptsetstatus_publish(
         &mut self,
         now: &TrackingNow,
