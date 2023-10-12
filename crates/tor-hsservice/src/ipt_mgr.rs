@@ -959,10 +959,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .checked_add(lifetime)
             .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
 
-        let new_last_expiry = expires
-            .checked_add(ipt_set::IPT_PUBLISH_EXPIRY_SLOP)
-            .ok_or_else(|| internal!("time overflow adding expiry slop"))?;
-
         let ipts = selected
             .into_iter()
             .map(|current_ipt| {
