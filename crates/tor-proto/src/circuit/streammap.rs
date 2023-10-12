@@ -139,8 +139,6 @@ impl StreamMap {
     }
 
     /// Add an entry to this map using the specified StreamId.
-    //
-    // TODO HSS: refacor this function and add_ent to reduce code duplication.
     #[cfg(feature = "hs-service")]
     pub(super) fn add_ent_with_id(
         &mut self,
