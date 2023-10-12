@@ -106,6 +106,8 @@ impl SqliteStore {
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
         };
         let conn = rusqlite::Connection::open_with_flags(&sqlpath, flags)?;
+        conn.execute_batch("PRAGMA mmap_size=268435456;")?;
+        conn.execute_batch("PRAGMA hard_heap_limit=5000000;")?; // 5 MB
         let mut store = SqliteStore::from_conn(conn, blob_dir)?;
         store.sql_path = Some(sqlpath);
         store.lockfile = Some(lockfile);
