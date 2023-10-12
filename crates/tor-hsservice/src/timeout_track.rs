@@ -544,6 +544,9 @@ mod test {
         )
     }
 
+    fn secs(s: u64) -> Duration {
+        Duration::from_secs(s)
+    }
     fn days(d: u64) -> Duration {
         Duration::from_secs(86400 * d)
     }
@@ -579,10 +582,10 @@ mod test {
     #[test]
     fn arith_instant_combined() {
         // Adding 1Ms gives us some headroom, since we don't want to underflow
-        let earliest = Instant::now() + Duration::from_secs(1000000);
-        let middle_d = Duration::from_secs(200);
+        let earliest = Instant::now() + secs(1000000);
+        let middle_d = secs(200);
         let middle = earliest + middle_d;
-        let later_d = Duration::from_secs(300);
+        let later_d = secs(300);
         let later = middle + later_d;
 
         {
@@ -597,19 +600,19 @@ mod test {
         {
             let tt = TrackingInstantNow::new(middle);
             check_orderings(&tt, earliest, middle, later);
-            assert_eq!(tt.shortest(), Some(Duration::from_secs(300)));
+            assert_eq!(tt.shortest(), Some(secs(300)));
         }
         {
             let tt = TrackingInstantNow::new(middle);
-            let off = tt.checked_sub(Duration::from_secs(700)).expect("underflow");
+            let off = tt.checked_sub(secs(700)).expect("underflow");
             assert!(off < earliest); // (200-700) vs 0
-            assert_eq!(tt.shortest(), Some(Duration::from_secs(500)));
+            assert_eq!(tt.shortest(), Some(secs(500)));
         }
         {
             let tt = TrackingInstantNow::new(middle);
             let off = tt.checked_sub(Duration::ZERO).unwrap();
             check_orderings(&off, earliest, middle, later);
-            assert_eq!(tt.shortest(), Some(Duration::from_secs(300)));
+            assert_eq!(tt.shortest(), Some(secs(300)));
         }
 
         let (earliest_st, middle_st, later_st) = test_systemtimes();
@@ -619,8 +622,8 @@ mod test {
             check_orderings(&tt, earliest, middle, later);
             check_orderings(&off, earliest, middle, later);
             check_orderings(&tt, earliest_st, middle_st, later_st);
-            assert_eq!(tt.clone().shortest(), Some(Duration::from_secs(300)));
-            assert_eq!(tt.instant().clone().shortest(), Some(Duration::from_secs(300)));
+            assert_eq!(tt.clone().shortest(), Some(secs(300)));
+            assert_eq!(tt.instant().clone().shortest(), Some(secs(300)));
             assert_eq!(tt.system_time().clone().shortest(), Some(days(365)));
             assert_eq!(tt.system_time().clone().earliest(), Some(later_st));
         }
@@ -636,7 +639,7 @@ mod test {
         runtime.clone().block_on(async move {
             // prevent underflow of Instant in case we started very recently
             // (just jump the clock)
-            runtime.advance_by(Duration::from_secs(1000000)).await;
+            runtime.advance_by(secs(1000000)).await;
             // set SystemTime to a known value
             runtime.jump_wallclock(earliest_systemtime());
 
@@ -675,7 +678,7 @@ mod test {
     #[test]
     fn sleeps() {
         let s = earliest_systemtime();
-        let d = Duration::from_secs(42);
+        let d = secs(42);
 
         test_sleeper_combined(None, |_rt, _tt| {});
         test_sleeper_combined(None, move |_rt, tt| {
