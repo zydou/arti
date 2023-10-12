@@ -40,8 +40,6 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(dead_code, unused_variables)] // TODO hss remove.
-
 use serde::{Deserialize, Serialize};
 
 use tor_basic_utils::impl_debug_hex;
