@@ -296,48 +296,6 @@ fn encrypt_and_mac(
 
 /*********************** Server Side Code ************************************/
 
-/// The input required to enter the HS Ntor protocol as a service
-//
-// TODO HSS: maybe these should be references, or should be arguments to
-// server_receive_intro function.
-#[cfg(any(test, feature = "hs-service"))]
-pub struct HsNtorServiceInput {
-    /// Introduction point encryption keypair.
-    k_hss_ntor: HsSvcNtorKeypair,
-
-    /// Introduction point authentication key (aka AUTH_KEY, aka `KP_hs_ipt_sid`)
-    auth_key: HsIntroPtSessionIdKey,
-
-    /// The subcredentials we should use when attempting to decrypt the
-    /// INTRODUCE2 message.
-    ///
-    /// (Our decryption will work if these correspond to the subcredential that
-    /// the client used when trying to contact us, which will be the the one
-    /// that the client believes corresponds to the current time period.)
-    //
-    // TODO HSS: We might need to move this into being a separate argument,
-    // since apparently we want to allow it to vary while we keep
-    // HsNtorServiceInput the same.  Or perhaps we should aboloish
-    // HsNtorServiceInput entirely?
-    subcredential: Vec<Subcredential>,
-}
-
-#[cfg(any(test, feature = "hs-service"))]
-impl HsNtorServiceInput {
-    /// Create a new `HsNtorServiceInput`
-    pub fn new(
-        k_hss_ntor: HsSvcNtorKeypair,
-        auth_key: HsIntroPtSessionIdKey,
-        subcredential: Vec<Subcredential>,
-    ) -> Self {
-        HsNtorServiceInput {
-            k_hss_ntor,
-            auth_key,
-            subcredential,
-        }
-    }
-}
-
 /// Conduct the HS Ntor handshake as the service.
 ///
 /// Return a key generator which is the result of the key exchange, the
@@ -351,7 +309,9 @@ impl HsNtorServiceInput {
 #[cfg(any(test, feature = "hs-service"))]
 pub fn server_receive_intro<R>(
     rng: &mut R,
-    proto_input: &HsNtorServiceInput,
+    k_hss_ntor: &HsSvcNtorKeypair,
+    auth_key: &HsIntroPtSessionIdKey,
+    subcredential: &[Subcredential],
     intro_header: &[u8],
     msg: &[u8],
 ) -> Result<(HsNtorHkdfKeyGenerator, Vec<u8>, Vec<u8>)>
@@ -359,7 +319,7 @@ where
     R: rand::RngCore + rand::CryptoRng,
 {
     let y = curve25519::StaticSecret::new(rng.rng_compat());
-    server_receive_intro_no_keygen(&y, proto_input, intro_header, msg)
+    server_receive_intro_no_keygen(&y, k_hss_ntor, auth_key, subcredential, intro_header, msg)
 }
 
 /// Helper: Like server_receive_intro, but take an ephemeral key rather than a RNG.
@@ -368,7 +328,9 @@ fn server_receive_intro_no_keygen(
     // This should be an EphemeralSecret, but using a StaticSecret is necessary
     // so that we can make one from raw bytes in our test.
     y: &curve25519::StaticSecret,
-    proto_input: &HsNtorServiceInput,
+    k_hss_ntor: &HsSvcNtorKeypair,
+    auth_key: &HsIntroPtSessionIdKey,
+    subcredential: &[Subcredential],
     intro_header: &[u8],
     msg: &[u8],
 ) -> Result<(HsNtorHkdfKeyGenerator, Vec<u8>, Vec<u8>)> {
@@ -387,7 +349,7 @@ fn server_receive_intro_no_keygen(
         .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?;
 
     // Now derive keys needed for handling the INTRO1 cell
-    let bx = proto_input.k_hss_ntor.secret().as_ref().diffie_hellman(&X);
+    let bx = k_hss_ntor.secret().as_ref().diffie_hellman(&X);
 
     // We have to do this for every possible subcredential to find out which
     // one, if any, gives a valid encryption key.  We don't break on our first
@@ -396,14 +358,9 @@ fn server_receive_intro_no_keygen(
     // TODO SPEC: Document this behavior and explain why it's necessary and okay.
     let mut found_dec_key = None;
 
-    for subcredential in proto_input.subcredential.iter() {
-        let (dec_key, mac_key) = get_introduce_key_material(
-            &bx,
-            &proto_input.auth_key,
-            &X,
-            proto_input.k_hss_ntor.public(),
-            subcredential,
-        )?; // This can only fail with a Bug, so it's okay to bail early.
+    for subcredential in subcredential {
+        let (dec_key, mac_key) =
+            get_introduce_key_material(&bx, auth_key, &X, k_hss_ntor.public(), subcredential)?; // This can only fail with a Bug, so it's okay to bail early.
 
         // Now validate the MAC: Staple the previous parts of the INTRODUCE2
         // message, along with the ciphertext, to create the body of the MAC tag.
@@ -434,16 +391,10 @@ fn server_receive_intro_no_keygen(
 
     // Compute EXP(X,y) and EXP(X,b)
     let xy = y.diffie_hellman(&X);
-    let xb = proto_input.k_hss_ntor.secret().as_ref().diffie_hellman(&X);
+    let xb = k_hss_ntor.secret().as_ref().diffie_hellman(&X);
 
-    let (keygen, auth_input_mac) = get_rendezvous_key_material(
-        &xy,
-        &xb,
-        &proto_input.auth_key,
-        proto_input.k_hss_ntor.public(),
-        &X,
-        &Y,
-    )?;
+    let (keygen, auth_input_mac) =
+        get_rendezvous_key_material(&xy, &xb, auth_key, k_hss_ntor.public(), &X, &Y)?;
 
     // Set up RENDEZVOUS1 reply to the client
     let mut reply: Vec<u8> = Vec::new();
@@ -625,11 +576,9 @@ mod test {
             [5; 32].into(),
         );
 
-        let service_keys = HsNtorServiceInput::new(
-            HsSvcNtorKeypair::from_secret_key(intro_b_privkey.into()),
-            intro_auth_key_pubkey.into(),
-            vec![[5; 32].into()],
-        );
+        let k_hss_ntor = HsSvcNtorKeypair::from_secret_key(intro_b_privkey.into());
+        let auth_key = intro_auth_key_pubkey.into();
+        let subcredentials = vec![[5; 32].into()];
 
         // Client: Sends an encrypted INTRODUCE1 cell
         let state = HsNtorClientState::new(&mut rng, client_keys);
@@ -637,8 +586,14 @@ mod test {
         assert_eq!(cmsg.len() + 10, INTRO1_TARGET_LEN);
 
         // Service: Decrypt INTRODUCE1 cell, and reply with RENDEZVOUS1 cell
-        let (skeygen, smsg, s_plaintext) =
-            server_receive_intro(&mut rng, &service_keys, &[66; 10], &cmsg)?;
+        let (skeygen, smsg, s_plaintext) = server_receive_intro(
+            &mut rng,
+            &k_hss_ntor,
+            &auth_key,
+            &subcredentials[..],
+            &[66; 10],
+            &cmsg,
+        )?;
 
         // Check that the plaintext received by the service is the one that the
         // client sent
@@ -744,17 +699,19 @@ mod test {
 
         // This corresponds to the public key above...
         let ks_hss_ntor = curve25519::StaticSecret::from(ks_hss_ntor).into();
+        let k_hss_ntor = HsSvcNtorKeypair::from_secret_key(ks_hss_ntor);
         let key_y = curve25519::StaticSecret::from(key_y);
+        let subcredentials = vec![subcredential];
 
-        let proto_input = HsNtorServiceInput {
-            k_hss_ntor: HsSvcNtorKeypair::from_secret_key(ks_hss_ntor),
-            auth_key: kp_hs_ipt_sid,
-            subcredential: vec![subcredential],
-        };
-
-        let (service_keygen, service_reply, service_plaintext) =
-            server_receive_intro_no_keygen(&key_y, &proto_input, &intro_header, &encrypted_body)
-                .unwrap();
+        let (service_keygen, service_reply, service_plaintext) = server_receive_intro_no_keygen(
+            &key_y,
+            &k_hss_ntor,
+            &kp_hs_ipt_sid,
+            &subcredentials[..],
+            &intro_header,
+            &encrypted_body,
+        )
+        .unwrap();
 
         // Did we recover the plaintext correctly?
         assert_eq!(&service_plaintext, &intro_body);

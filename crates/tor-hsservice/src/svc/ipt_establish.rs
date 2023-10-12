@@ -25,10 +25,7 @@ use tor_hscrypto::{
 };
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
-use tor_proto::circuit::{
-    handshake::hs_ntor::{self},
-    ClientCirc, ConversationInHandler, MetaCellDisposition,
-};
+use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
@@ -228,15 +225,12 @@ impl IptEstablisher {
         // given moment.
         let subcredential = Subcredential::from([0xEE; 32]);
 
-        let hs_ntor_keys = hs_ntor::HsNtorServiceInput::new(
+        let request_context = Arc::new(RendRequestContext {
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
             // clone.  We should either make it Clone, or hold it in an Arc.
-            HsSvcNtorKeypair::from_secret_key(k_ntor.secret().as_ref().clone().into()),
-            k_sid.as_ref().as_ref().public.into(),
-            vec![subcredential],
-        );
-        let request_context = Arc::new(RendRequestContext {
-            hs_ntor_keys,
+            kp_hss_ntor: HsSvcNtorKeypair::from_secret_key(k_ntor.secret().as_ref().clone().into()),
+            kp_hs_ipt_sid: k_sid.as_ref().as_ref().public.into(),
+            subcredentials: vec![subcredential],
             netdir_provider: netdir_provider.clone(),
             circ_pool: pool.clone(),
         });
