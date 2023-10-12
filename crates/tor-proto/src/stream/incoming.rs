@@ -1,7 +1,5 @@
 //! Functionality for incoming streams, opened from the other side of a circuit.
 
-#![allow(dead_code, unused_variables, clippy::needless_pass_by_value)] // TODO hss remove
-
 use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::StreamTarget;
 use crate::{Error, Result};
