@@ -121,6 +121,13 @@ define_derive_adhoc! {
             &self.$fname
         }
       )
+
+        /// Return the shortest `Duration` until any time with which this has been compared
+        pub fn shortest(self) -> Option<Duration> {
+            chain!( $(
+                self.$fname.shortest(),
+            ) ).min()
+        }
     }
 
   $(
@@ -301,6 +308,15 @@ impl TrackingSystemTimeNow {
     /// Return the earliest `SystemTime` with which this has been compared
     pub fn earliest(self) -> Option<SystemTime> {
         self.earliest.into_inner()
+    }
+
+    /// Return the shortest `Duration` until any `SystemTime` with which this has been compared
+    pub fn shortest(self) -> Option<Duration> {
+        self.earliest.into_inner().map(|earliest| {
+            earliest
+                .duration_since(self.now)
+                .unwrap_or(Duration::ZERO)
+        })
     }
 }
 
@@ -492,6 +508,10 @@ mod test {
         )
     }
 
+    fn days(d: u64) -> Duration {
+        Duration::from_secs(86400 * d)
+    }
+
     #[test]
     fn arith_systemtime() {
         let (earliest, middle, later) = test_systemtimes();
@@ -503,16 +523,19 @@ mod test {
         {
             let tt = TrackingSystemTimeNow::new(middle);
             assert_eq!(tt.cmp(earliest), Ordering::Greater);
+            assert_eq!(tt.clone().shortest(), Some(days(0)));
             assert_eq!(tt.earliest(), Some(earliest));
         }
         {
             let tt = TrackingSystemTimeNow::new(middle);
             assert_eq!(tt.cmp(later), Ordering::Less);
+            assert_eq!(tt.clone().shortest(), Some(days(365)));
             assert_eq!(tt.earliest(), Some(later));
         }
         {
             let tt = TrackingSystemTimeNow::new(middle);
             check_orderings(&tt, earliest, middle, later);
+            assert_eq!(tt.clone().shortest(), Some(days(0)));
             assert_eq!(tt.earliest(), Some(earliest));
         }
     }
@@ -560,7 +583,9 @@ mod test {
             check_orderings(&tt, earliest, middle, later);
             check_orderings(&off, earliest, middle, later);
             check_orderings(&tt, earliest_st, middle_st, later_st);
+            assert_eq!(tt.clone().shortest(), Some(Duration::ZERO));
             assert_eq!(tt.instant().clone().shortest(), Some(Duration::ZERO));
+            assert_eq!(tt.system_time().clone().shortest(), Some(Duration::ZERO));
             assert_eq!(tt.system_time().clone().earliest(), Some(earliest_st));
         }
     }
