@@ -859,7 +859,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             for ipt in &selected {
                 self.state.mockable.start_accepting(&ipt.establisher);
             }
-            Some(Self::make_publish_set(selected, now, lifetime)?)
+            Some(Self::make_publish_set(selected, lifetime)?)
         } else {
             None
         };
@@ -948,17 +948,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// See the performance note on [`run_once()`](Self::run_once).
     fn make_publish_set<'i>(
         selected: impl IntoIterator<Item = &'i Ipt>,
-        now: &TrackingNow,
         lifetime: Duration,
     ) -> Result<ipt_set::IptSet, FatalError> {
-        let expires = now
-            .instant()
-            // Our response to old descriptors expiring is handled by us checking
-            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
-            .get_now_untracked()
-            .checked_add(lifetime)
-            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
-
         let ipts = selected
             .into_iter()
             .map(|current_ipt| {
