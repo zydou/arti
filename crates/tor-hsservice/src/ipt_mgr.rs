@@ -1052,6 +1052,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             now
         };
 
+        assert_ne!(now.clone().shortest(), Some(Duration::ZERO),
+                   "IPT manager zero timeout, would loop");
+
         let mut new_configs = self.state.new_configs.next().fuse();
 
         select_biased! {
