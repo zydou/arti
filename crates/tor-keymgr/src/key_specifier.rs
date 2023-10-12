@@ -1,7 +1,7 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
 use crate::Result;
-use derive_more::{Deref, DerefMut, Display, Into};
+use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use tor_error::internal;
 
@@ -20,6 +20,34 @@ use tor_error::internal;
 // TODO HSS: disallow consecutive `.` to prevent path traversal.
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct ArtiPath(String);
+
+/// The identifier of a key.
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, From, Display)]
+#[non_exhaustive]
+pub enum KeyPath {
+    /// An Arti key path.
+    Arti(ArtiPath),
+    /// A C-Tor key path.
+    CTor(CTorPath),
+}
+
+impl KeyPath {
+    /// Return the underlying [`ArtiPath`], if this is a `KeyPath::Arti`.
+    pub fn arti(&self) -> Option<&ArtiPath> {
+        match self {
+            KeyPath::Arti(ref arti) => Some(arti),
+            KeyPath::CTor(_) => None,
+        }
+    }
+
+    /// Return the underlying [`CTorPath`], if this is a `KeyPath::CTor`.
+    pub fn ctor(&self) -> Option<&CTorPath> {
+        match self {
+            KeyPath::Arti(_) => None,
+            KeyPath::CTor(ref ctor) => Some(ctor),
+        }
+    }
+}
 
 /// A separator for `ArtiPath`s.
 const PATH_SEP: char = '/';
