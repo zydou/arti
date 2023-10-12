@@ -150,7 +150,6 @@ impl StreamMap {
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
-        // TODO HSS: perhaps StreamId should be a NonZeroU16.
         if id.is_zero() {
             return Err(Error::StreamIdZero);
         }

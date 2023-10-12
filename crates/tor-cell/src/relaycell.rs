@@ -143,7 +143,12 @@ impl RelayCmd {
 
 /// Identify a single stream on a circuit.
 ///
-/// These identifiers are local to each hop on a circuit
+/// These identifiers are local to each hop on a circuit.
+//
+// TODO: perhaps StreamId should be a NonZeroU16. This would require some big
+// refactoring, though, as 0_u16 would now encode the absence of a StreamId.  It
+// might make sense to do this concurrently with our prop340 implementation, and
+// a similar change in CircuitId.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct StreamId(u16);
 
