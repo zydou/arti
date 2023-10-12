@@ -849,6 +849,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         {
             // "Unknown" - we have no idea which IPTs to publish.
             None
+        } else if let Some(wait_for) = started_establishing_very_recently() {
+            // "Unknown" - we say have no idea which IPTs to publish:
+            // although we have *some* idea, we hold off a bit to see if things improve.
+            None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
             Some(IPT_PUBLISH_UNCERTAIN)
