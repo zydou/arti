@@ -35,6 +35,7 @@ use void::{ResultVoidErrExt as _, Void};
 use crate::{
     req::RendRequestContext,
     svc::{LinkSpecs, NtorPublicKey},
+    HsNickname,
 };
 use crate::{FatalError, IptLocalId, RendRequest};
 
@@ -197,6 +198,7 @@ impl IptEstablisher {
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
         runtime: R,
+        nickname: HsNickname,
         params: IptParameters,
         pool: Arc<HsCircPool<R>>,
         keymgr: Arc<KeyMgr>,

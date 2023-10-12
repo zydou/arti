@@ -1233,7 +1233,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         params: IptParameters,
         keymgr: Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
-        IptEstablisher::new(imm.runtime.clone(), params, self.circ_pool.clone(), keymgr)
+        IptEstablisher::new(imm.runtime.clone(), imm.nick.clone(), params, self.circ_pool.clone(), keymgr)
     }
 
     fn start_accepting(&self, establisher: &ErasedIptEstablisher) {
