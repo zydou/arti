@@ -204,14 +204,7 @@ struct Ipt {
     k_sid: Arc<HsIntroPtSessionIdKeypair>,
 
     /// `KS_hss_ntor`, `KP_hss_ntor`
-    // TODO HSS how do we provide the private half to the recipients of our rend reqs?
-    // It needs to be attached to each request, since the intro points have different
-    // keys and the consumer of the rend req stream needs to use the right ones.
-    //
-    // ^ Specifically,
-    // svc::rend_handshake::IntroRequest::decrypt_from_introduce2 expects to get
-    // this as part of the HsNtorServiceInput object it takes as an argument.
-    k_hss_ntor: HsSvcNtorKeypair,
+    k_hss_ntor: Arc<HsSvcNtorKeypair>,
 
     /// Last information about how it's doing including timing info
     status_last: TrackedStatus,
@@ -358,7 +351,7 @@ impl IptRelay {
 
         let mut rng = mockable.thread_rng();
         let lid: IptLocalId = rng.gen();
-        let k_hss_ntor = HsSvcNtorKeypair::generate(&mut rng);
+        let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
         let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
         let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
 
@@ -368,7 +361,7 @@ impl IptRelay {
             lid,
             target: self.relay.clone(),
             k_sid: k_sid.clone(),
-            k_ntor: &k_hss_ntor,
+            k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;

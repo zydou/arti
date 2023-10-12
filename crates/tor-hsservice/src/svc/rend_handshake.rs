@@ -24,12 +24,14 @@ use tor_netdir::NetDirProvider;
 use tor_proto::{
     circuit::{
         handshake,
-        handshake::hs_ntor::{self, HsNtorHkdfKeyGenerator, HsNtorServiceInput},
+        handshake::hs_ntor::{self, HsNtorHkdfKeyGenerator},
         ClientCirc,
     },
     stream::IncomingStream,
 };
 use tor_rtcompat::Runtime;
+
+use crate::req::RendRequestContext;
 
 /// An error produced while trying to process an introduction request we have
 /// received from a client via an introduction point.
@@ -192,16 +194,16 @@ impl IntroRequest {
     /// Try to decrypt an incoming Introduce2 request, using the set of keys provided.
     pub(crate) fn decrypt_from_introduce2(
         req: Introduce2,
-        // TODO HSS: Perhaps this should be wrapped in a a crate-local type that
-        // could later hold other kinds of handshake info.
-        keys: &HsNtorServiceInput,
+        context: &RendRequestContext,
     ) -> Result<Self, IntroRequestError> {
         use IntroRequestError as E;
         let mut rng = rand::thread_rng();
 
         let (key_gen, rend1_body, msg_body) = hs_ntor::server_receive_intro(
             &mut rng,
-            keys,
+            &context.kp_hss_ntor,
+            &context.kp_hs_ipt_sid,
+            &context.subcredentials[..],
             req.encoded_header(),
             req.encrypted_body(),
         )

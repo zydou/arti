@@ -25,10 +25,7 @@ use tor_hscrypto::{
 };
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
-use tor_proto::circuit::{
-    handshake::hs_ntor::{self},
-    ClientCirc, ConversationInHandler, MetaCellDisposition,
-};
+use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
@@ -168,7 +165,7 @@ impl IptError {
 ///  * The circuit builder (leaving this out makes it possible to use this
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
-pub(crate) struct IptParameters<'a> {
+pub(crate) struct IptParameters {
     // TODO HSS: maybe this should be a bunch of refs.
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
@@ -179,7 +176,7 @@ pub(crate) struct IptParameters<'a> {
     /// `K_hs_ipt_sid`
     pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
     pub(crate) accepting_requests: RequestDisposition,
-    pub(crate) k_ntor: &'a HsSvcNtorKeypair,
+    pub(crate) k_ntor: Arc<HsSvcNtorKeypair>,
 }
 
 impl IptEstablisher {
@@ -198,7 +195,7 @@ impl IptEstablisher {
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
         runtime: R,
-        params: IptParameters<'_>,
+        params: IptParameters,
         pool: Arc<HsCircPool<R>>,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
         // This exhaustive deconstruction ensures that we don't
@@ -228,15 +225,12 @@ impl IptEstablisher {
         // given moment.
         let subcredential = Subcredential::from([0xEE; 32]);
 
-        let hs_ntor_keys = hs_ntor::HsNtorServiceInput::new(
+        let request_context = Arc::new(RendRequestContext {
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
             // clone.  We should either make it Clone, or hold it in an Arc.
-            HsSvcNtorKeypair::from_secret_key(k_ntor.secret().as_ref().clone().into()),
-            k_sid.as_ref().as_ref().public.into(),
-            vec![subcredential],
-        );
-        let request_context = Arc::new(RendRequestContext {
-            hs_ntor_keys,
+            kp_hss_ntor: Arc::clone(&k_ntor),
+            kp_hs_ipt_sid: k_sid.as_ref().as_ref().public.into(),
+            subcredentials: vec![subcredential],
             netdir_provider: netdir_provider.clone(),
             circ_pool: pool.clone(),
         });
