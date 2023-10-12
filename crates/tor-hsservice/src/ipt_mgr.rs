@@ -25,7 +25,7 @@ use postage::watch;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
 use tor_async_utils::oneshot;
@@ -401,6 +401,8 @@ impl IptRelay {
             is_current: Some(IsCurrent),
         };
 
+        debug!("HS service {}: {lid:?} establishing new IPT at relay {}", &imm.nick, &self.relay);
+
         self.ipts.push(ipt);
 
         Ok(())
@@ -568,6 +570,9 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             ipts: vec![],
         };
         self.irelays.push(new_irelay);
+
+        debug!("HS service {}: choosing new IPT relay {}", &imm.nick, relay.display_relay_ids());
+
         Ok(())
     }
 
@@ -577,6 +582,8 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             // update from now-withdrawn IPT, ignore it (can happen due to the IPT being a task)
             return;
         };
+
+        debug!("HS service {}: {lid:?} status update {update:?}", &imm.nick);
 
         let IptStatus {
             status: update,
@@ -836,25 +843,33 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                         TS::Good { .. } | TS::Faulty => None,
                     }?;
 
-                    (&started > very_recently.as_ref()?).then_some(())
+                    (&started > very_recently.as_ref()?).then_some(ipt.lid)
                 })
                 .next()
         };
 
-        let publish_lifetime = if self.good_ipts().count() >= self.target_n_intro_points() {
+        let n_good_ipts = self.good_ipts().count();
+        let publish_lifetime = if n_good_ipts >= self.target_n_intro_points() {
             // "Certain" - we are sure of which IPTs we want to publish
+            debug!("HS service {}: {} good IPTs, >= target {}, publishing",
+                   &self.imm.nick, n_good_ipts, self.target_n_intro_points());
             Some(IPT_PUBLISH_CERTAIN)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
             // "Unknown" - we have no idea which IPTs to publish.
+            debug!("HS service {}: no good IPTs", &self.imm.nick);
             None
         } else if let Some(wait_for) = started_establishing_very_recently() {
             // "Unknown" - we say have no idea which IPTs to publish:
             // although we have *some* idea, we hold off a bit to see if things improve.
+            debug!("HS service {}: {} good IPTs, < target {}, waiting hopefully for {:?}",
+                   &self.imm.nick, n_good_ipts, self.target_n_intro_points(), wait_for);
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
+            debug!("HS service {}: {} good IPTs, < target {}, publishing what we have",
+                   &self.imm.nick, n_good_ipts, self.target_n_intro_points());
             Some(IPT_PUBLISH_UNCERTAIN)
         };
 
@@ -1059,7 +1074,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
-            shutdown = &mut self.state.shutdown => return Ok(shutdown.void_unwrap_err().into()),
+            shutdown = &mut self.state.shutdown => {
+                trace!("HS service {}: terminating due to shutdown signal", &self.imm.nick);
+                return Ok(shutdown.void_unwrap_err().into())
+            },
 
             update = self.state.status_recv.next() => {
                 let (lid, update) = update.ok_or_else(|| internal!("update mpsc ended!"))?;
