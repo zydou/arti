@@ -401,7 +401,10 @@ impl IptRelay {
             is_current: Some(IsCurrent),
         };
 
-        debug!("HS service {}: {lid:?} establishing new IPT at relay {}", &imm.nick, &self.relay);
+        debug!(
+            "HS service {}: {lid:?} establishing new IPT at relay {}",
+            &imm.nick, &self.relay
+        );
 
         self.ipts.push(ipt);
 
@@ -571,7 +574,11 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
         };
         self.irelays.push(new_irelay);
 
-        debug!("HS service {}: choosing new IPT relay {}", &imm.nick, relay.display_relay_ids());
+        debug!(
+            "HS service {}: choosing new IPT relay {}",
+            &imm.nick,
+            relay.display_relay_ids()
+        );
 
         Ok(())
     }
@@ -856,8 +863,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         let n_good_ipts = self.good_ipts().count();
         let publish_lifetime = if n_good_ipts >= self.target_n_intro_points() {
             // "Certain" - we are sure of which IPTs we want to publish
-            debug!("HS service {}: {} good IPTs, >= target {}, publishing",
-                   &self.imm.nick, n_good_ipts, self.target_n_intro_points());
+            debug!(
+                "HS service {}: {} good IPTs, >= target {}, publishing",
+                &self.imm.nick,
+                n_good_ipts,
+                self.target_n_intro_points()
+            );
             Some(IPT_PUBLISH_CERTAIN)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
@@ -870,14 +881,23 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // although we have *some* idea, we hold off a bit to see if things improve.
             // The wait_more period started counting when the fastest IPT became ready,
             // so the printed value isn't an offset from the message timestamp.
-            debug!("HS service {}: {} good IPTs, < target {}, waiting up to {}ms for {:?}",
-                   &self.imm.nick, n_good_ipts, self.target_n_intro_points(),
-                   wait_more.as_millis(), wait_for);
+            debug!(
+                "HS service {}: {} good IPTs, < target {}, waiting up to {}ms for {:?}",
+                &self.imm.nick,
+                n_good_ipts,
+                self.target_n_intro_points(),
+                wait_more.as_millis(),
+                wait_for
+            );
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
-            debug!("HS service {}: {} good IPTs, < target {}, publishing what we have",
-                   &self.imm.nick, n_good_ipts, self.target_n_intro_points());
+            debug!(
+                "HS service {}: {} good IPTs, < target {}, publishing what we have",
+                &self.imm.nick,
+                n_good_ipts,
+                self.target_n_intro_points()
+            );
             Some(IPT_PUBLISH_UNCERTAIN)
         };
 
@@ -1075,8 +1095,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             now
         };
 
-        assert_ne!(now.clone().shortest(), Some(Duration::ZERO),
-                   "IPT manager zero timeout, would loop");
+        assert_ne!(
+            now.clone().shortest(),
+            Some(Duration::ZERO),
+            "IPT manager zero timeout, would loop"
+        );
 
         let mut new_configs = self.state.new_configs.next().fuse();
 
@@ -1320,14 +1343,14 @@ mod test {
             Ok((estab, st_rx))
         }
 
-        fn start_accepting(&self, _establisher: &ErasedIptEstablisher) {
-        }
+        fn start_accepting(&self, _establisher: &ErasedIptEstablisher) {}
     }
 
     impl Drop for MockEstab {
         fn drop(&mut self) {
             let mut estabs = self.estabs.lock().unwrap();
-            let _: MockEstabState = estabs.remove(self.esid)
+            let _: MockEstabState = estabs
+                .remove(self.esid)
                 .expect("dropping non-recorded MockEstab");
         }
     }
@@ -1391,8 +1414,15 @@ mod test {
             };
 
             // Imagine that one of our IPTs becomes good
-            estabs.lock().unwrap().values_mut().next().unwrap().st_tx.borrow_mut().status =
-                IptStatusStatus::Good(good.clone());
+            estabs
+                .lock()
+                .unwrap()
+                .values_mut()
+                .next()
+                .unwrap()
+                .st_tx
+                .borrow_mut()
+                .status = IptStatusStatus::Good(good.clone());
 
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms

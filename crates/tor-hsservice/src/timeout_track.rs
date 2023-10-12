@@ -338,11 +338,9 @@ impl TrackingSystemTimeNow {
 
     /// Return the shortest `Duration` until any future `SystemTime` with which this has been compared
     pub fn shortest(self) -> Option<Duration> {
-        self.earliest.into_inner().map(|earliest| {
-            earliest
-                .duration_since(self.now)
-                .unwrap_or(Duration::ZERO)
-        })
+        self.earliest
+            .into_inner()
+            .map(|earliest| earliest.duration_since(self.now).unwrap_or(Duration::ZERO))
     }
 }
 
