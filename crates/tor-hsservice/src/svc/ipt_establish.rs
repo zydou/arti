@@ -165,7 +165,7 @@ impl IptError {
 ///  * The circuit builder (leaving this out makes it possible to use this
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
-pub(crate) struct IptParameters<'a> {
+pub(crate) struct IptParameters {
     // TODO HSS: maybe this should be a bunch of refs.
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
@@ -176,7 +176,7 @@ pub(crate) struct IptParameters<'a> {
     /// `K_hs_ipt_sid`
     pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
     pub(crate) accepting_requests: RequestDisposition,
-    pub(crate) k_ntor: &'a HsSvcNtorKeypair,
+    pub(crate) k_ntor: Arc<HsSvcNtorKeypair>,
 }
 
 impl IptEstablisher {
@@ -195,7 +195,7 @@ impl IptEstablisher {
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
         runtime: R,
-        params: IptParameters<'_>,
+        params: IptParameters,
         pool: Arc<HsCircPool<R>>,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
         // This exhaustive deconstruction ensures that we don't
@@ -228,7 +228,7 @@ impl IptEstablisher {
         let request_context = Arc::new(RendRequestContext {
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
             // clone.  We should either make it Clone, or hold it in an Arc.
-            kp_hss_ntor: HsSvcNtorKeypair::from_secret_key(k_ntor.secret().as_ref().clone().into()),
+            kp_hss_ntor: Arc::clone(&k_ntor),
             kp_hs_ipt_sid: k_sid.as_ref().as_ref().public.into(),
             subcredentials: vec![subcredential],
             netdir_provider: netdir_provider.clone(),

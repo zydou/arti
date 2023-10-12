@@ -96,7 +96,7 @@ pub struct StreamRequest {
 /// Keys and objects needed to answer a RendRequest.
 pub(crate) struct RendRequestContext {
     /// Key we'll use to decrypt the rendezvous request.
-    pub(crate) kp_hss_ntor: HsSvcNtorKeypair,
+    pub(crate) kp_hss_ntor: Arc<HsSvcNtorKeypair>,
 
     /// We use this key to identify our session with this introduction point,
     /// and prevent replays across sessions.
