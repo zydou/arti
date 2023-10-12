@@ -1078,7 +1078,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             new_config = new_configs => {
                 let Some(new_config) = new_config else {
-                    trace!("HS service {} terminating due to EOF on config updates stream", &self.imm.nick);
+                    trace!("HS service {}: terminating due to EOF on config updates stream",
+                           &self.imm.nick);
                     return Ok(ShutdownStatus::Terminate);
                 };
                 self.state.current_config = new_config;
