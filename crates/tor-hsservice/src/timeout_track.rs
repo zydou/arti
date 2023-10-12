@@ -617,10 +617,10 @@ mod test {
         let d = Duration::from_secs(42);
 
         test_sleeper_combined(None, |_rt, _tt| {});
-        test_sleeper_combined(Some(Duration::ZERO), move |rt, tt| {
+        test_sleeper_combined(Some(Duration::ZERO), move |_rt, tt| {
             assert!(*tt > (s - d));
         });
-        test_sleeper_combined(Some(d), move |rt, tt| {
+        test_sleeper_combined(Some(d), move |_rt, tt| {
             assert!(*tt < (s + d));
         });
 
