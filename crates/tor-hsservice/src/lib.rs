@@ -57,6 +57,20 @@ mod status;
 mod svc;
 mod timeout_track;
 
+// rustdoc doctests can't use crate-public APIs, so are broken if provided for private items.
+// So we export the whole module again under this name.
+// Supports the Example in timeout_track.rs's module-level docs.
+//
+// Any out-of-crate user needs to write this ludicrous name in their code,
+// so we don't need to put any warnings in the docs for the individual items.)
+//
+// (`#[doc(hidden)] pub mod timeout_track;` would work for the test but it would
+// completely suppress the actual documentation, which is not what we want.)
+#[doc(hidden)]
+pub mod timeout_track_for_doctests_unstable_no_semver_guarantees {
+    pub use crate::timeout_track::*;
+}
+
 pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};

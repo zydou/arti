@@ -40,6 +40,66 @@
 //!  * [`TrackingSystemTimeNow`]: tracks timeouts based on [`SystemTime`]
 //!  * [`TrackingInstantNow`]: tracks timeouts based on [`Instant`]
 //!  * [`TrackingInstantOffsetNow`]: `InstantTrackingNow` but with an offset applied
+//!
+//! # Example
+//!
+//! ```
+//! use std::sync::{Arc, Mutex};
+//! use std::time::Duration;
+//! use futures::task::SpawnExt as _;
+//! use tor_rtcompat::{BlockOn as _, SleepProvider as _};
+//!
+//! # use tor_hsservice::timeout_track_for_doctests_unstable_no_semver_guarantees as timeout_track;
+//! # #[cfg(all)] // works like #[cfg(FALSE)].  Instead, we have this workaround ^.
+//! use crate::timeout_track;
+//! use timeout_track::TrackingInstantNow;
+//!
+//! // Test harness
+//! let runtime = tor_rtmock::MockRuntime::new();
+//! let actions = Arc::new(Mutex::new("".to_string())); // initial letters of performed actions
+//! let perform_action = {
+//!     let actions = actions.clone();
+//!     move |s: &str| actions.lock().unwrap().extend(s.chars().take(1))
+//! };
+//!
+//! runtime.spawn({
+//!     let runtime = runtime.clone();
+//!
+//!     // Example program which models cooking a stir-fry
+//!     async move {
+//!         perform_action("add ingredients");
+//!         let started = runtime.now();
+//!         let mut last_stirred = started;
+//!         loop {
+//!             let now_track = TrackingInstantNow::now(&runtime);
+//!
+//!             const STIR_EVERY: Duration = Duration::from_secs(25);
+//!             // In production, we might avoid panics:  .. >= last_stirred.checked_add(..)
+//!             if now_track >= last_stirred + STIR_EVERY {
+//!                 perform_action("stir");
+//!                 last_stirred = now_track.get_now_untracked();
+//!                 continue;
+//!             }
+//!
+//!             const COOK_FOR: Duration = Duration::from_secs(3 * 60);
+//!             if now_track >= started + COOK_FOR {
+//!                 break;
+//!             }
+//!
+//!             now_track.wait_for_earliest(&runtime).await;
+//!         }
+//!         perform_action("dish up");
+//!     }
+//! }).unwrap();
+//!
+//! // Do a test run
+//! runtime.block_on(async {
+//!     runtime.advance_by(Duration::from_secs(1 * 60)).await;
+//!     assert_eq!(*actions.lock().unwrap(), "ass");
+//!     runtime.advance_by(Duration::from_secs(2 * 60)).await;
+//!     assert_eq!(*actions.lock().unwrap(), "asssssssd");
+//! });
+//! ```
 
 // TODO HSS explain and demonstrate this some more.  Good prompts here:
 // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1659#note_2954264
