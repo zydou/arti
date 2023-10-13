@@ -90,16 +90,6 @@ impl<T: ExtGroup> ExtList<T> {
         self.retain(|e| e.type_id() != ext.type_id());
         self.push(ext);
     }
-
-    /// Find the first entry (if any) in this list of extensions with a given
-    /// type ID.
-    ///
-    /// (We do not enforce uniqueness here, since the spec explicitly says that
-    /// we should ignore all but the first extension of a given type.)
-    #[allow(unused)] // TODO HSS remove.
-    pub(super) fn by_type(&self, id: T::Id) -> Option<&T> {
-        self.iter().find(|e| e.type_id() == id)
-    }
 }
 
 /// An unrecognized or unencoded extension for some HS-related message.
