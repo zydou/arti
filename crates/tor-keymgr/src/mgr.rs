@@ -55,7 +55,23 @@ impl KeyMgr {
     ///
     /// Returns Ok(None) if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
-        self.get_from_store(key_spec, self.all_stores())
+        self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())
+    }
+
+    /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
+    ///
+    /// The key returned is retrieved from the first key store that contains an entry for the given
+    /// specifier.
+    ///
+    /// Returns Ok(None) if none of the key stores have the requested key.
+    ///
+    /// Returns an error if the specified `key_type` does not match `K::Key::key_type()`.
+    pub fn get_with_type<K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        key_type: &KeyType,
+    ) -> Result<Option<K>> {
+        self.get_from_store(key_spec, key_type, self.all_stores())
     }
 
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
@@ -278,8 +294,19 @@ impl KeyMgr {
     fn get_from_store<'a, K: ToEncodableKey>(
         &self,
         key_spec: &dyn KeySpecifier,
+        key_type: &KeyType,
         stores: impl Iterator<Item = &'a BoxedKeystore>,
     ) -> Result<Option<K>> {
+        let static_key_type = K::Key::key_type();
+        if key_type != &static_key_type {
+            return Err(internal!(
+                "key type {:?} does not match the key type {:?} of requested key K::Key",
+                key_type,
+                static_key_type
+            )
+            .into());
+        }
+
         for store in stores {
             let key = match store.get(key_spec, &K::Key::key_type()) {
                 Ok(None) => {
