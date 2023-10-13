@@ -1,6 +1,6 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
-use crate::KeystoreError;
+use crate::{KeyPathError, KeystoreError};
 use tor_error::{ErrorKind, HasKind};
 
 use std::io;
@@ -35,6 +35,20 @@ pub(crate) enum ArtiNativeKeystoreError {
         err: Arc<fs_mistrust::Error>,
     },
 
+    /// Found a key with an invalid path.
+    #[error("Key has invalid path: {path}")]
+    MalformedPath {
+        /// The path of the key.
+        path: PathBuf,
+        /// The underlying error.
+        #[source]
+        err: MalformedPathError,
+    },
+
+    /// Invalid or non-existant ArtiPath.
+    #[error("Invalid or non-existant ArtiPath")]
+    KeyPathError(#[from] KeyPathError),
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -54,6 +68,18 @@ pub(crate) enum FilesystemAction {
     Remove,
 }
 
+/// An error caused by an invalid key path.
+#[derive(thiserror::Error, Debug, Clone)]
+pub(crate) enum MalformedPathError {
+    /// Found a key with a non-UTF-8 path.
+    #[error("the path is not valid UTF-8")]
+    Utf8,
+
+    /// Found a key with no extension.
+    #[error("no extension")]
+    NoExtension,
+}
+
 impl KeystoreError for ArtiNativeKeystoreError {}
 
 impl HasKind for ArtiNativeKeystoreError {
@@ -63,6 +89,8 @@ impl HasKind for ArtiNativeKeystoreError {
         match self {
             KE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
             KE::FsMistrust { .. } => ErrorKind::FsPermissions,
+            KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
+            KE::KeyPathError(_) => ErrorKind::KeystoreAccessFailed,
             KE::Bug(e) => e.kind(),
         }
     }
