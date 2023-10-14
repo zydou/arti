@@ -100,8 +100,8 @@ rust-latest:
     - rustup show
     - cargo clippy --all-features --all-targets -- --cfg ci_arti_stable -D warnings
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
-  after_script:
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+  after_script:
     - cargo clean
   artifacts:
     paths:
@@ -123,11 +123,11 @@ rust-latest-arti-extra-features:
     # Consider enabling the rpc feature when shadow starts supporting pathname
     # addresses, or when we add a config setting for disabling rpc.
     - cargo build --verbose --target x86_64-unknown-linux-gnu --bin arti --features full,experimental-api,arti-client/keymgr
-  after_script:
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
     - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
+  after_script:
     - cargo clean
   artifacts:
     paths:
@@ -366,12 +366,7 @@ rust-latest-test-all-features:
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
   after_script:
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
     - cargo clean
-  artifacts:
-    paths:
-      - artifacts
-    expire_in: 1 hours
 
 every-crate:
   stage: test
