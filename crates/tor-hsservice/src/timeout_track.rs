@@ -136,12 +136,14 @@
 //! });
 //! ```
 
-#![allow(unreachable_pub)] // TODO - eventually we hope this will become pub, in another crate
-#![allow(dead_code)] // TODO - eventually we hope this will become pub, in another crate
-
+// TODO - eventually we hope this will become pub, in another crate
+#![allow(unreachable_pub)]
+// TODO - eventually we hope this will become pub, in another crate
+#![allow(dead_code)]
 // Rustdoc complains that we link to these private docs from these docs which are
 // themselves only formatted with --document-private-items.
-#![allow(rustdoc::private_intra_doc_links)] // TODO - Remove when this is actually public
+// TODO - Remove when this is actually public
+#![allow(rustdoc::private_intra_doc_links)]
 
 use std::cell::Cell;
 use std::cmp::Ordering;
