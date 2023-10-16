@@ -74,7 +74,9 @@ pub mod timeout_track_for_doctests_unstable_no_semver_guarantees {
 pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
-pub use keys::{HsSvcHsIdKeyRole, HsSvcKeyRole, HsSvcKeyRoleWithTimePeriod, HsSvcKeySpecifier, KeyMetadata};
+pub use keys::{
+    HsSvcHsIdKeyRole, HsSvcKeyRole, HsSvcKeyRoleWithTimePeriod, HsSvcKeySpecifier, KeyMetadata,
+};
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;

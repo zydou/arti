@@ -212,7 +212,7 @@ mod test {
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
     use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
     use crate::svc::publish::reactor::MockableClientCirc;
-    use crate::{Anonymity, HsNickname, HsSvcKeySpecifier, IptLocalId, KeyMetadata, HsSvcKeyRole};
+    use crate::{Anonymity, HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, IptLocalId, KeyMetadata};
 
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
@@ -378,8 +378,13 @@ mod test {
     }
 
     /// Insert the specified key into the keystore.
-    fn insert_svc_key<K, R, M>(key: K, keymgr: &KeyMgr, nickname: &HsNickname, role: R, meta: Option<M>)
-    where
+    fn insert_svc_key<K, R, M>(
+        key: K,
+        keymgr: &KeyMgr,
+        nickname: &HsNickname,
+        role: R,
+        meta: Option<M>,
+    ) where
         K: ToEncodableKey,
         M: KeyMetadata,
         R: HsSvcKeyRole<Metadata = M>,
@@ -423,7 +428,13 @@ mod test {
         // Provision the keystore with the necessary keys:
         let keymgr = KeyMgr::new(keystore, vec![]);
 
-        insert_svc_key(id_keypair, &keymgr, nickname, HsSvcHsIdKeyRole::HsIdKeypair, None);
+        insert_svc_key(
+            id_keypair,
+            &keymgr,
+            nickname,
+            HsSvcHsIdKeyRole::HsIdKeypair,
+            None,
+        );
 
         insert_svc_key(
             id_pub.clone(),

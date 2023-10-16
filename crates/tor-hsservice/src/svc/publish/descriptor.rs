@@ -15,9 +15,9 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
-use crate::keys::{HsSvcKeyRoleWithTimePeriod, HsSvcHsIdKeyRole};
+use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
 use crate::svc::publish::reactor::{AuthorizedClientConfigError, ReactorError};
-use crate::{HsSvcKeySpecifier, OnionServiceConfig, KeyMetadata, HsSvcKeyRole, HsNickname};
+use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, KeyMetadata, OnionServiceConfig};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
@@ -60,7 +60,8 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let nickname = &config.nickname;
 
-    let hsid = read_svc_key::<HsIdKey, _, _>(&keymgr, nickname, HsSvcHsIdKeyRole::HsIdPublicKey, None)?;
+    let hsid =
+        read_svc_key::<HsIdKey, _, _>(&keymgr, nickname, HsSvcHsIdKeyRole::HsIdPublicKey, None)?;
     let blind_id_kp = read_svc_key::<HsBlindIdKeypair, _, _>(
         &keymgr,
         nickname,
@@ -124,7 +125,7 @@ fn read_svc_key<K, R, M>(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
     role: R,
-    meta: Option<M>
+    meta: Option<M>,
 ) -> Result<K, ReactorError>
 where
     K: ToEncodableKey,
@@ -152,7 +153,6 @@ where
         .get::<K>(&svc_key_spec)?
         .ok_or_else(|| ReactorError::MissingKey(role.to_string()))
 }
-
 
 /// Decode an encoded curve25519 key.
 fn decode_curve25519_str(
