@@ -60,7 +60,7 @@ mod dummy;
 pub use err::{Error, KeystoreError};
 pub use key_specifier::{
     ArtiPath, ArtiPathComponent, ArtiPathError, CTorPath, KeyPath, KeyPathError, KeyPathPattern,
-    KeyPathRange, KeySpecifier,
+    KeyPathPatternSet, KeyPathRange, KeySpecifier,
 };
 
 #[cfg(feature = "keymgr")]

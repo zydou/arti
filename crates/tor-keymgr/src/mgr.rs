@@ -15,10 +15,11 @@
 //! specified key (and thus suffers from a a TOCTOU race).
 
 use crate::{
-    EncodableKey, KeySpecifier, Keygen, KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result,
-    ToEncodableKey,
+    EncodableKey, KeyPath, KeyPathPatternSet, KeyPathRange, KeySpecifier, KeyType, Keygen,
+    KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
 };
 
+use itertools::Itertools;
 use std::iter;
 use tor_error::{bad_api_usage, internal};
 
@@ -240,6 +241,35 @@ impl KeyMgr {
         let store = self.select_keystore(&selector)?;
 
         store.remove(key_spec, &K::Key::key_type())
+    }
+
+    /// Return the keys matching the specified [`KeyPathPatternSet`].
+    ///
+    /// NOTE: This searches for matching keys in _all_ keystores.
+    pub fn list_matching<M>(
+        &self,
+        pat: &KeyPathPatternSet,
+        derive_meta: impl Fn(&KeyPath, &[KeyPathRange]) -> Result<M>,
+    ) -> Result<Vec<(KeyPath, KeyType, M)>> {
+        self.key_stores
+            .iter()
+            .map(|store| -> Result<Vec<_>> {
+                store
+                    .list()?
+                    .iter()
+                    .filter_map(|(key_path, key_type): &(KeyPath, KeyType)| {
+                        key_path.matches(pat).map(|captures| {
+                            Ok((
+                                key_path.clone(),
+                                key_type.clone(),
+                                derive_meta(key_path, &captures)?,
+                            ))
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()
+            })
+            .flatten_ok()
+            .collect::<Result<Vec<_>>>()
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
