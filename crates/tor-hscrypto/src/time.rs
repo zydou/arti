@@ -23,14 +23,17 @@ pub struct TimePeriod {
     /// The spec admits only periods which are a whole number of minutes.
     pub(crate) length: IntegerMinutes<u32>,
     /// Our offset from the epoch, in seconds.
-    pub(crate) offset_in_sec: u32,
+    ///
+    /// This is the amount of time after the Unix epoch when our epoch begins,
+    /// rounded down to the nearest second.
+    pub(crate) epoch_offset_in_sec: u32,
 }
 
 /// Two [`TimePeriod`]s are ordered with respect to one another if they have the
 /// same interval length and offset.
 impl PartialOrd for TimePeriod {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.length == other.length && self.offset_in_sec == other.offset_in_sec {
+        if self.length == other.length && self.epoch_offset_in_sec == other.epoch_offset_in_sec {
             Some(self.interval_num.cmp(&other.interval_num))
         } else {
             None
@@ -62,7 +65,7 @@ impl TimePeriod {
         }
         let length_in_minutes = length_in_sec / 60;
         let length = IntegerMinutes::new(length_in_minutes);
-        let offset_in_sec =
+        let epoch_offset_in_sec =
             u32::try_from(epoch_offset.as_secs()).map_err(|_| TimePeriodError::OffsetInvalid)?;
         let interval_num = when
             .duration_since(SystemTime::UNIX_EPOCH + epoch_offset)
@@ -72,9 +75,10 @@ impl TimePeriod {
         Ok(TimePeriod {
             interval_num,
             length,
-            offset_in_sec,
+            epoch_offset_in_sec,
         })
     }
+
     /// Return the time period after this one.
     ///
     /// Return None if this is the last representable time period.
@@ -115,7 +119,7 @@ impl TimePeriod {
             let length_in_sec = u64::from(self.length.as_minutes()) * 60;
             let start_sec = length_in_sec.checked_mul(self.interval_num)?;
             let end_sec = start_sec.checked_add(length_in_sec)?;
-            let epoch_offset = Duration::new(self.offset_in_sec.into(), 0);
+            let epoch_offset = Duration::new(self.epoch_offset_in_sec.into(), 0);
             let start = (SystemTime::UNIX_EPOCH + epoch_offset)
                 .checked_add(Duration::from_secs(start_sec))?;
             let end = (SystemTime::UNIX_EPOCH + epoch_offset)
