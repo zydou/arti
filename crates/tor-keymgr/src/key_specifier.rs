@@ -294,11 +294,19 @@ mod test {
 
         const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
         assert_err!(ArtiPath, PATH_WITH_TRAVERSAL, ArtiPathError::PathTraversal);
-        assert_err!(ArtiPathComponent, PATH_WITH_TRAVERSAL, ArtiPathError::DisallowedChar('/'));
+        assert_err!(
+            ArtiPathComponent,
+            PATH_WITH_TRAVERSAL,
+            ArtiPathError::DisallowedChar('/')
+        );
 
         const REL_PATH: &str = "./bob";
         assert_err!(ArtiPath, REL_PATH, ArtiPathError::BadOuterChar('.'));
-        assert_err!(ArtiPathComponent, REL_PATH, ArtiPathError::DisallowedChar('/'));
+        assert_err!(
+            ArtiPathComponent,
+            REL_PATH,
+            ArtiPathError::DisallowedChar('/')
+        );
     }
 
     #[test]
