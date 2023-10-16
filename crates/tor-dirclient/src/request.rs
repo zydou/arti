@@ -605,6 +605,10 @@ impl Requestable for HsDescUploadRequest {
         // We expect the response _body_ to be empty, but the max_response_len
         // is not zero because it represents the _total_ length of the response
         // (which includes the length of the status line and headers).
+        //
+        // A real Tor POST response will always be less than that length, which
+        // will fit into 3 DATA messages at most. (The reply will be a single
+        // HTTP line, followed by a Date header.)
         1024
     }
 
