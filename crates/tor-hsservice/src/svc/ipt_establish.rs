@@ -10,6 +10,7 @@
 use std::sync::{Arc, Mutex};
 
 use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
+use itertools::Itertools;
 use safelog::Redactable as _;
 use tor_async_utils::oneshot;
 use tor_async_utils::DropNotifyWatchSender;
@@ -21,10 +22,12 @@ use tor_cell::relaycell::{
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{bad_api_usage, debug_report, internal, into_internal};
 use tor_hscrypto::{
-    pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair},
+    pk::{HsBlindIdKey, HsIdKey, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair},
+    time::TimePeriod,
     Subcredential,
 };
-use tor_keymgr::KeyMgr;
+use tor_keymgr::{KeyMgr, KeyPathPatternSet, KeyPathRange};
+use tor_keymgr::{KeyPath, KeyPathPattern};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
@@ -32,6 +35,8 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
+use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
+use crate::HsSvcKeySpecifier;
 use crate::{
     req::RendRequestContext,
     svc::{LinkSpecs, NtorPublicKey},
@@ -223,19 +228,20 @@ impl IptEstablisher {
 
         let state = Arc::new(Mutex::new(EstablisherState { accepting_requests }));
 
-        // TODO HSS BLOCKER: This is a totally placeholder value.  We need the
-        // subcredential for the *current time period* in order to do the
-        // hs_ntor handshake. But that can change over time.  We will need
-        // instead to have the ability to find the current subcredentials at any
-        // given moment.
-        let subcredential = Subcredential::from([0xEE; 32]);
+        // We need the subcredential for the *current time period* in order to do the hs_ntor
+        // handshake. But that can change over time.  We will instead use KeyMgr::get_matching to
+        // find all current subcredentials.
+        //
+        // TODO HSS: perhaps the subcredentials should be retrieved in
+        // server_receive_intro_no_keygen instead? See also the TODO in HsNtorServiceInput
+        let subcredentials = compute_subcredentials(&nickname, &keymgr)?;
 
         let request_context = Arc::new(RendRequestContext {
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
             // clone.  We should either make it Clone, or hold it in an Arc.
             kp_hss_ntor: Arc::clone(&k_ntor),
             kp_hs_ipt_sid: k_sid.as_ref().as_ref().public.into(),
-            subcredentials: vec![subcredential],
+            subcredentials,
             netdir_provider: netdir_provider.clone(),
             circ_pool: pool.clone(),
         });
@@ -291,6 +297,84 @@ impl IptEstablisher {
         self.state.lock().expect("poisoned lock").accepting_requests =
             RequestDisposition::Advertised;
     }
+}
+
+/// Obtain the all current `Subcredential`s of `nickname`
+/// from the `K_hs_blind_id` read from the keystore.
+fn compute_subcredentials(
+    nickname: &HsNickname,
+    keymgr: &Arc<KeyMgr>,
+) -> Result<Vec<Subcredential>, FatalError> {
+    let hsid_role = HsSvcHsIdKeyRole::HsIdPublicKey;
+    let hsid_key_spec = HsSvcKeySpecifier::new(nickname, hsid_role);
+    let hsid = keymgr
+        .get::<HsIdKey>(&hsid_key_spec)?
+        .ok_or_else(|| FatalError::MissingKey(hsid_role.to_string()))?;
+
+    let blind_id_pat =
+        HsSvcKeySpecifier::arti_pattern(nickname, HsSvcKeyRoleWithTimePeriod::BlindIdPublicKey);
+
+    let pattern = KeyPathPatternSet::new(
+        blind_id_pat,
+        // TODO HSS: this won't match any C-Tor keys
+        KeyPathPattern::new(""),
+    );
+
+    let blind_id_kps: Vec<(HsBlindIdKey, TimePeriod)> = keymgr
+        .list_matching(&pattern, parse_time_period)?
+        .iter()
+        .map(
+            |(path, key_type, period)| -> Result<Option<_>, FatalError> {
+                // Try to retrieve the key.
+                keymgr
+                    .get_with_type::<HsBlindIdKey>(path, key_type)
+                    .map_err(FatalError::Keystore)
+                    // If the key is not found, it means it has been garbage collected between the time
+                    // we queried the keymgr for the list of keys matching the pattern and now.
+                    // This is OK, because we only need the "current" keys
+                    .map(|maybe_key| maybe_key.map(|key| (key, *period)))
+            },
+        )
+        .flatten_ok()
+        .collect::<Result<Vec<_>, FatalError>>()?;
+
+    Ok(blind_id_kps
+        .iter()
+        .map(|(blind_id_key, period)| hsid.compute_subcredential(blind_id_key, *period))
+        .collect())
+}
+
+/// Try to parse the `captures` of `path` as a [`TimePeriod`].
+fn parse_time_period(
+    path: &KeyPath,
+    captures: &[KeyPathRange],
+) -> Result<TimePeriod, tor_keymgr::Error> {
+    use std::str::FromStr;
+
+    let path = match path {
+        KeyPath::Arti(path) => path,
+        KeyPath::CTor(_) => todo!(),
+        _ => todo!(),
+    };
+
+    let [len_range, interval_range, offset_range] = captures else {
+        return Err(internal!(
+            "invalid number of metadata captures: expected 3, found {}",
+            captures.len()
+        )
+        .into());
+    };
+
+    let (length, interval_num, offset_in_sec) = (|| {
+        let length = u32::from_str(path.substring(len_range)?).ok()?;
+        let interval_num = u64::from_str(path.substring(interval_range)?).ok()?;
+        let offset_in_sec = u32::from_str(path.substring(offset_range)?).ok()?;
+
+        Some((length, interval_num, offset_in_sec))
+    })()
+    .ok_or_else(|| internal!("invalid key metadata"))?;
+
+    Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
 }
 
 /// The current status of an introduction point, as defined in

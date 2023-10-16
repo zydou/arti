@@ -125,6 +125,14 @@ pub enum FatalError {
         cause: Arc<SpawnError>,
     },
 
+    /// Failed to access the keystore.
+    #[error("failed to access keystore")]
+    Keystore(#[from] Box<dyn KeystoreError>),
+
+    /// A key we needed could not be found in the keystore.
+    #[error("A key we needed could not be found in the keystore: {0}")]
+    MissingKey(String),
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
