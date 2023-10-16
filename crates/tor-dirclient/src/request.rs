@@ -28,6 +28,15 @@ use crate::err::RequestError;
 pub trait Requestable {
     /// Build an [`http::Request`] from this Requestable, if
     /// it is well-formed.
+    //
+    // TODO BREAKING: This API is a bit troublesome in how it takes &self and
+    // returns a Request<String>.  First, most Requestables don't actually have
+    // a body to send, and for them having an empty String in their body is a
+    // bit silly.  Second, taking a reference to self but returning an owned
+    // String means that we will often have to clone an internal string owned by
+    // this Requestable instance.
+    //
+    // Fixing this will require an API break in tor-direclient.
     fn make_request(&self) -> Result<http::Request<String>>;
 
     /// Return true if partial downloads are potentially useful.  This
@@ -572,7 +581,6 @@ impl Requestable for HsDescUploadRequest {
 
         let req = http::Request::builder().method("POST").uri(URI);
         let req = add_common_headers(req);
-        // TODO HSS: we shouldn't have to clone here!
         Ok(req.body(self.0.clone())?)
     }
 
