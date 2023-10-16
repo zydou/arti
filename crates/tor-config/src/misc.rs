@@ -4,6 +4,7 @@
 //! and layers, but which don't depend on specific elements of the Tor system.
 
 use std::borrow::Cow;
+use std::fmt::Display;
 use std::iter;
 use std::net;
 use std::num::NonZeroU16;
@@ -198,6 +199,11 @@ impl Listen {
         Self::new_localhost(port.unwrap_or_default())
     }
 
+    /// Return true if no listening addresses have been configured
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// List the network socket addresses to listen on
     ///
     /// Each returned item is a list of `SocketAddr`,
@@ -205,7 +211,7 @@ impl Listen {
     /// It is OK if the others (up to all but one of them)
     /// fail with `EAFNOSUPPORT` ("Address family not supported").
     /// This allows handling of support, or non-support,
-    /// for particular address faimilies, eg IPv6 vs IPv4 localhost.
+    /// for particular address families, eg IPv6 vs IPv4 localhost.
     /// Other errors (eg, `EADDRINUSE`) should always be treated as serious problems.
     ///
     /// Fails if the listen spec involves listening on things other than IP addresses.
@@ -235,6 +241,16 @@ impl Listen {
     }
 }
 
+impl Display for Listen {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut sep = "";
+        for a in &self.0 {
+            write!(f, "{sep}{a}")?;
+            sep = ", ";
+        }
+        Ok(())
+    }
+}
 /// [`Listen`] configuration specified something not supported by application code
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
@@ -275,6 +291,15 @@ impl ListenItem {
     }
 }
 
+impl Display for ListenItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ListenItem::Localhost(port) => write!(f, "localhost port {}", port)?,
+            ListenItem::General(addr) => write!(f, "{}", addr)?,
+        }
+        Ok(())
+    }
+}
 /// How we (de) serialize a [`Listen`]
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
@@ -556,5 +581,29 @@ mod test {
 
         chk_err_1("need actual addr/port", "did not match any variant", "true");
         chk_err("did not match any variant", r#"listen = [ [] ]"#);
+    }
+
+    #[test]
+    fn display_listen() {
+        let empty = Listen::new_none();
+        assert_eq!(empty.to_string(), "");
+
+        let one_port = Listen::new_localhost(1234);
+        assert_eq!(one_port.to_string(), "localhost port 1234");
+
+        let multi_port = Listen(vec![
+            ListenItem::Localhost(1111.try_into().unwrap()),
+            ListenItem::Localhost(2222.try_into().unwrap()),
+        ]);
+        assert_eq!(
+            multi_port.to_string(),
+            "localhost port 1111, localhost port 2222"
+        );
+
+        let multi_addr = Listen(vec![
+            ListenItem::Localhost(1234.try_into().unwrap()),
+            ListenItem::General("1.2.3.4:5678".parse().unwrap()),
+        ]);
+        assert_eq!(multi_addr.to_string(), "localhost port 1234, 1.2.3.4:5678");
     }
 }

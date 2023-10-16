@@ -88,7 +88,7 @@ pub use logging::{LoggingConfig, LoggingConfigBuilder};
 use arti_client::config::default_config_files;
 use arti_client::{TorClient, TorClientConfig};
 use safelog::with_safe_logging_suppressed;
-use tor_config::ConfigurationSources;
+use tor_config::{ConfigurationSources, Listen};
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Error, Result};
@@ -146,8 +146,8 @@ fn list_enabled_features() -> &'static [&'static str] {
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 async fn run<R: Runtime>(
     runtime: R,
-    socks_port: u16,
-    dns_port: u16,
+    socks_listen: Listen,
+    dns_listen: Listen,
     config_sources: ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
@@ -211,14 +211,14 @@ async fn run<R: Runtime>(
     };
 
     let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
-    if socks_port != 0 {
+    if !socks_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
         proxy.push(Box::pin(async move {
             let res = socks::run_socks_proxy(
                 runtime,
                 client,
-                socks_port,
+                socks_listen,
                 #[cfg(all(feature = "rpc", feature = "tokio"))]
                 rpc_mgr,
             )
@@ -228,18 +228,20 @@ async fn run<R: Runtime>(
     }
 
     #[cfg(feature = "dns-proxy")]
-    if dns_port != 0 {
+    if !dns_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
         proxy.push(Box::pin(async move {
-            let res = dns::run_dns_resolver(runtime, client, dns_port).await;
+            let res = dns::run_dns_resolver(runtime, client, dns_listen).await;
             (res, "DNS")
         }));
     }
 
     #[cfg(not(feature = "dns-proxy"))]
-    if dns_port != 0 {
-        warn!("Tried to specify a DNS proxy port, but Arti was built without dns-proxy support.");
+    if !dns_listen.is_empty() {
+        warn!(
+            "Tried to specify a DNS proxy address, but Arti was built without dns-proxy support."
+        );
         return Ok(());
     }
 
@@ -465,28 +467,22 @@ where
     }
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
-        let socks_port = match (
-            proxy_matches.get_one::<String>("socks-port"),
-            config.proxy().socks_listen.localhost_port_legacy()?,
-        ) {
-            (Some(p), _) => p.parse().expect("Invalid port specified"),
-            (None, Some(s)) => s,
-            (None, None) => 0,
+        // Override configured SOCKS and DNS listen addresses from the command line.
+        // This implies listening on localhost ports.
+        let socks_listen = match proxy_matches.get_one::<String>("socks-port") {
+            Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
+            None => config.proxy().socks_listen.clone(),
         };
 
-        let dns_port = match (
-            proxy_matches.get_one::<String>("dns-port"),
-            config.proxy().dns_listen.localhost_port_legacy()?,
-        ) {
-            (Some(p), _) => p.parse().expect("Invalid port specified"),
-            (None, Some(s)) => s,
-            (None, None) => 0,
+        let dns_listen = match proxy_matches.get_one::<String>("dns-port") {
+            Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
+            None => config.proxy().dns_listen.clone(),
         };
 
         info!(
-            "Starting Arti {} in SOCKS proxy mode on port {}...",
+            "Starting Arti {} in SOCKS proxy mode on {} ...",
             env!("CARGO_PKG_VERSION"),
-            socks_port
+            socks_listen
         );
 
         process::use_max_file_limit(&config);
@@ -494,8 +490,8 @@ where
         let rt_copy = runtime.clone();
         rt_copy.block_on(run(
             runtime,
-            socks_port,
-            dns_port,
+            socks_listen,
+            dns_listen,
             cfg_sources,
             config,
             client_config,

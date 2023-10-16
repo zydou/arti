@@ -9,12 +9,13 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::io::Result as IoResult;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[cfg(feature = "rpc")]
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
+use tor_config::Listen;
 use tor_error::warn_report;
 #[cfg(feature = "rpc")]
 use tor_rpcbase as rpc;
@@ -599,29 +600,37 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 pub(crate) async fn run_socks_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
-    socks_port: u16,
+    listen: Listen,
     // TODO RPC: This is not a good way to make an API conditional. We MUST
     // refactor this before the RPC feature becomes non-experimental.
     #[cfg(feature = "rpc")] rpc_mgr: Option<Arc<arti_rpcserver::RpcMgr>>,
 ) -> Result<()> {
     let mut listeners = Vec::new();
 
-    // We actually listen on two ports: one for ipv4 and one for ipv6.
-    let localhosts: [IpAddr; 2] = [Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()];
-
     // Try to bind to the SOCKS ports.
-    for localhost in &localhosts {
-        let addr: SocketAddr = (*localhost, socks_port).into();
-        // NOTE: Our logs here displays the local address. We allow this, since
-        // knowing the address is basically essential for diagnostics.
-        match runtime.listen(&addr).await {
-            Ok(listener) => {
-                info!("Listening on {:?}.", addr);
-                listeners.push(listener);
+    match listen.ip_addrs() {
+        Ok(addrgroups) => {
+            for addrgroup in addrgroups {
+                for addr in addrgroup {
+                    match runtime.listen(&addr).await {
+                        Ok(listener) => {
+                            info!("Listening on {:?}.", addr);
+                            listeners.push(listener);
+                        }
+                        #[cfg(unix)]
+                        Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
+                            warn_report!(e, "Address family not supported {}", addr);
+                        }
+                        Err(ref e) => {
+                            return Err(anyhow!("Can't listen on {}: {e}", addr));
+                        }
+                    }
+                }
             }
-            Err(e) => warn_report!(e, "Can't listen on {}", addr),
         }
+        Err(e) => warn_report!(e, "Invalid listen spec"),
     }
+
     // We weren't able to bind any ports: There's nothing to do.
     if listeners.is_empty() {
         error!("Couldn't open any SOCKS listeners.");
