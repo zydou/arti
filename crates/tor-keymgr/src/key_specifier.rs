@@ -110,6 +110,13 @@ impl KeyPathPattern {
     pub fn new(inner: impl AsRef<str>) -> Self {
         Self(inner.as_ref().into())
     }
+
+    /// Create a `KeyPathPattern` that only matches the empty string.
+    ///
+    /// This pattern will fail to match any valid [`ArtiPath`]s or [`CTorPath`]s.
+    pub fn empty() -> Self {
+        Self("".into())
+    }
 }
 
 /// A separator for `ArtiPath`s.
