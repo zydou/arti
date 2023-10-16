@@ -23,7 +23,7 @@
 //! So if you use the timeout tracker to decide how long to sleep,
 //! you won't be woken up until *something else* occurs.
 //!
-//! Each has interior mutability,
+//! Each tracker has interior mutability,
 //! which is necessary because `PartialOrd` (`<=` etc.) only passes immutable references.
 //! Most are `Send`, none are `Sync`,
 //! so use in thread-safe async code is somewhat restricted.
@@ -40,12 +40,110 @@
 //!  * [`TrackingSystemTimeNow`]: tracks timeouts based on [`SystemTime`]
 //!  * [`TrackingInstantNow`]: tracks timeouts based on [`Instant`]
 //!  * [`TrackingInstantOffsetNow`]: `InstantTrackingNow` but with an offset applied
+//!
+//! # Advantages, disadvantages, and alternatives
+//!
+//! Using `TrackingNow` allows time-dependent code to be written
+//! in a natural, imperative, style,
+//! even if the timeout calculations are complex.
+//! Simply test whether it is time yet to do each thing, and if so do it.
+//!
+//! This can conveniently be combined with an idempotent imperative style
+//! for handling non-time-based inputs:
+//! for each possible action, you can decide in one place whether it needs doing.
+//! (Use a `select_biased!`, with [`wait_for_earliest`](TrackingNow::wait_for_earliest)
+//! as one of the branches.)
+//!
+//! This approach makes it harder to write bugs where
+//! some of the consequences of events are forgotten.
+//! Each timeout calculation is always done afresh from all its inputs.
+//! There is only ever one place where each action is considered,
+//! and the consideration is always redone from first principles.
+//!
+//! However, this is not necessarily the most performant approach.
+//! Each iteration of the event loop doesn't know *why* it has woken up,
+//! so must simply re-test all of the things that might need to be done.
+//!
+//! When higher performance is needed, consider maintaining timeouts as state:
+//! either as wakeup times or durations, or as actual `Future`s,
+//! depending on how frequently they are going to occur,
+//! and how much they need to be modified.
+//! With this approach you must remember to update or recalculate the timeout,
+//! on every change to any of the inputs to each timeout calculation.
+//! You must write code to check (or perform) each action,
+//! in the handler for each event that might trigger it.
+//! Omitting a call is easy,
+//! can result in mysterious ordering-dependent "stuckess" bugs,
+//! and is often detectable only by very comprehensive testing.
+//!
+//! # Example
+//!
+//! ```
+//! use std::sync::{Arc, Mutex};
+//! use std::time::Duration;
+//! use futures::task::SpawnExt as _;
+//! use tor_rtcompat::{BlockOn as _, SleepProvider as _};
+//!
+//! # use tor_hsservice::timeout_track_for_doctests_unstable_no_semver_guarantees as timeout_track;
+//! # #[cfg(all)] // works like #[cfg(FALSE)].  Instead, we have this workaround ^.
+//! use crate::timeout_track;
+//! use timeout_track::TrackingInstantNow;
+//!
+//! // Test harness
+//! let runtime = tor_rtmock::MockRuntime::new();
+//! let actions = Arc::new(Mutex::new("".to_string())); // initial letters of performed actions
+//! let perform_action = {
+//!     let actions = actions.clone();
+//!     move |s: &str| actions.lock().unwrap().extend(s.chars().take(1))
+//! };
+//!
+//! runtime.spawn({
+//!     let runtime = runtime.clone();
+//!
+//!     // Example program which models cooking a stir-fry
+//!     async move {
+//!         perform_action("add ingredients");
+//!         let started = runtime.now();
+//!         let mut last_stirred = started;
+//!         loop {
+//!             let now_track = TrackingInstantNow::now(&runtime);
+//!
+//!             const STIR_EVERY: Duration = Duration::from_secs(25);
+//!             // In production, we might avoid panics:  .. >= last_stirred.checked_add(..)
+//!             if now_track >= last_stirred + STIR_EVERY {
+//!                 perform_action("stir");
+//!                 last_stirred = now_track.get_now_untracked();
+//!                 continue;
+//!             }
+//!
+//!             const COOK_FOR: Duration = Duration::from_secs(3 * 60);
+//!             if now_track >= started + COOK_FOR {
+//!                 break;
+//!             }
+//!
+//!             now_track.wait_for_earliest(&runtime).await;
+//!         }
+//!         perform_action("dish up");
+//!     }
+//! }).unwrap();
+//!
+//! // Do a test run
+//! runtime.block_on(async {
+//!     runtime.advance_by(Duration::from_secs(1 * 60)).await;
+//!     assert_eq!(*actions.lock().unwrap(), "ass");
+//!     runtime.advance_by(Duration::from_secs(2 * 60)).await;
+//!     assert_eq!(*actions.lock().unwrap(), "asssssssd");
+//! });
+//! ```
 
-// TODO HSS explain and demonstrate this some more.  Good prompts here:
-// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1659#note_2954264
-
-#![allow(unreachable_pub)] // TODO - eventually we hope this will become pub, in another crate
-#![allow(dead_code)] // TODO - eventually we hope this will become pub, in another crate
+// TODO - eventually we hope this will become pub, in another crate
+#![allow(unreachable_pub)]
+// TODO - eventually we hope this will become pub, in another crate
+#![allow(dead_code)]
+// Rustdoc complains that we link to these private docs from these docs which are
+// themselves only formatted with --document-private-items.
+// TODO - Remove when this is actually public
+#![allow(rustdoc::private_intra_doc_links)]
 
 use std::cell::Cell;
 use std::cmp::Ordering;
