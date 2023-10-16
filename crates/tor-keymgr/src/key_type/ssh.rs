@@ -7,6 +7,7 @@ use ssh_key::private::KeypairData;
 use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
 
+use crate::keystore::arti::err::ArtiNativeKeystoreError;
 use crate::{ErasedKey, KeyType, KeystoreError, Result};
 
 use tor_error::{internal, ErrorKind, HasKind};
@@ -15,6 +16,8 @@ use zeroize::Zeroizing;
 
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use super::UnknownKeyTypeError;
 
 /// The algorithm string for x25519 SSH keys.
 ///
@@ -230,12 +233,12 @@ macro_rules! parse_openssh {
                 // if we get to this point, we're going to return an error and never reach the other
                 // error handling branches where we use key.path).
                 path: $key.path.clone(),
-                key_type: $key_type,
+                key_type: $key_type.clone().clone(),
                 err: e.into(),
             }
         })?;
 
-        let wanted_key_algo = $key_type.ssh_algorithm();
+        let wanted_key_algo = $key_type.ssh_algorithm()?;
 
         if SshKeyAlgorithm::from(key.algorithm()) != wanted_key_algo {
             return Err(SshKeyError::UnexpectedSshKeyType {
@@ -348,11 +351,15 @@ fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve2551
 
 impl KeyType {
     /// Get the algorithm of this key type.
-    pub(crate) fn ssh_algorithm(&self) -> SshKeyAlgorithm {
+    pub(crate) fn ssh_algorithm(&self) -> Result<SshKeyAlgorithm> {
         match self {
-            KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => SshKeyAlgorithm::Ed25519,
-            KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => SshKeyAlgorithm::X25519,
-            KeyType::Ed25519ExpandedKeypair => SshKeyAlgorithm::Ed25519Expanded,
+            KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => Ok(SshKeyAlgorithm::Ed25519),
+            KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => Ok(SshKeyAlgorithm::X25519),
+            KeyType::Ed25519ExpandedKeypair => Ok(SshKeyAlgorithm::Ed25519Expanded),
+            KeyType::Unknown(ty) => Err(ArtiNativeKeystoreError::UnknownKeyType(
+                UnknownKeyTypeError(ty.clone()),
+            )
+            .boxed()),
         }
     }
 
@@ -363,16 +370,19 @@ impl KeyType {
     pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
         // TODO HSS: perhaps this needs to be a method on EncodableKey instead?
 
-        let key_type = *self;
-        match key_type {
+        match &self {
             KeyType::Ed25519Keypair
             | KeyType::X25519StaticKeypair
             | KeyType::Ed25519ExpandedKeypair => {
-                parse_openssh!(PRIVATE key, key_type)
+                parse_openssh!(PRIVATE key, self)
             }
             KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
-                parse_openssh!(PUBLIC key, key_type)
+                parse_openssh!(PUBLIC key, self)
             }
+            KeyType::Unknown(ty) => Err(ArtiNativeKeystoreError::UnknownKeyType(
+                UnknownKeyTypeError(ty.clone()),
+            )
+            .boxed()),
         }
     }
 }

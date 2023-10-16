@@ -1,6 +1,6 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
-use crate::{KeyPathError, KeystoreError};
+use crate::{KeyPathError, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 
 use std::io;
@@ -49,6 +49,10 @@ pub(crate) enum ArtiNativeKeystoreError {
     #[error("Invalid or non-existant ArtiPath")]
     KeyPathError(#[from] KeyPathError),
 
+    /// An error due to encountering an unsupported [`KeyType`](crate::KeyType).
+    #[error("{0}")]
+    UnknownKeyType(#[from] UnknownKeyTypeError),
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -91,6 +95,7 @@ impl HasKind for ArtiNativeKeystoreError {
             KE::FsMistrust { .. } => ErrorKind::FsPermissions,
             KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
             KE::KeyPathError(_) => ErrorKind::KeystoreAccessFailed,
+            KE::UnknownKeyType(_) => ErrorKind::KeystoreAccessFailed,
             KE::Bug(e) => e.kind(),
         }
     }

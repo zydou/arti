@@ -36,6 +36,8 @@
 // in a database.  But we don't need or want to write a generic "look up stuff in a database" API;
 // that can be (at least for now) a bespoke API just for HS client auth."
 
+use thiserror::Error;
+
 pub(crate) mod ssh;
 
 /// A type of key stored in the key store.
@@ -47,7 +49,7 @@ pub(crate) mod ssh;
 //     Public(Algorithm),
 // }
 // ```
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum KeyType {
     /// An Ed25519 keypair.
@@ -60,7 +62,8 @@ pub enum KeyType {
     Ed25519PublicKey,
     /// A Curve25519 public key.
     X25519PublicKey,
-    // ...plus all the other key types we're interested in (TODO)
+    /// An unrecognized key type.
+    Unknown(String),
 }
 
 impl KeyType {
@@ -68,7 +71,7 @@ impl KeyType {
     //
     // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
     // to decide the file extension should be).
-    pub fn arti_extension(&self) -> &'static str {
+    pub fn arti_extension(&self) -> String {
         use KeyType::*;
 
         // TODO HSS:
@@ -81,11 +84,12 @@ impl KeyType {
         // KS_hsc_desc_enc.x25519_private. Perhaps we do want some redundancy in the name after
         // all..
         match self {
-            Ed25519Keypair => "ed25519_private",
-            Ed25519PublicKey => "ed25519_public",
-            X25519StaticKeypair => "x25519_private",
-            X25519PublicKey => "x25519_public",
-            Ed25519ExpandedKeypair => "ed25519_expanded_private",
+            Ed25519Keypair => "ed25519_private".into(),
+            Ed25519PublicKey => "ed25519_public".into(),
+            X25519StaticKeypair => "x25519_private".into(),
+            X25519PublicKey => "x25519_public".into(),
+            Ed25519ExpandedKeypair => "ed25519_expanded_private".into(),
+            Unknown(ty) => ty.clone(),
         }
     }
 
@@ -97,3 +101,8 @@ impl KeyType {
         todo!() // TODO HSS
     }
 }
+
+/// An error that happens when we encounter an unknown key type.
+#[derive(Error, PartialEq, Eq, Debug, Clone)]
+#[error("unknown key type: {0}")]
+pub struct UnknownKeyTypeError(String);

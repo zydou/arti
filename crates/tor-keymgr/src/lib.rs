@@ -59,14 +59,14 @@ mod dummy;
 
 pub use err::{Error, KeystoreError};
 pub use key_specifier::{
-    ArtiPath, ArtiPathComponent, ArtiPathError, CTorPath, KeyPath, KeyPathError, KeyPathRange,
-    KeySpecifier,
+    ArtiPath, ArtiPathComponent, ArtiPathError, CTorPath, KeyPath, KeyPathError, KeyPathPattern,
+    KeyPathRange, KeySpecifier,
 };
 
 #[cfg(feature = "keymgr")]
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
 pub use {
-    key_type::KeyType,
+    key_type::{KeyType, UnknownKeyTypeError},
     keystore::arti::ArtiNativeKeystore,
     keystore::{EncodableKey, ErasedKey, Keygen, KeygenRng, Keystore, SshKeyData, ToEncodableKey},
     mgr::KeyMgr,

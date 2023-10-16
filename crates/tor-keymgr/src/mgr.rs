@@ -85,9 +85,9 @@ impl KeyMgr {
         let store = self.select_keystore(&selector)?;
         let key_type = K::Key::key_type();
 
-        if overwrite || !store.contains(key_spec, key_type)? {
+        if overwrite || !store.contains(key_spec, &key_type)? {
             let key = K::Key::generate(rng)?;
-            store.insert(&key, key_spec, key_type).map(Some)
+            store.insert(&key, key_spec, &key_type).map(Some)
         } else {
             Ok(None)
         }
@@ -135,8 +135,8 @@ impl KeyMgr {
         // TODO HSS: at some point we may want to support putting the keypair and public key in
         // different keystores.
         let store = self.select_keystore(&selector)?;
-        let keypair = store.get(keypair_key_spec, SK::Key::key_type())?;
-        let public_key = store.get(public_key_spec, PK::key_type())?;
+        let keypair = store.get(keypair_key_spec, &SK::Key::key_type())?;
+        let public_key = store.get(public_key_spec, &PK::key_type())?;
 
         let generate_key = match (keypair, public_key) {
             (Some(keypair), None) if !overwrite => {
@@ -148,7 +148,7 @@ impl KeyMgr {
                     .map_err(|_| internal!("failed to downcast key to requested type"))?;
                 let public_key = derive_pub(&keypair);
 
-                let _ = store.insert(&public_key, public_key_spec, PK::key_type())?;
+                let _ = store.insert(&public_key, public_key_spec, &PK::key_type())?;
 
                 false
             }
@@ -198,10 +198,10 @@ impl KeyMgr {
 
         if generate_key {
             let keypair = SK::Key::generate(rng)?;
-            let _ = store.insert(&keypair, keypair_key_spec, SK::Key::key_type())?;
+            let _ = store.insert(&keypair, keypair_key_spec, &SK::Key::key_type())?;
 
             let public_key = derive_pub(&keypair);
-            let _ = store.insert(&public_key, public_key_spec, PK::key_type())?;
+            let _ = store.insert(&public_key, public_key_spec, &PK::key_type())?;
 
             Ok(Some(()))
         } else {
@@ -223,7 +223,7 @@ impl KeyMgr {
         let key = key.to_encodable_key();
         let store = self.select_keystore(&selector)?;
 
-        store.insert(&key, key_spec, K::Key::key_type())
+        store.insert(&key, key_spec, &K::Key::key_type())
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
@@ -239,7 +239,7 @@ impl KeyMgr {
     ) -> Result<Option<()>> {
         let store = self.select_keystore(&selector)?;
 
-        store.remove(key_spec, K::Key::key_type())
+        store.remove(key_spec, &K::Key::key_type())
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
@@ -251,7 +251,7 @@ impl KeyMgr {
         stores: impl Iterator<Item = &'a BoxedKeystore>,
     ) -> Result<Option<K>> {
         for store in stores {
-            let key = match store.get(key_spec, K::Key::key_type()) {
+            let key = match store.get(key_spec, &K::Key::key_type()) {
                 Ok(None) => {
                     // The key doesn't exist in this store, so we check the next one...
                     continue;
@@ -388,12 +388,16 @@ mod tests {
             }
 
             impl Keystore for $name {
-                fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool> {
+                fn contains(
+                    &self,
+                    key_spec: &dyn KeySpecifier,
+                    key_type: &KeyType,
+                ) -> Result<bool> {
                     Ok(self
                         .inner
                         .read()
                         .unwrap()
-                        .contains_key(&(key_spec.arti_path().unwrap(), key_type)))
+                        .contains_key(&(key_spec.arti_path().unwrap(), key_type.clone())))
                 }
 
                 fn id(&self) -> &KeystoreId {
@@ -403,13 +407,13 @@ mod tests {
                 fn get(
                     &self,
                     key_spec: &dyn KeySpecifier,
-                    key_type: KeyType,
+                    key_type: &KeyType,
                 ) -> Result<Option<ErasedKey>> {
                     Ok(self
                         .inner
                         .read()
                         .unwrap()
-                        .get(&(key_spec.arti_path().unwrap(), key_type))
+                        .get(&(key_spec.arti_path().unwrap(), key_type.clone()))
                         .map(|k| Box::new(k.clone()) as Box<dyn EncodableKey>))
                 }
 
@@ -417,7 +421,7 @@ mod tests {
                     &self,
                     key: &dyn EncodableKey,
                     key_spec: &dyn KeySpecifier,
-                    key_type: KeyType,
+                    key_type: &KeyType,
                 ) -> Result<()> {
                     let key = key.as_ssh_key_data()?;
                     let key_bytes = key.into_private().unwrap().encrypted().unwrap().to_vec();
@@ -425,7 +429,7 @@ mod tests {
                     let value = String::from_utf8(key_bytes).unwrap();
 
                     self.inner.write().unwrap().insert(
-                        (key_spec.arti_path().unwrap(), key_type),
+                        (key_spec.arti_path().unwrap(), key_type.clone()),
                         format!("{}_{value}", self.id()),
                     );
 
@@ -435,13 +439,13 @@ mod tests {
                 fn remove(
                     &self,
                     key_spec: &dyn KeySpecifier,
-                    key_type: KeyType,
+                    key_type: &KeyType,
                 ) -> Result<Option<()>> {
                     Ok(self
                         .inner
                         .write()
                         .unwrap()
-                        .remove(&(key_spec.arti_path().unwrap(), key_type))
+                        .remove(&(key_spec.arti_path().unwrap(), key_type.clone()))
                         .map(|_| ()))
                 }
             }
@@ -555,7 +559,7 @@ mod tests {
         );
 
         assert!(!mgr.key_stores[0]
-            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
 
         // Insert a key into Keystore2
@@ -579,7 +583,7 @@ mod tests {
             .is_err());
         // The key still exists in Keystore2
         assert!(mgr.key_stores[0]
-            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
 
         // Try to remove the key from the default key store
@@ -591,7 +595,7 @@ mod tests {
 
         // The key still exists in Keystore2
         assert!(mgr.key_stores[0]
-            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
 
         // Removing from Keystore2 should succeed.
@@ -606,7 +610,7 @@ mod tests {
 
         // The key doesn't exist in Keystore2 anymore
         assert!(!mgr.key_stores[0]
-            .contains(&TestKeySpecifier1, TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
     }
 

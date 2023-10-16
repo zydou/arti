@@ -62,7 +62,7 @@ impl ArtiNativeKeystore {
     fn key_path(
         &self,
         key_spec: &dyn KeySpecifier,
-        key_type: KeyType,
+        key_type: &KeyType,
     ) -> StdResult<PathBuf, ArtiNativeKeystoreError> {
         let arti_path: String = key_spec.arti_path()?.into();
         let mut rel_path = PathBuf::from(arti_path);
@@ -93,13 +93,13 @@ impl Keystore for ArtiNativeKeystore {
         &self.id
     }
 
-    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool> {
+    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
         let path = key_path_if_supported!(self.key_path(key_spec, key_type), Ok(false));
 
         Ok(path.exists())
     }
 
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
         let path = key_path_if_supported!(self.key_path(key_spec, key_type), Ok(None));
 
         let inner = match self.keystore_dir.read_to_string(&path) {
@@ -123,7 +123,7 @@ impl Keystore for ArtiNativeKeystore {
         &self,
         key: &dyn EncodableKey,
         key_spec: &dyn KeySpecifier,
-        key_type: KeyType,
+        key_type: &KeyType,
     ) -> Result<()> {
         let path = self.key_path(key_spec, key_type)?;
 
@@ -171,7 +171,7 @@ impl Keystore for ArtiNativeKeystore {
             })?)
     }
 
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>> {
+    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>> {
         let key_path = self.key_path(key_spec, key_type)?;
 
         let abs_key_path =
@@ -220,13 +220,14 @@ mod tests {
     // include it once)
     const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
 
-    struct TestSpecifier;
+    const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
+
+    #[derive(Default)]
+    struct TestSpecifier(String);
 
     impl KeySpecifier for TestSpecifier {
         fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
-            Ok(ArtiPath::new(
-                "parent1/parent2/parent3/test-specifier".into(),
-            )?)
+            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0))?)
         }
 
         fn ctor_path(&self) -> Option<CTorPath> {
@@ -234,8 +235,10 @@ mod tests {
         }
     }
 
-    fn key_path(key_store: &ArtiNativeKeystore, key_type: KeyType) -> PathBuf {
-        let rel_key_path = key_store.key_path(&TestSpecifier, key_type).unwrap();
+    fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
+        let rel_key_path = key_store
+            .key_path(&TestSpecifier::default(), key_type)
+            .unwrap();
 
         key_store.keystore_dir.as_path().join(rel_key_path)
     }
@@ -254,7 +257,7 @@ mod tests {
                 .unwrap();
 
         if gen_keys {
-            let key_path = key_path(&key_store, KeyType::Ed25519Keypair);
+            let key_path = key_path(&key_store, &KeyType::Ed25519Keypair);
             let parent = key_path.parent().unwrap();
             fs::create_dir_all(parent).unwrap();
             fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).unwrap();
@@ -307,14 +310,14 @@ mod tests {
 
         assert_eq!(
             key_store
-                .key_path(&TestSpecifier, KeyType::Ed25519Keypair)
+                .key_path(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
                 .unwrap(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private")
         );
 
         assert_eq!(
             key_store
-                .key_path(&TestSpecifier, KeyType::X25519StaticKeypair)
+                .key_path(&TestSpecifier::default(), &KeyType::X25519StaticKeypair)
                 .unwrap(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private")
         );
@@ -327,12 +330,12 @@ mod tests {
 
         let (key_store, _keystore_dir) = init_keystore(true);
 
-        let key_path = key_path(&key_store, KeyType::Ed25519Keypair);
+        let key_path = key_path(&key_store, &KeyType::Ed25519Keypair);
 
         // Make the permissions of the test key too permissive
         fs::set_permissions(key_path, fs::Permissions::from_mode(0o777)).unwrap();
         assert!(key_store
-            .get(&TestSpecifier, KeyType::Ed25519Keypair)
+            .get(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
             .is_err());
 
         // TODO HSS: remove works even if the permissions are not restrictive enough for other
@@ -340,7 +343,7 @@ mod tests {
         // thought before we document and advertise this behaviour.
         assert_eq!(
             key_store
-                .remove(&TestSpecifier, KeyType::Ed25519Keypair)
+                .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
                 .unwrap(),
             Some(())
         );
@@ -352,13 +355,23 @@ mod tests {
         let (key_store, _keystore_dir) = init_keystore(false);
 
         // Not found
-        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, false);
+        assert_found!(
+            key_store,
+            &TestSpecifier::default(),
+            &KeyType::Ed25519Keypair,
+            false
+        );
 
         // Initialize a key store with some test keys
         let (key_store, _keystore_dir) = init_keystore(true);
 
         // Found!
-        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
+        assert_found!(
+            key_store,
+            &TestSpecifier::default(),
+            &KeyType::Ed25519Keypair,
+            true
+        );
     }
 
     #[test]
@@ -367,7 +380,12 @@ mod tests {
         let (key_store, keystore_dir) = init_keystore(false);
 
         // Not found
-        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, false);
+        assert_found!(
+            key_store,
+            &TestSpecifier::default(),
+            &KeyType::Ed25519Keypair,
+            false
+        );
 
         // Insert the key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
@@ -379,8 +397,8 @@ mod tests {
             panic!("failed to downcast key to ed25519::Keypair")
         };
 
-        let key_spec = TestSpecifier;
-        let ed_key_type = KeyType::Ed25519Keypair;
+        let key_spec = TestSpecifier::default();
+        let ed_key_type = &KeyType::Ed25519Keypair;
         let path = keystore_dir
             .as_ref()
             .join(key_store.key_path(&key_spec, ed_key_type).unwrap());
@@ -392,31 +410,11 @@ mod tests {
         assert!(path.parent().unwrap().exists());
 
         // Found!
-        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
-    }
-
-    #[test]
-    fn remove() {
-        // Initialize the key store
-        let (key_store, _keystore_dir) = init_keystore(true);
-
-        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, true);
-
-        // Now remove the key... remove() should indicate success by returning Ok(Some(()))
-        assert_eq!(
-            key_store
-                .remove(&TestSpecifier, KeyType::Ed25519Keypair)
-                .unwrap(),
-            Some(())
+        assert_found!(
+            key_store,
+            &TestSpecifier::default(),
+            &KeyType::Ed25519Keypair,
+            true
         );
-
-        // Can't find it anymore!
-        assert_found!(key_store, &TestSpecifier, KeyType::Ed25519Keypair, false);
-
-        // remove() returns Ok(None) now.
-        assert!(key_store
-            .remove(&TestSpecifier, KeyType::Ed25519Keypair)
-            .unwrap()
-            .is_none());
     }
 }

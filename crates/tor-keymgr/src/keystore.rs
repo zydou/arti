@@ -43,13 +43,13 @@ pub trait Keystore: Send + Sync + 'static {
     fn id(&self) -> &KeystoreId;
 
     /// Check if the the key identified by `key_spec` exists in this key store.
-    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool>;
+    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool>;
 
     /// Retrieve the key identified by `key_spec`.
     ///
     /// Returns `Ok(Some(key))` if the key was successfully retrieved. Returns `Ok(None)` if the
     /// key does not exist in this key store.
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>>;
+    fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
     //
@@ -72,7 +72,7 @@ pub trait Keystore: Send + Sync + 'static {
         &self,
         key: &dyn EncodableKey,
         key_spec: &dyn KeySpecifier,
-        key_type: KeyType,
+        key_type: &KeyType,
     ) -> Result<()>;
 
     /// Remove the specified key.
@@ -81,7 +81,7 @@ pub trait Keystore: Send + Sync + 'static {
     /// `Ok(Some(())` means the key was successfully removed.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<()>>;
+    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>>;
 }
 
 /// A trait for generating fresh keys.
