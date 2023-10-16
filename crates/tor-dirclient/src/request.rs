@@ -602,11 +602,9 @@ impl Requestable for HsDescUploadRequest {
     }
 
     fn max_response_len(&self) -> usize {
-        // We expect the response _body_ to be empty, but the max_response_len is not zero because
-        // it represents the _total_ length of the response (which includes the length of the
-        // status line and headers)
-        //
-        // TODO HSS: check what headers real HSDirs send, and adjust this value accordingly
+        // We expect the response _body_ to be empty, but the max_response_len
+        // is not zero because it represents the _total_ length of the response
+        // (which includes the length of the status line and headers).
         1024
     }
 
