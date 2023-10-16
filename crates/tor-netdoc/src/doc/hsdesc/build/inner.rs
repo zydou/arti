@@ -82,7 +82,16 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             encoder.item(SINGLE_ONION_SERVICE);
         }
 
-        for intro_point in intro_points {
+        // We sort the introduction points here so as not to expose
+        // detail about the order in which they were added, which might
+        // be useful to an attacker somehow.  The choice of ntor
+        // key is arbitrary; we could sort by anything, really.
+        //
+        // TODO SPEC: Either specify that we should sort by ntor key,
+        // or sort by something else and specify that.
+        let mut sorted_ip: Vec<_> = intro_points.iter().collect();
+        sorted_ip.sort_by_key(|key| key.ipt_ntor_key.as_bytes());
+        for intro_point in sorted_ip {
             // rend-spec-v3 0.4. "Protocol building blocks [BUILDING-BLOCKS]": the number of link
             // specifiers (NPSEC) must fit in a single byte.
             let nspec: u8 = intro_point
@@ -261,6 +270,21 @@ mod test {
         assert_eq!(
             hs_desc,
             r#"create2-formats 1234 32 23
+introduction-point AQAGfwAAASLF
+onion-key ntor CJi8nDPhIFA7X9Q+oP7+jzxNo044cblmagk/d7oKWGc=
+auth-key
+-----BEGIN ED25519 CERT-----
+AQkAAAAAAU4J4xGrMt9q5eHYZSmbOZTi1iKl59nd3ItYXAa/ASlRAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61CGkJzc/ECYHzJeeAKIkRFV/6jr9
+zAB5XnEFghZmXdDTQdqcPXAFydyeHWW4uR+Uii0wPI8VokbU0NoLTNYJGAM=
+-----END ED25519 CERT-----
+enc-key ntor TL7GcN+B++pB6eRN/0nBZGmWe125qh7ccQJ/Hhku+x8=
+enc-key-cert
+-----BEGIN ED25519 CERT-----
+AQsAAAAAAabaCv4gv9ddyIztD1J8my9mgotmWnkHX94buLAtt15aAQAgBACQKRtN
+eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61GxlI6caS8iFp2bLmg1+Pkgij47f
+eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
+-----END ED25519 CERT-----
 introduction-point AQAGfwAAAQTS
 onion-key ntor HWIigEAdcOgqgHPDFmzhhkeqvYP/GcMT2fKb5JY6ey8=
 auth-key
@@ -290,21 +314,6 @@ enc-key-cert
 AQsAAAAAAZYGETSx12Og2xqJNMS9kGOHTEFeBkFPi7k0UaFv5HNKAQAgBACQKRtN
 eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61E8vxB5lB83+rQnWmHLzpfuMUZjG
 o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
------END ED25519 CERT-----
-introduction-point AQAGfwAAASLF
-onion-key ntor CJi8nDPhIFA7X9Q+oP7+jzxNo044cblmagk/d7oKWGc=
-auth-key
------BEGIN ED25519 CERT-----
-AQkAAAAAAU4J4xGrMt9q5eHYZSmbOZTi1iKl59nd3ItYXAa/ASlRAQAgBACQKRtN
-eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61CGkJzc/ECYHzJeeAKIkRFV/6jr9
-zAB5XnEFghZmXdDTQdqcPXAFydyeHWW4uR+Uii0wPI8VokbU0NoLTNYJGAM=
------END ED25519 CERT-----
-enc-key ntor TL7GcN+B++pB6eRN/0nBZGmWe125qh7ccQJ/Hhku+x8=
-enc-key-cert
------BEGIN ED25519 CERT-----
-AQsAAAAAAabaCv4gv9ddyIztD1J8my9mgotmWnkHX94buLAtt15aAQAgBACQKRtN
-eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61GxlI6caS8iFp2bLmg1+Pkgij47f
-eetKn+yDC5Q3eo/hJLDBGAQNOX7jFMdr9HjotjXIt6/Khfmg58CZC/gKhAw=
 -----END ED25519 CERT-----
 "#
         );
