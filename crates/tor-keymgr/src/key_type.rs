@@ -102,7 +102,52 @@ impl KeyType {
     }
 }
 
+// TODO HSS: rewrite this (and the display impl) using strum.
+impl From<&str> for KeyType {
+    fn from(key_type: &str) -> Self {
+        use KeyType::*;
+
+        match key_type {
+            "ed25519_private" => Ed25519Keypair,
+            "ed25519_public" => Ed25519PublicKey,
+            "x25519_private" => X25519StaticKeypair,
+            "x25519_public" => X25519PublicKey,
+            "ed25519_expanded" => Ed25519ExpandedKeypair,
+            _ => Unknown(key_type.into()),
+        }
+    }
+}
+
 /// An error that happens when we encounter an unknown key type.
 #[derive(Error, PartialEq, Eq, Debug, Clone)]
 #[error("unknown key type: {0}")]
 pub struct UnknownKeyTypeError(String);
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    #[test]
+    fn unknown_key_types() {
+        const UNKNOWN_KEY_TYPE: &str = "rsa";
+
+        let unknown_key_ty = KeyType::from(UNKNOWN_KEY_TYPE);
+        assert_eq!(unknown_key_ty, KeyType::Unknown(UNKNOWN_KEY_TYPE.into()));
+        assert_eq!(
+            unknown_key_ty.arti_extension(),
+            UNKNOWN_KEY_TYPE
+        );
+    }
+}
