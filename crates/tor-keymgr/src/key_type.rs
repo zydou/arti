@@ -81,9 +81,11 @@ impl KeyType {
         // KS_hsc_desc_enc.x25519_private. Perhaps we do want some redundancy in the name after
         // all..
         match self {
-            Ed25519Keypair | Ed25519PublicKey => "ed25519",
-            X25519StaticKeypair | X25519PublicKey => "x25519",
-            Ed25519ExpandedKeypair => "ed25519_expanded",
+            Ed25519Keypair => "ed25519_private",
+            Ed25519PublicKey => "ed25519_public",
+            X25519StaticKeypair => "x25519_private",
+            X25519PublicKey => "x25519_public",
+            Ed25519ExpandedKeypair => "ed25519_expanded_private",
         }
     }
 
