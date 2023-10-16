@@ -82,6 +82,13 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             encoder.item(SINGLE_ONION_SERVICE);
         }
 
+        // We sort the introduction points here so as not to expose
+        // detail about the order in which they were added, which might
+        // be useful to an attacker somehow.  The choice of ntor
+        // key is arbitrary; we could sort by anything, really.
+        //
+        // TODO SPEC: Either specify that we should sort by ntor key,
+        // or sort by something else and specify that.
         let mut sorted_ip: Vec<_> = intro_points.iter().collect();
         sorted_ip.sort_by_key(|key| key.ipt_ntor_key.as_bytes());
         for intro_point in sorted_ip {
