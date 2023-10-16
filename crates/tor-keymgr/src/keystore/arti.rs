@@ -7,11 +7,12 @@ pub(crate) mod err;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{KeyType, KeystoreId, Result};
+use crate::{KeyPathError, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
@@ -58,7 +59,11 @@ impl ArtiNativeKeystore {
 
     /// The path on disk of the key with the specified identity and type, relative to
     /// `keystore_dir`.
-    fn key_path(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<PathBuf> {
+    fn key_path(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        key_type: KeyType,
+    ) -> StdResult<PathBuf, ArtiNativeKeystoreError> {
         let arti_path: String = key_spec.arti_path()?.into();
         let mut rel_path = PathBuf::from(arti_path);
         rel_path.set_extension(key_type.arti_extension());
@@ -67,17 +72,35 @@ impl ArtiNativeKeystore {
     }
 }
 
+/// Extract the key path from the specified result `res`, or return an error.
+///
+/// If the underlying error is `NotSupported` (i.e. the `KeySpecifier` returned an unsupported
+/// `KeyPath` type), return `ret`.
+macro_rules! key_path_if_supported {
+    ($res:expr, $ret:expr) => {{
+        use KeyPathError as KPE;
+
+        match $res {
+            Ok(path) => path,
+            Err(ArtiNativeKeystoreError::KeyPathError(KPE::NotSupported)) => return $ret,
+            Err(e) => return Err(e.into()),
+        }
+    }};
+}
+
 impl Keystore for ArtiNativeKeystore {
     fn id(&self) -> &KeystoreId {
         &self.id
     }
 
     fn contains(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<bool> {
-        Ok(self.key_path(key_spec, key_type)?.exists())
+        let path = key_path_if_supported!(self.key_path(key_spec, key_type), Ok(false));
+
+        Ok(path.exists())
     }
 
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: KeyType) -> Result<Option<ErasedKey>> {
-        let path = self.key_path(key_spec, key_type)?;
+        let path = key_path_if_supported!(self.key_path(key_spec, key_type), Ok(None));
 
         let inner = match self.keystore_dir.read_to_string(&path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
@@ -200,8 +223,10 @@ mod tests {
     struct TestSpecifier;
 
     impl KeySpecifier for TestSpecifier {
-        fn arti_path(&self) -> Result<ArtiPath> {
-            ArtiPath::new("parent1/parent2/parent3/test-specifier".into())
+        fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+            Ok(ArtiPath::new(
+                "parent1/parent2/parent3/test-specifier".into(),
+            )?)
         }
 
         fn ctor_path(&self) -> Option<CTorPath> {

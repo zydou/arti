@@ -7,10 +7,11 @@
 
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
+use std::result::Result as StdResult;
 use std::sync::Arc;
 
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientIntroAuthKeypair, HsId};
-use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeySpecifier};
+use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeyPathError, KeySpecifier};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -147,8 +148,8 @@ impl HsClientSpecifier {
     /// Create a new [`HsClientSpecifier`].
     ///
     /// The `inner` string **must** be a valid [`ArtiPathComponent`].
-    pub fn new(inner: String) -> Result<Self, tor_keymgr::Error> {
-        ArtiPathComponent::new(inner).map(Self)
+    pub fn new(inner: String) -> Result<Self, KeyPathError> {
+        Ok(ArtiPathComponent::new(inner).map(Self)?)
     }
 }
 
@@ -186,11 +187,11 @@ impl HsClientSecretKeySpecifier {
 }
 
 impl KeySpecifier for HsClientSecretKeySpecifier {
-    fn arti_path(&self) -> tor_keymgr::Result<ArtiPath> {
-        ArtiPath::new(format!(
+    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+        Ok(ArtiPath::new(format!(
             "client/{}/{}/{}",
             self.client_id, self.hs_id, self.role
-        ))
+        ))?)
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {

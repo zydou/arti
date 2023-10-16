@@ -313,8 +313,9 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ErasedKey, KeyType, SshKeyData};
+    use crate::{ArtiPath, ErasedKey, KeyPathError, KeyType, SshKeyData};
     use std::collections::HashMap;
+    use std::result::Result as StdResult;
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
@@ -392,7 +393,7 @@ mod tests {
                         .inner
                         .read()
                         .unwrap()
-                        .contains_key(&(key_spec.arti_path()?, key_type)))
+                        .contains_key(&(key_spec.arti_path().unwrap(), key_type)))
                 }
 
                 fn id(&self) -> &KeystoreId {
@@ -408,7 +409,7 @@ mod tests {
                         .inner
                         .read()
                         .unwrap()
-                        .get(&(key_spec.arti_path()?, key_type))
+                        .get(&(key_spec.arti_path().unwrap(), key_type))
                         .map(|k| Box::new(k.clone()) as Box<dyn EncodableKey>))
                 }
 
@@ -424,7 +425,7 @@ mod tests {
                     let value = String::from_utf8(key_bytes).unwrap();
 
                     self.inner.write().unwrap().insert(
-                        (key_spec.arti_path()?, key_type),
+                        (key_spec.arti_path().unwrap(), key_type),
                         format!("{}_{value}", self.id()),
                     );
 
@@ -440,7 +441,7 @@ mod tests {
                         .inner
                         .write()
                         .unwrap()
-                        .remove(&(key_spec.arti_path()?, key_type))
+                        .remove(&(key_spec.arti_path().unwrap(), key_type))
                         .map(|_| ()))
                 }
             }
@@ -452,8 +453,8 @@ mod tests {
             struct $name;
 
             impl KeySpecifier for $name {
-                fn arti_path(&self) -> Result<ArtiPath> {
-                    ArtiPath::new($id.into())
+                fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+                    Ok(ArtiPath::new($id.into())?)
                 }
 
                 fn ctor_path(&self) -> Option<crate::CTorPath> {

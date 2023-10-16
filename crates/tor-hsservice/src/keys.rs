@@ -1,9 +1,10 @@
 //! [`KeySpecifier`] implementations for hidden service keys.
 
 use std::fmt;
+use std::result::Result as StdResult;
 
 use tor_hscrypto::time::TimePeriod;
-use tor_keymgr::{ArtiPath, CTorPath, KeySpecifier};
+use tor_keymgr::{ArtiPath, CTorPath, KeyPathError, KeySpecifier};
 
 use crate::HsNickname;
 
@@ -69,8 +70,11 @@ impl fmt::Display for HsSvcKeyRole {
 }
 
 impl<'a> KeySpecifier for HsSvcKeySpecifier<'a> {
-    fn arti_path(&self) -> tor_keymgr::Result<ArtiPath> {
-        ArtiPath::new(format!("hs/{}/{}", self.nickname, self.role))
+    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+        Ok(ArtiPath::new(format!(
+            "hs/{}/{}",
+            self.nickname, self.role
+        ))?)
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {

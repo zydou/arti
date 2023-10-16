@@ -1,11 +1,10 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
-use crate::Result;
+use std::result::Result as StdResult;
+
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use tor_error::internal;
 
 /// The path of a key in the Arti key store.
 ///
@@ -59,7 +58,7 @@ impl ArtiPath {
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
     // TODO HSS this function (and validate_str) should have a bespoke error type
-    pub fn new(inner: String) -> Result<Self> {
+    pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
         if let Some(e) = inner
             .split(PATH_SEP)
             .find_map(|s| ArtiPathComponent::validate_str(s).err())
@@ -97,7 +96,7 @@ impl ArtiPathComponent {
     /// Create a new [`ArtiPathComponent`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
-    pub fn new(inner: String) -> Result<Self> {
+    pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
         Self::validate_str(&inner)?;
 
         Ok(Self(inner))
@@ -109,20 +108,25 @@ impl ArtiPathComponent {
     }
 
     /// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
-    fn validate_str(inner: &str) -> Result<()> {
+    fn validate_str(inner: &str) -> StdResult<(), ArtiPathError> {
         /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
         const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
 
-        if inner.is_empty()
-            || inner.chars().any(|c| !Self::is_allowed_char(c))
-            || inner.contains("..")
-        {
-            return Err(Box::new(internal!("Invalid arti path: {inner}")));
+        if inner.is_empty() {
+            return Err(ArtiPathError::EmptyPathComponent);
+        }
+
+        if let Some(c) = inner.chars().find(|c| !Self::is_allowed_char(*c)) {
+            return Err(ArtiPathError::DisallowedChar(c));
+        }
+
+        if inner.contains("..") {
+            return Err(ArtiPathError::PathTraversal);
         }
 
         for c in MIDDLE_ONLY {
             if inner.starts_with(*c) || inner.ends_with(*c) {
-                return Err(Box::new(internal!("Invalid arti path: {inner}")));
+                return Err(ArtiPathError::BadOuterChar(*c));
             }
         }
 
@@ -131,8 +135,9 @@ impl ArtiPathComponent {
 }
 
 impl TryFrom<String> for ArtiPathComponent {
-    type Error = crate::Error; // TODO HSS should be bespoke error type
-    fn try_from(s: String) -> Result<ArtiPathComponent> {
+    type Error = ArtiPathError;
+
+    fn try_from(s: String) -> StdResult<ArtiPathComponent, ArtiPathError> {
         Self::new(s)
     }
 }
@@ -154,7 +159,7 @@ pub trait KeySpecifier {
     /// The location of the key in the Arti key store.
     ///
     /// This also acts as a unique identifier for a specific key instance.
-    fn arti_path(&self) -> Result<ArtiPath>;
+    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError>;
 
     /// The location of the key in the C Tor key store (if supported).
     ///
@@ -189,6 +194,10 @@ pub enum ArtiPathError {
     #[error("Found disallowed char {0}")]
     DisallowedChar(char),
 
+    /// The path contains the `..` pattern.
+    #[error("Found `..` pattern")]
+    PathTraversal,
+
     /// The path starts with a disallowed char.
     #[error("Path starts or ends with disallowed char {0}")]
     BadOuterChar(char),
@@ -210,25 +219,23 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    fn is_invalid_arti_path_error(err: &crate::Error) -> bool {
-        err.to_string().contains("Invalid arti path")
+    macro_rules! assert_err {
+        ($ty:ident, $inner:expr, $error_kind:pat) => {{
+            let path = $ty::new($inner.to_string());
+            assert!(path.is_err(), "{} should be invalid", $inner);
+            assert!(
+                matches!(path.as_ref().unwrap_err(), $error_kind),
+                "wrong error type for {}: {path:?}",
+                $inner
+            );
+        }};
     }
 
-    macro_rules! check_valid {
-        ($ty:ident, $inner:expr, $expect_valid:expr) => {{
+    macro_rules! assert_ok {
+        ($ty:ident, $inner:expr) => {{
             let path = $ty::new($inner.to_string());
-
-            if $expect_valid {
-                assert!(path.is_ok(), "{} should be valid", $inner);
-                assert_eq!(path.unwrap().to_string(), *$inner);
-            } else {
-                assert!(path.is_err(), "{} should be invalid", $inner);
-                assert!(
-                    is_invalid_arti_path_error(path.as_ref().unwrap_err()),
-                    "wrong error type for {}: {path:?}",
-                    $inner
-                );
-            }
+            assert!(path.is_ok(), "{} should be valid", $inner);
+            assert_eq!(path.unwrap().to_string(), *$inner);
         }};
     }
 
@@ -243,10 +250,7 @@ mod test {
             "client.key",
         ];
 
-        const INVALID_ARTI_PATHS: &[&str] = &[
-            "alice//bob",
-            "/alice/bob",
-            "alice/bob/",
+        const BAD_OUTER_CHAR_ARTI_PATHS: &[&str] = &[
             "-hs_client",
             "_hs_client",
             "hs_client-",
@@ -255,30 +259,46 @@ mod test {
             "client.",
             "-",
             "_",
-            "c++",
-            "client?",
-            "no spaces please",
-            "/",
-            "/////",
-            "./bob",
-            "alice/../bob",
         ];
 
+        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] = &["c++", "client?", "no spaces please"];
+
+        const EMPTY_PATH_COMPONENT: &[&str] =
+            &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
+
         for path in VALID_ARTI_PATHS {
-            check_valid!(ArtiPath, path, true);
-            check_valid!(ArtiPathComponent, path, true);
+            assert_ok!(ArtiPath, path);
+            assert_ok!(ArtiPathComponent, path);
         }
 
-        for path in INVALID_ARTI_PATHS {
-            check_valid!(ArtiPath, path, false);
-            check_valid!(ArtiPathComponent, path, false);
+        for path in DISALLOWED_CHAR_ARTI_PATHS {
+            assert_err!(ArtiPath, path, ArtiPathError::DisallowedChar(_));
+            assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar(_));
+        }
+
+        for path in BAD_OUTER_CHAR_ARTI_PATHS {
+            assert_err!(ArtiPath, path, ArtiPathError::BadOuterChar(_));
+            assert_err!(ArtiPathComponent, path, ArtiPathError::BadOuterChar(_));
+        }
+
+        for path in EMPTY_PATH_COMPONENT {
+            assert_err!(ArtiPath, path, ArtiPathError::EmptyPathComponent);
+            assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar('/'));
         }
 
         const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid ArtiPathComponent
         let path = format!("a{SEP}client{SEP}key.private");
-        check_valid!(ArtiPath, &path, true);
-        check_valid!(ArtiPathComponent, &path, false);
+        assert_ok!(ArtiPath, &path);
+        assert_err!(ArtiPathComponent, &path, ArtiPathError::DisallowedChar('/'));
+
+        const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
+        assert_err!(ArtiPath, PATH_WITH_TRAVERSAL, ArtiPathError::PathTraversal);
+        assert_err!(ArtiPathComponent, PATH_WITH_TRAVERSAL, ArtiPathError::DisallowedChar('/'));
+
+        const REL_PATH: &str = "./bob";
+        assert_err!(ArtiPath, REL_PATH, ArtiPathError::BadOuterChar('.'));
+        assert_err!(ArtiPathComponent, REL_PATH, ArtiPathError::DisallowedChar('/'));
     }
 
     #[test]
@@ -298,8 +318,9 @@ mod test {
 
         let j = serde_json::from_str(r#"{ "n": "!" }"#).unwrap();
         let e = serde_json::from_value::<T>(j).unwrap_err();
-        // TODO HSS this is the wrong error message, this might not be a bug;
-        // it could be bad config or something
-        assert!(e.to_string().contains("internal error"), "wrong msg {e:?}");
+        assert!(
+            e.to_string().contains("Found disallowed char"),
+            "wrong msg {e:?}"
+        );
     }
 }
