@@ -46,6 +46,7 @@ mod response;
 mod util;
 
 use tor_circmgr::{CircMgr, DirInfo};
+use tor_error::bad_api_usage;
 use tor_rtcompat::{Runtime, SleepProvider, SleepProviderExt};
 
 // Zlib is required; the others are optional.
@@ -73,6 +74,20 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Type for internal results  containing a RequestError.
 pub type RequestResult<T> = std::result::Result<T, RequestError>;
 
+/// Flag to declare whether a request is anonymized or not.
+///
+/// Some requests (like those to download onion service descriptors) are always
+/// anonymized, and should never be sent in a way that leaks information about
+/// our settings or configuration.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum AnonymizedRequest {
+    /// This request should not leak any information about our configuration.
+    Anonymized,
+    /// This request is allowed to include information about our capabilities.
+    Direct,
+}
+
 /// Fetch the resource described by `req` over the Tor network.
 ///
 /// Circuits are built or found using `circ_mgr`, using paths
@@ -97,6 +112,10 @@ where
     SP: SleepProvider,
 {
     let circuit = circ_mgr.get_or_launch_dir(dirinfo).await?;
+
+    if req.anonymized() == AnonymizedRequest::Anonymized {
+        return Err(bad_api_usage!("Tried to use get_resource for an anonymized request").into());
+    }
 
     // TODO(nickm) This should be an option, and is too long.
     let begin_timeout = Duration::from_secs(5);
@@ -194,6 +213,7 @@ where
 
     let partial_ok = req.partial_docs_ok();
     let maxlen = req.max_response_len();
+    let anonymized = req.anonymized();
     let req = req.make_request().map_err(wrap_err)?;
     let encoded = util::encode_request(&req);
 
@@ -223,7 +243,8 @@ where
         ));
     }
 
-    let mut decoder = get_decoder(buffered, header.encoding.as_deref()).map_err(wrap_err)?;
+    let mut decoder =
+        get_decoder(buffered, header.encoding.as_deref(), anonymized).map_err(wrap_err)?;
 
     let mut result = Vec::new();
     let ok = read_and_decompress(runtime, &mut decoder, maxlen, &mut result).await;
@@ -457,15 +478,20 @@ macro_rules! decoder {
 fn get_decoder<'a, S: AsyncBufRead + Unpin + Send + 'a>(
     stream: S,
     encoding: Option<&str>,
+    anonymized: AnonymizedRequest,
 ) -> RequestResult<Box<dyn AsyncRead + Unpin + Send + 'a>> {
-    match encoding {
-        None | Some("identity") => Ok(Box::new(stream)),
-        Some("deflate") => decoder!(ZlibDecoder, stream),
+    use AnonymizedRequest::Direct;
+    match (encoding, anonymized) {
+        (None | Some("identity"), _) => Ok(Box::new(stream)),
+        (Some("deflate"), _) => decoder!(ZlibDecoder, stream),
+        // We only admit to supporting these on a direct connection; otherwise,
+        // a hostile directory could send them back even though we hadn't
+        // requested them.
         #[cfg(feature = "xz")]
-        Some("x-tor-lzma") => decoder!(XzDecoder, stream),
+        (Some("x-tor-lzma"), Direct) => decoder!(XzDecoder, stream),
         #[cfg(feature = "zstd")]
-        Some("x-zstd") => decoder!(ZstdDecoder, stream),
-        Some(other) => Err(RequestError::ContentEncoding(other.into())),
+        (Some("x-zstd"), Direct) => decoder!(ZstdDecoder, stream),
+        (Some(other), _) => Err(RequestError::ContentEncoding(other.into())),
     }
 }
 
@@ -527,7 +553,7 @@ mod test {
         let mock_time = MockSleepProvider::new(std::time::SystemTime::now());
 
         let mut output = Vec::new();
-        let mut stream = match get_decoder(data, encoding) {
+        let mut stream = match get_decoder(data, encoding, AnonymizedRequest::Direct) {
             Ok(s) => s,
             Err(e) => return (Err(e), output),
         };
