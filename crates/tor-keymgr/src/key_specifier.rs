@@ -203,6 +203,42 @@ pub enum ArtiPathError {
     BadOuterChar(char),
 }
 
+impl KeySpecifier for ArtiPath {
+    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+        Ok(self.clone())
+    }
+
+    fn ctor_path(&self) -> Option<CTorPath> {
+        None
+    }
+}
+
+impl KeySpecifier for CTorPath {
+    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+        Err(KeyPathError::NotSupported)
+    }
+
+    fn ctor_path(&self) -> Option<CTorPath> {
+        Some(self.clone())
+    }
+}
+
+impl KeySpecifier for KeyPath {
+    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+        match self {
+            KeyPath::Arti(p) => p.arti_path(),
+            KeyPath::CTor(p) => p.arti_path(),
+        }
+    }
+
+    fn ctor_path(&self) -> Option<CTorPath> {
+        match self {
+            KeyPath::Arti(p) => p.ctor_path(),
+            KeyPath::CTor(p) => p.ctor_path(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
