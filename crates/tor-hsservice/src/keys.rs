@@ -1,7 +1,7 @@
 //! [`KeySpecifier`] implementations for hidden service keys.
 
 use tor_hscrypto::time::TimePeriod;
-use tor_keymgr::{ArtiPath, CTorPath, KeyPathError, KeySpecifier};
+use tor_keymgr::{ArtiPath, CTorPath, KeyPathError, KeyPathPattern, KeySpecifier};
 
 use derive_more::Display;
 
@@ -90,6 +90,14 @@ impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
             role,
             meta: Some(meta),
         }
+    }
+
+    /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s corresponding to the key
+    /// corresponding to the specified service `nickname` and `role`.
+    pub(crate) fn arti_pattern(nickname: &HsNickname, role: R) -> KeyPathPattern {
+        let pat = Self::arti_path_prefix(nickname, role);
+        let meta_glob = R::Metadata::meta_glob();
+        KeyPathPattern::new(format!("{pat}{meta_glob}"))
     }
 }
 
