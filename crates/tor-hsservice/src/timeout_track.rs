@@ -23,7 +23,7 @@
 //! So if you use the timeout tracker to decide how long to sleep,
 //! you won't be woken up until *something else* occurs.
 //!
-//! Each has interior mutability,
+//! Each tracker has interior mutability,
 //! which is necessary because `PartialOrd` (`<=` etc.) only passes immutable references.
 //! Most are `Send`, none are `Sync`,
 //! so use in thread-safe async code is somewhat restricted.
@@ -40,6 +40,41 @@
 //!  * [`TrackingSystemTimeNow`]: tracks timeouts based on [`SystemTime`]
 //!  * [`TrackingInstantNow`]: tracks timeouts based on [`Instant`]
 //!  * [`TrackingInstantOffsetNow`]: `InstantTrackingNow` but with an offset applied
+//!
+//! # Advantages, disadvantages, and alternatives
+//!
+//! Using `TrackingNow` allows time-dependent code to be written
+//! in a natural, imperative, style,
+//! even if the timeout calculations are complex.
+//! Simply test whether it is time yet to do each thing, and if so do it.
+//!
+//! This can conveniently be combined with an idempotent imperative style
+//! for handling non-time-based inputs:
+//! for each possible action, you can decide in one place whether it needs doing.
+//! (Use a `select_biased!`, with [`wait_for_earliest`](TrackingNow::wait_for_earliest)
+//! as one of the branches.)
+//!
+//! This approach makes it harder to write bugs where
+//! some of the consequences of events are forgotten.
+//! Each timeout calculation is always done afresh from all its inputs.
+//! There is only ever one place where each action is considered,
+//! and the consideration is always redone from first principles.
+//!
+//! However, this is not necessarily the most performant approach.
+//! Each iteration of the event loop doesn't know *why* it has woken up,
+//! so must simply re-test all of the things that might need to be done.
+//!
+//! When higher performance is needed, consider maintaining timeouts as state:
+//! either as wakeup times or durations, or as actual `Future`s,
+//! depending on how frequently they are going to occur,
+//! and how much they need to be modified.
+//! With this approach you must remember to update or recalculate the timeout,
+//! on every change to any of the inputs to each timeout calculation.
+//! You must write code to check (or perform) each action,
+//! in the handler for each event that might trigger it.
+//! Omitting a call is easy,
+//! can result in mysterious ordering-dependent "stuckess" bugs,
+//! and is often detectable only by very comprehensive testing.
 //!
 //! # Example
 //!
@@ -100,9 +135,6 @@
 //!     assert_eq!(*actions.lock().unwrap(), "asssssssd");
 //! });
 //! ```
-
-// TODO HSS explain and demonstrate this some more.  Good prompts here:
-// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1659#note_2954264
 
 #![allow(unreachable_pub)] // TODO - eventually we hope this will become pub, in another crate
 #![allow(dead_code)] // TODO - eventually we hope this will become pub, in another crate
