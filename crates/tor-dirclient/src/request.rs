@@ -43,6 +43,9 @@ pub trait Requestable {
     /// Return true if partial downloads are potentially useful.  This
     /// is true for request types where we're going to be downloading
     /// multiple documents.
+    //
+    // TODO BREAKING: the name of this function doesn't make sense for
+    // POST-based requests.
     fn partial_docs_ok(&self) -> bool;
 
     /// Return the maximum allowable response length we'll accept for this
@@ -594,8 +597,6 @@ impl Requestable for HsDescUploadRequest {
         Ok(req.body(self.0.clone())?)
     }
 
-    // TODO HSS: the name of this function doesn't make sense in this case.
-    // Perhaps it should be renamed to `partial_response_ok()`.
     fn partial_docs_ok(&self) -> bool {
         false
     }
