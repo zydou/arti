@@ -3,6 +3,8 @@
 use crate::Result;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
 use tor_error::internal;
 
 /// The path of a key in the Arti key store.
@@ -159,6 +161,37 @@ pub trait KeySpecifier {
     /// This function should return `None` for keys that are recognized by Arti's key stores, but
     /// not by C Tor's key store (such as `HsClientIntroAuthKeypair`).
     fn ctor_path(&self) -> Option<CTorPath>;
+}
+
+/// An error returned by a [`KeySpecifier`].
+#[derive(Error, Debug, Copy, Clone)]
+#[non_exhaustive]
+pub enum KeyPathError {
+    /// Encountered an invalid `ArtiPath`
+    #[error("Bad ArtiPath")]
+    Arti(#[from] ArtiPathError),
+
+    /// Unsuported [`KeyPath`] type.
+    #[error("Unsupported key path")]
+    NotSupported,
+}
+
+/// An error caused by an invalid [`ArtiPath`].
+#[derive(Error, Debug, Copy, Clone)]
+#[error("Invalid ArtiPath")]
+#[non_exhaustive]
+pub enum ArtiPathError {
+    /// Found an empty path component.
+    #[error("Empty path component")]
+    EmptyPathComponent,
+
+    /// The path contains a disallowed char.
+    #[error("Found disallowed char {0}")]
+    DisallowedChar(char),
+
+    /// The path starts with a disallowed char.
+    #[error("Path starts or ends with disallowed char {0}")]
+    BadOuterChar(char),
 }
 
 #[cfg(test)]
