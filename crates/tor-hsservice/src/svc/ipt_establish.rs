@@ -4,6 +4,7 @@
 //!
 //! TODO HSS: move docs from `hssvc-ipt-algorithm.md`
 
+#![allow(dead_code, unused_variables)] // TODO hss remove.
 #![allow(clippy::needless_pass_by_value)] // TODO HSS remove
 
 use std::sync::{Arc, Mutex};

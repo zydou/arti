@@ -25,7 +25,7 @@ use postage::watch;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
 use tor_async_utils::oneshot;
@@ -299,7 +299,7 @@ enum ShutdownStatus {
 }
 
 impl From<oneshot::Canceled> for ShutdownStatus {
-    fn from(cancelled: oneshot::Canceled) -> ShutdownStatus {
+    fn from(_: oneshot::Canceled) -> ShutdownStatus {
         ShutdownStatus::Terminate
     }
 }
@@ -400,6 +400,11 @@ impl IptRelay {
             last_descriptor_expiry_including_slop: None,
             is_current: Some(IsCurrent),
         };
+
+        debug!(
+            "HS service {}: {lid:?} establishing new IPT at relay {}",
+            &imm.nick, &self.relay
+        );
 
         self.ipts.push(ipt);
 
@@ -568,6 +573,13 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             ipts: vec![],
         };
         self.irelays.push(new_irelay);
+
+        debug!(
+            "HS service {}: choosing new IPT relay {}",
+            &imm.nick,
+            relay.display_relay_ids()
+        );
+
         Ok(())
     }
 
@@ -577,6 +589,8 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             // update from now-withdrawn IPT, ignore it (can happen due to the IPT being a task)
             return;
         };
+
+        debug!("HS service {}: {lid:?} status update {update:?}", &imm.nick);
 
         let IptStatus {
             status: update,
@@ -797,6 +811,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(clippy::unnecessary_wraps)] // for regularity
+    #[allow(clippy::cognitive_complexity)] // TODO HSS consider whether to split this up somehow
     fn compute_iptsetstatus_publish(
         &mut self,
         now: &TrackingNow,
@@ -804,7 +819,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ) -> Result<(), FatalError> {
         //---------- tell the publisher what to announce ----------
 
-        let very_recently: Option<TrackingInstantOffsetNow> = (|| {
+        let very_recently: Option<(TrackingInstantOffsetNow, Duration)> = (|| {
             // on time overflow, don't treat any as started establishing very recently
 
             let fastest_good_establish_time = self
@@ -822,35 +837,68 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // our fastest IPT is a better estimator here (and we want an optimistic,
             // rather than pessimistic estimate).
             //
-            // TODO HSS fastest_good_establish_time factor 2 should be tuneable
-            let very_recently = fastest_good_establish_time.checked_mul(2)?;
+            // TODO HSS fastest_good_establish_time factor 1 should be tuneable
+            let wait_more = fastest_good_establish_time;
+            let very_recently = fastest_good_establish_time.checked_add(wait_more)?;
 
-            now.checked_sub(very_recently)
+            let very_recently = now.checked_sub(very_recently)?;
+            Some((very_recently, wait_more))
         })();
 
         let started_establishing_very_recently = || {
-            self.current_ipts()
+            let (very_recently, wait_more) = very_recently?;
+            let lid = self
+                .current_ipts()
                 .filter_map(|(_ir, ipt)| {
                     let started = match ipt.status_last {
                         TS::Establishing { started } => Some(started),
                         TS::Good { .. } | TS::Faulty => None,
                     }?;
 
-                    (&started > very_recently.as_ref()?).then_some(())
+                    (started > very_recently).then_some(ipt.lid)
                 })
-                .next()
+                .next()?;
+            Some((lid, wait_more))
         };
 
-        let publish_lifetime = if self.good_ipts().count() >= self.target_n_intro_points() {
+        let n_good_ipts = self.good_ipts().count();
+        let publish_lifetime = if n_good_ipts >= self.target_n_intro_points() {
             // "Certain" - we are sure of which IPTs we want to publish
+            debug!(
+                "HS service {}: {} good IPTs, >= target {}, publishing",
+                &self.imm.nick,
+                n_good_ipts,
+                self.target_n_intro_points()
+            );
             Some(IPT_PUBLISH_CERTAIN)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
             // "Unknown" - we have no idea which IPTs to publish.
+            debug!("HS service {}: no good IPTs", &self.imm.nick);
+            None
+        } else if let Some((wait_for, wait_more)) = started_establishing_very_recently() {
+            // "Unknown" - we say have no idea which IPTs to publish:
+            // although we have *some* idea, we hold off a bit to see if things improve.
+            // The wait_more period started counting when the fastest IPT became ready,
+            // so the printed value isn't an offset from the message timestamp.
+            debug!(
+                "HS service {}: {} good IPTs, < target {}, waiting up to {}ms for {:?}",
+                &self.imm.nick,
+                n_good_ipts,
+                self.target_n_intro_points(),
+                wait_more.as_millis(),
+                wait_for
+            );
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
+            debug!(
+                "HS service {}: {} good IPTs, < target {}, publishing what we have",
+                &self.imm.nick,
+                n_good_ipts,
+                self.target_n_intro_points()
+            );
             Some(IPT_PUBLISH_UNCERTAIN)
         };
 
@@ -859,7 +907,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             for ipt in &selected {
                 self.state.mockable.start_accepting(&ipt.establisher);
             }
-            Some(Self::make_publish_set(selected, now, lifetime)?)
+            Some(Self::make_publish_set(selected, lifetime)?)
         } else {
             None
         };
@@ -948,21 +996,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// See the performance note on [`run_once()`](Self::run_once).
     fn make_publish_set<'i>(
         selected: impl IntoIterator<Item = &'i Ipt>,
-        now: &TrackingNow,
         lifetime: Duration,
     ) -> Result<ipt_set::IptSet, FatalError> {
-        let expires = now
-            .instant()
-            // Our response to old descriptors expiring is handled by us checking
-            // last_descriptor_expiry_including_slop in idempotently_progress_things_now
-            .get_now_untracked()
-            .checked_add(lifetime)
-            .ok_or_else(|| internal!("time overflow calculating descriptor expiry"))?;
-
-        let new_last_expiry = expires
-            .checked_add(ipt_set::IPT_PUBLISH_EXPIRY_SLOP)
-            .ok_or_else(|| internal!("time overflow adding expiry slop"))?;
-
         let ipts = selected
             .into_iter()
             .map(|current_ipt| {
@@ -1038,7 +1073,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             self.import_new_expiry_times(&publish_set);
 
+            let mut loop_limit = 0..(
+                // Work we do might be O(number of intro points),
+                // but we might also have cycled the intro points due to many requests.
+                // 10K is a guess at a stupid upper bound on the number of times we
+                // might cycle ipts during a descriptor lifetime.
+                // We don't need a tight bound; if we're going to crash. we can spin a bit first.
+                (self.target_n_intro_points() + 1) * 10_000
+            );
             let now = loop {
+                let _: usize = loop_limit.next().expect("IPT manager is looping");
+
                 if let Some(now) = self.idempotently_progress_things_now()? {
                     break now;
                 }
@@ -1051,11 +1096,20 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             now
         };
 
+        assert_ne!(
+            now.clone().shortest(),
+            Some(Duration::ZERO),
+            "IPT manager zero timeout, would loop"
+        );
+
         let mut new_configs = self.state.new_configs.next().fuse();
 
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
-            shutdown = &mut self.state.shutdown => return Ok(shutdown.void_unwrap_err().into()),
+            shutdown = &mut self.state.shutdown => {
+                trace!("HS service {}: terminating due to shutdown signal", &self.imm.nick);
+                return Ok(shutdown.void_unwrap_err().into())
+            },
 
             update = self.state.status_recv.next() => {
                 let (lid, update) = update.ok_or_else(|| internal!("update mpsc ended!"))?;
@@ -1074,7 +1128,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             new_config = new_configs => {
                 let Some(new_config) = new_config else {
-                    trace!("HS service {} terminating due to EOF on config updates stream", &self.imm.nick);
+                    trace!("HS service {}: terminating due to EOF on config updates stream",
+                           &self.imm.nick);
                     return Ok(ShutdownStatus::Terminate);
                 };
                 self.state.current_config = new_config;
@@ -1130,10 +1185,10 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
     type IptEstablisher: Send + Sync + 'static;
 
     /// A random number generator
-    type Rng: rand::Rng + rand::CryptoRng;
+    type Rng<'m>: rand::Rng + rand::CryptoRng + 'm;
 
     /// Return a random number generator
-    fn thread_rng(&self) -> Self::Rng;
+    fn thread_rng(&mut self) -> Self::Rng<'_>;
 
     /// Call `IptEstablisher::new`
     fn make_new_ipt(
@@ -1150,10 +1205,10 @@ impl<R: Runtime> Mockable<R> for Real<R> {
     type IptEstablisher = IptEstablisher;
 
     /// A random number generator
-    type Rng = rand::rngs::ThreadRng;
+    type Rng<'m> = rand::rngs::ThreadRng;
 
     /// Return a random number generator
-    fn thread_rng(&self) -> Self::Rng {
+    fn thread_rng(&mut self) -> Self::Rng<'_> {
         rand::thread_rng()
     }
 
@@ -1226,7 +1281,183 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::match_single_binding)] // false positives, need the lifetime extension
     use super::*;
+
+    use crate::config::OnionServiceConfigBuilder;
+    use crate::svc::ipt_establish::GoodIptDetails;
+    use rand::SeedableRng as _;
+    use slotmap::DenseSlotMap;
+    use std::sync::Mutex;
+    use tor_basic_utils::test_rng::TestingRng;
+    use tor_netdir::testprovider::TestNetDirProvider;
+    use tor_rtmock::MockRuntime;
+    use tracing_test::traced_test;
+
+    slotmap::new_key_type! {
+        struct MockEstabId;
+    }
+
+    type MockEstabs = Arc<Mutex<DenseSlotMap<MockEstabId, MockEstabState>>>;
+
+    fn ms(ms: u64) -> Duration {
+        Duration::from_millis(ms)
+    }
+
+    #[derive(Debug)]
+    struct Mocks {
+        rng: TestingRng,
+        estabs: MockEstabs,
+    }
+
+    #[derive(Debug)]
+    struct MockEstabState {
+        st_tx: watch::Sender<IptStatus>,
+    }
+
+    #[derive(Debug)]
+    struct MockEstab {
+        esid: MockEstabId,
+        estabs: MockEstabs,
+    }
+
+    impl Mockable<MockRuntime> for Mocks {
+        type IptEstablisher = MockEstab;
+        type Rng<'m> = &'m mut TestingRng;
+
+        fn thread_rng(&mut self) -> Self::Rng<'_> {
+            &mut self.rng
+        }
+
+        fn make_new_ipt(
+            &mut self,
+            _imm: &Immutable<MockRuntime>,
+            _params: IptParameters,
+        ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
+            let (st_tx, st_rx) = watch::channel();
+            let estab = MockEstabState { st_tx };
+            let esid = self.estabs.lock().unwrap().insert(estab);
+            let estab = MockEstab {
+                esid,
+                estabs: self.estabs.clone(),
+            };
+            Ok((estab, st_rx))
+        }
+
+        fn start_accepting(&self, _establisher: &ErasedIptEstablisher) {}
+    }
+
+    impl Drop for MockEstab {
+        fn drop(&mut self) {
+            let mut estabs = self.estabs.lock().unwrap();
+            let _: MockEstabState = estabs
+                .remove(self.esid)
+                .expect("dropping non-recorded MockEstab");
+        }
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_mgr_shutdown() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
+                .unwrap_if_sufficient()
+                .unwrap()
+                .into();
+
+            let nick: HsNickname = "nick".to_string().try_into().unwrap();
+
+            let cfg = OnionServiceConfigBuilder::default()
+                .nickname(nick.clone())
+                .build()
+                .unwrap();
+
+            let (_cfg_tx, cfg_rx) = watch::channel_with(Arc::new(cfg));
+            let (rend_tx, _rend_rx) = mpsc::channel(10);
+            let (shut_tx, shut_rx) = oneshot::channel::<Void>();
+
+            let estabs: MockEstabs = Default::default();
+
+            let mocks = Mocks {
+                rng: TestingRng::seed_from_u64(0),
+                estabs: estabs.clone(),
+            };
+
+            let (mgr_view, pub_view) = ipt_set::ipts_channel(None);
+
+            let mgr = IptManager::new(
+                runtime.clone(),
+                Arc::new(dir),
+                nick,
+                cfg_rx,
+                rend_tx,
+                shut_rx,
+                mocks,
+            )
+            .unwrap();
+
+            mgr.launch_background_tasks(mgr_view).unwrap();
+            runtime.progress_until_stalled().await;
+
+            // We expect it to try to establish 3 IPTs
+            const EXPECT_N_IPTS: usize = 3;
+            assert_eq!(estabs.lock().unwrap().len(), EXPECT_N_IPTS);
+            assert!(pub_view.borrow_for_publish().is_none());
+
+            // Advancing time a bit and it still shouldn't publish anything
+            runtime.advance_by(ms(500)).await;
+            runtime.progress_until_stalled().await;
+            assert!(pub_view.borrow_for_publish().is_none());
+
+            let good = GoodIptDetails {
+                link_specifiers: vec![],
+                ipt_kp_ntor: [0x55; 32].into(),
+            };
+
+            // Imagine that one of our IPTs becomes good
+            estabs
+                .lock()
+                .unwrap()
+                .values_mut()
+                .next()
+                .unwrap()
+                .st_tx
+                .borrow_mut()
+                .status = IptStatusStatus::Good(good.clone());
+
+            // It won't publish until a further fastest establish time
+            // Ie, until a further 500ms = 1000ms
+            runtime.progress_until_stalled().await;
+            assert!(pub_view.borrow_for_publish().is_none());
+            runtime.advance_by(ms(499)).await;
+            assert!(pub_view.borrow_for_publish().is_none());
+            runtime.advance_by(ms(1)).await;
+            match pub_view.borrow_for_publish().as_mut().unwrap() {
+                pub_view => {
+                    assert_eq!(pub_view.ipts.len(), 1);
+                    assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
+                }
+            };
+
+            // Set the other IPTs to be Good too
+            for e in estabs.lock().unwrap().values_mut().skip(1) {
+                e.st_tx.borrow_mut().status = IptStatusStatus::Good(good.clone());
+            }
+            runtime.progress_until_stalled().await;
+            match pub_view.borrow_for_publish().as_mut().unwrap() {
+                pub_view => {
+                    assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
+                    assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));
+                }
+            };
+
+            // Shut down
+            drop(shut_tx);
+            runtime.progress_until_stalled().await;
+
+            assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
+        });
+    }
 
     #[test]
     fn test_merge_join_subset_by() {

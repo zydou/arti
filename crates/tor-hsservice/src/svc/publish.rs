@@ -1,6 +1,7 @@
 //! Publish and maintain onion service descriptors
 
 #![allow(clippy::needless_pass_by_value)] // TODO HSS REMOVE.
+#![allow(dead_code, unused_variables)] // TODO hss remove.
 
 mod backoff;
 mod descriptor;

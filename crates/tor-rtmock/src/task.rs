@@ -591,6 +591,21 @@ trait EnsureSyncSend: Sync + Send + 'static {}
 impl EnsureSyncSend for ActualWaker {}
 impl EnsureSyncSend for MockExecutor {}
 
+impl MockExecutor {
+    /// Return the number of tasks running in this executor
+    ///
+    /// One possible use is for a test case to check that task(s)
+    /// that ought to have exited, have indeed done so.
+    ///
+    /// In the usual case, the answer will be at least 1,
+    /// because it counts the future passed to
+    /// [`block_on`](MockExecutor::block_on)
+    /// (perhaps via [`MockRuntime::test_with_various`](crate::MockRuntime::test_with_various)).
+    pub fn n_tasks(&self) -> usize {
+        self.data.lock().tasks.len()
+    }
+}
+
 impl ArcMutexData {
     /// Lock and obtain the guard
     ///
