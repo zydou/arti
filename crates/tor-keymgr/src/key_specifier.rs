@@ -1,5 +1,6 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
+use std::ops::Range;
 use std::result::Result as StdResult;
 
 use derive_more::{Deref, DerefMut, Display, From, Into};
@@ -32,7 +33,24 @@ pub enum KeyPath {
     CTor(CTorPath),
 }
 
+/// A range specifying a substring of a [`KeyPath`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash, From)]
+pub struct KeyPathRange(Range<usize>);
+
 impl KeyPath {
+    /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
+    ///
+    /// If the `KeyPath` matches the pattern, this returns the ranges that match its dynamic parts.
+    pub fn matches(&self, pat: &KeyPathPatternSet) -> Option<Vec<KeyPathRange>> {
+        let (pattern, path): (&str, &str) = match self {
+            KeyPath::Arti(p) => (pat.arti.as_ref(), p.as_ref()),
+            KeyPath::CTor(p) => (pat.ctor.as_ref(), p.as_ref()),
+        };
+
+        glob_match::glob_match_with_captures(pattern, path)
+            .map(|res| res.into_iter().map(|r| r.into()).collect())
+    }
+
     /// Return the underlying [`ArtiPath`], if this is a `KeyPath::Arti`.
     pub fn arti(&self) -> Option<&ArtiPath> {
         match self {
@@ -47,6 +65,50 @@ impl KeyPath {
             KeyPath::Arti(_) => None,
             KeyPath::CTor(ref ctor) => Some(ctor),
         }
+    }
+}
+
+/// [`KeyPathPattern`]s that can be used to match [`ArtiPath`]s or [`CTorPath`]s.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Into)]
+#[non_exhaustive]
+pub struct KeyPathPatternSet {
+    /// A pattern for matching [`ArtiPath`]s.
+    pub arti: KeyPathPattern,
+    /// A pattern for matching [`CTorPath`]s.
+    pub ctor: KeyPathPattern,
+}
+
+impl KeyPathPatternSet {
+    /// Create a new [`KeyPathPatternSet`].
+    pub fn new(arti: KeyPathPattern, ctor: KeyPathPattern) -> Self {
+        Self { arti, ctor }
+    }
+}
+
+/// A pattern for matching [`ArtiPath`]s.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deref, DerefMut, Display)]
+pub struct KeyPathPattern(String);
+
+impl KeyPathPattern {
+    /// Create a new `KeyPathPattern`.
+    ///
+    /// ## Syntax
+    ///
+    /// NOTE: this table is copied vebatim from the [`glob-match`] docs.
+    ///
+    /// | Syntax  | Meaning                                                                                                                                                                                             |
+    /// | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    /// | `?`     | Matches any single character.                                                                                                                                                                       |
+    /// | `*`     | Matches zero or more characters, except for path separators (e.g. `/`).                                                                                                                             |
+    /// | `**`    | Matches zero or more characters, including path separators. Must match a complete path segment (i.e. followed by a `/` or the end of the pattern).                                                  |
+    /// | `[ab]`  | Matches one of the characters contained in the brackets. Character ranges, e.g. `[a-z]` are also supported. Use `[!ab]` or `[^ab]` to match any character _except_ those contained in the brackets. |
+    /// | `{a,b}` | Matches one of the patterns contained in the braces. Any of the wildcard characters can be used in the sub-patterns. Braces may be nested up to 10 levels deep.                                     |
+    /// | `!`     | When at the start of the glob, this negates the result. Multiple `!` characters negate the glob multiple times.                                                                                     |
+    /// | `\`     | A backslash character may be used to escape any of the above special characters.                                                                                                                    |
+    ///
+    /// [`glob-match`]: https://crates.io/crates/glob-match
+    pub fn new(inner: impl AsRef<str>) -> Self {
+        Self(inner.as_ref().into())
     }
 }
 
@@ -67,6 +129,18 @@ impl ArtiPath {
         }
 
         Ok(Self(inner))
+    }
+
+    /// Return the substring corresponding to the specified `range`.
+    ///
+    /// Returns `None` if `range` is not within the bounds of this `ArtiPath`.
+    pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
+        let range = &range.0;
+        if range.end >= self.0.len() {
+            return None;
+        }
+
+        Some(&self.0[range.start..range.end])
     }
 }
 
