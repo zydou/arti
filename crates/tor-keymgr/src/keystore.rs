@@ -18,7 +18,7 @@ use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::key_type::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
 use crate::key_type::KeyType;
-use crate::{KeySpecifier, KeystoreId, Result};
+use crate::{KeyPath, KeySpecifier, KeystoreId, Result};
 
 use downcast_rs::{impl_downcast, Downcast};
 
@@ -82,6 +82,9 @@ pub trait Keystore: Send + Sync + 'static {
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>>;
+
+    /// List all the keys in this keystore.
+    fn list(&self) -> Result<Vec<(KeyPath, KeyType)>>;
 }
 
 /// A trait for generating fresh keys.

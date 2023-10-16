@@ -313,7 +313,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ErasedKey, KeyPathError, KeyType, SshKeyData};
+    use crate::{ArtiPath, ErasedKey, KeyPath, KeyPathError, KeyType, SshKeyData};
     use std::collections::HashMap;
     use std::result::Result as StdResult;
     use std::str::FromStr;
@@ -447,6 +447,11 @@ mod tests {
                         .unwrap()
                         .remove(&(key_spec.arti_path().unwrap(), key_type.clone()))
                         .map(|_| ()))
+                }
+
+                fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
+                    // These tests don't use this function
+                    unimplemented!()
                 }
             }
         };

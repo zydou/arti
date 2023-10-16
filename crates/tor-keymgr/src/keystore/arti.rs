@@ -5,19 +5,21 @@
 pub(crate) mod err;
 
 use std::fs;
-use std::io::ErrorKind;
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{KeyPathError, KeyType, KeystoreId, Result};
+use crate::{ArtiPath, KeyPath, KeyPathError, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
+use itertools::Itertools;
 use ssh_key::private::PrivateKey;
 use ssh_key::{LineEnding, PublicKey};
+use walkdir::WalkDir;
 
 use super::SshKeyData;
 
@@ -194,6 +196,66 @@ impl Keystore for ArtiNativeKeystore {
             .into()),
         }
     }
+
+    fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
+        // TODO: maybe CheckedDir should provide a read_dir() function
+        WalkDir::new(self.keystore_dir.as_path())
+            .into_iter()
+            .map(|entry| {
+                let entry = entry.map_err(|e| {
+                    let msg = e.to_string();
+                    ArtiNativeKeystoreError::Filesystem {
+                        action: FilesystemAction::Read,
+                        path: self.keystore_dir.as_path().into(),
+                        err: e
+                            .into_io_error()
+                            .unwrap_or_else(|| io::Error::new(ErrorKind::Other, msg.to_string()))
+                            .into(),
+                    }
+                })?;
+
+                let path = entry.path();
+
+                // Skip over directories as they won't be valid arti-paths
+                //
+                // TODO HSS: provide a mechanism for warning about unrecognized keys?
+                if entry.file_type().is_dir() {
+                    return Ok(None);
+                }
+
+                let path = path
+                    .strip_prefix(self.keystore_dir.as_path())
+                    .map_err(|_| {
+                        /* This error should be impossible. */
+                        tor_error::internal!(
+                            "found key {} outside of keystore_dir {}?!",
+                            path.display(),
+                            self.keystore_dir.as_path().display()
+                        )
+                    })?;
+
+                let extension = path
+                    .extension()
+                    .ok_or_else(|| ArtiNativeKeystoreError::MalformedPath {
+                        path: path.into(),
+                        err: err::MalformedPathError::NoExtension,
+                    })?
+                    .to_str()
+                    .ok_or_else(|| ArtiNativeKeystoreError::MalformedPath {
+                        path: path.into(),
+                        err: err::MalformedPathError::Utf8,
+                    })?;
+
+                let key_type = KeyType::from(extension);
+                // Strip away the file extension
+                let path = path.with_extension("");
+                ArtiPath::new(path.display().to_string())
+                    .map(|path| Some((path.into(), key_type)))
+                    .map_err(|e| ArtiNativeKeystoreError::KeyPathError(e.into()).into())
+            })
+            .flatten_ok()
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -211,7 +273,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, CTorPath};
+    use crate::{ArtiPath, CTorPath, KeyPath};
     use std::fs;
     use tempfile::{tempdir, TempDir};
     use tor_llcrypto::pk::ed25519;
@@ -279,6 +341,19 @@ mod tests {
         }};
     }
 
+    macro_rules! assert_contains_arti_paths {
+        ([$($arti_path:expr,)*], $list:expr) => {{
+            let expected = vec![
+                $(KeyPath::Arti(ArtiPath::new($arti_path.to_string()).unwrap())),*
+            ];
+
+            let mut sorted_list = $list.iter().map(|(path, _)| path.clone()).collect::<Vec<_>>();
+            sorted_list.sort();
+
+            assert_eq!(expected, sorted_list);
+        }}
+    }
+
     #[test]
     #[cfg(unix)]
     fn init_failure_perms() {
@@ -338,6 +413,9 @@ mod tests {
             .get(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
             .is_err());
 
+        // TODO HSS: maybe list() should also fail if the permissions are not strict enough
+        // assert!(key_store.list().is_err());
+
         // TODO HSS: remove works even if the permissions are not restrictive enough for other
         // the operations... I **think** this is alright, but we might want to give this a bit more
         // thought before we document and advertise this behaviour.
@@ -361,6 +439,7 @@ mod tests {
             &KeyType::Ed25519Keypair,
             false
         );
+        assert!(key_store.list().unwrap().is_empty());
 
         // Initialize a key store with some test keys
         let (key_store, _keystore_dir) = init_keystore(true);
@@ -372,6 +451,8 @@ mod tests {
             &KeyType::Ed25519Keypair,
             true
         );
+
+        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
     }
 
     #[test]
@@ -386,6 +467,7 @@ mod tests {
             &KeyType::Ed25519Keypair,
             false
         );
+        assert!(key_store.list().unwrap().is_empty());
 
         // Insert the key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
@@ -415,6 +497,74 @@ mod tests {
             &TestSpecifier::default(),
             &KeyType::Ed25519Keypair,
             true
+        );
+        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+    }
+
+    #[test]
+    fn remove() {
+        // Initialize the key store
+        let (key_store, _keystore_dir) = init_keystore(true);
+
+        assert_found!(
+            key_store,
+            &TestSpecifier::default(),
+            &KeyType::Ed25519Keypair,
+            true
+        );
+
+        // Now remove the key... remove() should indicate success by returning Ok(Some(()))
+        assert_eq!(
+            key_store
+                .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+                .unwrap(),
+            Some(())
+        );
+        assert!(key_store.list().unwrap().is_empty());
+
+        // Can't find it anymore!
+        assert_found!(
+            key_store,
+            &TestSpecifier::default(),
+            &KeyType::Ed25519Keypair,
+            false
+        );
+
+        // remove() returns Ok(None) now.
+        assert!(key_store
+            .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+            .unwrap()
+            .is_none());
+        assert!(key_store.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn list() {
+        // Initialize the key store
+        let (key_store, _keystore_dir) = init_keystore(true);
+        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+
+        // Insert another key
+        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
+        let erased_kp = KeyType::Ed25519Keypair
+            .parse_ssh_format_erased(key)
+            .unwrap();
+
+        let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
+            panic!("failed to downcast key to ed25519::Keypair")
+        };
+
+        let key_spec = TestSpecifier("-i-am-a-suffix".into());
+        let ed_key_type = KeyType::Ed25519Keypair;
+
+        assert!(key_store.insert(&*key, &key_spec, &ed_key_type).is_ok());
+
+        assert_contains_arti_paths!(
+            [
+                TEST_SPECIFIER_PATH,
+                format!("{TEST_SPECIFIER_PATH}-i-am-a-suffix"),
+            ],
+            key_store.list().unwrap()
         );
     }
 }

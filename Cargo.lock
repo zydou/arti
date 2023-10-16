@@ -5132,6 +5132,7 @@ dependencies = [
  "tor-error",
  "tor-hscrypto",
  "tor-llcrypto",
+ "walkdir",
  "zeroize",
 ]
 
