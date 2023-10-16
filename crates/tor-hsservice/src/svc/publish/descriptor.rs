@@ -15,8 +15,9 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
+use crate::keys::{HsSvcKeyRoleWithTimePeriod, HsSvcHsIdKeyRole};
 use crate::svc::publish::reactor::{AuthorizedClientConfigError, ReactorError};
-use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, OnionServiceConfig};
+use crate::{HsSvcKeySpecifier, OnionServiceConfig, KeyMetadata, HsSvcKeyRole, HsNickname};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
@@ -59,18 +60,23 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let nickname = &config.nickname;
 
-    let hsid = read_svc_key::<HsIdKey>(&keymgr, nickname, HsSvcKeyRole::HsIdPublicKey)?;
-    let blind_id_kp =
-        read_svc_key::<HsBlindIdKeypair>(&keymgr, nickname, HsSvcKeyRole::BlindIdKeypair(period))?;
+    let hsid = read_svc_key::<HsIdKey, _, _>(&keymgr, nickname, HsSvcHsIdKeyRole::HsIdPublicKey, None)?;
+    let blind_id_kp = read_svc_key::<HsBlindIdKeypair, _, _>(
+        &keymgr,
+        nickname,
+        HsSvcKeyRoleWithTimePeriod::BlindIdKeypair,
+        Some(period),
+    )?;
     let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
 
     // The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
     // TODO HSS: these should be provided by the KeyMgr.
-    let hs_desc_sign = read_svc_key::<HsDescSigningKeypair>(
+    let hs_desc_sign = read_svc_key::<HsDescSigningKeypair, _, _>(
         &keymgr,
         nickname,
-        HsSvcKeyRole::DescSigningKeypair(period),
+        HsSvcKeyRoleWithTimePeriod::DescSigningKeypair,
+        Some(period),
     )?;
 
     // TODO HSS: support introduction-layer authentication.
@@ -114,15 +120,22 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 }
 
 /// Read the specified key from the keystore.
-fn read_svc_key<K>(
+fn read_svc_key<K, R, M>(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
-    role: HsSvcKeyRole,
+    role: R,
+    meta: Option<M>
 ) -> Result<K, ReactorError>
 where
     K: ToEncodableKey,
+    M: KeyMetadata,
+    R: HsSvcKeyRole<Metadata = M>,
 {
-    let svc_key_spec = HsSvcKeySpecifier::new(nickname, role);
+    let svc_key_spec = if let Some(meta) = meta {
+        HsSvcKeySpecifier::with_meta(nickname, role, meta)
+    } else {
+        HsSvcKeySpecifier::new(nickname, role)
+    };
 
     // TODO HSS: most of the time, we don't want to return a MissingKey error. Generally, if a
     // key/cert is missing, we should try to generate it, and only return MissingKey if generating
@@ -137,8 +150,9 @@ where
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946313
     keymgr
         .get::<K>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingKey(role))
+        .ok_or_else(|| ReactorError::MissingKey(role.to_string()))
 }
+
 
 /// Decode an encoded curve25519 key.
 fn decode_curve25519_str(

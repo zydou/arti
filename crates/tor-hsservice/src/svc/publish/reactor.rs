@@ -36,10 +36,11 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
+use crate::keys::HsSvcKeyRoleWithTimePeriod;
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier};
+use crate::{HsNickname, HsSvcKeySpecifier};
 
 /// The upload rate-limiting threshold.
 ///
@@ -406,7 +407,7 @@ pub(crate) enum ReactorError {
     //
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946311
     #[error("A key we needed could not be found in the keystore: {0}")]
-    MissingKey(HsSvcKeyRole),
+    MissingKey(String),
 
     /// Unable to spawn task
     //
@@ -769,8 +770,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .hs_all_time_periods()
             .iter()
             .map(|period| {
-                let role = HsSvcKeyRole::BlindIdPublicKey(*period);
-                let key_spec = HsSvcKeySpecifier::new(&self.imm.nickname, role);
+                let role = HsSvcKeyRoleWithTimePeriod::BlindIdPublicKey;
+                let key_spec =
+                    HsSvcKeySpecifier::with_meta(&self.imm.nickname, role, *period);
 
                 // TODO HSS: most of the time, we don't want to return a MissingKey error.
                 //
@@ -779,7 +781,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .imm
                     .keymgr
                     .get::<HsBlindIdKey>(&key_spec)?
-                    .ok_or_else(|| ReactorError::MissingKey(role))?;
+                    .ok_or_else(|| ReactorError::MissingKey(role.to_string()))?;
 
                 TimePeriodContext::new(*period, blind_id.into(), netdir)
             })
