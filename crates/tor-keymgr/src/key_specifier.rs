@@ -45,8 +45,6 @@ impl ArtiPath {
 ///
 /// Path components may contain UTF-8 alphanumerics, and (except as the first or last character)
 /// `-`,  `_`, or `.`.
-//
-// TODO HSS: disallow consecutive `.` to prevent path traversal.
 #[derive(
     Clone,
     Debug,
@@ -85,7 +83,10 @@ impl ArtiPathComponent {
         /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
         const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
 
-        if inner.is_empty() || inner.chars().any(|c| !Self::is_allowed_char(c)) {
+        if inner.is_empty()
+            || inner.chars().any(|c| !Self::is_allowed_char(c))
+            || inner.contains("..")
+        {
             return Err(Box::new(internal!("Invalid arti path: {inner}")));
         }
 
@@ -198,10 +199,9 @@ mod test {
             "no spaces please",
             "/",
             "/////",
+            "./bob",
+            "alice/../bob",
         ];
-
-        // TODO HSS: add test for "./bob", "alice/../bob" (which should be invalid both as an
-        // ArtiPath and as an ArtiPathComponent).
 
         for path in VALID_ARTI_PATHS {
             check_valid!(ArtiPath, path, true);
