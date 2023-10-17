@@ -406,6 +406,11 @@ pub(crate) enum ReactorError {
     // See also the TODO in read_svc_key() from publish/descriptor.rs
     //
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946311
+    //
+    // TODO HSS: considering adding (Box<dyn KeySpecifier>, KeyType) to the error context and
+    // making the inner type a KeyNotFoundError.
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955706
     #[error("A key we needed could not be found in the keystore: {0}")]
     MissingKey(String),
 

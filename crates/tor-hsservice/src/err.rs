@@ -130,6 +130,11 @@ pub enum FatalError {
     Keystore(#[from] Box<dyn KeystoreError>),
 
     /// A key we needed could not be found in the keystore.
+    //
+    // TODO HSS: considering adding (Box<dyn KeySpecifier>, KeyType) to the error context and
+    // making the inner type a KeyNotFoundError.
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955706
     #[error("A key we needed could not be found in the keystore: {0}")]
     MissingKey(String),
 
