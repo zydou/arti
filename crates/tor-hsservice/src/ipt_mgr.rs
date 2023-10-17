@@ -147,6 +147,7 @@ pub(crate) struct State<R, M> {
     /// since `HsCircPool` is a service with interior mutability.
     mockable: M,
 
+    // TODO HSS: keymgr has interior mutability so we can moved it to imm.
     /// The key manager.
     #[educe(Debug(ignore))]
     keymgr: Arc<KeyMgr>,
