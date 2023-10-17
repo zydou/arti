@@ -65,7 +65,7 @@ impl ArtiNativeKeystore {
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
-    ) -> StdResult<PathBuf, ArtiNativeKeystoreError> {
+    ) -> StdResult<PathBuf, KeyPathError> {
         let arti_path: String = key_spec.arti_path()?.into();
         let mut rel_path = PathBuf::from(arti_path);
         rel_path.set_extension(key_type.arti_extension());
@@ -76,16 +76,16 @@ impl ArtiNativeKeystore {
 
 /// Extract the key path from the specified result `res`, or return an error.
 ///
-/// If the underlying error is `NotSupported` (i.e. the `KeySpecifier` returned an unsupported
-/// `KeyPath` type), return `ret`.
+/// If the underlying error is `ArtiPathUnavailable` (i.e. the `KeySpecifier` cannot provide
+/// an `ArtiPath`), return `ret`.
 macro_rules! key_path_if_supported {
     ($res:expr, $ret:expr) => {{
         use KeyPathError as KPE;
 
         match $res {
             Ok(path) => path,
-            Err(ArtiNativeKeystoreError::KeyPathError(KPE::NotSupported)) => return $ret,
-            Err(e) => return Err(e.into()),
+            Err(KPE::ArtiPathUnavailable) => return $ret,
+            Err(e) => return Err(tor_error::internal!("invalid ArtiPath: {e}").into()),
         }
     }};
 }
@@ -127,7 +127,7 @@ impl Keystore for ArtiNativeKeystore {
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> Result<()> {
-        let path = self.key_path(key_spec, key_type)?;
+        let path = self.key_path(key_spec, key_type).map_err(|e| tor_error::internal!("{e}"))?;
 
         // Create the parent directories as needed
         if let Some(parent) = path.parent() {
@@ -174,7 +174,7 @@ impl Keystore for ArtiNativeKeystore {
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>> {
-        let key_path = self.key_path(key_spec, key_type)?;
+        let key_path = self.key_path(key_spec, key_type).map_err(|e| tor_error::internal!("{e}"))?;
 
         let abs_key_path =
             self.keystore_dir
@@ -251,7 +251,7 @@ impl Keystore for ArtiNativeKeystore {
                 let path = path.with_extension("");
                 ArtiPath::new(path.display().to_string())
                     .map(|path| Some((path.into(), key_type)))
-                    .map_err(|e| ArtiNativeKeystoreError::KeyPathError(e.into()).into())
+                    .map_err(|e| ArtiNativeKeystoreError::MalformedPath { path, err: err::MalformedPathError::InvalidArtiPath(e) }.into())
             })
             .flatten_ok()
             .collect()

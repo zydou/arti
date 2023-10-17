@@ -252,16 +252,25 @@ pub trait KeySpecifier {
 }
 
 /// An error returned by a [`KeySpecifier`].
-#[derive(Error, Debug, Copy, Clone)]
+#[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum KeyPathError {
-    /// Encountered an invalid `ArtiPath`
-    #[error("Bad ArtiPath")]
-    Arti(#[from] ArtiPathError),
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 
-    /// Unsuported [`KeyPath`] type.
-    #[error("Unsupported key path")]
-    NotSupported,
+    /// An error returned by a [`KeySpecifier`] that does not have an [`ArtiPath`].
+    ///
+    /// This is returned, for example, by [`CTorPath`]'s [`KeySpecifier::arti_path`]
+    /// implementation.
+    #[error("ArtiPath unvailable")]
+    ArtiPathUnavailable,
+}
+
+impl From<ArtiPathError> for KeyPathError {
+    fn from(err: ArtiPathError) -> Self {
+        Self::Bug(tor_error::internal!("{err}"))
+    }
 }
 
 /// An error caused by an invalid [`ArtiPath`].
@@ -298,7 +307,7 @@ impl KeySpecifier for ArtiPath {
 
 impl KeySpecifier for CTorPath {
     fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
-        Err(KeyPathError::NotSupported)
+        Err(KeyPathError::ArtiPathUnavailable)
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {

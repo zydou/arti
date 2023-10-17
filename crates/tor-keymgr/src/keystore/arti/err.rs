@@ -1,6 +1,6 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
-use crate::{KeyPathError, KeystoreError, UnknownKeyTypeError};
+use crate::{KeystoreError, UnknownKeyTypeError, ArtiPathError};
 use tor_error::{ErrorKind, HasKind};
 
 use std::io;
@@ -45,10 +45,6 @@ pub(crate) enum ArtiNativeKeystoreError {
         err: MalformedPathError,
     },
 
-    /// Invalid or non-existant ArtiPath.
-    #[error("Invalid or non-existant ArtiPath")]
-    KeyPathError(#[from] KeyPathError),
-
     /// An error due to encountering an unsupported [`KeyType`](crate::KeyType).
     #[error("{0}")]
     UnknownKeyType(#[from] UnknownKeyTypeError),
@@ -82,6 +78,10 @@ pub(crate) enum MalformedPathError {
     /// Found a key with no extension.
     #[error("no extension")]
     NoExtension,
+
+    /// The file path is not a valid [`ArtiPath`].
+    #[error("not a valid ArtiPath")]
+    InvalidArtiPath(ArtiPathError),
 }
 
 impl KeystoreError for ArtiNativeKeystoreError {}
@@ -94,7 +94,6 @@ impl HasKind for ArtiNativeKeystoreError {
             KE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
             KE::FsMistrust { .. } => ErrorKind::FsPermissions,
             KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
-            KE::KeyPathError(_) => ErrorKind::KeystoreAccessFailed,
             KE::UnknownKeyType(_) => ErrorKind::KeystoreAccessFailed,
             KE::Bug(e) => e.kind(),
         }
