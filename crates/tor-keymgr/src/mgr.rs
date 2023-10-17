@@ -262,6 +262,9 @@ impl KeyMgr {
     /// Return the keys matching the specified [`KeyPathPatternSet`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
+    //
+    // TODO HSS: remove derive_meta and change this to only return the ArtiPaths
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955700
     pub fn list_matching<M>(
         &self,
         pat: &KeyPathPatternSet,
