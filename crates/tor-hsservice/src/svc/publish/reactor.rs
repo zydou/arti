@@ -882,7 +882,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
-            Some(Err(_)) | None => Err(ReactorError::ShuttingDown),
+            Some(Err(_)) => Err(ReactorError::ShuttingDown),
+            None => {
+                trace!("no IPTs available, ceasing uploads");
+                self.update_publish_status(PublishStatus::AwaitingIpts)
+                    .await
+            }
         }
     }
 
