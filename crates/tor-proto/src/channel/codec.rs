@@ -73,10 +73,10 @@ impl<IN, OUT> futures_codec::Encoder for ChannelCodec<IN, OUT>
 where
     OUT: ChanMsg,
 {
-    type Item = ChanCell<OUT>;
+    type Item<'a> = ChanCell<OUT>;
     type Error = CodecError;
 
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Self::Item<'_>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         self.inner
             .write_cell(item, dst)
             .map_err(CodecError::EncCell)?;
