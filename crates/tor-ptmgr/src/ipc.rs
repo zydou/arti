@@ -136,7 +136,7 @@ fn parse_one_value(from: &str) -> Result<(String, &str), &'static str> {
                     'r' => ret.push('\r'),
                     't' => ret.push('\t'),
                     '0'..='8' => return Err("attempted unsupported octal escape code"),
-                    _ => ret.push(ch),
+                    ch2 => ret.push(ch2),
                 },
                 '"' => break,
                 _ => ret.push(ch),
@@ -1265,6 +1265,13 @@ mod test {
             Ok(PtMessage::Log {
                 severity: "debug".to_string(),
                 message: "".to_string()
+            })
+        );
+        assert_eq!(
+            "LOG SEVERITY=debug MESSAGE=\"\\a\"".parse::<PtMessage>(),
+            Ok(PtMessage::Log {
+                severity: "debug".to_string(),
+                message: "a".to_string()
             })
         );
 
