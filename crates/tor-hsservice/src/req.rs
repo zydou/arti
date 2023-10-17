@@ -202,7 +202,7 @@ impl StreamRequest {
     }
     /// Reject this request, and send the client an `END` message.
     /// TODO HSS: Should this really be fallible?  How might it fail?
-    pub async fn reject(mut self, end_message: End) -> Result<(), ClientError> {
+    pub async fn reject(self, end_message: End) -> Result<(), ClientError> {
         self.stream
             .reject(end_message)
             .await

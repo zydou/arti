@@ -1137,7 +1137,10 @@ impl StreamTarget {
     //   sent_close_pending_stream boolean flag in StreamTarget to remember if close() has been
     //   called before)
     #[cfg(feature = "hs-service")]
-    pub(crate) fn close(&self, msg: relaymsg::End) -> Result<oneshot::Receiver<Result<()>>> {
+    pub(crate) fn close_pending(
+        &self,
+        msg: relaymsg::End,
+    ) -> Result<oneshot::Receiver<Result<()>>> {
         let (tx, rx) = oneshot::channel();
 
         self.circ
@@ -2090,7 +2093,7 @@ mod test {
             let simulate_service = async move {
                 // Process 2 incoming streams
                 for i in 0..STREAM_COUNT {
-                    let mut stream = incoming.next().await.unwrap();
+                    let stream = incoming.next().await.unwrap();
 
                     // Reject the first one
                     if i == 0 {
