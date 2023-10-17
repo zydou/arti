@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use thiserror::Error;
-use tor_error::{ErrorKind, HasKind};
+use tor_error::{Bug, ErrorKind, HasKind};
 use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::TimeoutError;
 
@@ -21,6 +21,10 @@ pub enum Error {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
     #[error("Error fetching directory information")]
     RequestFailed(#[from] RequestFailedError),
+
+    /// We ran into a problem that is probably due to a programming issue.
+    #[error("Internal error")]
+    Bug(#[from] Bug),
 }
 
 /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
@@ -139,6 +143,7 @@ impl Error {
         match self {
             Error::CircMgr(_) => true, // should be unreachable.
             Error::RequestFailed(RequestFailedError { error, .. }) => error.should_retire_circ(),
+            Error::Bug(_) => true,
         }
     }
 
@@ -204,6 +209,7 @@ impl HasKind for Error {
         match self {
             E::CircMgr(e) => e.kind(),
             E::RequestFailed(e) => e.kind(),
+            E::Bug(e) => e.kind(),
         }
     }
 }

@@ -23,16 +23,29 @@ use std::time::{Duration, SystemTime};
 use itertools::Itertools;
 
 use crate::err::RequestError;
+use crate::AnonymizedRequest;
 
 /// A request for an object that can be served over the Tor directory system.
 pub trait Requestable {
     /// Build an [`http::Request`] from this Requestable, if
     /// it is well-formed.
+    //
+    // TODO BREAKING: This API is a bit troublesome in how it takes &self and
+    // returns a Request<String>.  First, most Requestables don't actually have
+    // a body to send, and for them having an empty String in their body is a
+    // bit silly.  Second, taking a reference to self but returning an owned
+    // String means that we will often have to clone an internal string owned by
+    // this Requestable instance.
+    //
+    // Fixing this will require an API break in tor-direclient.
     fn make_request(&self) -> Result<http::Request<String>>;
 
     /// Return true if partial downloads are potentially useful.  This
     /// is true for request types where we're going to be downloading
     /// multiple documents.
+    //
+    // TODO BREAKING: the name of this function doesn't make sense for
+    // POST-based requests.
     fn partial_docs_ok(&self) -> bool;
 
     /// Return the maximum allowable response length we'll accept for this
@@ -47,6 +60,9 @@ pub trait Requestable {
         let _ = circ;
         Ok(())
     }
+
+    /// Return a value to say whether this request must be anonymized.
+    fn anonymized(&self) -> AnonymizedRequest;
 }
 
 /// How much clock skew do we allow in the distance between the directory
@@ -210,7 +226,7 @@ impl Requestable for ConsensusRequest {
         uri.push_str(".z");
 
         let mut req = http::Request::builder().method("GET").uri(uri);
-        req = add_common_headers(req);
+        req = add_common_headers(req, self.anonymized());
 
         // Possibly, add an if-modified-since header.
         if let Some(when) = self.last_consensus_date() {
@@ -245,6 +261,10 @@ impl Requestable for ConsensusRequest {
             }
             (_, _) => Ok(()),
         }
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
     }
 }
 
@@ -294,7 +314,7 @@ impl Requestable for AuthCertRequest {
         let uri = format!("/tor/keys/fp-sk/{}.z", &ids.join("+"));
 
         let req = http::Request::builder().method("GET").uri(uri);
-        let req = add_common_headers(req);
+        let req = add_common_headers(req, self.anonymized());
 
         Ok(req.body(String::new())?)
     }
@@ -306,6 +326,10 @@ impl Requestable for AuthCertRequest {
     fn max_response_len(&self) -> usize {
         // TODO: Pick a more principled number; I just made this one up.
         self.ids.len().saturating_mul(16 * 1024)
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
     }
 }
 
@@ -350,7 +374,7 @@ impl Requestable for MicrodescRequest {
         let uri = format!("/tor/micro/d/{}.z", &ids);
         let req = http::Request::builder().method("GET").uri(uri);
 
-        let req = add_common_headers(req);
+        let req = add_common_headers(req, self.anonymized());
 
         Ok(req.body(String::new())?)
     }
@@ -362,6 +386,10 @@ impl Requestable for MicrodescRequest {
     fn max_response_len(&self) -> usize {
         // TODO: Pick a more principled number; I just made this one up.
         self.digests.len().saturating_mul(8 * 1024)
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
     }
 }
 
@@ -436,7 +464,7 @@ impl Requestable for RouterDescRequest {
         uri.push_str(".z");
 
         let req = http::Request::builder().method("GET").uri(uri);
-        let req = add_common_headers(req);
+        let req = add_common_headers(req, self.anonymized());
 
         Ok(req.body(String::new())?)
     }
@@ -454,6 +482,10 @@ impl Requestable for RouterDescRequest {
             RequestedDescs::Digests(ref digests) => digests.len().saturating_mul(8 * 1024),
             RequestedDescs::AllDescriptors => 64 * 1024 * 1024, // big but not impossible
         }
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
     }
 }
 
@@ -487,13 +519,17 @@ impl Requestable for RoutersOwnDescRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         let uri = "/tor/server/authority.z";
         let req = http::Request::builder().method("GET").uri(uri);
-        let req = add_common_headers(req);
+        let req = add_common_headers(req, self.anonymized());
 
         Ok(req.body(String::new())?)
     }
 
     fn partial_docs_ok(&self) -> bool {
         false
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
     }
 }
 
@@ -536,7 +572,7 @@ impl Requestable for HsDescDownloadRequest {
         // descriptor, it will need a different kind of Request.
         let uri = format!("/tor/hs/3/{}", hsid);
         let req = http::Request::builder().method("GET").uri(uri);
-        let req = add_common_headers(req);
+        let req = add_common_headers(req, self.anonymized());
         Ok(req.body(String::new())?)
     }
 
@@ -546,6 +582,10 @@ impl Requestable for HsDescDownloadRequest {
 
     fn max_response_len(&self) -> usize {
         self.max_len
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Anonymized
     }
 }
 
@@ -571,31 +611,37 @@ impl Requestable for HsDescUploadRequest {
         const URI: &str = "/tor/hs/3/publish";
 
         let req = http::Request::builder().method("POST").uri(URI);
-        let req = add_common_headers(req);
-        // TODO HSS: we shouldn't have to clone here!
+        let req = add_common_headers(req, self.anonymized());
         Ok(req.body(self.0.clone())?)
     }
 
-    // TODO HSS: the name of this function doesn't make sense in this case.
-    // Perhaps it should be renamed to `partial_response_ok()`.
     fn partial_docs_ok(&self) -> bool {
         false
     }
 
     fn max_response_len(&self) -> usize {
-        // We expect the response _body_ to be empty, but the max_response_len is not zero because
-        // it represents the _total_ length of the response (which includes the length of the
-        // status line and headers)
+        // We expect the response _body_ to be empty, but the max_response_len
+        // is not zero because it represents the _total_ length of the response
+        // (which includes the length of the status line and headers).
         //
-        // TODO HSS: check what headers real HSDirs send, and adjust this value accordingly
+        // A real Tor POST response will always be less than that length, which
+        // will fit into 3 DATA messages at most. (The reply will be a single
+        // HTTP line, followed by a Date header.)
         1024
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Anonymized
     }
 }
 
-/// List the encodings we accept
-fn encodings() -> String {
+/// Encodings that all Tor clients support.
+const UNIVERSAL_ENCODINGS: &str = "deflate, identity";
+
+/// List all the encodings we accept
+fn all_encodings() -> String {
     #[allow(unused_mut)]
-    let mut encodings = "deflate, identity".to_string();
+    let mut encodings = UNIVERSAL_ENCODINGS.to_string();
     #[cfg(feature = "xz")]
     {
         encodings += ", x-tor-lzma";
@@ -611,9 +657,19 @@ fn encodings() -> String {
 /// Add commonly used headers to the HTTP request.
 ///
 /// (Right now, this is only Accept-Encoding.)
-fn add_common_headers(req: http::request::Builder) -> http::request::Builder {
+fn add_common_headers(
+    req: http::request::Builder,
+    anon: AnonymizedRequest,
+) -> http::request::Builder {
     // TODO: gzip, brotli
-    req.header(http::header::ACCEPT_ENCODING, encodings())
+    match anon {
+        AnonymizedRequest::Anonymized => {
+            // In an anonymized request, we do not admit to supporting any
+            // encoding besides those that are always available.
+            req.header(http::header::ACCEPT_ENCODING, UNIVERSAL_ENCODINGS)
+        }
+        AnonymizedRequest::Direct => req.header(http::header::ACCEPT_ENCODING, all_encodings()),
+    }
 }
 
 #[cfg(test)]
@@ -647,7 +703,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/micro/d/J3QgYWN0dWFsbHkgU0hBLTI1Ni4uLi4uLi4uLi4uLi4-VGhpcyBpcyBhIHRlc3RpbmcgZGlnZXN0LiBpdCBpc24.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings()));
+                   format!("GET /tor/micro/d/J3QgYWN0dWFsbHkgU0hBLTI1Ni4uLi4uLi4uLi4uLi4-VGhpcyBpcyBhIHRlc3RpbmcgZGlnZXN0LiBpdCBpc24.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         // Try it with FromIterator, and use some accessors.
         let req2: MicrodescRequest = vec![*d1, *d2].into_iter().collect();
@@ -688,7 +744,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/keys/fp-sk/5468697320697320612074657374696e6720646e-27742061637475616c6c79205348412d3235362e+626c616820626c616820626c6168203120322033-49206c696b652070697a7a612066726f6d204e61.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings()));
+                   format!("GET /tor/keys/fp-sk/5468697320697320612074657374696e6720646e-27742061637475616c6c79205348412d3235362e+626c616820626c616820626c6168203120322033-49206c696b652070697a7a612066726f6d204e61.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         let req2: AuthCertRequest = vec![key1, key2].into_iter().collect();
         let req2 = crate::util::encode_request(&req2.make_request()?);
@@ -722,13 +778,13 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", encodings(), when));
+                   format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", all_encodings(), when));
 
         // Request without authorities
         let req = ConsensusRequest::default();
         let req = crate::util::encode_request(&req.make_request()?);
         assert_eq!(req,
-                   format!("GET /tor/status-vote/current/consensus-microdesc.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings()));
+                   format!("GET /tor/status-vote/current/consensus-microdesc.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         Ok(())
     }
@@ -746,7 +802,7 @@ mod test {
             req,
             format!(
                 "GET /tor/server/all.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n",
-                encodings()
+                all_encodings()
             )
         );
 
@@ -774,7 +830,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/server/d/617420736f6d6520706f696e74204920676f7420+6f662077726974696e6720696e206865782e2e2e.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings()));
+                   format!("GET /tor/server/d/617420736f6d6520706f696e74204920676f7420+6f662077726974696e6720696e206865782e2e2e.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         // Try it with FromIterator, and use some accessors.
         let req2: RouterDescRequest = vec![*d1, *d2].into_iter().collect();
@@ -803,7 +859,7 @@ mod test {
 
         assert_eq!(
             req,
-            format!("GET /tor/hs/3/AQIDBAECAwQBAgMEAQIDBAECAwQBAgMEAQIDBAECAwQ HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings())
+            format!("GET /tor/hs/3/AQIDBAECAwQBAgMEAQIDBAECAwQBAgMEAQIDBAECAwQ HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", UNIVERSAL_ENCODINGS)
         );
 
         Ok(())
