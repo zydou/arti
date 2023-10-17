@@ -1554,6 +1554,20 @@ impl Reactor {
         id: StreamId,
         message: Option<End>,
     ) -> Result<()> {
+        // TODO HSS: We have a potential problem here: This function is called
+        // in two cases.
+        //
+        // First, from `run_once` when we see that the mpsc::Sender for a given
+        // Stream has been dropped and we get Ok(None) on the mpsc::Receiver.
+        // Second, from `handle_control` when we get a `ClosePendingStream`
+        // message. It seems possible that both of those could happen on the
+        // same stream, leading to a panic in `StreamMap::terminate`... or even
+        // here, when we go to look up the hop, if the hop gets closed between
+        // the two cases.
+        //
+        // This is related to the "TODO HSS" comment on
+        // `StreamTarget::close_pending`. See #1065.
+
         // Mark the stream as closing.
         let hop = self.hop_mut(hopnum).ok_or_else(|| {
             Error::from(internal!(

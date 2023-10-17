@@ -1136,6 +1136,13 @@ impl StreamTarget {
     //   ClosePendingStream control message if it hasn't previously sent it (we'll need to add a
     //   sent_close_pending_stream boolean flag in StreamTarget to remember if close() has been
     //   called before)
+    //
+    // But before we do either of those, we should make sure that they are
+    // sufficient! I think there is a reasonable chance that, in addition to
+    // colliding with itself, this function could cause a panic by colliding
+    // with the call to `Reactor::close_stream()` that the Reactor does when it
+    // sees that the StreamTarget has been dropped.  See comments in
+    // close_stream(), and #1065.
     #[cfg(feature = "hs-service")]
     pub(crate) fn close_pending(
         &self,
