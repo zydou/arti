@@ -211,7 +211,7 @@ where
         })
     };
 
-    let partial_ok = req.partial_docs_ok();
+    let partial_ok = req.partial_response_body_ok();
     let maxlen = req.max_response_len();
     let anonymized = req.anonymized();
     let req = req.make_request().map_err(wrap_err)?;

@@ -40,13 +40,12 @@ pub trait Requestable {
     // Fixing this will require an API break in tor-direclient.
     fn make_request(&self) -> Result<http::Request<String>>;
 
-    /// Return true if partial downloads are potentially useful.  This
-    /// is true for request types where we're going to be downloading
-    /// multiple documents.
-    //
-    // TODO BREAKING: the name of this function doesn't make sense for
-    // POST-based requests.
-    fn partial_docs_ok(&self) -> bool;
+    /// Return true if partial response bodies are potentially useful.
+    ///
+    /// This is true for request types where we're going to be downloading
+    /// multiple documents, and we know how to parse out the ones we wanted
+    /// if the answer is truncated.
+    fn partial_response_body_ok(&self) -> bool;
 
     /// Return the maximum allowable response length we'll accept for this
     /// request.
@@ -244,7 +243,7 @@ impl Requestable for ConsensusRequest {
         Ok(req.body(String::new())?)
     }
 
-    fn partial_docs_ok(&self) -> bool {
+    fn partial_response_body_ok(&self) -> bool {
         false
     }
 
@@ -319,7 +318,7 @@ impl Requestable for AuthCertRequest {
         Ok(req.body(String::new())?)
     }
 
-    fn partial_docs_ok(&self) -> bool {
+    fn partial_response_body_ok(&self) -> bool {
         self.ids.len() > 1
     }
 
@@ -379,7 +378,7 @@ impl Requestable for MicrodescRequest {
         Ok(req.body(String::new())?)
     }
 
-    fn partial_docs_ok(&self) -> bool {
+    fn partial_response_body_ok(&self) -> bool {
         self.digests.len() > 1
     }
 
@@ -469,7 +468,7 @@ impl Requestable for RouterDescRequest {
         Ok(req.body(String::new())?)
     }
 
-    fn partial_docs_ok(&self) -> bool {
+    fn partial_response_body_ok(&self) -> bool {
         match self.requested_descriptors {
             RequestedDescs::Digests(ref digests) => digests.len() > 1,
             RequestedDescs::AllDescriptors => true,
@@ -524,7 +523,7 @@ impl Requestable for RoutersOwnDescRequest {
         Ok(req.body(String::new())?)
     }
 
-    fn partial_docs_ok(&self) -> bool {
+    fn partial_response_body_ok(&self) -> bool {
         false
     }
 
@@ -576,7 +575,7 @@ impl Requestable for HsDescDownloadRequest {
         Ok(req.body(String::new())?)
     }
 
-    fn partial_docs_ok(&self) -> bool {
+    fn partial_response_body_ok(&self) -> bool {
         false
     }
 
@@ -615,7 +614,7 @@ impl Requestable for HsDescUploadRequest {
         Ok(req.body(self.0.clone())?)
     }
 
-    fn partial_docs_ok(&self) -> bool {
+    fn partial_response_body_ok(&self) -> bool {
         false
     }
 
@@ -695,9 +694,9 @@ mod test {
 
         let mut req = MicrodescRequest::default();
         req.push(*d1);
-        assert!(!req.partial_docs_ok());
+        assert!(!req.partial_response_body_ok());
         req.push(*d2);
-        assert!(req.partial_docs_ok());
+        assert!(req.partial_response_body_ok());
         assert_eq!(req.max_response_len(), 16 << 10);
 
         let req = crate::util::encode_request(&req.make_request()?);
@@ -733,9 +732,9 @@ mod test {
 
         let mut req = AuthCertRequest::default();
         req.push(key1);
-        assert!(!req.partial_docs_ok());
+        assert!(!req.partial_response_body_ok());
         req.push(key2);
-        assert!(req.partial_docs_ok());
+        assert!(req.partial_response_body_ok());
         assert_eq!(req.max_response_len(), 32 << 10);
 
         let keys: Vec<_> = req.keys().collect();
@@ -769,7 +768,7 @@ mod test {
         req.push_authority_id(d1);
         req.push_old_consensus_digest(*d2);
         req.set_last_consensus_date(d3);
-        assert!(!req.partial_docs_ok());
+        assert!(!req.partial_response_body_ok());
         assert_eq!(req.max_response_len(), (16 << 20) - 1);
         assert_eq!(req.old_consensus_digests().next(), Some(d2));
         assert_eq!(req.authority_ids().next(), Some(&d1));
@@ -793,7 +792,7 @@ mod test {
     #[cfg(feature = "routerdesc")]
     fn test_rd_request_all() -> Result<()> {
         let req = RouterDescRequest::all();
-        assert!(req.partial_docs_ok());
+        assert!(req.partial_response_body_ok());
         assert_eq!(req.max_response_len(), 1 << 26);
 
         let req = crate::util::encode_request(&req.make_request()?);
@@ -820,11 +819,11 @@ mod test {
         if let RequestedDescs::Digests(ref mut digests) = req.requested_descriptors {
             digests.push(*d1);
         }
-        assert!(!req.partial_docs_ok());
+        assert!(!req.partial_response_body_ok());
         if let RequestedDescs::Digests(ref mut digests) = req.requested_descriptors {
             digests.push(*d2);
         }
-        assert!(req.partial_docs_ok());
+        assert!(req.partial_response_body_ok());
         assert_eq!(req.max_response_len(), 16 << 10);
 
         let req = crate::util::encode_request(&req.make_request()?);
@@ -852,7 +851,7 @@ mod test {
         let hsid = Ed25519Identity::new(hsid[..].try_into().unwrap());
         let hsid = HsBlindId::from(hsid);
         let req = HsDescDownloadRequest::new(hsid);
-        assert!(!req.partial_docs_ok());
+        assert!(!req.partial_response_body_ok());
         assert_eq!(req.max_response_len(), 50 * 1000);
 
         let req = crate::util::encode_request(&req.make_request()?);
