@@ -234,24 +234,23 @@ impl Keystore for ArtiNativeKeystore {
                         )
                     })?;
 
+                let malformed_err = |path: &Path, err| ArtiNativeKeystoreError::MalformedPath {
+                    path: path.into(),
+                    err,
+                };
+
                 let extension = path
                     .extension()
-                    .ok_or_else(|| ArtiNativeKeystoreError::MalformedPath {
-                        path: path.into(),
-                        err: err::MalformedPathError::NoExtension,
-                    })?
+                    .ok_or_else(|| malformed_err(path, err::MalformedPathError::NoExtension))?
                     .to_str()
-                    .ok_or_else(|| ArtiNativeKeystoreError::MalformedPath {
-                        path: path.into(),
-                        err: err::MalformedPathError::Utf8,
-                    })?;
+                    .ok_or_else(|| malformed_err(path, err::MalformedPathError::Utf8))?;
 
                 let key_type = KeyType::from(extension);
                 // Strip away the file extension
                 let path = path.with_extension("");
                 ArtiPath::new(path.display().to_string())
                     .map(|path| Some((path.into(), key_type)))
-                    .map_err(|e| ArtiNativeKeystoreError::MalformedPath { path, err: err::MalformedPathError::InvalidArtiPath(e) }.into())
+                    .map_err(|e| malformed_err(&path, err::MalformedPathError::InvalidArtiPath(e)).into())
             })
             .flatten_ok()
             .collect()
