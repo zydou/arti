@@ -25,43 +25,70 @@ use itertools::Itertools;
 use crate::err::RequestError;
 use crate::AnonymizedRequest;
 
+/// Declare an inaccessable public type.
+pub(crate) mod sealed {
+    use super::{AnonymizedRequest, ClientCirc, Result};
+    /// Sealed trait to help implement [`Requestable`](super::Requestable): not
+    /// visible outside this crate, so we can change its methods however we like.
+    pub trait RequestableInner: Send + Sync {
+        /// Build an [`http::Request`] from this Requestable, if
+        /// it is well-formed.
+        //
+        // TODO: This API is a bit troublesome in how it takes &self and
+        // returns a Request<String>.  First, most Requestables don't actually have
+        // a body to send, and for them having an empty String in their body is a
+        // bit silly.  Second, taking a reference to self but returning an owned
+        // String means that we will often have to clone an internal string owned by
+        // this Requestable instance.
+        fn make_request(&self) -> Result<http::Request<String>>;
+
+        /// Return true if partial response bodies are potentially useful.
+        ///
+        /// This is true for request types where we're going to be downloading
+        /// multiple documents, and we know how to parse out the ones we wanted
+        /// if the answer is truncated.
+        fn partial_response_body_ok(&self) -> bool;
+
+        /// Return the maximum allowable response length we'll accept for this
+        /// request.
+        fn max_response_len(&self) -> usize {
+            (16 * 1024 * 1024) - 1
+        }
+
+        /// Return an error if there is some problem with the provided circuit that
+        /// would keep it from being used for this request.
+        fn check_circuit(&self, circ: &ClientCirc) -> Result<()> {
+            let _ = circ;
+            Ok(())
+        }
+
+        /// Return a value to say whether this request must be anonymized.
+        fn anonymized(&self) -> AnonymizedRequest;
+    }
+}
+
 /// A request for an object that can be served over the Tor directory system.
-pub trait Requestable {
-    /// Build an [`http::Request`] from this Requestable, if
-    /// it is well-formed.
-    //
-    // TODO BREAKING: This API is a bit troublesome in how it takes &self and
-    // returns a Request<String>.  First, most Requestables don't actually have
-    // a body to send, and for them having an empty String in their body is a
-    // bit silly.  Second, taking a reference to self but returning an owned
-    // String means that we will often have to clone an internal string owned by
-    // this Requestable instance.
-    //
-    // Fixing this will require an API break in tor-direclient.
-    fn make_request(&self) -> Result<http::Request<String>>;
-
-    /// Return true if partial response bodies are potentially useful.
+pub trait Requestable: sealed::RequestableInner {
+    /// Return a wrapper around this [`Requestable`] that implements `Debug`,
+    /// and whose output shows the actual HTTP request that will be generated.
     ///
-    /// This is true for request types where we're going to be downloading
-    /// multiple documents, and we know how to parse out the ones we wanted
-    /// if the answer is truncated.
-    fn partial_response_body_ok(&self) -> bool;
-
-    /// Return the maximum allowable response length we'll accept for this
-    /// request.
-    fn max_response_len(&self) -> usize {
-        (16 * 1024 * 1024) - 1
+    /// The format is not guaranteed to  be stable.
+    fn debug_request(&self) -> DisplayRequestable<'_, Self>
+    where
+        Self: Sized,
+    {
+        DisplayRequestable(self)
     }
+}
+impl<T: sealed::RequestableInner> Requestable for T {}
 
-    /// Return an error if there is some problem with the provided circuit that
-    /// would keep it from being used for this request.
-    fn check_circuit(&self, circ: &ClientCirc) -> Result<()> {
-        let _ = circ;
-        Ok(())
+/// A wrapper to implement [`Requestable::debug_request`].
+pub struct DisplayRequestable<'a, R: Requestable>(&'a R);
+
+impl<'a, R: Requestable> std::fmt::Debug for DisplayRequestable<'a, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0.make_request())
     }
-
-    /// Return a value to say whether this request must be anonymized.
-    fn anonymized(&self) -> AnonymizedRequest;
 }
 
 /// How much clock skew do we allow in the distance between the directory
@@ -204,7 +231,7 @@ impl Default for ConsensusRequest {
     }
 }
 
-impl Requestable for ConsensusRequest {
+impl sealed::RequestableInner for ConsensusRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         // Build the URL.
         let mut uri = "/tor/status-vote/current/consensus".to_string();
@@ -291,7 +318,7 @@ impl AuthCertRequest {
     }
 }
 
-impl Requestable for AuthCertRequest {
+impl sealed::RequestableInner for AuthCertRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         if self.ids.is_empty() {
             return Err(RequestError::EmptyRequest);
@@ -365,7 +392,7 @@ impl MicrodescRequest {
     }
 }
 
-impl Requestable for MicrodescRequest {
+impl sealed::RequestableInner for MicrodescRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         let d_encode_b64 = |d: &[u8; 32]| Base64Unpadded::encode_string(&d[..]);
         let ids = digest_list_stringify(&self.digests, d_encode_b64, "-")
@@ -444,7 +471,7 @@ impl RouterDescRequest {
 }
 
 #[cfg(feature = "routerdesc")]
-impl Requestable for RouterDescRequest {
+impl sealed::RequestableInner for RouterDescRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         let mut uri = "/tor/server/".to_string();
 
@@ -514,7 +541,7 @@ impl RoutersOwnDescRequest {
 }
 
 #[cfg(feature = "routerdesc")]
-impl Requestable for RoutersOwnDescRequest {
+impl sealed::RequestableInner for RoutersOwnDescRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         let uri = "/tor/server/authority.z";
         let req = http::Request::builder().method("GET").uri(uri);
@@ -564,7 +591,7 @@ impl HsDescDownloadRequest {
 }
 
 #[cfg(feature = "hs-client")]
-impl Requestable for HsDescDownloadRequest {
+impl sealed::RequestableInner for HsDescDownloadRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         let hsid = Base64Unpadded::encode_string(self.hsid.as_ref());
         // We hardcode version 3 here; if we ever have a v4 onion service
@@ -604,7 +631,7 @@ impl HsDescUploadRequest {
 }
 
 #[cfg(feature = "hs-service")]
-impl Requestable for HsDescUploadRequest {
+impl sealed::RequestableInner for HsDescUploadRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         /// The upload URI.
         const URI: &str = "/tor/hs/3/publish";
@@ -685,6 +712,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::sealed::RequestableInner;
     use super::*;
 
     #[test]

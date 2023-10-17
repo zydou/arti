@@ -563,7 +563,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             &hsdir.id(),
             &hsdir.rsa_id(),
             &request,
-            request.make_request()
+            request.debug_request()
         );
 
         let circuit = self
