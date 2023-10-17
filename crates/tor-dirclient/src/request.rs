@@ -62,9 +62,7 @@ pub trait Requestable {
     }
 
     /// Return a value to say whether this request must be anonymized.
-    fn anonymized(&self) -> AnonymizedRequest {
-        AnonymizedRequest::Direct
-    }
+    fn anonymized(&self) -> AnonymizedRequest;
 }
 
 /// How much clock skew do we allow in the distance between the directory
@@ -264,6 +262,10 @@ impl Requestable for ConsensusRequest {
             (_, _) => Ok(()),
         }
     }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
+    }
 }
 
 /// A request for one or more authority certificates.
@@ -325,6 +327,10 @@ impl Requestable for AuthCertRequest {
         // TODO: Pick a more principled number; I just made this one up.
         self.ids.len().saturating_mul(16 * 1024)
     }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
+    }
 }
 
 impl FromIterator<AuthCertKeyIds> for AuthCertRequest {
@@ -380,6 +386,10 @@ impl Requestable for MicrodescRequest {
     fn max_response_len(&self) -> usize {
         // TODO: Pick a more principled number; I just made this one up.
         self.digests.len().saturating_mul(8 * 1024)
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
     }
 }
 
@@ -473,6 +483,10 @@ impl Requestable for RouterDescRequest {
             RequestedDescs::AllDescriptors => 64 * 1024 * 1024, // big but not impossible
         }
     }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
+    }
 }
 
 #[cfg(feature = "routerdesc")]
@@ -512,6 +526,10 @@ impl Requestable for RoutersOwnDescRequest {
 
     fn partial_docs_ok(&self) -> bool {
         false
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
     }
 }
 
