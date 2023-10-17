@@ -105,6 +105,12 @@ impl From<HsIdKey> for HsId {
     }
 }
 
+impl From<&HsIdKeypair> for HsIdKey {
+    fn from(value: &HsIdKeypair) -> Self {
+        Self(value.0.public)
+    }
+}
+
 /// VERSION from rend-spec-v3 s.6 \[ONIONADDRESS]
 const HSID_ONION_VERSION: u8 = 0x03;
 
