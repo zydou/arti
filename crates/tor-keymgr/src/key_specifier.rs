@@ -252,6 +252,9 @@ pub trait KeySpecifier {
 }
 
 /// An error returned by a [`KeySpecifier`].
+///
+/// The putative `KeySpecifier` might be simply invalid,
+/// or it might be being used in an inappropriate context.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum KeyPathError {
