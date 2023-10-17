@@ -51,6 +51,8 @@ impl KeyPath {
             .map(|res| res.into_iter().map(|r| r.into()).collect())
     }
 
+    // TODO: rewrite these getters using derive_adhoc if KeyPath grows more variants.
+
     /// Return the underlying [`ArtiPath`], if this is a `KeyPath::Arti`.
     pub fn arti(&self) -> Option<&ArtiPath> {
         match self {
