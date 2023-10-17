@@ -145,9 +145,6 @@ mod tests {
 
         let unknown_key_ty = KeyType::from(UNKNOWN_KEY_TYPE);
         assert_eq!(unknown_key_ty, KeyType::Unknown(UNKNOWN_KEY_TYPE.into()));
-        assert_eq!(
-            unknown_key_ty.arti_extension(),
-            UNKNOWN_KEY_TYPE
-        );
+        assert_eq!(unknown_key_ty.arti_extension(), UNKNOWN_KEY_TYPE);
     }
 }

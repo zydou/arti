@@ -127,7 +127,9 @@ impl Keystore for ArtiNativeKeystore {
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> Result<()> {
-        let path = self.key_path(key_spec, key_type).map_err(|e| tor_error::internal!("{e}"))?;
+        let path = self
+            .key_path(key_spec, key_type)
+            .map_err(|e| tor_error::internal!("{e}"))?;
 
         // Create the parent directories as needed
         if let Some(parent) = path.parent() {
@@ -174,7 +176,9 @@ impl Keystore for ArtiNativeKeystore {
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>> {
-        let key_path = self.key_path(key_spec, key_type).map_err(|e| tor_error::internal!("{e}"))?;
+        let key_path = self
+            .key_path(key_spec, key_type)
+            .map_err(|e| tor_error::internal!("{e}"))?;
 
         let abs_key_path =
             self.keystore_dir
@@ -250,7 +254,9 @@ impl Keystore for ArtiNativeKeystore {
                 let path = path.with_extension("");
                 ArtiPath::new(path.display().to_string())
                     .map(|path| Some((path.into(), key_type)))
-                    .map_err(|e| malformed_err(&path, err::MalformedPathError::InvalidArtiPath(e)).into())
+                    .map_err(|e| {
+                        malformed_err(&path, err::MalformedPathError::InvalidArtiPath(e)).into()
+                    })
             })
             .flatten_ok()
             .collect()

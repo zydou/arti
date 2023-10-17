@@ -1,6 +1,6 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
-use crate::{KeystoreError, UnknownKeyTypeError, ArtiPathError};
+use crate::{ArtiPathError, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 
 use std::io;
