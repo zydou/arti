@@ -558,7 +558,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             r
         };
         trace!(
-            "hsdir for {}, trying {}/{}, request {:?} (http request {:?}",
+            "hsdir for {}, trying {}/{}, request {:?} (http request {:?})",
             &self.hsid,
             &hsdir.id(),
             &hsdir.rsa_id(),
