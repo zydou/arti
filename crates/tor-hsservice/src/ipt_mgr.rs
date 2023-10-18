@@ -1135,6 +1135,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 }
             };
 
+            // TODO HSS: Maybe something at level Error or Info, for example
+            // Log an error if everything is terrilbe
+            //   - we have >=N Faulty IPTs ?
+            //    we have only Faulty IPTs and can't select another due to 2N limit ?
+            // Log at info if and when we publish?  Maybe the publisher should do that?
+
             self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
 
             drop(publish_set); // release lock, and notify publisher of any changes
