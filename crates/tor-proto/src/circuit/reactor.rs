@@ -94,6 +94,27 @@ pub(super) enum CircuitHandshake {
     },
 }
 
+/// A behavior to perform when closing a stream.
+///
+/// We don't use `Option<End>`` here, since the behavior of `SendNothing` is so surprising
+/// that we shouldn't let it pass unremarked.
+#[derive(Clone, Debug)]
+pub(crate) enum CloseStreamBehavior {
+    /// Send nothing at all, so that the other side will not realize we have
+    /// closed the stream.
+    ///
+    /// We should only do this for incoming onion service streams when we
+    /// want to black-hole the client's requests.
+    SendNothing,
+    /// Send an End cell, if we haven't already sent one.
+    SendEnd(End),
+}
+impl Default for CloseStreamBehavior {
+    fn default() -> Self {
+        Self::SendEnd(End::new_misc())
+    }
+}
+
 /// A message telling the reactor to do something.
 #[derive(educe::Educe)]
 #[educe(Debug)]
@@ -178,8 +199,8 @@ pub(super) enum CtrlMsg {
         hop_num: HopNum,
         /// The stream ID to send the END for.
         stream_id: StreamId,
-        /// The END message to send.
-        message: End,
+        /// The END message to send, if any.
+        message: CloseStreamBehavior,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -836,7 +857,7 @@ impl Reactor {
                     cx,
                     hopn,
                     id,
-                    None,
+                    CloseStreamBehavior::default(),
                     streammap::TerminateReason::StreamTargetClosed,
                 )?;
                 did_things = true;
@@ -1446,7 +1467,7 @@ impl Reactor {
                     cx,
                     hop_num,
                     stream_id,
-                    Some(message),
+                    message,
                     streammap::TerminateReason::ExplicitEnd,
                 )?;
                 let _ = done.send(Ok(ret)); // don't care if sender goes away
@@ -1564,7 +1585,7 @@ impl Reactor {
         cx: &mut Context<'_>,
         hopnum: HopNum,
         id: StreamId,
-        message: Option<End>,
+        message: CloseStreamBehavior,
         why: streammap::TerminateReason,
     ) -> Result<()> {
         // Mark the stream as closing.
@@ -1584,9 +1605,10 @@ impl Reactor {
         );
         // TODO: I am about 80% sure that we only send an END cell if
         // we didn't already get an END cell.  But I should double-check!
-        if should_send_end == ShouldSendEnd::Send {
-            let message = message.unwrap_or_else(End::new_misc);
-            let end_cell = AnyRelayCell::new(id, message.into());
+        if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
+            (should_send_end, message)
+        {
+            let end_cell = AnyRelayCell::new(id, end_message.into());
             self.send_relay_cell(cx, hopnum, false, end_cell)?;
         }
         Ok(())

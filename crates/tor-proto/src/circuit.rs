@@ -77,7 +77,6 @@ use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use {
     crate::circuit::reactor::IncomingStreamRequestContext,
     crate::stream::{IncomingCmdChecker, IncomingStream},
-    tor_cell::relaycell::msg as relaymsg,
 };
 
 use futures::channel::mpsc;
@@ -1103,7 +1102,7 @@ impl StreamTarget {
     }
 
     /// Close the pending stream that owns this StreamTarget, delivering the specified
-    /// END message.
+    /// END message (if any)
     ///
     /// The stream is closed by sending a [`CtrlMsg::ClosePendingStream`] message to the reactor.
     ///
@@ -1131,7 +1130,7 @@ impl StreamTarget {
     #[cfg(feature = "hs-service")]
     pub(crate) fn close_pending(
         &self,
-        msg: relaymsg::End,
+        message: reactor::CloseStreamBehavior,
     ) -> Result<oneshot::Receiver<Result<()>>> {
         let (tx, rx) = oneshot::channel();
 
@@ -1140,7 +1139,7 @@ impl StreamTarget {
             .unbounded_send(CtrlMsg::ClosePendingStream {
                 stream_id: self.stream_id,
                 hop_num: self.hop_num,
-                message: msg,
+                message,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;

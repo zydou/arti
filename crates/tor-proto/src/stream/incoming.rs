@@ -3,13 +3,13 @@
 use bitvec::prelude::*;
 
 use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
+use crate::circuit::reactor::CloseStreamBehavior;
 use crate::circuit::StreamTarget;
 use crate::{Error, Result};
-use std::result::Result as StdResult;
 use tor_async_utils::oneshot;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayCell};
 use tor_cell::restricted_msg;
-use tor_error::{internal, Bug};
+use tor_error::internal;
 
 /// A pending request from the other end of the circuit for us to open a new
 /// stream.
@@ -71,15 +71,18 @@ impl IncomingStream {
 
     /// Reject this request and send an error message to the client.
     pub async fn reject(mut self, message: msg::End) -> Result<()> {
-        let rx = self.reject_inner(message)?;
+        let rx = self.reject_inner(CloseStreamBehavior::SendEnd(message))?;
 
         rx.await.map_err(|_| Error::CircuitClosed)?.map(|_| ())
     }
 
-    /// Reject this request and send an error message to the client.
+    /// Reject this request and possibly send an error message to the client.
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
-    fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
+    fn reject_inner(
+        &mut self,
+        message: CloseStreamBehavior,
+    ) -> Result<oneshot::Receiver<Result<()>>> {
         self.stream.close_pending(message)
     }
 
@@ -88,10 +91,10 @@ impl IncomingStream {
     /// (If you drop an [`IncomingStream`] without calling `accept_data`,
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
-    pub fn discard(self) -> StdResult<(), Bug> {
-        // TODO HSS: When the StreamTarget is dropped, an end will be sent,
-        // which is not what we wanted!
-        Ok(())
+    pub async fn discard(mut self) -> Result<()> {
+        let rx = self.reject_inner(CloseStreamBehavior::SendNothing)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)?.map(|_| ())
     }
 }
 
