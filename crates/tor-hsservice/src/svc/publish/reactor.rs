@@ -26,6 +26,7 @@ use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::request::Requestable as _;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
+use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, into_internal, warn_report};
 use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey};
 use tor_hscrypto::time::TimePeriod;
@@ -379,7 +380,7 @@ pub(crate) enum ReactorError {
 
     /// Failed to publish a descriptor.
     #[error("failed to publish a descriptor")]
-    PublishFailure(RetryError<UploadError>),
+    PublishFailure(#[source] RetryError<UploadError>),
 
     /// Failed to access the keystore.
     #[error("failed to access keystore")]
@@ -503,6 +504,7 @@ pub(crate) enum UploadError {
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
 }
+define_asref_dyn_std_error!(UploadError);
 
 impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
