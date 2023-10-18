@@ -74,6 +74,40 @@ impl KeyMgr {
         self.get_from_store(key_spec, key_type, self.all_stores())
     }
 
+    /// Read the key identified by `key_spec`.
+    ///
+    /// The key returned is retrieved from the first key store that contains an entry for the given
+    /// specifier.
+    ///
+    /// If the requested key does not exist in any of the key stores, this generates a new key of
+    /// type `K` computed using the provided `derive` function and inserts it into the specified
+    /// keystore, returning the newly inserted value.
+    pub fn get_or_generate_with_derived<K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+        derive: impl FnOnce() -> Result<K>,
+    ) -> Result<K> {
+        let key_type = K::Key::key_type();
+
+        match self.get_from_store(key_spec, &key_type, self.all_stores())? {
+            Some(key) => Ok(key),
+            None => {
+                let key = derive()?;
+
+                self.insert(key, key_spec, selector)?;
+                // The key is not Clone so we have to look it up to return it.
+                let key = self
+                    .get_from_store(key_spec, &key_type, self.all_stores())?
+                    .ok_or_else(|| internal!("key is missing but we've just inserted it?!"))?;
+
+                // TODO HSS: assert the key was retrieved from the keystore we put it in?
+
+                Ok(key)
+            }
+        }
+    }
+
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
     ///
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
