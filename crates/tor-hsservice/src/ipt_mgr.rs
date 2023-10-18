@@ -32,7 +32,7 @@ use void::{ResultVoidErrExt as _, Void};
 use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
-use tor_error::error_report;
+use tor_error::{error_report, info_report};
 use tor_error::{internal, into_internal, Bug, ErrorKind, HasKind};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
@@ -785,11 +785,20 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                     .state
                     .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
                     .map_err(|error| {
-                        error_report!(
-                            error,
-                            "HS service {} failed to select IPT relay",
-                            &self.imm.nick,
-                        );
+                        /// Call $report! with the message.
+                        // The macros are annoying and want a cost argument.
+                        macro_rules! report { { $report:ident } => {
+                            $report!(
+                                error,
+                                "HS service {} failed to select IPT relay",
+                                &self.imm.nick,
+                            )
+                        }}
+                        use ChooseIptError as E;
+                        match &error {
+                            E::NetDir(_) => report!(info_report),
+                            _ => report!(error_report),
+                        };
                         ()
                     });
                 return CONTINUE;
