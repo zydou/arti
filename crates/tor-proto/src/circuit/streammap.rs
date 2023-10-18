@@ -213,7 +213,11 @@ impl StreamMap {
     /// Handle a termination of the stream with `id` from this side of
     /// the circuit. Return true if the stream was open and an END
     /// ought to be sent.
-    pub(super) fn terminate(&mut self, id: StreamId) -> Result<ShouldSendEnd> {
+    pub(super) fn terminate(
+        &mut self,
+        id: StreamId,
+        why: TerminateReason,
+    ) -> Result<ShouldSendEnd> {
         // Progress the stream's state machine accordingly
         match self
             .m
@@ -240,6 +244,7 @@ impl StreamMap {
                 Ok(ShouldSendEnd::Send)
             }
             StreamEnt::EndSent(_) => {
+                let _why = why; // XXXX Actually use this.
                 panic!("Hang on! We're sending an END on a stream where we already sent an END‽");
             }
         }
@@ -247,6 +252,19 @@ impl StreamMap {
 
     // TODO: Eventually if we want relay support, we'll need to support
     // stream IDs chosen by somebody else. But for now, we don't need those.
+}
+
+/// A reason for terminating a stream.
+///
+/// We use this type in order to ensure that we obey the API restrictions of [`StreamMap::terminate`]
+#[derive(Copy, Clone, Debug)]
+pub(super) enum TerminateReason {
+    /// Closing a stream because the receiver got `Ok(None)`, indicating that the
+    /// corresponding senders were all dropped.
+    StreamTargetClosed,
+    /// Closing a stream because we were explicitly told to end it via
+    /// [`StreamTarget::close_pending`](crate::circuit::StreamTarget::close_pending).
+    ExplicitEnd,
 }
 
 #[cfg(test)]
@@ -303,10 +321,17 @@ mod test {
         assert!(map.ending_msg_received(ids[1]).is_err());
 
         // Test terminate
-        assert!(map.terminate(nonesuch_id).is_err());
-        assert_eq!(map.terminate(ids[2]).unwrap(), ShouldSendEnd::Send);
+        use TerminateReason as TR;
+        assert!(map.terminate(nonesuch_id, TR::ExplicitEnd).is_err());
+        assert_eq!(
+            map.terminate(ids[2], TR::ExplicitEnd).unwrap(),
+            ShouldSendEnd::Send
+        );
         assert!(matches!(map.get_mut(ids[2]), Some(StreamEnt::EndSent(_))));
-        assert_eq!(map.terminate(ids[1]).unwrap(), ShouldSendEnd::DontSend);
+        assert_eq!(
+            map.terminate(ids[1], TR::ExplicitEnd).unwrap(),
+            ShouldSendEnd::DontSend
+        );
         assert!(map.get_mut(ids[1]).is_none());
 
         // Try receiving an end after a terminate.

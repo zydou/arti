@@ -832,7 +832,13 @@ impl Reactor {
 
             // Close the streams we said we'd close.
             for (hopn, id) in streams_to_close {
-                self.close_stream(cx, hopn, id, None)?;
+                self.close_stream(
+                    cx,
+                    hopn,
+                    id,
+                    None,
+                    streammap::TerminateReason::StreamTargetClosed,
+                )?;
                 did_things = true;
             }
             // Send messages we said we'd send.
@@ -1436,7 +1442,13 @@ impl Reactor {
                 message,
                 done,
             } => {
-                let ret = self.close_stream(cx, hop_num, stream_id, Some(message))?;
+                let ret = self.close_stream(
+                    cx,
+                    hop_num,
+                    stream_id,
+                    Some(message),
+                    streammap::TerminateReason::ExplicitEnd,
+                )?;
                 let _ = done.send(Ok(ret)); // don't care if sender goes away
             }
             #[cfg(feature = "hs-service")]
@@ -1553,6 +1565,7 @@ impl Reactor {
         hopnum: HopNum,
         id: StreamId,
         message: Option<End>,
+        why: streammap::TerminateReason,
     ) -> Result<()> {
         // TODO HSS: We have a potential problem here: This function is called
         // in two cases.
@@ -1576,7 +1589,7 @@ impl Reactor {
             ))
         })?;
 
-        let should_send_end = hop.map.terminate(id)?;
+        let should_send_end = hop.map.terminate(id, why)?;
         trace!(
             "{}: Ending stream {}; should_send_end={:?}",
             self.unique_id,
