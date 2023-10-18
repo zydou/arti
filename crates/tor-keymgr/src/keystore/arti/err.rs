@@ -79,7 +79,7 @@ pub(crate) enum MalformedPathError {
     #[error("no extension")]
     NoExtension,
 
-    /// The file path is not a valid [`ArtiPath`].
+    /// The file path is not a valid [`ArtiPath`](crate::ArtiPath).
     #[error("not a valid ArtiPath")]
     InvalidArtiPath(ArtiPathError),
 }
