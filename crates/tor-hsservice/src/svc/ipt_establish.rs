@@ -436,6 +436,9 @@ impl GoodIptDetails {
 /// `Err(IptWantsToRetire)` indicates that the IPT Establisher wants to retire this IPT
 ///
 /// This happens when the IPT has had (too) many rendezvous requests.
+///
+/// This must *not* be used for *errors*, because it will cause the IPT manager to
+/// *immediately* start to replace the IPT, regardless of rate limits etc.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct IptWantsToRetire;
 
@@ -518,7 +521,9 @@ impl IptStatus {
         IptStatus {
             status: IptStatusStatus::Faulty,
             n_faults: u32::MAX,
-            wants_to_retire: Err(IptWantsToRetire), // we don't know, but this is safe
+            // If we're broken, we simply tell the manager that that is the case.
+            // It will decide for itself whether it wants to replace us.
+            wants_to_retire: Ok(()),
         }
     }
 }
