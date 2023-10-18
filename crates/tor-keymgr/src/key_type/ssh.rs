@@ -356,8 +356,8 @@ impl KeyType {
             KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => Ok(SshKeyAlgorithm::Ed25519),
             KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => Ok(SshKeyAlgorithm::X25519),
             KeyType::Ed25519ExpandedKeypair => Ok(SshKeyAlgorithm::Ed25519Expanded),
-            KeyType::Unknown(ty) => Err(ArtiNativeKeystoreError::UnknownKeyType(
-                UnknownKeyTypeError(ty.clone()),
+            KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
+                UnknownKeyTypeError { arti_extension: arti_extension.clone() },
             )
             .boxed()),
         }
@@ -379,8 +379,8 @@ impl KeyType {
             KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
                 parse_openssh!(PUBLIC key, self)
             }
-            KeyType::Unknown(ty) => Err(ArtiNativeKeystoreError::UnknownKeyType(
-                UnknownKeyTypeError(ty.clone()),
+            KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
+                UnknownKeyTypeError { arti_extension: arti_extension.clone() },
             )
             .boxed()),
         }
