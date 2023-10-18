@@ -26,7 +26,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tor_keymgr::KeyMgr;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
 use tor_async_utils::oneshot;
@@ -1144,7 +1144,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
             shutdown = &mut self.state.shutdown => {
-                trace!("HS service {}: terminating due to shutdown signal", &self.imm.nick);
+                info!("HS service {}: terminating due to shutdown signal", &self.imm.nick);
                 return Ok(shutdown.void_unwrap_err().into())
             },
 
