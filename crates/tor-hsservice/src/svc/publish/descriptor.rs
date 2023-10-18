@@ -17,7 +17,7 @@ use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
 use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
 use crate::svc::publish::reactor::{AuthorizedClientConfigError, ReactorError};
-use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, KeyMetadata, OnionServiceConfig};
+use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, KeyDenotator, OnionServiceConfig};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
@@ -121,19 +121,19 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 }
 
 /// Read the specified key from the keystore.
-fn read_svc_key<K, R, M>(
+fn read_svc_key<K, R, D>(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
     role: R,
-    meta: Option<M>,
+    meta: Option<D>,
 ) -> Result<K, ReactorError>
 where
     K: ToEncodableKey,
-    M: KeyMetadata,
-    R: HsSvcKeyRole<Metadata = M>,
+    D: KeyDenotator,
+    R: HsSvcKeyRole<Denotator = D>,
 {
     let svc_key_spec = if let Some(meta) = meta {
-        HsSvcKeySpecifier::with_meta(nickname, role, meta)
+        HsSvcKeySpecifier::with_denotators(nickname, role, meta)
     } else {
         HsSvcKeySpecifier::new(nickname, role)
     };

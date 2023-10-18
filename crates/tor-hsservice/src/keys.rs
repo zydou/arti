@@ -14,39 +14,41 @@ pub struct HsSvcKeySpecifier<'a, R: HsSvcKeyRole> {
     nickname: &'a HsNickname,
     /// The role of this key
     role: R,
-    /// The metadata for this key.
-    meta: Option<R::Metadata>,
+    /// The denotators of this key.
+    denotator: Option<R::Denotator>,
 }
 
 /// An identifier for a particular instance of a hidden service key, and the type of its associated
-/// metadata.
+/// denotators.
 pub trait HsSvcKeyRole: Copy + std::fmt::Display + Sealed {
-    /// The type of metadata associated with keys that have this key role.
-    type Metadata: KeyMetadata;
+    /// The type of denotator associated with keys that have this key role.
+    type Denotator: KeyDenotator;
 }
 
-/// Sealed to prevent anything outside this module from implementing `KeyMetadata`.
+/// Sealed to prevent anything outside this module from implementing `KeyDenotator`.
 mod sealed {
-    /// Sealed to ensure only the types defined here get to implement `KeyMetadata` and `HsSvcKeyRole`.
+    /// Sealed to ensure only the types defined here get to implement `KeyDenotator` and `HsSvcKeyRole`.
     pub trait Sealed {}
 }
 
 use sealed::Sealed;
 
-/// A trait for displaying key metadata, for use within an [`ArtiPath`](tor_keymgr::ArtiPath)
+/// A trait for displaying key denotators, for use within an [`ArtiPath`](tor_keymgr::ArtiPath)
 /// or [`CTorPath`](tor_keymgr::CTorPath).
-pub trait KeyMetadata: Sealed {
-    /// Display the metadata in a format that can be used within an
+///
+/// A key's denotators *denote* an instance of a key.
+pub trait KeyDenotator: Sealed {
+    /// Display the denotators in a format that can be used within an
     /// [`ArtiPath`](tor_keymgr::ArtiPath) or [`CTorPath`](tor_keymgr::CTorPath).
     fn display(&self) -> String;
 
-    /// Return a glob pattern that matches the key metadata, if there is any.
-    fn meta_glob() -> String;
+    /// Return a glob pattern that matches the key denotators, if there are any.
+    fn glob() -> String;
 }
 
 impl Sealed for TimePeriod {}
 
-impl KeyMetadata for TimePeriod {
+impl KeyDenotator for TimePeriod {
     fn display(&self) -> String {
         format!(
             "{}_{}_{}",
@@ -56,19 +58,19 @@ impl KeyMetadata for TimePeriod {
         )
     }
 
-    fn meta_glob() -> String {
+    fn glob() -> String {
         "*_*_*".into()
     }
 }
 
 impl Sealed for () {}
 
-impl KeyMetadata for () {
+impl KeyDenotator for () {
     fn display(&self) -> String {
         "".into()
     }
 
-    fn meta_glob() -> String {
+    fn glob() -> String {
         "".into()
     }
 }
@@ -79,16 +81,17 @@ impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
         Self {
             nickname,
             role,
-            meta: None,
+            denotator: None,
         }
     }
 
-    /// Create a new specifier for service the service with the specified `nickname`.
-    pub fn with_meta(nickname: &'a HsNickname, role: R, meta: R::Metadata) -> Self {
+    /// Create a new specifier for service the service with the specified `nickname`,
+    /// using the specified `denotators`.
+    pub fn with_denotators(nickname: &'a HsNickname, role: R, denotators: R::Denotator) -> Self {
         Self {
             nickname,
             role,
-            meta: Some(meta),
+            denotator: Some(denotators),
         }
     }
 
@@ -96,8 +99,8 @@ impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
     /// corresponding to the specified service `nickname` and `role`.
     pub(crate) fn arti_pattern(nickname: &HsNickname, role: R) -> KeyPathPattern {
         let pat = Self::arti_path_prefix(nickname, role);
-        let meta_glob = R::Metadata::meta_glob();
-        KeyPathPattern::new(format!("{pat}{meta_glob}"))
+        let glob = R::Denotator::glob();
+        KeyPathPattern::new(format!("{pat}{glob}"))
     }
 }
 
@@ -116,7 +119,7 @@ pub enum HsSvcHsIdKeyRole {
 impl Sealed for HsSvcHsIdKeyRole {}
 
 impl HsSvcKeyRole for HsSvcHsIdKeyRole {
-    type Metadata = ();
+    type Denotator = ();
 }
 
 /// A key role for keys that have `TimePeriod` metadata.
@@ -137,7 +140,7 @@ pub enum HsSvcKeyRoleWithTimePeriod {
 impl Sealed for HsSvcKeyRoleWithTimePeriod {}
 
 impl HsSvcKeyRole for HsSvcKeyRoleWithTimePeriod {
-    type Metadata = TimePeriod;
+    type Denotator = TimePeriod;
 }
 
 impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
@@ -152,7 +155,7 @@ impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
 impl<'a, R: HsSvcKeyRole> KeySpecifier for HsSvcKeySpecifier<'a, R> {
     fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
         let prefix = Self::arti_path_prefix(self.nickname, self.role);
-        let path = match &self.meta {
+        let path = match &self.denotator {
             // TODO HSS: use a different character to separate the key name from the metadata
             // See arti#1063.
             Some(meta) => ArtiPath::new(format!("{prefix}_{}", meta.display())),
