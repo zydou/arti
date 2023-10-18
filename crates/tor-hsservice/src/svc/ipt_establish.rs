@@ -397,6 +397,9 @@ pub(crate) enum IptStatusStatus {
     Good(GoodIptDetails),
 
     /// We don't have the IPT and it looks like it was the IPT's fault
+    ///
+    /// This should be used whenever trying another IPT relay is likely to work better;
+    /// regardless of whether attempts to establish *this* IPT can continue.
     Faulty,
 }
 
@@ -500,7 +503,8 @@ impl IptStatus {
     /// Record that an error has occurred.
     fn note_error(&mut self, err: &IptError) {
         use IptStatusStatus::*;
-        if err.is_ipt_failure() && matches!(self.status, Good(..)) {
+        if err.is_ipt_failure() {
+            // TODO HSS remove n_faults (nothing reads it)
             self.n_faults += 1;
             self.status = Faulty;
         }
