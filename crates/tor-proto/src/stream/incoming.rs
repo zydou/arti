@@ -137,6 +137,8 @@ impl IncomingStream {
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
     pub fn discard(mut self) -> StdResult<(), Bug> {
+        // TODO HSS: When the StreamTarget is dropped, an end will be sent,
+        // which is not what we wanted!
         self.update_state(IncomingStreamState::Discarded, "discard")
     }
 
