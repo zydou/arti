@@ -120,7 +120,7 @@ impl IncomingStream {
     }
 
     /// Reject this request and send an error message to the client.
-    pub async fn reject(&mut self, message: msg::End) -> Result<()> {
+    pub async fn reject(mut self, message: msg::End) -> Result<()> {
         let rx = self.reject_inner(message)?;
 
         rx.await.map_err(|_| Error::CircuitClosed)?.map(|_| ())
@@ -130,11 +130,12 @@ impl IncomingStream {
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
     ///
-    /// This is used for implementing `Drop`.
+    /// This is used for implementing `Drop` and `reject`.  It must not be
+    /// called twice.
     fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
         self.update_state(IncomingStreamState::Rejected, "reject_inner")?;
 
-        self.mut_inner()?.stream.close(message)
+        self.mut_inner()?.stream.close_pending(message)
     }
 
     /// Ignore this request without replying to the client.
