@@ -417,7 +417,7 @@ impl Ipt {
     fn is_good(&self) -> bool {
         match self.status_last {
             TS::Good { .. } => true,
-            TS::Establishing { .. } | TS::Faulty => false,
+            TS::Establishing { .. } | TS::Faulty { .. } => false,
         }
     }
 
@@ -735,7 +735,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .current_ipts()
                 .filter(|(_ir, ipt)| match ipt.status_last {
                     TS::Good { .. } | TS::Establishing { .. } => true,
-                    TS::Faulty => false,
+                    TS::Faulty { .. } => false,
                 })
                 .count();
 
@@ -828,7 +828,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                     TS::Good {
                         time_to_establish, ..
                     } => Some(time_to_establish.ok()?),
-                    TS::Establishing { .. } | TS::Faulty => None,
+                    TS::Establishing { .. } | TS::Faulty { .. } => None,
                 })
                 .min()?;
 
@@ -852,7 +852,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .filter_map(|(_ir, ipt)| {
                     let started = match ipt.status_last {
                         TS::Establishing { started } => Some(started),
-                        TS::Good { .. } | TS::Faulty => None,
+                        TS::Good { .. } | TS::Faulty { .. } => None,
                     }?;
 
                     (started > very_recently).then_some(ipt.lid)
