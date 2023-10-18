@@ -108,6 +108,29 @@ impl KeyMgr {
         }
     }
 
+    /// Read the key identified by `key_spec`.
+    ///
+    /// The key returned is retrieved from the first key store that contains an entry for the given
+    /// specifier.
+    ///
+    /// If the requested key does not exist in any of the key stores, this generates a new key of
+    /// type `K` from the key created using using `K::Key`'s [`Keygen`] implementation, and inserts
+    /// it into the specified keystore, returning the newly inserted value.
+    pub fn get_or_generate<K>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+        rng: &mut dyn KeygenRng,
+    ) -> Result<K>
+    where
+        K: ToEncodableKey,
+        K::Key: Keygen,
+    {
+        self.get_or_generate_with_derived(key_spec, selector, || {
+            Ok(K::from_encodable_key(K::Key::generate(rng)?))
+        })
+    }
+
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
     ///
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
