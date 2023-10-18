@@ -28,6 +28,7 @@ use tor_hscrypto::{
 };
 use tor_keymgr::{KeyMgr, KeyPathPatternSet, KeyPathRange};
 use tor_keymgr::{KeyPath, KeyPathPattern};
+use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
@@ -420,6 +421,18 @@ pub(crate) struct GoodIptDetails {
     pub(crate) ipt_kp_ntor: NtorPublicKey,
 }
 
+impl GoodIptDetails {
+    /// Try to copy out the relevant parts of a CircTarget into a GoodIptDetails.
+    fn try_from_circ_target(relay: &impl CircTarget) -> Result<Self, IptError> {
+        Ok(Self {
+            link_specifiers: relay
+                .linkspecs()
+                .map_err(into_internal!("Unable to encode relay link specifiers"))?,
+            ipt_kp_ntor: *relay.ntor_onion_key(),
+        })
+    }
+}
+
 /// `Err(IptWantsToRetire)` indicates that the IPT Establisher wants to retire this IPT
 ///
 /// This happens when the IPT has had (too) many rendezvous requests.
@@ -468,9 +481,8 @@ pub(crate) struct IptStatus {
 impl IptStatus {
     /// Record that we have successfully connected to an introduction point.
     #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
-    fn note_open(&mut self) {
-        let linkspecs = todo!(); // TODO HSS get this from the netdir
-        self.status = IptStatusStatus::Good(linkspecs);
+    fn note_open(&mut self, ipt_details: GoodIptDetails) {
+        self.status = IptStatusStatus::Good(ipt_details);
     }
 
     /// Record that we are trying to connect to an introduction point.
@@ -597,8 +609,17 @@ impl<R: Runtime> Reactor<R> {
         let mut retry_delay = tor_basic_utils::retry::RetryDelay::from_msec(1000);
         loop {
             status_tx.borrow_mut().note_attempt();
-            match self.establish_intro_once().await {
-                Ok(session) => {
+            match self.establish_intro_once().await.and_then(|session| {
+                let netdir = self
+                    .netdir_provider
+                    .timely_netdir()
+                    .map_err(|_| IptError::IntroPointNotListed)?;
+                let relay = netdir
+                    .by_ids(&self.target)
+                    .ok_or(IptError::IntroPointNotListed)?;
+                Ok((session, GoodIptDetails::try_from_circ_target(&relay)?))
+            }) {
+                Ok((session, good_ipt_details)) => {
                     // TODO HSS we need to monitor the netdir for changes to this relay
                     // Eg,
                     //   - if it becomes unlisted, we should declare the IPT faulty
@@ -615,7 +636,8 @@ impl<R: Runtime> Reactor<R> {
                     // Possibly some this could/should be done by the IPT Manager instead,
                     // but Diziet thinks it is probably cleanest to do it here.
 
-                    status_tx.borrow_mut().note_open();
+                    status_tx.borrow_mut().note_open(good_ipt_details);
+
                     debug!(
                         "Successfully established introduction point with {}",
                         self.target.display_relay_ids().redacted()
