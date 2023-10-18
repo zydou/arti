@@ -192,8 +192,10 @@ async fn run<R: Runtime>(
         cfg_if! {
             if #[cfg(feature = "onion-service-service")] {
                 // TODO HSS: Support reconfiguration.
-                onion_services =
-            onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
+                onion_services = onion_proxy::ProxySet::launch_new(
+                    &client,
+                    arti_config.onion_services.clone(),
+                )?;
             } else {
                 onion_services = ();
             }
