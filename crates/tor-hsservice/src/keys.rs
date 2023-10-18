@@ -33,13 +33,13 @@ mod sealed {
 
 use sealed::Sealed;
 
-/// A trait for displaying key denotators, for use within an [`ArtiPath`](tor_keymgr::ArtiPath)
-/// or [`CTorPath`](tor_keymgr::CTorPath).
+/// A trait for displaying key denotators, for use within an [`ArtiPath`]
+/// or [`CTorPath`].
 ///
 /// A key's denotators *denote* an instance of a key.
 pub trait KeyDenotator: Sealed {
     /// Display the denotators in a format that can be used within an
-    /// [`ArtiPath`](tor_keymgr::ArtiPath) or [`CTorPath`](tor_keymgr::CTorPath).
+    /// [`ArtiPath`] or [`CTorPath`].
     fn display(&self) -> String;
 
     /// Return a glob pattern that matches the key denotators, if there are any.
