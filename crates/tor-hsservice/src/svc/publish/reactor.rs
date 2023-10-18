@@ -24,7 +24,7 @@ use tracing::{debug, error, trace, warn};
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
-use tor_dirclient::request::Requestable;
+use tor_dirclient::request::Requestable as _;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::{internal, into_internal, warn_report};
 use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey};
@@ -1234,7 +1234,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         trace!(nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
             "trying to upload descriptor. HTTP request:\n{:?}",
-            request.make_request()
+            request.debug_request()
         );
 
         let circuit = imm

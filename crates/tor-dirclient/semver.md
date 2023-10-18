@@ -1,1 +1,1 @@
-BREAKING: Added a must-implement method to Requestable.
+BREAKING: Seal the implementation for Requestable, and hide its members.
