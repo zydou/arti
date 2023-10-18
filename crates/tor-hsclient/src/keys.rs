@@ -11,7 +11,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientIntroAuthKeypair, HsId};
-use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeyPathError, KeySpecifier};
+use tor_keymgr::{ArtiPath, ArtiPathComponent, CTorPath, KeyPathError, KeySpecifier, ArtiPathError};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -148,8 +148,8 @@ impl HsClientSpecifier {
     /// Create a new [`HsClientSpecifier`].
     ///
     /// The `inner` string **must** be a valid [`ArtiPathComponent`].
-    pub fn new(inner: String) -> Result<Self, KeyPathError> {
-        Ok(ArtiPathComponent::new(inner).map(Self)?)
+    pub fn new(inner: String) -> Result<Self, ArtiPathError> {
+        ArtiPathComponent::new(inner).map(Self)
     }
 }
 
