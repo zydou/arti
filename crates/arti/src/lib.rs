@@ -87,6 +87,7 @@ pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
 use arti_client::config::default_config_files;
 use arti_client::{TorClient, TorClientConfig};
+use cfg_if::cfg_if;
 use safelog::with_safe_logging_suppressed;
 use tor_config::{ConfigurationSources, Listen};
 use tor_rtcompat::{BlockOn, Runtime};
@@ -185,11 +186,18 @@ async fn run<R: Runtime>(
         .bootstrap_behavior(OnDemand);
     let client = client_builder.create_unbootstrapped()?;
 
-    #[cfg(feature = "onion-service-service")]
+    let onion_services;
+    #[allow(clippy::needless_late_init)] // False positive
     {
-        // TODO HSS: Support reconfiguration.
-        let _onion_services =
+        cfg_if! {
+            if #[cfg(feature = "onion-service-service")] {
+                // TODO HSS: Support reconfiguration.
+                onion_services =
             onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
+            } else {
+                onion_services = ();
+            }
+        };
     }
 
     // TODO HSS: We need to feed changes to onion services as well.
@@ -262,7 +270,14 @@ async fn run<R: Runtime>(
             futures::future::pending::<Result<()>>().await
         }.fuse()
             => r.context("bootstrap"),
-    )
+    )?;
+
+    // TODO HSS Instead, make Proxy be uninhabited when hss configured out,
+    // so that we can have a value of type ProxySet.
+    #[allow(dropping_copy_types)]
+    drop(onion_services);
+
+    Ok(())
 }
 
 /// Inner function, to handle a set of CLI arguments and return a single
