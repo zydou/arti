@@ -25,13 +25,7 @@ pub struct IncomingStream {
     /// The message that the client sent us to begin the stream.
     request: IncomingStreamRequest,
     /// The inner state, which contains the reader and writer of this stream.
-    ///
-    /// This is an `Option` because we need to be able to "take" the reader/writer of the stream
-    /// out of the `IncomingStream` to construct a [`DataStream`] in [`IncomingStream::accept_data`].
-    ///
-    /// Note: we can't move the reader/writer out of `self` because `IncomingStream` implements
-    /// `Drop` (so as a workaround we use [`Option::take`]).
-    inner: Option<IncomingStreamInner>,
+    inner: IncomingStreamInner,
     /// The state of the stream.
     state: IncomingStreamState,
 }
@@ -86,7 +80,7 @@ impl IncomingStream {
         let inner = IncomingStreamInner { stream, reader };
         Self {
             request,
-            inner: Some(inner),
+            inner,
             state: IncomingStreamState::default(),
         }
     }
@@ -106,9 +100,11 @@ impl IncomingStream {
     pub async fn accept_data(mut self, message: msg::Connected) -> Result<DataStream> {
         self.update_state(IncomingStreamState::Accepted, "accept_data")?;
 
-        let mut inner = self.take_inner()?;
+        let Self {
+            mut inner, request, ..
+        } = self;
 
-        match self.request {
+        match request {
             IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
                 inner.stream.send(message.into()).await?;
                 Ok(DataStream::new_connected(inner.reader, inner.stream))
@@ -132,7 +128,7 @@ impl IncomingStream {
     fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
         self.update_state(IncomingStreamState::Rejected, "reject_inner")?;
 
-        self.mut_inner()?.stream.close_pending(message)
+        self.inner.stream.close_pending(message)
     }
 
     /// Ignore this request without replying to the client.
@@ -159,29 +155,6 @@ impl IncomingStream {
                 self.state
             )),
         }
-    }
-
-    /// Take the inner state out of `IncomingStream`.
-    ///
-    /// Returns an error if `inner` is `None` (this should never happen unless we have a bug in our
-    /// code).
-    fn take_inner(&mut self) -> Result<IncomingStreamInner> {
-        let _: &mut _ = self.mut_inner()?;
-
-        Ok(self
-            .inner
-            .take()
-            .expect("inner None though we just checked it"))
-    }
-
-    /// Return a mutable reference to the inner state of `IncomingStream`.
-    ///
-    /// Returns an error if `inner` is `None` (this should never happen unless we have a bug in our
-    /// code).
-    fn mut_inner(&mut self) -> Result<&mut IncomingStreamInner> {
-        self.inner
-            .as_mut()
-            .ok_or_else(|| internal!("Cannot use a stream that has already been consumed").into())
     }
 }
 
