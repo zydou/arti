@@ -373,7 +373,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ErasedKey, KeyPath, ArtiPathUnavailableError, KeyType, SshKeyData};
+    use crate::{ArtiPath, ArtiPathUnavailableError, ErasedKey, KeyPath, KeyType, SshKeyData};
     use std::collections::HashMap;
     use std::result::Result as StdResult;
     use std::str::FromStr;

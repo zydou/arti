@@ -12,7 +12,7 @@ use std::str::FromStr;
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{ArtiPath, KeyPath, ArtiPathUnavailableError, KeyType, KeystoreId, Result};
+use crate::{ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
@@ -294,7 +294,8 @@ mod tests {
 
     impl KeySpecifier for TestSpecifier {
         fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
-            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0)).map_err(|e| tor_error::internal!("{e}"))?)
+            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0))
+                .map_err(|e| tor_error::internal!("{e}"))?)
         }
 
         fn ctor_path(&self) -> Option<CTorPath> {

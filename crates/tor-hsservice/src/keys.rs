@@ -1,7 +1,7 @@
 //! [`KeySpecifier`] implementations for hidden service keys.
 
 use tor_hscrypto::time::TimePeriod;
-use tor_keymgr::{ArtiPath, CTorPath, ArtiPathUnavailableError, KeyPathPattern, KeySpecifier};
+use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeyPathPattern, KeySpecifier};
 
 use derive_more::Display;
 

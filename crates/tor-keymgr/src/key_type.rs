@@ -116,7 +116,9 @@ impl From<&str> for KeyType {
             "x25519_private" => X25519StaticKeypair,
             "x25519_public" => X25519PublicKey,
             "ed25519_expanded" => Ed25519ExpandedKeypair,
-            _ => Unknown { arti_extension : key_type.into() },
+            _ => Unknown {
+                arti_extension: key_type.into(),
+            },
         }
     }
 }
@@ -125,8 +127,8 @@ impl From<&str> for KeyType {
 #[derive(Error, PartialEq, Eq, Debug, Clone)]
 #[error("unknown key type: arti_extension={arti_extension}")]
 pub struct UnknownKeyTypeError {
-        /// The extension used for keys of this type in an Arti keystore.
-    arti_extension: String
+    /// The extension used for keys of this type in an Arti keystore.
+    arti_extension: String,
 }
 
 #[cfg(test)]
@@ -150,7 +152,12 @@ mod tests {
         const UNKNOWN_KEY_TYPE: &str = "rsa";
 
         let unknown_key_ty = KeyType::from(UNKNOWN_KEY_TYPE);
-        assert_eq!(unknown_key_ty, KeyType::Unknown { arti_extension : UNKNOWN_KEY_TYPE.into() });
+        assert_eq!(
+            unknown_key_ty,
+            KeyType::Unknown {
+                arti_extension: UNKNOWN_KEY_TYPE.into()
+            }
+        );
         assert_eq!(unknown_key_ty.arti_extension(), UNKNOWN_KEY_TYPE);
     }
 }
