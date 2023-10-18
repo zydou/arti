@@ -373,7 +373,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ErasedKey, KeyPath, KeyPathError, KeyType, SshKeyData};
+    use crate::{ArtiPath, ErasedKey, KeyPath, ArtiPathUnavailableError, KeyType, SshKeyData};
     use std::collections::HashMap;
     use std::result::Result as StdResult;
     use std::str::FromStr;
@@ -522,8 +522,8 @@ mod tests {
             struct $name;
 
             impl KeySpecifier for $name {
-                fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
-                    Ok(ArtiPath::new($id.into())?)
+                fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
+                    Ok(ArtiPath::new($id.into()).map_err(|e| tor_error::internal!("{e}"))?)
                 }
 
                 fn ctor_path(&self) -> Option<crate::CTorPath> {

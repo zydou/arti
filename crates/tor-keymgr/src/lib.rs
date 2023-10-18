@@ -59,7 +59,7 @@ mod dummy;
 
 pub use err::{Error, KeystoreError};
 pub use key_specifier::{
-    ArtiPath, ArtiPathComponent, ArtiPathError, CTorPath, KeyPath, KeyPathError, KeyPathPattern,
+    ArtiPath, ArtiPathComponent, ArtiPathError, CTorPath, KeyPath, ArtiPathUnavailableError, KeyPathPattern,
     KeyPathPatternSet, KeyPathRange, KeySpecifier,
 };
 

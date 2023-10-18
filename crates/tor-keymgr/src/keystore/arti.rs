@@ -12,7 +12,7 @@ use std::str::FromStr;
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{ArtiPath, KeyPath, KeyPathError, KeyType, KeystoreId, Result};
+use crate::{ArtiPath, KeyPath, ArtiPathUnavailableError, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
@@ -65,7 +65,7 @@ impl ArtiNativeKeystore {
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
-    ) -> StdResult<PathBuf, KeyPathError> {
+    ) -> StdResult<PathBuf, ArtiPathUnavailableError> {
         let arti_path: String = key_spec.arti_path()?.into();
         let mut rel_path = PathBuf::from(arti_path);
         rel_path.set_extension(key_type.arti_extension());
@@ -80,11 +80,11 @@ impl ArtiNativeKeystore {
 /// an `ArtiPath`), return `ret`.
 macro_rules! key_path_if_supported {
     ($res:expr, $ret:expr) => {{
-        use KeyPathError as KPE;
+        use ArtiPathUnavailableError::*;
 
         match $res {
             Ok(path) => path,
-            Err(KPE::ArtiPathUnavailable) => return $ret,
+            Err(ArtiPathUnavailable) => return $ret,
             Err(e) => return Err(tor_error::internal!("invalid ArtiPath: {e}").into()),
         }
     }};
@@ -293,8 +293,8 @@ mod tests {
     struct TestSpecifier(String);
 
     impl KeySpecifier for TestSpecifier {
-        fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
-            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0))?)
+        fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
+            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0)).map_err(|e| tor_error::internal!("{e}"))?)
         }
 
         fn ctor_path(&self) -> Option<CTorPath> {

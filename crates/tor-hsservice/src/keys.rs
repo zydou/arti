@@ -1,7 +1,7 @@
 //! [`KeySpecifier`] implementations for hidden service keys.
 
 use tor_hscrypto::time::TimePeriod;
-use tor_keymgr::{ArtiPath, CTorPath, KeyPathError, KeyPathPattern, KeySpecifier};
+use tor_keymgr::{ArtiPath, CTorPath, ArtiPathUnavailableError, KeyPathPattern, KeySpecifier};
 
 use derive_more::Display;
 
@@ -150,14 +150,15 @@ impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
 }
 
 impl<'a, R: HsSvcKeyRole> KeySpecifier for HsSvcKeySpecifier<'a, R> {
-    fn arti_path(&self) -> Result<ArtiPath, KeyPathError> {
+    fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
         let prefix = Self::arti_path_prefix(self.nickname, self.role);
-        let path = (|| match &self.meta {
+        let path = match &self.meta {
             // TODO HSS: use a different character to separate the key name from the metadata
             // See arti#1063.
             Some(meta) => ArtiPath::new(format!("{prefix}_{}", meta.display())),
-            None => ArtiPath::new(prefix)
-        })().map_err(|e| tor_error::internal!("{e}"))?;
+            None => ArtiPath::new(prefix),
+        }
+        .map_err(|e| tor_error::internal!("{e}"))?;
 
         Ok(path)
     }

@@ -242,7 +242,7 @@ pub trait KeySpecifier {
     /// The location of the key in the Arti key store.
     ///
     /// This also acts as a unique identifier for a specific key instance.
-    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError>;
+    fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError>;
 
     /// The location of the key in the C Tor key store (if supported).
     ///
@@ -257,7 +257,7 @@ pub trait KeySpecifier {
 /// or it might be being used in an inappropriate context.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
-pub enum KeyPathError {
+pub enum ArtiPathUnavailableError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -293,7 +293,7 @@ pub enum ArtiPathError {
 }
 
 impl KeySpecifier for ArtiPath {
-    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+    fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
         Ok(self.clone())
     }
 
@@ -303,8 +303,8 @@ impl KeySpecifier for ArtiPath {
 }
 
 impl KeySpecifier for CTorPath {
-    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
-        Err(KeyPathError::ArtiPathUnavailable)
+    fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
+        Err(ArtiPathUnavailableError::ArtiPathUnavailable)
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {
@@ -313,7 +313,7 @@ impl KeySpecifier for CTorPath {
 }
 
 impl KeySpecifier for KeyPath {
-    fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
+    fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
         match self {
             KeyPath::Arti(p) => p.arti_path(),
             KeyPath::CTor(p) => p.arti_path(),
