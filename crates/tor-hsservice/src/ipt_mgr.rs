@@ -951,7 +951,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         *publish_set = if let Some(lifetime) = publish_lifetime {
             let selected = self.publish_set_select();
             for ipt in &selected {
-                self.state.mockable.start_accepting(&ipt.establisher);
+                self.state.mockable.start_accepting(&*ipt.establisher);
             }
             Some(Self::make_publish_set(selected, lifetime)?)
         } else {
