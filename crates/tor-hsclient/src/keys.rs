@@ -188,10 +188,10 @@ impl HsClientSecretKeySpecifier {
 
 impl KeySpecifier for HsClientSecretKeySpecifier {
     fn arti_path(&self) -> StdResult<ArtiPath, KeyPathError> {
-        Ok(ArtiPath::new(format!(
+        ArtiPath::new(format!(
             "client/{}/{}/{}",
             self.client_id, self.hs_id, self.role
-        ))?)
+        )).map_err(|e| tor_error::internal!("{e}").into())
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {

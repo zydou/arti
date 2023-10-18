@@ -270,12 +270,6 @@ pub enum KeyPathError {
     ArtiPathUnavailable,
 }
 
-impl From<ArtiPathError> for KeyPathError {
-    fn from(err: ArtiPathError) -> Self {
-        Self::Bug(tor_error::internal!("{err}"))
-    }
-}
-
 /// An error caused by an invalid [`ArtiPath`].
 #[derive(Error, Debug, Copy, Clone)]
 #[error("Invalid ArtiPath")]

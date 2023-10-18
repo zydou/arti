@@ -152,12 +152,14 @@ impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
 impl<'a, R: HsSvcKeyRole> KeySpecifier for HsSvcKeySpecifier<'a, R> {
     fn arti_path(&self) -> Result<ArtiPath, KeyPathError> {
         let prefix = Self::arti_path_prefix(self.nickname, self.role);
-        match &self.meta {
+        let path = (|| match &self.meta {
             // TODO HSS: use a different character to separate the key name from the metadata
             // See arti#1063.
-            Some(meta) => Ok(ArtiPath::new(format!("{prefix}_{}", meta.display()))?),
-            None => Ok(ArtiPath::new(prefix)?),
-        }
+            Some(meta) => ArtiPath::new(format!("{prefix}_{}", meta.display())),
+            None => ArtiPath::new(prefix)
+        })().map_err(|e| tor_error::internal!("{e}"))?;
+
+        Ok(path)
     }
 
     fn ctor_path(&self) -> Option<CTorPath> {
