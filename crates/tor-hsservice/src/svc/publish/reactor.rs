@@ -776,7 +776,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .map(|period| {
                 let role = HsSvcKeyRoleWithTimePeriod::BlindIdPublicKey;
-                let key_spec = HsSvcKeySpecifier::with_denotators(&self.imm.nickname, role, *period);
+                let key_spec =
+                    HsSvcKeySpecifier::with_denotators(&self.imm.nickname, role, *period);
 
                 // TODO HSS: most of the time, we don't want to return a MissingKey error.
                 //
