@@ -129,9 +129,6 @@ impl IncomingStream {
     /// Reject this request and send an error message to the client.
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
-    ///
-    /// This is used for implementing `Drop` and `reject`.  It must not be
-    /// called twice.
     fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
         self.update_state(IncomingStreamState::Rejected, "reject_inner")?;
 
@@ -188,14 +185,10 @@ impl IncomingStream {
     }
 }
 
-impl Drop for IncomingStream {
-    fn drop(&mut self) {
-        if self.state == IncomingStreamState::Pending {
-            // Disregard any errors.
-            let _: Result<oneshot::Receiver<Result<()>>> = self.reject_inner(msg::End::new_misc());
-        }
-    }
-}
+// NOTE: We do not need to `impl Drop for IncomingStream { .. }`: when its
+// StreamTarget is dropped, this will drop its internal mpsc::Sender, and the
+// circuit reactor will see a close on its mpsc::Receiver, and the circuit
+// reactor will itself send an End.
 
 restricted_msg! {
     /// The allowed incoming messages on an `IncomingStream`.
