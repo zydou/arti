@@ -33,7 +33,7 @@ use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::error_report;
-use tor_error::{internal, into_internal, Bug};
+use tor_error::{internal, into_internal, Bug, ErrorKind, HasKind};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
@@ -543,6 +543,19 @@ enum ChooseIptError {
     /// Internal error
     #[error("internal error")]
     Bug(#[from] Bug),
+}
+
+impl HasKind for ChooseIptError {
+    fn kind(&self) -> ErrorKind {
+        use ChooseIptError as E;
+        use ErrorKind as EK;
+        match self {
+            E::NetDir(e) => e.kind(),
+            E::TooFewUsableRelays => EK::TorDirectoryUnusable,
+            E::TimeOverflow => EK::ClockSkew,
+            E::Bug(e) => e.kind(),
+        }
+    }
 }
 
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
