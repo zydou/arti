@@ -26,39 +26,6 @@ pub struct IncomingStream {
     request: IncomingStreamRequest,
     /// The inner state, which contains the reader and writer of this stream.
     inner: IncomingStreamInner,
-    /// The state of the stream.
-    state: IncomingStreamState,
-}
-
-/// The state of an [`IncomingStream`].
-///
-/// Only following transitions are allowed:
-///
-/// ```ignore
-///
-///                       accept_data()  +----------+
-///                     +--------------->| Accepted |
-///                     |                +----------+
-///                     |
-/// +---------+         | reject()       +----------+
-/// | Pending |---------+--------------->| Rejected |
-/// +---------+         |                +----------+
-///                     |
-///                     | discard()      +-----------+
-///                     +--------------->| Discarded |
-///                                      +-----------+
-/// ```
-#[derive(Copy, Clone, Debug, PartialEq, Default, derive_more::Display)]
-enum IncomingStreamState {
-    /// The initial state of an [`IncomingStream`].
-    #[default]
-    Pending,
-    /// The state entered after a call to [`IncomingStream::accept_data`].
-    Accepted,
-    /// The state entered after a call to [`IncomingStream::reject`].
-    Rejected,
-    /// The state entered after a call to [`IncomingStream::discard`].
-    Discarded,
 }
 
 /// The inner state of an [`IncomingStream`], which contains its reader and writer.
@@ -78,11 +45,7 @@ impl IncomingStream {
         reader: StreamReader,
     ) -> Self {
         let inner = IncomingStreamInner { stream, reader };
-        Self {
-            request,
-            inner,
-            state: IncomingStreamState::default(),
-        }
+        Self { request, inner }
     }
 
     /// Return the underlying message that was used to try to begin this stream.
@@ -90,16 +53,9 @@ impl IncomingStream {
         &self.request
     }
 
-    /// Whether we have rejected this `IncomingStream` using [`IncomingStream::reject`].
-    pub fn is_rejected(&self) -> bool {
-        self.state == IncomingStreamState::Rejected
-    }
-
     /// Accept this stream as a new [`DataStream`], and send the client a
     /// message letting them know the stream was accepted.
-    pub async fn accept_data(mut self, message: msg::Connected) -> Result<DataStream> {
-        self.update_state(IncomingStreamState::Accepted, "accept_data")?;
-
+    pub async fn accept_data(self, message: msg::Connected) -> Result<DataStream> {
         let Self {
             mut inner, request, ..
         } = self;
@@ -126,8 +82,6 @@ impl IncomingStream {
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
     fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
-        self.update_state(IncomingStreamState::Rejected, "reject_inner")?;
-
         self.inner.stream.close_pending(message)
     }
 
@@ -136,27 +90,10 @@ impl IncomingStream {
     /// (If you drop an [`IncomingStream`] without calling `accept_data`,
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
-    pub fn discard(mut self) -> StdResult<(), Bug> {
+    pub fn discard(self) -> StdResult<(), Bug> {
         // TODO HSS: When the StreamTarget is dropped, an end will be sent,
         // which is not what we wanted!
-        self.update_state(IncomingStreamState::Discarded, "discard")
-    }
-
-    /// Try to update the state of this `IncomingStream` to `new_state`, returning an error if the
-    /// requested transition is not allowed.
-    fn update_state(&mut self, new_state: IncomingStreamState, caller: &str) -> StdResult<(), Bug> {
-        use IncomingStreamState::*;
-
-        match self.state {
-            Pending => {
-                self.state = new_state;
-                Ok(())
-            }
-            _ => Err(internal!(
-                "IncomingStream::{caller}() cannot be called on a {} stream",
-                self.state
-            )),
-        }
+        Ok(())
     }
 }
 
