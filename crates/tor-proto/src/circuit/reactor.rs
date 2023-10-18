@@ -1748,7 +1748,7 @@ impl Reactor {
                 }
             }
             #[cfg(feature = "hs-service")]
-            Some(StreamEnt::EndSent(_))
+            Some(StreamEnt::EndSent { .. })
                 if matches!(
                     msg.cmd(),
                     RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
@@ -1760,10 +1760,10 @@ impl Reactor {
                 hop.map.ending_msg_received(streamid)?;
                 self.handle_incoming_stream_request(msg, streamid, hopnum)?;
             }
-            Some(StreamEnt::EndSent(halfstream)) => {
+            Some(StreamEnt::EndSent { half_stream, .. }) => {
                 // We sent an end but maybe the other side hasn't heard.
 
-                match halfstream.handle_msg(msg)? {
+                match half_stream.handle_msg(msg)? {
                     StreamStatus::Open => {}
                     StreamStatus::Closed => hop.map.ending_msg_received(streamid)?,
                 }
