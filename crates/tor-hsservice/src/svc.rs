@@ -48,6 +48,7 @@ type NtorPublicKey = curve25519::PublicKey;
 // TODO HSS: Write more.
 //
 // (APIs should return Arc<OnionService>)
+#[must_use = "a hidden service object will terminate the service when dropped"]
 pub struct OnionService {
     /// The mutable implementation details of this onion service.
     inner: Mutex<SvcInner>,
