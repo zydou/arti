@@ -24,13 +24,6 @@ use tor_error::{internal, Bug};
 pub struct IncomingStream {
     /// The message that the client sent us to begin the stream.
     request: IncomingStreamRequest,
-    /// The inner state, which contains the reader and writer of this stream.
-    inner: IncomingStreamInner,
-}
-
-/// The inner state of an [`IncomingStream`], which contains its reader and writer.
-#[derive(Debug)]
-struct IncomingStreamInner {
     /// The information that we'll use to wire up the stream, if it is accepted.
     stream: StreamTarget,
     /// The underlying `StreamReader`.
@@ -44,8 +37,11 @@ impl IncomingStream {
         stream: StreamTarget,
         reader: StreamReader,
     ) -> Self {
-        let inner = IncomingStreamInner { stream, reader };
-        Self { request, inner }
+        Self {
+            request,
+            stream,
+            reader,
+        }
     }
 
     /// Return the underlying message that was used to try to begin this stream.
@@ -57,13 +53,15 @@ impl IncomingStream {
     /// message letting them know the stream was accepted.
     pub async fn accept_data(self, message: msg::Connected) -> Result<DataStream> {
         let Self {
-            mut inner, request, ..
+            request,
+            mut stream,
+            reader,
         } = self;
 
         match request {
             IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
-                inner.stream.send(message.into()).await?;
-                Ok(DataStream::new_connected(inner.reader, inner.stream))
+                stream.send(message.into()).await?;
+                Ok(DataStream::new_connected(reader, stream))
             }
             IncomingStreamRequest::Resolve(_) => {
                 Err(internal!("Cannot accept data on a RESOLVE stream").into())
@@ -82,7 +80,7 @@ impl IncomingStream {
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
     fn reject_inner(&mut self, message: msg::End) -> Result<oneshot::Receiver<Result<()>>> {
-        self.inner.stream.close_pending(message)
+        self.stream.close_pending(message)
     }
 
     /// Ignore this request without replying to the client.
