@@ -94,6 +94,27 @@ pub(super) enum CircuitHandshake {
     },
 }
 
+/// A behavior to perform when closing a stream.
+///
+/// We don't use `Option<End>`` here, since the behavior of `SendNothing` is so surprising
+/// that we shouldn't let it pass unremarked.
+#[derive(Clone, Debug)]
+pub(crate) enum CloseStreamBehavior {
+    /// Send nothing at all, so that the other side will not realize we have
+    /// closed the stream.
+    ///
+    /// We should only do this for incoming onion service streams when we
+    /// want to black-hole the client's requests.
+    SendNothing,
+    /// Send an End cell, if we haven't already sent one.
+    SendEnd(End),
+}
+impl Default for CloseStreamBehavior {
+    fn default() -> Self {
+        Self::SendEnd(End::new_misc())
+    }
+}
+
 /// A message telling the reactor to do something.
 #[derive(educe::Educe)]
 #[educe(Debug)]
@@ -178,8 +199,8 @@ pub(super) enum CtrlMsg {
         hop_num: HopNum,
         /// The stream ID to send the END for.
         stream_id: StreamId,
-        /// The END message to send.
-        message: End,
+        /// The END message to send, if any.
+        message: CloseStreamBehavior,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -832,7 +853,13 @@ impl Reactor {
 
             // Close the streams we said we'd close.
             for (hopn, id) in streams_to_close {
-                self.close_stream(cx, hopn, id, None)?;
+                self.close_stream(
+                    cx,
+                    hopn,
+                    id,
+                    CloseStreamBehavior::default(),
+                    streammap::TerminateReason::StreamTargetClosed,
+                )?;
                 did_things = true;
             }
             // Send messages we said we'd send.
@@ -1436,7 +1463,13 @@ impl Reactor {
                 message,
                 done,
             } => {
-                let ret = self.close_stream(cx, hop_num, stream_id, Some(message))?;
+                let ret = self.close_stream(
+                    cx,
+                    hop_num,
+                    stream_id,
+                    message,
+                    streammap::TerminateReason::ExplicitEnd,
+                )?;
                 let _ = done.send(Ok(ret)); // don't care if sender goes away
             }
             #[cfg(feature = "hs-service")]
@@ -1552,22 +1585,9 @@ impl Reactor {
         cx: &mut Context<'_>,
         hopnum: HopNum,
         id: StreamId,
-        message: Option<End>,
+        message: CloseStreamBehavior,
+        why: streammap::TerminateReason,
     ) -> Result<()> {
-        // TODO HSS: We have a potential problem here: This function is called
-        // in two cases.
-        //
-        // First, from `run_once` when we see that the mpsc::Sender for a given
-        // Stream has been dropped and we get Ok(None) on the mpsc::Receiver.
-        // Second, from `handle_control` when we get a `ClosePendingStream`
-        // message. It seems possible that both of those could happen on the
-        // same stream, leading to a panic in `StreamMap::terminate`... or even
-        // here, when we go to look up the hop, if the hop gets closed between
-        // the two cases.
-        //
-        // This is related to the "TODO HSS" comment on
-        // `StreamTarget::close_pending`. See #1065.
-
         // Mark the stream as closing.
         let hop = self.hop_mut(hopnum).ok_or_else(|| {
             Error::from(internal!(
@@ -1576,7 +1596,7 @@ impl Reactor {
             ))
         })?;
 
-        let should_send_end = hop.map.terminate(id)?;
+        let should_send_end = hop.map.terminate(id, why)?;
         trace!(
             "{}: Ending stream {}; should_send_end={:?}",
             self.unique_id,
@@ -1585,9 +1605,10 @@ impl Reactor {
         );
         // TODO: I am about 80% sure that we only send an END cell if
         // we didn't already get an END cell.  But I should double-check!
-        if should_send_end == ShouldSendEnd::Send {
-            let message = message.unwrap_or_else(End::new_misc);
-            let end_cell = AnyRelayCell::new(id, message.into());
+        if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
+            (should_send_end, message)
+        {
+            let end_cell = AnyRelayCell::new(id, end_message.into());
             self.send_relay_cell(cx, hopnum, false, end_cell)?;
         }
         Ok(())
@@ -1735,7 +1756,7 @@ impl Reactor {
                 }
             }
             #[cfg(feature = "hs-service")]
-            Some(StreamEnt::EndSent(_))
+            Some(StreamEnt::EndSent { .. })
                 if matches!(
                     msg.cmd(),
                     RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
@@ -1747,10 +1768,10 @@ impl Reactor {
                 hop.map.ending_msg_received(streamid)?;
                 self.handle_incoming_stream_request(msg, streamid, hopnum)?;
             }
-            Some(StreamEnt::EndSent(halfstream)) => {
+            Some(StreamEnt::EndSent { half_stream, .. }) => {
                 // We sent an end but maybe the other side hasn't heard.
 
-                match halfstream.handle_msg(msg)? {
+                match half_stream.handle_msg(msg)? {
                     StreamStatus::Open => {}
                     StreamStatus::Closed => hop.map.ending_msg_received(streamid)?,
                 }

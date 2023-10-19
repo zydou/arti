@@ -13,7 +13,7 @@ use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use futures::channel::mpsc;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use tor_error::internal;
+use tor_error::{bad_api_usage, internal};
 
 use rand::Rng;
 
@@ -45,7 +45,14 @@ pub(super) enum StreamEnt {
     ///
     /// TODO(arti#264) Can we ever throw this out? Do we really get END cells for
     /// these?
-    EndSent(HalfStream),
+    EndSent {
+        /// A "half-stream" that we use to check the validity of incoming
+        /// messages on this stream.
+        half_stream: HalfStream,
+        /// True if the sender on this stream has been explicitly dropped;
+        /// false if we got an explicit close from `close_pending`
+        explicitly_dropped: bool,
+    },
 }
 
 impl StreamEnt {
@@ -196,7 +203,7 @@ impl StreamMap {
             StreamEnt::EndReceived => Err(Error::CircProto(
                 "Received two END cells on same stream".into(),
             )),
-            StreamEnt::EndSent(_) => {
+            StreamEnt::EndSent { .. } => {
                 debug!("Actually got an end cell on a half-closed stream!");
                 // We got an END, and we already sent an END. Great!
                 // we can forget about this stream.
@@ -213,7 +220,13 @@ impl StreamMap {
     /// Handle a termination of the stream with `id` from this side of
     /// the circuit. Return true if the stream was open and an END
     /// ought to be sent.
-    pub(super) fn terminate(&mut self, id: StreamId) -> Result<ShouldSendEnd> {
+    pub(super) fn terminate(
+        &mut self,
+        id: StreamId,
+        why: TerminateReason,
+    ) -> Result<ShouldSendEnd> {
+        use TerminateReason as TR;
+
         // Progress the stream's state machine accordingly
         match self
             .m
@@ -235,18 +248,52 @@ impl StreamMap {
                 let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
                 recv_window.decrement_n(dropped)?;
                 // TODO: would be nice to avoid new_ref.
-                let halfstream = HalfStream::new(send_window, recv_window, cmd_checker);
-                self.m.insert(id, StreamEnt::EndSent(halfstream));
+                let half_stream = HalfStream::new(send_window, recv_window, cmd_checker);
+                let explicitly_dropped = why == TR::StreamTargetClosed;
+                self.m.insert(
+                    id,
+                    StreamEnt::EndSent {
+                        half_stream,
+                        explicitly_dropped,
+                    },
+                );
                 Ok(ShouldSendEnd::Send)
             }
-            StreamEnt::EndSent(_) => {
-                panic!("Hang on! We're sending an END on a stream where we already sent an END‽");
-            }
+            StreamEnt::EndSent {
+                ref mut explicitly_dropped,
+                ..
+            } => match (*explicitly_dropped, why) {
+                (false, TR::StreamTargetClosed) => {
+                    *explicitly_dropped = true;
+                    Ok(ShouldSendEnd::DontSend)
+                }
+                (true, TR::StreamTargetClosed) => {
+                    Err(bad_api_usage!("Tried to close an already closed stream.").into())
+                }
+                (_, TR::ExplicitEnd) => Err(bad_api_usage!(
+                    "Tried to end an already closed stream. (explicitly_dropped={:?})",
+                    *explicitly_dropped
+                )
+                .into()),
+            },
         }
     }
 
     // TODO: Eventually if we want relay support, we'll need to support
     // stream IDs chosen by somebody else. But for now, we don't need those.
+}
+
+/// A reason for terminating a stream.
+///
+/// We use this type in order to ensure that we obey the API restrictions of [`StreamMap::terminate`]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(super) enum TerminateReason {
+    /// Closing a stream because the receiver got `Ok(None)`, indicating that the
+    /// corresponding senders were all dropped.
+    StreamTargetClosed,
+    /// Closing a stream because we were explicitly told to end it via
+    /// [`StreamTarget::close_pending`](crate::circuit::StreamTarget::close_pending).
+    ExplicitEnd,
 }
 
 #[cfg(test)]
@@ -303,10 +350,20 @@ mod test {
         assert!(map.ending_msg_received(ids[1]).is_err());
 
         // Test terminate
-        assert!(map.terminate(nonesuch_id).is_err());
-        assert_eq!(map.terminate(ids[2]).unwrap(), ShouldSendEnd::Send);
-        assert!(matches!(map.get_mut(ids[2]), Some(StreamEnt::EndSent(_))));
-        assert_eq!(map.terminate(ids[1]).unwrap(), ShouldSendEnd::DontSend);
+        use TerminateReason as TR;
+        assert!(map.terminate(nonesuch_id, TR::ExplicitEnd).is_err());
+        assert_eq!(
+            map.terminate(ids[2], TR::ExplicitEnd).unwrap(),
+            ShouldSendEnd::Send
+        );
+        assert!(matches!(
+            map.get_mut(ids[2]),
+            Some(StreamEnt::EndSent { .. })
+        ));
+        assert_eq!(
+            map.terminate(ids[1], TR::ExplicitEnd).unwrap(),
+            ShouldSendEnd::DontSend
+        );
         assert!(map.get_mut(ids[1]).is_none());
 
         // Try receiving an end after a terminate.

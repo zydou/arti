@@ -77,7 +77,6 @@ use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use {
     crate::circuit::reactor::IncomingStreamRequestContext,
     crate::stream::{IncomingCmdChecker, IncomingStream},
-    tor_cell::relaycell::msg as relaymsg,
 };
 
 use futures::channel::mpsc;
@@ -1103,7 +1102,7 @@ impl StreamTarget {
     }
 
     /// Close the pending stream that owns this StreamTarget, delivering the specified
-    /// END message.
+    /// END message (if any)
     ///
     /// The stream is closed by sending a [`CtrlMsg::ClosePendingStream`] message to the reactor.
     ///
@@ -1126,27 +1125,12 @@ impl StreamTarget {
     /// function is for closing pending incoming streams (a stream is said to be pending if we have
     /// received the message initiating the stream but have not responded to it yet).
     ///
-    /// **NOTE**: This function should be called at most once per request. Calling it twice will
-    /// cause the reactor to panic.
-    //
-    // TODO HSS: do not panic the reactor if this function is called twice. We have 2 options:
-    //
-    //   * make StreamMap::terminate() not panic if the stream entry is already StreamEnt::EndSent
-    //   * keep the panicky StreamMap::terminate() behaviour and make this function only send the
-    //   ClosePendingStream control message if it hasn't previously sent it (we'll need to add a
-    //   sent_close_pending_stream boolean flag in StreamTarget to remember if close() has been
-    //   called before)
-    //
-    // But before we do either of those, we should make sure that they are
-    // sufficient! I think there is a reasonable chance that, in addition to
-    // colliding with itself, this function could cause a panic by colliding
-    // with the call to `Reactor::close_stream()` that the Reactor does when it
-    // sees that the StreamTarget has been dropped.  See comments in
-    // close_stream(), and #1065.
+    /// **NOTE**: This function should be called at most once per request.
+    /// Calling it twice is an error.
     #[cfg(feature = "hs-service")]
     pub(crate) fn close_pending(
         &self,
-        msg: relaymsg::End,
+        message: reactor::CloseStreamBehavior,
     ) -> Result<oneshot::Receiver<Result<()>>> {
         let (tx, rx) = oneshot::channel();
 
@@ -1155,7 +1139,7 @@ impl StreamTarget {
             .unbounded_send(CtrlMsg::ClosePendingStream {
                 stream_id: self.stream_id,
                 hop_num: self.hop_num,
-                message: msg,
+                message,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
