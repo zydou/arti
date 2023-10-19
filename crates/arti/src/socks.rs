@@ -228,7 +228,7 @@ impl<R: Runtime> SocksConnContext<R> {
 /// Given a just-received TCP connection `S` on a SOCKS port, handle the
 /// SOCKS handshake and relay the connection over the Tor network.
 ///
-/// Uses `isolation_map` to decide which circuits circuits this connection
+/// Uses `isolation_info` to decide which circuits this connection
 /// may use.  Requires that `isolation_info` is a pair listing the listener
 /// id and the source address for the socks request.
 async fn handle_socks_conn<R, S>(
