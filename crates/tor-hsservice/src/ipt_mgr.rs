@@ -26,14 +26,14 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tor_keymgr::KeyMgr;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
 use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
-use tor_error::error_report;
-use tor_error::{internal, into_internal, Bug};
+use tor_error::{error_report, info_report};
+use tor_error::{internal, into_internal, Bug, ErrorKind, HasKind};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
@@ -545,6 +545,19 @@ enum ChooseIptError {
     Bug(#[from] Bug),
 }
 
+impl HasKind for ChooseIptError {
+    fn kind(&self) -> ErrorKind {
+        use ChooseIptError as E;
+        use ErrorKind as EK;
+        match self {
+            E::NetDir(e) => e.kind(),
+            E::TooFewUsableRelays => EK::TorDirectoryUnusable,
+            E::TimeOverflow => EK::ClockSkew,
+            E::Bug(e) => e.kind(),
+        }
+    }
+}
+
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
     /// Find the `Ipt` with persistent local id `lid`
     fn ipt_by_lid_mut(&mut self, needle: IptLocalId) -> Option<&mut Ipt> {
@@ -772,11 +785,20 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                     .state
                     .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
                     .map_err(|error| {
-                        error_report!(
-                            error,
-                            "HS service {} failed to select IPT relay",
-                            &self.imm.nick,
-                        );
+                        /// Call $report! with the message.
+                        // The macros are annoying and want a cost argument.
+                        macro_rules! report { { $report:ident } => {
+                            $report!(
+                                error,
+                                "HS service {} failed to select IPT relay",
+                                &self.imm.nick,
+                            )
+                        }}
+                        use ChooseIptError as E;
+                        match &error {
+                            E::NetDir(_) => report!(info_report),
+                            _ => report!(error_report),
+                        };
                         ()
                     });
                 return CONTINUE;
@@ -929,7 +951,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         *publish_set = if let Some(lifetime) = publish_lifetime {
             let selected = self.publish_set_select();
             for ipt in &selected {
-                self.state.mockable.start_accepting(&ipt.establisher);
+                self.state.mockable.start_accepting(&*ipt.establisher);
             }
             Some(Self::make_publish_set(selected, lifetime)?)
         } else {
@@ -1113,6 +1135,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 }
             };
 
+            // TODO HSS: Maybe something at level Error or Info, for example
+            // Log an error if everything is terrilbe
+            //   - we have >=N Faulty IPTs ?
+            //    we have only Faulty IPTs and can't select another due to 2N limit ?
+            // Log at info if and when we publish?  Maybe the publisher should do that?
+
             self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
 
             drop(publish_set); // release lock, and notify publisher of any changes
@@ -1131,7 +1159,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
             shutdown = &mut self.state.shutdown => {
-                trace!("HS service {}: terminating due to shutdown signal", &self.imm.nick);
+                info!("HS service {}: terminating due to shutdown signal", &self.imm.nick);
                 return Ok(shutdown.void_unwrap_err().into())
             },
 

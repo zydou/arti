@@ -397,6 +397,9 @@ pub(crate) enum IptStatusStatus {
     Good(GoodIptDetails),
 
     /// We don't have the IPT and it looks like it was the IPT's fault
+    ///
+    /// This should be used whenever trying another IPT relay is likely to work better;
+    /// regardless of whether attempts to establish *this* IPT can continue.
     Faulty,
 }
 
@@ -436,6 +439,9 @@ impl GoodIptDetails {
 /// `Err(IptWantsToRetire)` indicates that the IPT Establisher wants to retire this IPT
 ///
 /// This happens when the IPT has had (too) many rendezvous requests.
+///
+/// This must *not* be used for *errors*, because it will cause the IPT manager to
+/// *immediately* start to replace the IPT, regardless of rate limits etc.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct IptWantsToRetire;
 
@@ -497,7 +503,8 @@ impl IptStatus {
     /// Record that an error has occurred.
     fn note_error(&mut self, err: &IptError) {
         use IptStatusStatus::*;
-        if err.is_ipt_failure() && matches!(self.status, Good(..)) {
+        if err.is_ipt_failure() {
+            // TODO HSS remove n_faults (nothing reads it)
             self.n_faults += 1;
             self.status = Faulty;
         }
@@ -518,7 +525,9 @@ impl IptStatus {
         IptStatus {
             status: IptStatusStatus::Faulty,
             n_faults: u32::MAX,
-            wants_to_retire: Err(IptWantsToRetire), // we don't know, but this is safe
+            // If we're broken, we simply tell the manager that that is the case.
+            // It will decide for itself whether it wants to replace us.
+            wants_to_retire: Ok(()),
         }
     }
 }
