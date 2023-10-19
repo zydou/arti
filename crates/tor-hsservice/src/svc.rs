@@ -335,7 +335,7 @@ fn maybe_generate_hsid(
                 action: "generate key",
                 cause,
             })?
-            .is_none()
+            .is_some()
         {
             let kp = keymgr
                 .get::<HsIdKeypair>(&hsid_spec)
