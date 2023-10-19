@@ -35,11 +35,11 @@ impl<T> asynchronous_codec::Encoder for JsonLinesEncoder<T>
 where
     T: Serialize + 'static,
 {
-    type Item = T;
+    type Item<'a> = T;
 
     type Error = asynchronous_codec::JsonCodecError;
 
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Self::Item<'_>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         use std::fmt::Write as _;
         let j = serde_json::to_string(&item)?;
         // The jsonlines format won't work if serde_json starts adding newlines in the middle.
