@@ -246,7 +246,14 @@ struct Ipt {
 #[derive(Debug)]
 enum TrackedStatus {
     /// Corresponds to [`IptStatusStatus::Faulty`]
-    Faulty,
+    Faulty {
+        /// When we were first told this started to establish, if we know it
+        ///
+        /// This might be an early estimate, which would give an overestimate
+        /// of the establishment time, which is fine.
+        /// Or it might be `Err` meaning we don't know.
+        started: Result<Instant, ()>,
+    },
 
     /// Corresponds to [`IptStatusStatus::Establishing`]
     Establishing {
@@ -425,7 +432,7 @@ impl Ipt {
     fn is_good(&self) -> bool {
         match self.status_last {
             TS::Good { .. } => true,
-            TS::Establishing { .. } | TS::Faulty => false,
+            TS::Establishing { .. } | TS::Faulty { .. } => false,
         }
     }
 
@@ -617,29 +624,31 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
 
         let now = || imm.runtime.now();
 
+        let started = match &ipt.status_last {
+            TS::Establishing { started, .. } => Ok(*started),
+            TS::Faulty { started, .. } => *started,
+            TS::Good { .. } => Err(()),
+        };
+
         ipt.status_last = match update {
-            ISS::Establishing => TS::Establishing { started: now() },
+            ISS::Establishing => TS::Establishing {
+                started: started.unwrap_or_else(|()| now()),
+            },
             ISS::Good(details) => {
-                let time_to_establish = match &ipt.status_last {
-                    TS::Establishing { started, .. } => {
-                        // return () at end of ok_or_else closure, for clarity
-                        #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
-                        now().checked_duration_since(*started).ok_or_else(|| {
-                            warn!("monotonic clock went backwards! (HS IPT)");
-                            ()
-                        })
-                    }
-                    other => {
-                        error!("internal error: HS IPT went from {:?} to Good", &other);
-                        Err(())
-                    }
-                };
+                let time_to_establish = started.and_then(|started| {
+                    // return () at end of ok_or_else closure, for clarity
+                    #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
+                    now().checked_duration_since(started).ok_or_else(|| {
+                        warn!("monotonic clock went backwards! (HS IPT)");
+                        ()
+                    })
+                });
                 TS::Good {
                     time_to_establish,
                     details,
                 }
             }
-            ISS::Faulty => TS::Faulty,
+            ISS::Faulty => TS::Faulty { started },
         };
     }
 }
@@ -750,7 +759,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .current_ipts()
                 .filter(|(_ir, ipt)| match ipt.status_last {
                     TS::Good { .. } | TS::Establishing { .. } => true,
-                    TS::Faulty => false,
+                    TS::Faulty { .. } => false,
                 })
                 .count();
 
@@ -843,7 +852,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                     TS::Good {
                         time_to_establish, ..
                     } => Some(time_to_establish.ok()?),
-                    TS::Establishing { .. } | TS::Faulty => None,
+                    TS::Establishing { .. } | TS::Faulty { .. } => None,
                 })
                 .min()?;
 
@@ -867,7 +876,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 .filter_map(|(_ir, ipt)| {
                     let started = match ipt.status_last {
                         TS::Establishing { started } => Some(started),
-                        TS::Good { .. } | TS::Faulty => None,
+                        TS::Good { .. } | TS::Faulty { .. } => None,
                     }?;
 
                     (started > very_recently).then_some(ipt.lid)
