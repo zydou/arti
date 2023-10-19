@@ -11,7 +11,7 @@ use tor_hscrypto::pk::{
 };
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
-use tor_keymgr::{KeyMgr, ToEncodableKey};
+use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::curve25519;
 use tor_netdoc::doc::hsdesc::HsDescBuilder;
 use tor_netdoc::NetdocBuilder;
@@ -20,7 +20,7 @@ use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
 use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
 use crate::svc::publish::reactor::{AuthorizedClientConfigError, ReactorError};
-use crate::{HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, KeyDenotator, OnionServiceConfig};
+use crate::{HsSvcKeySpecifier, OnionServiceConfig};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
@@ -140,40 +140,6 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         .subcredential(subcredential)
         .auth_clients(&auth_clients)
         .build_sign(rng)?)
-}
-
-/// Read the specified key from the keystore.
-fn read_svc_key<K, R, D>(
-    keymgr: &Arc<KeyMgr>,
-    nickname: &HsNickname,
-    role: R,
-    meta: Option<D>,
-) -> Result<K, ReactorError>
-where
-    K: ToEncodableKey,
-    D: KeyDenotator,
-    R: HsSvcKeyRole<Denotator = D>,
-{
-    let svc_key_spec = if let Some(meta) = meta {
-        HsSvcKeySpecifier::with_denotators(nickname, role, meta)
-    } else {
-        HsSvcKeySpecifier::new(nickname, role)
-    };
-
-    // TODO HSS: most of the time, we don't want to return a MissingKey error. Generally, if a
-    // key/cert is missing, we should try to generate it, and only return MissingKey if generating
-    // the key is not possible. This can happen, for example, if we have to generate and
-    // cross-certify a key, but we're missing the signing key (e.g. if we're trying to generate
-    // `hs_desc_sign_cert`, but we don't have a corresponding `hs_blind_id` key in the keystore).
-    // It can also happen if, for example, if we need to generate a new blind_hs_id, but the
-    // KS_hs_id is stored offline (not that if both KS_hs_id and KP_hs_id are missing from the
-    // keystore, we would just generate a new hs_id keypair, rather than return a MissingKey error
-    // -- TODO HSS: decide if this is the correct behaviour!)
-    //
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946313
-    keymgr
-        .get::<K>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingKey(role.to_string()))
 }
 
 /// Decode an encoded curve25519 key.
