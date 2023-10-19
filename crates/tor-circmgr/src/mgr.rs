@@ -801,7 +801,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         ///
         /// Requires that a+b is less than usize::MAX.
         ///
-        /// This can be removed once usize::div_ceil is stable.
+        /// This can be removed once the MSRV is >= 1.73.0, which is the version
+        /// that stabilized `std::usize::div_ceil`.
         ///
         /// # Panics
         ///
