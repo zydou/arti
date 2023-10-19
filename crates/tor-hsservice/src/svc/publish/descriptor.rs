@@ -5,7 +5,10 @@ use std::time::{Duration, SystemTime};
 
 use rand_core::{CryptoRng, RngCore};
 
-use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKey};
+use tor_error::internal;
+use tor_hscrypto::pk::{
+    HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKey, HsIdKeypair,
+};
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, ToEncodableKey};
@@ -60,22 +63,43 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let nickname = &config.nickname;
 
-    let hsid =
-        read_svc_key::<HsIdKey, _, _>(&keymgr, nickname, HsSvcHsIdKeyRole::HsIdPublicKey, None)?;
-    let blind_id_kp = read_svc_key::<HsBlindIdKeypair, _, _>(
-        &keymgr,
+    let svc_key_spec = HsSvcKeySpecifier::new(nickname, HsSvcHsIdKeyRole::HsIdKeypair);
+    let hsid_kp = keymgr
+        .get::<HsIdKeypair>(&svc_key_spec)?
+        .ok_or_else(|| ReactorError::MissingKey(HsSvcHsIdKeyRole::HsIdKeypair.to_string()))?;
+    let hsid = HsIdKey::from(&hsid_kp);
+
+    let blind_id_key_spec = HsSvcKeySpecifier::with_denotators(
         nickname,
         HsSvcKeyRoleWithTimePeriod::BlindIdKeypair,
-        Some(period),
+        period,
+    );
+
+    // TODO: make the keystore selector configurable
+    let keystore_selector = Default::default();
+    let blind_id_kp = keymgr.get_or_generate_with_derived::<HsBlindIdKeypair>(
+        &blind_id_key_spec,
+        keystore_selector,
+        || {
+            let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
+                .compute_blinded_key(period)
+                .map_err(|_| internal!("failed to compute blinded key"))?;
+
+            Ok(hs_blind_id_kp)
+        },
     )?;
     let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
 
-    let hs_desc_sign = read_svc_key::<HsDescSigningKeypair, _, _>(
-        &keymgr,
+    let hs_desc_sign_key_spec = HsSvcKeySpecifier::with_denotators(
         nickname,
         HsSvcKeyRoleWithTimePeriod::DescSigningKeypair,
-        Some(period),
+        period,
+    );
+    let hs_desc_sign = keymgr.get_or_generate::<HsDescSigningKeypair>(
+        &hs_desc_sign_key_spec,
+        keystore_selector,
+        rng,
     )?;
 
     // TODO HSS: support introduction-layer authentication.
