@@ -826,8 +826,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         const MAX_RESETS: usize = 8;
 
         let circuit_timing = self.circuit_timing();
-        let wait_for_circ = circuit_timing.request_timeout;
-        let timeout_at = self.runtime.now() + wait_for_circ;
+        let timeout_at = self.runtime.now() + circuit_timing.request_timeout;
         let max_tries = circuit_timing.request_max_retries;
         // We compute the maximum number of failures by dividing the maximum
         // number of circuits to attempt by the number that will be launched in
