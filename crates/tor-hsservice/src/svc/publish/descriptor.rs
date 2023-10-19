@@ -71,8 +71,6 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
 
-    // The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
-    // TODO HSS: these should be provided by the KeyMgr.
     let hs_desc_sign = read_svc_key::<HsDescSigningKeypair, _, _>(
         &keymgr,
         nickname,
