@@ -210,8 +210,9 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
+    use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
     use crate::svc::publish::reactor::MockableClientCirc;
-    use crate::{Anonymity, HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, IptLocalId};
+    use crate::{Anonymity, HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, IptLocalId, KeyDenotator};
 
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
@@ -377,11 +378,22 @@ mod test {
     }
 
     /// Insert the specified key into the keystore.
-    fn insert_svc_key<K>(key: K, keymgr: &KeyMgr, nickname: &HsNickname, role: HsSvcKeyRole)
-    where
+    fn insert_svc_key<K, R, D>(
+        key: K,
+        keymgr: &KeyMgr,
+        nickname: &HsNickname,
+        role: R,
+        denotators: Option<D>,
+    ) where
         K: ToEncodableKey,
+        D: KeyDenotator,
+        R: HsSvcKeyRole<Denotator = D>,
     {
-        let svc_key_spec = HsSvcKeySpecifier::new(nickname, role);
+        let svc_key_spec = if let Some(denotators) = denotators {
+            HsSvcKeySpecifier::with_denotators(nickname, role, denotators)
+        } else {
+            HsSvcKeySpecifier::new(nickname, role)
+        };
 
         keymgr
             .insert(key, &svc_key_spec, tor_keymgr::KeystoreSelector::Default)
@@ -416,34 +428,44 @@ mod test {
         // Provision the keystore with the necessary keys:
         let keymgr = KeyMgr::new(keystore, vec![]);
 
-        insert_svc_key(id_keypair, &keymgr, nickname, HsSvcKeyRole::HsIdKeypair);
+        insert_svc_key(
+            id_keypair,
+            &keymgr,
+            nickname,
+            HsSvcHsIdKeyRole::HsIdKeypair,
+            None,
+        );
 
         insert_svc_key(
             id_pub.clone(),
             &keymgr,
             nickname,
-            HsSvcKeyRole::HsIdPublicKey,
+            HsSvcHsIdKeyRole::HsIdPublicKey,
+            None,
         );
 
         insert_svc_key(
             hs_blind_id_kp,
             &keymgr,
             nickname,
-            HsSvcKeyRole::BlindIdKeypair(period),
+            HsSvcKeyRoleWithTimePeriod::BlindIdKeypair,
+            Some(period),
         );
 
         insert_svc_key(
             hs_blind_id_key.clone(),
             &keymgr,
             nickname,
-            HsSvcKeyRole::BlindIdPublicKey(period),
+            HsSvcKeyRoleWithTimePeriod::BlindIdPublicKey,
+            Some(period),
         );
 
         insert_svc_key(
             HsDescSigningKeypair::from(ed25519::Keypair::generate(&mut rng)),
             &keymgr,
             nickname,
-            HsSvcKeyRole::DescSigningKeypair(period),
+            HsSvcKeyRoleWithTimePeriod::DescSigningKeypair,
+            Some(period),
         );
 
         let hs_id = id_pub.into();

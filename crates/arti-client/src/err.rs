@@ -283,6 +283,10 @@ enum ErrorDetail {
     #[error("Error while trying to access a key store")]
     Keystore(#[from] tor_keymgr::Error),
 
+    /// Encountered a malformed client specifier.
+    #[error("Bad client specifier")]
+    BadClientSpecifier(#[from] tor_keymgr::ArtiPathError),
+
     /// We tried to parse an onion address, but we found that it was invalid.
     #[cfg(feature = "onion-service-client")]
     #[error("Invalid onion address")]
@@ -392,6 +396,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
             E::Keystore(e) => e.kind(),
+            E::BadClientSpecifier(_) => EK::InvalidConfig,
             E::FsMistrust(_) => EK::FsPermissions,
             E::Bug(e) => e.kind(),
         }

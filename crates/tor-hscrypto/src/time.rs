@@ -23,14 +23,17 @@ pub struct TimePeriod {
     /// The spec admits only periods which are a whole number of minutes.
     pub(crate) length: IntegerMinutes<u32>,
     /// Our offset from the epoch, in seconds.
-    pub(crate) offset_in_sec: u32,
+    ///
+    /// This is the amount of time after the Unix epoch when our epoch begins,
+    /// rounded down to the nearest second.
+    pub(crate) epoch_offset_in_sec: u32,
 }
 
 /// Two [`TimePeriod`]s are ordered with respect to one another if they have the
 /// same interval length and offset.
 impl PartialOrd for TimePeriod {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.length == other.length && self.offset_in_sec == other.offset_in_sec {
+        if self.length == other.length && self.epoch_offset_in_sec == other.epoch_offset_in_sec {
             Some(self.interval_num.cmp(&other.interval_num))
         } else {
             None
@@ -62,7 +65,7 @@ impl TimePeriod {
         }
         let length_in_minutes = length_in_sec / 60;
         let length = IntegerMinutes::new(length_in_minutes);
-        let offset_in_sec =
+        let epoch_offset_in_sec =
             u32::try_from(epoch_offset.as_secs()).map_err(|_| TimePeriodError::OffsetInvalid)?;
         let interval_num = when
             .duration_since(SystemTime::UNIX_EPOCH + epoch_offset)
@@ -72,9 +75,29 @@ impl TimePeriod {
         Ok(TimePeriod {
             interval_num,
             length,
-            offset_in_sec,
+            epoch_offset_in_sec,
         })
     }
+
+    /// Compute the `TimePeriod`, given its length (in **minutes**), index (the number of time
+    /// periods that have passed since the unix epoch), and offset from the epoch (in seconds).
+    ///
+    /// The `epoch_offset_in_sec` value is the number of seconds after the Unix epoch when our
+    /// epoch begins, rounded down to the nearest second.
+    /// Note that this is *not* the time_t at which this *Time Period* begins.
+    ///
+    /// The returned TP begins at the time_t `interval_num * length * 60 + epoch_offset_in_sec`
+    /// and ends `length * 60` seconds later.
+    pub fn from_parts(length: u32, interval_num: u64, epoch_offset_in_sec: u32) -> Self {
+        let length_in_sec = length * 60;
+
+        Self {
+            interval_num,
+            length: length.into(),
+            epoch_offset_in_sec,
+        }
+    }
+
     /// Return the time period after this one.
     ///
     /// Return None if this is the last representable time period.
@@ -115,7 +138,7 @@ impl TimePeriod {
             let length_in_sec = u64::from(self.length.as_minutes()) * 60;
             let start_sec = length_in_sec.checked_mul(self.interval_num)?;
             let end_sec = start_sec.checked_add(length_in_sec)?;
-            let epoch_offset = Duration::new(self.offset_in_sec.into(), 0);
+            let epoch_offset = Duration::new(self.epoch_offset_in_sec.into(), 0);
             let start = (SystemTime::UNIX_EPOCH + epoch_offset)
                 .checked_add(Duration::from_secs(start_sec))?;
             let end = (SystemTime::UNIX_EPOCH + epoch_offset)
@@ -139,6 +162,14 @@ impl TimePeriod {
     /// cryptographic purposes.
     pub fn length(&self) -> IntegerMinutes<u32> {
         self.length
+    }
+
+    /// Return our offset from the epoch, in seconds.
+    ///
+    /// Note that this is *not* the start of the TP.
+    /// See `TimePeriod::from_parts`.
+    pub fn epoch_offset_in_sec(&self) -> u32 {
+        self.epoch_offset_in_sec
     }
 }
 
@@ -184,6 +215,18 @@ mod test {
     use super::*;
     use humantime::{parse_duration, parse_rfc3339};
 
+    /// Check reconstructing `period` from parts produces an identical `TimePeriod`.
+    fn assert_eq_from_parts(period: TimePeriod) {
+        assert_eq!(
+            period,
+            TimePeriod::from_parts(
+                period.length().as_minutes(),
+                period.interval_num(),
+                period.epoch_offset_in_sec()
+            )
+        );
+    }
+
     #[test]
     fn check_testvec() {
         // Test case from C tor, taken from rend-spec.
@@ -193,11 +236,13 @@ mod test {
         let period = TimePeriod::new(one_day, time, offset).unwrap();
         assert_eq!(period.interval_num, 16903);
         assert!(period.contains(time));
+        assert_eq_from_parts(period);
 
         let time = parse_rfc3339("2016-04-13T11:59:59Z").unwrap();
         let period = TimePeriod::new(one_day, time, offset).unwrap();
         assert_eq!(period.interval_num, 16903); // still the same.
         assert!(period.contains(time));
+        assert_eq_from_parts(period);
 
         assert_eq!(period.prev().unwrap().interval_num, 16902);
         assert_eq!(period.next().unwrap().interval_num, 16904);
@@ -223,5 +268,6 @@ mod test {
             parse_rfc3339("2016-04-13T12:00:00Z").unwrap()
                 ..parse_rfc3339("2016-04-14T12:00:00Z").unwrap()
         );
+        assert_eq_from_parts(period2);
     }
 }

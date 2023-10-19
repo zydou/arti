@@ -125,6 +125,19 @@ pub enum FatalError {
         cause: Arc<SpawnError>,
     },
 
+    /// Failed to access the keystore.
+    #[error("failed to access keystore")]
+    Keystore(#[from] Box<dyn KeystoreError>),
+
+    /// A key we needed could not be found in the keystore.
+    //
+    // TODO HSS: considering adding (Box<dyn KeySpecifier>, KeyType) to the error context and
+    // making the inner type a KeyNotFoundError.
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955706
+    #[error("A key we needed could not be found in the keystore: {0}")]
+    MissingKey(String),
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
