@@ -814,4 +814,67 @@ mod tests {
             Some("keystore1_keystore1_generated_test_key".to_string())
         );
     }
+
+    #[test]
+    fn get_or_generate() {
+        let mgr = KeyMgr::new(
+            Keystore1::default(),
+            vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
+        );
+
+        let keystore2 = KeystoreId::from_str("keystore2").unwrap();
+        mgr.insert(
+            "coot".to_string(),
+            &TestKeySpecifier1,
+            KeystoreSelector::Id(&keystore2),
+        )
+        .unwrap();
+
+        // The key already exists in keystore 2 so it won't be auto-generated.
+        assert_eq!(
+            mgr.get_or_generate::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Default,
+                &mut testing_rng()
+            )
+            .unwrap(),
+            "keystore2_coot".to_string()
+        );
+
+        // This key doesn't exist in any of the keystores, so it will be auto-generated and
+        // inserted into keystore 3.
+        let keystore3 = KeystoreId::from_str("keystore3").unwrap();
+        assert_eq!(
+            mgr.get_or_generate::<TestKey>(
+                &TestKeySpecifier2,
+                KeystoreSelector::Id(&keystore3),
+                &mut testing_rng()
+            )
+            .unwrap(),
+            "keystore3_generated_test_key".to_string()
+        );
+
+        // The key already exists in keystore 2 so it won't be auto-generated.
+        assert_eq!(
+            mgr.get_or_generate_with_derived::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Default,
+                || Ok("turtle_dove".to_string())
+            )
+            .unwrap(),
+            "keystore2_coot".to_string()
+        );
+
+        // This key doesn't exist in any of the keystores, so it will be auto-generated and
+        // inserted into the default keystore.
+        assert_eq!(
+            mgr.get_or_generate_with_derived::<TestKey>(
+                &TestKeySpecifier3,
+                KeystoreSelector::Default,
+                || Ok("rock_dove".to_string())
+            )
+            .unwrap(),
+            "keystore1_rock_dove".to_string()
+        );
+    }
 }
