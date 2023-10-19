@@ -16,7 +16,7 @@ use tor_hscrypto::RevisionCounter;
 use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 use tor_units::IntegerMinutes;
 
-use base64ct::{Base64, Encoding};
+use base64ct::{Base64Unpadded, Encoding};
 
 use std::time::SystemTime;
 
@@ -96,7 +96,7 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
             .sign(&text, &hs_desc_sign.public);
         encoder
             .item(SIGNATURE)
-            .arg(&Base64::encode_string(&signature.to_bytes()));
+            .arg(&Base64Unpadded::encode_string(&signature.to_bytes()));
 
         encoder.finish().map_err(|e| e.into())
     }
@@ -171,7 +171,7 @@ superencrypted
 -----BEGIN MESSAGE-----
 AQIDBA==
 -----END MESSAGE-----
-signature g6wu776AYYD+BXPBocToRXPF9xob3TB34hkR1/h8tDBGjGMnBWZw03INbiX6Z8FaOXCulccQ309fYEO/BmwyDQ==
+signature g6wu776AYYD+BXPBocToRXPF9xob3TB34hkR1/h8tDBGjGMnBWZw03INbiX6Z8FaOXCulccQ309fYEO/BmwyDQ
 "#
         );
     }
