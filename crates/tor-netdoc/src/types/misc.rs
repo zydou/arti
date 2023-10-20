@@ -201,20 +201,10 @@ mod timeimpl {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use humantime::format_rfc3339;
     use std::time::SystemTime;
-    use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
-
-    /// Returns an ISO style time e.g. 2020-12-30T23:59:59
-    /// This is used as the common root between Iso8601TimeSp and Iso8601TimeNoSp string formats
-    fn standardise_time_format(time: SystemTime) -> String {
-        //TODO replace with direct formatting instead of allocations
-        // There are two needless allocations here.  A mutating-on-the-fly
-        // struct impl fmt::Write could be used instead, but it's not clear it's worth it.
-        // https://github.com/tailhook/humantime/issues/24 Humantime doesn't offer more options for formatting, also it isnt maintained, alternative package?
-        format_rfc3339(time)
-            .to_string()
-            .trim_end_matches('Z')
-            .to_string()
-    }
+    use time::{
+        format_description::FormatItem, macros::format_description, OffsetDateTime,
+        PrimitiveDateTime,
+    };
 
     /// A wall-clock time, encoded in Iso8601 format with an intervening
     /// space between the date and time.
@@ -239,9 +229,21 @@ mod timeimpl {
         }
     }
 
+    /// Formats a system Time according to the given format description and converts any formatting
+    /// error from crate Time to std::fmt::Error type so it can be unwrapped in a Display trait
+    fn fmt_with(
+        t: SystemTime,
+        format_desc: &[FormatItem],
+    ) -> core::result::Result<String, std::fmt::Error> {
+        //Todo better error handling
+        OffsetDateTime::from(t)
+            .format(format_desc)
+            .map_err(|_| std::fmt::Error)
+    }
+
     impl std::fmt::Display for Iso8601TimeSp {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", standardise_time_format(self.0).replace('T', " "))
+            write!(f, "{}", fmt_with(self.0, ISO_8601SP_FMT)?)
         }
     }
 
@@ -275,7 +277,7 @@ mod timeimpl {
 
     impl std::fmt::Display for Iso8601TimeNoSp {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", standardise_time_format(self.0))
+            write!(f, "{}", fmt_with(self.0, ISO_8601NOSP_FMT)?)
         }
     }
 }
