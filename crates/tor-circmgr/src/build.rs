@@ -552,8 +552,7 @@ mod test {
     }
 
     #[test]
-    // TODO: re-enable this test after arti#149 is fixed. For now, it
-    // is not reliable enough.
+    // Re-enabled after work from eta, discussed in arti#149
     fn test_double_timeout() {
         let t1 = Duration::from_secs(1);
         let t10 = Duration::from_secs(10);
