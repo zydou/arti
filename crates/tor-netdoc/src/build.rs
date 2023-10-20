@@ -224,7 +224,7 @@ impl ItemArgument for Iso8601TimeSp {
 }
 
 /// Deprecated, please use Use Iso8601TimeSp or Iso8601TimeNoSp types as arguments instead of SystemTime
-/// #[deprecated()] linting blocked by clippy #[deny(useless_deprecated)]
+// #[deprecated()] linting blocked by clippy #[deny(useless_deprecated)]
 impl ItemArgument for SystemTime {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         out.args_raw_nonempty(
