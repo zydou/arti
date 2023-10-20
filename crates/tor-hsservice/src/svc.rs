@@ -6,11 +6,13 @@ use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
 use futures::Stream;
+use safelog::sensitive;
 use tor_async_utils::oneshot;
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::{Reconfigure, ReconfigureError};
 use tor_error::Bug;
+use tor_hscrypto::pk::HsId;
 use tor_hscrypto::pk::HsIdKey;
 use tor_hscrypto::pk::HsIdKeypair;
 use tor_keymgr::KeyMgr;
@@ -19,7 +21,7 @@ use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::pk::ed25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
-use tracing::{debug, trace, warn};
+use tracing::{info, trace, warn};
 
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
@@ -333,9 +335,21 @@ fn maybe_generate_hsid(
                 action: "generate key",
                 cause,
             })?
-            .is_none()
+            .is_some()
         {
-            debug!("Generated a new identity for service {nickname}");
+            let kp = keymgr
+                .get::<HsIdKeypair>(&hsid_spec)
+                .map_err(|cause| StartupError::Keystore {
+                    action: "read",
+                    cause,
+                })?
+                .ok_or(StartupError::KeystoreCorrupted)?;
+
+            let hsid: HsId = HsIdKey::from(&kp).into();
+            info!(
+                "Generated a new identity for service {nickname}: {}",
+                sensitive(hsid)
+            );
         } else {
             trace!("Using existing identity for service {nickname}");
         }
