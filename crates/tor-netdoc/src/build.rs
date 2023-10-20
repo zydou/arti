@@ -362,6 +362,35 @@ mod test {
     }
 
     #[test]
+    fn time_formats_as_args() {
+        use crate::doc::authcert::AuthCertKwd as ACK;
+        use crate::doc::netstatus::NetstatusKwd as NK;
+
+        let t_sys = time("2019-04-18T14:36:00Z");
+        let t_sp = Iso8601TimeSp::from_str("2020-04-18 08:36:57").unwrap();
+        let t_no_sp = Iso8601TimeNoSp::from_str("2021-04-18T08:36:57").unwrap();
+
+        let mut encode = NetdocEncoder::new();
+        encode.item(ACK::DIR_KEY_PUBLISHED).arg(&t_sys);
+        encode.item(ACK::DIR_KEY_EXPIRES).arg(&t_sp);
+        encode
+            .item(NK::SHARED_RAND_PREVIOUS_VALUE)
+            .arg(&"3")
+            .arg(&"bMZR5Q6kBadzApPjd5dZ1tyLt1ckv1LfNCP/oyGhCXs=")
+            .arg(&t_no_sp);
+
+        let doc = encode.finish().unwrap();
+        println!("{}", doc);
+        assert_eq!(
+            doc,
+            r"dir-key-published 2019-04-18 14:36:00
+dir-key-expires 2020-04-18 08:36:57
+shared-rand-previous-value 3 bMZR5Q6kBadzApPjd5dZ1tyLt1ckv1LfNCP/oyGhCXs= 2021-04-18T08:36:57
+"
+        );
+    }
+
+    #[test]
     fn authcert() {
         use crate::doc::authcert::AuthCertKwd as ACK;
         use crate::doc::authcert::{AuthCert, UncheckedAuthCert};
