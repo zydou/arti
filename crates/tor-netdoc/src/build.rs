@@ -24,6 +24,7 @@ use tor_error::{internal, Bug};
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::tag_keywords_ok;
+use crate::types::misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 
 /// Encoder, representing a partially-built document.
 ///
@@ -213,6 +214,17 @@ impl_item_argument_as_display! { isize, i8, i16, i32, i64, i128 }
 // The Display impl of RsaIdentity adds a `$` which is not supposed to be present
 // in (for example) an authority certificate (authcert)'s "fingerprint" line.
 
+impl_item_argument_as_display! {Iso8601TimeNoSp}
+impl ItemArgument for Iso8601TimeSp {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        let arg = self.to_string();
+        out.args_raw_nonempty(&arg.as_str());
+        Ok(())
+    }
+}
+
+/// Deprecated, please use Use Iso8601TimeSp or Iso8601TimeNoSp types as arguments instead of SystemTime
+/// #[deprecated()] linting blocked by clippy #[deny(useless_deprecated)]
 impl ItemArgument for SystemTime {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         out.args_raw_nonempty(
@@ -340,6 +352,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use std::str::FromStr;
 
     use base64ct::{Base64Unpadded, Encoding};
     use humantime::parse_rfc3339;
@@ -369,10 +382,10 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
             .arg(&"9367f9781da8eabbf96b691175f0e701b43c602e");
         encode
             .item(ACK::DIR_KEY_PUBLISHED)
-            .arg(&time("2020-04-18T08:36:57Z"));
+            .arg(&Iso8601TimeSp::from_str("2020-04-18 08:36:57").unwrap());
         encode
             .item(ACK::DIR_KEY_EXPIRES)
-            .arg(&time("2021-04-18T08:36:57Z"));
+            .arg(&Iso8601TimeSp::from_str("2021-04-18 08:36:57").unwrap());
         encode
             .item(ACK::DIR_IDENTITY_KEY)
             .object("RSA PUBLIC KEY", &*pk_rsa);
