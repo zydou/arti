@@ -970,7 +970,7 @@ impl PluggableClientTransport {
                                 info!("PT binary now proxying connections via supplied URI");
                                 proxy_done = true;
                             }
-                            // TODO HSS: unify most of the handling of ClientTransportsDone with ServerTransportsDone
+                            // TODO: unify most of the handling of ClientTransportsDone with ServerTransportsDone
                             PtMessage::ClientTransportsDone => {
                                 let unsupported = self
                                     .client_params
