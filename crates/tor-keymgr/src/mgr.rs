@@ -74,6 +74,63 @@ impl KeyMgr {
         self.get_from_store(key_spec, key_type, self.all_stores())
     }
 
+    /// Read the key identified by `key_spec`.
+    ///
+    /// The key returned is retrieved from the first key store that contains an entry for the given
+    /// specifier.
+    ///
+    /// If the requested key does not exist in any of the key stores, this generates a new key of
+    /// type `K` computed using the provided `derive` function and inserts it into the specified
+    /// keystore, returning the newly inserted value.
+    pub fn get_or_generate_with_derived<K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+        derive: impl FnOnce() -> Result<K>,
+    ) -> Result<K> {
+        let key_type = K::Key::key_type();
+
+        match self.get_from_store(key_spec, &key_type, self.all_stores())? {
+            Some(key) => Ok(key),
+            None => {
+                let key = derive()?;
+
+                self.insert(key, key_spec, selector)?;
+                // The key is not Clone so we have to look it up to return it.
+                let key = self
+                    .get_from_store(key_spec, &key_type, self.all_stores())?
+                    .ok_or_else(|| internal!("key is missing but we've just inserted it?!"))?;
+
+                // TODO HSS: assert the key was retrieved from the keystore we put it in?
+
+                Ok(key)
+            }
+        }
+    }
+
+    /// Read the key identified by `key_spec`.
+    ///
+    /// The key returned is retrieved from the first key store that contains an entry for the given
+    /// specifier.
+    ///
+    /// If the requested key does not exist in any of the key stores, this generates a new key of
+    /// type `K` from the key created using using `K::Key`'s [`Keygen`] implementation, and inserts
+    /// it into the specified keystore, returning the newly inserted value.
+    pub fn get_or_generate<K>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+        rng: &mut dyn KeygenRng,
+    ) -> Result<K>
+    where
+        K: ToEncodableKey,
+        K::Key: Keygen,
+    {
+        self.get_or_generate_with_derived(key_spec, selector, || {
+            Ok(K::from_encodable_key(K::Key::generate(rng)?))
+        })
+    }
+
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
     ///
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
@@ -755,6 +812,69 @@ mod tests {
         assert_eq!(
             mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
             Some("keystore1_keystore1_generated_test_key".to_string())
+        );
+    }
+
+    #[test]
+    fn get_or_generate() {
+        let mgr = KeyMgr::new(
+            Keystore1::default(),
+            vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
+        );
+
+        let keystore2 = KeystoreId::from_str("keystore2").unwrap();
+        mgr.insert(
+            "coot".to_string(),
+            &TestKeySpecifier1,
+            KeystoreSelector::Id(&keystore2),
+        )
+        .unwrap();
+
+        // The key already exists in keystore 2 so it won't be auto-generated.
+        assert_eq!(
+            mgr.get_or_generate::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Default,
+                &mut testing_rng()
+            )
+            .unwrap(),
+            "keystore2_coot".to_string()
+        );
+
+        // This key doesn't exist in any of the keystores, so it will be auto-generated and
+        // inserted into keystore 3.
+        let keystore3 = KeystoreId::from_str("keystore3").unwrap();
+        assert_eq!(
+            mgr.get_or_generate::<TestKey>(
+                &TestKeySpecifier2,
+                KeystoreSelector::Id(&keystore3),
+                &mut testing_rng()
+            )
+            .unwrap(),
+            "keystore3_generated_test_key".to_string()
+        );
+
+        // The key already exists in keystore 2 so it won't be auto-generated.
+        assert_eq!(
+            mgr.get_or_generate_with_derived::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Default,
+                || Ok("turtle_dove".to_string())
+            )
+            .unwrap(),
+            "keystore2_coot".to_string()
+        );
+
+        // This key doesn't exist in any of the keystores, so it will be auto-generated and
+        // inserted into the default keystore.
+        assert_eq!(
+            mgr.get_or_generate_with_derived::<TestKey>(
+                &TestKeySpecifier3,
+                KeystoreSelector::Default,
+                || Ok("rock_dove".to_string())
+            )
+            .unwrap(),
+            "keystore1_rock_dove".to_string()
         );
     }
 }

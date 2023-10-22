@@ -28,7 +28,7 @@ use tor_dirclient::request::Requestable as _;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, into_internal, warn_report};
-use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey};
+use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsIdKeypair};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
@@ -37,7 +37,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
-use crate::keys::HsSvcKeyRoleWithTimePeriod;
+use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -777,19 +777,39 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .hs_all_time_periods()
             .iter()
             .map(|period| {
-                let role = HsSvcKeyRoleWithTimePeriod::BlindIdPublicKey;
-                let key_spec =
-                    HsSvcKeySpecifier::with_denotators(&self.imm.nickname, role, *period);
-
-                // TODO HSS: most of the time, we don't want to return a MissingKey error.
-                //
-                // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946313
-                let blind_id = self
+                let svc_key_spec =
+                    HsSvcKeySpecifier::new(&self.imm.nickname, HsSvcHsIdKeyRole::HsIdKeypair);
+                let hsid_kp = self
                     .imm
                     .keymgr
-                    .get::<HsBlindIdKey>(&key_spec)?
-                    .ok_or_else(|| ReactorError::MissingKey(role.to_string()))?;
+                    .get::<HsIdKeypair>(&svc_key_spec)?
+                    .ok_or_else(|| {
+                        ReactorError::MissingKey(HsSvcHsIdKeyRole::HsIdKeypair.to_string())
+                    })?;
+                let svc_key_spec = HsSvcKeySpecifier::with_denotators(
+                    &self.imm.nickname,
+                    HsSvcKeyRoleWithTimePeriod::BlindIdKeypair,
+                    *period,
+                );
 
+                // TODO HSS: make this configurable
+                let keystore_selector = Default::default();
+                let blind_id_kp = self
+                    .imm
+                    .keymgr
+                    .get_or_generate_with_derived::<HsBlindIdKeypair>(
+                        &svc_key_spec,
+                        keystore_selector,
+                        || {
+                            let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
+                                .compute_blinded_key(*period)
+                                .map_err(|_| internal!("failed to compute blinded key"))?;
+
+                            Ok(hs_blind_id_kp)
+                        },
+                    )?;
+
+                let blind_id: HsBlindIdKey = (&blind_id_kp).into();
                 TimePeriodContext::new(*period, blind_id.into(), netdir)
             })
             .collect::<Result<Vec<TimePeriodContext>, ReactorError>>()
@@ -862,7 +882,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
-            Some(Err(_)) | None => Err(ReactorError::ShuttingDown),
+            Some(Err(_)) => Err(ReactorError::ShuttingDown),
+            None => {
+                trace!("no IPTs available, ceasing uploads");
+                self.update_publish_status(PublishStatus::AwaitingIpts)
+                    .await
+            }
         }
     }
 
