@@ -199,7 +199,6 @@ mod ed25519impl {
 /// Types for decoding times and dates
 mod timeimpl {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
-    use humantime::format_rfc3339;
     use std::time::SystemTime;
     use time::{
         format_description::FormatItem, macros::format_description, OffsetDateTime,
@@ -235,7 +234,6 @@ mod timeimpl {
         t: SystemTime,
         format_desc: &[FormatItem],
     ) -> core::result::Result<String, std::fmt::Error> {
-        //Todo better error handling
         OffsetDateTime::from(t)
             .format(format_desc)
             .map_err(|_| std::fmt::Error)
