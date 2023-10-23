@@ -1218,8 +1218,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         },
                         Err(_e) => {
                             warn!(
-                                "descriptor upload timed out for service {} (hsdir_id={}, hsdir_rsa_id={})",
-                                imm.nickname, ed_id, rsa_id
+                                nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                "descriptor upload timed out",
                             );
 
                             UploadStatus::Failure
