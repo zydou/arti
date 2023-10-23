@@ -115,7 +115,7 @@ impl From<&str> for KeyType {
             "ed25519_public" => Ed25519PublicKey,
             "x25519_private" => X25519StaticKeypair,
             "x25519_public" => X25519PublicKey,
-            "ed25519_expanded" => Ed25519ExpandedKeypair,
+            "ed25519_expanded_private" => Ed25519ExpandedKeypair,
             _ => Unknown {
                 arti_extension: key_type.into(),
             },
