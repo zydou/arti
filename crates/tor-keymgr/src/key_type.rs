@@ -49,6 +49,13 @@ pub(crate) mod ssh;
 //     Public(Algorithm),
 // }
 // ```
+//
+// TODO: it would be nice to use strum to derive the Display/FromStr impls,
+// but it doesn't support the custom formatting we need for `Unknown { arti_extension }`.
+//
+// The upstream issue is: https://github.com/Peternator7/strum/issues/233
+//
+// Similarly, we can't use derive_more's FromStr, because it doesn't support FromStr for enums.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum KeyType {
