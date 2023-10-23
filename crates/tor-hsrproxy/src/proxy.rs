@@ -153,7 +153,8 @@ impl OnionServiceReverseProxy {
     fn choose_action(&self, stream_request: &IncomingStreamRequest) -> ProxyAction {
         let port: u16 = match stream_request {
             IncomingStreamRequest::Begin(begin) => {
-                // TODO HSS: Should we look at the address and flags at all?
+                // The C tor implementation deliberately ignores the address and
+                // flags on the BEGIN message, so we do too.
                 begin.port()
             }
             other => {
