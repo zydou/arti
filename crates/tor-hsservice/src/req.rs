@@ -189,6 +189,11 @@ impl RendRequest {
 
 impl StreamRequest {
     /// Return the message that was used to request this stream.
+    ///
+    /// NOTE: for consistency with other onion service implementations, you
+    /// should typically only accept `BEGIN` messages, and only check the port
+    /// in those messages. If you behave differently, your implementation will
+    /// be distinguishable.
     pub fn request(&self) -> &IncomingStreamRequest {
         self.stream.request()
     }
@@ -200,8 +205,13 @@ impl StreamRequest {
             .await
             .map_err(ClientError::AcceptStream)
     }
-    /// Reject this request, and send the client an `END` message.
-    /// TODO HSS: Should this really be fallible?  How might it fail?
+    /// Reject this request, and send the client an `END` message. TODO HSS:
+    /// Should this really be fallible?  How might it fail?
+    ///
+    /// NOTE: If you need to be consistent with other onion service
+    /// implementations, you should typically only send back `End` messages with
+    /// the `DONE` reason. If you send back any other rejection, your
+    /// implementation will be distinguishable.
     pub async fn reject(self, end_message: End) -> Result<(), ClientError> {
         self.stream
             .reject(end_message)
