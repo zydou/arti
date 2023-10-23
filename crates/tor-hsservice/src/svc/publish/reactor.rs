@@ -24,7 +24,6 @@ use tracing::{debug, error, trace, warn};
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
-use tor_dirclient::request::Requestable as _;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, into_internal, warn_report};
@@ -1043,6 +1042,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 )?
             };
 
+            trace!(nickname=%self.imm.nickname, time_period=?time_period, hsdesc=hsdesc,
+                "generated new descriptor for time period",
+            );
+
             let netdir = Arc::clone(
                 inner
                     .netdir
@@ -1113,7 +1116,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), ReactorError> {
-        trace!("uploading descriptor");
+        trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
+
         let VersionedDescriptor {
             desc,
             revision_counter,
@@ -1274,9 +1278,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), UploadError> {
         let request = HsDescUploadRequest::new(hsdesc);
 
-        trace!(nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
-            "trying to upload descriptor. HTTP request:\n{:?}",
-            request.debug_request()
+        trace!(nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
+            "starting descriptor upload",
         );
 
         let circuit = imm
