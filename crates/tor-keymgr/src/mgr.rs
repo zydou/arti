@@ -327,8 +327,7 @@ impl KeyMgr {
         pat: &KeyPathPatternSet,
         derive_meta: impl Fn(&KeyPath, &[KeyPathRange]) -> Result<M>,
     ) -> Result<Vec<(KeyPath, KeyType, M)>> {
-        self.key_stores
-            .iter()
+        self.all_stores()
             .map(|store| -> Result<Vec<_>> {
                 store
                     .list()?
