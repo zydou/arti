@@ -22,7 +22,7 @@ use tor_cell::relaycell::{
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{bad_api_usage, debug_report, internal, into_internal};
 use tor_hscrypto::{
-    pk::{HsBlindIdKey, HsIdKey, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair},
+    pk::{HsBlindIdKeypair, HsIdKey, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair},
     time::TimePeriod,
     Subcredential,
 };
@@ -313,7 +313,7 @@ fn compute_subcredentials(
         .ok_or_else(|| FatalError::MissingKey(hsid_role.to_string()))?;
 
     let blind_id_pat =
-        HsSvcKeySpecifier::arti_pattern(nickname, HsSvcKeyRoleWithTimePeriod::BlindIdPublicKey);
+        HsSvcKeySpecifier::arti_pattern(nickname, HsSvcKeyRoleWithTimePeriod::BlindIdKeypair);
 
     let pattern = KeyPathPatternSet::new(
         blind_id_pat,
@@ -321,14 +321,14 @@ fn compute_subcredentials(
         KeyPathPattern::new(""),
     );
 
-    let blind_id_kps: Vec<(HsBlindIdKey, TimePeriod)> = keymgr
+    let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
         .list_matching(&pattern, parse_time_period)?
         .iter()
         .map(
             |(path, key_type, period)| -> Result<Option<_>, FatalError> {
                 // Try to retrieve the key.
                 keymgr
-                    .get_with_type::<HsBlindIdKey>(path, key_type)
+                    .get_with_type::<HsBlindIdKeypair>(path, key_type)
                     .map_err(FatalError::Keystore)
                     // If the key is not found, it means it has been garbage collected between the time
                     // we queried the keymgr for the list of keys matching the pattern and now.
@@ -341,7 +341,7 @@ fn compute_subcredentials(
 
     Ok(blind_id_kps
         .iter()
-        .map(|(blind_id_key, period)| hsid.compute_subcredential(blind_id_key, *period))
+        .map(|(blind_id_key, period)| hsid.compute_subcredential(&blind_id_key.into(), *period))
         .collect())
 }
 
