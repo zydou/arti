@@ -300,7 +300,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::relaycell::{msg, AnyRelayCell};
+    use tor_cell::relaycell::{msg, AnyRelayCell, StreamId};
 
     #[test]
     fn what_counts() {
@@ -310,13 +310,17 @@ mod test {
             .into();
         assert!(!msg_counts_towards_windows(&m));
         assert!(!cell_counts_towards_windows(&UnparsedRelayCell::from_body(
-            AnyRelayCell::new(77.into(), m).encode(&mut rng).unwrap()
+            AnyRelayCell::new(StreamId::new(77), m)
+                .encode(&mut rng)
+                .unwrap()
         )));
 
         let m = msg::Data::new(&b"Education is not a prerequisite to political control-political control is the cause of popular education."[..]).unwrap().into(); // Du Bois
         assert!(msg_counts_towards_windows(&m));
         assert!(cell_counts_towards_windows(&UnparsedRelayCell::from_body(
-            AnyRelayCell::new(128.into(), m).encode(&mut rng).unwrap()
+            AnyRelayCell::new(StreamId::new(128), m)
+                .encode(&mut rng)
+                .unwrap()
         )));
     }
 

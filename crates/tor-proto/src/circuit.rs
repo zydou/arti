@@ -917,7 +917,7 @@ impl Conversation<'_> {
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
         handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
     ) -> Result<()> {
-        let msg = msg.map(|msg| tor_cell::relaycell::AnyRelayCell::new(0.into(), msg));
+        let msg = msg.map(|msg| tor_cell::relaycell::AnyRelayCell::new(None, msg));
         let (sender, receiver) = oneshot::channel();
 
         let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
@@ -1217,11 +1217,8 @@ mod test {
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
-    fn rmsg_to_ccmsg<ID>(id: ID, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg
-    where
-        ID: Into<StreamId>,
-    {
-        let body: BoxedCellBody = AnyRelayCell::new(id.into(), msg)
+    fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg {
+        let body: BoxedCellBody = AnyRelayCell::new(id, msg)
             .encode(&mut testing_rng())
             .unwrap();
         let chanmsg = chanmsg::Relay::from(body);
@@ -1449,7 +1446,7 @@ mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
             let (circ, _send) = newcirc(&rt, chan).await;
-            let begindir = AnyRelayCell::new(0.into(), AnyRelayMsg::BeginDir(Default::default()));
+            let begindir = AnyRelayCell::new(None, AnyRelayMsg::BeginDir(Default::default()));
             circ.control
                 .unbounded_send(CtrlMsg::SendRelayCell {
                     hop: 2.into(),
@@ -1567,7 +1564,7 @@ mod test {
                 let (_, reply) =
                     NtorServer::server(&mut rng, &[example_ntor_key()], e2.handshake()).unwrap();
                 let extended2 = relaymsg::Extended2::new(reply).into();
-                sink.send(rmsg_to_ccmsg(0, extended2)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
                 sink // gotta keep the sink alive, or the reactor will exit.
             };
 
@@ -1632,7 +1629,7 @@ mod test {
     fn bad_extend_wronghop() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let extended2 = relaymsg::Extended2::new(vec![]).into();
-            let cc = rmsg_to_ccmsg(0, extended2);
+            let cc = rmsg_to_ccmsg(None, extended2);
 
             let error = bad_extend_test_impl(&rt, 1.into(), cc).await;
             // This case shows up as a CircDestroy, since a message sent
@@ -1650,7 +1647,7 @@ mod test {
     fn bad_extend_wrongtype() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let extended = relaymsg::Extended::new(vec![7; 200]).into();
-            let cc = rmsg_to_ccmsg(0, extended);
+            let cc = rmsg_to_ccmsg(None, extended);
 
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             match error {
@@ -1679,7 +1676,7 @@ mod test {
     fn bad_extend_crypto() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let extended2 = relaymsg::Extended2::new(vec![99; 256]).into();
-            let cc = rmsg_to_ccmsg(0, extended2);
+            let cc = rmsg_to_ccmsg(None, extended2);
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             assert!(matches!(error, Error::BadCircHandshakeAuth));
         });
@@ -1760,7 +1757,7 @@ mod test {
         Arc<ClientCirc>,
         DataStream,
         mpsc::Sender<ClientCircChanMsg>,
-        StreamId,
+        Option<StreamId>,
         usize,
         Receiver<AnyChanCell>,
         Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
@@ -1871,7 +1868,7 @@ mod test {
                 let c_sendme =
                     relaymsg::Sendme::new_tag(hex!("6400000000000000000000000000000000000000"))
                         .into();
-                sink.send(rmsg_to_ccmsg(0_u16, c_sendme)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(None, c_sendme)).await.unwrap();
 
                 // Make and send a stream-level sendme.
                 let s_sendme = relaymsg::Sendme::new_empty().into();
@@ -1915,7 +1912,7 @@ mod test {
                 let c_sendme =
                     relaymsg::Sendme::new_tag(hex!("FFFF0000000000000000000000000000000000FF"))
                         .into();
-                sink.send(rmsg_to_ccmsg(0_u16, c_sendme)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(None, c_sendme)).await.unwrap();
                 sink
             };
 
@@ -2023,9 +2020,10 @@ mod test {
 
             let simulate_client = async move {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
-                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
-                    .encode(&mut testing_rng())
-                    .unwrap();
+                let body: BoxedCellBody =
+                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
+                        .encode(&mut testing_rng())
+                        .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
                 // Pretend to be a client at the other end of the circuit sending a begin cell
@@ -2041,9 +2039,10 @@ mod test {
                 rx.await.unwrap();
                 // Now send some data along the newly established circuit..
                 let data = relaymsg::Data::new(TEST_DATA).unwrap();
-                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Data(data))
-                    .encode(&mut testing_rng())
-                    .unwrap();
+                let body: BoxedCellBody =
+                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Data(data))
+                        .encode(&mut testing_rng())
+                        .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
 
                 send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
@@ -2115,9 +2114,10 @@ mod test {
 
             let simulate_client = async move {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
-                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
-                    .encode(&mut testing_rng())
-                    .unwrap();
+                let body: BoxedCellBody =
+                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
+                        .encode(&mut testing_rng())
+                        .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
                 // Pretend to be a client at the other end of the circuit sending 2 identical begin
@@ -2133,9 +2133,10 @@ mod test {
 
                 // Now send some data along the newly established circuit..
                 let data = relaymsg::Data::new(TEST_DATA).unwrap();
-                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Data(data))
-                    .encode(&mut testing_rng())
-                    .unwrap();
+                let body: BoxedCellBody =
+                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Data(data))
+                        .encode(&mut testing_rng())
+                        .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
 
                 send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
@@ -2173,9 +2174,10 @@ mod test {
 
             let simulate_client = async move {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
-                let body: BoxedCellBody = AnyRelayCell::new(12.into(), AnyRelayMsg::Begin(begin))
-                    .encode(&mut testing_rng())
-                    .unwrap();
+                let body: BoxedCellBody =
+                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
+                        .encode(&mut testing_rng())
+                        .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
                 // Pretend to be a client at the other end of the circuit sending a begin cell

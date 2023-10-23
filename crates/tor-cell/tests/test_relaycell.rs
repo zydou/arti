@@ -47,7 +47,7 @@ fn decode(body: &str) -> Box<[u8; CELL_BODY_LEN]> {
     Box::new(result)
 }
 
-fn cell(body: &str, id: StreamId, msg: AnyRelayMsg) {
+fn cell(body: &str, id: Option<StreamId>, msg: AnyRelayMsg) {
     let body = decode(body);
     let mut bad_rng = BadRng;
 
@@ -95,7 +95,7 @@ fn bad_rng() {
 fn test_cells() {
     cell(
         "02 0000 9999 12345678 000c 6e6565642d746f2d6b6e6f77 00000000",
-        0x9999.into(),
+        StreamId::new(0x9999),
         msg::Data::new(&b"need-to-know"[..]).unwrap().into(),
     );
 
@@ -114,22 +114,21 @@ fn test_cells() {
     assert_eq!(c.cmd(), RelayCmd::from(2));
     assert_eq!(c.msg().cmd(), RelayCmd::from(2));
     let (s, _) = c.into_streamid_and_msg();
-    assert_eq!(s, StreamId::from(0x9999));
+    assert_eq!(s, StreamId::new(0x9999));
 }
 
 #[test]
 fn test_streamid() {
-    let zero: StreamId = 0.into();
-    let two: StreamId = 2.into();
+    let zero: Option<StreamId> = StreamId::new(0);
+    let two: Option<StreamId> = StreamId::new(2);
 
-    assert!(zero.is_zero());
-    assert!(!two.is_zero());
+    assert!(zero.is_none());
+    assert!(two.is_some());
 
-    assert_eq!(format!("{}", zero), "0");
-    assert_eq!(format!("{}", two), "2");
+    assert_eq!(format!("{}", two.unwrap()), "2");
 
-    assert_eq!(u16::from(zero), 0_u16);
-    assert_eq!(u16::from(two), 2_u16);
+    assert_eq!(StreamId::get_or_zero(zero), 0_u16);
+    assert_eq!(StreamId::get_or_zero(two), 2_u16);
 
     assert!(RelayCmd::DATA.accepts_streamid_val(two));
     assert!(!RelayCmd::DATA.accepts_streamid_val(zero));

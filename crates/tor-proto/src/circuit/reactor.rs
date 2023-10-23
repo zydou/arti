@@ -460,7 +460,7 @@ where
             );
 
             let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
-            let cell = AnyRelayCell::new(0.into(), extend_msg.into());
+            let cell = AnyRelayCell::new(None, extend_msg.into());
 
             // Send the message to the last hop...
             reactor.send_relay_cell(
@@ -832,7 +832,7 @@ impl Reactor {
                                     match Pin::new(rx).poll_next(cx) {
                                         Poll::Ready(Some(m)) => {
                                             stream_relaycells
-                                                .push((hop_num, AnyRelayCell::new(*id, m)));
+                                                .push((hop_num, AnyRelayCell::new(Some(*id), m)));
                                         }
                                         Poll::Ready(None) => {
                                             // Stream receiver was dropped; close the stream.
@@ -1352,7 +1352,7 @@ impl Reactor {
             let hop = &mut self.hops[hop_num];
             // checked by earlier conditional, so this shouldn't fail
             hop.sendwindow.take(tag)?;
-            if !stream_id.is_zero() {
+            if let Some(stream_id) = stream_id {
                 // We need to decrement the stream-level sendme window.
                 // Stream data cells should only be dequeued and fed into this function if
                 // the window is above zero, so we don't need to worry about enqueuing things.
@@ -1492,7 +1492,7 @@ impl Reactor {
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
-                let cell = AnyRelayCell::new(stream_id, sendme.into());
+                let cell = AnyRelayCell::new(Some(stream_id), sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
             }
             #[cfg(feature = "send-control-msg")]
@@ -1501,7 +1501,7 @@ impl Reactor {
                 msg,
                 sender,
             } => {
-                let cell = AnyRelayCell::new(0.into(), msg);
+                let cell = AnyRelayCell::new(None, msg);
                 let outcome = self.send_relay_cell(cx, hop_num, false, cell);
                 let _ = sender.send(outcome.clone()); // don't care if receiver goes away.
                 outcome?;
@@ -1569,7 +1569,7 @@ impl Reactor {
             .ok_or_else(|| Error::from(internal!("No such hop {}", hopnum.display())))?;
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
         let r = hop.map.add_ent(sender, rx, send_window, cmd_checker)?;
-        let cell = AnyRelayCell::new(r, message);
+        let cell = AnyRelayCell::new(Some(r), message);
         self.send_relay_cell(cx, hopnum, false, cell)?;
         Ok(r)
     }
@@ -1608,7 +1608,7 @@ impl Reactor {
         if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
             (should_send_end, message)
         {
-            let end_cell = AnyRelayCell::new(id, end_message.into());
+            let end_cell = AnyRelayCell::new(Some(id), end_message.into());
             self.send_relay_cell(cx, hopnum, false, end_cell)?;
         }
         Ok(())
@@ -1676,7 +1676,7 @@ impl Reactor {
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
             let sendme = Sendme::new_tag(tag);
-            let cell = AnyRelayCell::new(0.into(), sendme.into());
+            let cell = AnyRelayCell::new(None, sendme.into());
             self.send_relay_cell(cx, hopnum, false, cell)?;
             self.hop_mut(hopnum)
                 .ok_or_else(|| {
@@ -1696,16 +1696,16 @@ impl Reactor {
         if !cmd.accepts_streamid_val(streamid) {
             return Err(Error::CircProto(format!(
                 "Invalid stream ID {} for relay command {}",
-                sv(streamid),
+                sv(StreamId::get_or_zero(streamid)),
                 msg.cmd()
             )));
         }
 
-        // If this has a reasonable streamID value of 0, it's a meta cell,
+        // If this doesn't have a StreamId, it's a meta cell,
         // not meant for a particular stream.
-        if streamid.is_zero() {
+        let Some(streamid) = streamid else {
             return self.handle_meta_cell(cx, hopnum, msg);
-        }
+        };
 
         let hop = self
             .hop_mut(hopnum)
@@ -1910,7 +1910,7 @@ impl ConversationInHandler<'_, '_, '_> {
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
     pub fn send_message(&mut self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
-        let msg = tor_cell::relaycell::AnyRelayCell::new(0.into(), msg);
+        let msg = tor_cell::relaycell::AnyRelayCell::new(None, msg);
 
         self.reactor
             .send_relay_cell(self.cx, self.hop_num, false, msg)

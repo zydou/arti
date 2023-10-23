@@ -197,7 +197,7 @@ mod test {
     fn incoming_cmd_checker() {
         // Convert an AnyRelayMsg to an UnparsedRelayCell.
         let u = |msg| {
-            let body = AnyRelayCell::new(0.into(), msg)
+            let body = AnyRelayCell::new(None, msg)
                 .encode(&mut rand::thread_rng())
                 .unwrap();
             UnparsedRelayCell::from_body(body)

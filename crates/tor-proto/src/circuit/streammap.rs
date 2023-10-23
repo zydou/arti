@@ -13,6 +13,7 @@ use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use futures::channel::mpsc;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::num::NonZeroU16;
 use tor_error::{bad_api_usage, internal};
 
 use rand::Rng;
@@ -85,23 +86,18 @@ pub(super) struct StreamMap {
     /// StreamId, that stream doesn't exist.
     m: HashMap<StreamId, StreamEnt>,
     /// The next StreamId that we should use for a newly allocated
-    /// circuit.  (0 is not a valid streamID).
-    next_stream_id: u16,
+    /// circuit.
+    next_stream_id: StreamId,
 }
 
 impl StreamMap {
     /// Make a new empty StreamMap.
     pub(super) fn new() -> Self {
         let mut rng = rand::thread_rng();
-        let next_stream_id: u16 = loop {
-            let v: u16 = rng.gen();
-            if v != 0 {
-                break v;
-            }
-        };
+        let next_stream_id: NonZeroU16 = rng.gen();
         StreamMap {
             m: HashMap::new(),
-            next_stream_id,
+            next_stream_id: next_stream_id.into(),
         }
     }
 
@@ -130,11 +126,8 @@ impl StreamMap {
         // Also, going around in a loop here is (sadly) needed in order
         // to look like Tor clients.
         for _ in 1..=65536 {
-            let id: StreamId = self.next_stream_id.into();
-            self.next_stream_id = self.next_stream_id.wrapping_add(1);
-            if id.is_zero() {
-                continue;
-            }
+            let id: StreamId = self.next_stream_id;
+            self.next_stream_id = wrapping_next_stream_id(self.next_stream_id);
             let ent = self.m.entry(id);
             if let Entry::Vacant(_) = ent {
                 ent.or_insert(stream_ent);
@@ -155,10 +148,6 @@ impl StreamMap {
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
-        if id.is_zero() {
-            return Err(Error::StreamIdZero);
-        }
-
         let stream_ent = StreamEnt::Open {
             sink,
             rx,
@@ -296,6 +285,14 @@ pub(super) enum TerminateReason {
     ExplicitEnd,
 }
 
+/// Convenience function for doing a wrapping increment of a `StreamId`.
+fn wrapping_next_stream_id(id: StreamId) -> StreamId {
+    let next_val = NonZeroU16::from(id)
+        .checked_add(1)
+        .unwrap_or_else(|| NonZeroU16::new(1).expect("Impossibly got 0 value"));
+    next_val.into()
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -314,6 +311,15 @@ mod test {
     use crate::{circuit::sendme::StreamSendWindow, stream::DataCmdChecker};
 
     #[test]
+    fn test_wrapping_next_stream_id() {
+        let one = StreamId::new(1).unwrap();
+        let two = StreamId::new(2).unwrap();
+        let max = StreamId::new(0xffff).unwrap();
+        assert_eq!(wrapping_next_stream_id(one), two);
+        assert_eq!(wrapping_next_stream_id(max), one);
+    }
+
+    #[test]
     fn streammap_basics() -> Result<()> {
         let mut map = StreamMap::new();
         let mut next_id = map.next_stream_id;
@@ -329,17 +335,14 @@ mod test {
                 StreamSendWindow::new(500),
                 DataCmdChecker::new_any(),
             )?;
-            let expect_id: StreamId = next_id.into();
+            let expect_id: StreamId = next_id;
             assert_eq!(expect_id, id);
-            next_id = next_id.wrapping_add(1);
-            if next_id == 0 {
-                next_id = 1;
-            }
+            next_id = wrapping_next_stream_id(next_id);
             ids.push(id);
         }
 
         // Test get_mut.
-        let nonesuch_id = next_id.into();
+        let nonesuch_id = next_id;
         assert!(matches!(map.get_mut(ids[0]), Some(StreamEnt::Open { .. })));
         assert!(map.get_mut(nonesuch_id).is_none());
 
