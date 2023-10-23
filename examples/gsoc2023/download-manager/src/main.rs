@@ -40,7 +40,7 @@ const REQSIZE: u64 = 1024 * 1024;
 /// This denotes the version of Tor Browser to get
 ///
 /// It also helps us create the URL to get the SHA256 sums for the browser we download
-const TOR_VERSION: &str = "12.5.2";
+const TOR_VERSION: &str = "13.0";
 /// Number of simultaneous connections that are made
 // TODO: make this user configurable
 const MAX_CONNECTIONS: usize = 6;
@@ -266,7 +266,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     // generate the URLs and file names from the version number
     // and some known conventions
-    let download_file_name = format!("tor-browser-linux64-{}_ALL.tar.xz", TOR_VERSION);
+    let download_file_name = format!("tor-browser-linux-x86_64-{}.tar.xz", TOR_VERSION);
     let url = format!(
         "https://dist.torproject.org/torbrowser/{}/{}",
         TOR_VERSION, download_file_name
