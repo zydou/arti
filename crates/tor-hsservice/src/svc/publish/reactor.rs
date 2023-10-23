@@ -1119,6 +1119,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             revision_counter,
         } = &hsdesc;
 
+        let hsdir_count = hs_dirs.len();
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
@@ -1238,11 +1239,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .try_collect::<Vec<_>>()
             .await?;
 
-        let (succeeded, failed): (Vec<_>, Vec<_>) = upload_results
+        let (succeeded, _failed): (Vec<_>, Vec<_>) = upload_results
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(nickname=%imm.nickname, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
+        trace!(nickname=%imm.nickname, time_period=?time_period, "descriptor uploaded successfully to {}/{} HSDirs", succeeded.len(), hsdir_count);
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
