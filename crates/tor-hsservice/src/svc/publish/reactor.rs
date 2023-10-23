@@ -1197,7 +1197,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload()).await {
                         Ok(res) => {
                             match res {
-                                Ok(()) => UploadStatus::Success,
+                                Ok(()) => {
+                                    debug!(
+                                        nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                        "successfully uploaded descriptor to HSDir",
+                                    );
+
+                                    UploadStatus::Success
+                                },
                                 Err(e) => {
                                     warn_report!(
                                         e,
