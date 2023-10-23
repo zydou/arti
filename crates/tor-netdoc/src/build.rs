@@ -68,7 +68,7 @@ pub(crate) struct Cursor {
 ///
 /// Implemented for strings, and various other types.
 ///
-/// This is a separate trait so we can control the formatting of (eg) [`SystemTime`],
+/// This is a separate trait so we can control the formatting of (eg) [`Iso8601TimeSp`],
 /// without having a method on `ItemEncoder` for each argument type.
 pub(crate) trait ItemArgument {
     /// Format as a string suitable for including as a netdoc keyword line argument
@@ -214,6 +214,7 @@ impl_item_argument_as_display! { isize, i8, i16, i32, i64, i128 }
 
 impl_item_argument_as_display! {Iso8601TimeNoSp}
 impl ItemArgument for Iso8601TimeSp {
+    // Unlike the macro'd formats, contains a space while still being one argument
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         let arg = self.to_string();
         out.args_raw_nonempty(&arg.as_str());
