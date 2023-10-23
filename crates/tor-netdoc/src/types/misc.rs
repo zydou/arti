@@ -228,8 +228,10 @@ mod timeimpl {
         }
     }
 
-    /// Formats a system Time according to the given format description and converts any formatting
-    /// error from crate Time to std::fmt::Error type so it can be unwrapped in a Display trait
+    /// Formats a SystemTime according to the given format description
+    ///
+    /// Also converts any time::error::format to std::fmt::Error
+    /// so that it can be unwrapped in the Display trait impl
     fn fmt_with(
         t: SystemTime,
         format_desc: &[FormatItem],
