@@ -13,7 +13,7 @@ use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::curve25519;
-use tor_netdoc::doc::hsdesc::HsDescBuilder;
+use tor_netdoc::doc::hsdesc::{create_desc_sign_key_cert, HsDescBuilder};
 use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
@@ -125,10 +125,16 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let auth_clients = vec![];
 
+    let desc_signing_key_cert = create_desc_sign_key_cert(
+        &hs_desc_sign.as_ref().public,
+        &blind_id_kp,
+        hs_desc_sign_cert_expiry,
+    )?;
+
     Ok(HsDescBuilder::default()
         .blinded_id(&blind_id_kp)
-        .hs_desc_sign(&hs_desc_sign.into())
-        .hs_desc_sign_cert_expiry(hs_desc_sign_cert_expiry)
+        .hs_desc_sign(hs_desc_sign.as_ref())
+        .hs_desc_sign_cert(desc_signing_key_cert)
         .create2_formats(CREATE2_FORMATS)
         .auth_required(auth_required)
         .is_single_onion_service(is_single_onion_service)

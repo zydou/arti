@@ -42,8 +42,12 @@ struct HsDesc<'a> {
     blinded_id: &'a HsBlindIdKeypair,
     /// The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
     hs_desc_sign: &'a ed25519::Keypair,
-    /// The expiration time of the descriptor signing key certificate.
-    hs_desc_sign_cert_expiry: SystemTime,
+    /// The descriptor signing key certificate.
+    ///
+    /// This certificate can be created using [`create_desc_sign_key_cert`].
+    //
+    // TODO: it would be nice to have a type for representing an encoded certificate.
+    hs_desc_sign_cert: Vec<u8>,
     /// A list of recognized CREATE handshakes that this onion service supports.
     // TODO HSS: this should probably be a caret enum, not an integer
     create2_formats: &'a [u32],
@@ -190,7 +194,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
         HsDescOuter {
             blinded_id: hs_desc.blinded_id,
             hs_desc_sign: hs_desc.hs_desc_sign,
-            hs_desc_sign_cert_expiry: hs_desc.hs_desc_sign_cert_expiry,
+            hs_desc_sign_cert: hs_desc.hs_desc_sign_cert,
             lifetime: hs_desc.lifetime,
             revision_counter: hs_desc.revision_counter,
             superencrypted: middle_encrypted,
@@ -396,10 +400,12 @@ mod test {
             svc_ntor_key: create_curve25519_pk(&mut rng).into(),
         }];
 
+        let hs_desc_sign_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
         let builder = HsDescBuilder::default()
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
-            .hs_desc_sign_cert_expiry(expiry)
+            .hs_desc_sign_cert(hs_desc_sign_cert)
             .create2_formats(CREATE2_FORMATS)
             .auth_required(None)
             .is_single_onion_service(true)
@@ -425,12 +431,14 @@ mod test {
             None, /* No client auth */
         );
 
+        let hs_desc_sign_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
-            .hs_desc_sign_cert_expiry(expiry)
+            .hs_desc_sign_cert(hs_desc_sign_cert)
             // create2_formats is hard-coded rather than extracted from desc, because
             // create2_formats is ignored while parsing
             .create2_formats(CREATE2_FORMATS)
@@ -465,12 +473,14 @@ mod test {
             Some(&client_kp), /* With client auth */
         );
 
+        let hs_desc_sign_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
             .blinded_id(&blinded_id)
             .hs_desc_sign(&hs_desc_sign)
-            .hs_desc_sign_cert_expiry(expiry)
+            .hs_desc_sign_cert(hs_desc_sign_cert)
             // create2_formats is hard-coded rather than extracted from desc, because
             // create2_formats is ignored while parsing
             .create2_formats(CREATE2_FORMATS)
