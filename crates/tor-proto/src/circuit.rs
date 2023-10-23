@@ -1115,6 +1115,7 @@ impl StreamTarget {
     /// Note that in many cases, the actual contents of an END message can leak unwanted
     /// information. Please consider carefully before sending anything but an
     /// [`End::new_misc()`](tor_cell::relaycell::msg::End::new_misc) message over a `ClientCirc`.
+    /// (For onion services, we send [`DONE`](tor_cell::relaycell::msg::EndReason::DONE) )
     ///
     /// In addition to sending the END message, this function also ensures
     /// the state of the stream map entry of this stream is updated
