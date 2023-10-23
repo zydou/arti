@@ -100,7 +100,7 @@ impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
     pub(crate) fn arti_pattern(nickname: &HsNickname, role: R) -> KeyPathPattern {
         let pat = Self::arti_path_prefix(nickname, role);
         let glob = R::Denotator::glob();
-        KeyPathPattern::new(format!("{pat}{glob}"))
+        KeyPathPattern::new(format!("{pat}_{glob}"))
     }
 }
 
