@@ -407,7 +407,7 @@ pub(crate) enum IptStatusStatus {
 ///
 /// This struct contains similar information to
 /// [`tor_linkspec::verbatim::VerbatimLinkSpecCircTarget`].
-/// However, that insists that the contained `T` is a [`CircTarget`](tor_linkspec::CircTarget),
+/// However, that insists that the contained `T` is a [`CircTarget`],
 /// which `<NtorPublicKey>` isn't.
 /// And, we don't use this as a circuit target (at least, not here -
 /// the client will do so, as a result of us publishing the information).
