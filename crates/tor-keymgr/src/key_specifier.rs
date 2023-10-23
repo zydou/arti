@@ -145,7 +145,7 @@ impl ArtiPath {
     /// Returns `None` if `range` is not within the bounds of this `ArtiPath`.
     pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
         let range = &range.0;
-        if range.end >= self.0.len() {
+        if range.end > self.0.len() {
             return None;
         }
 
@@ -455,5 +455,20 @@ mod test {
             e.to_string().contains("Found disallowed char"),
             "wrong msg {e:?}"
         );
+    }
+
+    #[test]
+    fn substring() {
+        const KEY_PATH: &str = "hello";
+        let path = ArtiPath::new(KEY_PATH.to_string()).unwrap();
+
+        assert_eq!(path.substring(&(0..1).into()).unwrap(), "h");
+        assert_eq!(path.substring(&(2..KEY_PATH.len()).into()).unwrap(), "llo");
+        assert_eq!(
+            path.substring(&(0..KEY_PATH.len()).into()).unwrap(),
+            "hello"
+        );
+        assert_eq!(path.substring(&(0..KEY_PATH.len() + 1).into()), None);
+        assert_eq!(path.substring(&(0..0).into()).unwrap(), "");
     }
 }
