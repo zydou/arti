@@ -1382,7 +1382,7 @@ trait MockableClientCirc: Debug {
     async fn m_extend_virtual(
         &self,
         protocol: tor_proto::circuit::handshake::RelayProtocol,
-        protocol: tor_proto::circuit::handshake::HandshakeRole,
+        role: tor_proto::circuit::handshake::HandshakeRole,
         handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
     ) -> tor_proto::Result<()>;

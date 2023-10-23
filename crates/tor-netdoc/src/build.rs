@@ -14,16 +14,15 @@
 //! with the right keywords and arguments.
 
 use std::fmt::{Display, Write};
-use std::time::SystemTime;
 
 use base64ct::{Base64, Encoding};
-use humantime::format_rfc3339;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::{internal, Bug};
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::tag_keywords_ok;
+use crate::types::misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 
 /// Encoder, representing a partially-built document.
 ///
@@ -69,7 +68,7 @@ pub(crate) struct Cursor {
 ///
 /// Implemented for strings, and various other types.
 ///
-/// This is a separate trait so we can control the formatting of (eg) [`SystemTime`],
+/// This is a separate trait so we can control the formatting of (eg) [`Iso8601TimeSp`],
 /// without having a method on `ItemEncoder` for each argument type.
 pub(crate) trait ItemArgument {
     /// Format as a string suitable for including as a netdoc keyword line argument
@@ -213,16 +212,12 @@ impl_item_argument_as_display! { isize, i8, i16, i32, i64, i128 }
 // The Display impl of RsaIdentity adds a `$` which is not supposed to be present
 // in (for example) an authority certificate (authcert)'s "fingerprint" line.
 
-impl ItemArgument for SystemTime {
+impl_item_argument_as_display! {Iso8601TimeNoSp}
+impl ItemArgument for Iso8601TimeSp {
+    // Unlike the macro'd formats, contains a space while still being one argument
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        out.args_raw_nonempty(
-            // There are two needless allocations here.  A mutating-on-the-fly
-            // struct impl fmt::Write could be used instead, but it's not clear it's worth it.
-            &format_rfc3339(*self)
-                .to_string()
-                .replace('T', " ")
-                .trim_end_matches('Z'),
-        );
+        let arg = self.to_string();
+        out.args_raw_nonempty(&arg.as_str());
         Ok(())
     }
 }
@@ -340,12 +335,34 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use std::str::FromStr;
 
     use base64ct::{Base64Unpadded, Encoding};
-    use humantime::parse_rfc3339;
 
-    fn time(s: &str) -> SystemTime {
-        parse_rfc3339(s).unwrap()
+    #[test]
+    fn time_formats_as_args() {
+        use crate::doc::authcert::AuthCertKwd as ACK;
+        use crate::doc::netstatus::NetstatusKwd as NK;
+
+        let t_sp = Iso8601TimeSp::from_str("2020-04-18 08:36:57").unwrap();
+        let t_no_sp = Iso8601TimeNoSp::from_str("2021-04-18T08:36:57").unwrap();
+
+        let mut encode = NetdocEncoder::new();
+        encode.item(ACK::DIR_KEY_EXPIRES).arg(&t_sp);
+        encode
+            .item(NK::SHARED_RAND_PREVIOUS_VALUE)
+            .arg(&"3")
+            .arg(&"bMZR5Q6kBadzApPjd5dZ1tyLt1ckv1LfNCP/oyGhCXs=")
+            .arg(&t_no_sp);
+
+        let doc = encode.finish().unwrap();
+        println!("{}", doc);
+        assert_eq!(
+            doc,
+            r"dir-key-expires 2020-04-18 08:36:57
+shared-rand-previous-value 3 bMZR5Q6kBadzApPjd5dZ1tyLt1ckv1LfNCP/oyGhCXs= 2021-04-18T08:36:57
+"
+        );
     }
 
     #[test]
@@ -369,10 +386,10 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
             .arg(&"9367f9781da8eabbf96b691175f0e701b43c602e");
         encode
             .item(ACK::DIR_KEY_PUBLISHED)
-            .arg(&time("2020-04-18T08:36:57Z"));
+            .arg(&Iso8601TimeSp::from_str("2020-04-18 08:36:57").unwrap());
         encode
             .item(ACK::DIR_KEY_EXPIRES)
-            .arg(&time("2021-04-18T08:36:57Z"));
+            .arg(&Iso8601TimeSp::from_str("2021-04-18 08:36:57").unwrap());
         encode
             .item(ACK::DIR_IDENTITY_KEY)
             .object("RSA PUBLIC KEY", &*pk_rsa);

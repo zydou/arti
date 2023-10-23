@@ -200,7 +200,10 @@ mod ed25519impl {
 mod timeimpl {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use std::time::SystemTime;
-    use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
+    use time::{
+        format_description::FormatItem, macros::format_description, OffsetDateTime,
+        PrimitiveDateTime,
+    };
 
     /// A wall-clock time, encoded in Iso8601 format with an intervening
     /// space between the date and time.
@@ -222,6 +225,25 @@ mod timeimpl {
                     .with_msg(format!("invalid time: {}", e))
             })?;
             Ok(Iso8601TimeSp(d.assume_utc().into()))
+        }
+    }
+
+    /// Formats a SystemTime according to the given format description
+    ///
+    /// Also converts any time::error::format to std::fmt::Error
+    /// so that it can be unwrapped in the Display trait impl
+    fn fmt_with(
+        t: SystemTime,
+        format_desc: &[FormatItem],
+    ) -> core::result::Result<String, std::fmt::Error> {
+        OffsetDateTime::from(t)
+            .format(format_desc)
+            .map_err(|_| std::fmt::Error)
+    }
+
+    impl std::fmt::Display for Iso8601TimeSp {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", fmt_with(self.0, ISO_8601SP_FMT)?)
         }
     }
 
@@ -250,6 +272,12 @@ mod timeimpl {
                     .with_msg(format!("invalid time: {}", e))
             })?;
             Ok(Iso8601TimeNoSp(d.assume_utc().into()))
+        }
+    }
+
+    impl std::fmt::Display for Iso8601TimeNoSp {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", fmt_with(self.0, ISO_8601NOSP_FMT)?)
         }
     }
 }
@@ -698,6 +726,11 @@ mod test {
         assert!("2020-09-29".parse::<Iso8601TimeSp>().is_err());
         assert!("too bad, waluigi time".parse::<Iso8601TimeSp>().is_err());
 
+        assert_eq!(
+            "2020-09-29 13:36:33",
+            "2020-09-29 13:36:33".parse::<Iso8601TimeSp>()?.to_string()
+        );
+
         let t = "2020-09-29T13:36:33".parse::<Iso8601TimeNoSp>()?;
         let t: SystemTime = t.into();
         assert_eq!(t, parse_rfc3339("2020-09-29T13:36:33Z").unwrap());
@@ -706,6 +739,13 @@ mod test {
         assert!("2020-09-29Q13:99:33".parse::<Iso8601TimeNoSp>().is_err());
         assert!("2020-09-29".parse::<Iso8601TimeNoSp>().is_err());
         assert!("too bad, waluigi time".parse::<Iso8601TimeNoSp>().is_err());
+
+        assert_eq!(
+            "2020-09-29T13:36:33",
+            "2020-09-29T13:36:33"
+                .parse::<Iso8601TimeNoSp>()?
+                .to_string()
+        );
 
         Ok(())
     }
