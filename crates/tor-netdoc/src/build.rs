@@ -14,10 +14,8 @@
 //! with the right keywords and arguments.
 
 use std::fmt::{Display, Write};
-use std::time::SystemTime;
 
 use base64ct::{Base64, Encoding};
-use humantime::format_rfc3339;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::{internal, Bug};
@@ -223,22 +221,6 @@ impl ItemArgument for Iso8601TimeSp {
     }
 }
 
-/// Deprecated, please use Use Iso8601TimeSp or Iso8601TimeNoSp types as arguments instead of SystemTime
-// #[deprecated()] linting blocked by clippy #[deny(useless_deprecated)]
-impl ItemArgument for SystemTime {
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        out.args_raw_nonempty(
-            // There are two needless allocations here.  A mutating-on-the-fly
-            // struct impl fmt::Write could be used instead, but it's not clear it's worth it.
-            &format_rfc3339(*self)
-                .to_string()
-                .replace('T', " ")
-                .trim_end_matches('Z'),
-        );
-        Ok(())
-    }
-}
-
 impl<'n> ItemEncoder<'n> {
     /// Add a single argument.
     ///
@@ -355,23 +337,16 @@ mod test {
     use std::str::FromStr;
 
     use base64ct::{Base64Unpadded, Encoding};
-    use humantime::parse_rfc3339;
-
-    fn time(s: &str) -> SystemTime {
-        parse_rfc3339(s).unwrap()
-    }
 
     #[test]
     fn time_formats_as_args() {
         use crate::doc::authcert::AuthCertKwd as ACK;
         use crate::doc::netstatus::NetstatusKwd as NK;
 
-        let t_sys = time("2019-04-18T14:36:00Z");
         let t_sp = Iso8601TimeSp::from_str("2020-04-18 08:36:57").unwrap();
         let t_no_sp = Iso8601TimeNoSp::from_str("2021-04-18T08:36:57").unwrap();
 
         let mut encode = NetdocEncoder::new();
-        encode.item(ACK::DIR_KEY_PUBLISHED).arg(&t_sys);
         encode.item(ACK::DIR_KEY_EXPIRES).arg(&t_sp);
         encode
             .item(NK::SHARED_RAND_PREVIOUS_VALUE)
@@ -383,8 +358,7 @@ mod test {
         println!("{}", doc);
         assert_eq!(
             doc,
-            r"dir-key-published 2019-04-18 14:36:00
-dir-key-expires 2020-04-18 08:36:57
+            r"dir-key-expires 2020-04-18 08:36:57
 shared-rand-previous-value 3 bMZR5Q6kBadzApPjd5dZ1tyLt1ckv1LfNCP/oyGhCXs= 2021-04-18T08:36:57
 "
         );
