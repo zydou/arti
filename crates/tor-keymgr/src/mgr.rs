@@ -36,15 +36,15 @@ pub struct KeyMgr {
     /// The default key store.
     default_store: BoxedKeystore,
     /// The secondary key stores.
-    key_stores: Vec<BoxedKeystore>,
+    secondary_stores: Vec<BoxedKeystore>,
 }
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`] with a default [`Keystore`] and zero or more secondary [`Keystore`]s.
-    pub fn new(default_store: impl Keystore, key_stores: Vec<BoxedKeystore>) -> Self {
+    pub fn new(default_store: impl Keystore, secondary_stores: Vec<BoxedKeystore>) -> Self {
         Self {
             default_store: Box::new(default_store),
-            key_stores,
+            secondary_stores,
         }
     }
 
@@ -395,7 +395,7 @@ impl KeyMgr {
 
     /// Return an iterator over all configured stores.
     fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
-        iter::once(&self.default_store).chain(self.key_stores.iter())
+        iter::once(&self.default_store).chain(self.secondary_stores.iter())
     }
 
     /// Return the [`Keystore`] matching the specified `selector`.
@@ -679,7 +679,7 @@ mod tests {
             vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
         );
 
-        assert!(!mgr.key_stores[0]
+        assert!(!mgr.secondary_stores[0]
             .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
 
@@ -703,7 +703,7 @@ mod tests {
             )
             .is_err());
         // The key still exists in Keystore2
-        assert!(mgr.key_stores[0]
+        assert!(mgr.secondary_stores[0]
             .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
 
@@ -715,7 +715,7 @@ mod tests {
         );
 
         // The key still exists in Keystore2
-        assert!(mgr.key_stores[0]
+        assert!(mgr.secondary_stores[0]
             .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
 
@@ -730,7 +730,7 @@ mod tests {
         );
 
         // The key doesn't exist in Keystore2 anymore
-        assert!(!mgr.key_stores[0]
+        assert!(!mgr.secondary_stores[0]
             .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
     }
