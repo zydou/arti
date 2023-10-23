@@ -73,7 +73,9 @@ mod test {
             let req = build_request(body.to_string(), &[("X-Marsupial", "Opossum")]);
             assert_eq!(
                 encode_request(&req),
-                format!("GET /index.html HTTP/1.0\r\nx-marsupial: Opossum{content_len}\r\n\r\n{body}")
+                format!(
+                    "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum{content_len}\r\n\r\n{body}"
+                )
             );
         }
 
