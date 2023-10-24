@@ -144,12 +144,7 @@ impl ArtiPath {
     ///
     /// Returns `None` if `range` is not within the bounds of this `ArtiPath`.
     pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
-        let range = &range.0;
-        if range.end > self.0.len() {
-            return None;
-        }
-
-        Some(&self.0[range.start..range.end])
+        self.0.get(range.0.clone())
     }
 }
 
