@@ -17,6 +17,7 @@ pub(crate) fn encode_request(req: &http::Request<String>) -> String {
         .unwrap();
     }
 
+    // TODO SPEC dir-spec says Content-Length is optional but empirically it's required?
     write!(s, "Content-Length: {}\r\n", req.body().len())
         .expect("Added an HTTP header that wasn't UTF-8!");
 
