@@ -40,35 +40,34 @@ use thiserror::Error;
 
 pub(crate) mod ssh;
 
-/// A type of key stored in the key store.
-//
-// TODO HSS: rewrite this enum as
-// ```
-// pub enum KeyType {
-//     Private(Alogrithm),
-//     Public(Algorithm),
-// }
-// ```
-//
-// TODO: it would be nice to use strum to derive the Display/FromStr impls,
-// but it doesn't support the custom formatting we need for `Unknown { arti_extension }`.
-//
-// The upstream issue is: https://github.com/Peternator7/strum/issues/233
-//
-// Similarly, we can't use derive_more's FromStr, because it doesn't support FromStr for enums.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum KeyType {
-    /// An Ed25519 keypair.
-    Ed25519Keypair,
-    /// An expanded Ed25519 keypair.
-    Ed25519ExpandedKeypair,
-    /// A Curve25519 keypair.
-    X25519StaticKeypair,
-    /// An Ed25519 public key.
-    Ed25519PublicKey,
-    /// A Curve25519 public key.
-    X25519PublicKey,
+/// Declare and implement the `KeyType` enum.
+///
+/// Each of the `variant`s is mapped to the specified `str_repr`.
+///
+/// `str_repr` is returned from [`KeyType::arti_extension`].
+///
+/// The `str_repr` is also used for implementing `From<&str>` for `KeyType`.
+/// Note `KeyType` implements `From<&str>` rather than `FromStr`,
+/// because the conversion from string is infallible
+/// (unrecognized strings are mapped to `KeyType::Unknown`)
+macro_rules! declare_key_type {
+    {
+        $(#[$enum_meta:meta])*
+        $vis:vis enum KeyType {
+            $(
+                $(#[$meta:meta])*
+                $variant:ident => $str_repr:expr,
+            )*
+        }
+    } => {
+
+$(#[$enum_meta])*
+$vis enum KeyType {
+    $(
+        $(#[$meta])*
+        $variant,
+    )*
+
     /// An unrecognized key type.
     Unknown {
         /// The extension used for keys of this type in an Arti keystore.
@@ -85,11 +84,9 @@ impl KeyType {
         use KeyType::*;
 
         match self {
-            Ed25519Keypair => "ed25519_private".into(),
-            Ed25519PublicKey => "ed25519_public".into(),
-            X25519StaticKeypair => "x25519_private".into(),
-            X25519PublicKey => "x25519_public".into(),
-            Ed25519ExpandedKeypair => "ed25519_expanded_private".into(),
+            $(
+                $variant => $str_repr.into(),
+            )*
             Unknown { arti_extension } => arti_extension.clone(),
         }
     }
@@ -103,21 +100,46 @@ impl KeyType {
     }
 }
 
-// TODO HSS: rewrite this (and the display impl) using strum.
 impl From<&str> for KeyType {
     fn from(key_type: &str) -> Self {
         use KeyType::*;
 
         match key_type {
-            "ed25519_private" => Ed25519Keypair,
-            "ed25519_public" => Ed25519PublicKey,
-            "x25519_private" => X25519StaticKeypair,
-            "x25519_public" => X25519PublicKey,
-            "ed25519_expanded_private" => Ed25519ExpandedKeypair,
+            $(
+                $str_repr => $variant,
+            )*
             _ => Unknown {
                 arti_extension: key_type.into(),
             },
         }
+    }
+}
+}
+}
+
+declare_key_type! {
+    /// A type of key stored in the key store.
+    //
+    // TODO HSS: rewrite this enum as
+    // ```
+    // pub enum KeyType {
+    //     Private(Alogrithm),
+    //     Public(Algorithm),
+    // }
+    // ```
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum KeyType {
+        /// An Ed25519 keypair.
+        Ed25519Keypair => "ed25519_private",
+        /// An Ed25519 public key.
+        Ed25519PublicKey => "ed25519_public",
+        /// A Curve25519 keypair.
+        X25519StaticKeypair => "x25519_private",
+        /// A Curve25519 public key.
+        X25519PublicKey => "x25519_public",
+        /// An expanded Ed25519 keypair.
+        Ed25519ExpandedKeypair => "ed25519_expanded_private",
     }
 }
 
