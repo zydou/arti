@@ -197,13 +197,13 @@ pub(crate) mod test {
 
             let destroycell = msg::Destroy::new(2.into());
             framed
-                .send(AnyChanCell::new(7.into(), destroycell.into()))
+                .send(AnyChanCell::new(CircId::new(7), destroycell.into()))
                 .await
                 .unwrap();
 
             let nocerts = msg::Certs::new_empty();
             framed
-                .send(AnyChanCell::new(0.into(), nocerts.into()))
+                .send(AnyChanCell::new(None, nocerts.into()))
                 .await
                 .unwrap();
 
@@ -230,9 +230,9 @@ pub(crate) mod test {
             let destroy = framed.next().await.unwrap().unwrap();
             let nocerts = framed.next().await.unwrap().unwrap();
 
-            assert_eq!(destroy.circid(), CircId::from(7));
+            assert_eq!(destroy.circid(), CircId::new(7));
             assert_eq!(destroy.msg().cmd(), ChanCmd::DESTROY);
-            assert_eq!(nocerts.circid(), CircId::from(0));
+            assert_eq!(nocerts.circid(), None);
             assert_eq!(nocerts.msg().cmd(), ChanCmd::CERTS);
 
             assert!(framed.into_inner().all_consumed());

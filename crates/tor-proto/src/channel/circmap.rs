@@ -4,6 +4,7 @@
 // it needs to stay opaque!
 
 use crate::{Error, Result};
+use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
 
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
@@ -35,20 +36,15 @@ pub(super) enum CircIdRange {
 
 impl rand::distributions::Distribution<CircId> for CircIdRange {
     /// Return a random circuit ID in the appropriate range.
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> CircId {
-        // Make sure v is nonzero.
-        let v = loop {
-            match rng.gen() {
-                0_u32 => (), // zero is not a valid circuit ID
-                x => break x,
-            }
+    fn sample<R: Rng + ?Sized>(&self, mut rng: &mut R) -> CircId {
+        let midpoint = 0x8000_0000_u32;
+        let v = match self {
+            // 0 is an invalid value
+            CircIdRange::Low => rng.gen_range_checked(1..midpoint),
+            CircIdRange::High => rng.gen_range_checked(midpoint..=u32::MAX),
         };
-        // Force the high bit of v to the appropriate value.
-        match self {
-            CircIdRange::Low => v & 0x7fff_ffff,
-            CircIdRange::High => v | 0x8000_0000,
-        }
-        .into()
+        let v = v.expect("Unexpected empty range passed to gen_range_checked");
+        CircId::new(v).expect("Unexpected zero value")
     }
 }
 
@@ -265,7 +261,7 @@ mod test {
         let mut ids_high: Vec<CircId> = Vec::new();
         let mut rng = testing_rng();
 
-        assert!(map_low.get_mut(CircId::from(77)).is_none());
+        assert!(map_low.get_mut(CircId::new(77).unwrap()).is_none());
 
         for _ in 0..128 {
             let (csnd, _) = oneshot::channel();
@@ -300,7 +296,7 @@ mod test {
         assert_eq!(127, map_low.open_ent_count());
 
         // Test DestroySent doesn't count
-        map_low.destroy_sent(CircId::from(256), HalfCirc::new(1));
+        map_low.destroy_sent(CircId::new(256).unwrap(), HalfCirc::new(1));
         assert_eq!(127, map_low.open_ent_count());
 
         // Test advance_from_opening.
@@ -325,7 +321,7 @@ mod test {
         // Can't advance an entry that is not there.  We know "77"
         // can't be in map_high, since we only added high circids to
         // it.
-        let adv = map_high.advance_from_opening(77.into());
+        let adv = map_high.advance_from_opening(CircId::new(77).unwrap());
         assert!(adv.is_err());
     }
 }

@@ -320,7 +320,12 @@ impl<S: SleepProvider> Reactor<S> {
 
         match msg {
             Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
-            _ => trace!("{}: received {} for {}", &self, msg.cmd(), circid),
+            _ => trace!(
+                "{}: received {} for {}",
+                &self,
+                msg.cmd(),
+                CircId::get_or_zero(circid)
+            ),
         }
 
         match msg {
@@ -337,7 +342,11 @@ impl<S: SleepProvider> Reactor<S> {
     }
 
     /// Give the RELAY cell `msg` to the appropriate circuit.
-    async fn deliver_relay(&mut self, circid: CircId, msg: AnyChanMsg) -> Result<()> {
+    async fn deliver_relay(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
+        let Some(circid) = circid else {
+            return Err(Error::ChanProto("Relay cell without circuit ID".into()));
+        };
+
         let mut ent = self
             .circs
             .get_mut(circid)
@@ -362,7 +371,11 @@ impl<S: SleepProvider> Reactor<S> {
 
     /// Handle a CREATED{,_FAST,2} cell by passing it on to the appropriate
     /// circuit, if that circuit is waiting for one.
-    async fn deliver_created(&mut self, circid: CircId, msg: AnyChanMsg) -> Result<()> {
+    async fn deliver_created(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
+        let Some(circid) = circid else {
+            return Err(Error::ChanProto("'Created' cell without circuit ID".into()));
+        };
+
         let target = self.circs.advance_from_opening(circid)?;
         let created = msg.try_into()?;
         // TODO(nickm) I think that this one actually means the other side
@@ -376,7 +389,11 @@ impl<S: SleepProvider> Reactor<S> {
 
     /// Handle a DESTROY cell by removing the corresponding circuit
     /// from the map, and passing the destroy cell onward to the circuit.
-    async fn deliver_destroy(&mut self, circid: CircId, msg: AnyChanMsg) -> Result<()> {
+    async fn deliver_destroy(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
+        let Some(circid) = circid else {
+            return Err(Error::ChanProto("'Destroy' cell without circuit ID".into()));
+        };
+
         // Remove the circuit from the map: nothing more can be done with it.
         let entry = self.circs.remove(circid);
         self.update_disused_since();
@@ -431,7 +448,7 @@ impl<S: SleepProvider> Reactor<S> {
         self.circs.destroy_sent(id, HalfCirc::new(3000));
         self.update_disused_since();
         let destroy = Destroy::new(DestroyReason::NONE).into();
-        let cell = AnyChanCell::new(id, destroy);
+        let cell = AnyChanCell::new(Some(id), destroy);
         self.send_cell(cell).await?;
 
         Ok(())
@@ -564,7 +581,7 @@ pub(crate) mod test {
             let ent = reactor.circs.get_mut(id);
             assert!(matches!(*ent.unwrap(), CircEnt::DestroySent(_)));
             let cell = output.next().await.unwrap();
-            assert_eq!(cell.circid(), id);
+            assert_eq!(cell.circid(), Some(id));
             assert!(matches!(cell.msg(), AnyChanMsg::Destroy(_)));
             assert!(chan.duration_unused().is_some()); // unused again
         });
@@ -602,7 +619,8 @@ pub(crate) mod test {
                 rtc.sleep(Duration::from_millis(100)).await;
                 trace!("sending createdfast");
                 // We'll get a bad handshake result from this createdfast cell.
-                let created_cell = OpenChanCellS2C::new(id, msg::CreatedFast::new(*b"x").into());
+                let created_cell =
+                    OpenChanCellS2C::new(Some(id), msg::CreatedFast::new(*b"x").into());
                 input.send(Ok(created_cell)).await.unwrap();
                 reactor.run_once().await.unwrap();
             };
@@ -634,7 +652,7 @@ pub(crate) mod test {
             // shouldn't get created2 cells for nonexistent circuits
             let created2_cell = msg::Created2::new(*b"hihi").into();
             input
-                .send(Ok(OpenChanCellS2C::new(7.into(), created2_cell)))
+                .send(Ok(OpenChanCellS2C::new(CircId::new(7), created2_cell)))
                 .await
                 .unwrap();
 
@@ -647,7 +665,7 @@ pub(crate) mod test {
             // Can't get a relay cell on a circuit we've never heard of.
             let relay_cell = msg::Relay::new(b"abc").into();
             input
-                .send(Ok(OpenChanCellS2C::new(4.into(), relay_cell)))
+                .send(Ok(OpenChanCellS2C::new(CircId::new(4), relay_cell)))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -676,14 +694,17 @@ pub(crate) mod test {
                 let (snd2, rcv2) = mpsc::channel(64);
                 reactor
                     .circs
-                    .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
+                    .put_unchecked(CircId::new(7).unwrap(), CircEnt::Opening(snd1, snd2));
 
                 let (snd3, rcv3) = mpsc::channel(64);
-                reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
-
                 reactor
                     .circs
-                    .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
+                    .put_unchecked(CircId::new(13).unwrap(), CircEnt::Open(snd3));
+
+                reactor.circs.put_unchecked(
+                    CircId::new(23).unwrap(),
+                    CircEnt::DestroySent(HalfCirc::new(25)),
+                );
                 (rcv2, rcv3)
             };
 
@@ -691,7 +712,7 @@ pub(crate) mod test {
             // should get it.
             let relaycell: OpenChanMsgS2C = msg::Relay::new(b"do you suppose").into();
             input
-                .send(Ok(OpenChanCellS2C::new(13.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(CircId::new(13), relaycell.clone())))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
@@ -700,7 +721,7 @@ pub(crate) mod test {
 
             // If a relay cell is sent on an opening channel, that's an error.
             input
-                .send(Ok(OpenChanCellS2C::new(7.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(CircId::new(7), relaycell.clone())))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -711,7 +732,10 @@ pub(crate) mod test {
 
             // If a relay cell is sent on a non-existent channel, that's an error.
             input
-                .send(Ok(OpenChanCellS2C::new(101.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(
+                    CircId::new(101),
+                    relaycell.clone(),
+                )))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -726,7 +750,7 @@ pub(crate) mod test {
             // We can do this 25 more times according to our setup:
             for _ in 0..25 {
                 input
-                    .send(Ok(OpenChanCellS2C::new(23.into(), relaycell.clone())))
+                    .send(Ok(OpenChanCellS2C::new(CircId::new(23), relaycell.clone())))
                     .await
                     .unwrap();
                 reactor.run_once().await.unwrap(); // should be fine.
@@ -734,7 +758,7 @@ pub(crate) mod test {
 
             // This one will fail.
             input
-                .send(Ok(OpenChanCellS2C::new(23.into(), relaycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(CircId::new(23), relaycell.clone())))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
@@ -759,21 +783,27 @@ pub(crate) mod test {
                 let (snd2, _rcv2) = mpsc::channel(64);
                 reactor
                     .circs
-                    .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
+                    .put_unchecked(CircId::new(7).unwrap(), CircEnt::Opening(snd1, snd2));
 
                 let (snd3, rcv3) = mpsc::channel(64);
-                reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
-
                 reactor
                     .circs
-                    .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
+                    .put_unchecked(CircId::new(13).unwrap(), CircEnt::Open(snd3));
+
+                reactor.circs.put_unchecked(
+                    CircId::new(23).unwrap(),
+                    CircEnt::DestroySent(HalfCirc::new(25)),
+                );
                 (rcv1, rcv3)
             };
 
             // Destroying an opening circuit is fine.
             let destroycell: OpenChanMsgS2C = msg::Destroy::new(0.into()).into();
             input
-                .send(Ok(OpenChanCellS2C::new(7.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(
+                    CircId::new(7),
+                    destroycell.clone(),
+                )))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
@@ -782,7 +812,10 @@ pub(crate) mod test {
 
             // Destroying an open circuit is fine.
             input
-                .send(Ok(OpenChanCellS2C::new(13.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(
+                    CircId::new(13),
+                    destroycell.clone(),
+                )))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
@@ -791,14 +824,20 @@ pub(crate) mod test {
 
             // Destroying a DestroySent circuit is fine.
             input
-                .send(Ok(OpenChanCellS2C::new(23.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(
+                    CircId::new(23),
+                    destroycell.clone(),
+                )))
                 .await
                 .unwrap();
             reactor.run_once().await.unwrap();
 
             // Destroying a nonexistent circuit is an error.
             input
-                .send(Ok(OpenChanCellS2C::new(101.into(), destroycell.clone())))
+                .send(Ok(OpenChanCellS2C::new(
+                    CircId::new(101),
+                    destroycell.clone(),
+                )))
                 .await
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();

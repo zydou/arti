@@ -1270,7 +1270,7 @@ mod test {
         use crate::crypto::handshake::{fast::CreateFastServer, ntor::NtorServer, ServerHandshake};
 
         let (chan, mut rx, _sink) = working_fake_channel(rt);
-        let circid = 128.into();
+        let circid = CircId::new(128).unwrap();
         let (created_send, created_recv) = oneshot::channel();
         let (_circmsg_send, circmsg_recv) = mpsc::channel(64);
         let unique_id = UniqId::new(23, 17);
@@ -1287,7 +1287,7 @@ mod test {
         let simulate_relay_fut = async move {
             let mut rng = testing_rng();
             let create_cell = rx.next().await.unwrap();
-            assert_eq!(create_cell.circid(), 128.into());
+            assert_eq!(create_cell.circid(), CircId::new(128));
             let reply = if fast {
                 let cf = match create_cell.msg() {
                     AnyChanMsg::CreateFast(cf) => cf,
@@ -1396,7 +1396,7 @@ mod test {
         chan: Channel,
         next_msg_from: HopNum,
     ) -> (Arc<ClientCirc>, mpsc::Sender<ClientCircChanMsg>) {
-        let circid = 128.into();
+        let circid = CircId::new(128).unwrap();
         let (_created_send, created_recv) = oneshot::channel();
         let (circmsg_send, circmsg_recv) = mpsc::channel(64);
         let unique_id = UniqId::new(23, 17);
@@ -1458,7 +1458,7 @@ mod test {
             // Here's what we tried to put on the TLS channel.  Note that
             // we're using dummy relay crypto for testing convenience.
             let rcvd = rx.next().await.unwrap();
-            assert_eq!(rcvd.circid(), 128.into());
+            assert_eq!(rcvd.circid(), CircId::new(128));
             let m = match rcvd.into_circid_and_msg().1 {
                 AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
@@ -1551,7 +1551,7 @@ mod test {
                 // We've disabled encryption on this circuit, so we can just
                 // read the extend2 cell.
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, 128.into());
+                assert_eq!(id, CircId::new(128));
                 let rmsg = match chmsg {
                     AnyChanMsg::RelayEarly(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
@@ -1705,7 +1705,7 @@ mod test {
                 // We've disabled encryption on this circuit, so we can just
                 // read the begindir cell.
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, 128.into()); // hardcoded circid.
+                assert_eq!(id, CircId::new(128)); // hardcoded circid.
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
@@ -1719,7 +1719,7 @@ mod test {
 
                 // Now read a DATA cell...
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, 128.into());
+                assert_eq!(id, CircId::new(128));
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
@@ -1801,7 +1801,7 @@ mod test {
             while bytes_received < n_to_send {
                 // Read a data cell, and remember how much we got.
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, 128.into());
+                assert_eq!(id, CircId::new(128));
 
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),

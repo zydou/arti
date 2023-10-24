@@ -1253,7 +1253,7 @@ impl Reactor {
     /// ideally use this to implement backpressure (such that you do not read from other sources
     /// that would send here while you know you're unable to forward the messages on).
     fn send_msg_direct(&mut self, cx: &mut Context<'_>, msg: AnyChanMsg) -> Result<()> {
-        let cell = AnyChanCell::new(self.channel_id, msg);
+        let cell = AnyChanCell::new(Some(self.channel_id), msg);
         // NOTE(eta): We need to check whether the outbound queue is empty before trying to send:
         //            if we just checked whether the channel was ready, it'd be possible for
         //            cells to be sent out of order, since it could transition from not ready to

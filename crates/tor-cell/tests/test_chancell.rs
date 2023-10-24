@@ -22,7 +22,7 @@ fn decode(body: &str, pad_body: bool) -> Vec<u8> {
     body
 }
 
-fn cell(body: &str, msg: msg::AnyChanMsg, id: CircId, pad_body: bool) {
+fn cell(body: &str, msg: msg::AnyChanMsg, id: Option<CircId>, pad_body: bool) {
     let body = decode(body, pad_body);
 
     let cell = AnyChanCell::new(id, msg);
@@ -58,28 +58,28 @@ fn cell(body: &str, msg: msg::AnyChanMsg, id: CircId, pad_body: bool) {
     assert_eq!(encoded1, body);
 }
 
-fn fcell(body: &str, msg: msg::AnyChanMsg, id: CircId) {
+fn fcell(body: &str, msg: msg::AnyChanMsg, id: Option<CircId>) {
     cell(body, msg, id, true);
 }
 
-fn vcell(body: &str, msg: msg::AnyChanMsg, id: CircId) {
+fn vcell(body: &str, msg: msg::AnyChanMsg, id: Option<CircId>) {
     cell(body, msg, id, false);
 }
 
 #[test]
 fn test_simple_cells() {
-    fcell("", msg::Padding::new().into(), 0.into());
+    fcell("", msg::Padding::new().into(), None);
 
     vcell(
         "12345678 ff 0019 7765206c697374656e20726f756e642074686520636c6f636b",
         msg::Unrecognized::new(255.into(), &b"we listen round the clock"[..]).into(),
-        0x12345678.into(),
+        CircId::new(0x12345678),
     );
 
     fcell(
         "20201122 03 666f72206120636f64652063616c6c656420706561636574696d65",
         msg::Relay::new(b"for a code called peacetime").into(),
-        0x20201122.into(),
+        CircId::new(0x20201122),
     );
 
     // Now try some accessors.
@@ -95,10 +95,10 @@ fn test_simple_cells() {
             .unwrap()
             .unwrap()
     };
-    assert_eq!(cell.circid(), CircId::from(0x20201122));
+    assert_eq!(cell.circid(), CircId::new(0x20201122));
     assert_eq!(cell.msg().cmd(), ChanCmd::RELAY);
     let (id, msg) = cell.into_circid_and_msg();
-    assert_eq!(id, CircId::from(0x20201122));
+    assert_eq!(id, CircId::new(0x20201122));
     assert_eq!(msg.cmd(), ChanCmd::RELAY);
 }
 
@@ -182,5 +182,5 @@ fn versions() {
 
     // Try converting into a ChanCell.
     let cc: AnyChanCell = v.into();
-    assert_eq!(cc.circid(), 0.into());
+    assert_eq!(cc.circid(), None);
 }

@@ -307,7 +307,7 @@ impl Sink<AnyChanCell> for Channel {
                     "{}: Sending {} for {}",
                     this.details.unique_id,
                     cell.msg().cmd(),
-                    cell.circid()
+                    CircId::get_or_zero(cell.circid())
                 ),
             }
         }
@@ -797,18 +797,18 @@ pub(crate) mod test {
             use std::error::Error;
             let chan = fake_channel(fake_channel_details());
 
-            let cell = AnyChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
+            let cell = AnyChanCell::new(CircId::new(7), msg::Created2::new(&b"hihi"[..]).into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
             assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CREATED2 cell on client channel"));
-            let cell = AnyChanCell::new(0.into(), msg::Certs::new_empty().into());
+            let cell = AnyChanCell::new(None, msg::Certs::new_empty().into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
             assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CERTS cell after handshake is done"));
 
-            let cell = AnyChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());
+            let cell = AnyChanCell::new(CircId::new(5), msg::Create2::new(2, &b"abc"[..]).into());
             let e = chan.check_cell(&cell);
             assert!(e.is_ok());
             // FIXME(eta): more difficult to test that sending works now that it has to go via reactor

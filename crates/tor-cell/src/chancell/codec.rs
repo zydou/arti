@@ -55,7 +55,7 @@ impl ChannelCodec {
     ) -> crate::Result<()> {
         let ChanCell { circid, msg } = item;
         let cmd = msg.cmd();
-        dst.write_u32(circid.into());
+        dst.write_u32(CircId::get_or_zero(circid));
         dst.write_u8(cmd.into());
 
         let pos = dst.len(); // always 5?
@@ -122,14 +122,15 @@ impl ChannelCodec {
         let cell = src.split_to(cell_len).freeze();
         //trace!("{:?} cell body ({}) is {:?}", cmd, cell.len(), &cell[..]);
         let mut r = Reader::from_bytes(&cell);
-        let circid: CircId = r.take_u32().map_err(wrap_err)?.into();
+        let circid: Option<CircId> = CircId::new(r.take_u32().map_err(wrap_err)?);
         r.advance(if varcell { 3 } else { 1 }).map_err(wrap_err)?;
         let msg = M::decode_from_reader(cmd, &mut r).map_err(wrap_err)?;
 
         if !cmd.accepts_circid_val(circid) {
             return Err(Error::ChanProto(format!(
                 "Invalid circuit ID {} for cell command {}",
-                circid, cmd
+                CircId::get_or_zero(circid),
+                cmd
             )));
         }
         Ok(Some(ChanCell { circid, msg }))

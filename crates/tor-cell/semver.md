@@ -10,3 +10,14 @@ MODIFIED: Added `From<NonZeroU16>` for `StreamId`.
 MODIFIED: Added `StreamId::new`.
 MODIFIED: Added `StreamId::get_or_zero`.
 MODIFIED: Added `From<StreamId>` for `NonZeroU16`.
+BREAKING: `CircId` can no longer be zero. (Use `Option<CircId>` instead)
+BREAKING: `From<u32>` is no longer implemented for `CircId`.
+MODIFIED: Added `From<NonZeroU32>` for `CircId`.
+MODIFIED: Added `CircId::new`.
+BREAKING: Removed `CircId::is_zero`.
+BREAKING: `ChanCmd::accepts_circid_val` now takes `Option<CircId>` instead of `CircId`.
+BREAKING: `ChanCell::new` now takes `Option<CircId>` instead of `CircId`.
+MODIFIED: Added `ChanCell::get_or_zero`.
+BREAKING: `ChanCell::circid` now returns `Option<CircId>` instead of `CircId`.
+BREAKING: `ChanCell::into_circid_and_msg` now returns `Option<CircId>` instead of `CircId`.
+MODIFIED: `CircIdRange::sample` can no longer return 0 (previously possible if rng returned 0x8000_0000 when generating into a low range)
