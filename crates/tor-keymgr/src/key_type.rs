@@ -40,86 +40,106 @@ use thiserror::Error;
 
 pub(crate) mod ssh;
 
-/// A type of key stored in the key store.
-//
-// TODO HSS: rewrite this enum as
-// ```
-// pub enum KeyType {
-//     Private(Alogrithm),
-//     Public(Algorithm),
-// }
-// ```
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum KeyType {
-    /// An Ed25519 keypair.
-    Ed25519Keypair,
-    /// An expanded Ed25519 keypair.
-    Ed25519ExpandedKeypair,
-    /// A Curve25519 keypair.
-    X25519StaticKeypair,
-    /// An Ed25519 public key.
-    Ed25519PublicKey,
-    /// A Curve25519 public key.
-    X25519PublicKey,
-    /// An unrecognized key type.
-    Unknown {
-        /// The extension used for keys of this type in an Arti keystore.
-        arti_extension: String,
-    },
-}
-
-impl KeyType {
-    /// The file extension for a key of this type.
-    //
-    // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
-    // to decide the file extension should be).
-    pub fn arti_extension(&self) -> String {
-        use KeyType::*;
-
-        // TODO HSS:
-        //
-        // There used to be an explicit _private suffix in the extension, but I ended up dropping it
-        // from the name because the "privateness" of the key is encoded in the ArtiPath: !1586
-        // (comment 2942278).
-        //
-        // However, I suppose KS_hsc_desc_enc.x25519 is less obviously a private key than
-        // KS_hsc_desc_enc.x25519_private. Perhaps we do want some redundancy in the name after
-        // all..
-        match self {
-            Ed25519Keypair => "ed25519_private".into(),
-            Ed25519PublicKey => "ed25519_public".into(),
-            X25519StaticKeypair => "x25519_private".into(),
-            X25519PublicKey => "x25519_public".into(),
-            Ed25519ExpandedKeypair => "ed25519_expanded_private".into(),
-            Unknown { arti_extension } => arti_extension.clone(),
+/// Declare and implement the `KeyType` enum.
+///
+/// Each of the `variant`s is mapped to the specified `str_repr`.
+///
+/// `str_repr` is returned from [`KeyType::arti_extension`].
+///
+/// The `str_repr` is also used for implementing `From<&str>` for `KeyType`.
+/// Note `KeyType` implements `From<&str>` rather than `FromStr`,
+/// because the conversion from string is infallible
+/// (unrecognized strings are mapped to `KeyType::Unknown`)
+macro_rules! declare_key_type {
+    {
+        $(#[$enum_meta:meta])*
+        $vis:vis enum KeyType {
+            $(
+                $(#[$meta:meta])*
+                $variant:ident => $str_repr:expr,
+            )*
         }
-    }
+    } => {
 
-    /// The file extension for a key of this type, for use in a C Tor key store.
-    //
-    // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
-    // to decide the file extension should be).
-    pub fn ctor_extension(&self) -> &'static str {
-        todo!() // TODO HSS
-    }
-}
+        $(#[$enum_meta])*
+        $vis enum KeyType {
+            $(
+                $(#[$meta])*
+                $variant,
+            )*
 
-// TODO HSS: rewrite this (and the display impl) using strum.
-impl From<&str> for KeyType {
-    fn from(key_type: &str) -> Self {
-        use KeyType::*;
-
-        match key_type {
-            "ed25519_private" => Ed25519Keypair,
-            "ed25519_public" => Ed25519PublicKey,
-            "x25519_private" => X25519StaticKeypair,
-            "x25519_public" => X25519PublicKey,
-            "ed25519_expanded" => Ed25519ExpandedKeypair,
-            _ => Unknown {
-                arti_extension: key_type.into(),
+            /// An unrecognized key type.
+            Unknown {
+                /// The extension used for keys of this type in an Arti keystore.
+                arti_extension: String,
             },
         }
+
+        impl KeyType {
+            /// The file extension for a key of this type.
+            //
+            // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
+            // to decide the file extension should be).
+            pub fn arti_extension(&self) -> String {
+                use KeyType::*;
+
+                match self {
+                    $(
+                        $variant => $str_repr.into(),
+                    )*
+                    Unknown { arti_extension } => arti_extension.clone(),
+                }
+            }
+
+            /// The file extension for a key of this type, for use in a C Tor key store.
+            //
+            // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
+            // to decide the file extension should be).
+            pub fn ctor_extension(&self) -> &'static str {
+                todo!() // TODO HSS
+            }
+        }
+
+        impl From<&str> for KeyType {
+            fn from(key_type: &str) -> Self {
+                use KeyType::*;
+
+                match key_type {
+                    $(
+                        $str_repr => $variant,
+                    )*
+                    _ => Unknown {
+                        arti_extension: key_type.into(),
+                    },
+                }
+            }
+        }
+    }
+}
+
+declare_key_type! {
+    /// A type of key stored in the key store.
+    //
+    // TODO HSS: rewrite this enum as
+    // ```
+    // pub enum KeyType {
+    //     Private(Alogrithm),
+    //     Public(Algorithm),
+    // }
+    // ```
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum KeyType {
+        /// An Ed25519 keypair.
+        Ed25519Keypair => "ed25519_private",
+        /// An Ed25519 public key.
+        Ed25519PublicKey => "ed25519_public",
+        /// A Curve25519 keypair.
+        X25519StaticKeypair => "x25519_private",
+        /// A Curve25519 public key.
+        X25519PublicKey => "x25519_public",
+        /// An expanded Ed25519 keypair.
+        Ed25519ExpandedKeypair => "ed25519_expanded_private",
     }
 }
 

@@ -16,7 +16,7 @@ use tor_hscrypto::RevisionCounter;
 use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 use tor_units::IntegerMinutes;
 
-use base64ct::{Base64, Encoding};
+use base64ct::{Base64Unpadded, Encoding};
 
 use std::time::SystemTime;
 
@@ -94,9 +94,12 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
         text.extend_from_slice(encoder.slice(beginning, end)?.as_bytes());
         let signature = ed25519::ExpandedSecretKey::from(&hs_desc_sign.secret)
             .sign(&text, &hs_desc_sign.public);
+
+        // TODO SPEC encoding of this signature is completely unspecified (rend-spec-v3 2.4)
+        // TODO SPEC base64 is sometimes padded, sometimes unpadded, but NONE of the specs ever say!
         encoder
             .item(SIGNATURE)
-            .arg(&Base64::encode_string(&signature.to_bytes()));
+            .arg(&Base64Unpadded::encode_string(&signature.to_bytes()));
 
         encoder.finish().map_err(|e| e.into())
     }
@@ -171,7 +174,7 @@ superencrypted
 -----BEGIN MESSAGE-----
 AQIDBA==
 -----END MESSAGE-----
-signature g6wu776AYYD+BXPBocToRXPF9xob3TB34hkR1/h8tDBGjGMnBWZw03INbiX6Z8FaOXCulccQ309fYEO/BmwyDQ==
+signature g6wu776AYYD+BXPBocToRXPF9xob3TB34hkR1/h8tDBGjGMnBWZw03INbiX6Z8FaOXCulccQ309fYEO/BmwyDQ
 "#
         );
     }

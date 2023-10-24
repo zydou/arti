@@ -24,7 +24,6 @@ use tracing::{debug, error, trace, warn};
 use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
-use tor_dirclient::request::Requestable as _;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, into_internal, warn_report};
@@ -1043,6 +1042,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 )?
             };
 
+            trace!(nickname=%self.imm.nickname, time_period=?time_period, hsdesc=hsdesc,
+                "generated new descriptor for time period",
+            );
+
             let netdir = Arc::clone(
                 inner
                     .netdir
@@ -1113,12 +1116,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), ReactorError> {
-        trace!("uploading descriptor");
+        trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
+
         let VersionedDescriptor {
             desc,
             revision_counter,
         } = &hsdesc;
 
+        let hsdir_count = hs_dirs.len();
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
@@ -1197,7 +1202,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload()).await {
                         Ok(res) => {
                             match res {
-                                Ok(()) => UploadStatus::Success,
+                                Ok(()) => {
+                                    debug!(
+                                        nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                        "successfully uploaded descriptor to HSDir",
+                                    );
+
+                                    UploadStatus::Success
+                                },
                                 Err(e) => {
                                     warn_report!(
                                         e,
@@ -1211,8 +1223,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         },
                         Err(_e) => {
                             warn!(
-                                "descriptor upload timed out for service {} (hsdir_id={}, hsdir_rsa_id={})",
-                                imm.nickname, ed_id, rsa_id
+                                nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                "descriptor upload timed out",
                             );
 
                             UploadStatus::Failure
@@ -1231,11 +1243,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .try_collect::<Vec<_>>()
             .await?;
 
-        let (succeeded, failed): (Vec<_>, Vec<_>) = upload_results
+        let (succeeded, _failed): (Vec<_>, Vec<_>) = upload_results
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(nickname=%imm.nickname, "{}/{} descriptors were successfully uploaded", succeeded.len(), failed.len());
+        trace!(nickname=%imm.nickname, time_period=?time_period, "descriptor uploaded successfully to {}/{} HSDirs", succeeded.len(), hsdir_count);
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
@@ -1266,9 +1278,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), UploadError> {
         let request = HsDescUploadRequest::new(hsdesc);
 
-        trace!(nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(), request=?request,
-            "trying to upload descriptor. HTTP request:\n{:?}",
-            request.debug_request()
+        trace!(nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
+            "starting descriptor upload",
         );
 
         let circuit = imm
