@@ -135,8 +135,6 @@ impl RendRequest {
 
     /// Mark this request as accepted, and try to connect to the client's
     /// provided rendezvous point.
-    ///
-    /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
     pub async fn accept(
         mut self,
     ) -> Result<impl Stream<Item = StreamRequest> + Unpin, ClientError> {
@@ -167,15 +165,13 @@ impl RendRequest {
             on_circuit: circuit.clone(),
         }))
     }
+
     /// Reject this request.  (The client will receive no notification.)
-    ///
-    /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    /// TODO HSS: Should this really be fallible?  How might it fail?
     pub async fn reject(self) -> Result<(), Bug> {
         // nothing to do.
         Ok(())
     }
-    //
+
     // TODO HSS: also add various accessors
 }
 
@@ -192,20 +188,21 @@ impl StreamRequest {
             .await
             .map_err(ClientError::AcceptStream)
     }
+
     /// Reject this request, and send the client an `END` message.
-    /// TODO HSS: Should this really be fallible?  How might it fail?
     pub async fn reject(self, end_message: End) -> Result<(), ClientError> {
         self.stream
             .reject(end_message)
             .await
             .map_err(ClientError::RejectStream)
     }
+
     /// Reject this request and close the rendezvous circuit entirely,
     /// along with all other streams attached to the circuit.
-    /// TODO HSS: Should this really be fallible?  How might it fail?
     pub fn shutdown_circuit(self) -> Result<(), Bug> {
         self.on_circuit.terminate();
         Ok(())
     }
+
     // TODO HSS various accessors, including for circuit.
 }
