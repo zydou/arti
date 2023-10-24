@@ -3,8 +3,6 @@
 //! These requests are yielded on a stream, and the calling code needs to decide
 //! whether to permit or reject them.
 
-#![allow(dead_code, unused_variables)] // TODO hss remove.
-
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use std::sync::Arc;
@@ -62,6 +60,7 @@ pub struct RendRequest {
 /// point.
 ///  
 // Todo: use Beth's API instead.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 enum ProofOfWork {
     /// TODO HSS document or replace.
