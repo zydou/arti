@@ -32,8 +32,8 @@ use crate::{HsSvcKeySpecifier, OnionServiceConfig};
 /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
 /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
 pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
-    keymgr: Arc<KeyMgr>,
-    config: Arc<OnionServiceConfig>,
+    keymgr: &Arc<KeyMgr>,
+    config: &Arc<OnionServiceConfig>,
     ipt_set: &IptSet,
     period: TimePeriod,
     revision_counter: RevisionCounter,
@@ -143,9 +143,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 }
 
 /// Decode an encoded curve25519 key.
-fn decode_curve25519_str(
-    key: String,
-) -> Result<curve25519::PublicKey, AuthorizedClientConfigError> {
+fn decode_curve25519_str(key: &str) -> Result<curve25519::PublicKey, AuthorizedClientConfigError> {
     use base64ct::{Base64, Encoding};
     let Some(enc_key) = key.strip_prefix("curve25519:") else {
         return Err(AuthorizedClientConfigError::MalformedKey);
@@ -197,7 +195,7 @@ fn read_key_dir(
                 }
             })?;
 
-            decode_curve25519_str(buffer)
+            decode_curve25519_str(buffer.as_str())
         })
         .collect::<Result<Vec<_>, _>>()
 }
@@ -307,8 +305,8 @@ mod test {
 
         let auth_clients = build_auth_clients(&desc_enc_cfg).unwrap();
 
-        let a = decode_curve25519_str(a_base64.to_string());
-        let b = decode_curve25519_str(b_base64.to_string());
+        let a = decode_curve25519_str(a_base64.to_string().as_str());
+        let b = decode_curve25519_str(b_base64.to_string().as_str());
         let auth_clients_ref = vec![a.unwrap(), b.unwrap()];
 
         assert_eq!(auth_clients, auth_clients_ref);

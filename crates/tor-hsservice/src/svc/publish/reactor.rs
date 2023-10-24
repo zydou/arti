@@ -1032,8 +1032,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 };
 
                 build_sign(
-                    Arc::clone(&self.imm.keymgr),
-                    Arc::clone(&inner.config),
+                    &self.imm.keymgr,
+                    &inner.config,
                     ipt_set,
                     time_period,
                     revision_counter,
