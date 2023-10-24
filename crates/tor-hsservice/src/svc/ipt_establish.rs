@@ -4,9 +4,6 @@
 //!
 //! TODO HSS: move docs from `hssvc-ipt-algorithm.md`
 
-#![allow(dead_code, unused_variables)] // TODO hss remove.
-#![allow(clippy::needless_pass_by_value)] // TODO HSS remove
-
 use std::sync::{Arc, Mutex};
 
 use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
@@ -203,11 +200,11 @@ impl IptEstablisher {
     /// establisher is shut down (or crashes).
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
-        runtime: R,
+        runtime: &R,
         nickname: HsNickname,
         params: IptParameters,
         pool: Arc<HsCircPool<R>>,
-        keymgr: Arc<KeyMgr>,
+        keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self, postage::watch::Receiver<IptStatus>), FatalError> {
         // This exhaustive deconstruction ensures that we don't
         // accidentally forget to handle any of our inputs.
@@ -235,7 +232,7 @@ impl IptEstablisher {
         //
         // TODO HSS: perhaps the subcredentials should be retrieved in
         // server_receive_intro_no_keygen instead? See also the TODO in HsNtorServiceInput
-        let subcredentials = compute_subcredentials(&nickname, &keymgr)?;
+        let subcredentials = compute_subcredentials(&nickname, keymgr)?;
 
         let request_context = Arc::new(RendRequestContext {
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
@@ -249,6 +246,7 @@ impl IptEstablisher {
 
         let reactor = Reactor {
             runtime: runtime.clone(),
+            nickname,
             pool,
             netdir_provider,
             lid,
@@ -568,6 +566,8 @@ pub(crate) struct EstIntroExtensionSet {
 struct Reactor<R: Runtime> {
     /// A copy of our runtime, used for timeouts and sleeping.
     runtime: R,
+    /// The nickname of the onion service we're running. Used when logging.
+    nickname: HsNickname,
     /// A pool used to create circuits to the introduction point.
     pool: Arc<HsCircPool<R>>,
     /// A provider used to select the other relays in the circuit.
