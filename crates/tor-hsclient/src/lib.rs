@@ -137,6 +137,15 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
 
     /// Connect to a hidden service
     ///
+    /// On success, this function will return an open
+    /// rendezvous circuit with an authenticated connection to the onion service
+    /// whose identity is `hs_id`.  If such a circuit already exists, and its isolation
+    /// is compatible with `isolation`, that circuit may be returned; otherwise,
+    /// a new circuit will be created.
+    ///
+    /// Once a circuit is returned, the caller can use it to open new streams to the
+    /// onion service. To do so, call [`ClientCirc::begin_stream`] on it.
+    ///
     /// Each HS connection request must provide the appropriate
     /// client authentication keys to use -
     /// or [`default`](HsClientSecretKeys::default) if client auth is not required.
@@ -145,7 +154,7 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     // Without this, it is possible for `Services::get_or_launch_connection`
     // to not return a `Send` future.
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1034#note_2881718
-    pub fn get_or_launch_connection<'r>(
+    pub fn get_or_launch_circuit<'r>(
         &'r self,
         netdir: &'r Arc<NetDir>,
         hs_id: HsId,
@@ -158,6 +167,21 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
         // But internally we need a Box<dyn Isolation> since we need .join().
         let isolation = Box::new(isolation);
         Services::get_or_launch_connection(self, netdir, hs_id, isolation, secret_keys)
+    }
+
+    /// A deprecated alias for `get_or_launch_circuit`.
+    ///
+    /// We renamed it to be
+    /// more clear about what exactly it is launching.
+    #[deprecated(since = "0.5.1", note = "Use get_or_launch_circuit instead.")]
+    pub fn get_or_launch_connection<'r>(
+        &'r self,
+        netdir: &'r Arc<NetDir>,
+        hs_id: HsId,
+        secret_keys: HsClientSecretKeys,
+        isolation: StreamIsolation,
+    ) -> impl Future<Output = Result<Arc<ClientCirc>, ConnError>> + Send + Sync + 'r {
+        self.get_or_launch_circuit(netdir, hs_id, secret_keys, isolation)
     }
 }
 
