@@ -58,13 +58,6 @@ pub struct RendRequest {
     expanded: once_cell::unsync::OnceCell<rend_handshake::IntroRequest>,
 }
 
-/// The cryptographic state needed to complete an introduce/rendezvous
-/// handshake.
-#[derive(Debug, Clone)]
-struct HandshakeState {
-    // TODO HSS: replace this type or its contents as needed.
-}
-
 /// Information about a proof of work received from a client's introduction
 /// point.
 ///  
