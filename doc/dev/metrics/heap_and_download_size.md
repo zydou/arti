@@ -276,7 +276,7 @@ Results as of 6 July 2023 (Arti: 1ae06399d03):
    "arti.gz": 3723582 bytes
 ```
 
-Results as of 24 October 2024 (Arti: 99d8b3a16c283ce6)
+Results as of 24 October 2023 (Arti: 99d8b3a16c283ce6)
 
 ```
    "arti.gz": 6741218 bytes
@@ -341,7 +341,7 @@ The results for 6 July 2023 were (Tor: 05624b578152f3b):
 3504633 bytes
 ```
 
-The results of 24 October 2024 were (Tor: 2a1fc47d8683fa7):
+The results of 24 October 2023 were (Tor: 2a1fc47d8683fa7):
 
 ```
 3976434 bytes
