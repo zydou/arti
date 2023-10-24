@@ -1104,7 +1104,7 @@ impl<R: Runtime> TorClient<R> {
 
                 let circ = self
                     .hsclient
-                    .get_or_launch_connection(
+                    .get_or_launch_circuit(
                         &netdir,
                         hsid,
                         hs_client_secret_keys,
