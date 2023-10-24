@@ -730,7 +730,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/micro/d/J3QgYWN0dWFsbHkgU0hBLTI1Ni4uLi4uLi4uLi4uLi4-VGhpcyBpcyBhIHRlc3RpbmcgZGlnZXN0LiBpdCBpc24.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/micro/d/J3QgYWN0dWFsbHkgU0hBLTI1Ni4uLi4uLi4uLi4uLi4-VGhpcyBpcyBhIHRlc3RpbmcgZGlnZXN0LiBpdCBpc24.z HTTP/1.0\r\naccept-encoding: {}\r\nContent-Length: 0\r\n\r\n", all_encodings()));
 
         // Try it with FromIterator, and use some accessors.
         let req2: MicrodescRequest = vec![*d1, *d2].into_iter().collect();
@@ -771,7 +771,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/keys/fp-sk/5468697320697320612074657374696e6720646e-27742061637475616c6c79205348412d3235362e+626c616820626c616820626c6168203120322033-49206c696b652070697a7a612066726f6d204e61.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/keys/fp-sk/5468697320697320612074657374696e6720646e-27742061637475616c6c79205348412d3235362e+626c616820626c616820626c6168203120322033-49206c696b652070697a7a612066726f6d204e61.z HTTP/1.0\r\naccept-encoding: {}\r\nContent-Length: 0\r\n\r\n", all_encodings()));
 
         let req2: AuthCertRequest = vec![key1, key2].into_iter().collect();
         let req2 = crate::util::encode_request(&req2.make_request()?);
@@ -805,13 +805,13 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", all_encodings(), when));
+                   format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\nContent-Length: 0\r\n\r\n", all_encodings(), when));
 
         // Request without authorities
         let req = ConsensusRequest::default();
         let req = crate::util::encode_request(&req.make_request()?);
         assert_eq!(req,
-                   format!("GET /tor/status-vote/current/consensus-microdesc.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/status-vote/current/consensus-microdesc.z HTTP/1.0\r\naccept-encoding: {}\r\nContent-Length: 0\r\n\r\n", all_encodings()));
 
         Ok(())
     }
@@ -828,7 +828,7 @@ mod test {
         assert_eq!(
             req,
             format!(
-                "GET /tor/server/all.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n",
+                "GET /tor/server/all.z HTTP/1.0\r\naccept-encoding: {}\r\nContent-Length: 0\r\n\r\n",
                 all_encodings()
             )
         );
@@ -857,7 +857,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/server/d/617420736f6d6520706f696e74204920676f7420+6f662077726974696e6720696e206865782e2e2e.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/server/d/617420736f6d6520706f696e74204920676f7420+6f662077726974696e6720696e206865782e2e2e.z HTTP/1.0\r\naccept-encoding: {}\r\nContent-Length: 0\r\n\r\n", all_encodings()));
 
         // Try it with FromIterator, and use some accessors.
         let req2: RouterDescRequest = vec![*d1, *d2].into_iter().collect();
@@ -886,7 +886,7 @@ mod test {
 
         assert_eq!(
             req,
-            format!("GET /tor/hs/3/AQIDBAECAwQBAgMEAQIDBAECAwQBAgMEAQIDBAECAwQ HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", UNIVERSAL_ENCODINGS)
+            format!("GET /tor/hs/3/AQIDBAECAwQBAgMEAQIDBAECAwQBAgMEAQIDBAECAwQ HTTP/1.0\r\naccept-encoding: {}\r\nContent-Length: 0\r\n\r\n", UNIVERSAL_ENCODINGS)
         );
 
         Ok(())

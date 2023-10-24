@@ -17,10 +17,8 @@ pub(crate) fn encode_request(req: &http::Request<String>) -> String {
         .unwrap();
     }
 
-    if !req.body().is_empty() {
-        write!(s, "Content-Length: {}\r\n", req.body().len())
-            .expect("Added an HTTP header that wasn't UTF-8!");
-    }
+    write!(s, "Content-Length: {}\r\n", req.body().len())
+        .expect("Added an HTTP header that wasn't UTF-8!");
 
     s.push_str("\r\n");
     s.push_str(req.body());
@@ -59,22 +57,17 @@ mod test {
         fn chk_format(body: &str) {
             let req = build_request(body.to_string(), &[]);
 
-            let content_len = if !body.is_empty() {
-                format!("\r\nContent-Length: {}", body.len())
-            } else {
-                Default::default()
-            };
-
             assert_eq!(
                 encode_request(&req),
-                format!("GET /index.html HTTP/1.0{content_len}\r\n\r\n{body}")
+                format!("GET /index.html HTTP/1.0\r\nContent-Length: {}\r\n\r\n{body}", body.len())
             );
 
             let req = build_request(body.to_string(), &[("X-Marsupial", "Opossum")]);
             assert_eq!(
                 encode_request(&req),
                 format!(
-                    "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum{content_len}\r\n\r\n{body}"
+                    "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len(),
                 )
             );
         }
