@@ -43,7 +43,7 @@ pub use {inner::HsDescInner, middle::HsDescMiddle, outer::HsDescOuter};
 
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub use build::HsDescBuilder;
+pub use build::{create_desc_sign_key_cert, HsDescBuilder};
 
 /// Metadata about an onion service descriptor, as stored at an HsDir.
 ///

@@ -8,11 +8,12 @@ use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
 use crate::NetdocBuilder;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
-use tor_error::into_bad_api_usage;
+use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
+use tor_error::{into_bad_api_usage, Bug};
 use tor_hscrypto::pk::{HsBlindIdKeypair, HsSvcDescEncKeypair};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
-use tor_llcrypto::pk::ed25519::{self};
+use tor_llcrypto::pk::ed25519;
 use tor_units::IntegerMinutes;
 
 use derive_builder::Builder;
@@ -196,6 +197,32 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
         }
         .build_sign(rng)
     }
+}
+
+/// Create the descriptor signing key certificate.
+///
+/// Returns the encoded representation of the certificate
+/// obtained by signing the descriptor signing key `hs_desc_sign`
+/// with the blinded id key `blind_id`.
+///
+/// This certificate is meant to be passed to [`HsDescBuilder::hs_desc_sign_cert`].
+pub fn create_desc_sign_key_cert(
+    hs_desc_sign: &ed25519::PublicKey,
+    blind_id: &HsBlindIdKeypair,
+    expiry: SystemTime,
+) -> Result<Vec<u8>, Bug> {
+    // "The certificate cross-certifies the short-term descriptor signing key with the blinded
+    // public key.  The certificate type must be [08], and the blinded public key must be
+    // present as the signing-key extension."
+    Ed25519Cert::constructor()
+        .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
+        .expiration(expiry)
+        .signing_key(ed25519::Ed25519Identity::from(&blind_id.as_ref().public))
+        .cert_key(CertifiedKey::Ed25519(hs_desc_sign.into()))
+        .encode_and_sign(blind_id)
+        .map_err(into_bad_api_usage!(
+            "failed to sign the descriptor signing key"
+        ))
 }
 
 impl<'a> HsDesc<'a> {

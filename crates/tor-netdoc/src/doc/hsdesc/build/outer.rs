@@ -5,15 +5,14 @@
 //! hidden service descriptors.
 
 use crate::build::{NetdocBuilder, NetdocEncoder};
+use crate::doc::hsdesc::create_desc_sign_key_cert;
 use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VERSION_CURRENT};
 
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
-use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
-use tor_error::into_bad_api_usage;
 use tor_hscrypto::pk::HsBlindIdKeypair;
 use tor_hscrypto::RevisionCounter;
-use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
+use tor_llcrypto::pk::ed25519;
 use tor_units::IntegerMinutes;
 
 use base64ct::{Base64Unpadded, Encoding};
@@ -71,15 +70,8 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
         // "The certificate cross-certifies the short-term descriptor signing key with the blinded
         // public key.  The certificate type must be [08], and the blinded public key must be
         // present as the signing-key extension."
-        let desc_signing_key_cert = Ed25519Cert::constructor()
-            .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
-            .expiration(hs_desc_sign_cert_expiry)
-            .signing_key(ed25519::Ed25519Identity::from(blinded_id.public_key()))
-            .cert_key(CertifiedKey::Ed25519(hs_desc_sign.public.into()))
-            .encode_and_sign(blinded_id)
-            .map_err(into_bad_api_usage!(
-                "failed to sign the descriptor signing key"
-            ))?;
+        let desc_signing_key_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, blinded_id, hs_desc_sign_cert_expiry)?;
 
         encoder
             .item(DESCRIPTOR_SIGNING_KEY_CERT)
