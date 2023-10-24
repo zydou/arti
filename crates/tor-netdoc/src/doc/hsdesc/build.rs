@@ -192,7 +192,6 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
 
         // Finally, build the hidden service descriptor.
         HsDescOuter {
-            blinded_id: hs_desc.blinded_id,
             hs_desc_sign: hs_desc.hs_desc_sign,
             hs_desc_sign_cert: hs_desc.hs_desc_sign_cert,
             lifetime: hs_desc.lifetime,
