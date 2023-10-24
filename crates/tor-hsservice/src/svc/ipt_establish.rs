@@ -648,7 +648,8 @@ impl<R: Runtime> Reactor<R> {
                     status_tx.borrow_mut().note_open(good_ipt_details);
 
                     debug!(
-                        "Successfully established introduction point with {}",
+                        "{}: Successfully established introduction point with {}",
+                        &self.nickname,
                         self.target.display_relay_ids().redacted()
                     );
                     // Now that we've succeeded, we can stop backing off for our
@@ -671,7 +672,8 @@ impl<R: Runtime> Reactor<R> {
                     status_tx.borrow_mut().note_error(&e);
                     debug_report!(
                         e,
-                        "Problem establishing introduction point with {}",
+                        "{}: Problem establishing introduction point with {}",
+                        &self.nickname,
                         self.target.display_relay_ids().redacted()
                     );
                     let retry_after = retry_delay.next_delay(&mut rand::thread_rng());
