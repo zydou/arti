@@ -61,60 +61,60 @@ macro_rules! declare_key_type {
         }
     } => {
 
-$(#[$enum_meta])*
-$vis enum KeyType {
-    $(
-        $(#[$meta])*
-        $variant,
-    )*
-
-    /// An unrecognized key type.
-    Unknown {
-        /// The extension used for keys of this type in an Arti keystore.
-        arti_extension: String,
-    },
-}
-
-impl KeyType {
-    /// The file extension for a key of this type.
-    //
-    // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
-    // to decide the file extension should be).
-    pub fn arti_extension(&self) -> String {
-        use KeyType::*;
-
-        match self {
+        $(#[$enum_meta])*
+        $vis enum KeyType {
             $(
-                $variant => $str_repr.into(),
+                $(#[$meta])*
+                $variant,
             )*
-            Unknown { arti_extension } => arti_extension.clone(),
-        }
-    }
 
-    /// The file extension for a key of this type, for use in a C Tor key store.
-    //
-    // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
-    // to decide the file extension should be).
-    pub fn ctor_extension(&self) -> &'static str {
-        todo!() // TODO HSS
-    }
-}
-
-impl From<&str> for KeyType {
-    fn from(key_type: &str) -> Self {
-        use KeyType::*;
-
-        match key_type {
-            $(
-                $str_repr => $variant,
-            )*
-            _ => Unknown {
-                arti_extension: key_type.into(),
+            /// An unrecognized key type.
+            Unknown {
+                /// The extension used for keys of this type in an Arti keystore.
+                arti_extension: String,
             },
         }
+
+        impl KeyType {
+            /// The file extension for a key of this type.
+            //
+            // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
+            // to decide the file extension should be).
+            pub fn arti_extension(&self) -> String {
+                use KeyType::*;
+
+                match self {
+                    $(
+                        $variant => $str_repr.into(),
+                    )*
+                    Unknown { arti_extension } => arti_extension.clone(),
+                }
+            }
+
+            /// The file extension for a key of this type, for use in a C Tor key store.
+            //
+            // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
+            // to decide the file extension should be).
+            pub fn ctor_extension(&self) -> &'static str {
+                todo!() // TODO HSS
+            }
+        }
+
+        impl From<&str> for KeyType {
+            fn from(key_type: &str) -> Self {
+                use KeyType::*;
+
+                match key_type {
+                    $(
+                        $str_repr => $variant,
+                    )*
+                    _ => Unknown {
+                        arti_extension: key_type.into(),
+                    },
+                }
+            }
+        }
     }
-}
-}
 }
 
 declare_key_type! {
