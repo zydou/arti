@@ -25,13 +25,13 @@ use tracing::{info, trace, warn};
 
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
+use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
 use crate::svc::keystore_sweeper::KeystoreSweeper;
 use crate::svc::publish::Publisher;
 use crate::HsIdKeypairSpecifier;
 use crate::HsIdPublicKeySpecifier;
 use crate::HsNickname;
 use crate::OnionServiceConfig;
-use crate::OnionServiceStatus;
 use crate::RendRequest;
 use crate::StartupError;
 
@@ -70,6 +70,10 @@ struct SvcInner {
 
     /// A oneshot that will be dropped when this object is dropped.
     shutdown_tx: postage::broadcast::Sender<void::Void>,
+
+    /// Postage sender, used to tell subscribers about changes in the status of
+    /// this onion service.
+    status_tx: StatusSender,
 
     /// Handles that we'll take ownership of when launching the service.
     ///
@@ -209,10 +213,15 @@ impl OnionService {
         // rend_req_rx.  The latter may need to be refactored to actually work
         // with svc::rend_handshake, if it doesn't already.
 
+        // TODO HSS: We should pass a copy of this to the publisher and/or the
+        // IptMgr, and they should adjust it as needed.
+        let status_tx = StatusSender::new(OnionServiceStatus::new_unbootstrapped());
+
         Ok(Arc::new(OnionService {
             inner: Mutex::new(SvcInner {
                 config_tx,
                 shutdown_tx,
+                status_tx,
                 keymgr,
                 unlaunched: Some((
                     rend_req_rx,
@@ -260,11 +269,18 @@ impl OnionService {
 
     /// Return the current status of this onion service.
     pub fn status(&self) -> OnionServiceStatus {
-        todo!() // TODO hss
+        self.inner.lock().expect("poisoned lock").status_tx.get()
     }
 
-    // TODO hss let's also have a function that gives you a stream of Status
-    // changes?  Or use a publish-based watcher?
+    /// Return a stream of events that will receive notifications of changes in
+    /// this onion service's status.
+    pub fn status_events(&self) -> OnionServiceStatusStream {
+        self.inner
+            .lock()
+            .expect("poisoned lock")
+            .status_tx
+            .subscribe()
+    }
 
     /// Tell this onion service to begin running, and return a
     /// stream of rendezvous requests on the service.
