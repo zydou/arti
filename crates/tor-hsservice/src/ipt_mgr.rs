@@ -104,6 +104,10 @@ pub(crate) struct Immutable<R> {
     /// When we make a new `IptEstablisher` we use this arrange for
     /// its status updates to arrive, appropriately tagged, via `status_recv`
     status_send: mpsc::Sender<(IptLocalId, IptStatus)>,
+
+    /// The key manager.
+    #[educe(Debug(ignore))]
+    keymgr: Arc<KeyMgr>,
 }
 
 /// State of an IPT Manager
@@ -146,11 +150,6 @@ pub(crate) struct State<R, M> {
     /// even though the main code doesn't need `mut`
     /// since `HsCircPool` is a service with interior mutability.
     mockable: M,
-
-    // TODO HSS: keymgr has interior mutability so we can moved it to imm.
-    /// The key manager.
-    #[educe(Debug(ignore))]
-    keymgr: Arc<KeyMgr>,
 
     /// Runtime (to placate compiler)
     runtime: PhantomData<R>,
@@ -477,6 +476,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             nick,
             status_send,
             output_rend_reqs,
+            keymgr,
         };
         let current_config = config.borrow().clone();
 
@@ -489,7 +489,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             irelays: vec![],
             last_irelay_selection_outcome: Ok(()),
             runtime: PhantomData,
-            keymgr,
         };
         let mgr = IptManager { imm, state };
 
@@ -758,7 +757,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                     &self.imm,
                     &self.state.new_configs,
                     &mut self.state.mockable,
-                    &self.state.keymgr,
+                    &self.imm.keymgr,
                 )?;
                 return CONTINUE;
             }
