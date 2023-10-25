@@ -10,6 +10,19 @@ use std::time::{Duration, SystemTime};
 use tor_bytes::{EncodeResult, Writeable, Writer};
 use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 
+use derive_more::{AsRef, Deref, Into};
+
+/// An encoded ed25519 certificate,
+/// created using [`Ed25519CertConstructor::encode_and_sign`].
+///
+/// The certificate is encoded in the format specified
+/// in Tor's cert-spec.txt.
+///
+/// This certificate has already been validated.
+#[derive(Clone, Debug, PartialEq, Into, AsRef, Deref)]
+#[cfg_attr(docsrs, doc(cfg(feature = "encode")))]
+pub struct EncodedEd25519Cert(Vec<u8>);
+
 impl Ed25519Cert {
     /// Return a new `Ed25519CertConstructor` to create and return a new signed
     /// `Ed25519Cert`.
@@ -104,12 +117,12 @@ impl Ed25519CertConstructor {
     }
 
     /// Encode a certificate into a new vector, signing the result
-    /// with `keypair`.
+    /// with `skey`.
     ///
     /// This function exists in lieu of a `build()` function, since we have a rule that
     /// we don't produce an `Ed25519Cert` except if the certificate is known to be
     /// valid.
-    pub fn encode_and_sign<S>(&self, skey: &S) -> Result<Vec<u8>, CertEncodeError>
+    pub fn encode_and_sign<S>(&self, skey: &S) -> Result<EncodedEd25519Cert, CertEncodeError>
     where
         S: Ed25519PublicKey + ed25519::Signer<ed25519::Signature>,
     {
@@ -155,7 +168,7 @@ impl Ed25519CertConstructor {
 
         let signature = skey.sign(&w[..]);
         w.write(&signature)?;
-        Ok(w)
+        Ok(EncodedEd25519Cert(w))
     }
 }
 

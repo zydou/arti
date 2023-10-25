@@ -8,11 +8,12 @@ use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
 use crate::NetdocBuilder;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
+use tor_cert::{CertEncodeError, CertType, CertifiedKey, Ed25519Cert, EncodedEd25519Cert};
 use tor_error::into_bad_api_usage;
-use tor_hscrypto::pk::{HsBlindIdKeypair, HsSvcDescEncKeypair};
+use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsSvcDescEncKeypair};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
-use tor_llcrypto::pk::ed25519::{self};
+use tor_llcrypto::pk::ed25519;
 use tor_units::IntegerMinutes;
 
 use derive_builder::Builder;
@@ -36,13 +37,16 @@ use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
 #[derive(Builder)]
 #[builder(public, derive(Debug, Clone), pattern = "owned", build_fn(vis = ""))]
 struct HsDesc<'a> {
-    /// The blinded hidden service signing keys used to sign descriptor signing keys
-    /// (KP_hs_blind_id, KS_hs_blind_id).
-    blinded_id: &'a HsBlindIdKeypair,
+    /// The blinded hidden service public key used for the first half of the "SECRET_DATA" field.
+    ///
+    /// (See rend-spec v3 2.5.1.1 and 2.5.2.1.)
+    blinded_id: &'a HsBlindIdKey,
     /// The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
     hs_desc_sign: &'a ed25519::Keypair,
-    /// The expiration time of the descriptor signing key certificate.
-    hs_desc_sign_cert_expiry: SystemTime,
+    /// The descriptor signing key certificate.
+    ///
+    /// This certificate can be created using [`create_desc_sign_key_cert`].
+    hs_desc_sign_cert: EncodedEd25519Cert,
     /// A list of recognized CREATE handshakes that this onion service supports.
     // TODO HSS: this should probably be a caret enum, not an integer
     create2_formats: &'a [u32],
@@ -187,15 +191,37 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
 
         // Finally, build the hidden service descriptor.
         HsDescOuter {
-            blinded_id: hs_desc.blinded_id,
             hs_desc_sign: hs_desc.hs_desc_sign,
-            hs_desc_sign_cert_expiry: hs_desc.hs_desc_sign_cert_expiry,
+            hs_desc_sign_cert: hs_desc.hs_desc_sign_cert,
             lifetime: hs_desc.lifetime,
             revision_counter: hs_desc.revision_counter,
             superencrypted: middle_encrypted,
         }
         .build_sign(rng)
     }
+}
+
+/// Create the descriptor signing key certificate.
+///
+/// Returns the encoded representation of the certificate
+/// obtained by signing the descriptor signing key `hs_desc_sign`
+/// with the blinded id key `blind_id`.
+///
+/// This certificate is meant to be passed to [`HsDescBuilder::hs_desc_sign_cert`].
+pub fn create_desc_sign_key_cert(
+    hs_desc_sign: &ed25519::PublicKey,
+    blind_id: &HsBlindIdKeypair,
+    expiry: SystemTime,
+) -> Result<EncodedEd25519Cert, CertEncodeError> {
+    // "The certificate cross-certifies the short-term descriptor signing key with the blinded
+    // public key.  The certificate type must be [08], and the blinded public key must be
+    // present as the signing-key extension."
+    Ed25519Cert::constructor()
+        .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
+        .expiration(expiry)
+        .signing_key(ed25519::Ed25519Identity::from(&blind_id.as_ref().public))
+        .cert_key(CertifiedKey::Ed25519(hs_desc_sign.into()))
+        .encode_and_sign(blind_id)
 }
 
 impl<'a> HsDesc<'a> {
@@ -209,7 +235,7 @@ impl<'a> HsDesc<'a> {
         string_const: &[u8],
     ) -> Vec<u8> {
         let encrypt = HsDescEncryption {
-            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.as_ref().public).into(),
+            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.as_ref()).into(),
             desc_enc_nonce,
             subcredential: &self.subcredential,
             revision: self.revision_counter,
@@ -369,10 +395,13 @@ mod test {
             svc_ntor_key: create_curve25519_pk(&mut rng).into(),
         }];
 
+        let hs_desc_sign_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
+        let blinded_pk = (&blinded_id).into();
         let builder = HsDescBuilder::default()
-            .blinded_id(&blinded_id)
+            .blinded_id(&blinded_pk)
             .hs_desc_sign(&hs_desc_sign)
-            .hs_desc_sign_cert_expiry(expiry)
+            .hs_desc_sign_cert(hs_desc_sign_cert)
             .create2_formats(CREATE2_FORMATS)
             .auth_required(None)
             .is_single_onion_service(true)
@@ -398,12 +427,14 @@ mod test {
             None, /* No client auth */
         );
 
+        let hs_desc_sign_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
-            .blinded_id(&blinded_id)
+            .blinded_id(&(&blinded_id).into())
             .hs_desc_sign(&hs_desc_sign)
-            .hs_desc_sign_cert_expiry(expiry)
+            .hs_desc_sign_cert(hs_desc_sign_cert)
             // create2_formats is hard-coded rather than extracted from desc, because
             // create2_formats is ignored while parsing
             .create2_formats(CREATE2_FORMATS)
@@ -438,12 +469,14 @@ mod test {
             Some(&client_kp), /* With client auth */
         );
 
+        let hs_desc_sign_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
-            .blinded_id(&blinded_id)
+            .blinded_id(&(&blinded_id).into())
             .hs_desc_sign(&hs_desc_sign)
-            .hs_desc_sign_cert_expiry(expiry)
+            .hs_desc_sign_cert(hs_desc_sign_cert)
             // create2_formats is hard-coded rather than extracted from desc, because
             // create2_formats is ignored while parsing
             .create2_formats(CREATE2_FORMATS)

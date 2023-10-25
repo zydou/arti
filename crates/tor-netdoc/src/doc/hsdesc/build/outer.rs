@@ -9,29 +9,25 @@ use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VE
 
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
-use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
-use tor_error::into_bad_api_usage;
-use tor_hscrypto::pk::HsBlindIdKeypair;
+use tor_cert::EncodedEd25519Cert;
 use tor_hscrypto::RevisionCounter;
-use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
+use tor_llcrypto::pk::ed25519;
 use tor_units::IntegerMinutes;
 
 use base64ct::{Base64Unpadded, Encoding};
-
-use std::time::SystemTime;
 
 /// The representation of the outer wrapper of an onion service descriptor.
 ///
 /// The format of this document is described in section 2.4. of rend-spec-v3.
 #[derive(Debug)]
 pub(super) struct HsDescOuter<'a> {
-    /// The blinded hidden service signing keys used to sign descriptor signing keys
-    /// (KP_hs_blind_id, KS_hs_blind_id).
-    pub(super) blinded_id: &'a HsBlindIdKeypair,
     /// The short-term descriptor signing key.
     pub(super) hs_desc_sign: &'a ed25519::Keypair,
-    /// The expiration time of the descriptor signing key certificate.
-    pub(super) hs_desc_sign_cert_expiry: SystemTime,
+    /// The descriptor signing key certificate.
+    ///
+    /// This certiciate can be created using
+    /// [`create_desc_sign_key_cert`](crate::create_desc_sign_key_cert).
+    pub(super) hs_desc_sign_cert: EncodedEd25519Cert,
     /// The lifetime of this descriptor, in minutes.
     ///
     /// This doesn't actually list the starting time or the end time for the
@@ -55,9 +51,8 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
         use HsOuterKwd::*;
 
         let HsDescOuter {
-            blinded_id,
             hs_desc_sign,
-            hs_desc_sign_cert_expiry,
+            hs_desc_sign_cert,
             lifetime,
             revision_counter,
             superencrypted,
@@ -68,22 +63,9 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
         encoder.item(HS_DESCRIPTOR).arg(&HS_DESC_VERSION_CURRENT);
         encoder.item(DESCRIPTOR_LIFETIME).arg(&lifetime.to_string());
 
-        // "The certificate cross-certifies the short-term descriptor signing key with the blinded
-        // public key.  The certificate type must be [08], and the blinded public key must be
-        // present as the signing-key extension."
-        let desc_signing_key_cert = Ed25519Cert::constructor()
-            .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
-            .expiration(hs_desc_sign_cert_expiry)
-            .signing_key(ed25519::Ed25519Identity::from(blinded_id.public_key()))
-            .cert_key(CertifiedKey::Ed25519(hs_desc_sign.public.into()))
-            .encode_and_sign(blinded_id)
-            .map_err(into_bad_api_usage!(
-                "failed to sign the descriptor signing key"
-            ))?;
-
         encoder
             .item(DESCRIPTOR_SIGNING_KEY_CERT)
-            .object("ED25519 CERT", desc_signing_key_cert);
+            .object("ED25519 CERT", hs_desc_sign_cert.as_ref());
         encoder.item(REVISION_COUNTER).arg(&*revision_counter);
         encoder
             .item(SUPERENCRYPTED)
@@ -122,6 +104,8 @@ mod test {
 
     use std::time::UNIX_EPOCH;
 
+    use crate::doc::hsdesc::create_desc_sign_key_cert;
+
     use super::*;
     use tor_basic_utils::test_rng::Config;
     use tor_hscrypto::pk::HsIdKeypair;
@@ -148,10 +132,12 @@ mod test {
             .compute_blinded_key(period)
             .unwrap();
 
+        let hs_desc_sign_cert =
+            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, UNIX_EPOCH).unwrap();
+
         let hs_desc = HsDescOuter {
-            blinded_id: &blinded_id,
             hs_desc_sign: &hs_desc_sign,
-            hs_desc_sign_cert_expiry: UNIX_EPOCH,
+            hs_desc_sign_cert,
             lifetime: IntegerMinutes::new(20),
             revision_counter: 9001.into(),
             superencrypted: TEST_SUPERENCRYPTED_VALUE.into(),

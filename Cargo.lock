@@ -4629,6 +4629,7 @@ dependencies = [
  "base64ct",
  "caret",
  "derive_builder_fork_arti",
+ "derive_more",
  "digest 0.10.7",
  "hex-literal",
  "humantime 2.1.0",
