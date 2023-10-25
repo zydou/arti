@@ -9,6 +9,7 @@ use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VE
 
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
+use tor_cert::EncodedEd25519Cert;
 use tor_hscrypto::RevisionCounter;
 use tor_llcrypto::pk::ed25519;
 use tor_units::IntegerMinutes;
@@ -26,9 +27,7 @@ pub(super) struct HsDescOuter<'a> {
     ///
     /// This certiciate can be created using
     /// [`create_desc_sign_key_cert`](crate::create_desc_sign_key_cert).
-    //
-    // TODO: it would be nice to have a type for representing an encoded certificate.
-    pub(super) hs_desc_sign_cert: Vec<u8>,
+    pub(super) hs_desc_sign_cert: EncodedEd25519Cert,
     /// The lifetime of this descriptor, in minutes.
     ///
     /// This doesn't actually list the starting time or the end time for the
@@ -66,7 +65,7 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
 
         encoder
             .item(DESCRIPTOR_SIGNING_KEY_CERT)
-            .object("ED25519 CERT", hs_desc_sign_cert);
+            .object("ED25519 CERT", hs_desc_sign_cert.as_ref());
         encoder.item(REVISION_COUNTER).arg(&*revision_counter);
         encoder
             .item(SUPERENCRYPTED)

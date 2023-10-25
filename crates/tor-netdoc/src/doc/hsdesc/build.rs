@@ -8,7 +8,7 @@ use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
 use crate::NetdocBuilder;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
-use tor_cert::{CertEncodeError, CertType, CertifiedKey, Ed25519Cert};
+use tor_cert::{CertEncodeError, CertType, CertifiedKey, Ed25519Cert, EncodedEd25519Cert};
 use tor_error::into_bad_api_usage;
 use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsSvcDescEncKeypair};
 use tor_hscrypto::{RevisionCounter, Subcredential};
@@ -46,9 +46,7 @@ struct HsDesc<'a> {
     /// The descriptor signing key certificate.
     ///
     /// This certificate can be created using [`create_desc_sign_key_cert`].
-    //
-    // TODO: it would be nice to have a type for representing an encoded certificate.
-    hs_desc_sign_cert: Vec<u8>,
+    hs_desc_sign_cert: EncodedEd25519Cert,
     /// A list of recognized CREATE handshakes that this onion service supports.
     // TODO HSS: this should probably be a caret enum, not an integer
     create2_formats: &'a [u32],
@@ -214,7 +212,7 @@ pub fn create_desc_sign_key_cert(
     hs_desc_sign: &ed25519::PublicKey,
     blind_id: &HsBlindIdKeypair,
     expiry: SystemTime,
-) -> Result<Vec<u8>, CertEncodeError> {
+) -> Result<EncodedEd25519Cert, CertEncodeError> {
     // "The certificate cross-certifies the short-term descriptor signing key with the blinded
     // public key.  The certificate type must be [08], and the blinded public key must be
     // present as the signing-key extension."

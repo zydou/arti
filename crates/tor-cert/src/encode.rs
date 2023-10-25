@@ -122,7 +122,7 @@ impl Ed25519CertConstructor {
     /// This function exists in lieu of a `build()` function, since we have a rule that
     /// we don't produce an `Ed25519Cert` except if the certificate is known to be
     /// valid.
-    pub fn encode_and_sign<S>(&self, skey: &S) -> Result<Vec<u8>, CertEncodeError>
+    pub fn encode_and_sign<S>(&self, skey: &S) -> Result<EncodedEd25519Cert, CertEncodeError>
     where
         S: Ed25519PublicKey + ed25519::Signer<ed25519::Signature>,
     {
@@ -168,7 +168,7 @@ impl Ed25519CertConstructor {
 
         let signature = skey.sign(&w[..]);
         w.write(&signature)?;
-        Ok(w)
+        Ok(EncodedEd25519Cert(w))
     }
 }
 
