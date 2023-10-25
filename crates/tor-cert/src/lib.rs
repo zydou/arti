@@ -56,6 +56,8 @@ pub use err::CertError;
 #[cfg(feature = "encode")]
 mod encode;
 #[cfg(feature = "encode")]
+pub use encode::EncodedEd25519Cert;
+#[cfg(feature = "encode")]
 pub use err::CertEncodeError;
 
 /// A Result defined to use CertError
