@@ -104,7 +104,7 @@ impl Ed25519CertConstructor {
     }
 
     /// Encode a certificate into a new vector, signing the result
-    /// with `keypair`.
+    /// with `skey`.
     ///
     /// This function exists in lieu of a `build()` function, since we have a rule that
     /// we don't produce an `Ed25519Cert` except if the certificate is known to be
