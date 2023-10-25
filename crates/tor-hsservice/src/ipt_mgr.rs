@@ -50,6 +50,7 @@ use IptStatusStatus as ISS;
 use TrackedStatus as TS;
 
 mod persist;
+use persist::IptStorageHandle;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 // TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
@@ -97,6 +98,11 @@ pub(crate) struct Immutable<R> {
     /// When we make a new `IptEstablisher` we use this arrange for
     /// its status updates to arrive, appropriately tagged, via `status_recv`
     status_send: mpsc::Sender<(IptLocalId, IptStatus)>,
+
+    /// The on-disk state storage handle.
+    #[educe(Debug(ignore))]
+    #[allow(dead_code)] // XXXX
+    storage: Arc<IptStorageHandle>,
 
     /// The key manager.
     #[educe(Debug(ignore))]
@@ -461,6 +467,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         config: watch::Receiver<Arc<OnionServiceConfig>>,
         output_rend_reqs: mpsc::Sender<RendRequest>,
         shutdown: oneshot::Receiver<Void>,
+        storage: impl tor_persist::StateMgr + Send + Sync + 'static,
         mockable: M,
         keymgr: Arc<KeyMgr>,
     ) -> Result<Self, StartupError> {
@@ -470,6 +477,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // are reading watches.
         let (status_send, status_recv) = mpsc::channel(0);
 
+        let storage = storage.create_handle(format!("hs_ipts_{nick}"));
+
         let imm = Immutable {
             runtime,
             dirprovider,
@@ -477,6 +486,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_send,
             output_rend_reqs,
             keymgr,
+            storage,
         };
         let current_config = config.borrow().clone();
 
@@ -1495,6 +1505,7 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::svc::ipt_establish::GoodIptDetails;
+    use crate::svc::test::create_storage_handles;
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
     use std::sync::Mutex;
@@ -1639,7 +1650,9 @@ mod test {
                 estabs: estabs.clone(),
             };
 
-            let (mgr_view, pub_view) = ipt_set::ipts_channel();
+            let (state_mgr, iptpub_state_handle) = create_storage_handles();
+
+            let (mgr_view, pub_view) = ipt_set::ipts_channel(iptpub_state_handle);
 
             let keymgr = Arc::new(
                 KeyMgrBuilder::default()
@@ -1654,6 +1667,7 @@ mod test {
                 cfg_rx,
                 rend_tx,
                 shut_rx,
+                state_mgr,
                 mocks,
                 keymgr,
             )

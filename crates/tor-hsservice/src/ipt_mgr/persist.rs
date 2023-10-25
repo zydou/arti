@@ -5,10 +5,13 @@
 
 use super::*;
 
+/// Handle for a suitable persistent storage manager
+pub(crate) type IptStorageHandle = dyn tor_persist::StorageHandle<StateRecord> + Sync + Send;
+
 /// Record of intro point establisher state, as stored on disk
 #[derive(Serialize, Deserialize)]
 #[allow(dead_code)] // TODO HSS-IPT-PERSIST remove
-struct StateRecord {
+pub(crate) struct StateRecord {
     /// Relays
     ipt_relays: Vec<RelayRecord>,
 }

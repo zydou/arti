@@ -10,12 +10,17 @@ use futures::channel::mpsc;
 use futures::StreamExt as _;
 
 use derive_more::{Deref, DerefMut};
+use educe::Educe;
 use itertools::chain;
+use serde::{Deserialize, Serialize};
 
 use crate::IptLocalId;
 use crate::IptStoreError;
 
 use tor_error::internal;
+
+/// Handle for a suitable persistent storage manager
+pub(crate) type IptSetStorageHandle = dyn tor_persist::StorageHandle<StateRecord> + Sync + Send;
 
 /// Information shared between the IPT manager and the IPT publisher
 ///
@@ -23,7 +28,8 @@ use tor_error::internal;
 /// See
 /// [`IptManager::compute_iptsetstatus_publish`](crate::ipt_mgr::IptManager::compute_iptsetstatus_publish)
 /// for more detailed information about how this is calculated.
-#[derive(Debug)]
+#[derive(Educe)]
+#[educe(Debug)]
 pub(crate) struct PublishIptSet {
     /// Set of introduction points to be advertised in a descriptor (if we are to publish)
     ///
@@ -82,6 +88,11 @@ pub(crate) struct PublishIptSet {
     // but don't succeed in recording that we published, and then, on restart,
     // don't know that we need to (re)establish this IPT.)
     pub(crate) last_descriptor_expiry_including_slop: HashMap<IptLocalId, Instant>,
+
+    /// The on-disk state storage handle.
+    #[educe(Debug(ignore))]
+    #[allow(dead_code)] // XXXX
+    storage: Arc<IptSetStorageHandle>,
 }
 
 /// A set of introduction points for publication
@@ -209,13 +220,16 @@ struct NotifyingBorrow<'v> {
 }
 
 /// Create a new shared state channel for the publication instructions
-pub(crate) fn ipts_channel() -> (IptsManagerView, IptsPublisherView) {
+pub(crate) fn ipts_channel(
+    storage: Arc<IptSetStorageHandle>,
+) -> (IptsManagerView, IptsPublisherView) {
     // TODO HSS-IPT-PERSIST load this from a file instead
     let last_descriptor_expiry_including_slop = HashMap::new();
 
     let initial_state = PublishIptSet {
         ipts: None,
         last_descriptor_expiry_including_slop,
+        storage,
     };
     let shared = Arc::new(Mutex::new(initial_state));
     // Zero buffer is right.  Docs for `mpsc::channel` say:
@@ -394,6 +408,12 @@ impl PublishIptSet {
     }
 }
 
+/// Record of intro point publications
+#[derive(Serialize, Deserialize, Debug)]
+// XXXX populate this struct
+pub(crate) struct StateRecord {
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -409,6 +429,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::svc::test::create_storage_handles;
     use crate::FatalError;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
@@ -455,7 +476,8 @@ mod test {
         runtime.clone().block_on(async move {
             // make a channel; it should have no updates yet
 
-            let (mut mv, mut pv) = ipts_channel();
+            let (_state_mgr, iptpub_state_handle) = create_storage_handles();
+            let (mut mv, mut pv) = ipts_channel(iptpub_state_handle);
             assert!(matches!(pv_poll_await_update(&mut pv).await, Pending));
 
             // borrowing publisher view for publish doesn't cause an update

@@ -204,6 +204,7 @@ mod test {
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
     use crate::svc::publish::reactor::MockableClientCirc;
+    use crate::svc::test::create_storage_handles;
     use crate::{Anonymity, HsNickname, IptLocalId};
     use crate::{
         BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
@@ -512,7 +513,7 @@ mod test {
         let config = build_test_config(nickname.clone());
         let (config_tx, config_rx) = watch::channel_with(Arc::new(config));
 
-        let (mut mv, pv) = ipts_channel();
+        let (mut mv, pv) = ipts_channel(create_storage_handles().1);
         let update_ipts = || {
             let ipts: Vec<IptInSet> = test_data::test_parsed_hsdesc()
                 .unwrap()
