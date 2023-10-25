@@ -132,7 +132,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     )?;
 
     Ok(HsDescBuilder::default()
-        .blinded_id(&blind_id_kp)
+        .blinded_id(&(&blind_id_kp).into())
         .hs_desc_sign(hs_desc_sign.as_ref())
         .hs_desc_sign_cert(desc_signing_key_cert)
         .create2_formats(CREATE2_FORMATS)

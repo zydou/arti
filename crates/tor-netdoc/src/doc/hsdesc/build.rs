@@ -10,7 +10,7 @@ use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::{into_bad_api_usage, Bug};
-use tor_hscrypto::pk::{HsBlindIdKeypair, HsSvcDescEncKeypair};
+use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsSvcDescEncKeypair};
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::pk::ed25519;
@@ -37,9 +37,10 @@ use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
 #[derive(Builder)]
 #[builder(public, derive(Debug, Clone), pattern = "owned", build_fn(vis = ""))]
 struct HsDesc<'a> {
-    /// The blinded hidden service signing keys used to sign descriptor signing keys
-    /// (KP_hs_blind_id, KS_hs_blind_id).
-    blinded_id: &'a HsBlindIdKeypair,
+    /// The blinded hidden service public key used for the first half of the "SECRET_DATA" field.
+    ///
+    /// (See rend-spec v3 2.5.1.1 and 2.5.2.1.)
+    blinded_id: &'a HsBlindIdKey,
     /// The short-term descriptor signing key (KP_hs_desc_sign, KS_hs_desc_sign).
     hs_desc_sign: &'a ed25519::Keypair,
     /// The descriptor signing key certificate.
@@ -239,7 +240,7 @@ impl<'a> HsDesc<'a> {
         string_const: &[u8],
     ) -> Vec<u8> {
         let encrypt = HsDescEncryption {
-            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.as_ref().public).into(),
+            blinded_id: &ed25519::Ed25519Identity::from(self.blinded_id.as_ref()).into(),
             desc_enc_nonce,
             subcredential: &self.subcredential,
             revision: self.revision_counter,
@@ -401,8 +402,9 @@ mod test {
 
         let hs_desc_sign_cert =
             create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
+        let blinded_pk = (&blinded_id).into();
         let builder = HsDescBuilder::default()
-            .blinded_id(&blinded_id)
+            .blinded_id(&blinded_pk)
             .hs_desc_sign(&hs_desc_sign)
             .hs_desc_sign_cert(hs_desc_sign_cert)
             .create2_formats(CREATE2_FORMATS)
@@ -435,7 +437,7 @@ mod test {
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
-            .blinded_id(&blinded_id)
+            .blinded_id(&(&blinded_id).into())
             .hs_desc_sign(&hs_desc_sign)
             .hs_desc_sign_cert(hs_desc_sign_cert)
             // create2_formats is hard-coded rather than extracted from desc, because
@@ -477,7 +479,7 @@ mod test {
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
-            .blinded_id(&blinded_id)
+            .blinded_id(&(&blinded_id).into())
             .hs_desc_sign(&hs_desc_sign)
             .hs_desc_sign_cert(hs_desc_sign_cert)
             // create2_formats is hard-coded rather than extracted from desc, because
