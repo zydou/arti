@@ -6,8 +6,6 @@
 // TODO HSS: this is a (somewhat) general-purpose utiliy, so it should probably be factored out of
 // tor-hsservice
 
-#![allow(dead_code, unused_variables)] // TODO hss remove.
-
 use std::error::Error as StdError;
 use std::future::{self, Future};
 use std::sync::Arc;

@@ -1,8 +1,5 @@
 //! Publish and maintain onion service descriptors
 
-#![allow(clippy::needless_pass_by_value)] // TODO HSS REMOVE.
-#![allow(dead_code, unused_variables)] // TODO hss remove.
-
 mod backoff;
 mod descriptor;
 mod reactor;
@@ -59,9 +56,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     /// and will therefore not upload any descriptors.
     ///
     /// The publisher won't start publishing until you call [`Publisher::launch`].
-    //
-    // TODO HSS: perhaps we don't need both config and config_rx (we could read the initial config
-    // value from config_rx).
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         runtime: R,

@@ -357,7 +357,7 @@ impl IptRelay {
         &mut self,
         imm: &Immutable<R>,
         mockable: &mut M,
-        keymgr: Arc<KeyMgr>,
+        keymgr: &Arc<KeyMgr>,
     ) -> Result<(), FatalError> {
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
@@ -752,11 +752,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
-                ir.make_new_ipt(
-                    &self.imm,
-                    &mut self.state.mockable,
-                    self.state.keymgr.clone(),
-                )?;
+                ir.make_new_ipt(&self.imm, &mut self.state.mockable, &self.state.keymgr)?;
                 return CONTINUE;
             }
         }
@@ -1247,7 +1243,7 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
-        keymgr: Arc<KeyMgr>,
+        keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
 
     /// Call `IptEstablisher::start_accepting`
@@ -1269,10 +1265,10 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
-        keymgr: Arc<KeyMgr>,
+        keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
         IptEstablisher::new(
-            imm.runtime.clone(),
+            &imm.runtime,
             imm.nick.clone(),
             params,
             self.circ_pool.clone(),
@@ -1394,7 +1390,7 @@ mod test {
             &mut self,
             _imm: &Immutable<MockRuntime>,
             _params: IptParameters,
-            _keymgr: Arc<KeyMgr>,
+            _keymgr: &Arc<KeyMgr>,
         ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
             let (st_tx, st_rx) = watch::channel();
             let estab = MockEstabState { st_tx };

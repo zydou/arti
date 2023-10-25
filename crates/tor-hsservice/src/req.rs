@@ -3,8 +3,6 @@
 //! These requests are yielded on a stream, and the calling code needs to decide
 //! whether to permit or reject them.
 
-#![allow(dead_code, unused_variables)] // TODO hss remove.
-
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use std::sync::Arc;
@@ -58,17 +56,11 @@ pub struct RendRequest {
     expanded: once_cell::unsync::OnceCell<rend_handshake::IntroRequest>,
 }
 
-/// The cryptographic state needed to complete an introduce/rendezvous
-/// handshake.
-#[derive(Debug, Clone)]
-struct HandshakeState {
-    // TODO HSS: replace this type or its contents as needed.
-}
-
 /// Information about a proof of work received from a client's introduction
 /// point.
 ///  
 // Todo: use Beth's API instead.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 enum ProofOfWork {
     /// TODO HSS document or replace.
@@ -143,8 +135,6 @@ impl RendRequest {
 
     /// Mark this request as accepted, and try to connect to the client's
     /// provided rendezvous point.
-    ///
-    /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
     pub async fn accept(
         mut self,
     ) -> Result<impl Stream<Item = StreamRequest> + Unpin, ClientError> {
@@ -175,15 +165,13 @@ impl RendRequest {
             on_circuit: circuit.clone(),
         }))
     }
+
     /// Reject this request.  (The client will receive no notification.)
-    ///
-    /// TODO HSS: Should this really be async?  It might be nicer if it weren't.
-    /// TODO HSS: Should this really be fallible?  How might it fail?
     pub async fn reject(self) -> Result<(), Bug> {
         // nothing to do.
         Ok(())
     }
-    //
+
     // TODO HSS: also add various accessors
 }
 
@@ -200,20 +188,21 @@ impl StreamRequest {
             .await
             .map_err(ClientError::AcceptStream)
     }
+
     /// Reject this request, and send the client an `END` message.
-    /// TODO HSS: Should this really be fallible?  How might it fail?
     pub async fn reject(self, end_message: End) -> Result<(), ClientError> {
         self.stream
             .reject(end_message)
             .await
             .map_err(ClientError::RejectStream)
     }
+
     /// Reject this request and close the rendezvous circuit entirely,
     /// along with all other streams attached to the circuit.
-    /// TODO HSS: Should this really be fallible?  How might it fail?
     pub fn shutdown_circuit(self) -> Result<(), Bug> {
         self.on_circuit.terminate();
         Ok(())
     }
+
     // TODO HSS various accessors, including for circuit.
 }

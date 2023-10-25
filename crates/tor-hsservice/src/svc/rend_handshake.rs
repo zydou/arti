@@ -1,7 +1,5 @@
 //! Implementation for the introduce-and-rendezvous handshake.
 
-#![allow(dead_code)] // TODO HSS remove this.
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
