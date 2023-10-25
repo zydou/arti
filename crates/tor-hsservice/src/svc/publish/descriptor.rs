@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use rand_core::{CryptoRng, RngCore};
 
-use tor_error::internal;
+use tor_error::{internal, into_bad_api_usage};
 use tor_hscrypto::pk::{
     HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKey, HsIdKeypair,
 };
@@ -129,7 +129,10 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         &hs_desc_sign.as_ref().public,
         &blind_id_kp,
         hs_desc_sign_cert_expiry,
-    )?;
+    )
+    .map_err(into_bad_api_usage!(
+        "failed to sign the descriptor signing key"
+    ))?;
 
     Ok(HsDescBuilder::default()
         .blinded_id(&(&blind_id_kp).into())
