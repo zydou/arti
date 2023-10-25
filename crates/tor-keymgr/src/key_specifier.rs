@@ -19,9 +19,6 @@ use tor_hscrypto::time::TimePeriod;
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
-//
-// TODO HSS: Create an error type for ArtiPath errors instead of relying on internal!
-// TODO HSS: disallow consecutive `.` to prevent path traversal.
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct ArtiPath(String);
 
@@ -130,7 +127,6 @@ impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
-    // TODO HSS this function (and validate_str) should have a bespoke error type
     pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
         if let Some(e) = inner
             .split(PATH_SEP)
