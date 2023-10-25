@@ -1,6 +1,7 @@
 #![allow(clippy::uninlined_format_args)]
 
 use tor_bytes::Error as BytesError;
+use tor_cell::chancell::msg::HandshakeType;
 /// Example channel messages to encode and decode.
 ///
 /// Except where noted, these were taken by instrumenting Tor
@@ -169,9 +170,13 @@ fn test_create2() {
     let body = "0002 0054 09164430E84D3BC56EC7E1D22734742345E2DECE0DE535B66B8E8A0EBBDAE3263C53E02EC2215685CD3A977DC7946FF47F84CD7025F75D252D1B35DEA28F32FA912513889A207E5049992DBC9BC541194C13624A";
     let handshake = hex::decode("09164430E84D3BC56EC7E1D22734742345E2DECE0DE535B66B8E8A0EBBDAE3263C53E02EC2215685CD3A977DC7946FF47F84CD7025F75D252D1B35DEA28F32FA912513889A207E5049992DBC9BC541194C13624A").unwrap();
 
-    fbody(cmd, body, &msg::Create2::new(2, handshake.clone()).into());
-    let create2 = msg::Create2::new(2, handshake.clone());
-    assert_eq!(create2.handshake_type(), 2);
+    fbody(
+        cmd,
+        body,
+        &msg::Create2::new(HandshakeType::NTOR, handshake.clone()).into(),
+    );
+    let create2 = msg::Create2::new(HandshakeType::NTOR, handshake.clone());
+    assert_eq!(create2.handshake_type(), HandshakeType::NTOR);
     assert_eq!(create2.body(), &handshake[..]);
 }
 

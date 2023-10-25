@@ -33,7 +33,7 @@ use crate::{Error, Result};
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use tor_cell::chancell::msg::{AnyChanMsg, Relay};
+use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
 #[cfg(feature = "hs-service")]
@@ -1097,7 +1097,7 @@ impl Reactor {
         self.channel.check_match(&target)?;
 
         let wrap = Create2Wrap {
-            handshake_type: 0x0002, // ntor
+            handshake_type: HandshakeType::NTOR,
         };
         self.create_impl::<Tor1RelayCrypto, _, _, NtorClient, _>(
             recvcreated,

@@ -237,6 +237,22 @@ impl CreatedFast {
     }
 }
 
+caret_int! {
+    /// Handshake type, corresponding to [`HTYPE` in
+    /// tor-spec](https://spec.torproject.org/tor-spec/create-created-cells.html).
+    pub struct HandshakeType(u16) {
+        /// [TAP](https://spec.torproject.org/tor-spec/create-created-cells.html#TAP) -- the original Tor handshake.
+        TAP = 0,
+
+        // 1 is reserved
+
+        /// [ntor](https://spec.torproject.org/tor-spec/create-created-cells.html#ntor) -- the ntor+curve25519+sha256 handshake.
+        NTOR = 2,
+        /// [ntor-v3](https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3) -- ntor extended with extra data.
+        NTOR_V3 = 3,
+    }
+}
+
 /// A Create2 message create a circuit on the current channel.
 ///
 /// To create a circuit, the client sends a Create2 cell containing a
@@ -248,13 +264,13 @@ impl CreatedFast {
 #[derive(Clone, Debug)]
 pub struct Create2 {
     /// Identifier for what kind of handshake this is.
-    handshake_type: u16,
+    handshake_type: HandshakeType,
     /// Body of the handshake.
     handshake: Vec<u8>,
 }
 impl Body for Create2 {
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        w.write_u16(self.handshake_type);
+        w.write_u16(self.handshake_type.into());
         let handshake_len = self
             .handshake
             .len()
@@ -267,7 +283,7 @@ impl Body for Create2 {
 }
 impl Readable for Create2 {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        let handshake_type = r.take_u16()?;
+        let handshake_type = HandshakeType::from(r.take_u16()?);
         let hlen = r.take_u16()?;
         let handshake = r.take(hlen as usize)?.into();
         Ok(Create2 {
@@ -278,7 +294,7 @@ impl Readable for Create2 {
 }
 impl Create2 {
     /// Wrap a typed handshake as a Create2 message
-    pub fn new<B>(handshake_type: u16, handshake: B) -> Self
+    pub fn new<B>(handshake_type: HandshakeType, handshake: B) -> Self
     where
         B: Into<Vec<u8>>,
     {
@@ -290,7 +306,7 @@ impl Create2 {
     }
 
     /// Return the type of this handshake.
-    pub fn handshake_type(&self) -> u16 {
+    pub fn handshake_type(&self) -> HandshakeType {
         self.handshake_type
     }
 
