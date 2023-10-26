@@ -823,7 +823,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
     fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) {
-        let Some(publish_set) = publish_set else {
+        let Some(publish_set) = &publish_set.ipts else {
             // Nothing to update
             return;
         };
@@ -951,7 +951,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             Some(IPT_PUBLISH_UNCERTAIN)
         };
 
-        *publish_set = if let Some(lifetime) = publish_lifetime {
+        publish_set.ipts = if let Some(lifetime) = publish_lifetime {
             let selected = self.publish_set_select();
             for ipt in &selected {
                 self.state.mockable.start_accepting(&*ipt.establisher);
@@ -1509,12 +1509,12 @@ mod test {
             // We expect it to try to establish 3 IPTs
             const EXPECT_N_IPTS: usize = 3;
             assert_eq!(estabs.lock().unwrap().len(), EXPECT_N_IPTS);
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
 
             // Advancing time a bit and it still shouldn't publish anything
             runtime.advance_by(ms(500)).await;
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
 
             let good = GoodIptDetails {
                 link_specifiers: vec![],
@@ -1535,11 +1535,11 @@ mod test {
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(499)).await;
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(1)).await;
-            match pub_view.borrow_for_publish().as_mut().unwrap() {
+            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), 1);
                     assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
@@ -1551,7 +1551,7 @@ mod test {
                 e.st_tx.borrow_mut().status = IptStatusStatus::Good(good.clone());
             }
             runtime.progress_until_stalled().await;
-            match pub_view.borrow_for_publish().as_mut().unwrap() {
+            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
                     assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));

@@ -16,17 +16,21 @@ use crate::IptLocalId;
 
 use tor_error::internal;
 
-/// Set of introduction points to be advertised in a descriptor (if we are to publish)
-///
-/// If `Some`, the publisher will try to maintain a published descriptor,
-/// of lifetime `lifetime`, listing `ipts`.
-///
-/// If `None`, the publisher will not try to publish.
-/// (Already-published descriptors will not be deleted.)
-///
-/// These instructions ultimately come from
-/// [`IptManager::compute_iptsetstatus_publish`](crate::ipt_mgr::IptManager::compute_iptsetstatus_publish).
-pub(crate) type PublishIptSet = Option<IptSet>;
+/// Information shared between the IPT manager and the IPT publisher
+#[derive(Debug)]
+pub(crate) struct PublishIptSet {
+    /// Set of introduction points to be advertised in a descriptor (if we are to publish)
+    ///
+    /// If `Some`, the publisher will try to maintain a published descriptor,
+    /// of lifetime `lifetime`, listing `ipts`.
+    ///
+    /// If `None`, the publisher will not try to publish.
+    /// (Already-published descriptors will not be deleted.)
+    ///
+    /// These instructions ultimately come from
+    /// [`IptManager::compute_iptsetstatus_publish`](crate::ipt_mgr::IptManager::compute_iptsetstatus_publish).
+    pub(crate) ipts: Option<IptSet>,
+}
 
 /// A set of introduction points for publication
 ///
@@ -179,7 +183,7 @@ struct NotifyingBorrow<'v> {
 
 /// Create a new shared state channel for the publication instructions
 pub(crate) fn ipts_channel() -> (IptsManagerView, IptsPublisherView) {
-    let initial_state = None;
+    let initial_state = PublishIptSet { ipts: None };
     let shared = Arc::new(Mutex::new(initial_state));
     // Zero buffer is right.  Docs for `mpsc::channel` say:
     //   each sender gets a guaranteed slot in the channel capacity,
@@ -370,6 +374,7 @@ mod test {
 
     fn pv_note_publication_attempt(pv: &IptsPublisherView, worst_case_end: Instant) {
         pv.borrow_for_publish()
+            .ipts
             .as_mut()
             .unwrap()
             .note_publication_attempt(worst_case_end)
@@ -377,7 +382,7 @@ mod test {
     }
 
     fn mv_get_0_expiry(mv: &mut IptsManagerView) -> Instant {
-        mv.borrow_for_update().as_ref().unwrap().ipts[0]
+        mv.borrow_for_update().ipts.as_ref().unwrap().ipts[0]
             .last_descriptor_expiry_including_slop
             .unwrap()
     }
@@ -396,18 +401,18 @@ mod test {
             // borrowing publisher view for publish doesn't cause an update
 
             let pg = pv.borrow_for_publish();
-            assert!(pg.is_none());
+            assert!(pg.ipts.is_none());
             drop(pg);
 
             let uv = pv.upload_view();
             let pg = uv.borrow_for_publish();
-            assert!(pg.is_none());
+            assert!(pg.ipts.is_none());
             drop(pg);
 
             // borrowing manager view for update *does* cause one update
 
             let mut mg = mv.borrow_for_update();
-            *mg = Some(IptSet {
+            mg.ipts = Some(IptSet {
                 ipts: vec![],
                 lifetime: Duration::ZERO,
             });
@@ -420,8 +425,9 @@ mod test {
             const LIFETIME: Duration = Duration::from_secs(1800);
             const PUBLISH_END_TIMEOUT: Duration = Duration::from_secs(300);
 
-            mv.borrow_for_update().as_mut().unwrap().lifetime = LIFETIME;
+            mv.borrow_for_update().ipts.as_mut().unwrap().lifetime = LIFETIME;
             mv.borrow_for_update()
+                .ipts
                 .as_mut()
                 .unwrap()
                 .ipts

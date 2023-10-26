@@ -527,7 +527,7 @@ mod test {
                 })
                 .collect();
 
-            *mv.borrow_for_update() = Some(IptSet {
+            mv.borrow_for_update().ipts = Some(IptSet {
                 ipts,
                 lifetime: Duration::from_secs(20),
             });
