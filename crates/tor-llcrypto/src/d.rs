@@ -13,7 +13,7 @@ pub use openssl_compat::Sha1;
 pub use sha1::Sha1;
 
 pub use sha2::{Sha256, Sha512};
-pub use sha3::{Sha3_256, Shake128, Shake256};
+pub use sha3::{Sha3_256, Shake128, Shake256, Shake256Reader};
 
 /// Compatibility layer between OpenSSL and `digest`
 #[cfg(feature = "with-openssl")]
