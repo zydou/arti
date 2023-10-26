@@ -152,7 +152,7 @@ impl HsNtorClientState {
     /// service described in `service_info`.
     ///
     /// Once constructed, this `HsNtorClientState` can be used to construct an
-    /// INTROUDCE1 bodies that can be sent to an introduction point.
+    /// INTRODUCE1 bodies that can be sent to an introduction point.
     pub fn new<R>(rng: &mut R, service_info: HsNtorServiceInfo) -> Self
     where
         R: rand::RngCore + rand::CryptoRng,
