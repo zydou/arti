@@ -65,6 +65,7 @@ use crate::stream::{
 };
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
+use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::{
     chancell::{self, msg::AnyChanMsg, CircId},
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -1071,7 +1072,7 @@ impl CreateHandshakeWrap for CreateFastWrap {
 /// A CreateHandshakeWrap that generates CREATE2 and handles CREATED2
 struct Create2Wrap {
     /// The handshake type to put in the CREATE2 cell.
-    handshake_type: u16,
+    handshake_type: HandshakeType,
 }
 impl CreateHandshakeWrap for Create2Wrap {
     fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {

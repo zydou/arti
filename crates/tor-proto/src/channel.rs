@@ -779,6 +779,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::codec::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::new_reactor;
+    use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{msg, AnyChanCell};
     use tor_rtcompat::PreferredRuntime;
 
@@ -808,7 +809,10 @@ pub(crate) mod test {
             assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CERTS cell after handshake is done"));
 
-            let cell = AnyChanCell::new(CircId::new(5), msg::Create2::new(2, &b"abc"[..]).into());
+            let cell = AnyChanCell::new(
+                CircId::new(5),
+                msg::Create2::new(HandshakeType::NTOR, &b"abc"[..]).into(),
+            );
             let e = chan.check_cell(&cell);
             assert!(e.is_ok());
             // FIXME(eta): more difficult to test that sending works now that it has to go via reactor

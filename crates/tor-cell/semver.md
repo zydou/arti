@@ -21,3 +21,6 @@ MODIFIED: Added `ChanCell::get_or_zero`.
 BREAKING: `ChanCell::circid` now returns `Option<CircId>` instead of `CircId`.
 BREAKING: `ChanCell::into_circid_and_msg` now returns `Option<CircId>` instead of `CircId`.
 MODIFIED: `CircIdRange::sample` can no longer return 0 (previously possible if rng returned 0x8000_0000 when generating into a low range)
+MODIFIED: Added `chancell::msg::HandshakeType`
+BREAKING: `chancell::msg::Create2::new` now takes `HandshakeType` instead of `u16`
+BREAKING: `chancell::msg::Create2::handshake_type` now returns `HandshakeType` instead of `u16`
