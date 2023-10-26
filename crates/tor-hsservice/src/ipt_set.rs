@@ -295,7 +295,7 @@ impl IptsPublisherUploadView {
     }
 }
 
-impl IptSet {
+impl PublishIptSet {
     /// Update all the `last_descriptor_expiry_including_slop` for a publication attempt
     ///
     /// Called by the publisher when it starts a publication attempt
@@ -307,9 +307,14 @@ impl IptSet {
         &mut self,
         worst_case_end: Instant,
     ) -> Result<(), FatalError> {
+        let ipts = self
+            .ipts
+            .as_mut()
+            .ok_or_else(|| internal!("publishing None!"))?;
+
         let new_value = (|| {
             worst_case_end
-                .checked_add(self.lifetime)?
+                .checked_add(ipts.lifetime)?
                 .checked_add(IPT_PUBLISH_EXPIRY_SLOP)
         })()
         .ok_or_else(
@@ -320,7 +325,7 @@ impl IptSet {
             // and should be impossible if we properly checked our parameters.
             || internal!("monotonic clock overflow"),
         )?;
-        for ipt in &mut self.ipts {
+        for ipt in &mut ipts.ipts {
             ipt.last_descriptor_expiry_including_slop = chain!(
                 //
                 ipt.last_descriptor_expiry_including_slop,
@@ -374,9 +379,6 @@ mod test {
 
     fn pv_note_publication_attempt(pv: &IptsPublisherView, worst_case_end: Instant) {
         pv.borrow_for_publish()
-            .ipts
-            .as_mut()
-            .unwrap()
             .note_publication_attempt(worst_case_end)
             .unwrap();
     }

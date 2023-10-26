@@ -1163,7 +1163,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // and generate a fresh descriptor anyway.
                         //
                         // Ideally, this shouldn't happen very often (if at all).
-                        let Some(ipt_set) = ipt_set.ipts.as_mut() else {
+                        let Some(_ipts) = ipt_set.ipts.as_mut() else {
                             // TODO HSS: maybe it's worth defining an separate error type for this.
                             //
                             // This is due to a TOCTOU race: after the check from upload_all succeeds
