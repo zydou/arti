@@ -801,7 +801,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         ///
         /// Requires that a+b is less than usize::MAX.
         ///
-        /// This can be removed once usize::div_ceil is stable.
+        /// This can be removed once the MSRV is >= 1.73.0, which is the version
+        /// that stabilized `std::usize::div_ceil`.
         ///
         /// # Panics
         ///
@@ -825,8 +826,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         const MAX_RESETS: usize = 8;
 
         let circuit_timing = self.circuit_timing();
-        let wait_for_circ = circuit_timing.request_timeout;
-        let timeout_at = self.runtime.now() + wait_for_circ;
+        let timeout_at = self.runtime.now() + circuit_timing.request_timeout;
         let max_tries = circuit_timing.request_max_retries;
         // We compute the maximum number of failures by dividing the maximum
         // number of circuits to attempt by the number that will be launched in
