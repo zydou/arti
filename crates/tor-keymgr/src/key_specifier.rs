@@ -123,6 +123,14 @@ impl KeyPathPattern {
 /// A separator for `ArtiPath`s.
 const PATH_SEP: char = '/';
 
+/// A separator for that marks the beginning of the [`KeyDenotator`]s
+/// within an [`ArtiPath`].
+///
+/// This separator can only appear within the last component of an [`ArtiPath`],
+/// and the substring that follows it is assumed to be the string representation
+/// of the denotators of the path.
+pub const DENOTATOR_SEP: char = '+';
+
 impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
