@@ -9,6 +9,8 @@
 //! channel.
 pub mod codec;
 pub mod msg;
+use std::num::NonZeroU32;
+
 use caret::caret_int;
 
 /// The amount of data sent in a fixed-length cell.
@@ -31,17 +33,19 @@ pub type BoxedCellBody = Box<RawCellBody>;
 ///
 /// A circuit ID can be 2 or 4 bytes long; since version 4 of the Tor
 /// protocol, it's 4 bytes long.
+///
+/// Cannot be zero. For an "optional" circuit ID, use `Option<CircId>`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-pub struct CircId(u32);
+pub struct CircId(NonZeroU32);
 
-impl From<u32> for CircId {
-    fn from(item: u32) -> Self {
+impl From<NonZeroU32> for CircId {
+    fn from(item: NonZeroU32) -> Self {
         Self(item)
     }
 }
 impl From<CircId> for u32 {
     fn from(id: CircId) -> u32 {
-        id.0
+        id.0.get()
     }
 }
 impl std::fmt::Display for CircId {
@@ -50,12 +54,20 @@ impl std::fmt::Display for CircId {
     }
 }
 impl CircId {
-    /// Return true if this is the zero CircId.
+    /// Creates a `CircId` for non-zero `val`.
     ///
-    /// A zero-valid circuit ID denotes a cell that is not related to
-    /// any particular circuit, but which applies to the channel as a whole.
-    pub fn is_zero(&self) -> bool {
-        self.0 == 0
+    /// Returns `None` when `val` is zero. Messages with a zero/None circuit ID
+    /// apply to the channel as a whole.
+    pub fn new(val: u32) -> Option<Self> {
+        NonZeroU32::new(val).map(Self)
+    }
+
+    /// Convenience function to convert to a `u32`; `None` is mapped to 0.
+    pub fn get_or_zero(circ_id: Option<Self>) -> u32 {
+        match circ_id {
+            Some(circ_id) => circ_id.0.get(),
+            None => 0,
+        }
     }
 }
 
@@ -108,9 +120,9 @@ caret_int! {
 /// Possible requirements on circuit IDs for a channel command.
 enum CircIdReq {
     /// indicates a command that only takes a zero-valued circuit ID
-    WantZero,
+    WantNone,
     /// indicates a command that only takes a nonzero-valued circuit ID
-    WantNonZero,
+    WantSome,
     /// indicates a command that can take any circuit ID
     Any,
 }
@@ -135,7 +147,7 @@ impl ChanCmd {
             | ChanCmd::VPADDING
             | ChanCmd::CERTS
             | ChanCmd::AUTH_CHALLENGE
-            | ChanCmd::AUTHENTICATE => CircIdReq::WantZero,
+            | ChanCmd::AUTHENTICATE => CircIdReq::WantNone,
             ChanCmd::CREATE
             | ChanCmd::CREATED
             | ChanCmd::RELAY
@@ -144,17 +156,17 @@ impl ChanCmd {
             | ChanCmd::CREATED_FAST
             | ChanCmd::RELAY_EARLY
             | ChanCmd::CREATE2
-            | ChanCmd::CREATED2 => CircIdReq::WantNonZero,
+            | ChanCmd::CREATED2 => CircIdReq::WantSome,
             _ => CircIdReq::Any,
         }
     }
     /// Return true if this command is one that accepts the particular
     /// circuit ID `id`.
-    pub fn accepts_circid_val(self, id: CircId) -> bool {
-        match (self.allows_circid(), id.is_zero()) {
-            (CircIdReq::WantNonZero, true) => false,
-            (CircIdReq::WantZero, false) => false,
-            (_, _) => true,
+    pub fn accepts_circid_val(self, id: Option<CircId>) -> bool {
+        match self.allows_circid() {
+            CircIdReq::WantNone => id.is_none(),
+            CircIdReq::WantSome => id.is_some(),
+            CircIdReq::Any => true,
         }
     }
 }
@@ -182,19 +194,19 @@ pub trait ChanMsg {
 /// A decoded channel cell, to be sent or received on a channel.
 #[derive(Debug)]
 pub struct ChanCell<M> {
-    /// Circuit ID associated with this cell
-    circid: CircId,
+    /// Circuit ID associated with this cell, if any.
+    circid: Option<CircId>,
     /// Underlying message in this cell
     msg: M,
 }
 
 impl<M: ChanMsg> ChanCell<M> {
     /// Construct a new channel cell.
-    pub fn new(circid: CircId, msg: M) -> Self {
+    pub fn new(circid: Option<CircId>, msg: M) -> Self {
         ChanCell { circid, msg }
     }
     /// Return the circuit ID for this cell.
-    pub fn circid(&self) -> CircId {
+    pub fn circid(&self) -> Option<CircId> {
         self.circid
     }
     /// Return a reference to the underlying message of this cell.
@@ -202,7 +214,7 @@ impl<M: ChanMsg> ChanCell<M> {
         &self.msg
     }
     /// Consume this cell and return its components.
-    pub fn into_circid_and_msg(self) -> (CircId, M) {
+    pub fn into_circid_and_msg(self) -> (Option<CircId>, M) {
         (self.circid, self.msg)
     }
 }

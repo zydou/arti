@@ -1,5 +1,7 @@
 //! Implementation for parsing and encoding relay cells
 
+use std::num::NonZeroU16;
+
 use crate::chancell::{BoxedCellBody, CELL_DATA_LEN};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Reader, Writer};
@@ -87,9 +89,9 @@ caret_int! {
 /// Possible requirements on stream IDs for a relay command.
 enum StreamIdReq {
     /// Can only be used with a stream ID of 0
-    WantZero,
+    WantNone,
     /// Can only be used with a stream ID that isn't 0
-    WantNonZero,
+    WantSome,
     /// Can be used with any stream ID
     Any,
 }
@@ -105,10 +107,10 @@ impl RelayCmd {
             | RelayCmd::CONNECTED
             | RelayCmd::RESOLVE
             | RelayCmd::RESOLVED
-            | RelayCmd::BEGIN_DIR => StreamIdReq::WantNonZero,
+            | RelayCmd::BEGIN_DIR => StreamIdReq::WantSome,
             #[cfg(feature = "experimental-udp")]
             RelayCmd::CONNECT_UDP | RelayCmd::CONNECTED_UDP | RelayCmd::DATAGRAM => {
-                StreamIdReq::WantNonZero
+                StreamIdReq::WantSome
             }
             RelayCmd::EXTEND
             | RelayCmd::EXTENDED
@@ -125,18 +127,18 @@ impl RelayCmd {
             | RelayCmd::RENDEZVOUS2
             | RelayCmd::INTRO_ESTABLISHED
             | RelayCmd::RENDEZVOUS_ESTABLISHED
-            | RelayCmd::INTRODUCE_ACK => StreamIdReq::WantZero,
+            | RelayCmd::INTRODUCE_ACK => StreamIdReq::WantNone,
             RelayCmd::SENDME => StreamIdReq::Any,
             _ => StreamIdReq::Any,
         }
     }
     /// Return true if this command is one that accepts the particular
     /// stream ID `id`
-    pub fn accepts_streamid_val(self, id: StreamId) -> bool {
-        match (self.expects_streamid(), id.is_zero()) {
-            (StreamIdReq::WantNonZero, true) => false,
-            (StreamIdReq::WantZero, false) => false,
-            (_, _) => true,
+    pub fn accepts_streamid_val(self, id: Option<StreamId>) -> bool {
+        match self.expects_streamid() {
+            StreamIdReq::WantNone => id.is_none(),
+            StreamIdReq::WantSome => id.is_some(),
+            StreamIdReq::Any => true,
         }
     }
 }
@@ -144,23 +146,26 @@ impl RelayCmd {
 /// Identify a single stream on a circuit.
 ///
 /// These identifiers are local to each hop on a circuit.
-//
-// TODO: perhaps StreamId should be a NonZeroU16. This would require some big
-// refactoring, though, as 0_u16 would now encode the absence of a StreamId.  It
-// might make sense to do this concurrently with our prop340 implementation, and
-// a similar change in CircuitId.
+/// This can't be zero; if you need something that can be zero in the protocol,
+/// use `Option<StreamId>`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-pub struct StreamId(u16);
+pub struct StreamId(NonZeroU16);
 
-impl From<u16> for StreamId {
-    fn from(v: u16) -> StreamId {
-        StreamId(v)
+impl From<NonZeroU16> for StreamId {
+    fn from(id: NonZeroU16) -> Self {
+        Self(id)
+    }
+}
+
+impl From<StreamId> for NonZeroU16 {
+    fn from(id: StreamId) -> NonZeroU16 {
+        id.0
     }
 }
 
 impl From<StreamId> for u16 {
     fn from(id: StreamId) -> u16 {
-        id.0
+        id.0.get()
     }
 }
 
@@ -171,12 +176,20 @@ impl std::fmt::Display for StreamId {
 }
 
 impl StreamId {
-    /// Return true if this is the zero StreamId.
+    /// Creates a `StreamId` for non-zero `stream_id`.
     ///
-    /// A zero-valid circuit ID denotes a relay message that is not related to
-    /// any particular stream, but which applies to the circuit as a whole.
-    pub fn is_zero(&self) -> bool {
-        self.0 == 0
+    /// Returns `None` when `stream_id` is zero. Messages with a zero/None stream ID
+    /// apply to the circuit as a whole instead of a particular stream.
+    pub fn new(stream_id: u16) -> Option<Self> {
+        NonZeroU16::new(stream_id).map(Self)
+    }
+
+    /// Convenience function to convert to a `u16`; `None` is mapped to 0.
+    pub fn get_or_zero(stream_id: Option<Self>) -> u16 {
+        match stream_id {
+            Some(stream_id) => stream_id.0.get(),
+            None => 0,
+        }
     }
 }
 
@@ -215,14 +228,13 @@ impl UnparsedRelayCell {
         const CMD_OFFSET: usize = 0;
         self.body[CMD_OFFSET].into()
     }
-    /// Return the stream ID for the stream that this cell corresponds to.
-    pub fn stream_id(&self) -> StreamId {
-        u16::from_be_bytes(
+    /// Return the stream ID for the stream that this cell corresponds to, if any.
+    pub fn stream_id(&self) -> Option<StreamId> {
+        StreamId::new(u16::from_be_bytes(
             self.body[STREAM_ID_OFFSET..STREAM_ID_OFFSET + 2]
                 .try_into()
                 .expect("two-byte slice was not two bytes long!?"),
-        )
-        .into()
+        ))
     }
     /// Decode this unparsed cell into a given cell type.
     pub fn decode<M: RelayMsg>(self) -> Result<RelayCell<M>> {
@@ -256,18 +268,18 @@ pub trait RelayMsg {
 #[derive(Debug)]
 pub struct RelayCell<M> {
     /// The stream ID for the stream that this cell corresponds to.
-    streamid: StreamId,
+    streamid: Option<StreamId>,
     /// The relay message for this cell.
     msg: M,
 }
 
 impl<M: RelayMsg> RelayCell<M> {
     /// Construct a new relay cell.
-    pub fn new(streamid: StreamId, msg: M) -> Self {
+    pub fn new(streamid: Option<StreamId>, msg: M) -> Self {
         RelayCell { streamid, msg }
     }
     /// Consume this cell and return its components.
-    pub fn into_streamid_and_msg(self) -> (StreamId, M) {
+    pub fn into_streamid_and_msg(self) -> (Option<StreamId>, M) {
         (self.streamid, self.msg)
     }
     /// Return the command for this cell.
@@ -275,7 +287,7 @@ impl<M: RelayMsg> RelayCell<M> {
         self.msg.cmd()
     }
     /// Return the stream ID for the stream that this cell corresponds to.
-    pub fn stream_id(&self) -> StreamId {
+    pub fn stream_id(&self) -> Option<StreamId> {
         self.streamid
     }
     /// Return the underlying message for this cell.
@@ -332,7 +344,7 @@ impl<M: RelayMsg> RelayCell<M> {
             w.offset().expect("Overflowed a cell with just the header!"),
             STREAM_ID_OFFSET
         );
-        w.write_u16(self.streamid.0);
+        w.write_u16(StreamId::get_or_zero(self.streamid));
         w.write_u32(0); // Digest
                         // (It would be simpler to use NestedWriter at this point, but it uses an internal Vec that we are trying to avoid.)
         debug_assert_eq!(
@@ -374,7 +386,7 @@ impl<M: RelayMsg> RelayCell<M> {
     pub fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let cmd = r.take_u8()?.into();
         r.advance(2)?; // "recognized"
-        let streamid = StreamId(r.take_u16()?);
+        let streamid = StreamId::new(r.take_u16()?);
         r.advance(4)?; // digest
         let len = r.take_u16()? as usize;
         if r.remaining() < len {

@@ -1152,7 +1152,7 @@ macro_rules! msg_into_cell {
         impl From<$body> for super::AnyChanCell {
             fn from(body: $body) -> super::AnyChanCell {
                 super::AnyChanCell {
-                    circid: 0.into(),
+                    circid: None,
                     msg: body.into(),
                 }
             }

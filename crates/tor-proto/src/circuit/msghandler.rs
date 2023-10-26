@@ -79,7 +79,7 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
             err,
         })?;
         let (stream_id, msg) = cell.into_streamid_and_msg();
-        if stream_id != 0.into() {
+        if stream_id.is_some() {
             return Err(Error::CircProto(format!(
                 "Invalid message type {} received with stream ID",
                 msg.cmd()
