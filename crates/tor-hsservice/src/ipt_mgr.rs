@@ -1488,7 +1488,7 @@ mod test {
                 estabs: estabs.clone(),
             };
 
-            let (mgr_view, pub_view) = ipt_set::ipts_channel(None);
+            let (mgr_view, pub_view) = ipt_set::ipts_channel();
 
             let keymgr = Arc::new(KeyMgr::new(TestKeystore, Default::default()));
             let mgr = IptManager::new(

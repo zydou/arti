@@ -178,7 +178,8 @@ struct NotifyingBorrow<'v> {
 }
 
 /// Create a new shared state channel for the publication instructions
-pub(crate) fn ipts_channel(initial_state: PublishIptSet) -> (IptsManagerView, IptsPublisherView) {
+pub(crate) fn ipts_channel() -> (IptsManagerView, IptsPublisherView) {
+    let initial_state = None;
     let shared = Arc::new(Mutex::new(initial_state));
     // Zero buffer is right.  Docs for `mpsc::channel` say:
     //   each sender gets a guaranteed slot in the channel capacity,
@@ -389,7 +390,7 @@ mod test {
         runtime.clone().block_on(async move {
             // make a channel; it should have no updates yet
 
-            let (mut mv, mut pv) = ipts_channel(None);
+            let (mut mv, mut pv) = ipts_channel();
             assert!(matches!(pv_poll_await_update(&mut pv).await, Pending));
 
             // borrowing publisher view for publish doesn't cause an update

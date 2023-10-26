@@ -148,7 +148,7 @@ impl OnionService {
 
         // TODO HSS: How do I give ipt_mgr_view to ipt_mgr?  Does IptManager even take
         //          one of these?
-        let (ipt_mgr_view, publisher_view) = crate::ipt_set::ipts_channel(None);
+        let (ipt_mgr_view, publisher_view) = crate::ipt_set::ipts_channel();
 
         let ipt_mgr = IptManager::new(
             runtime.clone(),
