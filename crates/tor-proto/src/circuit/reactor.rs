@@ -27,6 +27,9 @@ use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
     OutboundClientLayer, RelayCellBody, Tor1RelayCrypto,
 };
+use crate::crypto::handshake::fast::CreateFastClient;
+#[cfg(feature = "ntor_v3")]
+use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
@@ -62,6 +65,7 @@ use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
 use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
+use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
 use tracing::{debug, trace, warn};
@@ -92,6 +96,12 @@ pub(super) enum CircuitHandshake {
         /// The Ed25519 identity of the relay, which is verified against the
         /// identity held in the circuit's channel.
         ed_identity: pk::ed25519::Ed25519Identity,
+    },
+    /// Use the ntor-v3 handshake.
+    #[cfg(feature = "ntor_v3")]
+    NtorV3 {
+        /// The public key of the relay.
+        public_key: NtorV3PublicKey,
     },
 }
 
@@ -940,6 +950,11 @@ impl Reactor {
                 self.create_firsthop_ntor(recv_created, ed_identity, public_key, params)
                     .await
             }
+            #[cfg(feature = "ntor_v3")]
+            CircuitHandshake::NtorV3 { public_key } => {
+                self.create_firsthop_ntor_v3(recv_created, public_key, params)
+                    .await
+            }
         };
         let _ = done.send(ret); // don't care if sender goes away
 
@@ -1110,6 +1125,41 @@ impl Reactor {
             &pubkey,
             params,
             &(),
+        )
+        .await
+    }
+
+    /// Use the ntor-v3 handshake to connect to the first hop of this circuit.
+    ///
+    /// Note that the provided key must match the channel's target,
+    /// or the handshake will fail.
+    #[cfg(feature = "ntor_v3")]
+    async fn create_firsthop_ntor_v3(
+        &mut self,
+        recvcreated: oneshot::Receiver<CreateResponse>,
+        pubkey: NtorV3PublicKey,
+        params: &CircParameters,
+    ) -> Result<()> {
+        // Exit now if we have a mismatched key.
+        let target = RelayIds::builder()
+            .ed_identity(pubkey.id)
+            .build()
+            .expect("Unable to build RelayIds");
+        self.channel.check_match(&target)?;
+
+        // TODO: Set client extensions. e.g. request congestion control
+        // if specified in `params`.
+        let client_extensions = [];
+
+        let wrap = Create2Wrap {
+            handshake_type: HandshakeType::NTOR_V3,
+        };
+        self.create_impl::<Tor1RelayCrypto, _, _, NtorV3Client, _, _>(
+            recvcreated,
+            &wrap,
+            &pubkey,
+            params,
+            &client_extensions,
         )
         .await
     }
