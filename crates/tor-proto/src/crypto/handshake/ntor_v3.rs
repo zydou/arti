@@ -17,7 +17,7 @@ use crate::util::ct;
 use crate::{Error, Result};
 use tor_bytes::{EncodeResult, Reader, SecretBuf, Writeable, Writer};
 use tor_error::into_internal;
-use tor_llcrypto::d::{Sha3_256, Shake256};
+use tor_llcrypto::d::{Sha3_256, Shake256, Shake256Reader};
 use tor_llcrypto::pk::{curve25519, ed25519::Ed25519Identity};
 use tor_llcrypto::util::{ct::ct_lookup, rand_compat::RngCompatExt};
 
@@ -56,6 +56,15 @@ type MacVal = [u8; MAC_LEN];
 type EncKey = Zeroizing<[u8; ENC_KEY_LEN]>;
 /// A key for message authentication codes.
 type MacKey = [u8; MAC_KEY_LEN];
+
+/// Opaque wrapper type for NtorV3's hash reader.
+struct NtorV3XofReader(Shake256Reader);
+
+impl digest::XofReader for NtorV3XofReader {
+    fn read(&mut self, buffer: &mut [u8]) {
+        self.0.read(buffer);
+    }
+}
 
 /// An encapsulated value for passing as input to a MAC, digest, or
 /// KDF algorithm.
@@ -244,10 +253,7 @@ impl NtorV3Client {
     fn client2<T: AsRef<[u8]>>(
         state: &NtorV3HandshakeState,
         msg: T,
-    ) -> Result<(
-        Vec<NtorV3Extension>,
-        NtorV3KeyGenerator<impl digest::XofReader>,
-    )> {
+    ) -> Result<(Vec<NtorV3Extension>, NtorV3KeyGenerator)> {
         let (message, xofreader) =
             client_handshake_ntor_v3_part2(state, msg.as_ref(), NTOR3_CIRC_VERIFICATION)?;
         let extensions = NtorV3Extension::decode(&message).map_err(|err| Error::CellDecodeErr {
@@ -309,15 +315,14 @@ pub(crate) struct NtorV3HandshakeState {
 }
 
 /// A key generator returned from an ntor v3 handshake.
-///
-/// The type parameter is usually `impl digest::XofReader`.
-pub(crate) struct NtorV3KeyGenerator<R> {
+pub(crate) struct NtorV3KeyGenerator {
     /// The underlying `digest::XofReader`.
-    reader: R,
+    reader: NtorV3XofReader,
 }
 
-impl<R: digest::XofReader> KeyGenerator for NtorV3KeyGenerator<R> {
+impl KeyGenerator for NtorV3KeyGenerator {
     fn expand(mut self, keylen: usize) -> Result<SecretBuf> {
+        use digest::XofReader;
         let mut ret: SecretBuf = vec![0; keylen].into();
         self.reader.read(ret.as_mut());
         Ok(ret)
@@ -416,7 +421,7 @@ fn server_handshake_ntor_v3<RNG: CryptoRng + RngCore, REPLY: MsgReply>(
     message: &[u8],
     keys: &[NtorV3SecretKey],
     verification: &[u8],
-) -> RelayHandshakeResult<(Vec<u8>, impl digest::XofReader)> {
+) -> RelayHandshakeResult<(Vec<u8>, NtorV3XofReader)> {
     let secret_key_y = curve25519::StaticSecret::new(rng.rng_compat());
     server_handshake_ntor_v3_no_keygen(reply_fn, &secret_key_y, message, keys, verification)
 }
@@ -428,7 +433,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     message: &[u8],
     keys: &[NtorV3SecretKey],
     verification: &[u8],
-) -> RelayHandshakeResult<(Vec<u8>, impl digest::XofReader)> {
+) -> RelayHandshakeResult<(Vec<u8>, NtorV3XofReader)> {
     // Decode the message.
     let mut r = Reader::from_slice(message);
     let id: Ed25519Identity = r.extract()?;
@@ -536,7 +541,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     };
 
     if okay.into() {
-        Ok((reply, keystream))
+        Ok((reply, NtorV3XofReader(keystream)))
     } else {
         Err(RelayHandshakeError::BadClientHandshake)
     }
@@ -553,7 +558,7 @@ fn client_handshake_ntor_v3_part2(
     state: &NtorV3HandshakeState,
     relay_handshake: &[u8],
     verification: &[u8],
-) -> Result<(Vec<u8>, impl digest::XofReader)> {
+) -> Result<(Vec<u8>, NtorV3XofReader)> {
     let mut reader = Reader::from_slice(relay_handshake);
     let y_pk: curve25519::PublicKey = reader
         .extract()
@@ -617,7 +622,7 @@ fn client_handshake_ntor_v3_part2(
     let server_reply = decrypt(&enc_key, encrypted_msg);
 
     if okay.into() {
-        Ok((server_reply, keystream))
+        Ok((server_reply, NtorV3XofReader(keystream)))
     } else {
         Err(Error::BadCircHandshakeAuth)
     }
