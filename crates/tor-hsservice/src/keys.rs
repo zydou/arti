@@ -3,11 +3,94 @@
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::{
     ArtiPath, ArtiPathUnavailableError, CTorPath, KeyDenotator, KeyPathPattern, KeySpecifier,
+    define_key_specifier,
 };
 
 use derive_more::Display;
 
 use crate::HsNickname;
+
+/// A helper for defining service [`KeySpecifier`]s.
+///
+/// This macro creates a `key_spec` struct that in addition to the specified fields and denotators,
+/// also contains an `&HsNickname` field. The `prefix` value of the resulting `key_spec` is
+/// set to `"hs"`.
+///
+/// The resulting `key_spec` implements [`KeySpecifier`](tor_keymgr::KeySpecifier).
+///
+/// This is essentially a convenience  wrapper around [`define_key_specifier`],
+/// which inserts the `&HsNickname` field (which is common to all service key specifiers)
+/// into the struct.
+macro_rules! define_svc_key_specifier {
+    {
+        #[role = $role:expr]
+        $( #[ $($attrs:meta)* ] )*
+        $vis:vis struct $key_spec:ident $( [ $($gen:tt)+ ] )?
+        $( where [ $($where_clauses:tt)* ] )?
+        {
+            #[denotator]
+            $( #[ $($denotator_attrs:meta)* ] )*
+            $denotator:ident : $denotator_ty:ty,
+
+            $(
+                $( #[ $($field_attrs:meta)* ] )*
+                $field:ident : $field_ty:ty,
+            )*
+        }
+    } => {
+        define_key_specifier! {
+            #[prefix = "hs"]
+            #[role = $role]
+            $(#[ $($attrs)* ])*
+            $vis struct $key_spec [ 'a $(, $($gen)+ )? ]
+            $( where $($where_clauses)* )?
+            {
+                #[denotator]
+                $( #[ $($denotator_attrs)* ] )*
+                $denotator: $denotator_ty,
+
+                /// The nickname of the  hidden service.
+                nickname: &'a HsNickname,
+
+                $(
+                    $( #[ $($field_attrs)* ] )*
+                    $field: $field_ty,
+                )*
+
+            }
+        }
+    };
+
+    {
+        #[role = $role:expr]
+        $( #[ $($attrs:meta)* ] )*
+        $vis:vis struct $key_spec:ident $( [ $($gen:tt)+ ] )?
+        $( where [ $($where_clauses:tt)* ] )?
+        {
+            $(
+                $( #[ $($field_attrs:meta)* ] )*
+                $field:ident : $field_ty:ty,
+            )*
+        }
+    } => {
+        define_key_specifier! {
+            #[prefix = "hs"]
+            #[role = $role]
+            $(#[ $($attrs)* ])*
+            $vis struct $key_spec [ 'a $(, $($gen)+ )? ]
+            $( where $($where_clauses)* )?
+            {
+                /// The nickname of the  hidden service.
+                nickname: &'a HsNickname,
+
+                $(
+                    $( #[ $($field_attrs)* ] )*
+                    $field: $field_ty,
+                )*
+            }
+        }
+    };
+}
 
 /// An identifier for a particular instance of a hidden service key.
 #[derive(Clone, Debug, PartialEq)]
