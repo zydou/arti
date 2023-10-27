@@ -1,7 +1,7 @@
 //! [`KeySpecifier`] implementations for hidden service keys.
 
 use tor_hscrypto::time::TimePeriod;
-use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeyPathPattern, KeySpecifier};
+use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeyDenotator, KeyPathPattern, KeySpecifier};
 
 use derive_more::Display;
 
@@ -32,48 +32,6 @@ mod sealed {
 }
 
 use sealed::Sealed;
-
-/// A trait for displaying key denotators, for use within an [`ArtiPath`]
-/// or [`CTorPath`].
-///
-/// A key's denotators *denote* an instance of a key.
-pub trait KeyDenotator: Sealed {
-    /// Display the denotators in a format that can be used within an
-    /// [`ArtiPath`] or [`CTorPath`].
-    fn display(&self) -> String;
-
-    /// Return a glob pattern that matches the key denotators, if there are any.
-    fn glob() -> String;
-}
-
-impl Sealed for TimePeriod {}
-
-impl KeyDenotator for TimePeriod {
-    fn display(&self) -> String {
-        format!(
-            "{}_{}_{}",
-            self.interval_num(),
-            self.length(),
-            self.epoch_offset_in_sec()
-        )
-    }
-
-    fn glob() -> String {
-        "*_*_*".into()
-    }
-}
-
-impl Sealed for () {}
-
-impl KeyDenotator for () {
-    fn display(&self) -> String {
-        "".into()
-    }
-
-    fn glob() -> String {
-        "".into()
-    }
-}
 
 impl<'a, R: HsSvcKeyRole> HsSvcKeySpecifier<'a, R> {
     /// Create a new specifier for service the service with the specified `nickname`.

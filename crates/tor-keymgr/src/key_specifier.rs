@@ -6,6 +6,7 @@ use std::result::Result as StdResult;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tor_hscrypto::time::TimePeriod;
 
 /// The path of a key in the Arti key store.
 ///
@@ -320,6 +321,44 @@ impl KeySpecifier for KeyPath {
             KeyPath::Arti(p) => p.ctor_path(),
             KeyPath::CTor(p) => p.ctor_path(),
         }
+    }
+}
+
+/// A trait for displaying key denotators, for use within an [`ArtiPath`]
+/// or [`CTorPath`].
+///
+/// A key's denotators *denote* an instance of a key.
+pub trait KeyDenotator {
+    /// Display the denotators in a format that can be used within an
+    /// [`ArtiPath`] or [`CTorPath`].
+    fn display(&self) -> String;
+
+    /// Return a glob pattern that matches the key denotators, if there are any.
+    fn glob() -> String;
+}
+
+impl KeyDenotator for TimePeriod {
+    fn display(&self) -> String {
+        format!(
+            "{}_{}_{}",
+            self.interval_num(),
+            self.length(),
+            self.epoch_offset_in_sec()
+        )
+    }
+
+    fn glob() -> String {
+        "*_*_*".into()
+    }
+}
+
+impl KeyDenotator for () {
+    fn display(&self) -> String {
+        "".into()
+    }
+
+    fn glob() -> String {
+        "".into()
     }
 }
 

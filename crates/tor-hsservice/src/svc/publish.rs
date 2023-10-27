@@ -193,7 +193,7 @@ mod test {
     use tor_basic_utils::test_rng::{testing_rng, TestingRng};
     use tor_circmgr::hspool::HsCircKind;
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
-    use tor_keymgr::{ArtiNativeKeystore, ToEncodableKey};
+    use tor_keymgr::{ArtiNativeKeystore, KeyDenotator, ToEncodableKey};
     use tor_llcrypto::pk::{ed25519, rsa};
     use tor_llcrypto::util::rand_compat::RngCompatExt;
     use tor_netdir::testprovider::TestNetDirProvider;
@@ -206,7 +206,7 @@ mod test {
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
     use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
     use crate::svc::publish::reactor::MockableClientCirc;
-    use crate::{Anonymity, HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, IptLocalId, KeyDenotator};
+    use crate::{Anonymity, HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, IptLocalId};
 
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";

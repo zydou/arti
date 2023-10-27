@@ -75,7 +75,7 @@ pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
 pub use keys::{
-    HsSvcHsIdKeyRole, HsSvcKeyRole, HsSvcKeyRoleWithTimePeriod, HsSvcKeySpecifier, KeyDenotator,
+    HsSvcHsIdKeyRole, HsSvcKeyRole, HsSvcKeyRoleWithTimePeriod, HsSvcKeySpecifier,
 };
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{RendRequest, StreamRequest};
