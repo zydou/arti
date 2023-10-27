@@ -2,8 +2,8 @@
 
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::{
-    ArtiPath, ArtiPathUnavailableError, CTorPath, KeyDenotator, KeyPathPattern, KeySpecifier,
-    define_key_specifier,
+    define_key_specifier, ArtiPath, ArtiPathUnavailableError, CTorPath, KeyDenotator,
+    KeyPathPattern, KeySpecifier,
 };
 
 use derive_more::Display;
