@@ -309,8 +309,7 @@ fn compute_subcredentials(
         .get::<HsIdKey>(&hsid_key_spec)?
         .ok_or_else(|| FatalError::MissingKey(hsid_key_spec.role().to_string()))?;
 
-    let blind_id_pat =
-        BlindIdKeypairSpecifier::arti_pattern(&nickname);
+    let blind_id_pat = BlindIdKeypairSpecifier::arti_pattern(&nickname);
 
     let pattern = KeyPathPatternSet::new(
         blind_id_pat,

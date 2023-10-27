@@ -39,7 +39,7 @@ use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::{HsNickname, BlindIdKeypairSpecifier, HsIdKeypairSpecifier};
+use crate::{BlindIdKeypairSpecifier, HsIdKeypairSpecifier, HsNickname};
 
 /// The upload rate-limiting threshold.
 ///
@@ -775,19 +775,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .hs_all_time_periods()
             .iter()
             .map(|period| {
-                let svc_key_spec =
-                    HsIdKeypairSpecifier::new(&self.imm.nickname);
+                let svc_key_spec = HsIdKeypairSpecifier::new(&self.imm.nickname);
                 let hsid_kp = self
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
-                    .ok_or_else(|| {
-                        ReactorError::MissingKey(svc_key_spec.role().to_string())
-                    })?;
-                let svc_key_spec = BlindIdKeypairSpecifier::new(
-                    &self.imm.nickname,
-                    *period,
-                );
+                    .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+                let svc_key_spec = BlindIdKeypairSpecifier::new(&self.imm.nickname, *period);
 
                 // TODO HSS: make this configurable
                 let keystore_selector = Default::default();
