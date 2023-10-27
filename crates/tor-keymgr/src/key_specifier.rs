@@ -639,6 +639,16 @@ mod test {
         }};
     }
 
+    impl KeyDenotator for usize {
+        fn display(&self) -> String {
+            self.to_string()
+        }
+
+        fn glob() -> String {
+            "*".to_string()
+        }
+    }
+
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn arti_path_validation() {
@@ -745,5 +755,101 @@ mod test {
         );
         assert_eq!(path.substring(&(0..KEY_PATH.len() + 1).into()), None);
         assert_eq!(path.substring(&(0..0).into()).unwrap(), "");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_with_fields_and_denotator() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "marzlevane"]
+            struct TestSpecifier {
+                #[denotator]
+                /// The denotator.
+                count: usize,
+
+                // The remaining fields
+                kind: String,
+                base: String,
+                casing: String,
+            }
+        );
+
+        let key_spec = TestSpecifier {
+            kind: "hydrocoptic".into(),
+            base: "waneshaft".into(),
+            casing: "logarithmic".into(),
+            count: 6,
+        };
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane_6"
+        );
+        assert_eq!(key_spec.role(), "marzlevane");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_no_fields() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "marzlevane"]
+            struct TestSpecifier {}
+        );
+
+        let key_spec = TestSpecifier {};
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/marzlevane"
+        );
+        assert_eq!(key_spec.role(), "marzlevane");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_with_denotator() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "marzlevane"]
+            struct TestSpecifier {
+                #[denotator]
+                count: usize,
+            }
+        );
+
+        let key_spec = TestSpecifier { count: 6 };
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/marzlevane_6"
+        );
+        assert_eq!(key_spec.role(), "marzlevane");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_with_fields() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "fan"]
+            struct TestSpecifier {
+                casing: String,
+                /// A doc comment.
+                bearings: String,
+            }
+        );
+
+        let key_spec = TestSpecifier {
+            casing: "logarithmic".into(),
+            bearings: "spurving".into(),
+        };
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/logarithmic/spurving/fan"
+        );
+        assert_eq!(key_spec.role(), "fan");
     }
 }
