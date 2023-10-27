@@ -36,11 +36,10 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
-use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::{HsNickname, HsSvcKeySpecifier};
+use crate::{HsNickname, BlindIdKeypairSpecifier, HsIdKeypairSpecifier};
 
 /// The upload rate-limiting threshold.
 ///
@@ -777,17 +776,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .map(|period| {
                 let svc_key_spec =
-                    HsSvcKeySpecifier::new(&self.imm.nickname, HsSvcHsIdKeyRole::HsIdKeypair);
+                    HsIdKeypairSpecifier::new(&self.imm.nickname);
                 let hsid_kp = self
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
                     .ok_or_else(|| {
-                        ReactorError::MissingKey(HsSvcHsIdKeyRole::HsIdKeypair.to_string())
+                        ReactorError::MissingKey(svc_key_spec.role().to_string())
                     })?;
-                let svc_key_spec = HsSvcKeySpecifier::with_denotators(
+                let svc_key_spec = BlindIdKeypairSpecifier::new(
                     &self.imm.nickname,
-                    HsSvcKeyRoleWithTimePeriod::BlindIdKeypair,
                     *period,
                 );
 

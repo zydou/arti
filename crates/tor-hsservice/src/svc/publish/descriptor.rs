@@ -18,9 +18,11 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
-use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
 use crate::svc::publish::reactor::{AuthorizedClientConfigError, ReactorError};
-use crate::{HsSvcKeySpecifier, OnionServiceConfig};
+use crate::{
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier,
+    OnionServiceConfig,
+};
 
 // TODO HSS: Dummy types that should be implemented elsewhere.
 
@@ -63,15 +65,14 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let nickname = &config.nickname;
 
-    let svc_key_spec = HsSvcKeySpecifier::new(nickname, HsSvcHsIdKeyRole::HsIdKeypair);
+    let svc_key_spec = HsIdKeypairSpecifier::new(nickname);
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingKey(HsSvcHsIdKeyRole::HsIdKeypair.to_string()))?;
+        .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
     let hsid = HsIdKey::from(&hsid_kp);
 
-    let blind_id_key_spec = HsSvcKeySpecifier::with_denotators(
+    let blind_id_key_spec = BlindIdKeypairSpecifier::new(
         nickname,
-        HsSvcKeyRoleWithTimePeriod::BlindIdKeypair,
         period,
     );
 
@@ -91,9 +92,8 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
 
-    let hs_desc_sign_key_spec = HsSvcKeySpecifier::with_denotators(
+    let hs_desc_sign_key_spec = DescSigningKeypairSpecifier::new(
         nickname,
-        HsSvcKeyRoleWithTimePeriod::DescSigningKeypair,
         period,
     );
     let hs_desc_sign = keymgr.get_or_generate::<HsDescSigningKeypair>(
