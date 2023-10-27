@@ -24,9 +24,6 @@ pub(super) struct HsDescOuter<'a> {
     /// The short-term descriptor signing key.
     pub(super) hs_desc_sign: &'a ed25519::Keypair,
     /// The descriptor signing key certificate.
-    ///
-    /// This certiciate can be created using
-    /// [`create_desc_sign_key_cert`](crate::create_desc_sign_key_cert).
     pub(super) hs_desc_sign_cert: EncodedEd25519Cert,
     /// The lifetime of this descriptor, in minutes.
     ///
