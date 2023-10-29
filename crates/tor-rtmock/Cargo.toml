@@ -40,7 +40,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", features = ["tokio", "native-tls"] }
 
 [features]
-full = ["tor-rtcompat/full", "tor-error/full"]
+full = ["tor-rtcompat/full", "tor-error/full", "tor-async-utils/full"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

@@ -42,7 +42,7 @@ full = [
     "tor-error/full",
     "tor-rtcompat/full",
     "tor-socksproto/full",
-    "tor-rpcbase?/full",
+    "tor-rpcbase?/full", "tor-hsrproxy?/full", "tor-hsservice?/full",
 ]
 
 async-std = [

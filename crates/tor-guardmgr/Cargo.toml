@@ -28,7 +28,7 @@ full = [
     "tor-proto/full",
     "tor-protover?/full",
     "tor-rtcompat/full",
-    "tor-units/full",
+    "tor-units/full", "tor-async-utils/full",
 ]
 experimental = ["testing"]
 

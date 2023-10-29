@@ -28,7 +28,7 @@ full = [
     "tor-proto/full",
     "tor-rtcompat/full",
     "tor-socksproto/full",
-    "tor-units/full",
+    "tor-units/full", "tor-async-utils/full",
 ]
 
 pt-client = ["tor-linkspec/pt-client"]
