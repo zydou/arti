@@ -7,11 +7,9 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 Arti 1.1.10 continues work on support for onion services in Arti.
 At last, we can (technically) run as an onion service... though
-not yet in a useful way. (Our keys don't all get reloaded correctly,
-we can't restart the same onion service across multiple runs,
-and we are missing some key security features.)
-
-^ TODO this is probably not exactly right; please help?
+not yet in a useful way. (Onion services don't yet recover correctly
+after a restart, outdated keys are not removed,
+and we are missing other key security features.)
 
 (Up to date as of 2c8e210b89677e0ded4d886c030e6a339e46b8f5)
 
