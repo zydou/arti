@@ -454,8 +454,6 @@ pub trait Update<T>: Sealed {
     /// `Update<Duration>` is not implemented for [`TrackingSystemTimeNow`]
     /// because tracking of relative times is should be done via `Instant`,
     /// as the use of the monotonic clock is more reliable.
-    //
-    // XXXX add test cases for all the impls
     fn update(&self, t: T);
 }
 
@@ -706,6 +704,15 @@ mod test {
             assert_eq!(tt.clone().shortest(), Some(days(365)));
             assert_eq!(tt.earliest(), Some(later));
         }
+        {
+            let tt = TrackingSystemTimeNow::new(middle);
+            // Use this notation so we can see that all the Update impls are tested
+            <TrackingSystemTimeNow as Update<SystemTime>>::update(&tt, later);
+            assert_eq!(tt.clone().shortest(), Some(days(365)));
+            // Test the underflow edge case (albeit that this would probably be a caller bug)
+            <TrackingSystemTimeNow as Update<SystemTime>>::update(&tt, earliest);
+            assert_eq!(tt.clone().shortest(), Some(days(0)));
+        }
     }
 
     #[test]
@@ -743,6 +750,16 @@ mod test {
             check_orderings(&off, earliest, middle, later);
             assert_eq!(tt.shortest(), Some(secs(300)));
         }
+        {
+            let tt = TrackingInstantNow::new(middle);
+            <TrackingInstantNow as Update<Instant>>::update(&tt, later);
+            assert_eq!(tt.clone().shortest(), Some(secs(300)));
+            <TrackingInstantNow as Update<Duration>>::update(&tt, secs(100));
+            assert_eq!(tt.clone().shortest(), Some(secs(100)));
+            // Test the underflow edge case (albeit that this would probably be a caller bug)
+            <TrackingInstantNow as Update<Instant>>::update(&tt, earliest);
+            assert_eq!(tt.clone().shortest(), Some(secs(0)));
+        }
 
         let (earliest_st, middle_st, later_st) = test_systemtimes();
         {
@@ -755,6 +772,17 @@ mod test {
             assert_eq!(tt.instant().clone().shortest(), Some(secs(300)));
             assert_eq!(tt.system_time().clone().shortest(), Some(days(365)));
             assert_eq!(tt.system_time().clone().earliest(), Some(later_st));
+        }
+        let (_earliest_st, middle_st, later_st) = test_systemtimes();
+        {
+            let tt = TrackingNow::new(middle, middle_st);
+            <TrackingNow as Update<SystemTime>>::update(&tt, later_st);
+            assert_eq!(tt.clone().shortest(), Some(days(365)));
+            <TrackingNow as Update<Duration>>::update(&tt, days(10));
+            assert_eq!(tt.clone().shortest(), Some(days(10)));
+            <TrackingNow as Update<Instant>>::update(&tt, middle + days(5));
+            assert_eq!(tt.clone().shortest(), Some(days(5)));
+            // No need to test edge cases, as our Update impls are just delegations
         }
     }
 
