@@ -357,7 +357,6 @@ impl IptRelay {
         imm: &Immutable<R>,
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
         mockable: &mut M,
-        keymgr: &Arc<KeyMgr>,
     ) -> Result<(), FatalError> {
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
@@ -380,7 +379,7 @@ impl IptRelay {
             k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
-        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params, keymgr)?;
+        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
         imm.runtime
             .spawn({
@@ -757,7 +756,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                     &self.imm,
                     &self.state.new_configs,
                     &mut self.state.mockable,
-                    &self.imm.keymgr,
                 )?;
                 return CONTINUE;
             }
@@ -1275,7 +1273,6 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
-        keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
 
     /// Call `IptEstablisher::start_accepting`
@@ -1297,9 +1294,8 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
-        keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
-        IptEstablisher::new(&imm.runtime, params, self.circ_pool.clone(), keymgr)
+        IptEstablisher::new(&imm.runtime, params, self.circ_pool.clone(), &imm.keymgr)
     }
 
     fn start_accepting(&self, establisher: &ErasedIptEstablisher) {
@@ -1417,7 +1413,6 @@ mod test {
             &mut self,
             _imm: &Immutable<MockRuntime>,
             _params: IptParameters,
-            _keymgr: &Arc<KeyMgr>,
         ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
             let (st_tx, st_rx) = watch::channel();
             let estab = MockEstabState { st_tx };
