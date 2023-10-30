@@ -1252,6 +1252,8 @@ mod test {
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
+    #[cfg(feature = "ntor_v3")]
+    use crate::crypto::handshake::ntor_v3::NtorV3Server;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -1275,26 +1277,40 @@ mod test {
         ClientCircChanMsg::Relay(chanmsg)
     }
 
+    // Example relay IDs and keys
+    const EXAMPLE_SK: [u8; 32] =
+        hex!("7789d92a89711a7e2874c61ea495452cfd48627b3ca2ea9546aafa5bf7b55803");
+    const EXAMPLE_PK: [u8; 32] =
+        hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253");
+    const EXAMPLE_ED_ID: [u8; 32] = [6; 32];
+    const EXAMPLE_RSA_ID: [u8; 20] = [10; 20];
+
     /// return an example OwnedCircTarget that can get used for an ntor handshake.
     fn example_target() -> OwnedCircTarget {
         let mut builder = OwnedCircTarget::builder();
         builder
             .chan_target()
-            .ed_identity([6; 32].into())
-            .rsa_identity([10; 20].into());
+            .ed_identity(EXAMPLE_ED_ID.into())
+            .rsa_identity(EXAMPLE_RSA_ID.into());
         builder
-            .ntor_onion_key(
-                hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253").into(),
-            )
+            .ntor_onion_key(EXAMPLE_PK.into())
             .protocols("FlowCtrl=1".parse().unwrap())
             .build()
             .unwrap()
     }
     fn example_ntor_key() -> crate::crypto::handshake::ntor::NtorSecretKey {
         crate::crypto::handshake::ntor::NtorSecretKey::new(
-            hex!("7789d92a89711a7e2874c61ea495452cfd48627b3ca2ea9546aafa5bf7b55803").into(),
-            hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253").into(),
-            [10_u8; 20].into(),
+            EXAMPLE_SK.into(),
+            EXAMPLE_PK.into(),
+            EXAMPLE_RSA_ID.into(),
+        )
+    }
+    #[cfg(feature = "ntor_v3")]
+    fn example_ntor_v3_key() -> crate::crypto::handshake::ntor_v3::NtorV3SecretKey {
+        crate::crypto::handshake::ntor_v3::NtorV3SecretKey::new(
+            EXAMPLE_SK.into(),
+            EXAMPLE_PK.into(),
+            EXAMPLE_ED_ID.into(),
         )
     }
 
@@ -1313,7 +1329,16 @@ mod test {
         (channel, rx, tx)
     }
 
-    async fn test_create<R: Runtime>(rt: &R, fast: bool) {
+    /// Which handshake type to use.
+    #[derive(Copy, Clone)]
+    enum HandshakeType {
+        Fast,
+        Ntor,
+        #[cfg(feature = "ntor_v3")]
+        NtorV3,
+    }
+
+    async fn test_create<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
         // We want to try progressing from a pending circuit to a circuit
         // via a crate_fast handshake.
 
@@ -1338,32 +1363,50 @@ mod test {
             let mut rng = testing_rng();
             let create_cell = rx.next().await.unwrap();
             assert_eq!(create_cell.circid(), CircId::new(128));
-            let reply = if fast {
-                let cf = match create_cell.msg() {
-                    AnyChanMsg::CreateFast(cf) => cf,
-                    _ => panic!(),
-                };
-                let (_, rep) = CreateFastServer::server(
-                    &mut rng,
-                    &mut |_: &()| Some(()),
-                    &[()],
-                    cf.handshake(),
-                )
-                .unwrap();
-                CreateResponse::CreatedFast(CreatedFast::new(rep))
-            } else {
-                let c2 = match create_cell.msg() {
-                    AnyChanMsg::Create2(c2) => c2,
-                    _ => panic!(),
-                };
-                let (_, rep) = NtorServer::server(
-                    &mut rng,
-                    &mut |_: &()| Some(()),
-                    &[example_ntor_key()],
-                    c2.body(),
-                )
-                .unwrap();
-                CreateResponse::Created2(Created2::new(rep))
+            let reply = match handshake_type {
+                HandshakeType::Fast => {
+                    let cf = match create_cell.msg() {
+                        AnyChanMsg::CreateFast(cf) => cf,
+                        _ => panic!(),
+                    };
+                    let (_, rep) = CreateFastServer::server(
+                        &mut rng,
+                        &mut |_: &()| Some(()),
+                        &[()],
+                        cf.handshake(),
+                    )
+                    .unwrap();
+                    CreateResponse::CreatedFast(CreatedFast::new(rep))
+                }
+                HandshakeType::Ntor => {
+                    let c2 = match create_cell.msg() {
+                        AnyChanMsg::Create2(c2) => c2,
+                        _ => panic!(),
+                    };
+                    let (_, rep) = NtorServer::server(
+                        &mut rng,
+                        &mut |_: &()| Some(()),
+                        &[example_ntor_key()],
+                        c2.body(),
+                    )
+                    .unwrap();
+                    CreateResponse::Created2(Created2::new(rep))
+                }
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => {
+                    let c2 = match create_cell.msg() {
+                        AnyChanMsg::Create2(c2) => c2,
+                        _ => panic!(),
+                    };
+                    let (_, rep) = NtorV3Server::server(
+                        &mut rng,
+                        &mut |_: &_| Some(vec![]),
+                        &[example_ntor_v3_key()],
+                        c2.body(),
+                    )
+                    .unwrap();
+                    CreateResponse::Created2(Created2::new(rep))
+                }
             };
             created_send.send(reply).unwrap();
         };
@@ -1371,12 +1414,20 @@ mod test {
         let client_fut = async move {
             let target = example_target();
             let params = CircParameters::default();
-            let ret = if fast {
-                trace!("doing fast create");
-                pending.create_firsthop_fast(&params).await
-            } else {
-                trace!("doing ntor create");
-                pending.create_firsthop_ntor(&target, params).await
+            let ret = match handshake_type {
+                HandshakeType::Fast => {
+                    trace!("doing fast create");
+                    pending.create_firsthop_fast(&params).await
+                }
+                HandshakeType::Ntor => {
+                    trace!("doing ntor create");
+                    pending.create_firsthop_ntor(&target, params).await
+                }
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => {
+                    trace!("doing ntor_v3 create");
+                    pending.create_firsthop_ntor_v3(&target, params).await
+                }
             };
             trace!("create done: result {:?}", ret);
             ret
@@ -1396,13 +1447,20 @@ mod test {
     #[test]
     fn test_create_fast() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            test_create(&rt, true).await;
+            test_create(&rt, HandshakeType::Fast).await;
         });
     }
     #[test]
     fn test_create_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            test_create(&rt, false).await;
+            test_create(&rt, HandshakeType::Ntor).await;
+        });
+    }
+    #[cfg(feature = "ntor_v3")]
+    #[test]
+    fn test_create_ntor_v3() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_create(&rt, HandshakeType::NtorV3).await;
         });
     }
 
