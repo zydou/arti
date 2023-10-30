@@ -22,6 +22,8 @@
 //! for the purposes of calculating how to wait, since it is in the past.
 //! So if you use the timeout tracker to decide how long to sleep,
 //! you won't be woken up until *something else* occurs.
+//! (When the timeout has *exactly* elapsed, you should eagerly perform the action.
+//! Otherwise the timeout tracker will calculate a zero timeout and you'll spin.)
 //!
 //! Each tracker has interior mutability,
 //! which is necessary because `PartialOrd` (`<=` etc.) only passes immutable references.
@@ -217,6 +219,8 @@ define_derive_adhoc! {
             }
         }
     }
+
+    impl Sealed for $ttype {}
 }
 
 define_derive_adhoc! {
@@ -258,6 +262,12 @@ define_derive_adhoc! {
     }
 
   $(
+    impl Update<$NOW> for TrackingNow {
+        fn update(&self, t: $NOW) {
+            self.$fname.update(t);
+        }
+    }
+
     define_PartialOrd_via_cmp! { $ttype, $NOW, .$fname }
   )
 }
@@ -427,6 +437,33 @@ pub struct TrackingNow {
     system_time: TrackingSystemTimeNow,
 }
 
+//========== trait for providing `update` method ==========
+
+/// Trait providing the `update` method on timeout trackers
+pub trait Update<T>: Sealed {
+    /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
+    ///
+    /// This is an *unconditional* update.
+    /// Usually, `t` should be (strictly) in the future.
+    ///
+    /// Implemented for [`TrackingNow`], [`TrackingInstantNow`],
+    /// and [`TrackingSystemTimeNow`].
+    /// `t` can be a `SystemTime`, `Instant`, or `Duration`,
+    /// (depending on the type of `self`).
+    ///
+    /// `Update<Duration>` is not implemented for [`TrackingSystemTimeNow`]
+    /// because tracking of relative times should be done via `Instant`,
+    /// as the use of the monotonic clock is more reliable.
+    fn update(&self, t: T);
+}
+
+/// Sealed
+mod sealed {
+    /// Sealed
+    pub trait Sealed {}
+}
+use sealed::*;
+
 //========== implementations, organised by theme ==========
 
 //----- earliest accessor ----
@@ -454,38 +491,29 @@ impl TrackingInstantNow {
 
 //----- manual update functions ----
 
-impl TrackingSystemTimeNow {
-    /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
-    ///
-    /// This is an *unconditional* update.
-    /// Usually, `t` should not be in the past.
-    ///
-    /// TODO HSS add a test case
-    pub fn update(&self, t: SystemTime) {
+impl Update<SystemTime> for TrackingSystemTimeNow {
+    fn update(&self, t: SystemTime) {
         Self::update_unconditional(&self.earliest, t);
     }
 }
 
-impl TrackingInstantNow {
-    /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
-    ///
-    /// This is an *unconditional* update.
-    /// Usually, `t` should not be in the past.
-    /// Equivalent to comparing with `t` but discarding the answer.
-    ///
-    /// TODO HSS make this pub and test it
-    fn update_abs(&self, t: Instant) {
-        self.update_rel(t.checked_duration_since(self.now).unwrap_or_default());
+impl Update<Instant> for TrackingInstantNow {
+    fn update(&self, t: Instant) {
+        self.update(t.checked_duration_since(self.now).unwrap_or_default());
     }
+}
 
-    /// Update the "earliest timeout" notion, to ensure it's at no later than `d` from now
-    ///
-    /// This is an *unconditional* update.
-    /// Usually, `d` should not be zero.
-    ///
-    /// TODO HSS make this pub and test it
-    fn update_rel(&self, d: Duration) {
+impl Update<Duration> for TrackingInstantNow {
+    fn update(&self, d: Duration) {
         Self::update_unconditional(&self.earliest, d);
+    }
+}
+
+impl Sealed for TrackingNow {}
+
+impl Update<Duration> for TrackingNow {
+    fn update(&self, d: Duration) {
+        self.instant().update(d);
     }
 }
 
@@ -676,6 +704,15 @@ mod test {
             assert_eq!(tt.clone().shortest(), Some(days(365)));
             assert_eq!(tt.earliest(), Some(later));
         }
+        {
+            let tt = TrackingSystemTimeNow::new(middle);
+            // Use this notation so we can see that all the Update impls are tested
+            <TrackingSystemTimeNow as Update<SystemTime>>::update(&tt, later);
+            assert_eq!(tt.clone().shortest(), Some(days(365)));
+            // Test the underflow edge case (albeit that this would probably be a caller bug)
+            <TrackingSystemTimeNow as Update<SystemTime>>::update(&tt, earliest);
+            assert_eq!(tt.clone().shortest(), Some(days(0)));
+        }
     }
 
     #[test]
@@ -713,6 +750,16 @@ mod test {
             check_orderings(&off, earliest, middle, later);
             assert_eq!(tt.shortest(), Some(secs(300)));
         }
+        {
+            let tt = TrackingInstantNow::new(middle);
+            <TrackingInstantNow as Update<Instant>>::update(&tt, later);
+            assert_eq!(tt.clone().shortest(), Some(secs(300)));
+            <TrackingInstantNow as Update<Duration>>::update(&tt, secs(100));
+            assert_eq!(tt.clone().shortest(), Some(secs(100)));
+            // Test the underflow edge case (albeit that this would probably be a caller bug)
+            <TrackingInstantNow as Update<Instant>>::update(&tt, earliest);
+            assert_eq!(tt.clone().shortest(), Some(secs(0)));
+        }
 
         let (earliest_st, middle_st, later_st) = test_systemtimes();
         {
@@ -725,6 +772,17 @@ mod test {
             assert_eq!(tt.instant().clone().shortest(), Some(secs(300)));
             assert_eq!(tt.system_time().clone().shortest(), Some(days(365)));
             assert_eq!(tt.system_time().clone().earliest(), Some(later_st));
+        }
+        let (_earliest_st, middle_st, later_st) = test_systemtimes();
+        {
+            let tt = TrackingNow::new(middle, middle_st);
+            <TrackingNow as Update<SystemTime>>::update(&tt, later_st);
+            assert_eq!(tt.clone().shortest(), Some(days(365)));
+            <TrackingNow as Update<Duration>>::update(&tt, days(10));
+            assert_eq!(tt.clone().shortest(), Some(days(10)));
+            <TrackingNow as Update<Instant>>::update(&tt, middle + days(5));
+            assert_eq!(tt.clone().shortest(), Some(days(5)));
+            // No need to test edge cases, as our Update impls are just delegations
         }
     }
 
