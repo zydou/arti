@@ -5,6 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use rand_core::{CryptoRng, RngCore};
 
+use tor_cell::chancell::msg::HandshakeType;
 use tor_error::{internal, into_bad_api_usage};
 use tor_hscrypto::pk::{
     HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKey, HsIdKeypair,
@@ -43,7 +44,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     // TODO HSS: should this be configurable? If so, we should read it from the svc config.
     //
     /// The CREATE handshake type we support.
-    const CREATE2_FORMATS: &[u32] = &[1, 2];
+    const CREATE2_FORMATS: &[HandshakeType] = &[HandshakeType::NTOR];
 
     /// Lifetime of the intro_{auth, enc}_key_cert certificates in the descriptor.
     ///

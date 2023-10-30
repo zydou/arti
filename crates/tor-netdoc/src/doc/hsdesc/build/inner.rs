@@ -13,6 +13,7 @@ use crate::NetdocBuilder;
 use rand::CryptoRng;
 use rand::RngCore;
 use tor_bytes::{EncodeError, Writer};
+use tor_cell::chancell::msg::HandshakeType;
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
 use tor_error::{bad_api_usage, into_bad_api_usage};
 use tor_llcrypto::pk::ed25519;
@@ -32,8 +33,7 @@ pub(super) struct HsDescInner<'a> {
     /// The descriptor signing key.
     pub(super) hs_desc_sign: &'a ed25519::Keypair,
     /// A list of recognized CREATE handshakes that this onion service supports.
-    // TODO hss: this should probably be a caret enum, not an integer
-    pub(super) create2_formats: &'a [u32],
+    pub(super) create2_formats: &'a [HandshakeType],
     /// A list of authentication types that this onion service supports.
     pub(super) auth_required: Option<&'a SmallVec<[IntroAuthType; 2]>>,
     /// If true, this a "single onion service" and is not trying to keep its own location private.
@@ -65,6 +65,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
         {
             let mut create2_formats_enc = encoder.item(CREATE2_FORMATS);
             for fmt in create2_formats {
+                let fmt: u16 = (*fmt).into();
                 create2_formats_enc = create2_formats_enc.arg(&fmt);
             }
         }
@@ -204,7 +205,7 @@ mod test {
 
     /// Build an inner document using the specified parameters.
     fn create_inner_desc(
-        create2_formats: &[u32],
+        create2_formats: &[HandshakeType],
         auth_required: Option<&SmallVec<[IntroAuthType; 2]>>,
         is_single_onion_service: bool,
         intro_points: &[IntroPointDesc],
@@ -228,25 +229,25 @@ mod test {
     fn inner_hsdesc_no_intro_auth() {
         // A descriptor for a "single onion service"
         let hs_desc = create_inner_desc(
-            &[1234], /* create2_formats */
+            &[HandshakeType::NTOR], /* create2_formats */
             None,    /* auth_required */
             true,    /* is_single_onion_service */
             &[],     /* intro_points */
         )
         .unwrap();
 
-        assert_eq!(hs_desc, "create2-formats 1234\nsingle-onion-service\n");
+        assert_eq!(hs_desc, "create2-formats 2\nsingle-onion-service\n");
 
         // A descriptor for a location-hidden service
         let hs_desc = create_inner_desc(
-            &[1234], /* create2_formats */
+            &[HandshakeType::NTOR], /* create2_formats */
             None,    /* auth_required */
             false,   /* is_single_onion_service */
             &[],     /* intro_points */
         )
         .unwrap();
 
-        assert_eq!(hs_desc, "create2-formats 1234\n");
+        assert_eq!(hs_desc, "create2-formats 2\n");
 
         let link_specs1 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 1234)];
         let link_specs2 = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 5679)];
@@ -260,7 +261,7 @@ mod test {
         ];
 
         let hs_desc = create_inner_desc(
-            &[1234, 32, 23], /* create2_formats */
+            &[HandshakeType::TAP, HandshakeType::NTOR, HandshakeType::NTOR_V3], /* create2_formats */
             None,            /* auth_required */
             false,           /* is_single_onion_service */
             intros,          /* intro_points */
@@ -269,7 +270,7 @@ mod test {
 
         assert_eq!(
             hs_desc,
-            r#"create2-formats 1234 32 23
+            r#"create2-formats 0 2 3
 introduction-point AQAGfwAAASLF
 onion-key ntor CJi8nDPhIFA7X9Q+oP7+jzxNo044cblmagk/d7oKWGc=
 auth-key
@@ -334,7 +335,7 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
         // A descriptor for a location-hidden service with an introduction point with too many link
         // specifiers
         let err = create_inner_desc(
-            &[1234], /* create2_formats */
+            &[HandshakeType::NTOR], /* create2_formats */
             None,    /* auth_required */
             false,   /* is_single_onion_service */
             intros,  /* intro_points */
@@ -354,7 +355,7 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
         // A descriptor for a location-hidden service with 1 introduction points which requires
         // auth.
         let hs_desc = create_inner_desc(
-            &[1234],     /* create2_formats */
+            &[HandshakeType::NTOR],     /* create2_formats */
             Some(&auth), /* auth_required */
             false,       /* is_single_onion_service */
             intros,      /* intro_points */
@@ -363,7 +364,7 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
 
         assert_eq!(
             hs_desc,
-            r#"create2-formats 1234
+            r#"create2-formats 2
 intro-auth-required ed25519 ed25519
 introduction-point AQAGfwAAAR+Q
 onion-key ntor HWIigEAdcOgqgHPDFmzhhkeqvYP/GcMT2fKb5JY6ey8=

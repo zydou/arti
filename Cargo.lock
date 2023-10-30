@@ -5366,6 +5366,7 @@ dependencies = [
  "tinystr",
  "tor-basic-utils",
  "tor-bytes",
+ "tor-cell",
  "tor-cert",
  "tor-checkable",
  "tor-error",

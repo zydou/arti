@@ -105,6 +105,7 @@ time = { version = "0.3", features = ["std", "parsing", "macros", "formatting"] 
 tinystr = "0.7.0"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
 tor-bytes = { path = "../tor-bytes", version = "0.7.5" }
+tor-cell = { path = "../tor-cell", version = "0.12.3" }
 tor-cert = { path = "../tor-cert", version = "0.7.5" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
