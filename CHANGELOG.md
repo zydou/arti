@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.10 — XX XX 2023
 
-Arti 1.1.9 continues work on support for onion services in Arti.
+Arti 1.1.10 continues work on support for onion services in Arti.
 At last, we can (technically) run as an onion service... though
 not yet in a useful way. (Our keys don't all get reloaded correctly,
 we can't restart the same onion service across multiple runs,
