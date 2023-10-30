@@ -367,7 +367,7 @@ mod test {
         assert!(matches!(pv_poll_await_update(pv).await, Pending));
     }
 
-    fn pv_note_publication_attempt(pv: &mut IptsPublisherView, worst_case_end: Instant) {
+    fn pv_note_publication_attempt(pv: &IptsPublisherView, worst_case_end: Instant) {
         pv.borrow_for_publish()
             .as_mut()
             .unwrap()
@@ -434,7 +434,7 @@ mod test {
 
             // test setting lifetime
 
-            pv_note_publication_attempt(&mut pv, runtime.now() + PUBLISH_END_TIMEOUT);
+            pv_note_publication_attempt(&pv, runtime.now() + PUBLISH_END_TIMEOUT);
 
             let expected_expiry =
                 runtime.now() + PUBLISH_END_TIMEOUT + LIFETIME + IPT_PUBLISH_EXPIRY_SLOP;
@@ -442,7 +442,7 @@ mod test {
 
             // setting an *earlier* lifetime is ignored
 
-            pv_note_publication_attempt(&mut pv, runtime.now() - Duration::from_secs(10));
+            pv_note_publication_attempt(&pv, runtime.now() - Duration::from_secs(10));
             assert_eq!(mv_get_0_expiry(&mut mv), expected_expiry);
         });
     }
