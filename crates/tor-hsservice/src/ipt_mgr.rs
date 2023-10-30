@@ -779,7 +779,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
-    fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) {
+    fn import_new_expiry_times(irelays: &mut [IptRelay], publish_set: &PublishIptSet) {
         // Every entry in the PublishIptSet ought to correspond to an ipt in self.
         //
         // If there are IPTs in publish_set.last_descriptor_expiry_including_slop
@@ -791,9 +791,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         //
         // TODO HSS-IPT-PERSIST well, actually we don't save anything at all, but we will do.
 
-        let all_ours = self
-            .state
-            .irelays
+        let all_ours = irelays
             .iter_mut()
             .flat_map(|ir| ir.ipts.iter_mut());
 
@@ -1102,7 +1100,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             let mut publish_set = publisher.borrow_for_update();
 
-            self.import_new_expiry_times(&publish_set);
+            Self::import_new_expiry_times(&mut self.state.irelays, &publish_set);
 
             let mut loop_limit = 0..(
                 // Work we do might be O(number of intro points),
