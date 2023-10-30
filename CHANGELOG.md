@@ -3,6 +3,142 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.10 — XX XX 2023
+
+Arti 1.1.9 continues work on support for onion services in Arti.
+At last, we can (technically) run as an onion service... though
+not yet in a useful way. (Our keys don't all get reloaded correctly,
+we can't restart the same onion service across multiple runs,
+and we are missing some key security features.)
+
+^ TODO this is probably not exactly right; please help?
+
+(Up to date as of 2c8e210b89677e0ded4d886c030e6a339e46b8f5)
+
+### Breaking changes in lower-level crates
+
+- The [`IoErrorExt`] trait in [`tor-basic-utils`] is now
+  sealed. ([!1654])
+- The [`Requestable`] trait in [`tor-dir-client`] is now sealed,
+  and most of its members are now private. ([!1679])
+- In [`tor-cell`], stream and circuit IDs are now inherently non-zero.
+  To represent an ID that might be zero on the wire, we now use
+  `Option<StreamId>` or `Option<CircId>`. ([#1080], [!1697])
+- In [`tor-cell`], `CREATE2` handshake types are no longer raw
+  `u16` values. ([!1703])
+
+### Onion service development
+
+- The `arti` binary can now be configured to invoke the code that
+  launch onion services, and the code that proxies them to local
+  ports. ([!1644])
+- Configuration support for onion services, and for the `rproxy`
+  facility that directs incoming onion service connections to local
+  services. ([!1638], [!1640])
+- The introduction points are now exposed by the code that manages
+  them to the code that publishes onion service descriptors. ([!1636],
+  [!1645])
+- Implement reconfiguration support in the lower level onion service
+  code. ([!1651])
+- Temporarily changed the configuration format for onion service ports
+  to work around [a bug in `config-rs`]. ([21605d2c9e601c3a])
+- As-yet-unused code to build a list of authorized clients. ([#1051],
+  [!1642])
+- Auto-generate missing keys rather than failing when we are
+  about to publish. ([!1688])
+- Log onion service Ids when they are crated, so we can test them.
+  ([!1689])
+- Move responsibility for generating descriptor signing key certificates
+  into `tor-hsservice` from `tor-netdoc`; refactor accordingly.
+  ([!1702])
+- Resolve a number of pending "TODO" items in [`tor-proto`] affecting
+  the onion service implementation. ([!1658])
+- Resolve a number of pending "TODO" items in [`tor-dirclient`] affecting
+  the onion service implementation. ([!1675])
+- Sort introduction point lists by ntor public key before publication,
+  to avoid leaking information. ([#1039], [!1674])
+- Numerous bugfixes, cleanups, and backfills found during testing and
+  integrating the pieces of the onion service
+  implementation. ([!1634], [!1637], [!1659], [!1673], [!1682],
+  [!1684], [!1686], [!1695])
+
+
+### Client features
+
+- Arti can now be configured to listen for connections on multiple arbitrary
+  addresses—not just `localhost`. ([!1613])
+
+### Key manager
+
+- The key manager code now has improved support for generating
+  keypairs, keys with derived data, and other structures needed for
+  onion services. ([!1653])
+- The key manager now encodes whether a key is private or public in its
+  file extension. ([!1672])
+- The key manager now disallows path components that could lead
+  (under some programming errors) to directory traversal. ([!1661])
+- We can now list keys by path and type; this is important so that
+  we can identify disused keys and eventually expire them. ([!1677])
+
+### Documentation and examples
+
+- Correct our example for how to connect to onion services. ([!1653])
+- Update download location in `download-manager` example.
+  ([!1691])
+
+### Infrastructure
+
+- Our release scripts and processes are now more robust against
+  several kinds of mistake that have frustrated previous releases,
+  including crates that change only when their dependencies get new
+  versions, accidental inclusion of wildcard dependencies, and
+  dependencies on unpublished crates.  ([!1646])
+- Clean up use of `after_script` in our CI to behave more sensibly
+  ([#1061], [!1663])
+
+
+### Testing
+
+- Even-more-improved support for tests that depend on a simulated view
+  of the passage of time. ([!1639], [!1650])
+
+### Cleanups, minor features, and bugfixes
+
+- Refactored the key derivation code for relay cryptography. ([!1629])
+- Work around [a bug in `FusedFuture for oneshot::Receiver`] that made
+  it dangerous to `select!` on a `oneshot::Receiver` to detect if the
+  sender is dropped.  ([#1059], [!1656])
+- Fix handling for escape sequences when talking to a
+  pluggable transport. ([!1584])
+- Major refactoring and simplifications on the explicit closing of
+  pending incoming streams, to prevent double-close bugs and related
+  panics. ([#1065], [!1678], [!1681])
+- Refactor implementation of ISO-8601 time parsing in descriptors.
+  ([#751], [!1693])
+- Renamed the function in `tor-hsclient` to launch a circuit to an
+  onion service to be less confusing. The old name remains but is
+  deprecated. ([#1078], [!1700])
+- Do not advertise or accept non-required compression encodings
+  when making anonymized requests to an onion service directory:
+  to do so is a fingerprinting vector.
+  ([#1062], [cfe641613e6b6f4f])
+
+
+### Acknowledgments
+
+TODO FILL THIS IN.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+
+TODO Add references.
+
+
+
+
+
+
 # Arti 1.1.9 — 2 October 2023
 
 Arti 1.1.9 continues work on support for onion services in arti.
