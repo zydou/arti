@@ -452,7 +452,7 @@ pub trait Update<T>: Sealed {
     /// (depending on the type of `self`).
     ///
     /// `Update<Duration>` is not implemented for [`TrackingSystemTimeNow`]
-    /// because tracking of relative times is should be done via `Instant`,
+    /// because tracking of relative times should be done via `Instant`,
     /// as the use of the monotonic clock is more reliable.
     fn update(&self, t: T);
 }
