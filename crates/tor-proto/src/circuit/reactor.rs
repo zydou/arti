@@ -88,8 +88,8 @@ pub(super) enum CircuitHandshake {
     Ntor {
         /// The public key of the relay.
         public_key: NtorPublicKey,
-        /// The first hop's Ed25519 identity, which is verified against
-        /// the identity held in the circuit's channel.
+        /// The Ed25519 identity of the relay, which is verified against the
+        /// identity held in the circuit's channel.
         ed_identity: pk::ed25519::Ed25519Identity,
     },
 }
