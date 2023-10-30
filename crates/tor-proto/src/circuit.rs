@@ -59,6 +59,8 @@ use crate::circuit::reactor::{
 pub use crate::circuit::unique_id::UniqId;
 pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
+#[cfg(feature = "ntor_v3")]
+use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
@@ -1030,6 +1032,47 @@ impl PendingClientCirc {
                     ed_identity: *target
                         .ed_identity()
                         .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
+                },
+                params: params.clone(),
+                done: tx,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)??;
+
+        Ok(self.circ)
+    }
+
+    /// Use the ntor_v3 handshake to connect to the first hop of this circuit.
+    ///
+    /// Assumes that the target supports ntor_v3. The caller should verify
+    /// this before calling this function, e.g. by validating that the target
+    /// has advertised ["Relay=4"](https://spec.torproject.org/tor-spec/subprotocol-versioning.html#relay).
+    ///
+    /// Note that the provided 'target' must match the channel's target,
+    /// or the handshake will fail.
+    #[cfg(feature = "ntor_v3")]
+    pub async fn create_firsthop_ntor_v3<Tg>(
+        self,
+        target: &Tg,
+        params: CircParameters,
+    ) -> Result<Arc<ClientCirc>>
+    where
+        Tg: tor_linkspec::CircTarget,
+    {
+        let (tx, rx) = oneshot::channel();
+
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::Create {
+                recv_created: self.recvcreated,
+                handshake: CircuitHandshake::NtorV3 {
+                    public_key: NtorV3PublicKey {
+                        id: *target
+                            .ed_identity()
+                            .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
+                        pk: *target.ntor_onion_key(),
+                    },
                 },
                 params: params.clone(),
                 done: tx,
