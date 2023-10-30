@@ -219,6 +219,8 @@ define_derive_adhoc! {
             }
         }
     }
+
+    impl Sealed for $ttype {}
 }
 
 define_derive_adhoc! {
@@ -260,6 +262,12 @@ define_derive_adhoc! {
     }
 
   $(
+    impl Update<$NOW> for TrackingNow {
+        fn update(&self, t: $NOW) {
+            self.$fname.update(t);
+        }
+    }
+
     define_PartialOrd_via_cmp! { $ttype, $NOW, .$fname }
   )
 }
@@ -429,6 +437,35 @@ pub struct TrackingNow {
     system_time: TrackingSystemTimeNow,
 }
 
+//========== trait for providing `update` method ==========
+
+/// Trait providing the `update` method on timeout trackers
+pub trait Update<T>: Sealed {
+    /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
+    ///
+    /// This is an *unconditional* update.
+    /// Usually, `t` should be (strictly) in the future.
+    ///
+    /// Implemented for [`TrackingNow`], [`TrackingInstantNow`],
+    /// and [`TrackingSystemTimeNow`].
+    /// `t` can be a `SystemTime`, `Instant`, or `Duration`,
+    /// (depending on the type of `self`).
+    ///
+    /// `Update<Duration>` is not implemented for [`TrackingSystemTimeNow`]
+    /// because tracking of relative times is should be done via `Instant`,
+    /// as the use of the monotonic clock is more reliable.
+    //
+    // XXXX add test cases for all the impls
+    fn update(&self, t: T);
+}
+
+/// Sealed
+mod sealed {
+    /// Sealed
+    pub trait Sealed {}
+}
+use sealed::*;
+
 //========== implementations, organised by theme ==========
 
 //----- earliest accessor ----
@@ -456,38 +493,29 @@ impl TrackingInstantNow {
 
 //----- manual update functions ----
 
-impl TrackingSystemTimeNow {
-    /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
-    ///
-    /// This is an *unconditional* update.
-    /// Usually, `t` should be (strictly) in the future.
-    ///
-    /// TODO HSS add a test case
-    pub fn update(&self, t: SystemTime) {
+impl Update<SystemTime> for TrackingSystemTimeNow {
+    fn update(&self, t: SystemTime) {
         Self::update_unconditional(&self.earliest, t);
     }
 }
 
-impl TrackingInstantNow {
-    /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
-    ///
-    /// This is an *unconditional* update.
-    /// Usually, `t` should be (strictly) in the future.
-    /// Equivalent to comparing with `t` but discarding the answer.
-    ///
-    /// TODO HSS make this pub and test it
-    fn update_abs(&self, t: Instant) {
-        self.update_rel(t.checked_duration_since(self.now).unwrap_or_default());
+impl Update<Instant> for TrackingInstantNow {
+    fn update(&self, t: Instant) {
+        self.update(t.checked_duration_since(self.now).unwrap_or_default());
     }
+}
 
-    /// Update the "earliest timeout" notion, to ensure it's at no later than `d` from now
-    ///
-    /// This is an *unconditional* update.
-    /// Usually, `d` should not be zero.
-    ///
-    /// TODO HSS make this pub and test it
-    fn update_rel(&self, d: Duration) {
+impl Update<Duration> for TrackingInstantNow {
+    fn update(&self, d: Duration) {
         Self::update_unconditional(&self.earliest, d);
+    }
+}
+
+impl Sealed for TrackingNow {}
+
+impl Update<Duration> for TrackingNow {
+    fn update(&self, d: Duration) {
+        self.instant().update(d);
     }
 }
 
