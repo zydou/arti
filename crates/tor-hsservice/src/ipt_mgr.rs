@@ -322,23 +322,60 @@ impl IptRelay {
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
         mockable: &mut M,
     ) -> Result<(), FatalError> {
+        let lid: IptLocalId = mockable.thread_rng().gen();
+
+        let ipt = Ipt::start_establisher(
+            imm,
+            new_configs,
+            mockable,
+            &self.relay,
+            lid,
+            Some(IsCurrent),
+            // None is precisely right: the descriptor hasn't been published.
+            PromiseLastDescriptorExpiryNoneIsGood {},
+        )?;
+
+        self.ipts.push(ipt);
+
+        Ok(())
+    }
+}
+
+/// Token, representing promise by caller of `start_establisher`
+///
+/// Caller who makes one of these structs promises that it is OK for `start_establisher`
+/// to set `last_descriptor_expiry_including_slop` to `None`.
+struct PromiseLastDescriptorExpiryNoneIsGood {}
+
+impl Ipt {
+    /// Start a new IPT establisher, and create and return an `Ipt`
+    fn start_establisher<R: Runtime, M: Mockable<R>>(
+        imm: &Immutable<R>,
+        new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
+        mockable: &mut M,
+        relay: &RelayIds,
+        lid: IptLocalId,
+        is_current: Option<IsCurrent>,
+        _: PromiseLastDescriptorExpiryNoneIsGood,
+    ) -> Result<Ipt, FatalError> {
+        let mut rng = mockable.thread_rng();
+
+        // TODO HSS-IPT-PERSIST try loading keys before generating them
+        let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
+        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
+        let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
+
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
             started: imm.runtime.now(),
         };
-
-        let mut rng = mockable.thread_rng();
-        let lid: IptLocalId = rng.gen();
-        let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
-        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
-        let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
 
         let params = IptParameters {
             config_rx: new_configs.clone(),
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
             lid,
-            target: self.relay.clone(),
+            target: relay.clone(),
             k_sid: k_sid.clone(),
             k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
@@ -376,22 +413,18 @@ impl IptRelay {
             k_hss_ntor,
             k_sid,
             status_last,
+            is_current,
             last_descriptor_expiry_including_slop: None,
-            is_current: Some(IsCurrent),
         };
 
         debug!(
             "HS service {}: {lid:?} establishing new IPT at relay {}",
-            &imm.nick, &self.relay
+            &imm.nick, &relay
         );
 
-        self.ipts.push(ipt);
-
-        Ok(())
+        Ok(ipt)
     }
-}
 
-impl Ipt {
     /// Returns `true` if this IPT has status Good (and should perhaps be published)
     fn is_good(&self) -> bool {
         match self.status_last {
