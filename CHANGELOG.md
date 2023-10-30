@@ -26,6 +26,8 @@ and we are missing some key security features.)
   `Option<StreamId>` or `Option<CircId>`. ([#1080], [!1697])
 - In [`tor-cell`], `CREATE2` handshake types are no longer raw
   `u16` values. ([!1703])
+- In [`tor-cert`], `encode_and_sign` now returns an
+  `Ed25519EncodedCert` rather than a raw `Vec<u8>`. ([!1702])
 
 ### Onion service development
 
