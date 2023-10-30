@@ -22,6 +22,8 @@
 //! for the purposes of calculating how to wait, since it is in the past.
 //! So if you use the timeout tracker to decide how long to sleep,
 //! you won't be woken up until *something else* occurs.
+//! (When the timeout has *exactly* elapsed, you should eagerly perform the action.
+//! Otherwise the timeout tracker will calculate a zero timeout and you'll spin.)
 //!
 //! Each tracker has interior mutability,
 //! which is necessary because `PartialOrd` (`<=` etc.) only passes immutable references.
@@ -458,7 +460,7 @@ impl TrackingSystemTimeNow {
     /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
     ///
     /// This is an *unconditional* update.
-    /// Usually, `t` should not be in the past.
+    /// Usually, `t` should be (strictly) in the future.
     ///
     /// TODO HSS add a test case
     pub fn update(&self, t: SystemTime) {
@@ -470,7 +472,7 @@ impl TrackingInstantNow {
     /// Update the "earliest timeout" notion, to ensure it's at least as early as `t`
     ///
     /// This is an *unconditional* update.
-    /// Usually, `t` should not be in the past.
+    /// Usually, `t` should be (strictly) in the future.
     /// Equivalent to comparing with `t` but discarding the answer.
     ///
     /// TODO HSS make this pub and test it
