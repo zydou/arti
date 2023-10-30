@@ -314,9 +314,9 @@ impl super::ServerHandshake for NtorV3Server {
 #[derive(Clone, Debug)]
 pub(crate) struct NtorV3PublicKey {
     /// The relay's identity.
-    id: Ed25519Identity,
+    pub(crate) id: Ed25519Identity,
     /// The relay's onion key.
-    pk: curve25519::PublicKey,
+    pub(crate) pk: curve25519::PublicKey,
 }
 
 /// Secret key information used by a relay for the ntor v3 handshake.
