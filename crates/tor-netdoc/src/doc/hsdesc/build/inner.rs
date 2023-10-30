@@ -230,9 +230,9 @@ mod test {
         // A descriptor for a "single onion service"
         let hs_desc = create_inner_desc(
             &[HandshakeType::NTOR], /* create2_formats */
-            None,    /* auth_required */
-            true,    /* is_single_onion_service */
-            &[],     /* intro_points */
+            None,                   /* auth_required */
+            true,                   /* is_single_onion_service */
+            &[],                    /* intro_points */
         )
         .unwrap();
 
@@ -241,9 +241,9 @@ mod test {
         // A descriptor for a location-hidden service
         let hs_desc = create_inner_desc(
             &[HandshakeType::NTOR], /* create2_formats */
-            None,    /* auth_required */
-            false,   /* is_single_onion_service */
-            &[],     /* intro_points */
+            None,                   /* auth_required */
+            false,                  /* is_single_onion_service */
+            &[],                    /* intro_points */
         )
         .unwrap();
 
@@ -261,10 +261,14 @@ mod test {
         ];
 
         let hs_desc = create_inner_desc(
-            &[HandshakeType::TAP, HandshakeType::NTOR, HandshakeType::NTOR_V3], /* create2_formats */
-            None,            /* auth_required */
-            false,           /* is_single_onion_service */
-            intros,          /* intro_points */
+            &[
+                HandshakeType::TAP,
+                HandshakeType::NTOR,
+                HandshakeType::NTOR_V3,
+            ], /* create2_formats */
+            None,   /* auth_required */
+            false,  /* is_single_onion_service */
+            intros, /* intro_points */
         )
         .unwrap();
 
@@ -336,9 +340,9 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
         // specifiers
         let err = create_inner_desc(
             &[HandshakeType::NTOR], /* create2_formats */
-            None,    /* auth_required */
-            false,   /* is_single_onion_service */
-            intros,  /* intro_points */
+            None,                   /* auth_required */
+            false,                  /* is_single_onion_service */
+            intros,                 /* intro_points */
         )
         .unwrap_err();
 
@@ -355,10 +359,10 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
         // A descriptor for a location-hidden service with 1 introduction points which requires
         // auth.
         let hs_desc = create_inner_desc(
-            &[HandshakeType::NTOR],     /* create2_formats */
-            Some(&auth), /* auth_required */
-            false,       /* is_single_onion_service */
-            intros,      /* intro_points */
+            &[HandshakeType::NTOR], /* create2_formats */
+            Some(&auth),            /* auth_required */
+            false,                  /* is_single_onion_service */
+            intros,                 /* intro_points */
         )
         .unwrap();
 
