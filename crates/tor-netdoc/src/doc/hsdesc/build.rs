@@ -8,6 +8,7 @@ use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
 use crate::NetdocBuilder;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
+use tor_cell::chancell::msg::HandshakeType;
 use tor_cert::{CertEncodeError, CertType, CertifiedKey, Ed25519Cert, EncodedEd25519Cert};
 use tor_error::into_bad_api_usage;
 use tor_hscrypto::pk::{HsBlindIdKey, HsBlindIdKeypair, HsSvcDescEncKeypair};
@@ -48,8 +49,7 @@ struct HsDesc<'a> {
     /// This certificate can be created using [`create_desc_sign_key_cert`].
     hs_desc_sign_cert: EncodedEd25519Cert,
     /// A list of recognized CREATE handshakes that this onion service supports.
-    // TODO HSS: this should probably be a caret enum, not an integer
-    create2_formats: &'a [u32],
+    create2_formats: &'a [HandshakeType],
     /// A list of authentication types that this onion service supports.
     auth_required: Option<SmallVec<[IntroAuthType; 2]>>,
     /// If true, this a "single onion service" and is not trying to keep its own location private.
@@ -365,7 +365,7 @@ mod test {
 
     #[test]
     fn encode_decode() {
-        const CREATE2_FORMATS: &[u32] = &[1, 2];
+        const CREATE2_FORMATS: &[HandshakeType] = &[HandshakeType::TAP, HandshakeType::NTOR];
         const LIFETIME_MINS: u16 = 100;
         const REVISION_COUNT: u64 = 2;
         const CERT_EXPIRY_SECS: u64 = 60 * 60;
