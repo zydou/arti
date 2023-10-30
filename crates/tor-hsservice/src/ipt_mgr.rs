@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use futures::channel::mpsc;
 use futures::task::SpawnExt as _;
@@ -173,9 +173,7 @@ struct IptRelay {
     relay: RelayIds,
 
     /// The retirement time we selected for this relay
-    ///
-    /// We use `SystemTime`, not `Instant`, because we will want to save it to disk.
-    planned_retirement: SystemTime,
+    planned_retirement: Instant,
 
     /// IPTs at this relay
     ///
@@ -570,7 +568,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
     fn choose_new_ipt_relay(
         &mut self,
         imm: &Immutable<R>,
-        now: SystemTime,
+        now: Instant,
     ) -> Result<(), ChooseIptError> {
         let netdir = imm.dirprovider.timely_netdir()?;
 
@@ -779,7 +777,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             {
                 self.state.last_irelay_selection_outcome = self
                     .state
-                    .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
+                    .choose_new_ipt_relay(&self.imm, now.instant().get_now_untracked())
                     .map_err(|error| {
                         /// Call $report! with the message.
                         // The macros are annoying and want a cost argument.
