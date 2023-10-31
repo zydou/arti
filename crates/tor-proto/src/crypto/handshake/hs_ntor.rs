@@ -143,6 +143,7 @@ pub struct HsNtorClientState {
 /// after proposal 340 is implemented.  (509 bytes for cell data, minus 16 bytes
 /// for relay encryption overhead, minus 1 byte for relay command, minus 2 bytes
 /// for relay message length.)
+#[cfg(any(test, feature = "hs-client"))]
 const INTRO1_TARGET_LEN: usize = 490;
 
 #[cfg(any(test, feature = "hs-client"))]
