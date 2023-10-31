@@ -231,11 +231,10 @@ impl NtorV3Client {
     ///
     /// On success, return a state object that will be used to complete the handshake, along
     /// with the message to send.
-    #[allow(clippy::needless_pass_by_value)]
     fn client1<R: RngCore + CryptoRng>(
         rng: &mut R,
         key: &NtorV3PublicKey,
-        extensions: Vec<NtorV3Extension>,
+        extensions: &[NtorV3Extension],
     ) -> Result<(NtorV3HandshakeState, Vec<u8>)> {
         let mut message = Vec::new();
         NtorV3Extension::write_many_onto(extensions.iter(), &mut message)
@@ -720,8 +719,7 @@ mod test {
             sk: b,
         };
 
-        let (c_state, c_handshake) =
-            NtorV3Client::client1(&mut rng, &relay_public, vec![]).unwrap();
+        let (c_state, c_handshake) = NtorV3Client::client1(&mut rng, &relay_public, &[]).unwrap();
 
         let mut rep = |_: &[u8]| Some(vec![]);
 
@@ -767,7 +765,7 @@ mod test {
         let (c_state, c_handshake) = NtorV3Client::client1(
             &mut rng,
             &relay_public,
-            vec![NtorV3Extension::RequestCongestionControl],
+            &[NtorV3Extension::RequestCongestionControl],
         )
         .unwrap();
 
