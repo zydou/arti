@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.1.10 — XX XX 2023
+# Arti 1.1.10 — 31 October 2023
 
 Arti 1.1.10 continues work on support for onion services in Arti.
 At last, we can (technically) run as an onion service... though
@@ -60,7 +60,7 @@ and we are missing other important security features.)
 - Numerous bugfixes, cleanups, and backfills found during testing and
   integrating the pieces of the onion service
   implementation. ([!1634], [!1637], [!1659], [!1673], [!1682],
-  [!1684], [!1686], [!1695])
+  [!1684], [!1686], [!1695], [!1711])
 
 
 ### Client features
@@ -122,7 +122,8 @@ and we are missing other important security features.)
   when making anonymized requests to an onion service directory:
   to do so is a fingerprinting vector.
   ([#1062], [cfe641613e6b6f4f])
-
+- Use the new typed handshake-type codes when building onion service
+  descriptors.  ([!1712])
 
 ### Acknowledgments
 
