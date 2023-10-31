@@ -776,6 +776,28 @@ mod test {
     }
 
     #[test]
+    fn arti_path_with_denotator() {
+        const VALID_ARTI_DENOTATORS: &[&str] = &["foo", "one_two_three-f0ur"];
+
+        const BAD_OUTER_CHAR_DENOTATORS: &[&str] =
+            &["1-2-3-", "1-2-3_", "1-2-3.", "-1-2-3", "_1-2-3", ".1-2-3"];
+
+        for denotator in VALID_ARTI_DENOTATORS {
+            let path = format!("foo/bar/qux+{denotator}");
+            assert_ok!(ArtiPath, path);
+            assert_ok!(ArtiPathComponent, denotator);
+        }
+
+        for denotator in BAD_OUTER_CHAR_DENOTATORS {
+            let path = format!("hs_client+{denotator}");
+
+            assert_err!(ArtiPath, path, ArtiPathError::BadOuterChar(_));
+            assert_err!(ArtiPathComponent, denotator, ArtiPathError::BadOuterChar(_));
+            assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar('+'));
+        }
+    }
+
+    #[test]
     fn serde() {
         // TODO HSS clone-and-hack with tor_hsservice::::nickname::test::serde
         // perhaps there should be some utility in tor-basic-utils for testing
