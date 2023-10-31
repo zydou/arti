@@ -719,7 +719,7 @@ mod test {
             "_",
         ];
 
-        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] = &["c++", "client?", "no spaces please"];
+        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] = &["client?", "no spaces please"];
 
         const EMPTY_PATH_COMPONENT: &[&str] =
             &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
@@ -764,6 +764,14 @@ mod test {
             ArtiPathComponent,
             REL_PATH,
             ArtiPathError::DisallowedChar('/')
+        );
+
+        const EMPTY_DENOTATOR: &str = "c++";
+        assert_err!(ArtiPath, EMPTY_DENOTATOR, ArtiPathError::EmptyPathComponent);
+        assert_err!(
+            ArtiPathComponent,
+            EMPTY_DENOTATOR,
+            ArtiPathError::DisallowedChar('+')
         );
     }
 
