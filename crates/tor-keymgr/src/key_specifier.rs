@@ -390,6 +390,9 @@ impl KeyDenotator for () {
 //
 // TODO HSS: extend this to work for c-tor paths too (it will likely be a breaking
 // change).
+//
+// TODO HSS: rewrite this using derive-ahoc
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1710
 #[macro_export]
 macro_rules! define_key_specifier {
     {
