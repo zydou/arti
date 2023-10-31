@@ -330,9 +330,9 @@ impl KeySpecifier for KeyPath {
 ///
 /// A key's denotators *denote* an instance of a key.
 pub trait KeyDenotator {
-    /// Display the denotators in a format that can be used within an
+    /// Encode the denotators in a format that can be used within an
     /// [`ArtiPath`] or [`CTorPath`].
-    fn display(&self) -> String;
+    fn encode(&self) -> String;
 
     /// Try to convert the specified string `s` to a value of this type.
     fn decode(s: &str) -> crate::Result<Self>
@@ -344,7 +344,7 @@ pub trait KeyDenotator {
 }
 
 impl KeyDenotator for TimePeriod {
-    fn display(&self) -> String {
+    fn encode(&self) -> String {
         format!(
             "{}_{}_{}",
             self.interval_num(),
@@ -490,7 +490,7 @@ macro_rules! define_key_specifier {
         {
             fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
                 let prefix = self.prefix();
-                let denotator = $crate::KeyDenotator::display(&self.$denotator);
+                let denotator = $crate::KeyDenotator::encode(&self.$denotator);
                 let path = format!("{prefix}_{denotator}");
 
                 Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?)
@@ -662,7 +662,7 @@ mod test {
     }
 
     impl KeyDenotator for usize {
-        fn display(&self) -> String {
+        fn encode(&self) -> String {
             self.to_string()
         }
 
