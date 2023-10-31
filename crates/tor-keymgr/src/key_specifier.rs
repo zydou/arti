@@ -16,6 +16,13 @@ use tor_hscrypto::time::TimePeriod;
 /// `_`, or  `.`.
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
+/// The last component of the path may optionally contain the encoded (string) representation
+/// of a [`KeyDenotator`] (obtained from [`KeyDenotator::encode`]).
+/// The denotator is separated from the rest of the component by a single [`DENOTATOR_SEP`]
+/// character. For example, the last component of the path `"foo/bar/bax+denotator_example"`
+/// is `"bax+denotator_example"`, and the denotator is `"denotator_example"`.
+/// Denotator strings are validited in the same way as [`ArtiPathComponent`]s.
+///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
@@ -136,7 +143,16 @@ impl ArtiPath {
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
     pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
-        if let Some(e) = inner
+        // Validate the denotator, if there is one.
+        let path = if let Some((inner, denotator)) = inner.rsplit_once(DENOTATOR_SEP) {
+            let () = ArtiPathComponent::validate_str(denotator)?;
+
+            inner
+        } else {
+            inner.as_ref()
+        };
+
+        if let Some(e) = path
             .split(PATH_SEP)
             .find_map(|s| ArtiPathComponent::validate_str(s).err())
         {
@@ -465,11 +481,8 @@ macro_rules! define_key_specifier {
             /// pattern returned by the [`KeyDenotator::glob`] implementation
             /// of its denotator.
             $vis fn arti_pattern($($field: &$field_ty,)*) -> $crate::KeyPathPattern {
-                use $crate::KeyDenotator;
-
                 let pat = Self::arti_path_prefix($(&$field,)*);
-                let glob = <$denotator_ty>::glob();
-                KeyPathPattern::new(format!("{pat}_{glob}"))
+                KeyPathPattern::new(format!("{pat}{}*", $crate::DENOTATOR_SEP))
             }
         }
 
@@ -495,7 +508,7 @@ macro_rules! define_key_specifier {
             fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
                 let prefix = self.prefix();
                 let denotator = $crate::KeyDenotator::encode(&self.$denotator);
-                let path = format!("{prefix}_{denotator}");
+                let path = format!("{prefix}{}{denotator}", $crate::DENOTATOR_SEP);
 
                 Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?)
             }
@@ -819,7 +832,7 @@ mod test {
 
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane_6"
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6"
         );
         assert_eq!(key_spec.role(), "marzlevane");
     }
@@ -858,7 +871,7 @@ mod test {
 
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "encabulator/marzlevane_6"
+            "encabulator/marzlevane+6"
         );
         assert_eq!(key_spec.role(), "marzlevane");
     }

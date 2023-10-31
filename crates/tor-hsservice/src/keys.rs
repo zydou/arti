@@ -169,13 +169,13 @@ mod test {
         let key_spec = BlindIdPublicKeySpecifier::new(&nickname, period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KP_hs_blind_id_2_1_3"
+            "hs/shallot/KP_hs_blind_id+2_1_3"
         );
 
         let key_spec = BlindIdKeypairSpecifier::new(&nickname, period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KS_hs_blind_id_2_1_3"
+            "hs/shallot/KS_hs_blind_id+2_1_3"
         );
     }
 
@@ -186,7 +186,7 @@ mod test {
         let key_spec = DescSigningKeypairSpecifier::new(&nickname, period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KS_hs_desc_sign_2_1_3"
+            "hs/shallot/KS_hs_desc_sign+2_1_3"
         );
     }
 }
