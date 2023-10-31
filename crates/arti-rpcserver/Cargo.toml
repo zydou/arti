@@ -23,7 +23,7 @@ full = [
 ]
 
 [dependencies]
-arti-client = { path = "../arti-client", version = "0.10.2", features = ["rpc"] }
+arti-client = { path = "../arti-client", version = "0.11.0", features = ["rpc"] }
 asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
@@ -50,4 +50,4 @@ zeroize = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.7.3" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
