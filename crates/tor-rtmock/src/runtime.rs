@@ -354,10 +354,9 @@ impl MockRuntimeBuilder {
             starting_wallclock,
         } = self;
 
-        let sleep = if let Some(starting_wallclock) = starting_wallclock {
-            SimpleMockTimeProvider::from_wallclock(starting_wallclock)
-        } else {
-            SimpleMockTimeProvider::default()
+        let sleep = SimpleMockTimeProvider::default();
+        if let Some(starting_wallclock) = starting_wallclock {
+            sleep.jump_wallclock(starting_wallclock);
         };
 
         let task = MockExecutor::with_scheduling(scheduling);
