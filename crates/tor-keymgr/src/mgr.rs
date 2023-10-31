@@ -15,7 +15,7 @@
 //! specified key (and thus suffers from a a TOCTOU race).
 
 use crate::{
-    EncodableKey, KeyPath, KeyPathPatternSet, KeyPathRange, KeySpecifier, KeyType, Keygen,
+    EncodableKey, KeyPath, KeyPathPatternSet, KeySpecifier, KeyType, Keygen,
     KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
 };
 
@@ -319,29 +319,19 @@ impl KeyMgr {
     /// Return the keys matching the specified [`KeyPathPatternSet`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
-    //
-    // TODO HSS: remove derive_meta and change this to only return the ArtiPaths
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955700
-    pub fn list_matching<M>(
+    pub fn list_matching(
         &self,
         pat: &KeyPathPatternSet,
-        derive_meta: impl Fn(&KeyPath, &[KeyPathRange]) -> Result<M>,
-    ) -> Result<Vec<(KeyPath, KeyType, M)>> {
+    ) -> Result<Vec<(KeyPath, KeyType)>> {
         self.all_stores()
             .map(|store| -> Result<Vec<_>> {
-                store
+                Ok(store
                     .list()?
-                    .iter()
-                    .filter_map(|(key_path, key_type): &(KeyPath, KeyType)| {
-                        key_path.matches(pat).map(|captures| {
-                            Ok((
-                                key_path.clone(),
-                                key_type.clone(),
-                                derive_meta(key_path, &captures)?,
-                            ))
-                        })
+                    .into_iter()
+                    .filter(|(key_path, _): &(KeyPath, KeyType)| {
+                        key_path.matches(pat).is_some()
                     })
-                    .collect::<Result<Vec<_>>>()
+                    .collect::<Vec<_>>())
             })
             .flatten_ok()
             .collect::<Result<Vec<_>>>()
