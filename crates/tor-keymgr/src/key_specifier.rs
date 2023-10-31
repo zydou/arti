@@ -919,4 +919,15 @@ mod test {
         );
         assert_eq!(key_spec.role(), "fan");
     }
+
+    #[test]
+    fn encode_time_period() {
+        let period = TimePeriod::from_parts(1, 2, 3);
+        let encoded_period = period.encode();
+
+        assert_eq!(encoded_period, "2_1_3");
+        assert_eq!(period, TimePeriod::decode(&encoded_period).unwrap());
+
+        assert!(TimePeriod::decode("invalid_tp").is_err());
+    }
 }
