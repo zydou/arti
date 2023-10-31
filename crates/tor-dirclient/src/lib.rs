@@ -40,6 +40,12 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// TODO probably remove this at some point - see tpo/core/arti#1060
+#![cfg_attr(
+    not(all(feature = "full", feature = "experimental")),
+    allow(unused_imports)
+)]
+
 mod err;
 pub mod request;
 mod response;
