@@ -35,9 +35,9 @@ safelog = { version = "0.3.2", path = "../safelog" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 thiserror = "1"
-tor-async-utils = { version = "0.1.4", path = "../tor-async-utils" }
+tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-cell = { version = "0.13.0", path = "../tor-cell" }
-tor-config = { version = "0.9.5", path = "../tor-config" }
+tor-config = { version = "0.9.6", path = "../tor-config" }
 tor-error = { version = "0.5.4", path = "../tor-error" }
 tor-hsservice = { path = "../tor-hsservice", version = "0.4.0" }
 tor-proto = { version = "0.13.0", path = "../tor-proto", features = ["experimental-api", "hs-service"] }

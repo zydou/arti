@@ -36,9 +36,9 @@ fs-mistrust = { version = "0.7.3", path = "../fs-mistrust" }
 futures = "0.3.14"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
-tor-async-utils = { version = "0.1.4", path = "../tor-async-utils" }
+tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-chanmgr = { version = "0.11.0", path = "../tor-chanmgr", features = ["pt-client"] }
-tor-config = { version = "0.9.5", path = "../tor-config" }
+tor-config = { version = "0.9.6", path = "../tor-config" }
 tor-error = { version = "0.5.4", path = "../tor-error", features = ["tracing"] }
 tor-linkspec = { version = "0.8.3", path = "../tor-linkspec", features = ["pt-client"] }
 tor-rtcompat = { version = "0.9.5", path = "../tor-rtcompat" }

@@ -1,6 +1,6 @@
 [package]
 name = "arti-rpcserver"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 rust-version = "1.60"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
@@ -37,7 +37,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "1"
 tiny-keccak = { version = "2", features = ["kmac"] }
-tor-async-utils = { path = "../tor-async-utils", version = "0.1.4" }
+tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-bytes = { path = "../tor-bytes", version = "0.7.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }

@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdoc"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -109,7 +109,7 @@ tor-cell = { path = "../tor-cell", version = "0.13.0" }
 tor-cert = { path = "../tor-cert", version = "0.8.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.5" }
 tor-error = { path = "../tor-error", version = "0.5.4" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.3", optional = true }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.4", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.3", optional = true }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 tor-protover = { path = "../tor-protover", version = "0.5.1" }

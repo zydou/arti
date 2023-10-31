@@ -1,6 +1,6 @@
 [package]
 name = "tor-config"
-version = "0.9.5"
+version = "0.9.6"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.65"
