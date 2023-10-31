@@ -9,7 +9,7 @@ Arti 1.1.10 continues work on support for onion services in Arti.
 At last, we can (technically) run as an onion service... though
 not yet in a useful way. (Onion services don't yet recover correctly
 after a restart, outdated keys are not removed,
-and we are missing other key security features.)
+and we are missing other important security features.)
 
 (Up to date as of 2c8e210b89677e0ded4d886c030e6a339e46b8f5)
 
@@ -46,7 +46,7 @@ and we are missing other key security features.)
   [!1642])
 - Auto-generate missing keys rather than failing when we are
   about to publish. ([!1688])
-- Log onion service Ids when they are crated, so we can test them.
+- Log onion service Ids when they are created, so we can test them.
   ([!1689])
 - Move responsibility for generating descriptor signing key certificates
   into `tor-hsservice` from `tor-netdoc`; refactor accordingly.
@@ -107,7 +107,7 @@ and we are missing other key security features.)
 - Refactored the key derivation code for relay cryptography. ([!1629])
 - Work around [a bug in `FusedFuture for oneshot::Receiver`] that made
   it dangerous to `select!` on a `oneshot::Receiver` to detect if the
-  sender is dropped.  ([#1059], [!1656])
+  sender is dropped.  ([#1059], [!1656], [futures-rs#2455](https://github.com/rust-lang/futures-rs/issues/2455))
 - Fix handling for escape sequences when talking to a
   pluggable transport. ([!1584])
 - Major refactoring and simplifications on the explicit closing of
