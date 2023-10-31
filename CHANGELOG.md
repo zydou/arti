@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.1.10 — XX XX 2023
+# Arti 1.1.10 — 31 October 2023
 
 Arti 1.1.10 continues work on support for onion services in Arti.
 At last, we can (technically) run as an onion service... though
@@ -11,13 +11,11 @@ not yet in a useful way. (Onion services don't yet recover correctly
 after a restart, outdated keys are not removed,
 and we are missing other important security features.)
 
-(Up to date as of 2c8e210b89677e0ded4d886c030e6a339e46b8f5)
-
 ### Breaking changes in lower-level crates
 
 - The [`IoErrorExt`] trait in [`tor-basic-utils`] is now
   sealed. ([!1654])
-- The [`Requestable`] trait in [`tor-dir-client`] is now sealed,
+- The [`Requestable`] trait in [`tor-dirclient`] is now sealed,
   and most of its members are now private. ([!1679])
 - In [`tor-cell`], stream and circuit IDs are now inherently non-zero.
   To represent an ID that might be zero on the wire, we now use
@@ -60,7 +58,7 @@ and we are missing other important security features.)
 - Numerous bugfixes, cleanups, and backfills found during testing and
   integrating the pieces of the onion service
   implementation. ([!1634], [!1637], [!1659], [!1673], [!1682],
-  [!1684], [!1686], [!1695])
+  [!1684], [!1686], [!1695], [!1711])
 
 
 ### Client features
@@ -122,19 +120,84 @@ and we are missing other important security features.)
   when making anonymized requests to an onion service directory:
   to do so is a fingerprinting vector.
   ([#1062], [cfe641613e6b6f4f])
-
+- Use the new typed handshake-type codes when building onion service
+  descriptors.  ([!1712])
 
 ### Acknowledgments
 
-TODO FILL THIS IN.
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Emil Engler, gil, halcyon, Jani Monoses, Jim Newsome,
+LowLandMink543, Neel Chauhan, and Trinity Pointard!
 
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
-
-TODO Add references.
-
-
+[!1584]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1584
+[!1613]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1613
+[!1629]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1629
+[!1634]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1634
+[!1636]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1636
+[!1637]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1637
+[!1638]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1638
+[!1639]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1639
+[!1640]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1640
+[!1642]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1642
+[!1644]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1644
+[!1645]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1645
+[!1646]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1646
+[!1650]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1650
+[!1651]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1651
+[!1653]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1653
+[!1654]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1654
+[!1656]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1656
+[!1658]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1658
+[!1659]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1659
+[!1661]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1661
+[!1663]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1663
+[!1672]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1672
+[!1673]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1673
+[!1674]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1674
+[!1675]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1675
+[!1677]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677
+[!1678]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1678
+[!1679]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1679
+[!1681]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1681
+[!1682]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1682
+[!1684]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1684
+[!1686]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1686
+[!1688]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1688
+[!1689]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1689
+[!1691]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1691
+[!1693]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1693
+[!1695]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1695
+[!1697]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1697
+[!1700]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1700
+[!1702]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1702
+[!1703]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1703
+[!1711]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1711
+[!1712]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1712
+[#751]: https://gitlab.torproject.org/tpo/core/arti/-/issues/751
+[#1039]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1039
+[#1051]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1051
+[#1059]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1059
+[#1061]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1061
+[#1062]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1062
+[#1065]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1065
+[#1078]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1078
+[#1080]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1080
+[21605d2c9e601c3a]: https://gitlab.torproject.org/tpo/core/arti/-/commit/21605d2c9e601c3a5099bfd8d8c887cbb3b36c0a
+[cfe641613e6b6f4f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cfe641613e6b6f4f55de87621eadacf24d22a939
+[`IoErrorExt`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/trait.IoErrorExt.html
+[`Requestable`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirclient/request/trait.Requestable.html
+[`tor-basic-utils`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/index.html
+[`tor-cell`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cell/index.html
+[`tor-cert`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cert/index.html
+[`tor-dirclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirclient/index.html
+[`tor-proto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/index.html
+[a bug in `FusedFuture for oneshot::Receiver`]: https://github.com/rust-lang/futures-rs/issues/2455
+[a bug in `config-rs`]: https://github.com/mehcode/config-rs/issues/464
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
