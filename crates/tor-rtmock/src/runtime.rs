@@ -80,6 +80,8 @@ pub struct MockRuntime {
 pub struct MockRuntimeBuilder {
     /// scheduling policy
     scheduling: SchedulingPolicy,
+    /// sleep provider
+    sleep: Option<SimpleMockTimeProvider>,
     /// starting wall clock time
     starting_wallclock: Option<SystemTime>,
 }
@@ -341,6 +343,12 @@ impl MockRuntimeBuilder {
         self
     }
 
+    /// Provide a non-`Default` [`SimpleMockTimeProvider`]
+    pub fn sleep_provider(mut self, sleep: SimpleMockTimeProvider) -> Self {
+        self.sleep = Some(sleep);
+        self
+    }
+
     /// Set the starting wall clock time
     pub fn starting_wallclock(mut self, starting_wallclock: SystemTime) -> Self {
         self.starting_wallclock = Some(starting_wallclock);
@@ -351,10 +359,11 @@ impl MockRuntimeBuilder {
     pub fn build(self) -> MockRuntime {
         let MockRuntimeBuilder {
             scheduling,
+            sleep,
             starting_wallclock,
         } = self;
 
-        let sleep = SimpleMockTimeProvider::default();
+        let sleep = sleep.unwrap_or_default();
         if let Some(starting_wallclock) = starting_wallclock {
             sleep.jump_wallclock(starting_wallclock);
         };
