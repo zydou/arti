@@ -127,7 +127,9 @@ and we are missing other important security features.)
 
 ### Acknowledgments
 
-TODO FILL THIS IN.
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Emil Engler, gil, halcyon, Jani Monoses, Jim Newsome,
+LowLandMink543, Neel Chauhan, and Trinity Pointard!
 
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
