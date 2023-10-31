@@ -193,7 +193,7 @@ mod test {
     use tor_basic_utils::test_rng::{testing_rng, TestingRng};
     use tor_circmgr::hspool::HsCircKind;
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
-    use tor_keymgr::{ArtiNativeKeystore, ToEncodableKey};
+    use tor_keymgr::{ArtiNativeKeystore, KeySpecifier, ToEncodableKey};
     use tor_llcrypto::pk::{ed25519, rsa};
     use tor_llcrypto::util::rand_compat::RngCompatExt;
     use tor_netdir::testprovider::TestNetDirProvider;
@@ -204,9 +204,12 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
-    use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
     use crate::svc::publish::reactor::MockableClientCirc;
-    use crate::{Anonymity, HsNickname, HsSvcKeyRole, HsSvcKeySpecifier, IptLocalId, KeyDenotator};
+    use crate::{Anonymity, HsNickname, IptLocalId};
+    use crate::{
+        BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
+        HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
+    };
 
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
@@ -372,25 +375,12 @@ mod test {
     }
 
     /// Insert the specified key into the keystore.
-    fn insert_svc_key<K, R, D>(
-        key: K,
-        keymgr: &KeyMgr,
-        nickname: &HsNickname,
-        role: R,
-        denotators: Option<D>,
-    ) where
+    fn insert_svc_key<K>(key: K, keymgr: &KeyMgr, svc_key_spec: &dyn KeySpecifier)
+    where
         K: ToEncodableKey,
-        D: KeyDenotator,
-        R: HsSvcKeyRole<Denotator = D>,
     {
-        let svc_key_spec = if let Some(denotators) = denotators {
-            HsSvcKeySpecifier::with_denotators(nickname, role, denotators)
-        } else {
-            HsSvcKeySpecifier::new(nickname, role)
-        };
-
         keymgr
-            .insert(key, &svc_key_spec, tor_keymgr::KeystoreSelector::Default)
+            .insert(key, svc_key_spec, tor_keymgr::KeystoreSelector::Default)
             .unwrap();
     }
 
@@ -422,44 +412,30 @@ mod test {
         // Provision the keystore with the necessary keys:
         let keymgr = KeyMgr::new(keystore, vec![]);
 
-        insert_svc_key(
-            id_keypair,
-            &keymgr,
-            nickname,
-            HsSvcHsIdKeyRole::HsIdKeypair,
-            None,
-        );
+        insert_svc_key(id_keypair, &keymgr, &HsIdKeypairSpecifier::new(nickname));
 
         insert_svc_key(
             id_pub.clone(),
             &keymgr,
-            nickname,
-            HsSvcHsIdKeyRole::HsIdPublicKey,
-            None,
+            &HsIdPublicKeySpecifier::new(nickname),
         );
 
         insert_svc_key(
             hs_blind_id_kp,
             &keymgr,
-            nickname,
-            HsSvcKeyRoleWithTimePeriod::BlindIdKeypair,
-            Some(period),
+            &BlindIdKeypairSpecifier::new(nickname, period),
         );
 
         insert_svc_key(
             hs_blind_id_key.clone(),
             &keymgr,
-            nickname,
-            HsSvcKeyRoleWithTimePeriod::BlindIdPublicKey,
-            Some(period),
+            &BlindIdPublicKeySpecifier::new(nickname, period),
         );
 
         insert_svc_key(
             HsDescSigningKeypair::from(ed25519::Keypair::generate(&mut rng)),
             &keymgr,
-            nickname,
-            HsSvcKeyRoleWithTimePeriod::DescSigningKeypair,
-            Some(period),
+            &DescSigningKeypairSpecifier::new(nickname, period),
         );
 
         let hs_id = id_pub.into();

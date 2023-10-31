@@ -155,6 +155,8 @@ impl HsClientSpecifier {
     }
 }
 
+// TODO HSS: Define the client key specifiers using tor_keymgr::define_key_specifier!
+
 /// An identifier for a particular instance of an HS client key.
 pub struct HsClientSecretKeySpecifier {
     /// The client associated with this key.

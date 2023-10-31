@@ -6,6 +6,7 @@ use std::result::Result as StdResult;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tor_hscrypto::time::TimePeriod;
 
 /// The path of a key in the Arti key store.
 ///
@@ -323,6 +324,288 @@ impl KeySpecifier for KeyPath {
     }
 }
 
+/// A trait for displaying key denotators, for use within an [`ArtiPath`]
+/// or [`CTorPath`].
+///
+/// A key's denotators *denote* an instance of a key.
+pub trait KeyDenotator {
+    /// Display the denotators in a format that can be used within an
+    /// [`ArtiPath`] or [`CTorPath`].
+    fn display(&self) -> String;
+
+    /// Return a glob pattern that matches the key denotators, if there are any.
+    fn glob() -> String;
+}
+
+impl KeyDenotator for TimePeriod {
+    fn display(&self) -> String {
+        format!(
+            "{}_{}_{}",
+            self.interval_num(),
+            self.length(),
+            self.epoch_offset_in_sec()
+        )
+    }
+
+    fn glob() -> String {
+        "*_*_*".into()
+    }
+}
+
+impl KeyDenotator for () {
+    fn display(&self) -> String {
+        "".into()
+    }
+
+    fn glob() -> String {
+        "".into()
+    }
+}
+
+/// A helper for implementing [`KeySpecifier`]s.
+///
+/// Defines a `key_spec` struct, that has some static components (`prefix`, `role`),
+/// and a number of variable components represented by its fields.
+///
+/// The `prefix` is the first component of the [`ArtiPath`] of the [`KeySpecifier`].
+///
+/// The `role` is the _prefix of the last component_ of the [`ArtiPath`] of the specifier.
+/// The `role` is followed by the denotators of the key, if they are any.
+///
+/// The field that contains the denotators of the key, if there is one,
+/// should be anotated with `#[denotator]`.
+/// The denotator **must** implement [`KeyDenotator`],
+/// and it **must** come before all the other fields.
+/// The `#[denotator]` anotation can be used at most once.
+///
+/// The declaration order of the non-denotator fields is important.
+/// The inner components of the [`ArtiPath`] of the specifier are built
+/// from the string representation of its fields, taken in declaration order.
+/// As such, all fields, except for the denotator, **must** implement
+/// [`Display`](std::fmt::Display).
+///
+/// For example, a key specifier with `prefix` `"foo"` and `role` `"bar"`
+/// will have an [`ArtiPath`] of the form
+/// `"foo/<field1_str>/<field2_str>/../bar[_<denotator>]"`.
+//
+// TODO HSS: extend this to work for c-tor paths too (it will likely be a breaking
+// change).
+//
+// TODO HSS: rewrite this using derive-ahoc
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1710
+#[macro_export]
+macro_rules! define_key_specifier {
+    {
+        #[prefix = $prefix:expr]
+        #[role = $role:expr]
+        $( #[ $($attrs:meta)* ] )*
+        $vis:vis struct $key_spec:ident $( [ $($gen:tt)+ ] )?
+        $( where [ $($where_clauses:tt)* ] )?
+        {
+            #[denotator]
+            $( #[ $($denotator_attrs:meta)* ] )*
+            $denotator:ident : $denotator_ty:ty,
+
+            $(
+                $( #[ $($field_attrs:meta)* ] )*
+                $field:ident : $field_ty:ty,
+            )*
+        }
+    } => {
+        $(#[ $($attrs)* ])*
+        $vis struct $key_spec $( < $($gen)+ > )?
+        $( where $($where_clauses)* )?
+        {
+            $(
+                $( #[ $($field_attrs)* ] )*
+                $field : $field_ty,
+            )*
+
+            $( #[ $($denotator_attrs)* ] )*
+            $denotator: $denotator_ty,
+        }
+
+        impl $( < $($gen)* > )? $key_spec $( < $($gen)+ > )?
+        $( where $($where_clauses)* )?
+        {
+            /// Create a new key specifier of this type.
+            $vis fn new($($field: $field_ty,)* $denotator: $denotator_ty) -> Self {
+
+                Self { $($field,)* $denotator }
+            }
+
+            /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
+            /// of all the keys of this type.
+            ///
+            /// This builds a pattern by joining the `prefix` of this specifier
+            /// with the specified field values, its `role`, and the glob
+            /// pattern returned by the [`KeyDenotator::glob`] implementation
+            /// of its denotator.
+            $vis fn arti_pattern($($field: &$field_ty,)*) -> $crate::KeyPathPattern {
+                use $crate::KeyDenotator;
+
+                let pat = Self::arti_path_prefix($(&$field,)*);
+                let glob = <$denotator_ty>::glob();
+                KeyPathPattern::new(format!("{pat}_{glob}"))
+            }
+        }
+
+        define_key_specifier! {
+            impl_common
+
+            #[prefix = $prefix]
+            #[role = $role]
+            $(#[ $($attrs)* ])*
+            $vis struct $key_spec $( [ $($gen)+ ] )?
+            $( where $($where_clauses)* )?
+            {
+                $(
+                    $( #[ $($field_attrs)* ] )*
+                    $field: $field_ty,
+                )*
+            }
+        }
+
+        impl $( < $($gen)* > )? $crate::KeySpecifier for $key_spec $( < $($gen)* > )?
+        $( where $($where_clauses)* )?
+        {
+            fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
+                let prefix = self.prefix();
+                let denotator = $crate::KeyDenotator::display(&self.$denotator);
+                let path = format!("{prefix}_{denotator}");
+
+                Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?)
+            }
+
+            fn ctor_path(&self) -> Option<$crate::CTorPath> {
+                // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the directories used
+                // by C tor. The resulting CTorPath will be prefixed with the appropriate C tor directory,
+                // based on the HsSvcKeyRole.
+                //
+                // This function will return `None` for keys that aren't stored on disk by C tor.
+                todo!()
+            }
+        }
+    };
+
+    {
+        #[prefix = $prefix:expr]
+        #[role = $role:expr]
+        $( #[ $($attrs:meta)* ] )*
+        $vis:vis struct $key_spec:ident $( [ $($gen:tt)+ ] )?
+        $( where [ $($where_clauses:tt)* ] )?
+        {
+            $(
+                $( #[ $($field_attrs:meta)* ] )*
+                $field:ident : $field_ty:ty,
+            )*
+        }
+    } => {
+        $(#[ $($attrs)* ])*
+        $vis struct $key_spec $( < $($gen)+ > )? {
+            $(
+                $( #[ $($field_attrs)* ] )*
+                $field: $field_ty,
+            )*
+        }
+
+        impl $( < $($gen)* > )? $key_spec $( < $($gen)* > )?
+        $( where $($where_clauses)* )?
+        {
+            /// Create a new key specifier of this type.
+            $vis fn new($($field: $field_ty,)*) -> Self {
+                Self { $($field,)* }
+            }
+
+            /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s corresponding to the key
+            /// corresponding to the specified service `nickname` and `role`.
+            $vis fn arti_pattern($($field: $field_ty,)*) -> KeyPathPattern {
+                let pat = Self::arti_path_prefix($(&$field,)*);
+                KeyPathPattern::new(pat)
+            }
+        }
+
+        impl $( < $($gen)* > )? $crate::KeySpecifier for $key_spec $( < $($gen)* > )?
+        $( where $($where_clauses)* )?
+        {
+            fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
+                let prefix = self.prefix();
+                Ok($crate::ArtiPath::new(prefix).map_err(|e| tor_error::internal!("{e}"))?)
+            }
+
+            fn ctor_path(&self) -> Option<$crate::CTorPath> {
+                // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the directories used
+                // by C tor. The resulting CTorPath will be prefixed with the appropriate C tor directory,
+                // based on the HsSvcKeyRole.
+                //
+                // This function will return `None` for keys that aren't stored on disk by C tor.
+                todo!()
+            }
+        }
+
+        define_key_specifier! {
+            impl_common
+
+            #[prefix = $prefix]
+            #[role = $role]
+            $(#[ $($attrs)* ])*
+            $vis struct $key_spec $( [ $($gen)+ ] )?
+            $( where $($where_clauses)* )?
+            {
+                $(
+                    $( #[ $($field_attrs)* ] )*
+                    $field: $field_ty,
+                )*
+            }
+        }
+    };
+
+    // A helper branch for implementing the functions shared by all key specifiers.
+    {
+        impl_common
+
+        #[prefix = $prefix:expr]
+        #[role = $role:expr]
+        $( #[ $($attrs:meta)* ] )*
+        $vis:vis struct $key_spec:ident $( [ $($gen:tt)+ ] )?
+        $( where [ $($where_clauses:tt)* ] )?
+        {
+            $(
+                $( #[ $($field_attrs:meta)* ] )*
+                $field:ident : $field_ty:ty,
+            )*
+        }
+    } => {
+        impl $( < $($gen)* > )? $key_spec $( < $($gen)+ > )?
+        $( where $($where_clauses)* )?
+        {
+            /// Return the role of this specifier.
+            $vis fn role(&self) -> &'static str {
+                $role
+            }
+
+            /// A helper for generating the prefix shared by all `ArtiPath`s
+            /// of the keys associated with this specifier.
+            ///
+            /// Returns the `ArtiPath`, minus the denotators.
+            $vis fn arti_path_prefix($($field: &$field_ty,)*) -> String {
+                vec![
+                    $prefix.to_string(),
+                    $(
+                        $field.to_string(),
+                    )*
+                    $role.to_string()
+                ].join("/")
+            }
+
+            /// A convenience wrapper around `Self::arti_path_prefix`.
+            fn prefix(&self) -> String {
+                Self::arti_path_prefix($(&self.$field,)*)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -357,6 +640,16 @@ mod test {
             assert!(path.is_ok(), "{} should be valid", $inner);
             assert_eq!(path.unwrap().to_string(), *$inner);
         }};
+    }
+
+    impl KeyDenotator for usize {
+        fn display(&self) -> String {
+            self.to_string()
+        }
+
+        fn glob() -> String {
+            "*".to_string()
+        }
     }
 
     #[test]
@@ -465,5 +758,101 @@ mod test {
         );
         assert_eq!(path.substring(&(0..KEY_PATH.len() + 1).into()), None);
         assert_eq!(path.substring(&(0..0).into()).unwrap(), "");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_with_fields_and_denotator() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "marzlevane"]
+            struct TestSpecifier {
+                #[denotator]
+                /// The denotator.
+                count: usize,
+
+                // The remaining fields
+                kind: String,
+                base: String,
+                casing: String,
+            }
+        );
+
+        let key_spec = TestSpecifier {
+            kind: "hydrocoptic".into(),
+            base: "waneshaft".into(),
+            casing: "logarithmic".into(),
+            count: 6,
+        };
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane_6"
+        );
+        assert_eq!(key_spec.role(), "marzlevane");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_no_fields() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "marzlevane"]
+            struct TestSpecifier {}
+        );
+
+        let key_spec = TestSpecifier {};
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/marzlevane"
+        );
+        assert_eq!(key_spec.role(), "marzlevane");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_with_denotator() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "marzlevane"]
+            struct TestSpecifier {
+                #[denotator]
+                count: usize,
+            }
+        );
+
+        let key_spec = TestSpecifier { count: 6 };
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/marzlevane_6"
+        );
+        assert_eq!(key_spec.role(), "marzlevane");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_with_fields() {
+        define_key_specifier!(
+            #[prefix = "encabulator"]
+            #[role = "fan"]
+            struct TestSpecifier {
+                casing: String,
+                /// A doc comment.
+                bearings: String,
+            }
+        );
+
+        let key_spec = TestSpecifier {
+            casing: "logarithmic".into(),
+            bearings: "spurving".into(),
+        };
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/logarithmic/spurving/fan"
+        );
+        assert_eq!(key_spec.role(), "fan");
     }
 }

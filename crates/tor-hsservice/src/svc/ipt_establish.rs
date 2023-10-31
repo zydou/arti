@@ -33,8 +33,8 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
-use crate::keys::{HsSvcHsIdKeyRole, HsSvcKeyRoleWithTimePeriod};
-use crate::HsSvcKeySpecifier;
+use crate::BlindIdKeypairSpecifier;
+use crate::HsIdPublicKeySpecifier;
 use crate::{
     req::RendRequestContext,
     svc::{LinkSpecs, NtorPublicKey},
@@ -304,14 +304,12 @@ fn compute_subcredentials(
     nickname: &HsNickname,
     keymgr: &Arc<KeyMgr>,
 ) -> Result<Vec<Subcredential>, FatalError> {
-    let hsid_role = HsSvcHsIdKeyRole::HsIdPublicKey;
-    let hsid_key_spec = HsSvcKeySpecifier::new(nickname, hsid_role);
+    let hsid_key_spec = HsIdPublicKeySpecifier::new(nickname);
     let hsid = keymgr
         .get::<HsIdKey>(&hsid_key_spec)?
-        .ok_or_else(|| FatalError::MissingKey(hsid_role.to_string()))?;
+        .ok_or_else(|| FatalError::MissingKey(hsid_key_spec.role().to_string()))?;
 
-    let blind_id_pat =
-        HsSvcKeySpecifier::arti_pattern(nickname, HsSvcKeyRoleWithTimePeriod::BlindIdKeypair);
+    let blind_id_pat = BlindIdKeypairSpecifier::arti_pattern(&nickname);
 
     let pattern = KeyPathPatternSet::new(
         blind_id_pat,

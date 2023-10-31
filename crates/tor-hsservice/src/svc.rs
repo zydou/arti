@@ -25,10 +25,10 @@ use tracing::{info, trace, warn};
 
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
-use crate::keys::HsSvcHsIdKeyRole;
 use crate::svc::publish::Publisher;
+use crate::HsIdKeypairSpecifier;
+use crate::HsIdPublicKeySpecifier;
 use crate::HsNickname;
-use crate::HsSvcKeySpecifier;
 use crate::OnionServiceConfig;
 use crate::OnionServiceStatus;
 use crate::RendRequest;
@@ -283,8 +283,8 @@ fn maybe_generate_hsid(
     nickname: &HsNickname,
     offline_hsid: bool,
 ) -> Result<(), StartupError> {
-    let hsid_spec = HsSvcKeySpecifier::new(nickname, HsSvcHsIdKeyRole::HsIdKeypair);
-    let pub_hsid_spec = HsSvcKeySpecifier::new(nickname, HsSvcHsIdKeyRole::HsIdPublicKey);
+    let hsid_spec = HsIdKeypairSpecifier::new(nickname);
+    let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname);
 
     let has_hsid_kp = keymgr
         .get::<HsIdKeypair>(&hsid_spec)
@@ -381,6 +381,8 @@ mod test {
     use tor_keymgr::ArtiNativeKeystore;
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
+    use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
+
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
 
@@ -397,8 +399,8 @@ mod test {
     macro_rules! maybe_generate_hsid {
         ($keymgr:expr, $offline_hsid:expr) => {{
             let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-            let hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdKeypair);
-            let pub_hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdPublicKey);
+            let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
+            let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
             assert!($keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().is_none());
             assert!($keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().is_none());
@@ -427,8 +429,8 @@ mod test {
         let keymgr = create_keymgr(&keystore_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdKeypair);
-        let pub_hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdPublicKey);
+        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
         maybe_generate_hsid!(keymgr, false /* offline_hsid */);
 
@@ -443,8 +445,8 @@ mod test {
     fn hsid_keypair_already_exists() {
         let keystore_dir = tempdir().unwrap();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdKeypair);
-        let pub_hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdPublicKey);
+        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
         for hsid_pub_missing in [false, true] {
             let keymgr = create_keymgr(&keystore_dir);
@@ -493,8 +495,8 @@ mod test {
         let keymgr = create_keymgr(&keystore_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdKeypair);
-        let pub_hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdPublicKey);
+        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
         maybe_generate_hsid!(keymgr, true /* offline_hsid */);
 
@@ -506,8 +508,8 @@ mod test {
     fn generate_hsid_missing_keypair() {
         let keystore_dir = tempdir().unwrap();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdKeypair);
-        let pub_hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdPublicKey);
+        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
         let keymgr = create_keymgr(&keystore_dir);
 
@@ -526,8 +528,8 @@ mod test {
     fn generate_hsid_corrupt_keystore() {
         let keystore_dir = tempdir().unwrap();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdKeypair);
-        let pub_hsid_spec = HsSvcKeySpecifier::new(&nickname, HsSvcHsIdKeyRole::HsIdPublicKey);
+        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
         let keymgr = create_keymgr(&keystore_dir);
 
