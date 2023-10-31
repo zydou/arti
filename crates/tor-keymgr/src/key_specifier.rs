@@ -352,16 +352,6 @@ impl KeyDenotator for TimePeriod {
     }
 }
 
-impl KeyDenotator for () {
-    fn display(&self) -> String {
-        "".into()
-    }
-
-    fn glob() -> String {
-        "".into()
-    }
-}
-
 /// A helper for implementing [`KeySpecifier`]s.
 ///
 /// Defines a `key_spec` struct, that has some static components (`prefix`, `role`),
