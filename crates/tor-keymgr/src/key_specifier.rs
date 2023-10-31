@@ -358,9 +358,6 @@ pub trait KeyDenotator {
     fn decode(s: &str) -> crate::Result<Self>
     where
         Self: Sized;
-
-    /// Return a glob pattern that matches the key denotators, if there are any.
-    fn glob() -> String;
 }
 
 impl KeyDenotator for TimePeriod {
@@ -394,10 +391,6 @@ impl KeyDenotator for TimePeriod {
         .ok_or_else(|| internal!("invalid key denotator"))?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
-    }
-
-    fn glob() -> String {
-        "*_*_*".into()
     }
 }
 
@@ -690,10 +683,6 @@ mod test {
             use std::str::FromStr;
 
             Ok(usize::from_str(s).unwrap())
-        }
-
-        fn glob() -> String {
-            "*".to_string()
         }
     }
 
