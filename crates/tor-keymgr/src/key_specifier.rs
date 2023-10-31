@@ -6,6 +6,7 @@ use std::result::Result as StdResult;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tor_error::internal;
 use tor_hscrypto::time::TimePeriod;
 
 /// The path of a key in the Arti key store.
@@ -333,6 +334,11 @@ pub trait KeyDenotator {
     /// [`ArtiPath`] or [`CTorPath`].
     fn display(&self) -> String;
 
+    /// Try to convert the specified string `s` to a value of this type.
+    fn decode(s: &str) -> crate::Result<Self>
+    where
+        Self: Sized;
+
     /// Return a glob pattern that matches the key denotators, if there are any.
     fn glob() -> String;
 }
@@ -345,6 +351,29 @@ impl KeyDenotator for TimePeriod {
             self.length(),
             self.epoch_offset_in_sec()
         )
+    }
+
+    fn decode(s: &str) -> crate::Result<Self>
+    where
+        Self: Sized,
+    {
+        use std::str::FromStr;
+
+        let parts = s.split('_').collect::<Vec<&str>>();
+        let [interval, len, offset]: [&str; 3] = parts
+            .try_into()
+            .map_err(|_| internal!("invalid number of denotator components"))?;
+
+        let (interval_num, length, offset_in_sec) = (|| {
+            let length = u32::from_str(len).ok()?;
+            let interval_num = u64::from_str(interval).ok()?;
+            let offset_in_sec = u32::from_str(offset).ok()?;
+
+            Some((interval_num, length, offset_in_sec))
+        })()
+        .ok_or_else(|| internal!("invalid key denotator"))?;
+
+        Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
 
     fn glob() -> String {
@@ -635,6 +664,15 @@ mod test {
     impl KeyDenotator for usize {
         fn display(&self) -> String {
             self.to_string()
+        }
+
+        fn decode(s: &str) -> crate::Result<Self>
+        where
+            Self: Sized,
+        {
+            use std::str::FromStr;
+
+            Ok(usize::from_str(s).unwrap())
         }
 
         fn glob() -> String {
