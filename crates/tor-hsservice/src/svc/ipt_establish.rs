@@ -350,7 +350,7 @@ fn parse_time_period(
     path: &KeyPath,
     captures: &[KeyPathRange],
 ) -> Result<TimePeriod, tor_keymgr::Error> {
-    use std::str::FromStr;
+    use tor_keymgr::KeyDenotator;
 
     let path = match path {
         KeyPath::Arti(path) => path,
@@ -358,24 +358,19 @@ fn parse_time_period(
         _ => todo!(),
     };
 
-    let [len_range, interval_range, offset_range] = captures else {
+    let [denotator] = captures else {
         return Err(internal!(
-            "invalid number of metadata captures: expected 3, found {}",
+            "invalid number of denotator captures: expected 1, found {}",
             captures.len()
         )
         .into());
     };
 
-    let (length, interval_num, offset_in_sec) = (|| {
-        let length = u32::from_str(path.substring(len_range)?).ok()?;
-        let interval_num = u64::from_str(path.substring(interval_range)?).ok()?;
-        let offset_in_sec = u32::from_str(path.substring(offset_range)?).ok()?;
+    let Some(denotator) = path.substring(denotator) else {
+        return Err(internal!("captured substring out of range?!").into());
+    };
 
-        Some((length, interval_num, offset_in_sec))
-    })()
-    .ok_or_else(|| internal!("invalid key metadata"))?;
-
-    Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
+    TimePeriod::decode(denotator)
 }
 
 /// The current status of an introduction point, as defined in
