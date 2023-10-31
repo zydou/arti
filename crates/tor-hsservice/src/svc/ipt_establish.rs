@@ -322,22 +322,20 @@ fn compute_subcredentials(
     let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
         .list_matching(&pattern)?
         .iter()
-        .map(
-            |(path, key_type)| -> Result<Option<_>, FatalError> {
-                let matches = path
-                    .matches(&pattern)
-                    .ok_or_else(|| internal!("path matched when selected but no longer does?!"))?;
-                let period = parse_time_period(path, &matches)?;
-                // Try to retrieve the key.
-                keymgr
-                    .get_with_type::<HsBlindIdKeypair>(path, key_type)
-                    .map_err(FatalError::Keystore)
-                    // If the key is not found, it means it has been garbage collected between the time
-                    // we queried the keymgr for the list of keys matching the pattern and now.
-                    // This is OK, because we only need the "current" keys
-                    .map(|maybe_key| maybe_key.map(|key| (key, period)))
-            },
-        )
+        .map(|(path, key_type)| -> Result<Option<_>, FatalError> {
+            let matches = path
+                .matches(&pattern)
+                .ok_or_else(|| internal!("path matched but no longer does?!"))?;
+            let period = parse_time_period(path, &matches)?;
+            // Try to retrieve the key.
+            keymgr
+                .get_with_type::<HsBlindIdKeypair>(path, key_type)
+                .map_err(FatalError::Keystore)
+                // If the key is not found, it means it has been garbage collected between the time
+                // we queried the keymgr for the list of keys matching the pattern and now.
+                // This is OK, because we only need the "current" keys
+                .map(|maybe_key| maybe_key.map(|key| (key, period)))
+        })
         .flatten_ok()
         .collect::<Result<Vec<_>, FatalError>>()?;
 

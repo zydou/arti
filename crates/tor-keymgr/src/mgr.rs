@@ -15,8 +15,8 @@
 //! specified key (and thus suffers from a a TOCTOU race).
 
 use crate::{
-    EncodableKey, KeyPath, KeyPathPatternSet, KeySpecifier, KeyType, Keygen,
-    KeygenRng, Keystore, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
+    EncodableKey, KeyPath, KeyPathPatternSet, KeySpecifier, KeyType, Keygen, KeygenRng, Keystore,
+    KeystoreId, KeystoreSelector, Result, ToEncodableKey,
 };
 
 use itertools::Itertools;
@@ -319,18 +319,13 @@ impl KeyMgr {
     /// Return the keys matching the specified [`KeyPathPatternSet`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
-    pub fn list_matching(
-        &self,
-        pat: &KeyPathPatternSet,
-    ) -> Result<Vec<(KeyPath, KeyType)>> {
+    pub fn list_matching(&self, pat: &KeyPathPatternSet) -> Result<Vec<(KeyPath, KeyType)>> {
         self.all_stores()
             .map(|store| -> Result<Vec<_>> {
                 Ok(store
                     .list()?
                     .into_iter()
-                    .filter(|(key_path, _): &(KeyPath, KeyType)| {
-                        key_path.matches(pat).is_some()
-                    })
+                    .filter(|(key_path, _): &(KeyPath, KeyType)| key_path.matches(pat).is_some())
                     .collect::<Vec<_>>())
             })
             .flatten_ok()
