@@ -711,7 +711,7 @@ mod test {
             assert_eq!(tt.clone().shortest(), Some(days(365)));
             // Test the underflow edge case (albeit that this would probably be a caller bug)
             <TrackingSystemTimeNow as Update<SystemTime>>::update(&tt, earliest);
-            assert_eq!(tt.clone().shortest(), Some(days(0)));
+            assert_eq!(tt.shortest(), Some(days(0)));
         }
     }
 
@@ -758,7 +758,7 @@ mod test {
             assert_eq!(tt.clone().shortest(), Some(secs(100)));
             // Test the underflow edge case (albeit that this would probably be a caller bug)
             <TrackingInstantNow as Update<Instant>>::update(&tt, earliest);
-            assert_eq!(tt.clone().shortest(), Some(secs(0)));
+            assert_eq!(tt.shortest(), Some(secs(0)));
         }
 
         let (earliest_st, middle_st, later_st) = test_systemtimes();
@@ -781,7 +781,7 @@ mod test {
             <TrackingNow as Update<Duration>>::update(&tt, days(10));
             assert_eq!(tt.clone().shortest(), Some(days(10)));
             <TrackingNow as Update<Instant>>::update(&tt, middle + days(5));
-            assert_eq!(tt.clone().shortest(), Some(days(5)));
+            assert_eq!(tt.shortest(), Some(days(5)));
             // No need to test edge cases, as our Update impls are just delegations
         }
     }
