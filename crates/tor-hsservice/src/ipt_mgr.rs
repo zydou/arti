@@ -10,7 +10,6 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::ops::RangeInclusive;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -51,14 +50,6 @@ use IptStatusStatus as ISS;
 use TrackedStatus as TS;
 
 mod persist;
-
-/// Time for which we'll use an IPT relay before selecting a new relay to be our IPT
-// TODO HSS IPT_RELAY_ROTATION_TIME should be tuneable.  And, is default correct?
-const IPT_RELAY_ROTATION_TIME: RangeInclusive<Duration> = {
-    /// gosh this is clumsy
-    const DAY: u64 = 86400;
-    Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
-};
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 // TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
@@ -565,7 +556,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             .ok_or(ChooseIptError::TooFewUsableRelays)?;
 
         let retirement = rng
-            .gen_range_checked(IPT_RELAY_ROTATION_TIME)
+            .gen_range_checked(self.current_config.ipt_relay_rotation_time())
             .ok_or_else(|| internal!("IPT_RELAY_ROTATION_TIME range was empty!"))?;
         let retirement = now
             .checked_add(retirement)
