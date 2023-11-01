@@ -269,6 +269,38 @@ impl super::ClientHandshake for NtorV3Client {
     }
 }
 
+/// Server side of the ntor v3 handshake.
+pub(crate) struct NtorV3Server;
+
+impl super::ServerHandshake for NtorV3Server {
+    type KeyType = NtorV3SecretKey;
+    type KeyGen = NtorV3KeyGenerator;
+
+    fn server<R: RngCore + CryptoRng, REPLY: super::ExtensionsReply, T: AsRef<[u8]>>(
+        rng: &mut R,
+        reply_fn: &mut REPLY,
+        key: &[Self::KeyType],
+        msg: T,
+    ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
+        let mut bytes_reply_fn = |bytes: &[u8]| -> Option<Vec<u8>> {
+            let client_exts = NtorV3Extension::decode(bytes).ok()?;
+            let reply_exts = reply_fn.reply(&client_exts)?;
+            let mut out = vec![];
+            NtorV3Extension::write_many_onto(reply_exts.iter(), &mut out).ok()?;
+            Some(out)
+        };
+
+        let (res, reader) = server_handshake_ntor_v3(
+            rng,
+            &mut bytes_reply_fn,
+            msg.as_ref(),
+            key,
+            NTOR3_CIRC_VERIFICATION,
+        )?;
+        Ok((NtorV3KeyGenerator { reader }, res))
+    }
+}
+
 /// Key information about a relay used for the ntor v3 handshake.
 ///
 /// Contains a single curve25519 ntor onion key, and the relay's ed25519
@@ -647,7 +679,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use crate::crypto::handshake::ClientHandshake;
+    use crate::crypto::handshake::{ClientHandshake, ServerHandshake};
 
     use super::*;
     use hex_literal::hex;
@@ -727,24 +759,16 @@ mod test {
 
         let (c_state, c_handshake) = NtorV3Client::client1(&mut rng, &relay_public, &[]).unwrap();
 
-        let mut rep = |_: &[u8]| Some(vec![]);
+        let mut rep = |_: &[NtorV3Extension]| Some(vec![]);
 
-        let (s_handshake, mut s_keygen) = server_handshake_ntor_v3(
-            &mut rng,
-            &mut rep,
-            &c_handshake,
-            &[relay_private],
-            NTOR3_CIRC_VERIFICATION,
-        )
-        .unwrap();
+        let (s_keygen, s_handshake) =
+            NtorV3Server::server(&mut rng, &mut rep, &[relay_private], &c_handshake).unwrap();
 
         let (extensions, keygen) = NtorV3Client::client2(c_state, s_handshake).unwrap();
 
         assert!(extensions.is_empty());
-        use digest::XofReader;
-        let mut s_keys = [0_u8; 100];
         let c_keys = keygen.expand(1000).unwrap();
-        s_keygen.read(&mut s_keys);
+        let s_keys = s_keygen.expand(100).unwrap();
         assert_eq!(s_keys[..], c_keys[..100]);
     }
 
@@ -775,29 +799,19 @@ mod test {
         )
         .unwrap();
 
-        let mut rep = |msg: &[u8]| -> Option<Vec<u8>> {
-            assert_eq!(NtorV3Extension::decode(msg).unwrap(), client_exts);
-            let mut out = vec![];
-            NtorV3Extension::write_many_onto(reply_exts.iter(), &mut out).unwrap();
-            Some(out)
+        let mut rep = |msg: &[NtorV3Extension]| -> Option<Vec<NtorV3Extension>> {
+            assert_eq!(msg, client_exts);
+            Some(reply_exts.clone())
         };
 
-        let (s_handshake, mut s_keygen) = server_handshake_ntor_v3(
-            &mut rng,
-            &mut rep,
-            &c_handshake,
-            &[relay_private],
-            NTOR3_CIRC_VERIFICATION,
-        )
-        .unwrap();
+        let (s_keygen, s_handshake) =
+            NtorV3Server::server(&mut rng, &mut rep, &[relay_private], &c_handshake).unwrap();
 
         let (extensions, keygen) = NtorV3Client::client2(c_state, s_handshake).unwrap();
 
         assert_eq!(extensions, reply_exts);
-        use digest::XofReader;
-        let mut s_keys = [0_u8; 100];
         let c_keys = keygen.expand(1000).unwrap();
-        s_keygen.read(&mut s_keys);
+        let s_keys = s_keygen.expand(100).unwrap();
         assert_eq!(s_keys[..], c_keys[..100]);
     }
 
