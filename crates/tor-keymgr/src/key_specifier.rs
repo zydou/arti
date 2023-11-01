@@ -2,6 +2,7 @@
 #![allow(clippy::crate_in_macro_def)] // TODO: clippy thinks we are not using `$crate` in the
                                       // `define_derive_adhoc!` below
 
+use std::collections::HashMap;
 use std::ops::Range;
 use std::result::Result as StdResult;
 
@@ -118,6 +119,30 @@ pub enum KeyPathError {
     /// Found an invalid [`ArtiPath`].
     #[error("{0}")]
     InvalidArtiPath(#[from] ArtiPathError),
+}
+
+/// Information about a [`KeyPath`].
+///
+/// The information is extracted from the [`KeyPath`] itself
+/// (_not_ from the key data) by a [`KeyInfoExtractor`].
+#[derive(Debug, Clone, PartialEq, derive_builder::Builder)]
+pub struct KeyPathInfo {
+    /// A summary string describing what the [`KeyPath`] is for.
+    summary: String,
+    /// Additional information, in the form of key-value pairs.
+    ///
+    /// This will contain human-readable information that describes the invidivdual
+    /// components of a KeyPath. For example, for the [`ArtiPath`]
+    /// `hs/foo/KS_hs_id.expanded_ed25519_private`, the extra information could
+    /// be `("kind", "service)`, `("nickname", "foo")`, etc.
+    #[builder(default)]
+    extra_info: HashMap<String, String>,
+}
+
+/// A trait for extracting info out of a [`KeyPath`]s.
+pub trait KeyInfoExtractor: Send + Sync {
+    /// Describe the specified `path`.
+    fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError>;
 }
 
 /// A pattern that can be used to match [`ArtiPath`]s or [`CTorPath`]s.
