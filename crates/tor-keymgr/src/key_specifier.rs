@@ -409,10 +409,8 @@ impl KeyDenotator for TimePeriod {
         Self: Sized,
     {
         let (interval_num, length, offset_in_sec) = (|| {
-        let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
-        let [interval, len, offset]: [&str; 3] = parts
-            .into_inner()
-            .ok()?;
+            let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
+            let [interval, len, offset]: [&str; 3] = parts.into_inner().ok()?;
 
             let length = len.parse().ok()?;
             let interval_num = interval.parse().ok()?;
