@@ -28,7 +28,7 @@ use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::define_asref_dyn_std_error;
-use tor_error::{internal, into_internal, warn_report};
+use tor_error::{error_report, internal, into_internal, warn_report};
 use tor_hscrypto::pk::{
     HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKeypair,
 };
@@ -373,10 +373,6 @@ impl TimePeriodContext {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub(crate) enum ReactorError {
-    /// Failed to get network directory
-    #[error("failed to get a network directory")]
-    Netdir(#[from] tor_netdir::Error),
-
     /// The network directory provider is shutting down without giving us the
     /// netdir we asked for.
     #[error("{0}")]
@@ -625,8 +621,24 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
-                let netdir = self.dir_provider.netdir(Timeliness::Timely)?;
-
+                let netdir = match self.dir_provider.netdir(Timeliness::Timely) {
+                    Ok(y) => y,
+                    Err(e) => {
+                        error_report!(e, "HS service {}: netdir unavailable", self.imm.nickname);
+                        // Hopefully a netdir will appear in the future.
+                        // in the meantime, suspend operations.
+                        //
+                        // TODO HSS there is a bug here: we stop reading on our inputs
+                        // including eg publish_status_rx, but it is our job to log some of
+                        // these things.  While we are waiting for a netdir, all those messages
+                        // are "stuck"; they'll appear later, with misleading timestamps.
+                        //
+                        // Probably this should be fixed by moving the logging
+                        // out of the reactor, where it won't be blocked.
+                        wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely)
+                            .await?
+                    }
+                };
                 self.handle_consensus_change(netdir).await?;
             }
             update = self.ipt_watcher.await_update().fuse() => {
