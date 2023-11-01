@@ -1203,6 +1203,7 @@ mod test {
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
+    use crate::crypto::handshake::ExtensionsReplyUnsupported;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -1294,15 +1295,26 @@ mod test {
                     AnyChanMsg::CreateFast(cf) => cf,
                     _ => panic!(),
                 };
-                let (_, rep) = CreateFastServer::server(&mut rng, &[()], cf.handshake()).unwrap();
+                let (_, rep) = CreateFastServer::server(
+                    &mut rng,
+                    &mut ExtensionsReplyUnsupported {},
+                    &[()],
+                    cf.handshake(),
+                )
+                .unwrap();
                 CreateResponse::CreatedFast(CreatedFast::new(rep))
             } else {
                 let c2 = match create_cell.msg() {
                     AnyChanMsg::Create2(c2) => c2,
                     _ => panic!(),
                 };
-                let (_, rep) =
-                    NtorServer::server(&mut rng, &[example_ntor_key()], c2.body()).unwrap();
+                let (_, rep) = NtorServer::server(
+                    &mut rng,
+                    &mut ExtensionsReplyUnsupported {},
+                    &[example_ntor_key()],
+                    c2.body(),
+                )
+                .unwrap();
                 CreateResponse::Created2(Created2::new(rep))
             };
             created_send.send(reply).unwrap();
@@ -1562,8 +1574,13 @@ mod test {
                     _ => panic!(),
                 };
                 let mut rng = testing_rng();
-                let (_, reply) =
-                    NtorServer::server(&mut rng, &[example_ntor_key()], e2.handshake()).unwrap();
+                let (_, reply) = NtorServer::server(
+                    &mut rng,
+                    &mut ExtensionsReplyUnsupported {},
+                    &[example_ntor_key()],
+                    e2.handshake(),
+                )
+                .unwrap();
                 let extended2 = relaymsg::Extended2::new(reply).into();
                 sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
                 sink // gotta keep the sink alive, or the reactor will exit.

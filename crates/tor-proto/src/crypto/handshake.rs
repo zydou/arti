@@ -58,6 +58,40 @@ pub(crate) trait ClientHandshake {
     ) -> Result<(Vec<NtorV3Extension>, Self::KeyGen)>;
 }
 
+/// Trait for an object that handles incoming client extensions and
+/// returns a server's reply.
+///
+/// This is implemented for `FnMut(&[NtorV3Extension]) -> Option<Vec<NtorV3Extension>>` automatically.
+pub(crate) trait ExtensionsReply {
+    /// Given a list of extensions received from a client, decide
+    /// what extensions to send in reply.
+    ///
+    /// Return None if the handshake should fail.
+    fn reply(&mut self, msg: &[NtorV3Extension]) -> Option<Vec<NtorV3Extension>>;
+}
+
+impl<F> ExtensionsReply for F
+where
+    F: FnMut(&[NtorV3Extension]) -> Option<Vec<NtorV3Extension>>,
+{
+    fn reply(&mut self, msg: &[NtorV3Extension]) -> Option<Vec<NtorV3Extension>> {
+        self(msg)
+    }
+}
+
+/// Convenience implementation for tests. Panics if extensions is non-empty, and
+/// returns an empty extension list.
+#[cfg(test)]
+pub(crate) struct ExtensionsReplyUnsupported {}
+
+#[cfg(test)]
+impl ExtensionsReply for ExtensionsReplyUnsupported {
+    fn reply(&mut self, msg: &[NtorV3Extension]) -> Option<Vec<NtorV3Extension>> {
+        assert_eq!(msg, &[]);
+        Some(vec![])
+    }
+}
+
 /// A ServerHandshake is used to handle a client onionskin and generate a
 /// server onionskin.
 pub(crate) trait ServerHandshake {
@@ -66,13 +100,15 @@ pub(crate) trait ServerHandshake {
     /// The returned key generator type.
     type KeyGen;
 
-    /// Perform the server handshake.  Take as input a strong PRNG in `rng`,
-    /// a slice of all our private onion keys, and the client's message.
+    /// Perform the server handshake.  Take as input a strong PRNG in `rng`, a
+    /// function for processing requested extensions, a slice of all our private
+    /// onion keys, and the client's message.
     ///
     /// On success, return a key generator and a server handshake message
     /// to send in reply.
-    fn server<R: RngCore + CryptoRng, T: AsRef<[u8]>>(
+    fn server<R: RngCore + CryptoRng, REPLY: ExtensionsReply, T: AsRef<[u8]>>(
         rng: &mut R,
+        reply_fn: &mut REPLY,
         key: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)>;

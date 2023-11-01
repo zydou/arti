@@ -80,11 +80,24 @@ impl super::ServerHandshake for CreateFastServer {
     type KeyType = ();
     type KeyGen = super::TapKeyGenerator;
 
-    fn server<R: RngCore + CryptoRng, T: AsRef<[u8]>>(
+    fn server<R: RngCore + CryptoRng, REPLY: super::ExtensionsReply, T: AsRef<[u8]>>(
         rng: &mut R,
+        reply_fn: &mut REPLY,
         _key: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
+        // This handshake doesn't support extensions.
+        let client_extensions = [];
+        let reply_extensions = reply_fn
+            .reply(&client_extensions)
+            .ok_or(RelayHandshakeError::BadClientHandshake)?;
+        if !reply_extensions.is_empty() {
+            return Err(internal!(
+                "This handshake doesn't support returning extensions from server"
+            )
+            .into());
+        }
+
         let msg = msg.as_ref();
         if msg.len() != FAST_C_HANDSHAKE_LEN {
             return Err(RelayHandshakeError::BadClientHandshake);
@@ -119,7 +132,9 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::crypto::handshake::{ClientHandshake, KeyGenerator, ServerHandshake};
+    use crate::crypto::handshake::{
+        ClientHandshake, ExtensionsReplyUnsupported, KeyGenerator, ServerHandshake,
+    };
     use hex_literal::hex;
     use tor_basic_utils::test_rng::testing_rng;
 
@@ -128,7 +143,9 @@ mod test {
         let mut rng = testing_rng();
 
         let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &[]).unwrap();
-        let (s_kg, smsg) = CreateFastServer::server(&mut rng, &[()], cmsg).unwrap();
+        let (s_kg, smsg) =
+            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg)
+                .unwrap();
         let (extensions, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
         assert_eq!(&extensions, &[]);
 
@@ -144,12 +161,15 @@ mod test {
 
         // badly formatted client message.
         let cmsg = [6_u8; 19];
-        let ans = CreateFastServer::server(&mut rng, &[()], cmsg);
+        let ans =
+            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg);
         assert!(ans.is_err());
 
         // corrupt/ incorrect server reply.
         let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &[]).unwrap();
-        let (_, mut smsg) = CreateFastServer::server(&mut rng, &[()], cmsg).unwrap();
+        let (_, mut smsg) =
+            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg)
+                .unwrap();
         smsg[35] ^= 16;
         let ans = CreateFastClient::client2(state, smsg);
         assert!(ans.is_err());
@@ -162,7 +182,9 @@ mod test {
         let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &[]).unwrap();
 
         let mut rng = FakePRNG::new(&smsg);
-        let (s_kg, smsg) = CreateFastServer::server(&mut rng, &[()], cmsg).unwrap();
+        let (s_kg, smsg) =
+            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg)
+                .unwrap();
         let (extensions, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
         assert_eq!(&extensions, &[]);
 
