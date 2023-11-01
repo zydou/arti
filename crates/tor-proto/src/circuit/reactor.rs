@@ -447,7 +447,9 @@ where
 
             use tor_cell::relaycell::msg::Extend2;
             // Perform the first part of the cryptographic handshake
-            let (state, msg) = H::client1(&mut rng, key)?;
+            // TODO: Expose a way of requesting extensions.
+            let extensions = [];
+            let (state, msg) = H::client1(&mut rng, key, &extensions)?;
 
             let n_hops = reactor.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
@@ -513,12 +515,16 @@ where
         );
         // Now perform the second part of the handshake, and see if it
         // succeeded.
-        let keygen = H::client2(
+        let (extensions, keygen) = H::client2(
             self.state
                 .take()
                 .expect("CircuitExtender::finish() called twice"),
             relay_handshake,
         )?;
+        if !extensions.is_empty() {
+            // We don't request any extensions yet, so the server shouldn't ack any.
+            return Err(Error::HandshakeProto("Unrequested extension".into()));
+        }
         let layer = L::construct(keygen)?;
 
         debug!("{}: Handshake complete; circuit extended.", self.unique_id);
@@ -1021,7 +1027,9 @@ impl Reactor {
             // done like this because holding the RNG across an await boundary makes the future
             // non-Send
             let mut rng = rand::thread_rng();
-            H::client1(&mut rng, key)?
+            // TODO: Expose way of requesting extensions.
+            let extensions = &[];
+            H::client1(&mut rng, key, extensions)?
         };
         let create_cell = wrap.to_chanmsg(msg);
         debug!(
@@ -1036,7 +1044,11 @@ impl Reactor {
             .map_err(|_| Error::CircProto("Circuit closed while waiting".into()))?;
 
         let relay_handshake = wrap.decode_chanmsg(reply)?;
-        let keygen = H::client2(state, relay_handshake)?;
+        let (extensions, keygen) = H::client2(state, relay_handshake)?;
+        if !extensions.is_empty() {
+            // We don't request any extensions yet, so the server shouldn't ack any.
+            return Err(Error::HandshakeProto("Unrequested extension".into()));
+        }
 
         let layer = L::construct(keygen)?;
 

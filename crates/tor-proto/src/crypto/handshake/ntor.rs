@@ -4,7 +4,8 @@ use super::{KeyGenerator, RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
 use crate::{Error, Result};
 use tor_bytes::{EncodeResult, Reader, SecretBuf, Writer};
-use tor_error::into_internal;
+use tor_cell::relaycell::extend::NtorV3Extension;
+use tor_error::{internal, into_internal};
 use tor_llcrypto::d;
 use tor_llcrypto::pk::curve25519::*;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -24,12 +25,20 @@ impl super::ClientHandshake for NtorClient {
     fn client1<R: RngCore + CryptoRng>(
         rng: &mut R,
         key: &Self::KeyType,
+        extensions: &[NtorV3Extension],
     ) -> Result<(Self::StateType, Vec<u8>)> {
+        if !extensions.is_empty() {
+            return Err(internal!("Unexpectly got non-empty extensions").into());
+        }
         client_handshake_ntor_v1(rng, key)
     }
 
-    fn client2<T: AsRef<[u8]>>(state: Self::StateType, msg: T) -> Result<Self::KeyGen> {
-        client_handshake2_ntor_v1(msg, &state)
+    fn client2<T: AsRef<[u8]>>(
+        state: Self::StateType,
+        msg: T,
+    ) -> Result<(Vec<NtorV3Extension>, Self::KeyGen)> {
+        let keygen = client_handshake2_ntor_v1(msg, &state)?;
+        Ok((vec![], keygen))
     }
 }
 
@@ -338,7 +347,7 @@ mod tests {
             id: relay_identity,
             pk: relay_public,
         };
-        let (state, cmsg) = NtorClient::client1(&mut rng, &relay_ntpk)?;
+        let (state, cmsg) = NtorClient::client1(&mut rng, &relay_ntpk, &[])?;
 
         let relay_ntsk = NtorSecretKey {
             pk: relay_ntpk,
@@ -348,7 +357,8 @@ mod tests {
 
         let (skeygen, smsg) = NtorServer::server(&mut rng, &relay_ntsks, &cmsg).unwrap();
 
-        let ckeygen = NtorClient::client2(state, smsg)?;
+        let (extensions, ckeygen) = NtorClient::client2(state, smsg)?;
+        assert_eq!(&extensions, &[]);
 
         let skeys = skeygen.expand(55)?;
         let ckeys = ckeygen.expand(55)?;
@@ -440,9 +450,9 @@ mod tests {
 
         // If the client uses the wrong keys, the relay should reject the
         // handshake.
-        let (_, handshake1) = NtorClient::client1(&mut rng, &wrong_ntpk1).unwrap();
-        let (_, handshake2) = NtorClient::client1(&mut rng, &wrong_ntpk2).unwrap();
-        let (st3, handshake3) = NtorClient::client1(&mut rng, &relay_ntpk).unwrap();
+        let (_, handshake1) = NtorClient::client1(&mut rng, &wrong_ntpk1, &[]).unwrap();
+        let (_, handshake2) = NtorClient::client1(&mut rng, &wrong_ntpk2, &[]).unwrap();
+        let (st3, handshake3) = NtorClient::client1(&mut rng, &relay_ntpk, &[]).unwrap();
 
         let ans1 = NtorServer::server(&mut rng, relay_ntsks, &handshake1);
         let ans2 = NtorServer::server(&mut rng, relay_ntsks, &handshake2);

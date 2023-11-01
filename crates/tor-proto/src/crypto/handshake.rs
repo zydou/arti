@@ -21,6 +21,7 @@ use crate::Result;
 //use zeroize::Zeroizing;
 use rand_core::{CryptoRng, RngCore};
 use tor_bytes::SecretBuf;
+use tor_cell::relaycell::extend::NtorV3Extension;
 
 /// A ClientHandshake is used to generate a client onionskin and
 /// handle a relay onionskin.
@@ -33,17 +34,28 @@ pub(crate) trait ClientHandshake {
     type KeyGen;
     /// Generate a new client onionskin for a relay with a given onion key.
     ///
+    /// If any `extensions` are provided, encode them into to the onionskin.
+    /// A non-empty extension list is currently supported only by ntor-v3.
+    ///
     /// On success, return a state object that will be used to
     /// complete the handshake, along with the message to send.
     fn client1<R: RngCore + CryptoRng>(
         rng: &mut R,
         key: &Self::KeyType,
+        // If this trait is ever public beyond this crate, consider adding and
+        // using an intermediate type here instead of using the ntor-v3-specific
+        // type directly.
+        extensions: &[NtorV3Extension],
     ) -> Result<(Self::StateType, Vec<u8>)>;
-    /// Handle an onionskin from a relay, and produce a key generator.
+    /// Handle an onionskin from a relay, and produce a list of extensions
+    /// returned by the server, and a key generator.
     ///
     /// The state object must match the one that was used to make the
     /// client onionskin that the server is replying to.
-    fn client2<T: AsRef<[u8]>>(state: Self::StateType, msg: T) -> Result<Self::KeyGen>;
+    fn client2<T: AsRef<[u8]>>(
+        state: Self::StateType,
+        msg: T,
+    ) -> Result<(Vec<NtorV3Extension>, Self::KeyGen)>;
 }
 
 /// A ServerHandshake is used to handle a client onionskin and generate a
