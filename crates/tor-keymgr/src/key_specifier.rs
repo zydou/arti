@@ -3,6 +3,7 @@
 use std::ops::Range;
 use std::result::Result as StdResult;
 
+use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -379,9 +380,9 @@ impl KeyDenotator for TimePeriod {
     where
         Self: Sized,
     {
-        let parts = s.split('_').collect::<Vec<&str>>();
+        let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
         let [interval, len, offset]: [&str; 3] = parts
-            .try_into()
+            .into_inner()
             .map_err(|_| internal!("invalid number of denotator components"))?;
 
         let (interval_num, length, offset_in_sec) = (|| {
