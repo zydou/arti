@@ -1,11 +1,11 @@
-//! [`KeySpecifier`] implementations for hidden service keys.
+//! [`KeySpecifier`](tor_keymgr::KeySpecifier) implementations for hidden service keys.
 
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::{define_key_specifier, KeyPathPattern};
 
 use crate::HsNickname;
 
-/// A helper for defining service [`KeySpecifier`]s.
+/// A helper for defining service [`KeySpecifier`](tor_keymgr::KeySpecifier)s.
 ///
 /// This macro creates a `key_spec` struct that in addition to the specified fields and denotators,
 /// also contains an `&HsNickname` field. The `prefix` value of the resulting `key_spec` is
