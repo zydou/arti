@@ -26,6 +26,11 @@ use tor_hscrypto::time::TimePeriod;
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
+///
+// TODO HSS: we should allow keys to have more than one `KeyDenotator`.
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1722#note_2960442
+//
+// But this should be done _after_ we rewrite define_key_specifier using d-a
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct ArtiPath(String);
 
