@@ -7,7 +7,7 @@ use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tor_error::{internal, ErrorKind, HasKind};
+use tor_error::{ErrorKind, HasKind};
 use tor_hscrypto::time::TimePeriod;
 
 use crate::KeystoreError;
@@ -411,7 +411,7 @@ impl KeyDenotator for TimePeriod {
         let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
         let [interval, len, offset]: [&str; 3] = parts
             .into_inner()
-            .map_err(|_| internal!("invalid number of denotator components"))?;
+            .map_err(|_| KeystoreCorruptionError::from(ArtiPathError::InvalidDenotator))?;
 
         let (interval_num, length, offset_in_sec) = (|| {
             let length = len.parse().ok()?;
@@ -420,7 +420,7 @@ impl KeyDenotator for TimePeriod {
 
             Some((interval_num, length, offset_in_sec))
         })()
-        .ok_or_else(|| internal!("invalid key denotator"))?;
+        .ok_or_else(|| KeystoreCorruptionError::from(ArtiPathError::InvalidDenotator))?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
