@@ -383,6 +383,8 @@ impl KeySpecifier for KeyPath {
 /// or [`CTorPath`].
 ///
 /// A key's denotators *denote* an instance of a key.
+//
+// TODO HSS: consider adding a helper trait or d-a macro KeyDenotatorViaFromStrAndDisplay
 pub trait KeyDenotator {
     /// Encode the denotators in a format that can be used within an
     /// [`ArtiPath`] or [`CTorPath`].
