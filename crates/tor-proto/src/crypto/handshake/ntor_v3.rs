@@ -225,7 +225,11 @@ fn kdf_msgkdf(
 /// Client side of the ntor v3 handshake.
 pub(crate) struct NtorV3Client;
 
-impl NtorV3Client {
+impl super::ClientHandshake for NtorV3Client {
+    type KeyType = NtorV3PublicKey;
+    type StateType = NtorV3HandshakeState;
+    type KeyGen = NtorV3KeyGenerator;
+
     /// Generate a new client onionskin for a relay with a given onion key.
     /// If any `extensions` are provided, encode them into to the onionskin.
     ///
@@ -235,7 +239,7 @@ impl NtorV3Client {
         rng: &mut R,
         key: &NtorV3PublicKey,
         extensions: &[NtorV3Extension],
-    ) -> Result<(NtorV3HandshakeState, Vec<u8>)> {
+    ) -> Result<(Self::StateType, Vec<u8>)> {
         let mut message = Vec::new();
         NtorV3Extension::write_many_onto(extensions.iter(), &mut message)
             .map_err(|e| Error::from_bytes_enc(e, "ntor3 handshake extensions"))?;
@@ -250,11 +254,11 @@ impl NtorV3Client {
     /// The state object must match the one that was used to make the
     /// client onionskin that the server is replying to.
     fn client2<T: AsRef<[u8]>>(
-        state: &NtorV3HandshakeState,
+        state: Self::StateType,
         msg: T,
-    ) -> Result<(Vec<NtorV3Extension>, NtorV3KeyGenerator)> {
+    ) -> Result<(Vec<NtorV3Extension>, Self::KeyGen)> {
         let (message, xofreader) =
-            client_handshake_ntor_v3_part2(state, msg.as_ref(), NTOR3_CIRC_VERIFICATION)?;
+            client_handshake_ntor_v3_part2(&state, msg.as_ref(), NTOR3_CIRC_VERIFICATION)?;
         let extensions = NtorV3Extension::decode(&message).map_err(|err| Error::CellDecodeErr {
             object: "ntor v3 extensions",
             err,
@@ -643,6 +647,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use crate::crypto::handshake::ClientHandshake;
+
     use super::*;
     use hex_literal::hex;
     use tor_basic_utils::test_rng::testing_rng;
@@ -732,7 +738,7 @@ mod test {
         )
         .unwrap();
 
-        let (extensions, keygen) = NtorV3Client::client2(&c_state, s_handshake).unwrap();
+        let (extensions, keygen) = NtorV3Client::client2(c_state, s_handshake).unwrap();
 
         assert!(extensions.is_empty());
         use digest::XofReader;
@@ -785,7 +791,7 @@ mod test {
         )
         .unwrap();
 
-        let (extensions, keygen) = NtorV3Client::client2(&c_state, s_handshake).unwrap();
+        let (extensions, keygen) = NtorV3Client::client2(c_state, s_handshake).unwrap();
 
         assert_eq!(extensions, reply_exts);
         use digest::XofReader;
