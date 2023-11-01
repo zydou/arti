@@ -80,10 +80,35 @@
 
 use std::time::{Duration, Instant, SystemTime};
 
+use derive_adhoc::{define_derive_adhoc, Adhoc};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use tor_rtcompat::SleepProvider;
+
+//---------- derive-adhoc macro for raw accessors, must come first ----------
+
+define_derive_adhoc! {
+    /// Define `as_raw` and `from_raw` methods (for a struct with a single field)
+    //
+    // We provide these for the types which are serde, since we are already exposing
+    // and documenting their innards (and we don't want to force people to use serde
+    // trickery if they want to do something unusual).
+    RawConversions expect items =
+
+    impl $ttype {
+      ${for fields { // we have only one field; but d-a wants a context for "a specific field"
+        /// Returns the raw value, as would be serialised
+        pub fn as_raw(self) -> $ftype {
+            self.$fname
+        }
+        #[doc = concat!("/// Constructs a ",stringify!($tname)," from a raw value")]
+        pub fn from_raw(seconds: $ftype) -> $ttype {
+            Self { $fname: seconds }
+        }
+      }}
+    }
+}
 
 //---------- data types ----------
 
@@ -100,6 +125,8 @@ use tor_rtcompat::SleepProvider;
 #[serde(transparent)]
 #[derive(derive_more::Display)]
 #[display(fmt = "{}", offset)]
+#[derive(Adhoc)]
+#[derive_adhoc(RawConversions)]
 pub struct FutureTimestamp {
     /// How far this timestamp was in the future, when we stored it
     offset: u64,
@@ -118,6 +145,8 @@ pub struct FutureTimestamp {
 #[serde(transparent)]
 #[derive(derive_more::Display)]
 #[display(fmt = "{}", time_t)]
+#[derive(Adhoc)]
+#[derive_adhoc(RawConversions)]
 pub struct Reference {
     /// Unix time (at which the other timestamps were stored)
     time_t: i64,
@@ -177,7 +206,11 @@ impl Storing {
     /// Prepare to store timestamps, returning a context for serialising `Instant`s
     ///
     /// Incorporates reference times obtained from the runtime's clock.
-    pub fn start(runtime: &impl Runtime) -> Self {
+    //
+    // We don't provide `Storing::{to,from}_raw_parts` nor `Loading::from_raw_parts`
+    // because you can (sort of) do all of constructors with a suitable `SleepProvider`,
+    // and we don't want to give too much detail about the implementation and innards.
+    pub fn start(runtime: &impl SleepProvider) -> Self {
         Storing(Now::new(runtime))
     }
 
@@ -241,7 +274,11 @@ impl Loading {
                 self.inst
             })
     }
+}
 
+//---------- accessors for Loading ----------
+
+impl Loading {
     /// Returns how long has elapsed, since the timestamps were stored
     ///
     /// This depends on the system wall clock being right both when we stored, and now.
@@ -251,7 +288,11 @@ impl Loading {
     /// But, if the system wall clock seems to have gone backwards, returns zero.
     ///
     /// The time is measured from when [`start`](Loading::start) was called.
-    /// If you need to know that time as an `Instant`, use [`as_parts`](Loading::as_parts).
+    /// If you need to know that time as an `Instant`,
+    /// use [`as_raw_parts`](Loading::as_raw_parts).
+    //
+    // We provide this (and `as_raw_parts`) because some callers may
+    // actually have a good use for it.
     pub fn elapsed(&self) -> Duration {
         Duration::from_secs(self.elapsed)
     }
