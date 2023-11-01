@@ -7,7 +7,7 @@ use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tor_error::{internal, HasKind, ErrorKind};
+use tor_error::{internal, ErrorKind, HasKind};
 use tor_hscrypto::time::TimePeriod;
 
 use crate::KeystoreError;
@@ -335,7 +335,7 @@ pub enum KeystoreCorruptionError {
     ArtiPath(#[from] ArtiPathError),
 }
 
-impl KeystoreError for KeystoreCorruptionError { }
+impl KeystoreError for KeystoreCorruptionError {}
 
 impl HasKind for KeystoreCorruptionError {
     fn kind(&self) -> ErrorKind {
