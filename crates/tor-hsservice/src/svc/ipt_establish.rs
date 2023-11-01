@@ -33,6 +33,8 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
+use crate::replay::ReplayError;
+use crate::replay::ReplayLog;
 use crate::BlindIdKeypairSpecifier;
 use crate::HsIdPublicKeySpecifier;
 use crate::{
@@ -739,12 +741,18 @@ impl<R: Runtime> Reactor<R> {
 
         let (established_tx, established_rx) = oneshot::channel();
 
+        // TODO HSS: This should actually be persistent!  We want to use a
+        // separate file for each (KP_hss_ntor) key, and use the same file
+        // for every KP_hss_ntor key.
+        let replay_log = ReplayLog::new_ephemeral();
+
         let handler = IptMsgHandler {
             established_tx: Some(established_tx),
             introduce_tx: self.introduce_tx.clone(),
             state: self.state.clone(),
             lid: self.lid,
             request_context: self.request_context.clone(),
+            replay_log,
         };
         let conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
@@ -808,6 +816,13 @@ struct IptMsgHandler {
     /// Unique identifier for the introduction point (including the current
     /// keys).  Used to tag requests.
     lid: IptLocalId,
+
+    /// A replay log used to detect replayed introduction requests.
+    ///
+    /// TODO HSS: Right now we construct this ephemerally, but really we need to
+    /// use the persistent version. See discussion above when we construct
+    /// IptMsgHandler.
+    replay_log: ReplayLog,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
@@ -848,6 +863,26 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     }
                     RequestDisposition::Shutdown => return Ok(MetaCellDisposition::CloseCirc),
                     RequestDisposition::Advertised => {}
+                }
+                match self.replay_log.check_for_replay(&introduce2) {
+                    Ok(()) => {}
+                    Err(ReplayError::AlreadySeen) => {
+                        // This is probably a replay, but maybe an accident. We
+                        // just drop the request.
+
+                        // TODO HSS: Log that this has occurred, with a rate
+                        // limit.  Possibly, we should allow it to fail once or
+                        // twice per circuit before we log, since we expect
+                        // a nonzero false-positive rate.
+                        return Ok(MetaCellDisposition::Consumed);
+                    }
+                    Err(ReplayError::Log(_)) => {
+                        // Uh-oh! We failed to write the data persistently!
+                        //
+                        // TODO HSS: We need to decide what to do here.  Right
+                        // now we close the circuit, which is wrong.
+                        return Ok(MetaCellDisposition::CloseCirc);
+                    }
                 }
 
                 let request = RendRequest::new(self.lid, introduce2, self.request_context.clone());
