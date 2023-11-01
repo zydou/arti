@@ -408,12 +408,12 @@ impl KeyDenotator for TimePeriod {
     where
         Self: Sized,
     {
+        let (interval_num, length, offset_in_sec) = (|| {
         let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
         let [interval, len, offset]: [&str; 3] = parts
             .into_inner()
-            .map_err(|_| KeystoreCorruptionError::from(ArtiPathError::InvalidDenotator))?;
+            .ok()?;
 
-        let (interval_num, length, offset_in_sec) = (|| {
             let length = len.parse().ok()?;
             let interval_num = interval.parse().ok()?;
             let offset_in_sec = offset.parse().ok()?;
