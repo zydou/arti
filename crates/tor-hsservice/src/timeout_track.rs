@@ -139,9 +139,7 @@
 //! ```
 
 // TODO - eventually we hope this will become pub, in another crate
-#![allow(unreachable_pub)]
-// TODO - eventually we hope this will become pub, in another crate
-#![allow(dead_code)]
+
 // Rustdoc complains that we link to these private docs from these docs which are
 // themselves only formatted with --document-private-items.
 // TODO - Remove when this is actually public
