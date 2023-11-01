@@ -346,9 +346,30 @@ impl TimePeriodContext {
 
 /// A reactor error
 ///
-/// These are always fatal
+/// These are currently always fatal
 //
-// TODO HSS should this be unified with FatalError ?
+// TODO HSS ReactorError should be abolished:
+//
+// There is no need for a second type for fatal errors; we should use FatalError.
+// So, for example, Reactor::run should throw FatalError.
+// (Eventually we can perhaps arrange that when the publisher crashes, someone
+// outside this crate gets the actual FatalError from it.)
+//
+// However:
+//
+// Many of these errors are recoverable, and so ought not to be FatalError at all.
+// Crashing should be a complete last resort, because the user's only way to recover
+// is to completely tear down the HS, and make a fresh one.  With arti CLI this can
+// only be done by restarting the whole process, or by reconfiguring twice to delete
+// and recreate the hidden service.
+//
+// So simply moving all these variants into FatalError and changing all the error types
+// would simply be churn (and also, it would mix more variants which need reconsideration
+// into an enum we intend to keep).
+//
+// The error type rework should go hand-in-hand with implementing suitable retry policies
+// for errors that occur during publication.  It is those retry policies which should
+// drive the error type(s) for functions that can fail in a way that might be retriable.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub(crate) enum ReactorError {
