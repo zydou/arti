@@ -360,6 +360,10 @@ impl TimePeriodContext {
 }
 
 /// A reactor error
+///
+/// These are always fatal
+//
+// TODO HSS should this be unified with FatalError ?
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub(crate) enum ReactorError {
@@ -431,6 +435,10 @@ pub(crate) enum ReactorError {
     // TODO HSS: add more context to this error?
     #[error("publisher reactor is shutting down")]
     ShuttingDown,
+
+    /// A fatal error from somewhere else in crate
+    #[error("other (fatal) error")]
+    Other(#[from] crate::FatalError),
 
     /// An internal error.
     #[error("Internal error")]
@@ -1187,8 +1195,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         };
 
                         ipt_set
-                            .note_publication_attempt(worst_case_end)
-                            .map_err(|_| internal!("failed to note publication attempt"))?;
+                            .note_publication_attempt(worst_case_end)?;
                     }
 
                     let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload()).await {

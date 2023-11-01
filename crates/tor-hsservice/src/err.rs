@@ -143,3 +143,16 @@ pub enum FatalError {
     #[error("Programming error")]
     Bug(#[from] Bug),
 }
+
+impl HasKind for FatalError {
+    fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
+        use FatalError as FE;
+        match self {
+            FE::Spawn { cause, .. } => cause.kind(),
+            FE::Keystore(e) => e.kind(),
+            FE::MissingKey(_) => EK::Internal, // TODO HSS this is wrong
+            FE::Bug(e) => e.kind(),
+        }
+    }
+}
