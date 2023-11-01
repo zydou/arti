@@ -3,6 +3,7 @@
 use futures::StreamExt as _;
 use std::sync::Arc;
 use tor_linkspec::RelayIds;
+use tor_error::ErrorKind;
 use tor_netdir::{NetDir, NetDirProvider};
 
 /// Get a NetDir from `provider`, waiting until one exists.
@@ -65,6 +66,17 @@ pub(crate) async fn wait_for_netdir_to_list(
 
 /// The network directory provider is shutting down without giving us the
 /// netdir we asked for.
+//
+// TODO maybe this (the error, or the module)
+// wants to be moved to tor-netdir or something,
+// since perhaps other clients there will want it.
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("Network directory provider is shutting down")]
-pub(crate) struct NetdirProviderShutdown;
+#[non_exhaustive]
+pub struct NetdirProviderShutdown;
+
+impl tor_error::HasKind for NetdirProviderShutdown {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::ArtiShuttingDown
+    }
+}

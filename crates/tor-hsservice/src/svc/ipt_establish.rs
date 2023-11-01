@@ -144,7 +144,7 @@ impl tor_error::HasKind for IptError {
         use IptError as E;
         match self {
             E::NoNetdir(_) => EK::BootstrapRequired, // TODO HSS maybe not right.
-            E::NetdirProviderShutdown(_) => EK::ArtiShuttingDown,
+            E::NetdirProviderShutdown(e) => e.kind(),
             E::IntroPointNotListed => EK::TorDirectoryError, // TODO HSS Not correct kind.
             E::BuildCircuit(e) => e.kind(),
             E::EstablishTimeout => EK::TorNetworkTimeout, // TODO HSS right?

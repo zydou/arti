@@ -1,6 +1,6 @@
 //! Principal types for onion services.
 #![allow(dead_code, unused_variables)] // TODO hss remove.
-mod netdir;
+pub(crate) mod netdir;
 
 use std::sync::{Arc, Mutex};
 

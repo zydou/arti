@@ -87,6 +87,7 @@ pub use keys::{
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{RendRequest, StreamRequest};
 pub use status::OnionServiceStatus;
+pub use svc::netdir::NetdirProviderShutdown;
 pub use svc::OnionService;
 
 /// Persistent local identifier for an introduction point
