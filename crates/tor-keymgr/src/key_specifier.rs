@@ -379,17 +379,15 @@ impl KeyDenotator for TimePeriod {
     where
         Self: Sized,
     {
-        use std::str::FromStr;
-
         let parts = s.split('_').collect::<Vec<&str>>();
         let [interval, len, offset]: [&str; 3] = parts
             .try_into()
             .map_err(|_| internal!("invalid number of denotator components"))?;
 
         let (interval_num, length, offset_in_sec) = (|| {
-            let length = u32::from_str(len).ok()?;
-            let interval_num = u64::from_str(interval).ok()?;
-            let offset_in_sec = u32::from_str(offset).ok()?;
+            let length = len.parse().ok()?;
+            let interval_num = interval.parse().ok()?;
+            let offset_in_sec = offset.parse().ok()?;
 
             Some((interval_num, length, offset_in_sec))
         })()
