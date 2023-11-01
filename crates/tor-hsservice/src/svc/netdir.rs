@@ -2,8 +2,8 @@
 
 use futures::StreamExt as _;
 use std::sync::Arc;
-use tor_linkspec::RelayIds;
 use tor_error::ErrorKind;
+use tor_linkspec::RelayIds;
 use tor_netdir::{NetDir, NetDirProvider};
 
 /// Get a NetDir from `provider`, waiting until one exists.
