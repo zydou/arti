@@ -56,6 +56,7 @@ mod replay;
 mod req;
 mod status;
 mod svc;
+mod time_store;
 mod timeout_track;
 
 // rustdoc doctests can't use crate-public APIs, so are broken if provided for private items.
@@ -70,6 +71,10 @@ mod timeout_track;
 #[doc(hidden)]
 pub mod timeout_track_for_doctests_unstable_no_semver_guarantees {
     pub use crate::timeout_track::*;
+}
+#[doc(hidden)]
+pub mod time_store_for_doctests_unstable_no_semver_guarantees {
+    pub use crate::time_store::*;
 }
 
 pub use anon_level::Anonymity;
