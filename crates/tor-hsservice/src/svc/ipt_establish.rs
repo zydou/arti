@@ -23,8 +23,8 @@ use tor_hscrypto::{
     time::TimePeriod,
     Subcredential,
 };
-use tor_keymgr::{KeyMgr, KeyPathPatternSet, KeyPathRange};
-use tor_keymgr::{KeyPath, KeyPathPattern};
+use tor_keymgr::{KeyMgr, KeyPathRange};
+use tor_keymgr::{KeyPath};
 use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
@@ -311,13 +311,7 @@ fn compute_subcredentials(
         .get::<HsIdKey>(&hsid_key_spec)?
         .ok_or_else(|| FatalError::MissingKey(hsid_key_spec.role().to_string()))?;
 
-    let blind_id_pat = BlindIdKeypairSpecifier::arti_pattern(&nickname);
-
-    let pattern = KeyPathPatternSet::new(
-        blind_id_pat,
-        // TODO HSS: this won't match any C-Tor keys
-        KeyPathPattern::new(""),
-    );
+    let pattern = BlindIdKeypairSpecifier::arti_pattern(&nickname);
 
     let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
         .list_matching(&pattern)?
