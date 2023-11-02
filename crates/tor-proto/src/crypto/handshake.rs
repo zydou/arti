@@ -17,11 +17,12 @@ pub(crate) mod ntor;
 #[cfg(feature = "ntor_v3")]
 pub(crate) mod ntor_v3;
 
+use std::borrow::Borrow;
+
 use crate::Result;
 //use zeroize::Zeroizing;
 use rand_core::{CryptoRng, RngCore};
 use tor_bytes::SecretBuf;
-use tor_cell::relaycell::extend::NtorV3Extension;
 
 /// A ClientHandshake is used to generate a client onionskin and
 /// handle a relay onionskin.
@@ -32,63 +33,53 @@ pub(crate) trait ClientHandshake {
     type StateType;
     /// A type that is returned and used to generate session keys.x
     type KeyGen;
-    /// Generate a new client onionskin for a relay with a given onion key.
-    ///
-    /// If any `extensions` are provided, encode them into to the onionskin.
-    /// A non-empty extension list is currently supported only by ntor-v3.
+    /// Type of extra data sent from client (without forward secrecy).
+    type ClientAuxData: ?Sized;
+    /// Type of extra data returned by server (without forward secrecy).
+    type ServerAuxData;
+    /// Generate a new client onionskin for a relay with a given onion key,
+    /// including `client_aux_data` to be sent without forward secrecy.
     ///
     /// On success, return a state object that will be used to
     /// complete the handshake, along with the message to send.
-    fn client1<R: RngCore + CryptoRng>(
+    fn client1<R: RngCore + CryptoRng, M: Borrow<Self::ClientAuxData>>(
         rng: &mut R,
         key: &Self::KeyType,
-        // If this trait is ever public beyond this crate, consider adding and
-        // using an intermediate type here instead of using the ntor-v3-specific
-        // type directly.
-        extensions: &[NtorV3Extension],
+        client_aux_data: &M,
     ) -> Result<(Self::StateType, Vec<u8>)>;
-    /// Handle an onionskin from a relay, and produce a list of extensions
-    /// returned by the server, and a key generator.
+    /// Handle an onionskin from a relay, and produce aux data returned
+    /// from the server, and a key generator.
     ///
     /// The state object must match the one that was used to make the
     /// client onionskin that the server is replying to.
     fn client2<T: AsRef<[u8]>>(
         state: Self::StateType,
         msg: T,
-    ) -> Result<(Vec<NtorV3Extension>, Self::KeyGen)>;
+    ) -> Result<(Self::ServerAuxData, Self::KeyGen)>;
 }
 
-/// Trait for an object that handles incoming client extensions and
-/// returns a server's reply.
+/// Trait for an object that handles incoming auxiliary data and
+/// returns the server's auxiliary data to be included in the reply.
 ///
-/// This is implemented for `FnMut(&[NtorV3Extension]) -> Option<Vec<NtorV3Extension>>` automatically.
-pub(crate) trait ExtensionsReply {
+/// This is implemented for `FnMut(&H::ClientAuxData) -> Option<H::ServerAuxData>` automatically.
+pub(crate) trait AuxDataReply<H>
+where
+    H: ServerHandshake + ?Sized,
+{
     /// Given a list of extensions received from a client, decide
     /// what extensions to send in reply.
     ///
     /// Return None if the handshake should fail.
-    fn reply(&mut self, msg: &[NtorV3Extension]) -> Option<Vec<NtorV3Extension>>;
+    fn reply(&mut self, msg: &H::ClientAuxData) -> Option<H::ServerAuxData>;
 }
 
-impl<F> ExtensionsReply for F
+impl<F, H> AuxDataReply<H> for F
 where
-    F: FnMut(&[NtorV3Extension]) -> Option<Vec<NtorV3Extension>>,
+    H: ServerHandshake + ?Sized,
+    F: FnMut(&H::ClientAuxData) -> Option<H::ServerAuxData>,
 {
-    fn reply(&mut self, msg: &[NtorV3Extension]) -> Option<Vec<NtorV3Extension>> {
+    fn reply(&mut self, msg: &H::ClientAuxData) -> Option<H::ServerAuxData> {
         self(msg)
-    }
-}
-
-/// Convenience implementation for tests. Panics if extensions is non-empty, and
-/// returns an empty extension list.
-#[cfg(test)]
-pub(crate) struct ExtensionsReplyUnsupported {}
-
-#[cfg(test)]
-impl ExtensionsReply for ExtensionsReplyUnsupported {
-    fn reply(&mut self, msg: &[NtorV3Extension]) -> Option<Vec<NtorV3Extension>> {
-        assert_eq!(msg, &[]);
-        Some(vec![])
     }
 }
 
@@ -99,6 +90,10 @@ pub(crate) trait ServerHandshake {
     type KeyType;
     /// The returned key generator type.
     type KeyGen;
+    /// Type of extra data sent from client (without forward secrecy).
+    type ClientAuxData: ?Sized;
+    /// Type of extra data returned by server (without forward secrecy).
+    type ServerAuxData;
 
     /// Perform the server handshake.  Take as input a strong PRNG in `rng`, a
     /// function for processing requested extensions, a slice of all our private
@@ -106,7 +101,7 @@ pub(crate) trait ServerHandshake {
     ///
     /// On success, return a key generator and a server handshake message
     /// to send in reply.
-    fn server<R: RngCore + CryptoRng, REPLY: ExtensionsReply, T: AsRef<[u8]>>(
+    fn server<R: RngCore + CryptoRng, REPLY: AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
         key: &[Self::KeyType],

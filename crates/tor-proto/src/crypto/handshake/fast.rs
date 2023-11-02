@@ -1,6 +1,8 @@
 //! Implementation for the (deprecated) CreateFast handshake.
 //!
 
+use std::borrow::Borrow;
+
 use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::crypto::ll::kdf::{Kdf, LegacyKdf};
 use crate::util::ct::bytes_eq;
@@ -8,8 +10,7 @@ use crate::{Error, Result};
 
 use rand::{CryptoRng, RngCore};
 use tor_bytes::SecretBuf;
-use tor_cell::relaycell::extend::NtorV3Extension;
-use tor_error::{internal, into_internal};
+use tor_error::into_internal;
 
 /// Number of bytes used for a "CREATE_FAST" handshake by the initiator.
 pub(crate) const FAST_C_HANDSHAKE_LEN: usize = 20;
@@ -31,24 +32,20 @@ impl super::ClientHandshake for CreateFastClient {
     type KeyType = ();
     type StateType = CreateFastClientState;
     type KeyGen = super::TapKeyGenerator;
+    type ClientAuxData = ();
+    type ServerAuxData = ();
 
-    fn client1<R: RngCore + CryptoRng>(
+    fn client1<R: RngCore + CryptoRng, M: Borrow<()>>(
         rng: &mut R,
         _key: &Self::KeyType,
-        extensions: &[NtorV3Extension],
+        _client_aux_data: &M,
     ) -> Result<(Self::StateType, Vec<u8>)> {
-        if !extensions.is_empty() {
-            return Err(internal!("Unexpectly got non-empty extensions").into());
-        }
         let mut state = [0_u8; FAST_C_HANDSHAKE_LEN];
         rng.fill_bytes(&mut state);
         Ok((CreateFastClientState(state), state.into()))
     }
 
-    fn client2<T: AsRef<[u8]>>(
-        state: Self::StateType,
-        msg: T,
-    ) -> Result<(Vec<NtorV3Extension>, Self::KeyGen)> {
+    fn client2<T: AsRef<[u8]>>(state: Self::StateType, msg: T) -> Result<((), Self::KeyGen)> {
         let msg = msg.as_ref();
         if msg.len() != FAST_S_HANDSHAKE_LEN {
             return Err(Error::BadCircHandshakeAuth);
@@ -67,7 +64,7 @@ impl super::ClientHandshake for CreateFastClient {
             return Err(Error::BadCircHandshakeAuth);
         }
 
-        Ok((vec![], super::TapKeyGenerator::new(inp)))
+        Ok(((), super::TapKeyGenerator::new(inp)))
     }
 }
 
@@ -79,24 +76,18 @@ pub(crate) struct CreateFastServer;
 impl super::ServerHandshake for CreateFastServer {
     type KeyType = ();
     type KeyGen = super::TapKeyGenerator;
+    type ClientAuxData = ();
+    type ServerAuxData = ();
 
-    fn server<R: RngCore + CryptoRng, REPLY: super::ExtensionsReply, T: AsRef<[u8]>>(
+    fn server<R: RngCore + CryptoRng, REPLY: super::AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
         _key: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
-        // This handshake doesn't support extensions.
-        let client_extensions = [];
-        let reply_extensions = reply_fn
-            .reply(&client_extensions)
+        let _reply_extensions: () = reply_fn
+            .reply(&())
             .ok_or(RelayHandshakeError::BadClientHandshake)?;
-        if !reply_extensions.is_empty() {
-            return Err(internal!(
-                "This handshake doesn't support returning extensions from server"
-            )
-            .into());
-        }
 
         let msg = msg.as_ref();
         if msg.len() != FAST_C_HANDSHAKE_LEN {
@@ -132,9 +123,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::crypto::handshake::{
-        ClientHandshake, ExtensionsReplyUnsupported, KeyGenerator, ServerHandshake,
-    };
+    use crate::crypto::handshake::{ClientHandshake, KeyGenerator, ServerHandshake};
     use hex_literal::hex;
     use tor_basic_utils::test_rng::testing_rng;
 
@@ -142,12 +131,10 @@ mod test {
     fn roundtrip() {
         let mut rng = testing_rng();
 
-        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &[]).unwrap();
+        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
         let (s_kg, smsg) =
-            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg)
-                .unwrap();
-        let (extensions, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
-        assert_eq!(&extensions, &[]);
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
+        let (_msg, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
 
         let s_key = s_kg.expand(200).unwrap();
         let c_key = c_kg.expand(200).unwrap();
@@ -161,15 +148,13 @@ mod test {
 
         // badly formatted client message.
         let cmsg = [6_u8; 19];
-        let ans =
-            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg);
+        let ans = CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg);
         assert!(ans.is_err());
 
         // corrupt/ incorrect server reply.
-        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &[]).unwrap();
+        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
         let (_, mut smsg) =
-            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg)
-                .unwrap();
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
         smsg[35] ^= 16;
         let ans = CreateFastClient::client2(state, smsg);
         assert!(ans.is_err());
@@ -179,14 +164,12 @@ mod test {
         use crate::crypto::testing::FakePRNG;
 
         let mut rng = FakePRNG::new(&cmsg);
-        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &[]).unwrap();
+        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
 
         let mut rng = FakePRNG::new(&smsg);
         let (s_kg, smsg) =
-            CreateFastServer::server(&mut rng, &mut ExtensionsReplyUnsupported {}, &[()], cmsg)
-                .unwrap();
-        let (extensions, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
-        assert_eq!(&extensions, &[]);
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
+        let (_msg, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
 
         let s_key = s_kg.expand(100).unwrap();
         let c_key = c_kg.expand(100).unwrap();

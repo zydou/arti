@@ -30,6 +30,7 @@ use crate::crypto::cell::{
 use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
+use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -438,6 +439,7 @@ where
         key: &H::KeyType,
         linkspecs: Vec<EncodedLinkSpec>,
         params: CircParameters,
+        client_msg: &impl Borrow<H::ClientAuxData>,
         reactor: &mut Reactor,
         done: ReactorResultChannel<()>,
     ) -> Result<Self> {
@@ -446,10 +448,7 @@ where
             let unique_id = reactor.unique_id;
 
             use tor_cell::relaycell::msg::Extend2;
-            // Perform the first part of the cryptographic handshake
-            // TODO: Expose a way of requesting extensions.
-            let extensions = [];
-            let (state, msg) = H::client1(&mut rng, key, &extensions)?;
+            let (state, msg) = H::client1(&mut rng, key, client_msg)?;
 
             let n_hops = reactor.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
@@ -515,16 +514,13 @@ where
         );
         // Now perform the second part of the handshake, and see if it
         // succeeded.
-        let (extensions, keygen) = H::client2(
+        // TODO: Process `_server_msg`
+        let (_server_msg, keygen) = H::client2(
             self.state
                 .take()
                 .expect("CircuitExtender::finish() called twice"),
             relay_handshake,
         )?;
-        if !extensions.is_empty() {
-            // We don't request any extensions yet, so the server shouldn't ack any.
-            return Err(Error::HandshakeProto("Unrequested extension".into()));
-        }
         let layer = L::construct(keygen)?;
 
         debug!("{}: Handshake complete; circuit extended.", self.unique_id);
@@ -1004,13 +1000,14 @@ impl Reactor {
     /// build the right kind of create cell, a handshake object to perform
     /// the cryptographic cryptographic handshake, and a layer type to
     /// handle relay crypto after this hop is built.
-    async fn create_impl<L, FWD, REV, H, W>(
+    async fn create_impl<L, FWD, REV, H, W, M>(
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
         params: &CircParameters,
-    ) -> Result<()>
+        msg: &M,
+    ) -> Result<H::ServerAuxData>
     where
         L: CryptInit + ClientLayer<FWD, REV> + 'static + Send,
         FWD: OutboundClientLayer + 'static + Send,
@@ -1018,6 +1015,7 @@ impl Reactor {
         H: ClientHandshake,
         W: CreateHandshakeWrap,
         H::KeyGen: KeyGenerator,
+        M: Borrow<H::ClientAuxData>,
     {
         // We don't need to shut down the circuit on failure here, since this
         // function consumes the PendingClientCirc and only returns
@@ -1027,9 +1025,7 @@ impl Reactor {
             // done like this because holding the RNG across an await boundary makes the future
             // non-Send
             let mut rng = rand::thread_rng();
-            // TODO: Expose way of requesting extensions.
-            let extensions = &[];
-            H::client1(&mut rng, key, extensions)?
+            H::client1(&mut rng, key, msg)?
         };
         let create_cell = wrap.to_chanmsg(msg);
         debug!(
@@ -1044,11 +1040,7 @@ impl Reactor {
             .map_err(|_| Error::CircProto("Circuit closed while waiting".into()))?;
 
         let relay_handshake = wrap.decode_chanmsg(reply)?;
-        let (extensions, keygen) = H::client2(state, relay_handshake)?;
-        if !extensions.is_empty() {
-            // We don't request any extensions yet, so the server shouldn't ack any.
-            return Err(Error::HandshakeProto("Unrequested extension".into()));
-        }
+        let (server_msg, keygen) = H::client2(state, relay_handshake)?;
 
         let layer = L::construct(keygen)?;
 
@@ -1064,7 +1056,7 @@ impl Reactor {
             Some(binding),
             params,
         );
-        Ok(())
+        Ok(server_msg)
     }
 
     /// Use the (questionable!) CREATE_FAST handshake to connect to the
@@ -1080,11 +1072,12 @@ impl Reactor {
     ) -> Result<()> {
         use crate::crypto::handshake::fast::CreateFastClient;
         let wrap = CreateFastWrap;
-        self.create_impl::<Tor1RelayCrypto, _, _, CreateFastClient, _>(
+        self.create_impl::<Tor1RelayCrypto, _, _, CreateFastClient, _, _>(
             recvcreated,
             &wrap,
             &(),
             params,
+            &(),
         )
         .await
     }
@@ -1111,11 +1104,12 @@ impl Reactor {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR,
         };
-        self.create_impl::<Tor1RelayCrypto, _, _, NtorClient, _>(
+        self.create_impl::<Tor1RelayCrypto, _, _, NtorClient, _, _>(
             recvcreated,
             &wrap,
             &pubkey,
             params,
+            &(),
         )
         .await
     }
@@ -1436,6 +1430,7 @@ impl Reactor {
                     &public_key,
                     linkspecs,
                     params,
+                    &(),
                     self,
                     done,
                 )?;

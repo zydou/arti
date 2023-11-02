@@ -1203,7 +1203,6 @@ mod test {
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
-    use crate::crypto::handshake::ExtensionsReplyUnsupported;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -1297,7 +1296,7 @@ mod test {
                 };
                 let (_, rep) = CreateFastServer::server(
                     &mut rng,
-                    &mut ExtensionsReplyUnsupported {},
+                    &mut |_: &()| Some(()),
                     &[()],
                     cf.handshake(),
                 )
@@ -1310,7 +1309,7 @@ mod test {
                 };
                 let (_, rep) = NtorServer::server(
                     &mut rng,
-                    &mut ExtensionsReplyUnsupported {},
+                    &mut |_: &()| Some(()),
                     &[example_ntor_key()],
                     c2.body(),
                 )
@@ -1576,7 +1575,7 @@ mod test {
                 let mut rng = testing_rng();
                 let (_, reply) = NtorServer::server(
                     &mut rng,
-                    &mut ExtensionsReplyUnsupported {},
+                    &mut |_: &()| Some(()),
                     &[example_ntor_key()],
                     e2.handshake(),
                 )

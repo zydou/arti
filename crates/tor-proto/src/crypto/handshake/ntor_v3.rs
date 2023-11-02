@@ -12,6 +12,8 @@
 // This module is still unused: so allow some dead code for now.
 #![allow(dead_code)]
 
+use std::borrow::Borrow;
+
 use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
 use crate::{Error, Result};
@@ -229,19 +231,21 @@ impl super::ClientHandshake for NtorV3Client {
     type KeyType = NtorV3PublicKey;
     type StateType = NtorV3HandshakeState;
     type KeyGen = NtorV3KeyGenerator;
+    type ClientAuxData = [NtorV3Extension];
+    type ServerAuxData = Vec<NtorV3Extension>;
 
     /// Generate a new client onionskin for a relay with a given onion key.
     /// If any `extensions` are provided, encode them into to the onionskin.
     ///
     /// On success, return a state object that will be used to complete the handshake, along
     /// with the message to send.
-    fn client1<R: RngCore + CryptoRng>(
+    fn client1<R: RngCore + CryptoRng, M: Borrow<Self::ClientAuxData>>(
         rng: &mut R,
         key: &NtorV3PublicKey,
-        extensions: &[NtorV3Extension],
+        extensions: &M,
     ) -> Result<(Self::StateType, Vec<u8>)> {
         let mut message = Vec::new();
-        NtorV3Extension::write_many_onto(extensions.iter(), &mut message)
+        NtorV3Extension::write_many_onto(extensions.borrow().iter(), &mut message)
             .map_err(|e| Error::from_bytes_enc(e, "ntor3 handshake extensions"))?;
         Ok(
             client_handshake_ntor_v3(rng, key, &message, NTOR3_CIRC_VERIFICATION)
@@ -275,8 +279,10 @@ pub(crate) struct NtorV3Server;
 impl super::ServerHandshake for NtorV3Server {
     type KeyType = NtorV3SecretKey;
     type KeyGen = NtorV3KeyGenerator;
+    type ClientAuxData = [NtorV3Extension];
+    type ServerAuxData = Vec<NtorV3Extension>;
 
-    fn server<R: RngCore + CryptoRng, REPLY: super::ExtensionsReply, T: AsRef<[u8]>>(
+    fn server<R: RngCore + CryptoRng, REPLY: super::AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
         key: &[Self::KeyType],
