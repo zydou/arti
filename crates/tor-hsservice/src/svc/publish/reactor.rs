@@ -624,7 +624,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let netdir = match self.dir_provider.netdir(Timeliness::Timely) {
                     Ok(y) => y,
                     Err(e) => {
-                        error_report!(e, "HS service {}: netdir unavailable", self.imm.nickname);
+                        error_report!(e, "HS service {}: netdir unavailable. Retrying...", self.imm.nickname);
                         // Hopefully a netdir will appear in the future.
                         // in the meantime, suspend operations.
                         //
