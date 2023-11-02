@@ -274,11 +274,9 @@ impl Loading {
                 self.inst
             })
     }
-}
 
-//---------- accessors for Loading ----------
+    //----- accessors for Loading -----
 
-impl Loading {
     /// Returns how long has elapsed since the timestamps were stored
     ///
     /// This depends on the system wall clock being right both when we stored, and now.
