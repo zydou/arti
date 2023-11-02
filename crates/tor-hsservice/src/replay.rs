@@ -307,13 +307,9 @@ mod test {
         let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
 
         let mut log = ReplayLog::new_ephemeral();
-        // Count the number of low-probability-but-still-possible failures.
-        let mut surprises = 0;
         // Add everything in group 1.
         for h in &group_1 {
-            if log.check_inner(h).is_err() {
-                surprises += 1;
-            }
+            assert!(log.check_inner(h).is_ok(), "False positive");
         }
         // Make sure that everything in group 1 is still there.
         for h in &group_1 {
@@ -321,11 +317,8 @@ mod test {
         }
         // Make sure that group 2 is detected as not-there.
         for h in &group_2 {
-            if log.check_inner(h).is_err() {
-                surprises += 1;
-            }
+            assert!(log.check_inner(h).is_ok(), "False positive");
         }
-        assert_eq!(surprises, 0);
     }
 
     /// Basic tests on an persistent ReplayLog.
@@ -338,13 +331,9 @@ mod test {
         let dir = tempfile::TempDir::new().unwrap();
         let p: PathBuf = dir.path().to_path_buf().join("logfile");
         let mut log = ReplayLog::new_logged(&p).unwrap();
-        // Count the number of low-probability-but-still-possible failures.
-        let mut surprises = 0;
         // Add everything in group 1, then close and reload.
         for h in &group_1 {
-            if log.check_inner(h).is_err() {
-                surprises += 1;
-            }
+            assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
         let mut log = ReplayLog::new_logged(&p).unwrap();
@@ -354,9 +343,7 @@ mod test {
         }
         // Now add everything in group 2, then close and reload.
         for h in &group_2 {
-            if log.check_inner(h).is_err() {
-                surprises += 1;
-            }
+            assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
         let mut log = ReplayLog::new_logged(&p).unwrap();
@@ -364,7 +351,6 @@ mod test {
         for h in group_1.iter().chain(group_2.iter()) {
             assert!(log.check_inner(h).is_err());
         }
-        assert_eq!(surprises, 0);
     }
 
     /// Test for a log that gets truncated mid-write.
@@ -377,12 +363,8 @@ mod test {
         let dir = tempfile::TempDir::new().unwrap();
         let p: PathBuf = dir.path().to_path_buf().join("logfile");
         let mut log = ReplayLog::new_logged(&p).unwrap();
-        // Count the number of low-probability-but-still-possible failures.
-        let mut surprises = 0;
         for h in &group_1 {
-            if log.check_inner(h).is_err() {
-                surprises += 1;
-            }
+            assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
         // Truncate the file by 7 bytes.
@@ -400,14 +382,13 @@ mod test {
             assert!(log.check_inner(h).is_err());
         }
         // But not the last one, which we truncated.  (Checking will add it, though.)
-        if log.check_inner(&group_1[group_1.len() - 1]).is_err() {
-            surprises += 1;
-        }
+        assert!(
+            log.check_inner(&group_1[group_1.len() - 1]).is_ok(),
+            "False positive"
+        );
         // Now add everything in group 2, then close and reload.
         for h in &group_2 {
-            if log.check_inner(h).is_err() {
-                surprises += 1;
-            }
+            assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
         let mut log = ReplayLog::new_logged(&p).unwrap();
@@ -415,7 +396,5 @@ mod test {
         for h in group_1.iter().chain(group_2.iter()) {
             assert!(log.check_inner(h).is_err());
         }
-
-        assert_eq!(surprises, 0);
     }
 }
