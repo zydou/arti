@@ -246,7 +246,7 @@ mod data {
 
 /// A problem that prevents us from reading a ReplayLog from disk.
 ///
-/// (This only exists so we can wrap it up in an [`io::Error])
+/// (This only exists so we can wrap it up in an [`io::Error`])
 #[derive(thiserror::Error, Clone, Debug)]
 enum LogContentError {
     /// The magic number on the log file was incorrect.
