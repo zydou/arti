@@ -320,20 +320,22 @@ fn compute_subcredentials(
     );
 
     let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
-        .list_matching(&pattern, parse_time_period)?
+        .list_matching(&pattern)?
         .iter()
-        .map(
-            |(path, key_type, period)| -> Result<Option<_>, FatalError> {
-                // Try to retrieve the key.
-                keymgr
-                    .get_with_type::<HsBlindIdKeypair>(path, key_type)
-                    .map_err(FatalError::Keystore)
-                    // If the key is not found, it means it has been garbage collected between the time
-                    // we queried the keymgr for the list of keys matching the pattern and now.
-                    // This is OK, because we only need the "current" keys
-                    .map(|maybe_key| maybe_key.map(|key| (key, *period)))
-            },
-        )
+        .map(|(path, key_type)| -> Result<Option<_>, FatalError> {
+            let matches = path
+                .matches(&pattern)
+                .ok_or_else(|| internal!("path matched but no longer does?!"))?;
+            let period = parse_time_period(path, &matches)?;
+            // Try to retrieve the key.
+            keymgr
+                .get_with_type::<HsBlindIdKeypair>(path, key_type)
+                .map_err(FatalError::Keystore)
+                // If the key is not found, it means it has been garbage collected between the time
+                // we queried the keymgr for the list of keys matching the pattern and now.
+                // This is OK, because we only need the "current" keys
+                .map(|maybe_key| maybe_key.map(|key| (key, period)))
+        })
         .flatten_ok()
         .collect::<Result<Vec<_>, FatalError>>()?;
 
@@ -348,7 +350,7 @@ fn parse_time_period(
     path: &KeyPath,
     captures: &[KeyPathRange],
 ) -> Result<TimePeriod, tor_keymgr::Error> {
-    use std::str::FromStr;
+    use tor_keymgr::KeyDenotator;
 
     let path = match path {
         KeyPath::Arti(path) => path,
@@ -356,24 +358,19 @@ fn parse_time_period(
         _ => todo!(),
     };
 
-    let [len_range, interval_range, offset_range] = captures else {
+    let [denotator] = captures else {
         return Err(internal!(
-            "invalid number of metadata captures: expected 3, found {}",
+            "invalid number of denotator captures: expected 1, found {}",
             captures.len()
         )
         .into());
     };
 
-    let (length, interval_num, offset_in_sec) = (|| {
-        let length = u32::from_str(path.substring(len_range)?).ok()?;
-        let interval_num = u64::from_str(path.substring(interval_range)?).ok()?;
-        let offset_in_sec = u32::from_str(path.substring(offset_range)?).ok()?;
+    let Some(denotator) = path.substring(denotator) else {
+        return Err(internal!("captured substring out of range?!").into());
+    };
 
-        Some((length, interval_num, offset_in_sec))
-    })()
-    .ok_or_else(|| internal!("invalid key metadata"))?;
-
-    Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
+    TimePeriod::decode(denotator)
 }
 
 /// The current status of an introduction point, as defined in

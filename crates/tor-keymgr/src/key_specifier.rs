@@ -3,10 +3,14 @@
 use std::ops::Range;
 use std::result::Result as StdResult;
 
+use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tor_error::{ErrorKind, HasKind};
 use tor_hscrypto::time::TimePeriod;
+
+use crate::KeystoreError;
 
 /// The path of a key in the Arti key store.
 ///
@@ -15,12 +19,21 @@ use tor_hscrypto::time::TimePeriod;
 /// `_`, or  `.`.
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
+/// The last component of the path may optionally contain the encoded (string) representation
+/// of a [`KeyDenotator`] (obtained from [`KeyDenotator::encode`]).
+/// The denotator is separated from the rest of the component by a single [`DENOTATOR_SEP`]
+/// character. For example, the last component of the path `"foo/bar/bax+denotator_example"`
+/// is `"bax+denotator_example"`, and the denotator is `"denotator_example"`.
+/// Denotator strings are validited in the same way as [`ArtiPathComponent`]s.
+///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
+///
+// TODO HSS: we should allow keys to have more than one `KeyDenotator`.
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1722#note_2960442
 //
-// TODO HSS: Create an error type for ArtiPath errors instead of relying on internal!
-// TODO HSS: disallow consecutive `.` to prevent path traversal.
+// But this should be done _after_ we rewrite define_key_specifier using d-a
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct ArtiPath(String);
 
@@ -125,13 +138,29 @@ impl KeyPathPattern {
 /// A separator for `ArtiPath`s.
 const PATH_SEP: char = '/';
 
+/// A separator for that marks the beginning of the [`KeyDenotator`]s
+/// within an [`ArtiPath`].
+///
+/// This separator can only appear within the last component of an [`ArtiPath`],
+/// and the substring that follows it is assumed to be the string representation
+/// of the denotators of the path.
+pub const DENOTATOR_SEP: char = '+';
+
 impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
-    // TODO HSS this function (and validate_str) should have a bespoke error type
     pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
-        if let Some(e) = inner
+        // Validate the denotator, if there is one.
+        let path = if let Some((inner, denotator)) = inner.rsplit_once(DENOTATOR_SEP) {
+            let () = ArtiPathComponent::validate_str(denotator)?;
+
+            inner
+        } else {
+            inner.as_ref()
+        };
+
+        if let Some(e) = path
             .split(PATH_SEP)
             .find_map(|s| ArtiPathComponent::validate_str(s).err())
         {
@@ -286,6 +315,32 @@ pub enum ArtiPathError {
     /// The path starts with a disallowed char.
     #[error("Path starts or ends with disallowed char {0}")]
     BadOuterChar(char),
+
+    /// The path contains an invalid key denotator.
+    ///
+    /// See the [`ArtiPath`] docs for more information.
+    InvalidDenotator,
+}
+
+/// An error caused by keystore corruption.
+///
+// TODO HSS: refactor the keymgr error types to be variants of a top-level KeyMgrError enum
+// (it should only be necessary to impl KeystoreError for custom/opaque keystore errors).
+#[derive(Error, Debug, Copy, Clone)]
+#[error("Keystore corruption")]
+#[non_exhaustive]
+pub enum KeystoreCorruptionError {
+    /// A keysotre contains a key that has an invalid [`ArtiPath`].
+    #[error("{0}")]
+    ArtiPath(#[from] ArtiPathError),
+}
+
+impl KeystoreError for KeystoreCorruptionError {}
+
+impl HasKind for KeystoreCorruptionError {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::KeystoreCorrupted
+    }
 }
 
 impl KeySpecifier for ArtiPath {
@@ -328,17 +383,21 @@ impl KeySpecifier for KeyPath {
 /// or [`CTorPath`].
 ///
 /// A key's denotators *denote* an instance of a key.
+//
+// TODO HSS: consider adding a helper trait or d-a macro KeyDenotatorViaFromStrAndDisplay
 pub trait KeyDenotator {
-    /// Display the denotators in a format that can be used within an
+    /// Encode the denotators in a format that can be used within an
     /// [`ArtiPath`] or [`CTorPath`].
-    fn display(&self) -> String;
+    fn encode(&self) -> String;
 
-    /// Return a glob pattern that matches the key denotators, if there are any.
-    fn glob() -> String;
+    /// Try to convert the specified string `s` to a value of this type.
+    fn decode(s: &str) -> crate::Result<Self>
+    where
+        Self: Sized;
 }
 
 impl KeyDenotator for TimePeriod {
-    fn display(&self) -> String {
+    fn encode(&self) -> String {
         format!(
             "{}_{}_{}",
             self.interval_num(),
@@ -347,18 +406,23 @@ impl KeyDenotator for TimePeriod {
         )
     }
 
-    fn glob() -> String {
-        "*_*_*".into()
-    }
-}
+    fn decode(s: &str) -> crate::Result<Self>
+    where
+        Self: Sized,
+    {
+        let (interval_num, length, offset_in_sec) = (|| {
+            let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
+            let [interval, len, offset]: [&str; 3] = parts.into_inner().ok()?;
 
-impl KeyDenotator for () {
-    fn display(&self) -> String {
-        "".into()
-    }
+            let length = len.parse().ok()?;
+            let interval_num = interval.parse().ok()?;
+            let offset_in_sec = offset.parse().ok()?;
 
-    fn glob() -> String {
-        "".into()
+            Some((interval_num, length, offset_in_sec))
+        })()
+        .ok_or_else(|| KeystoreCorruptionError::from(ArtiPathError::InvalidDenotator))?;
+
+        Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
 }
 
@@ -442,11 +506,8 @@ macro_rules! define_key_specifier {
             /// pattern returned by the [`KeyDenotator::glob`] implementation
             /// of its denotator.
             $vis fn arti_pattern($($field: &$field_ty,)*) -> $crate::KeyPathPattern {
-                use $crate::KeyDenotator;
-
                 let pat = Self::arti_path_prefix($(&$field,)*);
-                let glob = <$denotator_ty>::glob();
-                KeyPathPattern::new(format!("{pat}_{glob}"))
+                KeyPathPattern::new(format!("{pat}{}*", $crate::DENOTATOR_SEP))
             }
         }
 
@@ -471,8 +532,8 @@ macro_rules! define_key_specifier {
         {
             fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
                 let prefix = self.prefix();
-                let denotator = $crate::KeyDenotator::display(&self.$denotator);
-                let path = format!("{prefix}_{denotator}");
+                let denotator = $crate::KeyDenotator::encode(&self.$denotator);
+                let path = format!("{prefix}{}{denotator}", $crate::DENOTATOR_SEP);
 
                 Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?)
             }
@@ -643,12 +704,17 @@ mod test {
     }
 
     impl KeyDenotator for usize {
-        fn display(&self) -> String {
+        fn encode(&self) -> String {
             self.to_string()
         }
 
-        fn glob() -> String {
-            "*".to_string()
+        fn decode(s: &str) -> crate::Result<Self>
+        where
+            Self: Sized,
+        {
+            use std::str::FromStr;
+
+            Ok(usize::from_str(s).unwrap())
         }
     }
 
@@ -674,7 +740,7 @@ mod test {
             "_",
         ];
 
-        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] = &["c++", "client?", "no spaces please"];
+        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] = &["client?", "no spaces please"];
 
         const EMPTY_PATH_COMPONENT: &[&str] =
             &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
@@ -720,6 +786,36 @@ mod test {
             REL_PATH,
             ArtiPathError::DisallowedChar('/')
         );
+
+        const EMPTY_DENOTATOR: &str = "c++";
+        assert_err!(ArtiPath, EMPTY_DENOTATOR, ArtiPathError::EmptyPathComponent);
+        assert_err!(
+            ArtiPathComponent,
+            EMPTY_DENOTATOR,
+            ArtiPathError::DisallowedChar('+')
+        );
+    }
+
+    #[test]
+    fn arti_path_with_denotator() {
+        const VALID_ARTI_DENOTATORS: &[&str] = &["foo", "one_two_three-f0ur"];
+
+        const BAD_OUTER_CHAR_DENOTATORS: &[&str] =
+            &["1-2-3-", "1-2-3_", "1-2-3.", "-1-2-3", "_1-2-3", ".1-2-3"];
+
+        for denotator in VALID_ARTI_DENOTATORS {
+            let path = format!("foo/bar/qux+{denotator}");
+            assert_ok!(ArtiPath, path);
+            assert_ok!(ArtiPathComponent, denotator);
+        }
+
+        for denotator in BAD_OUTER_CHAR_DENOTATORS {
+            let path = format!("hs_client+{denotator}");
+
+            assert_err!(ArtiPath, path, ArtiPathError::BadOuterChar(_));
+            assert_err!(ArtiPathComponent, denotator, ArtiPathError::BadOuterChar(_));
+            assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar('+'));
+        }
     }
 
     #[test]
@@ -787,7 +883,7 @@ mod test {
 
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane_6"
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6"
         );
         assert_eq!(key_spec.role(), "marzlevane");
     }
@@ -826,7 +922,7 @@ mod test {
 
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "encabulator/marzlevane_6"
+            "encabulator/marzlevane+6"
         );
         assert_eq!(key_spec.role(), "marzlevane");
     }
@@ -854,5 +950,16 @@ mod test {
             "encabulator/logarithmic/spurving/fan"
         );
         assert_eq!(key_spec.role(), "fan");
+    }
+
+    #[test]
+    fn encode_time_period() {
+        let period = TimePeriod::from_parts(1, 2, 3);
+        let encoded_period = period.encode();
+
+        assert_eq!(encoded_period, "2_1_3");
+        assert_eq!(period, TimePeriod::decode(&encoded_period).unwrap());
+
+        assert!(TimePeriod::decode("invalid_tp").is_err());
     }
 }
