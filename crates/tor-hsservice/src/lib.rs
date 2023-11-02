@@ -52,6 +52,7 @@ mod ipt_mgr;
 mod ipt_set;
 mod keys;
 mod nickname;
+mod replay;
 mod req;
 mod status;
 mod svc;
