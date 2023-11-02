@@ -279,7 +279,7 @@ impl Loading {
 //---------- accessors for Loading ----------
 
 impl Loading {
-    /// Returns how long has elapsed, since the timestamps were stored
+    /// Returns how long has elapsed since the timestamps were stored
     ///
     /// This depends on the system wall clock being right both when we stored, and now.
     /// In the presence of clock skew, may return a value which is far too large,
