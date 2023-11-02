@@ -1690,73 +1690,86 @@ mod test {
     }
      */
 
-    #[test]
-    fn extend() {
-        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
+    async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
+        use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
 
-            let (chan, mut rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut sink) = newcirc(&rt, chan).await;
-            let params = CircParameters::default();
+        let (chan, mut rx, _sink) = working_fake_channel(rt);
+        let (circ, mut sink) = newcirc(rt, chan).await;
+        let params = CircParameters::default();
 
-            let extend_fut = async move {
-                let target = example_target();
-                circ.extend_ntor(&target, &params).await.unwrap();
-                circ // gotta keep the circ alive, or the reactor would exit.
+        let extend_fut = async move {
+            let target = example_target();
+            match handshake_type {
+                HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
+                HandshakeType::Ntor => circ.extend_ntor(&target, &params).await.unwrap(),
+                HandshakeType::NtorV3 => todo!(),
             };
-            let reply_fut = async move {
-                // We've disabled encryption on this circuit, so we can just
-                // read the extend2 cell.
-                let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128));
-                let rmsg = match chmsg {
-                    AnyChanMsg::RelayEarly(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
-                    _ => panic!(),
-                };
-                let e2 = match rmsg.msg() {
-                    AnyRelayMsg::Extend2(e2) => e2,
-                    _ => panic!(),
-                };
-                let mut rng = testing_rng();
-                let (_, reply) = NtorServer::server(
+            circ // gotta keep the circ alive, or the reactor would exit.
+        };
+        let reply_fut = async move {
+            // We've disabled encryption on this circuit, so we can just
+            // read the extend2 cell.
+            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
+            assert_eq!(id, CircId::new(128));
+            let rmsg = match chmsg {
+                AnyChanMsg::RelayEarly(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                _ => panic!(),
+            };
+            let e2 = match rmsg.msg() {
+                AnyRelayMsg::Extend2(e2) => e2,
+                _ => panic!(),
+            };
+            let mut rng = testing_rng();
+            let (_, reply) = match handshake_type {
+                HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
+                HandshakeType::Ntor => NtorServer::server(
                     &mut rng,
                     &mut |_: &()| Some(()),
                     &[example_ntor_key()],
                     e2.handshake(),
                 )
-                .unwrap();
-                let extended2 = relaymsg::Extended2::new(reply).into();
-                sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
-                sink // gotta keep the sink alive, or the reactor will exit.
+                .unwrap(),
+                HandshakeType::NtorV3 => todo!(),
             };
 
-            let (circ, _) = futures::join!(extend_fut, reply_fut);
+            let extended2 = relaymsg::Extended2::new(reply).into();
+            sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
+            sink // gotta keep the sink alive, or the reactor will exit.
+        };
 
-            // Did we really add another hop?
-            assert_eq!(circ.n_hops(), 4);
+        let (circ, _) = futures::join!(extend_fut, reply_fut);
 
-            // Do the path accessors report a reasonable outcome?
-            #[allow(deprecated)]
-            {
-                let path = circ.path();
-                assert_eq!(path.len(), 4);
-                use tor_linkspec::HasRelayIds;
-                assert_eq!(path[3].ed_identity(), example_target().ed_identity());
-                assert_ne!(path[0].ed_identity(), example_target().ed_identity());
-            }
-            {
-                let path = circ.path_ref();
-                assert_eq!(path.n_hops(), 4);
-                use tor_linkspec::HasRelayIds;
-                assert_eq!(
-                    path.hops()[3].as_chan_target().unwrap().ed_identity(),
-                    example_target().ed_identity()
-                );
-                assert_ne!(
-                    path.hops()[0].as_chan_target().unwrap().ed_identity(),
-                    example_target().ed_identity()
-                );
-            }
+        // Did we really add another hop?
+        assert_eq!(circ.n_hops(), 4);
+
+        // Do the path accessors report a reasonable outcome?
+        #[allow(deprecated)]
+        {
+            let path = circ.path();
+            assert_eq!(path.len(), 4);
+            use tor_linkspec::HasRelayIds;
+            assert_eq!(path[3].ed_identity(), example_target().ed_identity());
+            assert_ne!(path[0].ed_identity(), example_target().ed_identity());
+        }
+        {
+            let path = circ.path_ref();
+            assert_eq!(path.n_hops(), 4);
+            use tor_linkspec::HasRelayIds;
+            assert_eq!(
+                path.hops()[3].as_chan_target().unwrap().ed_identity(),
+                example_target().ed_identity()
+            );
+            assert_ne!(
+                path.hops()[0].as_chan_target().unwrap().ed_identity(),
+                example_target().ed_identity()
+            );
+        }
+    }
+
+    #[test]
+    fn test_extend_ntor() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_extend(&rt, HandshakeType::Ntor).await;
         });
     }
 
