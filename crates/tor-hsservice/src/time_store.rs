@@ -129,6 +129,9 @@ define_derive_adhoc! {
 #[derive_adhoc(RawConversions)]
 pub struct FutureTimestamp {
     /// How far this timestamp was in the future, when we stored it
+    //
+    // TODO HSS change the serialisation to use an ISO8601 string
+    // This will require a change to the in-memory representation, to an i64 time_t probably
     offset: u64,
 }
 
@@ -149,6 +152,8 @@ pub struct FutureTimestamp {
 #[derive_adhoc(RawConversions)]
 pub struct Reference {
     /// Unix time (at which the other timestamps were stored)
+    //
+    // TODO HSS change the serialisation to use an ISO8601 string
     time_t: i64,
 }
 
