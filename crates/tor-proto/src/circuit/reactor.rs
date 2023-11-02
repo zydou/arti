@@ -1516,6 +1516,7 @@ impl Reactor {
                     if let Some(msg) = msg {
                         let handler = handler
                             .as_ref()
+                            .or(self.meta_handler.as_ref())
                             .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
                         self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
                     }
