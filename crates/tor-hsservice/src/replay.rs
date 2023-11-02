@@ -63,7 +63,7 @@ impl ReplayLog {
     /// It is the caller's responsibility to make sure that there are never two
     /// `ReplayLogs` open at once for the same path, or for two paths that
     /// resolve to the same file.
-    pub(crate) fn new_logged(path: impl AsRef<Path>) -> Result<Self, io::Error> {
+    pub(crate) fn new_logged(path: impl AsRef<Path>) -> io::Result<Self> {
         let mut file = {
             #[cfg(target_family = "unix")]
             use std::os::unix::fs::OpenOptionsExt as _;
