@@ -897,25 +897,22 @@ mod test {
             let (ret_tx, ret_rx) = oneshot::channel();
             let arcbuilder = Arc::new(builder);
             rt.spawn_identified("build-owned", async move {
-                let res = arcbuilder
-                    .build_owned(path, &params, gs(), usage)
-                    .await
-                    .unwrap();
+                let res = arcbuilder.build_owned(path, &params, gs(), usage).await;
                 ret_tx.send(res).unwrap();
             });
             ret_rx
         };
-        rt.advance_until_stalled().await;
 
         // Now we wait for a success to finally, finally be reported.
         if advance_on_timeout.is_some() {
             let receiver = { timeouts.lock().unwrap().rcv_success.take().unwrap() };
-            rt.clone().spawn_identified("receiver", async move {
-                let _ = receiver.await.unwrap();
+            rt.spawn_identified("receiver", async move {
+                receiver.await.unwrap();
             });
         }
+        rt.advance_until_stalled().await;
 
-        let circ = Ok(outcome.map(|m| m.unwrap().lock().unwrap().clone()).await);
+        let circ = outcome.map(|m| Ok(m??.lock().unwrap().clone())).await;
         let timeouts = timeouts.lock().unwrap().hist.clone();
 
         (circ, timeouts)
