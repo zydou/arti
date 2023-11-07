@@ -707,7 +707,7 @@ mod test {
     }
 
     /// Replacement type for circuit, to implement buildable.
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     struct FakeCirc {
         hops: Vec<RelayIds>,
         onehop: bool,
@@ -901,10 +901,7 @@ mod test {
                     .build_owned(path, &params, gs(), usage)
                     .await
                     .unwrap();
-                match ret_tx.send(res) {
-                    Ok(_) => {}
-                    Err(_) => {}
-                };
+                ret_tx.send(res).unwrap();
             });
             ret_rx
         };
