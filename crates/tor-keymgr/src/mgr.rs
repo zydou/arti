@@ -1,18 +1,6 @@
 //! Code for managing multiple [`Keystore`]s.
 //!
-//! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
-//! [`Keystore`].
-//!
-//! ## Concurrent key store access
-//!
-//! The key stores will allow concurrent modification by different processes. In
-//! order to implement this safely without locking, the key store operations (get,
-//! insert, remove) will need to be atomic.
-//!
-//! **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
-//! concurrently with any other `KeyMgr` operation that mutates the state of key stores, because
-//! their outcome depends on whether the selected key store [`contains`][Keystore::contains] the
-//! specified key (and thus suffers from a a TOCTOU race).
+//! See the [`KeyMgr`] docs for more details.
 
 use crate::{
     EncodableKey, KeyPath, KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, Keystore,
@@ -37,6 +25,18 @@ type BoxedKeystore = Box<dyn Keystore>;
 /// search the configured key stores in order: first the default key store,
 /// and then the secondary stores, in order.
 ///
+///
+/// ## Concurrent key store access
+///
+/// The key stores will allow concurrent modification by different processes. In
+/// order to implement this safely without locking, the key store operations (get,
+/// insert, remove) will need to be atomic.
+///
+/// **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
+/// concurrently with any other `KeyMgr` operation that mutates the state of key stores, because
+/// their outcome depends on whether the selected key store [`contains`][Keystore::contains] the
+/// specified key (and thus suffers from a a TOCTOU race).
+//
 // TODO HSS: derive builder for KeyMgr.
 pub struct KeyMgr {
     /// The default key store.
