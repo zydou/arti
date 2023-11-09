@@ -1,3 +1,46 @@
 ---
 title: Using Arti with Tor Browser
 ---
+
+# Using Arti with Tor Browser
+
+To hook up Arti with [Tor Browser](https://www.torproject.org/download/), you can launch Arti independently from Tor Browser. After compiling Arti,  start it with the basic configuration parameters to ensure that Arti sets its SOCKS port on `9150`:
+
+```bash
+$ ./target/release/arti proxy -l debug -p 9150
+```
+
+Once Arti is running on the specified port, run the following commands to launch and instruct the Tor Browser to use that SOCKS port, replacing the file path with the actual path of your Tor browser.
+
+### Linux
+
+```bash
+$ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 ./start-tor-browser.desktop
+```
+
+### OS X
+
+```bash
+$ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 /path/to/Tor\ Browser/Contents/MacOS/firefox
+```
+
+### Windows
+
+Create a shortcut with the `Target` set to:
+
+```bash
+C:\Windows\System32\cmd.exe /c "SET TOR_SKIP_LAUNCH=1&& SET TOR_SOCKS_PORT=9150&& SET TOR_SKIP_CONTROLPORTTEST=1&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
+```
+
+and `Start in` set to:
+
+```bash
+"C:\path\to\Tor Browser\Browser"
+```
+
+The resulting Tor Browser should be using arti. 
+
+**Note:** Onion services and bridges won’t work because Arti doesn’t support them yet, and neither will any feature depending on Tor’s control-port protocol. 
+
+Features not depending on the control-port such as the “New circuit for this site” button should work.
+
