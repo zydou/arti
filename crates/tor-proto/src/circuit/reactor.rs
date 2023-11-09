@@ -614,7 +614,7 @@ pub struct Reactor {
     /// This circuit's identifier on the upstream channel.
     channel_id: CircId,
     /// A handler for a meta cell, together with a result channel to notify on completion.
-    meta_handler: Option<Box<dyn MetaCellHandler>>,
+    meta_handler: Option<Box<dyn MetaCellHandler + Send>>,
     /// A handler for incoming stream requests.
     #[cfg(feature = "hs-service")]
     incoming_stream_req_handler: Option<IncomingStreamRequestHandler>,
@@ -1375,7 +1375,7 @@ impl Reactor {
 
     /// Try to install a given meta-cell handler to receive any unusual cells on
     /// this circuit, along with a result channel to notify on completion.
-    fn set_meta_handler(&mut self, handler: Box<dyn MetaCellHandler>) -> Result<()> {
+    fn set_meta_handler(&mut self, handler: Box<dyn MetaCellHandler + Send>) -> Result<()> {
         if self.meta_handler.is_none() {
             self.meta_handler = Some(handler);
             Ok(())
@@ -1516,6 +1516,7 @@ impl Reactor {
                     if let Some(msg) = msg {
                         let handler = handler
                             .as_ref()
+                            .or(self.meta_handler.as_ref())
                             .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
                         self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
                     }
