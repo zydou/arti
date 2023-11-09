@@ -64,7 +64,7 @@ impl KeyMgr {
     /// The key returned is retrieved from the first key store that contains an entry for the given
     /// specifier.
     ///
-    /// Returns Ok(None) if none of the key stores have the requested key.
+    /// Returns `Ok(None)` if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
         self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())
     }
@@ -74,7 +74,7 @@ impl KeyMgr {
     /// The key returned is retrieved from the first key store that contains an entry for the given
     /// specifier.
     ///
-    /// Returns Ok(None) if none of the key stores have the requested key.
+    /// Returns `Ok(None)` if none of the key stores have the requested key.
     ///
     /// Returns an error if the specified `key_type` does not match `K::Key::key_type()`.
     pub fn get_with_type<K: ToEncodableKey>(
