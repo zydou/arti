@@ -1,6 +1,6 @@
 //! Traits for converting keys to and from OpenSSH format.
 //
-// TODO HSS (#902): OpenSSH keys can have passphrases. While the current implementation isn't able to
+// TODO #902: OpenSSH keys can have passphrases. While the current implementation isn't able to
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
 use ssh_key::private::KeypairData;
