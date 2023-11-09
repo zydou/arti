@@ -544,7 +544,7 @@ mod test {
     use tor_chanmgr::ChannelUsage as CU;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
-    use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
+    use tor_rtcompat::SleepProvider;
     use tracing::trace;
 
     /// Make a new nonfunctional `Arc<GuardStatusHandle>`
@@ -562,12 +562,9 @@ mod test {
             d1 >= d2 && d1 <= d2 + Duration::from_millis(500)
         }
 
-        test_with_all_runtimes!(|rto| async move {
-            #[allow(clippy::clone_on_copy)]
-            let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
-
+        tor_rtmock::MockRuntime::test_with_various(|rto| async move {
             // Try a future that's ready immediately.
-            let x = double_timeout(&rt, async { Ok(3_u32) }, t1, t10).await;
+            let x = double_timeout(&rto, async { Ok(3_u32) }, t1, t10).await;
             assert!(x.is_ok());
             assert_eq!(x.unwrap(), 3_u32);
 
