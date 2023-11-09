@@ -26,11 +26,17 @@ use tor_error::{bad_api_usage, internal};
 /// A boxed [`Keystore`].
 type BoxedKeystore = Box<dyn Keystore>;
 
-/// A key manager with several [`Keystore`]s.
+/// A key manager that acts as a frontend to a default [`Keystore`] and any number of secondary
+/// [`Keystore`]s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
-//
+///
+/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type),
+/// [`get_or_generate_with_derived`](KeyMgr::get_or_generate_with_derived) -
+/// search the configured key stores in order: first the default key store,
+/// and then the secondary stores, in order.
+///
 // TODO HSS: derive builder for KeyMgr.
 pub struct KeyMgr {
     /// The default key store.
@@ -41,6 +47,11 @@ pub struct KeyMgr {
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`] with a default [`Keystore`] and zero or more secondary [`Keystore`]s.
+    ///
+    /// The order of the secondary `Keystore`s is important, because the `KeyMgr` accessors
+    /// (such as [`KeyMgr::get`], or `KeyMgr::get_with_type`)
+    /// search the configured key stores in the order they were given
+    /// (first the default key store, and then the secondary keystores, in order).
     pub fn new(default_store: impl Keystore, secondary_stores: Vec<BoxedKeystore>) -> Self {
         Self {
             default_store: Box::new(default_store),
@@ -287,6 +298,9 @@ impl KeyMgr {
     ///
     /// If the key already exists, it is overwritten.
     ///
+    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// configured secondary stores.
+    ///
     // TODO HSS: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
     pub fn insert<K: ToEncodableKey>(
         &self,
@@ -301,6 +315,9 @@ impl KeyMgr {
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
+    ///
+    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// configured secondary stores.
     ///
     /// Returns `Ok(None)` if the key does not exist in the requested keystore.
     /// Returns `Ok(Some(())` if the key was successfully removed.
@@ -384,6 +401,9 @@ impl KeyMgr {
     }
 
     /// Return the [`Keystore`] matching the specified `selector`.
+    ///
+    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// configured secondary stores.
     fn select_keystore(&self, selector: &KeystoreSelector) -> Result<&BoxedKeystore> {
         match selector {
             KeystoreSelector::Id(keystore_id) => self.find_keystore(keystore_id),
@@ -392,6 +412,9 @@ impl KeyMgr {
     }
 
     /// Return the [`Keystore`] with the specified `id`.
+    ///
+    /// Returns an error if the specified ID is not the ID of the default keystore or
+    /// the ID of one of the configured secondary stores.
     fn find_keystore(&self, id: &KeystoreId) -> Result<&BoxedKeystore> {
         self.all_stores()
             .find(|keystore| keystore.id() == id)
