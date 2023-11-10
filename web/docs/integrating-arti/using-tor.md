@@ -40,7 +40,7 @@ and `Start in` set to:
 
 The resulting Tor Browser should be using arti. 
 
-**Note:** Onion services and bridges won’t work because Arti doesn’t support them yet, and neither will any feature depending on Tor’s control-port protocol. 
+**Note:** 
 
-Features not depending on the control-port such as the “New circuit for this site” button should work.
+Any features depending on Tor’s control-port protocol won’t work because Arti does not support them yet. However, features such as the “New circuit for this site” button should work as it does not depend on the control-port.
 
