@@ -42,5 +42,5 @@ The resulting Tor Browser should be using arti.
 
 **Note:** 
 
-Any features depending on Tor’s control-port protocol won’t work because Arti does not support them yet. However, features such as the “New circuit for this site” button should work as it does not depend on the control-port.
+Any features depending on Tor’s control-port protocol will not work because Arti does not support them yet. However, features such as the “New circuit for this site” button should work as it does not depend on the control-port.
 
