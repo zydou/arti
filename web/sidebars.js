@@ -27,7 +27,7 @@ const sidebars = {
     {
       type: 'category',
       label: 'Guides',
-      items: ['guides/guides','guides/compiling-arti', 'guides/safer-build-options', 'guides/starting-arti', 'guides/configuring-arti', 'guides/connecting-to-onion', 'guides/censorship-circumvention', 'guides/bridges', 'guides/troubleshooting','guides/compatibility', 'guides/feature-update', 'guides/cli-reference', 'guides/config-manual']
+      items: ['guides/guides','guides/compiling-arti', 'guides/safer-build-options', 'guides/starting-arti', 'guides/configuring-arti', 'guides/connecting-to-onion', 'guides/censorship-circumvention', 'guides/bridges', 'guides/troubleshooting','guides/compatibility', 'guides/what-arti-cant-do-yet', 'guides/cli-reference', 'guides/config-manual']
     },
     {
       type: 'category',
