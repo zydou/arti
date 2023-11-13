@@ -780,19 +780,24 @@ EXAMPLES
 
 ```
 NAME
-       arti-hss-generate-online-keys - generate all the keys required by a hidden service
+       arti-hss-generate-online-keys - generate the keys needed to run a hidden service in offline mode
 
 SYNOPSIS
        arti hss generate-online-keys [OPTIONS]
 
 DESCRIPTION
-      Generates all the keys necessary for a hidden service to operate, up to a
-      given time period.
+      Generates all the keys required for a hidden service to operate without
+      needing access to its identity key, up to a given time period.
 
-      The generated keys can then be used by hidden services wanting to keep
-      their secret identity key offline. The keys should be generated on a
-      secure host where the secret identity key of the service is available,
-      and then exported to the hidden service host.
+      You do **not** need to run this command unless you want to run a hidden
+      service in offline mode (where the identity key of the service is kept
+      offline). If the identity keys are "online" (i.e. available on the host
+      running the hidden service), you do not need to run this command, as Arti
+      will automatically generate all the necessary keys and certificates.
+
+      The keys should be generated on a secure host where the secret identity
+      key of the service is available, and then exported to the hidden service
+      host.
 
       The service will be able to operate without its secret identity key until
       the time period specified via --up-to. After that, additional keys will
