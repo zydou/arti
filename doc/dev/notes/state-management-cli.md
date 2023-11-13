@@ -564,6 +564,8 @@ SUBCOMMANDS
        help           Print this message or the help of the given subcommand(s)
        generate-key   Generate a key in one of the configured key stores
        remove-key     Remove a key from one of the configured key stores
+       export-key     Export a client private key, for use on a different host
+       import-key     Import a client private key
 ```
 
 ### `arti-hsc-generate-key`
@@ -663,6 +665,100 @@ EXAMPLES
              --type desc-enc                                           \
              --nickname alice                                          \
              --hsid xyz.onion
+```
+
+### `arti-hsc-export-key`
+
+```
+NAME
+       arti-hsc-export-key - Export a client private key
+
+SYNOPSIS
+       arti hsc export-key auth [OPTIONS]
+
+DESCRIPTION
+       NOTE: while export-key currently has only one subcommand ("auth"), in
+       the future we might need to extend it with additional subcommands (if we
+       extend the protocol to support other forms of client auth, for example)
+
+       Export a client authorization private key, encrypting it using the
+       specified passphrase. The passphrase is read from stdin (TODO: maybe also
+       provide the option to read the passphrase from a command-line argument or
+       environment variable).
+
+       The resulting encrypted OpenSSH private key can then be moved to a
+       different host and imported using arti-hsc-import-key(1).
+
+OPTIONS
+       --nickname
+            The nickname of the client for which to export the key
+       --hsid
+            The hidden service the key is required for
+       --path
+            The path to export the key to
+
+EXAMPLES
+       Export alice's client authorization key for service xyz.onion:
+
+         arti hsc --config arti.toml export-key auth \
+             --nickname alice                        \
+             --hsid xyz.onion                        \
+             --path ./alice_xyz.private
+
+        Sample output:
+          Enter a passphrase for private key:
+```
+
+
+### `arti-hsc-import-key`
+
+```
+NAME
+       arti-hsc-import-key - Import a client private key
+
+SYNOPSIS
+       arti hsc import-key auth [OPTIONS] <IMPORT_PATH>
+
+DESCRIPTION
+       NOTE: while import-key currently has only one subcommand ("auth"), in
+       the future we might need to extend it with additional subcommands (if we
+       extend the protocol to support other forms of client auth, for example)
+
+       Import an encrypted client authorization private key, decrypting it using
+       the specified passphrase. The passphrase is read from stdin (TODO: maybe
+       also provide the option to read the passphrase from a command-line
+       argument or environment variable).
+
+       (TODO: do we store the decrypted client private key in the keystore, or
+       should we add support for storing encrypted keys in the keystore?
+       See #902)
+
+OPTIONS
+       --keystore default
+            Import the key into the default keystore. This is the default
+            behavior if the --keystore flag is omitted
+       --keystore <kid>
+            Specifies the ID of the keystore to import the key into. The ID
+            must match one of the key store IDs configured in the specified
+            config. It is an error to specify an unrecognized key store ID.
+       --nickname
+            The nickname of the client for which to import the key
+       --hsid
+            The hidden service the key is required for
+       --path
+            The path to read the key from
+
+EXAMPLES
+       Import alice's client authorization key for service xyz.onion into
+       keystore foo:
+
+         arti hsc --config arti.toml export-key auth --keystore foo    \
+             --nickname alice                                          \
+             --hsid xyz.onion                                          \
+             --path ./alice_xyz.private
+
+        Sample output:
+          Enter passphrase:
 ```
 
 ## `arti-hss`
