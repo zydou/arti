@@ -710,22 +710,29 @@ OPTIONS
 
 SUBCOMMANDS
        help                  Print this message or the help of the given subcommand(s)
-       new-identity          Generate a new identity for a hidden service
+       new-service           Initialize a new hidden service
        generate-online-keys  Generate all the keys necessary to run a hidden service
        destroy-service       Remove all the keys and state of a hidden service
        print-onion           Print the .onion address of a service
 ```
 
-### `arti-hss-new-identity`
+### `arti-hss-new-service`
 
 ```
 NAME
-       arti-hss-new-identity - generate a new identity for the specified hidden service
+       arti-hss-new-service - initialize a new hidden service
 
 SYNOPSIS
-       arti hss new-identity [OPTIONS]
+       arti hss new-service [OPTIONS]
 
 DESCRIPTION
+      Initializes a new hidden service by generating a new identity keypair and
+      placing it in the specified key store.
+
+      Users wanting to create a new service that will run in offline mode should
+      run this command on a secure offline host to create its identity keys, and
+      then run arti-hss-generate-online-keys(1) to generate the keys needed to
+      run the service.
 
 OPTIONS
        --keystore default
@@ -737,25 +744,26 @@ OPTIONS
             specified config. It is an error to specify an unrecognized key
             store ID.
        --nickname
-            The nickname of the service for which to generate a new identity
+            The nickname of the service
 
 EXAMPLES
-       Initialize a new hidden service identity with nickname "shallot" in the
-       default key store:
+       Initialize a new hidden service with nickname "shallot" in the default
+       key store:
 
-         arti hss --config arti.toml new-identity \
+         arti hss --config arti.toml new-service \
              --nickname shallot
 
        Sample output:
 
-         Generated new identity for service "shallot":
+         Generated a new hidden service using nickname "shallot":
            wrxdvcaqpuzakbfww5sxs6r2uybczwijzfn2ezy2osaj7iox7kl7nhad.onion
 
        If any of the configured keystores contain any entries for service
-       "shallot", a new identity will **not** be generated:
+       "shallot", a new identity key pair will **not** be generated:
 
-         Cannot generate new identity for service "shallot": keystores foo and
-         bar contain keys associated with pre-existing identity
+         Cannot generate a new service with nickname "shallot": keystores foo and
+         bar contain keys associated with a pre-existing hidden service with the
+         same nickname
 
             Hint: use a different nickname.
 
@@ -770,7 +778,7 @@ EXAMPLES
        If the public part of the identity key is available, this command also
        prints the corresponding .onion address before exiting:
 
-         Cannot generate new identity for service "shallot": an identity key
+         Cannot generate new hidden service with nickname "shallot": an identity key
          already exists
            wrxdvcaqpuzakbfww5sxs6r2uybczwijzfn2ezy2osaj7iox7kl7nhad.onion
 
@@ -804,7 +812,7 @@ DESCRIPTION
       need to be generated.
 
       This command assumes the hidden service has already been initialized using
-      `arti hss new-identity`, and that the identity keypair is available in one
+      `arti hss new-service`, and that the identity keypair is available in one
       of the configured key stores.
 
       Generates the following keys and certificates for each time period
