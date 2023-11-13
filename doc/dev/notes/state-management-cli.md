@@ -709,11 +709,11 @@ OPTIONS
             Print version information
 
 SUBCOMMANDS
-       help             Print this message or the help of the given subcommand(s)
-       new-identity     Generate a new identity for a hidden service
-       generate-all     Generate all the keys necessary to run a hidden service
-       destroy-service  Remove all the keys and state of a hidden service
-       print-onion      Print the .onion address of a service
+       help                  Print this message or the help of the given subcommand(s)
+       new-identity          Generate a new identity for a hidden service
+       generate-online-keys  Generate all the keys necessary to run a hidden service
+       destroy-service       Remove all the keys and state of a hidden service
+       print-onion           Print the .onion address of a service
 ```
 
 ### `arti-hss-new-identity`
@@ -776,14 +776,14 @@ EXAMPLES
 
 ```
 
-### `arti-hss-generate-all`
+### `arti-hss-generate-online-keys`
 
 ```
 NAME
-       arti-hss-generate-all - generate all the keys required by a hidden service
+       arti-hss-generate-online-keys - generate all the keys required by a hidden service
 
 SYNOPSIS
-       arti hss generate-all [OPTIONS]
+       arti hss generate-online-keys [OPTIONS]
 
 DESCRIPTION
       Generates all the keys necessary for a hidden service to operate, up to a
@@ -830,9 +830,9 @@ EXAMPLES
        Generate keys for the hidden service with nickname "shallot" in
        key store foo:
 
-         arti hss --config arti.toml generate-all \
-             --keystore foo                       \
-             --nickname shallot                   \
+         arti hss --config arti.toml generate-online-keys \
+             --keystore foo                               \
+             --nickname shallot                           \
              --up-to 16904
 ```
 
