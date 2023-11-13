@@ -867,8 +867,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Update our list of introduction points.
-    #[allow(clippy::unnecessary_wraps)]
-    #[allow(unreachable_code, unused_mut, clippy::diverging_sub_expression)] // TODO HSS remove
     async fn handle_ipt_change(
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
@@ -965,8 +963,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// well as in what cases this will return an error).
     //
     // TODO HSS: what is N?
-    #[allow(unreachable_code)] // TODO HSS: remove
-    #[allow(clippy::diverging_sub_expression)] // TODO HSS: remove
     async fn upload_all(&mut self) -> Result<(), ReactorError> {
         trace!("starting descriptor upload task...");
 

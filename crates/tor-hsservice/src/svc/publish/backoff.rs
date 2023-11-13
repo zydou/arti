@@ -337,7 +337,7 @@ mod tests {
 
     /// Return true if d1 is in range [d2...d2 + 0.01sec]
     ///
-    /// TODO HSS: lifted from tor-circmgr
+    /// TODO: lifted from tor-circmgr
     fn duration_close_to(d1: Duration, d2: Duration) -> bool {
         d1 >= d2 && d1 <= d2 + SHORT_DELAY
     }
