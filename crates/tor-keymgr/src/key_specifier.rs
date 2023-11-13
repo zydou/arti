@@ -80,7 +80,7 @@ impl KeyPath {
         use KeyPathPattern::*;
 
         let (pattern, path): (&str, &str) = match (self, pat) {
-            (KeyPath::Arti(p), Arti(pat))  => (pat.as_ref(), p.as_ref()),
+            (KeyPath::Arti(p), Arti(pat)) => (pat.as_ref(), p.as_ref()),
             (KeyPath::CTor(p), CTor(pat)) => (pat.as_ref(), p.as_ref()),
             _ => return None,
         };

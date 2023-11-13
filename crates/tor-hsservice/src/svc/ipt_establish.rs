@@ -23,8 +23,8 @@ use tor_hscrypto::{
     time::TimePeriod,
     Subcredential,
 };
+use tor_keymgr::KeyPath;
 use tor_keymgr::{KeyMgr, KeyPathRange};
-use tor_keymgr::{KeyPath};
 use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_netdir::NetDirProvider;
