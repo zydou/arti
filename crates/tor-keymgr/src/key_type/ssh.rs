@@ -121,7 +121,8 @@ impl UnparsedOpenSshKey {
 
 /// SSH key algorithms.
 //
-// Note: this contains all the types supported by ssh_key, plus X25519.
+// Note: this contains all the types supported by ssh_key, plus variants representing
+// x25519 and expanded ed25519 keys.
 #[derive(Clone, Debug, PartialEq, derive_more::Display)]
 pub(crate) enum SshKeyAlgorithm {
     /// Digital Signature Algorithm
