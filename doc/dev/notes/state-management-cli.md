@@ -674,7 +674,7 @@ SUBCOMMANDS
        help             Print this message or the help of the given subcommand(s)
        new-identity     Generate a new identity for a hidden service
        generate-all     Generate all the keys necessary to run a hidden service
-       trash-completely Remove all the keys and state of a hidden service
+       destroy-service  Remove all the keys and state of a hidden service
        print-onion      Print the .onion address of a service
 ```
 
@@ -724,7 +724,7 @@ EXAMPLES
             Alternatively, if you want to erase the service with nickname
             "shallot", run:
 
-               arti hss --config arti.toml trash-completely \
+               arti hss --config arti.toml destroy-service \
                    --nickname shallot
 
             before retrying the operation
@@ -798,14 +798,14 @@ EXAMPLES
              --up-to 16904
 ```
 
-### `arti-hss-trash-completely`
+### `arti-hss-destroy-service`
 
 ```
 NAME
-       arti-hss-trash-completely - remove the persistent state and all the keys of a hidden service
+       arti-hss-destroy-service - remove the persistent state and all the keys of a hidden service
 
 SYNOPSIS
-       arti hss trash-completely [OPTIONS]
+       arti hss destroy-service [OPTIONS]
 
 DESCRIPTION
        Remove the persistent state and all the keys of a hidden service.
@@ -821,7 +821,7 @@ OPTIONS
 EXAMPLES
        Erase all the keys and state hidden service with nickname "shallot":
 
-         arti hss --config arti.toml trash-completely \
+         arti hss --config arti.toml destroy-service \
              --nickname shallot
 ```
 
