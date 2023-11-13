@@ -714,6 +714,7 @@ SUBCOMMANDS
        generate-online-keys  Generate all the keys necessary to run a hidden service
        destroy-service       Remove all the keys and state of a hidden service
        print-onion           Print the .onion address of a service
+       auth-clients          Manage the authorized clients of this hidden service
 ```
 
 ### `arti-hss-new-service`
@@ -905,3 +906,24 @@ EXAMPLES
 [`KeyMgr`]: https://docs.rs/tor-keymgr/0.4.0/tor_keymgr/struct.KeyMgr.html
 [ROFF]: https://crates.io/crates/clap_mangen
 [arti#955]: https://gitlab.torproject.org/tpo/core/arti/-/issues/955
+
+### `arti-hss-auth-clients`
+
+```
+NAME
+       arti-hss-auth-clients - Manage the authorized clients of this hidden service
+
+SYNOPSIS
+       arti hss auth-clients [SUBCOMMAND]
+
+DESCRIPTION
+      A command for managing the authorized clients of an Arti hidden service.
+
+      TODO: document how these commands are supposed to work
+
+SUBCOMMANDS
+       help                  Print this message or the help of the given subcommand(s)
+       import                Import the public keys of a client
+       disable               Un-authorize a previously authorized client
+       enable                Authorize a new client
+```
