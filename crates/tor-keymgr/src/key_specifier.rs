@@ -55,6 +55,24 @@ impl KeyPath {
     /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
     ///
     /// If the `KeyPath` matches the pattern, this returns the ranges that match its dynamic parts.
+    ///
+    /// ### Example
+    /// ```
+    /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathError};
+    /// # fn demo() -> Result<(), ArtiPathError> {
+    /// let path = KeyPath::Arti(ArtiPath::new("foo_bar_baz_1".into())?);
+    /// let pattern = KeyPathPattern::Arti("*_bar_baz_*".into());
+    /// let matches = path.matches(&pattern).unwrap();
+    ///
+    /// let path = path.arti().unwrap();
+    /// assert_eq!(matches.len(), 2);
+    /// assert_eq!(path.substring(&matches[0]), Some("foo"));
+    /// assert_eq!(path.substring(&matches[1]), Some("1"));
+    /// # Ok(())
+    /// # }
+    /// #
+    /// # demo().unwrap();
+    /// ```
     pub fn matches(&self, pat: &KeyPathPattern) -> Option<Vec<KeyPathRange>> {
         use KeyPathPattern::*;
 
@@ -153,6 +171,23 @@ impl ArtiPath {
     /// Return the substring corresponding to the specified `range`.
     ///
     /// Returns `None` if `range` is not within the bounds of this `ArtiPath`.
+    ///
+    /// ### Example
+    /// ```
+    /// # use tor_keymgr::{ArtiPath, KeyPathRange, ArtiPathError};
+    /// # fn demo() -> Result<(), ArtiPathError> {
+    /// let path = ArtiPath::new("foo_bar_bax_1".into())?;
+    ///
+    /// let range = KeyPathRange::from(2..5);
+    /// assert_eq!(path.substring(&range), Some("o_b"));
+    ///
+    /// let range = KeyPathRange::from(22..50);
+    /// assert_eq!(path.substring(&range), None);
+    /// # Ok(())
+    /// # }
+    /// #
+    /// # demo().unwrap();
+    /// ```
     pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
         self.0.get(range.0.clone())
     }
