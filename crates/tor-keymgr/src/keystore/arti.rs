@@ -27,8 +27,10 @@ use super::SshKeyData;
 #[derive(Debug)]
 pub struct ArtiNativeKeystore {
     /// The root of the key store.
+    ///
+    /// All the keys are stored within this directory.
     keystore_dir: CheckedDir,
-    /// The ID of this instance.
+    /// The unique identifier of this instance.
     id: KeystoreId,
 }
 

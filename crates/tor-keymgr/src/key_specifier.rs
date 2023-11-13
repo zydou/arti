@@ -12,7 +12,10 @@ use tor_hscrypto::time::TimePeriod;
 
 use crate::KeystoreError;
 
-/// The path of a key in the Arti key store.
+/// A unique identifier for a particular instance of a key.
+///
+/// In an [`ArtiNativeKeystore`](crate::ArtiNativeKeystore), this also represents the path of the
+/// key relative to the root of the keystore, minus the file extension.
 ///
 /// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
 /// components may contain UTF-8 alphanumerics, and (except as the first or last character) `-`,
