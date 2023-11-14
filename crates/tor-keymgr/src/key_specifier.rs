@@ -26,11 +26,15 @@ use crate::KeystoreError;
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
-/// of a [`KeyDenotator`] (obtained from [`KeyDenotator::encode`]).
-/// The denotator is separated from the rest of the component by a single [`DENOTATOR_SEP`]
-/// character. For example, the last component of the path `"foo/bar/bax+denotator_example"`
-/// is `"bax+denotator_example"`, and the denotator is `"denotator_example"`.
-/// Denotator strings are validited in the same way as [`ArtiPathComponent`]s.
+/// of one or more [`KeyDenotator`]s.
+/// They are separated from the rest of the component, and from each other,
+/// by [`DENOTATOR_SEP`] characters.
+/// Denotators are encoded using their [`KeyDenotator::encode`] implementation.
+/// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
+///
+/// For example, the last component of the path `"foo/bar/bax+denotator_example+1"`
+/// is `"bax+denotator_example+1"`.
+/// Its denotators are `"denotator_example"` and `"1"` (encoded as strings).
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
