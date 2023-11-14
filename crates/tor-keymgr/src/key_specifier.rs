@@ -4,6 +4,7 @@ use std::ops::Range;
 use std::result::Result as StdResult;
 
 use arrayvec::ArrayVec;
+use derive_adhoc::define_derive_adhoc;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -444,6 +445,131 @@ impl KeyDenotator for TimePeriod {
     }
 }
 
+define_derive_adhoc! {
+    /// A helper for implementing [`KeySpecifier`]s.
+    ///
+    /// Defines a struct that has some static components (`prefix`, `role`),
+    /// and a number of variable components represented by its fields.
+    ///
+    /// The `prefix` is the first component of the [`ArtiPath`] of the [`KeySpecifier`].
+    ///
+    /// The `role` is the _prefix of the last component_ of the [`ArtiPath`] of the specifier.
+    /// The `role` is followed by the denotators of the key.
+    ///
+    /// The fields that contain the denotators of the key, if there are any,
+    /// should be anotated with `#[denotator]`.
+    ///
+    /// The declaration order of the fields is important.
+    /// The inner components of the [`ArtiPath`] of the specifier are built
+    /// from the string representation of its non-denotator fields, taken in declaration order,
+    /// followed by the encoding of its denotators, also taken in the order they were declared.
+    /// As such, all fields, **must** implement [`Display`](std::fmt::Display),
+    /// and all denotators **must** implement [`KeyDenotator`].
+    /// The denotators are separated from the rest of the path, and from each other,
+    /// by `+` characters.
+    ///
+    /// For example, a key specifier with `prefix` `"foo"` and `role` `"bar"`
+    /// will have an [`ArtiPath`] of the form
+    /// `"foo/<field1_str>/<field2_str>/../bar[+<denotators>]"`.
+    ///
+    /// A key specifier of this form, with denotators that encode to "d1" and "d2",
+    /// would look like this: `"foo/<field1_str>/<field2_str>/../bar+d1+d2"`.
+    //
+    // TODO HSS: extend this to work for c-tor paths too (it will likely be a breaking
+    // change).
+    //
+    // TODO HSS: make ArtiPath support encoding more than one denotator
+    pub KeySpecifierDefault =
+
+    impl<$tgens> $ttype
+    where $twheres
+    {
+        #[doc = concat!("Create a new`", stringify!($ttype), "`")]
+        pub(crate) fn new( $( $fname: $ftype , ) ) -> Self {
+            Self {
+                $( $fname , )
+            }
+        }
+
+        /// Return the role of this specifier.
+        $tvis fn role(&self) -> &'static str {
+            stringify!(${tmeta(role)})
+        }
+
+        /// A helper for generating the prefix shared by all `ArtiPath`s
+        /// of the keys associated with this specifier.
+        ///
+        /// Returns the `ArtiPath`, minus the denotators.
+        $tvis fn arti_path_prefix( $(${when not(fmeta(denotator))} $fname: &$ftype , ) ) -> String {
+            vec![
+                stringify!(${tmeta(prefix)}).to_string(),
+                $(${when not(fmeta(denotator))} $fname.to_string() , )
+                stringify!(${tmeta(role)}).to_string()
+            ].join("/")
+        }
+
+        /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
+        /// of all the keys of this type.
+        ///
+        /// This builds a pattern by joining the `prefix` of this specifier
+        /// with the specified field values, its `role`, and a pattern
+        /// that contains a wildcard (`*`) in place of each denotator.
+        $tvis fn arti_pattern( $(${when not(fmeta(denotator))} $fname: $ftype,) ) -> $crate::KeyPathPattern {
+            #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
+            let mut pat = Self::arti_path_prefix( $(${when not(fmeta(denotator))} &$fname,) );
+
+            $(
+                    ${when fmeta(denotator)}
+                    {
+                        // TODO HSS: update ArtiPath to support encoding more than one denotator
+
+                        // HACK: we want to count the denotator fields, and for that we _must_
+                        // iterate over all fields (i.e. reference $ftype or $fname in the
+                        // $() block).
+                        let _ = |_: $ftype,| {};
+                        pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
+                    }
+            )
+
+            KeyPathPattern::Arti(pat)
+        }
+
+        /// A convenience wrapper around `Self::arti_path_prefix`.
+        fn prefix(&self) -> String {
+            Self::arti_path_prefix( $(${when not(fmeta(denotator))} &self.$fname,) )
+        }
+    }
+
+    impl<$tgens> $crate::KeySpecifier for $ttype
+    where $twheres
+    {
+        fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
+            #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
+            let mut path = self.prefix();
+
+            $(
+                // We only care about the fields that are denotators
+                ${ when fmeta(denotator) }
+
+                let denotator = $crate::KeyDenotator::encode(&self.$fname);
+                path.push($crate::DENOTATOR_SEP);
+                path.push_str(&denotator);
+            )
+
+            return Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?);
+        }
+
+        fn ctor_path(&self) -> Option<$crate::CTorPath> {
+            // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the directories used
+            // by C tor. The resulting CTorPath will be prefixed with the appropriate C tor directory,
+            // based on the HsSvcKeyRole.
+            //
+            // This function will return `None` for keys that aren't stored on disk by C tor.
+            todo!()
+        }
+    }
+}
+
 /// A helper for implementing [`KeySpecifier`]s.
 ///
 /// Defines a `key_spec` struct, that has some static components (`prefix`, `role`),
@@ -701,6 +827,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    use derive_adhoc::Adhoc;
+
     macro_rules! assert_err {
         ($ty:ident, $inner:expr, $error_kind:pat) => {{
             let path = $ty::new($inner.to_string());
@@ -877,11 +1005,13 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
-        define_key_specifier!(
-            #[prefix = "encabulator"]
-            #[role = "marzlevane"]
+
+            #[derive(Adhoc)]
+            #[derive_adhoc(KeySpecifierDefault)]
+            #[adhoc(prefix = "encabulator")]
+            #[adhoc(role = "marzlevane")]
             struct TestSpecifier {
-                #[denotator]
+                #[adhoc(denotator)]
                 /// The denotator.
                 count: usize,
 
@@ -890,7 +1020,6 @@ mod test {
                 base: String,
                 casing: String,
             }
-        );
 
         let key_spec = TestSpecifier {
             kind: "hydrocoptic".into(),
@@ -914,11 +1043,11 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_no_fields() {
-        define_key_specifier!(
-            #[prefix = "encabulator"]
-            #[role = "marzlevane"]
+            #[derive(Adhoc)]
+            #[derive_adhoc(KeySpecifierDefault)]
+            #[adhoc(prefix = "encabulator")]
+            #[adhoc(role = "marzlevane")]
             struct TestSpecifier {}
-        );
 
         let key_spec = TestSpecifier {};
 
@@ -939,14 +1068,14 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_denotator() {
-        define_key_specifier!(
-            #[prefix = "encabulator"]
-            #[role = "marzlevane"]
+            #[derive(Adhoc)]
+            #[derive_adhoc(KeySpecifierDefault)]
+            #[adhoc(prefix = "encabulator")]
+            #[adhoc(role = "marzlevane")]
             struct TestSpecifier {
-                #[denotator]
+                #[adhoc(denotator)]
                 count: usize,
             }
-        );
 
         let key_spec = TestSpecifier { count: 6 };
 
@@ -967,15 +1096,15 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields() {
-        define_key_specifier!(
-            #[prefix = "encabulator"]
-            #[role = "fan"]
+            #[derive(Adhoc)]
+            #[derive_adhoc(KeySpecifierDefault)]
+            #[adhoc(prefix = "encabulator")]
+            #[adhoc(role = "fan")]
             struct TestSpecifier {
                 casing: String,
                 /// A doc comment.
                 bearings: String,
             }
-        );
 
         let key_spec = TestSpecifier {
             casing: "logarithmic".into(),
