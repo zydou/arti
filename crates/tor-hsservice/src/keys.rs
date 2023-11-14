@@ -1,7 +1,9 @@
 //! [`KeySpecifier`](tor_keymgr::KeySpecifier) implementations for hidden service keys.
 
+use derive_adhoc::Adhoc;
+
 use tor_hscrypto::time::TimePeriod;
-use tor_keymgr::{define_key_specifier, KeyPathPattern};
+use tor_keymgr::{define_key_specifier, derive_adhoc_template_KeySpecifierDefault, KeyPathPattern};
 
 use crate::HsNickname;
 
@@ -87,47 +89,64 @@ macro_rules! define_svc_key_specifier {
     };
 }
 
-define_svc_key_specifier! {
-    #[role = "KP_hs_id"]
+    #[derive(Adhoc)]
+    #[derive_adhoc(KeySpecifierDefault)]
+    #[adhoc(prefix = "hs")]
+    #[adhoc(role = "KP_hs_id")]
     /// The public part of the identity key of the service.
-    pub struct HsIdPublicKeySpecifier  {}
-}
+    pub struct HsIdPublicKeySpecifier<'a> {
+        /// The nickname of the  hidden service.
+        nickname: &'a HsNickname,
+    }
 
-define_svc_key_specifier! {
-    #[role = "KS_hs_id"]
+    #[derive(Adhoc)]
+    #[derive_adhoc(KeySpecifierDefault)]
+    #[adhoc(prefix = "hs")]
+    #[adhoc(role = "KS_hs_id")]
     /// The long-term identity keypair of the service.
-    pub struct HsIdKeypairSpecifier  {}
-}
+    pub struct HsIdKeypairSpecifier<'a> {
+        /// The nickname of the  hidden service.
+        nickname: &'a HsNickname,
+    }
 
-define_svc_key_specifier! {
-    #[role = "KS_hs_blind_id"]
+    #[derive(Adhoc)]
+    #[derive_adhoc(KeySpecifierDefault)]
+    #[adhoc(prefix = "hs")]
+    #[adhoc(role = "KS_hs_blind_id")]
     /// The blinded signing keypair.
-    pub struct BlindIdKeypairSpecifier  {
-        #[denotator]
+    pub struct BlindIdKeypairSpecifier<'a> {
+        /// The nickname of the  hidden service.
+        nickname: &'a HsNickname,
+        #[adhoc(denotator)]
         /// The time period associated with this key.
         period: TimePeriod,
     }
-}
 
-define_svc_key_specifier! {
-    #[role = "KP_hs_blind_id"]
+    #[derive(Adhoc)]
+    #[derive_adhoc(KeySpecifierDefault)]
+    #[adhoc(prefix = "hs")]
+    #[adhoc(role = "KP_hs_blind_id")]
     /// The blinded public key.
-    pub struct BlindIdPublicKeySpecifier  {
-        #[denotator]
+    pub struct BlindIdPublicKeySpecifier<'a> {
+        /// The nickname of the  hidden service.
+        nickname: &'a HsNickname,
+        #[adhoc(denotator)]
         /// The time period associated with this key.
         period: TimePeriod,
     }
-}
 
-define_svc_key_specifier! {
-    #[role = "KS_hs_desc_sign"]
+    #[derive(Adhoc)]
+    #[derive_adhoc(KeySpecifierDefault)]
+    #[adhoc(prefix = "hs")]
+    #[adhoc(role = "KS_hs_desc_sign")]
     /// The descriptor signing key.
-    pub struct DescSigningKeypairSpecifier  {
-        #[denotator]
+    pub struct DescSigningKeypairSpecifier<'a> {
+        /// The nickname of the  hidden service.
+        nickname: &'a HsNickname,
+        #[adhoc(denotator)]
         /// The time period associated with this key.
         period: TimePeriod,
     }
-}
 
 #[cfg(test)]
 mod test {
