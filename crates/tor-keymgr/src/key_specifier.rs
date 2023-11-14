@@ -922,6 +922,11 @@ mod test {
             "encabulator/marzlevane"
         );
         assert_eq!(key_spec.role(), "marzlevane");
+
+        assert_eq!(
+            TestSpecifier::arti_pattern(),
+            KeyPathPattern::Arti("encabulator/marzlevane".into())
+        );
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
@@ -943,6 +948,11 @@ mod test {
             "encabulator/marzlevane+6"
         );
         assert_eq!(key_spec.role(), "marzlevane");
+
+        assert_eq!(
+            TestSpecifier::arti_pattern(),
+            KeyPathPattern::Arti("encabulator/marzlevane+*".into())
+        );
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
@@ -968,6 +978,11 @@ mod test {
             "encabulator/logarithmic/spurving/fan"
         );
         assert_eq!(key_spec.role(), "fan");
+
+        assert_eq!(
+            TestSpecifier::arti_pattern("logarithmic".into(), "prefabulating".into()),
+            KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
+        );
     }
 
     #[test]
