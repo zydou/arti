@@ -15,13 +15,13 @@ Once Arti is running on the specified port, run the following commands to launch
 ### Linux
 
 ```bash
-$ TOR_PROVIDER=none TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 ./start-tor-browser.desktop
+$ TOR_PROVIDER=none TOR_SOCKS_PORT=9150 ./start-tor-browser.desktop
 ```
 
 ### OS X
 
 ```bash
-$ TOR_PROVIDER=none TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 /path/to/Tor\ Browser/Contents/MacOS/firefox
+$ TOR_PROVIDER=none TOR_SOCKS_PORT=9150 /path/to/Tor\ Browser/Contents/MacOS/firefox
 ```
 
 ### Windows
@@ -29,7 +29,7 @@ $ TOR_PROVIDER=none TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 /path/to/Tor\
 Create a shortcut with the `Target` set to:
 
 ```bash
-C:\Windows\System32\cmd.exe /c "SET TOR_PROVIDER=none&& SET TOR_SOCKS_PORT=9150&& SET TOR_SKIP_CONTROLPORTTEST=1&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
+C:\Windows\System32\cmd.exe /c "SET TOR_PROVIDER=none&& SET TOR_SOCKS_PORT=9150&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
 ```
 
 and `Start in` set to:
