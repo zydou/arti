@@ -538,12 +538,13 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::timeouts::TimeoutEstimator;
+    use futures::FutureExt;
     use std::sync::Mutex;
     use tor_chanmgr::ChannelConfig;
     use tor_chanmgr::ChannelUsage as CU;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
-    use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
+    use tor_rtcompat::SleepProvider;
     use tracing::trace;
 
     /// Make a new nonfunctional `Arc<GuardStatusHandle>`
@@ -561,12 +562,9 @@ mod test {
             d1 >= d2 && d1 <= d2 + Duration::from_millis(500)
         }
 
-        test_with_all_runtimes!(|rto| async move {
-            #[allow(clippy::clone_on_copy)]
-            let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
-
+        tor_rtmock::MockRuntime::test_with_various(|rto| async move {
             // Try a future that's ready immediately.
-            let x = double_timeout(&rt, async { Ok(3_u32) }, t1, t10).await;
+            let x = double_timeout(&rto, async { Ok(3_u32) }, t1, t10).await;
             assert!(x.is_ok());
             assert_eq!(x.unwrap(), 3_u32);
 
@@ -706,7 +704,7 @@ mod test {
     }
 
     /// Replacement type for circuit, to implement buildable.
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     struct FakeCirc {
         hops: Vec<RelayIds>,
         onehop: bool,
@@ -863,8 +861,8 @@ mod test {
             .unwrap()
     }
 
-    async fn run_builder_test<R: Runtime>(
-        rt: tor_rtmock::MockSleepRuntime<R>,
+    async fn run_builder_test(
+        rt: tor_rtmock::MockRuntime,
         advance_initial: Duration,
         path: OwnedPath,
         advance_on_timeout: Option<(Duration, Duration)>,
@@ -892,17 +890,26 @@ mod test {
 
         rt.block_advance("manually controlling advances");
         rt.allow_one_advance(advance_initial);
-        let outcome = rt
-            .wait_for(Arc::new(builder).build_owned(path, &params, gs(), usage))
-            .await;
+        let outcome = {
+            let (ret_tx, ret_rx) = oneshot::channel();
+            let arcbuilder = Arc::new(builder);
+            rt.spawn_identified("build-owned", async move {
+                let res = arcbuilder.build_owned(path, &params, gs(), usage).await;
+                ret_tx.send(res).unwrap();
+            });
+            ret_rx
+        };
 
         // Now we wait for a success to finally, finally be reported.
         if advance_on_timeout.is_some() {
             let receiver = { timeouts.lock().unwrap().rcv_success.take().unwrap() };
-            let _ = rt.wait_for(receiver).await;
+            rt.spawn_identified("receiver", async move {
+                receiver.await.unwrap();
+            });
         }
+        rt.advance_until_stalled().await;
 
-        let circ = outcome.map(|m| m.lock().unwrap().clone());
+        let circ = outcome.map(|m| Ok(m??.lock().unwrap().clone())).await;
         let timeouts = timeouts.lock().unwrap().hist.clone();
 
         (circ, timeouts)
@@ -910,8 +917,7 @@ mod test {
 
     #[test]
     fn build_onehop() {
-        test_with_all_runtimes!(|rt| async move {
-            let rt = tor_rtmock::MockSleepRuntime::new(rt);
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let id_100ms = key_from_timeouts(Duration::from_millis(100), Duration::from_millis(0));
             let path = OwnedPath::ChannelOnly(chan_t(id_100ms));
 
@@ -931,8 +937,7 @@ mod test {
 
     #[test]
     fn build_threehop() {
-        test_with_all_runtimes!(|rt| async move {
-            let rt = tor_rtmock::MockSleepRuntime::new(rt);
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let id_100ms =
                 key_from_timeouts(Duration::from_millis(100), Duration::from_millis(200));
             let id_200ms =
@@ -959,8 +964,7 @@ mod test {
 
     #[test]
     fn build_huge_timeout() {
-        test_with_all_runtimes!(|rt| async move {
-            let rt = tor_rtmock::MockSleepRuntime::new(rt);
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let id_100ms =
                 key_from_timeouts(Duration::from_millis(100), Duration::from_millis(200));
             let id_200ms =
@@ -984,8 +988,7 @@ mod test {
 
     #[test]
     fn build_modest_timeout() {
-        test_with_all_runtimes!(|rt| async move {
-            let rt = tor_rtmock::MockSleepRuntime::new(rt);
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let id_100ms =
                 key_from_timeouts(Duration::from_millis(100), Duration::from_millis(200));
             let id_200ms =
