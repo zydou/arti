@@ -1005,21 +1005,20 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
+        #[derive(Adhoc)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "encabulator")]
+        #[adhoc(role = "marzlevane")]
+        struct TestSpecifier {
+            #[adhoc(denotator)]
+            /// The denotator.
+            count: usize,
 
-            #[derive(Adhoc)]
-            #[derive_adhoc(KeySpecifierDefault)]
-            #[adhoc(prefix = "encabulator")]
-            #[adhoc(role = "marzlevane")]
-            struct TestSpecifier {
-                #[adhoc(denotator)]
-                /// The denotator.
-                count: usize,
-
-                // The remaining fields
-                kind: String,
-                base: String,
-                casing: String,
-            }
+            // The remaining fields
+            kind: String,
+            base: String,
+            casing: String,
+        }
 
         let key_spec = TestSpecifier {
             kind: "hydrocoptic".into(),
@@ -1043,11 +1042,11 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_no_fields() {
-            #[derive(Adhoc)]
-            #[derive_adhoc(KeySpecifierDefault)]
-            #[adhoc(prefix = "encabulator")]
-            #[adhoc(role = "marzlevane")]
-            struct TestSpecifier {}
+        #[derive(Adhoc)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "encabulator")]
+        #[adhoc(role = "marzlevane")]
+        struct TestSpecifier {}
 
         let key_spec = TestSpecifier {};
 
@@ -1068,14 +1067,14 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_denotator() {
-            #[derive(Adhoc)]
-            #[derive_adhoc(KeySpecifierDefault)]
-            #[adhoc(prefix = "encabulator")]
-            #[adhoc(role = "marzlevane")]
-            struct TestSpecifier {
-                #[adhoc(denotator)]
-                count: usize,
-            }
+        #[derive(Adhoc)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "encabulator")]
+        #[adhoc(role = "marzlevane")]
+        struct TestSpecifier {
+            #[adhoc(denotator)]
+            count: usize,
+        }
 
         let key_spec = TestSpecifier { count: 6 };
 
@@ -1096,15 +1095,15 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields() {
-            #[derive(Adhoc)]
-            #[derive_adhoc(KeySpecifierDefault)]
-            #[adhoc(prefix = "encabulator")]
-            #[adhoc(role = "fan")]
-            struct TestSpecifier {
-                casing: String,
-                /// A doc comment.
-                bearings: String,
-            }
+        #[derive(Adhoc)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "encabulator")]
+        #[adhoc(role = "fan")]
+        struct TestSpecifier {
+            casing: String,
+            /// A doc comment.
+            bearings: String,
+        }
 
         let key_spec = TestSpecifier {
             casing: "logarithmic".into(),
