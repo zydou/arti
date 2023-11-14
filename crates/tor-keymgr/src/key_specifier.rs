@@ -155,9 +155,11 @@ impl ArtiPath {
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
     pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
-        // Validate the denotator, if there is one.
-        let path = if let Some((inner, denotator)) = inner.rsplit_once(DENOTATOR_SEP) {
-            let () = ArtiPathComponent::validate_str(denotator)?;
+        // Validate the denotators, if there are any.
+        let path = if let Some((inner, denotators)) = inner.split_once(DENOTATOR_SEP) {
+            for d in denotators.split(DENOTATOR_SEP) {
+                let () = ArtiPathComponent::validate_str(d)?;
+            }
 
             inner
         } else {
@@ -626,6 +628,19 @@ mod test {
         }
     }
 
+    impl KeyDenotator for String {
+        fn encode(&self) -> String {
+            self.clone()
+        }
+
+        fn decode(s: &str) -> crate::Result<Self>
+        where
+            Self: Sized,
+        {
+            Ok(s.into())
+        }
+    }
+
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn arti_path_validation() {
@@ -724,6 +739,21 @@ mod test {
             assert_err!(ArtiPathComponent, denotator, ArtiPathError::BadOuterChar(_));
             assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar('+'));
         }
+
+        // An ArtiPath with multiple denotators
+        let path = format!(
+            "foo/bar/qux+{}+{}+foo",
+            VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
+        );
+        assert_ok!(ArtiPath, path);
+
+        // An invalid ArtiPath with multiple valid denotators and
+        // an invalid (empty) denotator
+        let path = format!(
+            "foo/bar/qux+{}+{}+foo+",
+            VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
+        );
+        assert_err!(ArtiPath, path, ArtiPathError::EmptyPathComponent);
     }
 
     #[test]
@@ -880,6 +910,47 @@ mod test {
         );
 
         assert_eq!(key_spec.prefix(), "encabulator/logarithmic/spurving/fan");
+    }
+
+    #[allow(dead_code)] // some of the auto-generated functions are unused
+    #[test]
+    fn define_key_specifier_with_multiple_denotators() {
+        #[derive(Adhoc)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "encabulator")]
+        #[adhoc(role = "fan")]
+        struct TestSpecifier {
+            casing: String,
+            /// A doc comment.
+            bearings: String,
+
+            #[adhoc(denotator)]
+            count: usize,
+
+            #[adhoc(denotator)]
+            length: usize,
+
+            #[adhoc(denotator)]
+            kind: String,
+        }
+
+        let key_spec = TestSpecifier {
+            casing: "logarithmic".into(),
+            bearings: "spurving".into(),
+            count: 8,
+            length: 2000,
+            kind: "lunar".into(),
+        };
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "encabulator/logarithmic/spurving/fan+8+2000+lunar"
+        );
+
+        assert_eq!(
+            TestSpecifier::arti_pattern(&"logarithmic".into(), &"prefabulating".into()),
+            KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
+        );
     }
 
     #[test]
