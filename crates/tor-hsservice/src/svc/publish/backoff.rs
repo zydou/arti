@@ -3,7 +3,7 @@
 //! [`Runner::run`] retries the specified operation according to the [`BackoffSchedule`] of the
 //! [`Runner`]. Users can customize the backoff behavior by implementing [`BackoffSchedule`].
 
-// TODO HSS: this is a (somewhat) general-purpose utiliy, so it should probably be factored out of
+// TODO: this is a (somewhat) general-purpose utiliy, so it should probably be factored out of
 // tor-hsservice
 
 use std::error::Error as StdError;
