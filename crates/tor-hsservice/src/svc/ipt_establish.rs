@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
 use itertools::Itertools;
+use postage::watch;
 use safelog::Redactable as _;
 use tor_async_utils::oneshot;
 use tor_async_utils::DropNotifyWatchSender;
@@ -37,6 +38,7 @@ use crate::replay::ReplayError;
 use crate::replay::ReplayLog;
 use crate::BlindIdKeypairSpecifier;
 use crate::HsIdPublicKeySpecifier;
+use crate::OnionServiceConfig;
 use crate::{
     req::RendRequestContext,
     svc::{LinkSpecs, NtorPublicKey},
@@ -174,6 +176,13 @@ impl IptError {
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
 pub(crate) struct IptParameters {
+    // TODO HSS:
+    //
+    // We want to make a new introduction circuit if our dos parameters change,
+    // which means that we should possibly be watching for changes in our
+    // configuration.  Right now, though, we only copy out the configuration
+    // on startup.
+    pub(crate) config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     // TODO HSS: maybe this should be a bunch of refs.
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
@@ -203,7 +212,6 @@ impl IptEstablisher {
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
         runtime: &R,
-        nickname: HsNickname,
         params: IptParameters,
         pool: Arc<HsCircPool<R>>,
         keymgr: &Arc<KeyMgr>,
@@ -211,6 +219,7 @@ impl IptEstablisher {
         // This exhaustive deconstruction ensures that we don't
         // accidentally forget to handle any of our inputs.
         let IptParameters {
+            config_rx,
             netdir_provider,
             introduce_tx,
             lid,
@@ -219,6 +228,9 @@ impl IptEstablisher {
             k_ntor,
             accepting_requests,
         } = params;
+        let config = Arc::clone(&config_rx.borrow());
+        let nickname = config.nickname().clone();
+
         if matches!(accepting_requests, RequestDisposition::Shutdown) {
             return Err(bad_api_usage!(
                 "Tried to create a IptEstablisher that that was already shutting down?"
