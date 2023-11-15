@@ -35,7 +35,17 @@ caret_int! {
     }
 }
 
-/// An establish Introduction protocol extension
+/// Extension to tell the introduction point to rate-limit.
+///
+/// When we sent this extension, it tells the introduction point to rate-limit
+/// the INTRODUCE2 messages it sends us to the rates shown here.
+///
+/// When this extension is not sent, the introduction point imposes a rate-limit
+/// depending on parameters in the latest consensus.
+///
+/// This extension requires protover `HSIntro=5`.
+///
+/// See <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
 #[derive(Debug, Clone)]
 pub struct DosParams {
     /// An optional parameter indicates the rate per second of

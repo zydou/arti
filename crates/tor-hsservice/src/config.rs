@@ -45,7 +45,14 @@ pub struct OnionServiceConfig {
     /// A rate-limit on the acceptable rate of introduction requests.
     ///
     /// We send this to the send to the introduction point to configure how many
-    /// introduction requests it sends us.
+    /// introduction requests it sends us.  
+    /// If this is not set, the introduction point chooses a default based on
+    /// the current consensus.
+    ///
+    /// We do not enforce this limit ourselves.
+    ///
+    /// This configuration is sent as a `DOS_PARAMS` extension, as documented in
+    /// <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
     #[builder(default)]
     rate_limit_at_intro: Option<TokenBucketConfig>,
 
