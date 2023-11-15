@@ -289,8 +289,9 @@ macro_rules! log_ratelim {
   {
     $act_fmt:literal $(, $act_arg:expr )* $(,)? ;
     $result:expr ;
-    Err($err_pat:pat) => $err_level:ident $(, $err_fmt:literal $(, $err_arg:expr)* )? $(,)? ;
-    $( Ok($ok_pat:pat) => $ok_level:ident, $ok_fmt:literal $(, $ok_arg:expr )* $(,)? ; )?
+    Err($err_pat:pat) => $err_level:ident $(, $err_fmt:literal $(, $err_arg:expr)* )? $(,)?
+    $(; Ok($ok_pat:pat) => $ok_level:ident, $ok_fmt:literal $(, $ok_arg:expr )* $(,)?  )?
+    $(;)?
   } => {
     $crate::log_ratelim!{
       @impl
@@ -303,8 +304,9 @@ macro_rules! log_ratelim {
   // Regular invocation with no Err(_) case.
   {
     $act_fmt:literal $(, $act_arg:expr )* $(,)? ;
-    $result:expr ;
-    $( Ok($ok_pat:pat) => $ok_level:ident, $ok_fmt:literal $(, $ok_arg:expr )* $(,)? ; )?
+    $result:expr
+    $(; Ok($ok_pat:pat) => $ok_level:ident, $ok_fmt:literal $(, $ok_arg:expr )* $(,)? )?
+    $(;)?
   } => {
     $crate::log_ratelim!{
       @impl
