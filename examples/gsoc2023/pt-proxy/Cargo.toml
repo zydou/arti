@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 anyhow = "1.0.72"
 arti-client = { path = "../../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
-clap = { version = "4.3.21", features = [ "derive" ] }
+clap = { version = "4.3.21", features = ["derive", "wrap_help"] }
 fast-socks5 = "0.9.1"
 thiserror = "1.0.44"
 tokio = { version = "1.7", features = ["full"] }
