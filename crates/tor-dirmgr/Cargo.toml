@@ -82,7 +82,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
-time = { version = "0.3", features = ["formatting", "parsing"] }
+time = { version = "0.3.20", features = ["formatting", "parsing"] }
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.5" }
