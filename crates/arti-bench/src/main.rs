@@ -315,7 +315,7 @@ fn main() -> Result<()> {
             Arg::new("num-streams")
                 .short('p')
                 .long("streams")
-                .aliases(&["num-parallel"])
+                .aliases(["num-parallel"])
                 .action(ArgAction::Set)
                 .value_name("COUNT")
                 .value_parser(value_parser!(usize))

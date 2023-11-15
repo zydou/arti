@@ -329,7 +329,7 @@ where
     let clap_app =
         Command::new("Arti")
             .version(env!("CARGO_PKG_VERSION"))
-            .long_version(&long_version as &str)
+            .long_version(long_version)
             .author("The Tor Project Developers")
             .about("A Rust Tor implementation.")
             // HACK(eta): clap generates "arti [OPTIONS] <SUBCOMMAND>" for this usage string by
@@ -348,7 +348,7 @@ where
                     .action(ArgAction::Append)
                     // NOTE: don't forget the `global` flag on all arguments declared at this level!
                     .global(true)
-                    .help(config_file_help.as_str()),
+                    .help(config_file_help),
             )
             .arg(
                 Arg::new("option")
