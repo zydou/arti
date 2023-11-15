@@ -1,6 +1,6 @@
 //! Traits for converting keys to and from OpenSSH format.
 //
-// TODO HSS (#902): OpenSSH keys can have passphrases. While the current implementation isn't able to
+// TODO #902: OpenSSH keys can have passphrases. While the current implementation isn't able to
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
 use ssh_key::private::KeypairData;
@@ -121,7 +121,8 @@ impl UnparsedOpenSshKey {
 
 /// SSH key algorithms.
 //
-// Note: this contains all the types supported by ssh_key, plus X25519.
+// Note: this contains all the types supported by ssh_key, plus variants representing
+// x25519 and expanded ed25519 keys.
 #[derive(Clone, Debug, PartialEq, derive_more::Display)]
 pub(crate) enum SshKeyAlgorithm {
     /// Digital Signature Algorithm

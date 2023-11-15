@@ -12,7 +12,10 @@ use tor_hscrypto::time::TimePeriod;
 
 use crate::KeystoreError;
 
-/// The path of a key in the Arti key store.
+/// A unique identifier for a particular instance of a key.
+///
+/// In an [`ArtiNativeKeystore`](crate::ArtiNativeKeystore), this also represents the path of the
+/// key relative to the root of the keystore, minus the file extension.
 ///
 /// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
 /// components may contain UTF-8 alphanumerics, and (except as the first or last character) `-`,
@@ -55,10 +58,31 @@ impl KeyPath {
     /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
     ///
     /// If the `KeyPath` matches the pattern, this returns the ranges that match its dynamic parts.
-    pub fn matches(&self, pat: &KeyPathPatternSet) -> Option<Vec<KeyPathRange>> {
-        let (pattern, path): (&str, &str) = match self {
-            KeyPath::Arti(p) => (pat.arti.as_ref(), p.as_ref()),
-            KeyPath::CTor(p) => (pat.ctor.as_ref(), p.as_ref()),
+    ///
+    /// ### Example
+    /// ```
+    /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathError};
+    /// # fn demo() -> Result<(), ArtiPathError> {
+    /// let path = KeyPath::Arti(ArtiPath::new("foo_bar_baz_1".into())?);
+    /// let pattern = KeyPathPattern::Arti("*_bar_baz_*".into());
+    /// let matches = path.matches(&pattern).unwrap();
+    ///
+    /// let path = path.arti().unwrap();
+    /// assert_eq!(matches.len(), 2);
+    /// assert_eq!(path.substring(&matches[0]), Some("foo"));
+    /// assert_eq!(path.substring(&matches[1]), Some("1"));
+    /// # Ok(())
+    /// # }
+    /// #
+    /// # demo().unwrap();
+    /// ```
+    pub fn matches(&self, pat: &KeyPathPattern) -> Option<Vec<KeyPathRange>> {
+        use KeyPathPattern::*;
+
+        let (pattern, path): (&str, &str) = match (self, pat) {
+            (KeyPath::Arti(p), Arti(pat)) => (pat.as_ref(), p.as_ref()),
+            (KeyPath::CTor(p), CTor(pat)) => (pat.as_ref(), p.as_ref()),
+            _ => return None,
         };
 
         glob_match::glob_match_with_captures(pattern, path)
@@ -84,55 +108,32 @@ impl KeyPath {
     }
 }
 
-/// [`KeyPathPattern`]s that can be used to match [`ArtiPath`]s or [`CTorPath`]s.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Into)]
+/// A pattern that can be used to match [`ArtiPath`]s or [`CTorPath`]s.
+///
+/// Create a new `KeyPathPattern`.
+///
+/// ## Syntax
+///
+/// NOTE: this table is copied vebatim from the [`glob-match`] docs.
+///
+/// | Syntax  | Meaning                                                                                                                                                                                             |
+/// | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+/// | `?`     | Matches any single character.                                                                                                                                                                       |
+/// | `*`     | Matches zero or more characters, except for path separators (e.g. `/`).                                                                                                                             |
+/// | `**`    | Matches zero or more characters, including path separators. Must match a complete path segment (i.e. followed by a `/` or the end of the pattern).                                                  |
+/// | `[ab]`  | Matches one of the characters contained in the brackets. Character ranges, e.g. `[a-z]` are also supported. Use `[!ab]` or `[^ab]` to match any character _except_ those contained in the brackets. |
+/// | `{a,b}` | Matches one of the patterns contained in the braces. Any of the wildcard characters can be used in the sub-patterns. Braces may be nested up to 10 levels deep.                                     |
+/// | `!`     | When at the start of the glob, this negates the result. Multiple `!` characters negate the glob multiple times.                                                                                     |
+/// | `\`     | A backslash character may be used to escape any of the above special characters.                                                                                                                    |
+///
+/// [`glob-match`]: https://crates.io/crates/glob-match
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub struct KeyPathPatternSet {
+pub enum KeyPathPattern {
     /// A pattern for matching [`ArtiPath`]s.
-    pub arti: KeyPathPattern,
+    Arti(String),
     /// A pattern for matching [`CTorPath`]s.
-    pub ctor: KeyPathPattern,
-}
-
-impl KeyPathPatternSet {
-    /// Create a new [`KeyPathPatternSet`].
-    pub fn new(arti: KeyPathPattern, ctor: KeyPathPattern) -> Self {
-        Self { arti, ctor }
-    }
-}
-
-/// A pattern for matching [`ArtiPath`]s.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Deref, DerefMut, Display)]
-pub struct KeyPathPattern(String);
-
-impl KeyPathPattern {
-    /// Create a new `KeyPathPattern`.
-    ///
-    /// ## Syntax
-    ///
-    /// NOTE: this table is copied vebatim from the [`glob-match`] docs.
-    ///
-    /// | Syntax  | Meaning                                                                                                                                                                                             |
-    /// | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-    /// | `?`     | Matches any single character.                                                                                                                                                                       |
-    /// | `*`     | Matches zero or more characters, except for path separators (e.g. `/`).                                                                                                                             |
-    /// | `**`    | Matches zero or more characters, including path separators. Must match a complete path segment (i.e. followed by a `/` or the end of the pattern).                                                  |
-    /// | `[ab]`  | Matches one of the characters contained in the brackets. Character ranges, e.g. `[a-z]` are also supported. Use `[!ab]` or `[^ab]` to match any character _except_ those contained in the brackets. |
-    /// | `{a,b}` | Matches one of the patterns contained in the braces. Any of the wildcard characters can be used in the sub-patterns. Braces may be nested up to 10 levels deep.                                     |
-    /// | `!`     | When at the start of the glob, this negates the result. Multiple `!` characters negate the glob multiple times.                                                                                     |
-    /// | `\`     | A backslash character may be used to escape any of the above special characters.                                                                                                                    |
-    ///
-    /// [`glob-match`]: https://crates.io/crates/glob-match
-    pub fn new(inner: impl AsRef<str>) -> Self {
-        Self(inner.as_ref().into())
-    }
-
-    /// Create a `KeyPathPattern` that only matches the empty string.
-    ///
-    /// This pattern will fail to match any valid [`ArtiPath`]s or [`CTorPath`]s.
-    pub fn empty() -> Self {
-        Self("".into())
-    }
+    CTor(String),
 }
 
 /// A separator for `ArtiPath`s.
@@ -173,6 +174,23 @@ impl ArtiPath {
     /// Return the substring corresponding to the specified `range`.
     ///
     /// Returns `None` if `range` is not within the bounds of this `ArtiPath`.
+    ///
+    /// ### Example
+    /// ```
+    /// # use tor_keymgr::{ArtiPath, KeyPathRange, ArtiPathError};
+    /// # fn demo() -> Result<(), ArtiPathError> {
+    /// let path = ArtiPath::new("foo_bar_bax_1".into())?;
+    ///
+    /// let range = KeyPathRange::from(2..5);
+    /// assert_eq!(path.substring(&range), Some("o_b"));
+    ///
+    /// let range = KeyPathRange::from(22..50);
+    /// assert_eq!(path.substring(&range), None);
+    /// # Ok(())
+    /// # }
+    /// #
+    /// # demo().unwrap();
+    /// ```
     pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
         self.0.get(range.0.clone())
     }
@@ -507,7 +525,7 @@ macro_rules! define_key_specifier {
             /// of its denotator.
             $vis fn arti_pattern($($field: &$field_ty,)*) -> $crate::KeyPathPattern {
                 let pat = Self::arti_path_prefix($(&$field,)*);
-                KeyPathPattern::new(format!("{pat}{}*", $crate::DENOTATOR_SEP))
+                KeyPathPattern::Arti(format!("{pat}{}*", $crate::DENOTATOR_SEP))
             }
         }
 
@@ -582,7 +600,7 @@ macro_rules! define_key_specifier {
             /// corresponding to the specified service `nickname` and `role`.
             $vis fn arti_pattern($($field: $field_ty,)*) -> KeyPathPattern {
                 let pat = Self::arti_path_prefix($(&$field,)*);
-                KeyPathPattern::new(pat)
+                KeyPathPattern::Arti(pat)
             }
         }
 

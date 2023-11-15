@@ -1,6 +1,6 @@
 //! The Arti key store.
 //!
-//! The Arti key store stores the keys on disk in OpenSSH format.
+//! See the [`ArtiNativeKeystore`] docs for more details.
 
 pub(crate) mod err;
 
@@ -24,11 +24,31 @@ use walkdir::WalkDir;
 use super::SshKeyData;
 
 /// The Arti key store.
+///
+/// This is a disk-based key store that encodes keys in OpenSSH format.
+///
+/// Some of the key types supported by the [`ArtiNativeKeystore`]
+/// don't have a predefined SSH public key [algorithm name],
+/// so we define several custom SSH algorithm names.
+/// As per [RFC4251 § 6], our custom SSH algorithm names use the
+/// `<something@subdomain.torproject.org>` format.
+///
+/// We have assigned the following custom algorithm names:
+///   * `x25519@torproject.org`, for x25519 keys
+///   * `ed25519-expanded@torproject.org`, for expanded ed25519 keys
+///
+/// See [SSH protocol extensions] for more details.
+///
+/// [algorithm name]: https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-19
+/// [RFC4251 § 6]: https://www.rfc-editor.org/rfc/rfc4251.html#section-6
+/// [SSH protocol extensions]: https://spec.torproject.org/ssh-protocols.html
 #[derive(Debug)]
 pub struct ArtiNativeKeystore {
     /// The root of the key store.
+    ///
+    /// All the keys are stored within this directory.
     keystore_dir: CheckedDir,
-    /// The ID of this instance.
+    /// The unique identifier of this instance.
     id: KeystoreId,
 }
 

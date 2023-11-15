@@ -1,21 +1,9 @@
 //! Code for managing multiple [`Keystore`]s.
 //!
-//! The [`KeyMgr`] reads from (and writes to) a number of key stores. The key stores all implement
-//! [`Keystore`].
-//!
-//! ## Concurrent key store access
-//!
-//! The key stores will allow concurrent modification by different processes. In
-//! order to implement this safely without locking, the key store operations (get,
-//! insert, remove) will need to be atomic.
-//!
-//! **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
-//! concurrently with any other `KeyMgr` operation that mutates the state of key stores, because
-//! their outcome depends on whether the selected key store [`contains`][Keystore::contains] the
-//! specified key (and thus suffers from a a TOCTOU race).
+//! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    EncodableKey, KeyPath, KeyPathPatternSet, KeySpecifier, KeyType, Keygen, KeygenRng, Keystore,
+    EncodableKey, KeyPath, KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, Keystore,
     KeystoreId, KeystoreSelector, Result, ToEncodableKey,
 };
 
@@ -26,10 +14,28 @@ use tor_error::{bad_api_usage, internal};
 /// A boxed [`Keystore`].
 type BoxedKeystore = Box<dyn Keystore>;
 
-/// A key manager with several [`Keystore`]s.
+/// A key manager that acts as a frontend to a default [`Keystore`] and any number of secondary
+/// [`Keystore`]s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
+///
+/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type),
+/// [`get_or_generate_with_derived`](KeyMgr::get_or_generate_with_derived) -
+/// search the configured key stores in order: first the default key store,
+/// and then the secondary stores, in order.
+///
+///
+/// ## Concurrent key store access
+///
+/// The key stores will allow concurrent modification by different processes. In
+/// order to implement this safely without locking, the key store operations (get,
+/// insert, remove) will need to be atomic.
+///
+/// **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
+/// concurrently with any other `KeyMgr` operation that mutates the state of key stores, because
+/// their outcome depends on whether the selected key store [`contains`][Keystore::contains] the
+/// specified key (and thus suffers from a a TOCTOU race).
 //
 // TODO HSS: derive builder for KeyMgr.
 pub struct KeyMgr {
@@ -41,6 +47,11 @@ pub struct KeyMgr {
 
 impl KeyMgr {
     /// Create a new [`KeyMgr`] with a default [`Keystore`] and zero or more secondary [`Keystore`]s.
+    ///
+    /// The order of the secondary `Keystore`s is important, because the `KeyMgr` accessors
+    /// (such as [`KeyMgr::get`], or `KeyMgr::get_with_type`)
+    /// search the configured key stores in the order they were given
+    /// (first the default key store, and then the secondary keystores, in order).
     pub fn new(default_store: impl Keystore, secondary_stores: Vec<BoxedKeystore>) -> Self {
         Self {
             default_store: Box::new(default_store),
@@ -53,7 +64,7 @@ impl KeyMgr {
     /// The key returned is retrieved from the first key store that contains an entry for the given
     /// specifier.
     ///
-    /// Returns Ok(None) if none of the key stores have the requested key.
+    /// Returns `Ok(None)` if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
         self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())
     }
@@ -63,7 +74,7 @@ impl KeyMgr {
     /// The key returned is retrieved from the first key store that contains an entry for the given
     /// specifier.
     ///
-    /// Returns Ok(None) if none of the key stores have the requested key.
+    /// Returns `Ok(None)` if none of the key stores have the requested key.
     ///
     /// Returns an error if the specified `key_type` does not match `K::Key::key_type()`.
     pub fn get_with_type<K: ToEncodableKey>(
@@ -287,6 +298,9 @@ impl KeyMgr {
     ///
     /// If the key already exists, it is overwritten.
     ///
+    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// configured secondary stores.
+    ///
     // TODO HSS: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
     pub fn insert<K: ToEncodableKey>(
         &self,
@@ -302,6 +316,9 @@ impl KeyMgr {
 
     /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
     ///
+    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// configured secondary stores.
+    ///
     /// Returns `Ok(None)` if the key does not exist in the requested keystore.
     /// Returns `Ok(Some(())` if the key was successfully removed.
     ///
@@ -316,10 +333,10 @@ impl KeyMgr {
         store.remove(key_spec, &K::Key::key_type())
     }
 
-    /// Return the keys matching the specified [`KeyPathPatternSet`].
+    /// Return the keys matching the specified [`KeyPathPattern`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
-    pub fn list_matching(&self, pat: &KeyPathPatternSet) -> Result<Vec<(KeyPath, KeyType)>> {
+    pub fn list_matching(&self, pat: &KeyPathPattern) -> Result<Vec<(KeyPath, KeyType)>> {
         self.all_stores()
             .map(|store| -> Result<Vec<_>> {
                 Ok(store
@@ -384,6 +401,9 @@ impl KeyMgr {
     }
 
     /// Return the [`Keystore`] matching the specified `selector`.
+    ///
+    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// configured secondary stores.
     fn select_keystore(&self, selector: &KeystoreSelector) -> Result<&BoxedKeystore> {
         match selector {
             KeystoreSelector::Id(keystore_id) => self.find_keystore(keystore_id),
@@ -392,6 +412,9 @@ impl KeyMgr {
     }
 
     /// Return the [`Keystore`] with the specified `id`.
+    ///
+    /// Returns an error if the specified ID is not the ID of the default keystore or
+    /// the ID of one of the configured secondary stores.
     fn find_keystore(&self, id: &KeystoreId) -> Result<&BoxedKeystore> {
         self.all_stores()
             .find(|keystore| keystore.id() == id)
