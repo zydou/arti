@@ -623,6 +623,44 @@ impl ClientCirc {
         Ok(())
     }
 
+    /// Extend the circuit via the ntor handshake to a new target last
+    /// hop.
+    #[cfg(feature = "ntor_v3")]
+    pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
+    where
+        Tg: CircTarget,
+    {
+        let key = NtorV3PublicKey {
+            id: *target
+                .ed_identity()
+                .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
+            pk: *target.ntor_onion_key(),
+        };
+        let mut linkspecs = target
+            .linkspecs()
+            .map_err(into_internal!("Could not encode linkspecs for extend_ntor"))?;
+        if !params.extend_by_ed25519_id() {
+            linkspecs.retain(|ls| ls.lstype() != LinkSpecType::ED25519ID);
+        }
+
+        let (tx, rx) = oneshot::channel();
+
+        let peer_id = OwnedChanTarget::from_chan_target(target);
+        self.control
+            .unbounded_send(CtrlMsg::ExtendNtorV3 {
+                peer_id,
+                public_key: key,
+                linkspecs,
+                params: params.clone(),
+                done: tx,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)??;
+
+        Ok(())
+    }
+
     /// Extend this circuit by a single, "virtual" hop.
     ///
     /// A virtual hop is one for which we do not add an actual network connection

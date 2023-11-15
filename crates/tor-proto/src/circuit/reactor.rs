@@ -156,6 +156,22 @@ pub(super) enum CtrlMsg {
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
+    /// Extend a circuit by one hop, using the ntorv3 handshake.
+    #[cfg(feature = "ntor_v3")]
+    ExtendNtorV3 {
+        /// The peer that we're extending to.
+        ///
+        /// Used to extend our record of the circuit's path.
+        peer_id: OwnedChanTarget,
+        /// The handshake type to use for this hop.
+        public_key: NtorV3PublicKey,
+        /// Information about how to connect to the relay we're extending to.
+        linkspecs: Vec<EncodedLinkSpec>,
+        /// Other parameters relevant for circuit extension.
+        params: CircParameters,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
+    },
     /// Extend the circuit by one hop, in response to an out-of-band handshake.
     ///
     /// (This is used for onion services, where the negotiation takes place in
@@ -1552,6 +1568,30 @@ impl Reactor {
                     linkspecs,
                     params,
                     &(),
+                    self,
+                    done,
+                )?;
+                self.set_meta_handler(Box::new(extender))?;
+            }
+            #[cfg(feature = "ntor_v3")]
+            CtrlMsg::ExtendNtorV3 {
+                peer_id,
+                public_key,
+                linkspecs,
+                params,
+                done,
+            } => {
+                // TODO: Set extensions, e.g. based on `params`.
+                let client_extensions = [];
+
+                let extender = CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
+                    cx,
+                    peer_id,
+                    HandshakeType::NTOR_V3,
+                    &public_key,
+                    linkspecs,
+                    params,
+                    &client_extensions,
                     self,
                     done,
                 )?;
