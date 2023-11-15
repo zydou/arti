@@ -489,6 +489,9 @@ define_derive_adhoc! {
     // TODO HSS: make ArtiPath support encoding more than one denotator
     pub KeySpecifierDefault =
 
+    // A condition that evaluates to `true` for path fields.
+    ${defcond F_IS_PATH not(fmeta(denotator))}
+
     impl<$tgens> $ttype
     where $twheres
     {
@@ -508,10 +511,10 @@ define_derive_adhoc! {
         /// of the keys associated with this specifier.
         ///
         /// Returns the `ArtiPath`, minus the denotators.
-        $tvis fn arti_path_prefix( $(${when not(fmeta(denotator))} $fname: &$ftype , ) ) -> String {
+        $tvis fn arti_path_prefix( $(${when F_IS_PATH} $fname: &$ftype , ) ) -> String {
             vec![
                 stringify!(${tmeta(prefix)}).to_string(),
-                $(${when not(fmeta(denotator))} $fname.to_string() , )
+                $(${when F_IS_PATH} $fname.to_string() , )
                 stringify!(${tmeta(role)}).to_string()
             ].join("/")
         }
@@ -522,9 +525,9 @@ define_derive_adhoc! {
         /// This builds a pattern by joining the `prefix` of this specifier
         /// with the specified field values, its `role`, and a pattern
         /// that contains a wildcard (`*`) in place of each denotator.
-        $tvis fn arti_pattern( $(${when not(fmeta(denotator))} $fname: &$ftype,) ) -> $crate::KeyPathPattern {
+        $tvis fn arti_pattern( $(${when F_IS_PATH} $fname: &$ftype,) ) -> $crate::KeyPathPattern {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut pat = Self::arti_path_prefix( $(${when not(fmeta(denotator))} $fname,) );
+            let mut pat = Self::arti_path_prefix( $(${when F_IS_PATH} $fname,) );
 
             $(
                     ${when fmeta(denotator)}
@@ -544,7 +547,7 @@ define_derive_adhoc! {
 
         /// A convenience wrapper around `Self::arti_path_prefix`.
         fn prefix(&self) -> String {
-            Self::arti_path_prefix( $(${when not(fmeta(denotator))} &self.$fname,) )
+            Self::arti_path_prefix( $(${when F_IS_PATH} &self.$fname,) )
         }
     }
 
