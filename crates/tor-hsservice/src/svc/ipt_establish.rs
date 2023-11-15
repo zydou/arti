@@ -267,8 +267,9 @@ impl IptEstablisher {
             target,
             k_sid, // TODO HSS this is now redundant.
             introduce_tx,
-            // TODO HSS This should come from the configuration.
-            extensions: EstIntroExtensionSet { dos_params: None },
+            extensions: EstIntroExtensionSet {
+                dos_params: config.dos_extension()?,
+            },
             state: state.clone(),
             request_context,
         };
@@ -589,8 +590,8 @@ struct Reactor<R: Runtime> {
     k_sid: Arc<HsIntroPtSessionIdKeypair>,
     /// The extensions to use when establishing the introduction point.
     ///
-    /// TODO: Should this be able to change over time if we re-establish this
-    /// intro point?
+    /// TODO HSS: This should be able to change over time as we re-restablish
+    /// the intro point.
     extensions: EstIntroExtensionSet,
 
     /// The stream that will receive INTRODUCE2 messages.
