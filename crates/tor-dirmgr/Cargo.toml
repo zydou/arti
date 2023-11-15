@@ -68,21 +68,21 @@ futures = "0.3.14"
 hex = "0.4"
 humantime = "2"
 humantime-serde = "1.1.1"
-itertools = "0.11.0"
+itertools = "0.12.0"
 memmap2 = { version = "0.9.0", optional = true }
 once_cell = "1"
 paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.5.0" }
-rusqlite = { version = "0.29.0", features = ["time"] }
+rusqlite = { version = "0.30.0", features = ["time"] }
 safelog = { path = "../safelog", version = "0.3.2" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
-time = { version = "0.3", features = ["formatting", "parsing"] }
+time = { version = "0.3.20", features = ["formatting", "parsing"] }
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.5" }
