@@ -506,7 +506,7 @@ define_derive_adhoc! {
         /// of the keys associated with this specifier.
         ///
         /// Returns the `ArtiPath`, minus the denotators.
-        $tvis fn arti_path_prefix( $(${when F_IS_PATH} $fname: &$ftype , ) ) -> String {
+        fn arti_path_prefix( $(${when F_IS_PATH} $fname: &$ftype , ) ) -> String {
             vec![
                 stringify!(${tmeta(prefix)}).to_string(),
                 $(${when F_IS_PATH} $fname.to_string() , )
