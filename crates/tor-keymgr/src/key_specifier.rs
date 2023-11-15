@@ -529,18 +529,13 @@ define_derive_adhoc! {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
             let mut pat = Self::arti_path_prefix( $(${when F_IS_PATH} $fname,) );
 
-            $(
-                    ${when fmeta(denotator)}
-                    {
+            ${for fields {
+                        ${when fmeta(denotator)}
                         // TODO HSS: update ArtiPath to support encoding more than one denotator
 
-                        // HACK: we want to count the denotator fields, and for that we _must_
-                        // iterate over all fields (i.e. reference $ftype or $fname in the
-                        // $() block).
-                        let _ = |_: $ftype,| {};
                         pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
                     }
-            )
+            }
 
             KeyPathPattern::Arti(pat)
         }
