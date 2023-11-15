@@ -130,12 +130,7 @@ pub enum FatalError {
     #[error("failed to access keystore")]
     Keystore(#[from] Box<dyn KeystoreError>),
 
-    /// A key we needed could not be found in the keystore.
-    //
-    // TODO HSS: considering adding (Box<dyn KeySpecifier>, KeyType) to the error context and
-    // making the inner type a KeyNotFoundError.
-    //
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955706
+    /// The identity keypair of the service could not be found in the keystore.
     #[error("Hidden service identity key not found: {0}")]
     MissingHsIdKeypair(HsNickname),
 
