@@ -209,7 +209,7 @@ dependencies = [
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools",
+ "itertools 0.12.0",
  "libc",
  "notify",
  "once_cell",
@@ -1328,7 +1328,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c21b673a9b8c78c34908e6fcb42b922e11c4df2de5237f1c3f58d3285904a84b"
 dependencies = [
  "heck",
- "itertools",
+ "itertools 0.11.0",
  "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
@@ -2394,6 +2394,15 @@ name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
 dependencies = [
  "either",
 ]
@@ -4779,7 +4788,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex-literal",
- "itertools",
+ "itertools 0.12.0",
  "postage",
  "rand 0.8.5",
  "safelog",
@@ -4827,7 +4836,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime-serde",
- "itertools",
+ "itertools 0.12.0",
  "once_cell",
  "pin-project",
  "rand 0.8.5",
@@ -4870,7 +4879,7 @@ dependencies = [
  "educe",
  "either",
  "fs-mistrust",
- "itertools",
+ "itertools 0.12.0",
  "once_cell",
  "paste",
  "regex",
@@ -4924,7 +4933,7 @@ dependencies = [
  "http",
  "httparse",
  "httpdate",
- "itertools",
+ "itertools 0.12.0",
  "memchr",
  "thiserror",
  "tor-circmgr",
@@ -4959,7 +4968,7 @@ dependencies = [
  "hex-literal",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools",
+ "itertools 0.12.0",
  "memmap2 0.9.0",
  "once_cell",
  "paste",
@@ -5049,7 +5058,7 @@ dependencies = [
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools",
+ "itertools 0.12.0",
  "num_enum",
  "pin-project",
  "postage",
@@ -5087,7 +5096,7 @@ dependencies = [
  "either",
  "futures",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.12.0",
  "postage",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -5132,7 +5141,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.12.0",
  "paste",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -5202,7 +5211,7 @@ dependencies = [
  "futures",
  "growable-bloom-filter",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.12.0",
  "k12",
  "once_cell",
  "postage",
@@ -5252,7 +5261,7 @@ dependencies = [
  "dyn-clone",
  "fs-mistrust",
  "glob-match",
- "itertools",
+ "itertools 0.12.0",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -5281,7 +5290,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
- "itertools",
+ "itertools 0.12.0",
  "safelog",
  "serde",
  "serde_test",
@@ -5344,7 +5353,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.12.0",
  "num_enum",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -5386,7 +5395,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.12.0",
  "once_cell",
  "phf",
  "rand 0.8.5",
@@ -5451,7 +5460,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.12.0",
  "pin-project",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -5571,7 +5580,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime 2.1.0",
- "itertools",
+ "itertools 0.12.0",
  "pin-project",
  "priority-queue",
  "rand 0.8.5",
