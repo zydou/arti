@@ -54,17 +54,17 @@ use tracing::{error, info};
 #[command(author, version, about, long_about = None)]
 struct Opts {
     /// Snowflake binary to use, implies Snowflake is to be tested
-    #[clap(long, required = false, default_value = None)]
+    #[arg(long, required = false, default_value = None)]
     snowflake_path: Option<String>,
     /// obfs4 binary to use, implies obfs4 is to be tested
-    #[clap(long, required = false, default_value = None)]
+    #[arg(long, required = false, default_value = None)]
     obfs4_path: Option<String>,
     /// meek binary to use, implies meek is to be tested
-    #[clap(long, required = false, default_value = None)]
+    #[arg(long, required = false, default_value = None)]
     meek_path: Option<String>,
 
     /// Specify a custom host:port to connect to for testing purposes
-    #[clap(long, required = false, default_value = "torproject.org:80")]
+    #[arg(long, required = false, default_value = "torproject.org:80")]
     connect_to: String,
 }
 

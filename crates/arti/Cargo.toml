@@ -42,7 +42,9 @@ full = [
     "tor-error/full",
     "tor-rtcompat/full",
     "tor-socksproto/full",
-    "tor-rpcbase?/full", "tor-hsrproxy?/full", "tor-hsservice?/full",
+    "tor-rpcbase?/full",
+    "tor-hsrproxy?/full",
+    "tor-hsservice?/full",
 ]
 
 async-std = [
@@ -94,7 +96,7 @@ arti-client = { package = "arti-client", path = "../arti-client", version = "0.1
 async-ctrlc = { version = "1.2.0", optional = true }
 backtrace = "0.3.68"
 cfg-if = "1.0.0"
-clap = "3.2.20"
+clap = { version = "4.3.24", features = ["string", "wrap_help"] }
 config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 educe = "0.4.6"
