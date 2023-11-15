@@ -760,6 +760,11 @@ impl ClientCirc {
         let parameters = parameters.unwrap_or_default();
         let begin_flags = parameters.begin_flags();
         let optimistic = parameters.is_optimistic();
+        let target = if parameters.suppressing_hostname() {
+            ""
+        } else {
+            target
+        };
         let beginmsg = Begin::new(target, port, begin_flags)
             .map_err(|e| Error::from_cell_enc(e, "begin message"))?;
         self.begin_data_stream(beginmsg.into(), optimistic).await

@@ -9,12 +9,36 @@ pub struct StreamParameters {
     ip_version: IpVersionPreference,
     /// True if we are requesting an optimistic stream.
     optimistic: bool,
+    /// True if we are suppressing hostnames
+    suppress_hostname: bool,
+    /// True if we are suppressing flags.
+    suppress_begin_flags: bool,
 }
 
 impl StreamParameters {
     /// Create a new [`StreamParameters`] using default settings.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Configure this `StreamParameters` to include no flags in any
+    /// `BEGIN` message it generates.
+    ///
+    /// This is used to implement onion services.  It may make other
+    /// operations inoperable.
+    pub fn suppress_begin_flags(&mut self) -> &mut Self {
+        self.suppress_begin_flags = true;
+        self
+    }
+
+    /// Configure this `StreamParameters` to suppress hostnames in the
+    /// BEGIN messages.
+    ///
+    /// This is used to implement onion services. It will make other
+    /// kinds of connections not work.
+    pub fn suppress_hostname(&mut self) -> &mut Self {
+        self.suppress_hostname = true;
+        self
     }
 
     /// Configure which IP version (IPv4 or IPv6) you'd like to request,
@@ -53,6 +77,15 @@ impl StreamParameters {
 
     /// Crate-internal: Get a set of [`BeginFlags`] for this stream.
     pub(crate) fn begin_flags(&self) -> BeginFlags {
-        self.ip_version.into()
+        if self.suppress_begin_flags {
+            0.into()
+        } else {
+            self.ip_version.into()
+        }
+    }
+
+    /// Crate-internal: Return true if we are suppressing hostnames.
+    pub(crate) fn suppressing_hostname(&self) -> bool {
+        self.suppress_hostname
     }
 }
