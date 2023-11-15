@@ -1,6 +1,8 @@
 //! Implementation for the (deprecated) CreateFast handshake.
 //!
 
+use std::borrow::Borrow;
+
 use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::crypto::ll::kdf::{Kdf, LegacyKdf};
 use crate::util::ct::bytes_eq;
@@ -30,17 +32,20 @@ impl super::ClientHandshake for CreateFastClient {
     type KeyType = ();
     type StateType = CreateFastClientState;
     type KeyGen = super::TapKeyGenerator;
+    type ClientAuxData = ();
+    type ServerAuxData = ();
 
-    fn client1<R: RngCore + CryptoRng>(
+    fn client1<R: RngCore + CryptoRng, M: Borrow<()>>(
         rng: &mut R,
         _key: &Self::KeyType,
+        _client_aux_data: &M,
     ) -> Result<(Self::StateType, Vec<u8>)> {
         let mut state = [0_u8; FAST_C_HANDSHAKE_LEN];
         rng.fill_bytes(&mut state);
         Ok((CreateFastClientState(state), state.into()))
     }
 
-    fn client2<T: AsRef<[u8]>>(state: Self::StateType, msg: T) -> Result<Self::KeyGen> {
+    fn client2<T: AsRef<[u8]>>(state: Self::StateType, msg: T) -> Result<((), Self::KeyGen)> {
         let msg = msg.as_ref();
         if msg.len() != FAST_S_HANDSHAKE_LEN {
             return Err(Error::BadCircHandshakeAuth);
@@ -59,7 +64,7 @@ impl super::ClientHandshake for CreateFastClient {
             return Err(Error::BadCircHandshakeAuth);
         }
 
-        Ok(super::TapKeyGenerator::new(inp))
+        Ok(((), super::TapKeyGenerator::new(inp)))
     }
 }
 
@@ -71,12 +76,19 @@ pub(crate) struct CreateFastServer;
 impl super::ServerHandshake for CreateFastServer {
     type KeyType = ();
     type KeyGen = super::TapKeyGenerator;
+    type ClientAuxData = ();
+    type ServerAuxData = ();
 
-    fn server<R: RngCore + CryptoRng, T: AsRef<[u8]>>(
+    fn server<R: RngCore + CryptoRng, REPLY: super::AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
+        reply_fn: &mut REPLY,
         _key: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
+        let _reply_extensions: () = reply_fn
+            .reply(&())
+            .ok_or(RelayHandshakeError::BadClientHandshake)?;
+
         let msg = msg.as_ref();
         if msg.len() != FAST_C_HANDSHAKE_LEN {
             return Err(RelayHandshakeError::BadClientHandshake);
@@ -119,9 +131,10 @@ mod test {
     fn roundtrip() {
         let mut rng = testing_rng();
 
-        let (state, cmsg) = CreateFastClient::client1(&mut rng, &()).unwrap();
-        let (s_kg, smsg) = CreateFastServer::server(&mut rng, &[()], cmsg).unwrap();
-        let c_kg = CreateFastClient::client2(state, smsg).unwrap();
+        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
+        let (s_kg, smsg) =
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
+        let (_msg, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
 
         let s_key = s_kg.expand(200).unwrap();
         let c_key = c_kg.expand(200).unwrap();
@@ -135,12 +148,13 @@ mod test {
 
         // badly formatted client message.
         let cmsg = [6_u8; 19];
-        let ans = CreateFastServer::server(&mut rng, &[()], cmsg);
+        let ans = CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg);
         assert!(ans.is_err());
 
         // corrupt/ incorrect server reply.
-        let (state, cmsg) = CreateFastClient::client1(&mut rng, &()).unwrap();
-        let (_, mut smsg) = CreateFastServer::server(&mut rng, &[()], cmsg).unwrap();
+        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
+        let (_, mut smsg) =
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
         smsg[35] ^= 16;
         let ans = CreateFastClient::client2(state, smsg);
         assert!(ans.is_err());
@@ -150,11 +164,12 @@ mod test {
         use crate::crypto::testing::FakePRNG;
 
         let mut rng = FakePRNG::new(&cmsg);
-        let (state, cmsg) = CreateFastClient::client1(&mut rng, &()).unwrap();
+        let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
 
         let mut rng = FakePRNG::new(&smsg);
-        let (s_kg, smsg) = CreateFastServer::server(&mut rng, &[()], cmsg).unwrap();
-        let c_kg = CreateFastClient::client2(state, smsg).unwrap();
+        let (s_kg, smsg) =
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
+        let (_msg, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
 
         let s_key = s_kg.expand(100).unwrap();
         let c_key = c_kg.expand(100).unwrap();

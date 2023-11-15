@@ -52,7 +52,7 @@ safelog = { version = "0.3.2", path = "../safelog" }
 serde = "1.0.103"
 sha1 = "0.10.0"
 sha2 = "0.10.0"
-sha3 = "0.10.0"
+sha3 = "0.10.6"
 signature = "1"
 simple_asn1 = "0.6"
 subtle = "2"
