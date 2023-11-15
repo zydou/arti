@@ -530,12 +530,11 @@ define_derive_adhoc! {
             let mut pat = Self::arti_path_prefix( $(${when F_IS_PATH} $fname,) );
 
             ${for fields {
-                        ${when fmeta(denotator)}
-                        // TODO HSS: update ArtiPath to support encoding more than one denotator
+                ${when fmeta(denotator)}
+                // TODO HSS: update ArtiPath to support encoding more than one denotator
 
-                        pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
-                    }
-            }
+                pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
+            }}
 
             KeyPathPattern::Arti(pat)
         }
