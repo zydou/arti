@@ -450,23 +450,29 @@ impl KeyDenotator for TimePeriod {
 define_derive_adhoc! {
     /// A helper for implementing [`KeySpecifier`]s.
     ///
-    /// Defines a struct that has some static components (`prefix`, `role`),
+    /// Applies to a struct that has some static components (`prefix`, `role`),
     /// and a number of variable components represented by its fields.
+    ///
+    /// Implements `KeySpecifier` and some helper methods.
+    ///
+    /// Each field is either a path field (which becomes a component in the `ArtiPath`),
+    /// or a denotator (which becomes *part* of the final component in the `ArtiPath`).
     ///
     /// The `prefix` is the first component of the [`ArtiPath`] of the [`KeySpecifier`].
     ///
     /// The `role` is the _prefix of the last component_ of the [`ArtiPath`] of the specifier.
     /// The `role` is followed by the denotators of the key.
     ///
-    /// The fields that contain the denotators of the key, if there are any,
+    /// The denotator fields, if there are any,
     /// should be anotated with `#[denotator]`.
     ///
     /// The declaration order of the fields is important.
     /// The inner components of the [`ArtiPath`] of the specifier are built
-    /// from the string representation of its non-denotator fields, taken in declaration order,
+    /// from the string representation of its path fields, taken in declaration order,
     /// followed by the encoding of its denotators, also taken in the order they were declared.
-    /// As such, all fields, **must** implement [`Display`](std::fmt::Display),
-    /// and all denotators **must** implement [`KeyDenotator`].
+    /// As such, all path fields, must implement [`Display`](std::fmt::Display),
+    /// and the `Display` impl must generate only valid components for an `ArtiPath`,
+    /// and all denotators must implement [`KeyDenotator`].
     /// The denotators are separated from the rest of the path, and from each other,
     /// by `+` characters.
     ///
