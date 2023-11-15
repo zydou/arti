@@ -1027,6 +1027,7 @@ impl<R: Runtime> TorClient<R> {
         prefs: &StreamPrefs,
     ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
+        let mut stream_parameters = prefs.stream_parameters();
 
         let (circ, addr, port) = match addr.into_stream_instructions(&self.addrcfg.get(), prefs)? {
             StreamInstructions::Exit {
@@ -1115,11 +1116,18 @@ impl<R: Runtime> TorClient<R> {
                         cause,
                         hsid: hsid.into(),
                     })?;
+                // On connections to onion services, we have to suppress
+                // everything except the port from the BEGIN message.  We also
+                // disable optimistic data.
+                stream_parameters
+                    .suppress_hostname()
+                    .suppress_begin_flags()
+                    .optimistic(false);
                 (circ, hostname, port)
             }
         };
 
-        let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
+        let stream_future = circ.begin_stream(&addr, port, Some(stream_parameters));
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
