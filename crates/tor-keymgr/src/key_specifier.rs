@@ -502,11 +502,6 @@ define_derive_adhoc! {
             }
         }
 
-        /// Return the role of this specifier.
-        $tvis fn role(&self) -> &'static str {
-            stringify!(${tmeta(role)})
-        }
-
         /// A helper for generating the prefix shared by all `ArtiPath`s
         /// of the keys associated with this specifier.
         ///
@@ -795,7 +790,6 @@ mod test {
             key_spec.arti_path().unwrap().as_str(),
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6"
         );
-        assert_eq!(key_spec.role(), "marzlevane");
 
         assert_eq!(
             key_spec.prefix(),
@@ -818,7 +812,6 @@ mod test {
             key_spec.arti_path().unwrap().as_str(),
             "encabulator/marzlevane"
         );
-        assert_eq!(key_spec.role(), "marzlevane");
 
         assert_eq!(
             TestSpecifier::arti_pattern(),
@@ -846,7 +839,6 @@ mod test {
             key_spec.arti_path().unwrap().as_str(),
             "encabulator/marzlevane+6"
         );
-        assert_eq!(key_spec.role(), "marzlevane");
 
         assert_eq!(
             TestSpecifier::arti_pattern(),
@@ -878,7 +870,6 @@ mod test {
             key_spec.arti_path().unwrap().as_str(),
             "encabulator/logarithmic/spurving/fan"
         );
-        assert_eq!(key_spec.role(), "fan");
 
         assert_eq!(
             TestSpecifier::arti_pattern(&"logarithmic".into(), &"prefabulating".into()),
