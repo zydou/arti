@@ -1302,6 +1302,7 @@ mod test {
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
+    use tor_cell::relaycell::extend::NtorV3Extension;
     use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -1702,7 +1703,8 @@ mod test {
             match handshake_type {
                 HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
                 HandshakeType::Ntor => circ.extend_ntor(&target, &params).await.unwrap(),
-                HandshakeType::NtorV3 => todo!(),
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, &params).await.unwrap(),
             };
             circ // gotta keep the circ alive, or the reactor would exit.
         };
@@ -1720,16 +1722,29 @@ mod test {
                 _ => panic!(),
             };
             let mut rng = testing_rng();
-            let (_, reply) = match handshake_type {
+            let reply = match handshake_type {
                 HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
-                HandshakeType::Ntor => NtorServer::server(
-                    &mut rng,
-                    &mut |_: &()| Some(()),
-                    &[example_ntor_key()],
-                    e2.handshake(),
-                )
-                .unwrap(),
-                HandshakeType::NtorV3 => todo!(),
+                HandshakeType::Ntor => {
+                    let (_keygen, reply) = NtorServer::server(
+                        &mut rng,
+                        &mut |_: &()| Some(()),
+                        &[example_ntor_key()],
+                        e2.handshake(),
+                    )
+                    .unwrap();
+                    reply
+                }
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => {
+                    let (_keygen, reply) = NtorV3Server::server(
+                        &mut rng,
+                        &mut |_: &[NtorV3Extension]| Some(vec![]),
+                        &[example_ntor_v3_key()],
+                        e2.handshake(),
+                    )
+                    .unwrap();
+                    reply
+                }
             };
 
             let extended2 = relaymsg::Extended2::new(reply).into();
@@ -1770,6 +1785,14 @@ mod test {
     fn test_extend_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             test_extend(&rt, HandshakeType::Ntor).await;
+        });
+    }
+
+    #[cfg(feature = "ntor_v3")]
+    #[test]
+    fn test_extend_ntor_v3() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_extend(&rt, HandshakeType::NtorV3).await;
         });
     }
 
