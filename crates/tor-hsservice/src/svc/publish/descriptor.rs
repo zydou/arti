@@ -24,8 +24,6 @@ use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, OnionServiceConfig,
 };
 
-// TODO HSS: Dummy types that should be implemented elsewhere.
-
 /// Build the descriptor.
 ///
 /// The `now` argument is used for computing the expiry of the `intro_{auth, enc}_key_cert`
