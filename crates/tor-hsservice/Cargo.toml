@@ -79,6 +79,7 @@ tor-proto = { version = "0.13.0", path = "../tor-proto", features = [
     "hs-service",
     "send-control-msg",
 ] }
+tor-protover = { version = "0.5.4", path = "../tor-protover" }
 tor-rtcompat = { version = "0.9.5", path = "../tor-rtcompat" }
 tor-units = { path = "../tor-units", version = "0.6.1" }
 tracing = "0.1.36"

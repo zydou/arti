@@ -692,7 +692,7 @@ impl<R: Runtime> Reactor<R> {
     ///
     /// Does not retry.  Does not time out except via `HsCircPool`.
     async fn establish_intro_once(&self) -> Result<IntroPtSession, IptError> {
-        let circuit = {
+        let (protovers, circuit) = {
             let netdir = wait_for_netdir(
                 self.netdir_provider.as_ref(),
                 tor_netdir::Timeliness::Timely,
@@ -703,12 +703,15 @@ impl<R: Runtime> Reactor<R> {
                 .ok_or(IptError::IntroPointNotListed)?;
 
             let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
-            self.pool
+            let protovers = circ_target.protovers().clone();
+            let circuit = self
+                .pool
                 .get_or_launch_specific(netdir.as_ref(), kind, circ_target)
                 .await
-                .map_err(IptError::BuildCircuit)?
+                .map_err(IptError::BuildCircuit)?;
             // note that netdir is dropped here, to avoid holding on to it any
             // longer than necessary.
+            (protovers, circuit)
         };
         let intro_pt_hop = circuit
             .last_hop_num()
@@ -718,7 +721,11 @@ impl<R: Runtime> Reactor<R> {
             let ipt_sid_id = (*self.k_sid).as_ref().public.into();
             let mut details = EstablishIntroDetails::new(ipt_sid_id);
             if let Some(dos_params) = &self.extensions.dos_params {
-                details.set_extension_dos(dos_params.clone());
+                // We only send the Dos extension when the relay is known to
+                // support HsIntro=5.
+                if protovers.supports_known_subver(tor_protover::ProtoKind::HSIntro, 5) {
+                    details.set_extension_dos(dos_params.clone());
+                }
             }
             let circuit_binding_key = circuit
                 .binding_key(intro_pt_hop)
