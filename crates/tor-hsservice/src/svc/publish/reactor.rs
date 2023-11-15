@@ -399,8 +399,8 @@ pub(crate) enum ReactorError {
     // making the inner type a KeyNotFoundError.
     //
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955706
-    #[error("A key we needed could not be found in the keystore: {0}")]
-    MissingKey(String),
+    #[error("Hidden service identity key not found: {0}")]
+    MissingHsIdKeypair(HsNickname),
 
     /// Unable to spawn task
     //
@@ -773,7 +773,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
-                    .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+                    .ok_or_else(|| ReactorError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(&self.imm.nickname, *period);
 
                 // TODO HSS: make this configurable
@@ -1421,7 +1421,7 @@ pub(super) fn read_blind_id_keypair(
     let svc_key_spec = HsIdKeypairSpecifier::new(nickname);
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+        .ok_or_else(|| ReactorError::MissingHsIdKeypair(nickname.clone()))?;
 
     let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname, period);
 

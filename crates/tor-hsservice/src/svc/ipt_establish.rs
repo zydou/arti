@@ -307,9 +307,10 @@ fn compute_subcredentials(
     keymgr: &Arc<KeyMgr>,
 ) -> Result<Vec<Subcredential>, FatalError> {
     let hsid_key_spec = HsIdPublicKeySpecifier::new(nickname);
+
     let hsid = keymgr
         .get::<HsIdKey>(&hsid_key_spec)?
-        .ok_or_else(|| FatalError::MissingKey(hsid_key_spec.role().to_string()))?;
+        .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
 
     let pattern = BlindIdKeypairSpecifier::arti_pattern(&nickname);
 
