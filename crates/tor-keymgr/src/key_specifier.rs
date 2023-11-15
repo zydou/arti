@@ -516,9 +516,9 @@ define_derive_adhoc! {
         /// This builds a pattern by joining the `prefix` of this specifier
         /// with the specified field values, its `role`, and a pattern
         /// that contains a wildcard (`*`) in place of each denotator.
-        $tvis fn arti_pattern( $(${when not(fmeta(denotator))} $fname: $ftype,) ) -> $crate::KeyPathPattern {
+        $tvis fn arti_pattern( $(${when not(fmeta(denotator))} $fname: &$ftype,) ) -> $crate::KeyPathPattern {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut pat = Self::arti_path_prefix( $(${when not(fmeta(denotator))} &$fname,) );
+            let mut pat = Self::arti_path_prefix( $(${when not(fmeta(denotator))} $fname,) );
 
             $(
                     ${when fmeta(denotator)}
@@ -878,7 +878,7 @@ mod test {
         assert_eq!(key_spec.role(), "fan");
 
         assert_eq!(
-            TestSpecifier::arti_pattern("logarithmic".into(), "prefabulating".into()),
+            TestSpecifier::arti_pattern(&"logarithmic".into(), &"prefabulating".into()),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
