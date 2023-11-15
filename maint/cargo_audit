@@ -15,9 +15,8 @@ set -euo pipefail
 IGNORE=(
     # This is a real but theoretical unaligned read.  It might happen only on
     # Windows and only with a custom global allocator, which we don't do in our
-    # arti binary.  The bad crate is depended on by env-logger and clap.
+    # arti binary.  The bad crate is depended on by env-logger.
     # This is being discussed by those crates' contributors here:
-    #     https://github.com/clap-rs/clap/pull/4249
     #     https://github.com/rust-cli/env_logger/pull/246
     --ignore RUSTSEC-2021-0145
     # This is an API vulnerability in ed25519-dalek v1.x.x, to the
