@@ -1379,7 +1379,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
     // built from the blinded id key
     fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
-        let ope_key = match self.read_blind_id_keypair(period)? {
+        let ope_key = match read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)? {
             Some(key) => {
                 let key: ed25519::ExpandedKeypair = key.into();
                 key.secret.to_bytes()
@@ -1405,6 +1405,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         Ok(AesOpeKey::from_secret(&ope_key))
     }
+}
+
 
     /// Try to read the blinded identity key for a given `TimePeriod`.
     ///
@@ -1412,24 +1414,21 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     // TODO HSS: we don't currently have support for "offline" mode so this can never return
     // `Ok(None)`.
-    fn read_blind_id_keypair(
-        &self,
+    pub(super) fn read_blind_id_keypair(
+        keymgr: &Arc<KeyMgr>,
+        nickname: &HsNickname,
         period: TimePeriod,
     ) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
-        let svc_key_spec = HsIdKeypairSpecifier::new(&self.imm.nickname);
-        let hsid_kp = self
-            .imm
-            .keymgr
+        let svc_key_spec = HsIdKeypairSpecifier::new(&nickname);
+        let hsid_kp = keymgr
             .get::<HsIdKeypair>(&svc_key_spec)?
             .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
 
-        let blind_id_key_spec = BlindIdKeypairSpecifier::new(&self.imm.nickname, period);
+        let blind_id_key_spec = BlindIdKeypairSpecifier::new(&nickname, period);
 
         // TODO: make the keystore selector configurable
         let keystore_selector = Default::default();
-        let blind_id_kp = self
-            .imm
-            .keymgr
+        let blind_id_kp = keymgr
             .get_or_generate_with_derived::<HsBlindIdKeypair>(
                 &blind_id_key_spec,
                 keystore_selector,
@@ -1444,7 +1443,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         Ok(Some(blind_id_kp))
     }
-}
 
 /// Whether the reactor should initiate an upload.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
