@@ -1407,42 +1407,40 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 }
 
+/// Try to read the blinded identity key for a given `TimePeriod`.
+///
+/// Returns `None` if the service is running in "offline" mode.
+///
+// TODO HSS: we don't currently have support for "offline" mode so this can never return
+// `Ok(None)`.
+pub(super) fn read_blind_id_keypair(
+    keymgr: &Arc<KeyMgr>,
+    nickname: &HsNickname,
+    period: TimePeriod,
+) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
+    let svc_key_spec = HsIdKeypairSpecifier::new(&nickname);
+    let hsid_kp = keymgr
+        .get::<HsIdKeypair>(&svc_key_spec)?
+        .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
 
-    /// Try to read the blinded identity key for a given `TimePeriod`.
-    ///
-    /// Returns `None` if the service is running in "offline" mode.
-    ///
-    // TODO HSS: we don't currently have support for "offline" mode so this can never return
-    // `Ok(None)`.
-    pub(super) fn read_blind_id_keypair(
-        keymgr: &Arc<KeyMgr>,
-        nickname: &HsNickname,
-        period: TimePeriod,
-    ) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
-        let svc_key_spec = HsIdKeypairSpecifier::new(&nickname);
-        let hsid_kp = keymgr
-            .get::<HsIdKeypair>(&svc_key_spec)?
-            .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+    let blind_id_key_spec = BlindIdKeypairSpecifier::new(&nickname, period);
 
-        let blind_id_key_spec = BlindIdKeypairSpecifier::new(&nickname, period);
+    // TODO: make the keystore selector configurable
+    let keystore_selector = Default::default();
+    let blind_id_kp = keymgr.get_or_generate_with_derived::<HsBlindIdKeypair>(
+        &blind_id_key_spec,
+        keystore_selector,
+        || {
+            let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
+                .compute_blinded_key(period)
+                .map_err(|_| internal!("failed to compute blinded key"))?;
 
-        // TODO: make the keystore selector configurable
-        let keystore_selector = Default::default();
-        let blind_id_kp = keymgr
-            .get_or_generate_with_derived::<HsBlindIdKeypair>(
-                &blind_id_key_spec,
-                keystore_selector,
-                || {
-                    let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
-                        .compute_blinded_key(period)
-                        .map_err(|_| internal!("failed to compute blinded key"))?;
+            Ok(hs_blind_id_kp)
+        },
+    )?;
 
-                    Ok(hs_blind_id_kp)
-                },
-            )?;
-
-        Ok(Some(blind_id_kp))
-    }
+    Ok(Some(blind_id_kp))
+}
 
 /// Whether the reactor should initiate an upload.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
