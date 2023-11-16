@@ -42,10 +42,7 @@ impl LogState {
     }
     /// Discard all success and failure information in this LogState.
     pub fn reset(&mut self) {
-        self.n_fail = 0;
-        self.n_ok = 0;
-        self.error_message = None;
-        self.error = None;
+        *self = Self::new(std::mem::take(&mut self.activity));
     }
     /// Record a single failure in this LogState.
     ///
