@@ -153,7 +153,8 @@ impl OnionServiceReverseProxy {
     fn choose_action(&self, stream_request: &IncomingStreamRequest) -> ProxyAction {
         let port: u16 = match stream_request {
             IncomingStreamRequest::Begin(begin) => {
-                // TODO HSS: Should we look at the address and flags at all?
+                // The C tor implementation deliberately ignores the address and
+                // flags on the BEGIN message, so we do too.
                 begin.port()
             }
             other => {
@@ -198,8 +199,8 @@ async fn run_action<R: Runtime>(
             }
         },
         ProxyAction::RejectStream => {
-            // TODO HSS: Does this match the behavior from C tor?
-            let end = relaymsg::End::new_misc();
+            // C tor sends DONE in this case, so we do too.
+            let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE);
 
             request
                 .reject(end)
@@ -268,7 +269,7 @@ where
             // TODO HSS: We should log more, since this is likely a missing
             // local service.
             // TODO HSS: (This is a major usability problem!)
-            let end = relaymsg::End::new_misc();
+            let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE);
             if let Err(e_rejecting) = request.reject(end).await {
                 debug_report!(
                     e_rejecting,
