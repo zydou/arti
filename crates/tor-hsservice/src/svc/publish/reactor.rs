@@ -1353,6 +1353,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &self,
         period: TimePeriod,
     ) -> Result<RevisionCounter, ReactorError> {
+        // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
+        // to each time we generate a new descriptor), for performance reasons.
         let ope_key = self.create_ope_key(period)?;
         let now = self.imm.runtime.wallclock();
         let offset = period.offset_within_period(now).ok_or_else(|| {
