@@ -1009,14 +1009,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 return Ok(());
             }
 
-            // We're about to generate a new version of the descriptor: increment the revision
-            // counter.
-            //
-            // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
-            // revision counter a timestamp encrypted using an OPE cipher
-            let revision_counter = period_ctx.inc_revision_counter();
-
             let time_period = period_ctx.period;
+            // We're about to generate a new version of the descriptor: generate a new revision
+            // counter.
+            let revision_counter = self.generate_revision_counter(time_period)?;
+
             // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
             // here. See the TODO HSS about note_publication_attempt() below.
             let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
