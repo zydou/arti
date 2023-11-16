@@ -14,17 +14,23 @@ use tor_error::ErrorReport;
 pub(crate) mod rt {
     use futures::{future::BoxFuture, task::Spawn};
     use once_cell::sync::OnceCell;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     /// A dyn-safe view of the parts of an async runtime that we need for rate-limiting.
     pub trait RuntimeSupport: Spawn + 'static + Sync + Send {
         /// Return a future that will yield () after `duration` has passed.
         fn sleep(&self, duration: Duration) -> BoxFuture<'_, ()>;
+
+        /// Return the current time as an Instant.
+        fn now(&self) -> Instant;
     }
 
     impl<R: tor_rtcompat::Runtime> RuntimeSupport for R {
         fn sleep(&self, duration: Duration) -> BoxFuture<'_, ()> {
-            Box::pin(self.sleep(duration))
+            Box::pin(tor_rtcompat::SleepProvider::sleep(self, duration))
+        }
+        fn now(&self) -> Instant {
+            tor_rtcompat::SleepProvider::now(self)
         }
     }
 
@@ -149,7 +155,7 @@ async fn run<T>(rt_support: &dyn rt::RuntimeSupport, ratelim: Arc<RateLim<T>>)
 where
     T: Loggable,
 {
-    let mut dormant_for_interval = None;
+    let mut dormant_since = None;
     for duration in timeout_sequence() {
         rt_support.sleep(duration).await;
         {
@@ -162,14 +168,21 @@ where
                 // no longer tracking it.  Or perhaps we should lower the
                 // responsibility for deciding when to log and when to uninstall
                 // to the Loggable?
-                let d_for = dormant_for_interval.get_or_insert_with(Duration::default);
-                *d_for += duration;
-                if *d_for >= RESET_AFTER_DORMANT_FOR {
-                    inner.task_running = false;
-                    return;
+                match dormant_since {
+                    Some(when) => {
+                        if let Some(dormant_for) = rt_support.now().checked_duration_since(when) {
+                            if dormant_for >= RESET_AFTER_DORMANT_FOR {
+                                inner.task_running = false;
+                                return;
+                            }
+                        }
+                    }
+                    None => {
+                        dormant_since = Some(rt_support.now());
+                    }
                 }
             } else {
-                dormant_for_interval = None;
+                dormant_since = None;
             }
         }
     }
