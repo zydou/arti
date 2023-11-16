@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::iter;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use async_trait::async_trait;
 use derive_more::{From, Into};
@@ -991,7 +991,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let time_period = period_ctx.period;
             // We're about to generate a new version of the descriptor: generate a new revision
             // counter.
-            let revision_counter = self.generate_revision_counter(time_period)?;
+            let now = self.imm.runtime.wallclock();
+            let revision_counter = self.generate_revision_counter(time_period, now)?;
 
             // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
             // here. See the TODO HSS about note_publication_attempt() below.
@@ -1352,11 +1353,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     fn generate_revision_counter(
         &self,
         period: TimePeriod,
+        now: SystemTime,
     ) -> Result<RevisionCounter, ReactorError> {
         // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
         // to each time we generate a new descriptor), for performance reasons.
         let ope_key = self.create_ope_key(period)?;
-        let now = self.imm.runtime.wallclock();
         let offset = period.offset_within_period(now).ok_or_else(|| {
             internal!("current wallclock time not within specified time period?!")
         })?;
