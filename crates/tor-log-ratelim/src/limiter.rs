@@ -34,12 +34,23 @@ pub(crate) mod rt {
 
     /// Try to install `runtime` as a global runtime to be used for rate-limited logging.
     ///
-    /// Return an error if there there was already a runtime installed.
-    pub fn install_runtime<R: tor_rtcompat::Runtime>(runtime: R) -> Result<(), tor_error::Bug> {
+    /// Return an error (and make no changes) if there there was already a runtime installed.
+    pub fn install_runtime<R: tor_rtcompat::Runtime>(
+        runtime: R,
+    ) -> Result<(), InstallRuntimeError> {
         let rt = Box::new(runtime);
         RUNTIME_SUPPORT
             .set(rt)
-            .map_err(|_| tor_error::bad_api_usage!("Called install_runtime more than once."))
+            .map_err(|_| InstallRuntimeError::DuplicateCall)
+    }
+
+    /// An error that occurs while installing a runtime.
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[non_exhaustive]
+    pub enum InstallRuntimeError {
+        /// Tried to install a runtime when there was already one installed.
+        #[error("Called tor_log_ratelim::install_runtime() more than once")]
+        DuplicateCall,
     }
 
     /// Return the installed runtime, if there is one.

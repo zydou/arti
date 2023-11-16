@@ -73,7 +73,7 @@ mod macros;
 
 use std::time::Duration;
 
-pub use limiter::rt::install_runtime;
+pub use limiter::rt::{install_runtime, InstallRuntimeError};
 
 /// Re-exports for macros.
 #[doc(hidden)]
