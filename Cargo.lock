@@ -5110,6 +5110,7 @@ dependencies = [
 name = "tor-hscrypto"
 version = "0.3.4"
 dependencies = [
+ "cipher",
  "data-encoding",
  "derive_more",
  "digest 0.10.7",
@@ -5130,6 +5131,7 @@ dependencies = [
  "tor-error",
  "tor-llcrypto",
  "tor-units",
+ "zeroize",
 ]
 
 [[package]]
