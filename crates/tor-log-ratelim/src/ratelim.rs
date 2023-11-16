@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tor_error::{internal, ErrorReport};
+use tor_error::ErrorReport;
 
 /// Declare a dyn-safe trait for the parts of an asynchronous runtime so that we
 /// can install it globally.
@@ -17,7 +17,7 @@ pub(crate) mod rt {
     use std::time::Duration;
 
     /// A dyn-safe view of the parts of an async runtime that we need for rate-limiting.
-    pub(super) trait RuntimeSupport: Spawn + 'static + Sync + Send {
+    pub trait RuntimeSupport: Spawn + 'static + Sync + Send {
         /// Return a future that will yield () after `duration` has passed.
         fn sleep(&self, duration: Duration) -> BoxFuture<'_, ()>;
     }
@@ -54,7 +54,7 @@ pub(crate) mod rt {
     }
 
     /// Return the installed runtime, if there is one.
-    pub(super) fn rt_support() -> Option<&'static dyn RuntimeSupport> {
+    pub fn rt_support() -> Option<&'static dyn RuntimeSupport> {
         RUNTIME_SUPPORT.get().map(Box::as_ref)
     }
 
@@ -107,49 +107,25 @@ impl<T: Loggable> RateLim<T> {
 
     /// Add an event to this rate-limited reporter by calling `f` on it, and
     /// schedule it to be reported after an appropriate time.
-    pub fn event<F>(self: &Arc<Self>, f: F)
+    ///
+    /// NOTE: This API is a big ugly. If we ever decide to make it non-hidden,
+    /// we may want to make it call rt_support() directly again, as it did in
+    /// earlier visions.
+    pub fn event<F>(self: &Arc<Self>, rt: &'static dyn rt::RuntimeSupport, f: F)
     where
         F: FnOnce(&mut T),
-    {
-        self.event_impl(f, rt::rt_support);
-    }
-
-    /// Helper for testing: as event_impl, but use get_rt_support_fn instead of
-    /// the global [`rt::rt_support()`]
-    fn event_impl<F, RF>(self: &Arc<Self>, f: F, get_rt_support_fn: RF)
-    where
-        F: FnOnce(&mut T),
-        RF: FnOnce() -> Option<&'static dyn rt::RuntimeSupport>,
     {
         let mut inner = self.inner.lock().expect("poisoned lock");
         f(&mut inner.loggable);
 
-        if inner.task_running {
-            return;
-        }
-        match get_rt_support_fn() {
-            Some(rt) => {
-                // We have a runtime, so we can launch a task to make
-                // periodic reports on the state of our Loggable.
-                inner.task_running = true;
-                if let Err(e) = rt.spawn(Box::pin(run(rt, Arc::clone(self)))) {
-                    // We couldn't spawn a task; we have to flush the state
-                    // immediately.
-                    inner.loggable.flush(Duration::default());
-                    tracing::warn!("Also, unable to spawn a logging task: {}", e.report());
-                }
-            }
-            None => {
-                // We don't have a runtime; we have to flush the state immediately.
-                //
-                // (We should not have reached this point; the macro should
-                // have logged the message directly instead.)
-
+        if !inner.task_running {
+            // Launch a task to make periodic reports on the state of our Loggable.
+            inner.task_running = true;
+            if let Err(e) = rt.spawn(Box::pin(run(rt, Arc::clone(self)))) {
+                // We couldn't spawn a task; we have to flush the state
+                // immediately.
                 inner.loggable.flush(Duration::default());
-                tracing::warn!(
-                    "Also, tried to spawn a logging task without a runtime: {}",
-                    internal!("No runtime support intstalled").report()
-                );
+                tracing::warn!("Also, unable to spawn a logging task: {}", e.report());
             }
         }
     }

@@ -155,7 +155,7 @@ macro_rules! log_ratelim {
     #[allow(clippy::redundant_closure_call)]
     (||{
     use $crate::macro_prelude::*;
-    if ! runtime_installed() {
+    let Some(runtime) = rt_support() else {
       // Nobody has called `install_runtime()`: we should just log whatever
       // happened and not worry about the rate-limiting.
       match &$result {
@@ -180,7 +180,7 @@ macro_rules! log_ratelim {
         Ok(_) => {}
       }
       return;
-    }
+    };
 
     /// An implementation of Loggable for this log message.
     //
@@ -250,7 +250,7 @@ macro_rules! log_ratelim {
           .entry(key)
           .or_insert_with(|| RateLim::new(Lg(LogState::new(activity))));
         // 2) Note failure in the activity with note_fail().
-        logger.event(|lg| lg.0.note_fail(||
+        logger.event(runtime, |lg| lg.0.note_fail(||
           // 2b) If this is the first time that this activity failed since the
           //     last flush, record the formatted err_msg, and a Clone of the error.
           (
