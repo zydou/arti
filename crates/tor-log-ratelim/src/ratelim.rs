@@ -124,6 +124,11 @@ impl<T: Loggable> RateLim<T> {
             if let Err(e) = rt.spawn(Box::pin(run(rt, Arc::clone(self)))) {
                 // We couldn't spawn a task; we have to flush the state
                 // immediately.
+                //
+                // TODO: This behavior is undesirable if it causes us to spam
+                // the log while we are shutting down.  On the other hand, it's
+                // also undesirable if we suppress our logs while we're
+                // shutting down.
                 inner.loggable.flush(Duration::default());
                 tracing::warn!("Also, unable to spawn a logging task: {}", e.report());
             }
