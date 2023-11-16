@@ -981,12 +981,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
-        for period in inner.time_periods.iter_mut() {
+        for period_ctx in inner.time_periods.iter_mut() {
             let upload_task_complete_tx = self.upload_task_complete_tx.clone();
 
             // Figure out which HsDirs we need to upload the descriptor to (some of them might already
             // have our latest descriptor, so we filter them out).
-            let hs_dirs = period
+            let hs_dirs = period_ctx
                 .hs_dirs
                 .iter()
                 .filter_map(|(relay_id, status)| {
@@ -1008,10 +1008,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             //
             // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
             // revision counter a timestamp encrypted using an OPE cipher
-            let revision_counter = period.inc_revision_counter();
+            let revision_counter = period_ctx.inc_revision_counter();
 
-            let time_period = period.period;
-
+            let time_period = period_ctx.period;
             // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
             // here. See the TODO HSS about note_publication_attempt() below.
             let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
