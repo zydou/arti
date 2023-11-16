@@ -435,7 +435,7 @@ where
     fn begin(
         cx: &mut Context<'_>,
         peer_id: OwnedChanTarget,
-        handshake_id: u16,
+        handshake_id: HandshakeType,
         key: &H::KeyType,
         linkspecs: Vec<EncodedLinkSpec>,
         params: CircParameters,
@@ -1426,7 +1426,7 @@ impl Reactor {
                 let extender = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
                     cx,
                     peer_id,
-                    0x02,
+                    HandshakeType::NTOR,
                     &public_key,
                     linkspecs,
                     params,

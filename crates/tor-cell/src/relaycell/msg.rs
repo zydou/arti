@@ -4,7 +4,9 @@
 //! cells.
 
 use super::RelayCmd;
-use crate::chancell::msg::{DestroyReason, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_LEN};
+use crate::chancell::msg::{
+    DestroyReason, HandshakeType, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_LEN,
+};
 use crate::chancell::CELL_DATA_LEN;
 use caret::caret_int;
 use educe::Educe;
@@ -746,13 +748,17 @@ pub struct Extend2 {
     /// IP addresses and identity keys.
     linkspec: Vec<EncodedLinkSpec>,
     /// Type of handshake to be sent in a CREATE2 cell
-    handshake_type: u16,
+    handshake_type: HandshakeType,
     /// Body of the handshake to be sent in a CREATE2 cell
     handshake: Vec<u8>,
 }
 impl Extend2 {
     /// Create a new Extend2 cell.
-    pub fn new(linkspec: Vec<EncodedLinkSpec>, handshake_type: u16, handshake: Vec<u8>) -> Self {
+    pub fn new(
+        linkspec: Vec<EncodedLinkSpec>,
+        handshake_type: HandshakeType,
+        handshake: Vec<u8>,
+    ) -> Self {
         Extend2 {
             linkspec,
             handshake_type,
@@ -761,7 +767,7 @@ impl Extend2 {
     }
 
     /// Return the type of this handshake.
-    pub fn handshake_type(&self) -> u16 {
+    pub fn handshake_type(&self) -> HandshakeType {
         self.handshake_type
     }
 
@@ -775,7 +781,7 @@ impl Body for Extend2 {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let n = r.take_u8()?;
         let linkspec = r.extract_n(n as usize)?;
-        let handshake_type = r.take_u16()?;
+        let handshake_type = r.take_u16()?.into();
         let hlen = r.take_u16()?;
         let handshake = r.take(hlen as usize)?.into();
         Ok(Extend2 {
@@ -794,7 +800,7 @@ impl Body for Extend2 {
         for ls in &self.linkspec {
             w.write(ls)?;
         }
-        w.write_u16(self.handshake_type);
+        w.write_u16(self.handshake_type.into());
         let handshake_len: u16 = self
             .handshake
             .len()
