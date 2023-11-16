@@ -145,10 +145,26 @@ const RESET_AFTER_DORMANT_FOR: Duration = Duration::new(4 * 60 * 60, 0);
 /// We summarize short intervals at first, and back off as the event keeps
 /// happening.
 fn timeout_sequence() -> impl Iterator<Item = Duration> {
-    [5, 30, 30, 60, 60, 4 * 60, 4 * 60] // in minutes
-        .into_iter()
-        .chain(std::iter::repeat(24 * 60))
-        .map(|n| Duration::new(n * 60, 0))
+    /// seconds per second.
+    const SEC: u64 = 1;
+    /// seconds per minute.
+    const MIN: u64 = 60;
+    /// seconds per hour
+    const HOUR: u64 = 3600;
+    [
+        5 * SEC,
+        MIN,
+        5 * MIN,
+        30 * MIN,
+        30 * MIN,
+        HOUR,
+        HOUR,
+        4 * HOUR,
+        4 * HOUR,
+    ]
+    .into_iter()
+    .chain(std::iter::repeat(24 * HOUR))
+    .map(|secs| Duration::new(secs, 0))
 }
 
 /// Helper: runs in a background task, and periodically flushes the `Loggable`
