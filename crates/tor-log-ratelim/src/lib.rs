@@ -80,10 +80,7 @@ pub use ratelim::rt::{install_runtime, InstallRuntimeError};
 pub mod macro_prelude {
     pub use crate::{
         logstate::LogState,
-        ratelim::{
-            rt::{rt_support, runtime_installed},
-            RateLim,
-        },
+        ratelim::{rt::rt_support, RateLim},
         Activity, Loggable,
     };
     pub use once_cell::sync::Lazy;

@@ -57,12 +57,6 @@ pub(crate) mod rt {
     pub fn rt_support() -> Option<&'static dyn RuntimeSupport> {
         RUNTIME_SUPPORT.get().map(Box::as_ref)
     }
-
-    /// Return true if we have installed a runtime.
-    #[doc(hidden)]
-    pub fn runtime_installed() -> bool {
-        RUNTIME_SUPPORT.get().is_some()
-    }
 }
 
 /// A rate-limited wrapper around a [`Loggable`]` that ensures its events are
@@ -140,7 +134,7 @@ const RESET_AFTER_DORMANT_FOR: Duration = Duration::new(4 * 60 * 60, 0);
 /// We summarize short intervals at first, and back off as the event keeps
 /// happening.
 fn timeout_sequence() -> impl Iterator<Item = Duration> {
-    [5, 30, 30, 60, 60, 4 * 60, 4 * 60]
+    [5, 30, 30, 60, 60, 4 * 60, 4 * 60] // in minutes
         .into_iter()
         .chain(std::iter::repeat(24 * 60))
         .map(|n| Duration::new(n * 60, 0))
