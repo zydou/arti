@@ -46,7 +46,7 @@
 ///
 /// At the lowest level, there is a [`Loggable`] trait, for events which can
 /// accumulate and eventually be flushed; this combines with the
-/// [`RateLim`](limiter::RateLim) structure, which is responsible for managing
+/// [`RateLim`](ratelim::RateLim) structure, which is responsible for managing
 /// the decision of when to flush these [`Loggable`]s.
 ///
 /// The role of RateLim is to decide
@@ -63,24 +63,24 @@
 /// successes and failures, and remember an error and associated message.
 ///
 /// The highest layer is the [`log_ratelim!`] macro, which uses
-/// [`RateLim`](limiter::RateLim) and [`LogState`](logstate::LogState) to record
+/// [`RateLim`](ratelim::RateLim) and [`LogState`](logstate::LogState) to record
 /// successes and failures, and launch background tasks as needed.
 mod implementation_notes {}
 
-mod limiter;
 mod logstate;
 mod macros;
+mod ratelim;
 
 use std::time::Duration;
 
-pub use limiter::rt::{install_runtime, InstallRuntimeError};
+pub use ratelim::rt::{install_runtime, InstallRuntimeError};
 
 /// Re-exports for macros.
 #[doc(hidden)]
 pub mod macro_prelude {
     pub use crate::{
-        limiter::{rt::runtime_installed, RateLim},
         logstate::LogState,
+        ratelim::{rt::runtime_installed, RateLim},
         Activity, Loggable,
     };
     pub use once_cell::sync::Lazy;
