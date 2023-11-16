@@ -520,6 +520,9 @@ define_derive_adhoc! {
         /// This builds a pattern by joining the `prefix` of this specifier
         /// with the specified field values, its `role`, and a pattern
         /// that contains a wildcard (`*`) in place of each denotator.
+        //
+        // TODO HSS consider abolishing or modifying this depending on call site experiences
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
         $tvis fn arti_pattern( $(${when F_IS_PATH} $fname: &$ftype,) ) -> $crate::KeyPathPattern {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
             let mut pat = Self::arti_path_prefix( $(${when F_IS_PATH} $fname,) );
