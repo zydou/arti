@@ -427,7 +427,7 @@ where
 }
 impl<H, L, FWD, REV> CircuitExtender<H, L, FWD, REV>
 where
-    H: ClientHandshake,
+    H: ClientHandshake + HandshakeAuxDataHandler,
     H::KeyGen: KeyGenerator,
     L: CryptInit + ClientLayer<FWD, REV>,
     FWD: OutboundClientLayer + 'static + Send,
@@ -449,7 +449,7 @@ where
         key: &H::KeyType,
         linkspecs: Vec<EncodedLinkSpec>,
         params: CircParameters,
-        client_msg: &impl Borrow<H::ClientAuxData>,
+        client_aux_data: &impl Borrow<H::ClientAuxData>,
         reactor: &mut Reactor,
         done: ReactorResultChannel<()>,
     ) -> Result<Self> {
@@ -458,7 +458,7 @@ where
             let unique_id = reactor.unique_id;
 
             use tor_cell::relaycell::msg::Extend2;
-            let (state, msg) = H::client1(&mut rng, key, client_msg)?;
+            let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
 
             let n_hops = reactor.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
@@ -524,13 +524,17 @@ where
         );
         // Now perform the second part of the handshake, and see if it
         // succeeded.
-        // TODO: Process `_server_msg`
-        let (_server_msg, keygen) = H::client2(
+        let (server_aux_data, keygen) = H::client2(
             self.state
                 .take()
                 .expect("CircuitExtender::finish() called twice"),
             relay_handshake,
         )?;
+
+        // Handle auxiliary data returned from the server, e.g. validating that
+        // requested extensions have been acknowledged.
+        H::handle_server_aux_data(reactor, &self.params, &server_aux_data)?;
+
         let layer = L::construct(keygen)?;
 
         debug!("{}: Handshake complete; circuit extended.", self.unique_id);
@@ -550,7 +554,7 @@ where
 
 impl<H, L, FWD, REV> MetaCellHandler for CircuitExtender<H, L, FWD, REV>
 where
-    H: ClientHandshake,
+    H: ClientHandshake + HandshakeAuxDataHandler,
     H::StateType: Send,
     H::KeyGen: KeyGenerator,
     L: CryptInit + ClientLayer<FWD, REV> + Send,
@@ -577,6 +581,72 @@ where
                 "Passed two messages to an CircuitExtender!"
             )))
         }
+    }
+}
+
+/// Specifies handling of auxiliary handshake data for a given `ClientHandshake`.
+//
+// For simplicity we implement this as a trait of the handshake object itself.
+// This is currently sufficient because
+//
+// 1. We only need or want one handler implementation for a given handshake type.
+// 2. We currently don't need to keep extra state; i.e. its method doesn't take
+//    &self.
+//
+// If we end up wanting to instantiate objects for one or both of the
+// `ClientHandshake` object or the `HandshakeAuxDataHandler` object, we could
+// decouple them by making this something like:
+//
+// ```
+// trait HandshakeAuxDataHandler<H> where H: ClientHandshake
+// ```
+trait HandshakeAuxDataHandler: ClientHandshake {
+    /// Handle auxiliary handshake data returned when creating or extending a
+    /// circuit.
+    fn handle_server_aux_data(
+        reactor: &mut Reactor,
+        params: &CircParameters,
+        data: &<Self as ClientHandshake>::ServerAuxData,
+    ) -> Result<()>;
+}
+
+#[cfg(feature = "ntor_v3")]
+impl HandshakeAuxDataHandler for NtorV3Client {
+    fn handle_server_aux_data(
+        _reactor: &mut Reactor,
+        _params: &CircParameters,
+        data: &Vec<NtorV3Extension>,
+    ) -> Result<()> {
+        // There are currently no accepted server extensions,
+        // particularly since we don't request any extensions yet.
+        if !data.is_empty() {
+            return Err(Error::HandshakeProto(
+                "Received unexpected ntorv3 extension".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl HandshakeAuxDataHandler for NtorClient {
+    fn handle_server_aux_data(
+        _reactor: &mut Reactor,
+        _params: &CircParameters,
+        _data: &(),
+    ) -> Result<()> {
+        // This handshake doesn't have any auxiliary data; nothing to do.
+        Ok(())
+    }
+}
+
+impl HandshakeAuxDataHandler for CreateFastClient {
+    fn handle_server_aux_data(
+        _reactor: &mut Reactor,
+        _params: &CircParameters,
+        _data: &(),
+    ) -> Result<()> {
+        // This handshake doesn't have any auxiliary data; nothing to do.
+        Ok(())
     }
 }
 
@@ -1022,12 +1092,12 @@ impl Reactor {
         key: &H::KeyType,
         params: &CircParameters,
         msg: &M,
-    ) -> Result<H::ServerAuxData>
+    ) -> Result<()>
     where
         L: CryptInit + ClientLayer<FWD, REV> + 'static + Send,
         FWD: OutboundClientLayer + 'static + Send,
         REV: InboundClientLayer + 'static + Send,
-        H: ClientHandshake,
+        H: ClientHandshake + HandshakeAuxDataHandler,
         W: CreateHandshakeWrap,
         H::KeyGen: KeyGenerator,
         M: Borrow<H::ClientAuxData>,
@@ -1057,6 +1127,8 @@ impl Reactor {
         let relay_handshake = wrap.decode_chanmsg(reply)?;
         let (server_msg, keygen) = H::client2(state, relay_handshake)?;
 
+        H::handle_server_aux_data(self, params, &server_msg)?;
+
         let layer = L::construct(keygen)?;
 
         debug!("{}: Handshake complete; circuit created.", self.unique_id);
@@ -1071,7 +1143,7 @@ impl Reactor {
             Some(binding),
             params,
         );
-        Ok(server_msg)
+        Ok(())
     }
 
     /// Use the (questionable!) CREATE_FAST handshake to connect to the
@@ -1085,7 +1157,6 @@ impl Reactor {
         recvcreated: oneshot::Receiver<CreateResponse>,
         params: &CircParameters,
     ) -> Result<()> {
-        use crate::crypto::handshake::fast::CreateFastClient;
         let wrap = CreateFastWrap;
         self.create_impl::<Tor1RelayCrypto, _, _, CreateFastClient, _, _>(
             recvcreated,
