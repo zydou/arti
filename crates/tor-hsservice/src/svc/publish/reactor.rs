@@ -1346,8 +1346,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Generate a revision counter for a descriptor associated with the specified
     /// [`TimePeriod`].
     ///
-    /// Returns a revision counter generated according to the "encrypted time in period" scheme
-    /// described in appendix F.2 rend-spec-v3.
+    /// Returns a revision counter generated according to the [encrypted time in period] scheme.
+    ///
+    /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
     fn generate_revision_counter(
         &self,
         period: TimePeriod,
