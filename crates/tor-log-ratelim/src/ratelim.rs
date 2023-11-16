@@ -166,6 +166,12 @@ where
         {
             let mut inner = ratelim.inner.lock().expect("Lock poisoned");
             debug_assert!(inner.task_running);
+            // NOTE: We say that we are summarizing "duration" on the theory
+            // that we actually slept for "duration".  But maybe `sleep` slept
+            // for a little more or less?  Nonetheless, we report this as if we
+            // had slept for the exact amount, since the alternative appears to
+            // be saying stuff like "this problem occurred 8/12 times in the
+            // last 10min 0.0014ssec" instead of "10m".
             if inner.loggable.flush(duration) == Activity::Dormant {
                 // TODO: This can tell the user several times that the problem
                 // did not occur! Perhaps we only want to flush once on dormant,
