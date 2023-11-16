@@ -849,6 +849,7 @@ mod test {
 
         // This tests impl DangerouslyIntoTorAddr for &T
         #[allow(clippy::needless_borrow)]
+        #[allow(clippy::needless_borrows_for_generic_args)]
         check(&(ip, 443), "203.0.133.6:443");
         check((ip, 443), "203.0.133.6:443");
         check((ip4, 444), "203.0.133.7:444");
