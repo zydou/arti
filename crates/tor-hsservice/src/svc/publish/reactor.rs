@@ -17,8 +17,10 @@ use postage::sink::SendError;
 use postage::watch;
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
+use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeystoreError};
+use tor_llcrypto::pk::ed25519;
 use tracing::{debug, error, trace, warn};
 
 use tor_bytes::EncodeError;
@@ -27,7 +29,9 @@ use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, into_internal, warn_report};
-use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsIdKeypair};
+use tor_hscrypto::pk::{
+    HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKeypair,
+};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
@@ -39,7 +43,9 @@ use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::{BlindIdKeypairSpecifier, HsIdKeypairSpecifier, HsNickname};
+use crate::{
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname,
+};
 
 /// The upload rate-limiting threshold.
 ///
@@ -1359,6 +1365,104 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             )(err)
             .into()),
         }
+    }
+
+    /// Generate a revision counter for a descriptor associated with the specified
+    /// [`TimePeriod`].
+    ///
+    /// Returns a revision counter generated according to the "encrypted time in period" scheme
+    /// described in appendix F.2 rend-spec-v3.
+    fn generate_revision_counter(
+        &self,
+        period: TimePeriod,
+    ) -> Result<RevisionCounter, ReactorError> {
+        let ope_key = self.create_ope_key(period)?;
+        let now = self.imm.runtime.wallclock();
+        let offset = period.offset_within_period(now).ok_or_else(|| {
+            internal!("current wallclock time not within specified time period?!")
+        })?;
+        let rev = ope_key.encrypt(offset);
+
+        Ok(RevisionCounter::from(rev))
+    }
+
+    /// Create an [`AesOpeKey`] for generating revision counters for the descriptors associated
+    /// with the specified [`TimePeriod`].
+    ///
+    /// If the onion service is not running in offline mode, the key of the returned `AesOpeKey` is
+    /// the private part of the blinded identity key. Otherwise, the key is the private part of the
+    /// descriptor signing key.
+    ///
+    /// Returns an error if the service is running in offline mode and the descriptor signing
+    /// keypair of the specified `period` is not available.
+    //
+    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
+    // built from the blinded id key
+    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
+        let ope_key = match self.read_blind_id_keypair(period)? {
+            Some(key) => {
+                let key: ed25519::ExpandedKeypair = key.into();
+                key.secret.to_bytes()
+            }
+            None => {
+                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
+                // is unreachable (for now).
+                let desc_sign_key_spec =
+                    DescSigningKeypairSpecifier::new(&self.imm.nickname, period);
+                let key: ed25519::Keypair = self
+                    .imm
+                    .keymgr
+                    .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
+                    // TODO HSS(#1129): internal! is not the right type for this error (we need an
+                    // error type for the case where a hidden service running in offline mode has
+                    // run out of its pre-previsioned keys). This is somewhat related to #1083
+                    // This will be addressed as part of #1129
+                    .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
+                    .into();
+                key.to_bytes()
+            }
+        };
+
+        Ok(AesOpeKey::from_secret(&ope_key))
+    }
+
+    /// Try to read the blinded identity key for a given `TimePeriod`.
+    ///
+    /// Returns `None` if the service is running in "offline" mode.
+    ///
+    // TODO HSS: we don't currently have support for "offline" mode so this can never return
+    // `Ok(None)`.
+    fn read_blind_id_keypair(
+        &self,
+        period: TimePeriod,
+    ) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
+        let svc_key_spec = HsIdKeypairSpecifier::new(&self.imm.nickname);
+        let hsid_kp = self
+            .imm
+            .keymgr
+            .get::<HsIdKeypair>(&svc_key_spec)?
+            .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+
+        let blind_id_key_spec = BlindIdKeypairSpecifier::new(&self.imm.nickname, period);
+
+        // TODO: make the keystore selector configurable
+        let keystore_selector = Default::default();
+        let blind_id_kp = self
+            .imm
+            .keymgr
+            .get_or_generate_with_derived::<HsBlindIdKeypair>(
+                &blind_id_key_spec,
+                keystore_selector,
+                || {
+                    let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
+                        .compute_blinded_key(period)
+                        .map_err(|_| internal!("failed to compute blinded key"))?;
+
+                    Ok(hs_blind_id_kp)
+                },
+            )?;
+
+        Ok(Some(blind_id_kp))
     }
 }
 
