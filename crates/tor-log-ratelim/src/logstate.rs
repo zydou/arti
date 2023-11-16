@@ -12,7 +12,7 @@ type DynError = Box<dyn StdError + Send + 'static>;
 ///
 /// Its role is to track successes and failures,
 /// to remember some error information,
-/// and produce Display-able messages when a [RateLim](crate::limiter::RateLim)
+/// and produce Display-able messages when a [RateLim](crate::ratelim::RateLim)
 /// decides that it is time to log.
 ///
 /// This type has to be `pub`, but it is hidden:
