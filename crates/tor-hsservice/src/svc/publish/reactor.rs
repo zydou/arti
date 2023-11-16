@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::iter;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use async_trait::async_trait;
 use derive_more::{From, Into};
@@ -17,8 +17,10 @@ use postage::sink::SendError;
 use postage::watch;
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
+use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeystoreError};
+use tor_llcrypto::pk::ed25519;
 use tracing::{debug, error, trace, warn};
 
 use tor_bytes::EncodeError;
@@ -27,7 +29,9 @@ use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::define_asref_dyn_std_error;
 use tor_error::{internal, into_internal, warn_report};
-use tor_hscrypto::pk::{HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsIdKeypair};
+use tor_hscrypto::pk::{
+    HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKeypair,
+};
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
@@ -39,7 +43,9 @@ use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::{BlindIdKeypairSpecifier, HsIdKeypairSpecifier, HsNickname};
+use crate::{
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname,
+};
 
 /// The upload rate-limiting threshold.
 ///
@@ -261,8 +267,6 @@ struct TimePeriodContext {
     // store `Relay<'_>`s in the reactor, we'd need a way of atomically swapping out both the
     // `NetDir` and the cached relays, and to convince Rust what we're doing is sound)
     hs_dirs: Vec<(RelayIds, DescriptorStatus)>,
-    /// The current version of the descriptor.
-    revision_counter: u64,
     /// The revision counter of the last successful upload, if any.
     last_successful: Option<RevisionCounter>,
 }
@@ -278,13 +282,6 @@ impl TimePeriodContext {
             period,
             blind_id,
             hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, iter::empty())?,
-            // The revision counter is set back to 0 each time we get a new blinded public key/time
-            // period. According to rend-spec-v3 Appendix F. this shouldn't be an issue:
-            //
-            //   Implementations MAY generate revision counters in any way they please,
-            //   so long as they are monotonically increasing over the lifetime of each
-            //   blinded public key
-            revision_counter: 0,
             last_successful: None,
         })
     }
@@ -344,18 +341,6 @@ impl TimePeriodContext {
         self.hs_dirs
             .iter_mut()
             .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
-    }
-
-    /// Return the revision counter for this time period.
-    fn current_revision_counter(&self) -> RevisionCounter {
-        self.revision_counter.into()
-    }
-
-    /// Increment the revision counter for this time period, returning the new value.
-    fn inc_revision_counter(&mut self) -> RevisionCounter {
-        self.revision_counter += 1;
-
-        self.revision_counter.into()
     }
 }
 
@@ -981,12 +966,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
-        for period in inner.time_periods.iter_mut() {
+        for period_ctx in inner.time_periods.iter_mut() {
             let upload_task_complete_tx = self.upload_task_complete_tx.clone();
 
             // Figure out which HsDirs we need to upload the descriptor to (some of them might already
             // have our latest descriptor, so we filter them out).
-            let hs_dirs = period
+            let hs_dirs = period_ctx
                 .hs_dirs
                 .iter()
                 .filter_map(|(relay_id, status)| {
@@ -1003,14 +988,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 return Ok(());
             }
 
-            // We're about to generate a new version of the descriptor: increment the revision
+            let time_period = period_ctx.period;
+            // We're about to generate a new version of the descriptor: generate a new revision
             // counter.
-            //
-            // TODO HSS: to avoid fingerprinting, we should do what C-Tor does and make the
-            // revision counter a timestamp encrypted using an OPE cipher
-            let revision_counter = period.inc_revision_counter();
-
-            let time_period = period.period;
+            let now = self.imm.runtime.wallclock();
+            let revision_counter = self.generate_revision_counter(time_period, now)?;
 
             // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
             // here. See the TODO HSS about note_publication_attempt() below.
@@ -1361,6 +1343,103 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .into()),
         }
     }
+
+    /// Generate a revision counter for a descriptor associated with the specified
+    /// [`TimePeriod`].
+    ///
+    /// Returns a revision counter generated according to the [encrypted time in period] scheme.
+    ///
+    /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
+    fn generate_revision_counter(
+        &self,
+        period: TimePeriod,
+        now: SystemTime,
+    ) -> Result<RevisionCounter, ReactorError> {
+        // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
+        // to each time we generate a new descriptor), for performance reasons.
+        let ope_key = self.create_ope_key(period)?;
+        let offset = period.offset_within_period(now).ok_or_else(|| {
+            internal!("current wallclock time not within specified time period?!")
+        })?;
+        let rev = ope_key.encrypt(offset);
+
+        Ok(RevisionCounter::from(rev))
+    }
+
+    /// Create an [`AesOpeKey`] for generating revision counters for the descriptors associated
+    /// with the specified [`TimePeriod`].
+    ///
+    /// If the onion service is not running in offline mode, the key of the returned `AesOpeKey` is
+    /// the private part of the blinded identity key. Otherwise, the key is the private part of the
+    /// descriptor signing key.
+    ///
+    /// Returns an error if the service is running in offline mode and the descriptor signing
+    /// keypair of the specified `period` is not available.
+    //
+    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
+    // built from the blinded id key
+    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
+        let ope_key = match read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)? {
+            Some(key) => {
+                let key: ed25519::ExpandedKeypair = key.into();
+                key.secret.to_bytes()
+            }
+            None => {
+                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
+                // is unreachable (for now).
+                let desc_sign_key_spec =
+                    DescSigningKeypairSpecifier::new(&self.imm.nickname, period);
+                let key: ed25519::Keypair = self
+                    .imm
+                    .keymgr
+                    .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
+                    // TODO HSS(#1129): internal! is not the right type for this error (we need an
+                    // error type for the case where a hidden service running in offline mode has
+                    // run out of its pre-previsioned keys). This is somewhat related to #1083
+                    // This will be addressed as part of #1129
+                    .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
+                    .into();
+                key.to_bytes()
+            }
+        };
+
+        Ok(AesOpeKey::from_secret(&ope_key))
+    }
+}
+
+/// Try to read the blinded identity key for a given `TimePeriod`.
+///
+/// Returns `None` if the service is running in "offline" mode.
+///
+// TODO HSS: we don't currently have support for "offline" mode so this can never return
+// `Ok(None)`.
+pub(super) fn read_blind_id_keypair(
+    keymgr: &Arc<KeyMgr>,
+    nickname: &HsNickname,
+    period: TimePeriod,
+) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
+    let svc_key_spec = HsIdKeypairSpecifier::new(nickname);
+    let hsid_kp = keymgr
+        .get::<HsIdKeypair>(&svc_key_spec)?
+        .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+
+    let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname, period);
+
+    // TODO: make the keystore selector configurable
+    let keystore_selector = Default::default();
+    let blind_id_kp = keymgr.get_or_generate_with_derived::<HsBlindIdKeypair>(
+        &blind_id_key_spec,
+        keystore_selector,
+        || {
+            let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
+                .compute_blinded_key(period)
+                .map_err(|_| internal!("failed to compute blinded key"))?;
+
+            Ok(hs_blind_id_kp)
+        },
+    )?;
+
+    Ok(Some(blind_id_kp))
 }
 
 /// Whether the reactor should initiate an upload.

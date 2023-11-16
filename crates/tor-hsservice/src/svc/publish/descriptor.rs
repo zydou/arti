@@ -7,9 +7,7 @@ use rand_core::{CryptoRng, RngCore};
 
 use tor_cell::chancell::msg::HandshakeType;
 use tor_error::{internal, into_bad_api_usage};
-use tor_hscrypto::pk::{
-    HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKey, HsIdKeypair,
-};
+use tor_hscrypto::pk::{HsBlindIdKey, HsDescSigningKeypair, HsIdKey, HsIdKeypair};
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::KeyMgr;
@@ -19,7 +17,9 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
-use crate::svc::publish::reactor::{AuthorizedClientConfigError, ReactorError};
+use crate::svc::publish::reactor::{
+    read_blind_id_keypair, AuthorizedClientConfigError, ReactorError,
+};
 use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, OnionServiceConfig,
 };
@@ -75,17 +75,9 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     // TODO: make the keystore selector configurable
     let keystore_selector = Default::default();
-    let blind_id_kp = keymgr.get_or_generate_with_derived::<HsBlindIdKeypair>(
-        &blind_id_key_spec,
-        keystore_selector,
-        || {
-            let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
-                .compute_blinded_key(period)
-                .map_err(|_| internal!("failed to compute blinded key"))?;
+    let blind_id_kp = read_blind_id_keypair(keymgr, nickname, period)?
+        .ok_or_else(|| internal!("hidden service offline mode not supported"))?;
 
-            Ok(hs_blind_id_kp)
-        },
-    )?;
     let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
 
