@@ -412,6 +412,8 @@ coverage-aggregated:
   artifacts:
     paths:
       - coverage
+  tags:
+    - tpa
 
 check-targets:
   rules:
