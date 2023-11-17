@@ -290,6 +290,23 @@ impl MockExecutor {
         self.spawn_internal(desc.to_string(), FutureObj::from(Box::new(fut)))
     }
 
+    /// Spawn a task and return its output for further usage
+    ///
+    /// `desc` should `Display` as some kind of short string (ideally without spaces)
+    /// and will be used in the `Debug` impl and trace log messages from `MockExecutor`.
+    pub async fn spawn_join<T: Debug + Clone + Send + 'static>(
+        &self,
+        desc: impl Display,
+        fut: impl Future<Output = T> + Send + 'static,
+    ) -> T {
+        let (tx, rx) = tor_async_utils::oneshot::channel();
+        self.spawn_identified(desc, async move {
+            let res = fut.await;
+            tx.send(res).unwrap();
+        });
+        rx.await.unwrap()
+    }
+
     /// Spawn a task and return its `TaskId`
     ///
     /// Convenience method for use by `spawn_identified` and `spawn_obj`.
