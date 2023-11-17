@@ -206,26 +206,28 @@ fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
 }
 
-// TODO: the expand_* functions are very repetitive. Maybe we can generate them using a macro
-// instead?
+/// Macro to avoid repeating code for `expand_*_dir` functions on StorageConfig
+// TODO: generate the expand_*_dir functions using d-a instead
+macro_rules! expand_dir {
+    ($self:ident, $dirname:ident) => {
+        $self
+            .$dirname
+            .path()
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: stringify!($dirname).to_owned(),
+                problem: e.to_string(),
+            })
+    };
+}
+
 impl StorageConfig {
     /// Try to expand `state_dir` to be a path buffer.
     pub(crate) fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.state_dir
-            .path()
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "state_dir".to_owned(),
-                problem: e.to_string(),
-            })
+        expand_dir!(self, state_dir)
     }
     /// Try to expand `cache_dir` to be a path buffer.
     pub(crate) fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.cache_dir
-            .path()
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "cache_dir".to_owned(),
-                problem: e.to_string(),
-            })
+        expand_dir!(self, cache_dir)
     }
     /// Return the keystore config
     #[allow(clippy::unnecessary_wraps)]
