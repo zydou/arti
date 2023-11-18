@@ -21,6 +21,7 @@ members = [
     "crates/tor-geoip",
     "crates/tor-rtcompat",
     "crates/tor-rtmock",
+    "crates/tor-log-ratelim",
     "crates/tor-rpcbase",
     "crates/tor-llcrypto",
     "crates/tor-protover",
