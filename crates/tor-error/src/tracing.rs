@@ -23,7 +23,11 @@ impl ErrorKind {
 pub const fn fmt_ending_ok(s: &str) -> bool {
     // This implementation is slightly roundabout because we need this function
     // to be const.
-    !matches!(s.as_bytes().last(), Some(b' ' | b'.' | b':'))
+    match s.as_bytes() {
+        [.., b' ' | b'.' | b':'] => Err(()),
+        _ => Ok(()),
+    }
+    .is_ok()
 }
 
 /// Log a [`Report`](crate::Report) of a provided error at a given level, or a
