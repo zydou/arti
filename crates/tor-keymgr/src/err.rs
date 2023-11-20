@@ -29,13 +29,6 @@ pub enum Error {
 pub trait KeystoreError:
     HasKind + StdError + DynClone + fmt::Debug + fmt::Display + Send + Sync + 'static
 {
-    /// Return a boxed version of this error.
-    fn boxed(self) -> Box<Self>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
-    }
 }
 
 impl HasKind for Error {
