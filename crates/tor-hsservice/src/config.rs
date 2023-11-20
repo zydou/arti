@@ -7,7 +7,9 @@ use derive_adhoc::Adhoc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tor_cell::relaycell::hs::est_intro;
 use tor_config::ConfigBuildError;
+use tor_error::into_internal;
 use tor_hscrypto::pk::HsClientDescEncKey;
 use tor_llcrypto::pk::curve25519;
 
@@ -43,7 +45,14 @@ pub struct OnionServiceConfig {
     /// A rate-limit on the acceptable rate of introduction requests.
     ///
     /// We send this to the send to the introduction point to configure how many
-    /// introduction requests it sends us.
+    /// introduction requests it sends us.  
+    /// If this is not set, the introduction point chooses a default based on
+    /// the current consensus.
+    ///
+    /// We do not enforce this limit ourselves.
+    ///
+    /// This configuration is sent as a `DOS_PARAMS` extension, as documented in
+    /// <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
     #[builder(default)]
     rate_limit_at_intro: Option<TokenBucketConfig>,
 
@@ -115,6 +124,18 @@ impl OnionServiceConfig {
 
         Ok(other)
     }
+
+    /// Return the DosParams extension we should send for this configuration, if any.
+    pub(crate) fn dos_extension(&self) -> Result<Option<est_intro::DosParams>, crate::FatalError> {
+        Ok(self
+            .rate_limit_at_intro
+            .as_ref()
+            .map(dos_params_from_token_bucket_config)
+            .transpose()
+            .map_err(into_internal!(
+                "somehow built an un-validated rate-limit-at-intro"
+            ))?)
+    }
 }
 
 impl OnionServiceConfigBuilder {
@@ -124,6 +145,8 @@ impl OnionServiceConfigBuilder {
         //
         // TODO HSS Is this a consensus parameter or anything?  What does C tor do?
         const MAX_INTRO_POINTS: u8 = 20;
+
+        // Make sure MAX_INTRO_POINTS is in range.
         if let Some(ipts) = self.num_intro_points {
             if !(1..=MAX_INTRO_POINTS).contains(&ipts) {
                 return Err(ConfigBuildError::Invalid {
@@ -132,6 +155,13 @@ impl OnionServiceConfigBuilder {
                 });
             }
         }
+
+        // Make sure that our rate_limit_at_intro is valid.
+        if let Some(Some(ref rate_limit)) = self.rate_limit_at_intro {
+            let _ignore_extension: est_intro::DosParams =
+                dos_params_from_token_bucket_config(rate_limit)?;
+        }
+
         Ok(())
     }
 
@@ -164,6 +194,22 @@ impl TokenBucketConfig {
     pub fn new(rate: u32, burst: u32) -> Self {
         Self { rate, burst }
     }
+}
+
+/// Helper: Try to create a DosParams from a given token bucket configuration.
+/// Give an error if the value is out of range.
+///
+/// This is a separate function so we can use the same logic when validating
+/// and when making the extension object.
+fn dos_params_from_token_bucket_config(
+    c: &TokenBucketConfig,
+) -> Result<est_intro::DosParams, ConfigBuildError> {
+    let err = || ConfigBuildError::Invalid {
+        field: "rate_limit_at_intro".into(),
+        problem: "out of range".into(),
+    };
+    let cast = |n| i32::try_from(n).map_err(|_| err());
+    est_intro::DosParams::new(Some(cast(c.rate)?), Some(cast(c.burst)?)).map_err(|_| err())
 }
 
 /// Configuration for descriptor encryption.

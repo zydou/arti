@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
 use itertools::Itertools;
+use postage::watch;
 use safelog::Redactable as _;
 use tor_async_utils::oneshot;
 use tor_async_utils::DropNotifyWatchSender;
@@ -37,6 +38,7 @@ use crate::replay::ReplayError;
 use crate::replay::ReplayLog;
 use crate::BlindIdKeypairSpecifier;
 use crate::HsIdPublicKeySpecifier;
+use crate::OnionServiceConfig;
 use crate::{
     req::RendRequestContext,
     svc::{LinkSpecs, NtorPublicKey},
@@ -174,6 +176,13 @@ impl IptError {
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
 pub(crate) struct IptParameters {
+    // TODO HSS:
+    //
+    // We want to make a new introduction circuit if our dos parameters change,
+    // which means that we should possibly be watching for changes in our
+    // configuration.  Right now, though, we only copy out the configuration
+    // on startup.
+    pub(crate) config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     // TODO HSS: maybe this should be a bunch of refs.
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
@@ -203,7 +212,6 @@ impl IptEstablisher {
     // TODO HSS rename to "launch" since it starts the task?
     pub(crate) fn new<R: Runtime>(
         runtime: &R,
-        nickname: HsNickname,
         params: IptParameters,
         pool: Arc<HsCircPool<R>>,
         keymgr: &Arc<KeyMgr>,
@@ -211,6 +219,7 @@ impl IptEstablisher {
         // This exhaustive deconstruction ensures that we don't
         // accidentally forget to handle any of our inputs.
         let IptParameters {
+            config_rx,
             netdir_provider,
             introduce_tx,
             lid,
@@ -219,6 +228,9 @@ impl IptEstablisher {
             k_ntor,
             accepting_requests,
         } = params;
+        let config = Arc::clone(&config_rx.borrow());
+        let nickname = config.nickname().clone();
+
         if matches!(accepting_requests, RequestDisposition::Shutdown) {
             return Err(bad_api_usage!(
                 "Tried to create a IptEstablisher that that was already shutting down?"
@@ -255,8 +267,9 @@ impl IptEstablisher {
             target,
             k_sid, // TODO HSS this is now redundant.
             introduce_tx,
-            // TODO HSS This should come from the configuration.
-            extensions: EstIntroExtensionSet { dos_params: None },
+            extensions: EstIntroExtensionSet {
+                dos_params: config.dos_extension()?,
+            },
             state: state.clone(),
             request_context,
         };
@@ -578,8 +591,8 @@ struct Reactor<R: Runtime> {
     k_sid: Arc<HsIntroPtSessionIdKeypair>,
     /// The extensions to use when establishing the introduction point.
     ///
-    /// TODO: Should this be able to change over time if we re-establish this
-    /// intro point?
+    /// TODO HSS: This should be able to change over time as we re-restablish
+    /// the intro point.
     extensions: EstIntroExtensionSet,
 
     /// The stream that will receive INTRODUCE2 messages.
@@ -680,7 +693,7 @@ impl<R: Runtime> Reactor<R> {
     ///
     /// Does not retry.  Does not time out except via `HsCircPool`.
     async fn establish_intro_once(&self) -> Result<IntroPtSession, IptError> {
-        let circuit = {
+        let (protovers, circuit) = {
             let netdir = wait_for_netdir(
                 self.netdir_provider.as_ref(),
                 tor_netdir::Timeliness::Timely,
@@ -691,12 +704,15 @@ impl<R: Runtime> Reactor<R> {
                 .ok_or(IptError::IntroPointNotListed)?;
 
             let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
-            self.pool
+            let protovers = circ_target.protovers().clone();
+            let circuit = self
+                .pool
                 .get_or_launch_specific(netdir.as_ref(), kind, circ_target)
                 .await
-                .map_err(IptError::BuildCircuit)?
+                .map_err(IptError::BuildCircuit)?;
             // note that netdir is dropped here, to avoid holding on to it any
             // longer than necessary.
+            (protovers, circuit)
         };
         let intro_pt_hop = circuit
             .last_hop_num()
@@ -706,7 +722,11 @@ impl<R: Runtime> Reactor<R> {
             let ipt_sid_id = (*self.k_sid).as_ref().public.into();
             let mut details = EstablishIntroDetails::new(ipt_sid_id);
             if let Some(dos_params) = &self.extensions.dos_params {
-                details.set_extension_dos(dos_params.clone());
+                // We only send the Dos extension when the relay is known to
+                // support HsIntro=5.
+                if protovers.supports_known_subver(tor_protover::ProtoKind::HSIntro, 5) {
+                    details.set_extension_dos(dos_params.clone());
+                }
             }
             let circuit_binding_key = circuit
                 .binding_key(intro_pt_hop)

@@ -5241,6 +5241,7 @@ dependencies = [
  "tor-netdoc",
  "tor-persist",
  "tor-proto",
+ "tor-protover",
  "tor-rtcompat",
  "tor-rtmock",
  "tor-units",

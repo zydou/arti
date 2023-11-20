@@ -356,6 +356,7 @@ impl IptRelay {
     fn make_new_ipt<R: Runtime, M: Mockable<R>>(
         &mut self,
         imm: &Immutable<R>,
+        new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
         mockable: &mut M,
         keymgr: &Arc<KeyMgr>,
     ) -> Result<(), FatalError> {
@@ -371,6 +372,7 @@ impl IptRelay {
         let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
 
         let params = IptParameters {
+            config_rx: new_configs.clone(),
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
             lid,
@@ -752,7 +754,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
-                ir.make_new_ipt(&self.imm, &mut self.state.mockable, &self.state.keymgr)?;
+                ir.make_new_ipt(
+                    &self.imm,
+                    &self.state.new_configs,
+                    &mut self.state.mockable,
+                    &self.state.keymgr,
+                )?;
                 return CONTINUE;
             }
         }
@@ -1267,13 +1274,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         params: IptParameters,
         keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
-        IptEstablisher::new(
-            &imm.runtime,
-            imm.nick.clone(),
-            params,
-            self.circ_pool.clone(),
-            keymgr,
-        )
+        IptEstablisher::new(&imm.runtime, params, self.circ_pool.clone(), keymgr)
     }
 
     fn start_accepting(&self, establisher: &ErasedIptEstablisher) {

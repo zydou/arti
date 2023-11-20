@@ -391,19 +391,26 @@ pub struct NetParameters {
     pub hs_service_rendezvous_failures_max: BoundedInt32<1, 10> = (2)
         from "hs_service_max_rdv_failures",
 
-    /// If set to 1, we use the IntroDoS defense when an intro point supports it.
+    /// If set to 1, introduction points use the INTRODUCE1 rate limiting
+    /// defense when no `DosParams` are sent.
     ///
-    /// (Support is determined by subprotocol HSIntro=5).
+    /// See <https://spec.torproject.org/param-spec.md#HiddenServiceEnableIntroDoSDefense>
     pub hs_intro_dos_enabled: BoundedInt32<0, 1> = (0)
         from "HiddenServiceEnableIntroDoSDefense",
 
-    /// The largest allowable value for a token burst when using the IntroDoS
-    /// defense.
+    /// Default _rate_ value for an introduction point to use for INTRODUCE1 rate
+    /// limiting when no `DosParams` value is sent, in messages per second.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#HiddenServiceEnableIntroDoSBurstPerSec>
     pub hs_intro_dos_max_burst: BoundedInt32<0, {i32::MAX}> = (200)
         from "HiddenServiceEnableIntroDoSBurstPerSec",
 
-    /// The refill rate to be used for a token bucket (in tokens per second)
-    /// when using the IntroDoS defense.
+    /// Default _burst_ value for an introduction point to use for INTRODUCE1 rate
+    /// limiting when no `DosParams` value is sent.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#HiddenServiceEnableIntroDoSRatePerSec>
     pub hs_intro_dos_rate: BoundedInt32<0, {i32::MAX}> = (25)
         from  "HiddenServiceEnableIntroDoSRatePerSec",
 }

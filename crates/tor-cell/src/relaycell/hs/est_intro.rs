@@ -14,7 +14,9 @@ use tor_units::BoundedInt32;
 use crate::relaycell::{hs::ext::*, hs::AuthKeyType, msg};
 
 caret_int! {
-    /// The introduction protocol extension type
+    /// The introduction protocol extension type.
+    ///
+    /// Documented in <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO>
     #[derive(Ord, PartialOrd)]
     pub struct EstIntroExtType(u8) {
         /// The extension used to send DoS parameters
@@ -25,6 +27,8 @@ caret_int! {
 caret_int! {
     /// The recognized parameter types in an establish intro
     /// DoS extension.
+    ///
+    /// See <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>
     pub struct EstIntroExtDosParamType(u8) {
         /// The rate per second of INTRODUCE2 cell relayed
         /// to the service.
@@ -35,7 +39,17 @@ caret_int! {
     }
 }
 
-/// An establish Introduction protocol extension
+/// Extension to tell the introduction point to rate-limit.
+///
+/// When we sent this extension, it tells the introduction point to rate-limit
+/// the INTRODUCE2 messages it sends us to the rates shown here.
+///
+/// When this extension is not sent, the introduction point imposes a rate-limit
+/// depending on parameters in the latest consensus.
+///
+/// This extension requires protover `HSIntro=5`.
+///
+/// See <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
 #[derive(Debug, Clone)]
 pub struct DosParams {
     /// An optional parameter indicates the rate per second of
