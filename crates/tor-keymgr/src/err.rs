@@ -6,9 +6,24 @@ use dyn_clone::DynClone;
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::sync::Arc;
 
 /// An Error type for this crate.
-pub type Error = Box<dyn KeystoreError>;
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum Error {
+    /// Detected keustore corruption.
+    #[error("{0}")]
+    Corruption(#[from] KeystoreCorruptionError),
+
+    /// An opaque error returned by a [`Keystore`](crate::Keystore).
+    #[error("{0}")]
+    Keystore(#[from] Arc<dyn KeystoreError>),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
 
 /// An error returned by a [`Keystore`](crate::Keystore).
 pub trait KeystoreError:
@@ -23,25 +38,16 @@ pub trait KeystoreError:
     }
 }
 
-// Generate a Clone impl for Box<dyn KeystoreError>
-dyn_clone::clone_trait_object!(KeystoreError);
+impl HasKind for Error {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use Error as E;
 
-impl KeystoreError for tor_error::Bug {}
-
-impl<K: KeystoreError + Send + Sync> From<K> for Error {
-    fn from(k: K) -> Self {
-        Box::new(k)
-    }
-}
-
-// This impl is needed because tor_keymgr::Error is the error source type of ErrorDetail::Keystore,
-// which _must_ implement StdError (otherwise we get an error about thiserror::AsDynError not being
-// implemented for tor_keymgr::Error).
-//
-// See <https://github.com/dtolnay/thiserror/issues/212>
-impl StdError for Error {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        (**self).source()
+        match self {
+            E::Keystore(e) => e.kind(),
+            E::Corruption(_) => EK::KeystoreCorrupted,
+            E::Bug(e) => e.kind(),
+        }
     }
 }
 
@@ -128,8 +134,8 @@ mod tests {
 
     #[test]
     fn error_source() {
-        let e: Error = Box::new(TestError(TestErrorSource)) as Error;
+        let e: Error = (Arc::new(TestError(TestErrorSource)) as Arc<dyn KeystoreError>).into();
 
-        assert_eq!(e.source().unwrap().to_string(), TestErrorSource.to_string());
+        assert_eq!(e.source().unwrap().to_string(), TestError(TestErrorSource).to_string());
     }
 }

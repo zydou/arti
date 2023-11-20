@@ -126,3 +126,9 @@ impl HasKind for ArtiNativeKeystoreError {
         }
     }
 }
+
+impl From<ArtiNativeKeystoreError> for crate::Error {
+    fn from(e: ArtiNativeKeystoreError) -> Self {
+        crate::Error::Keystore(Arc::new(e))
+    }
+}

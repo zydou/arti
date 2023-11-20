@@ -8,7 +8,7 @@ use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
 
 use crate::keystore::arti::err::ArtiNativeKeystoreError;
-use crate::{ErasedKey, KeyType, KeystoreError, Result};
+use crate::{ErasedKey, KeyType, Result};
 
 use tor_error::internal;
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -210,8 +210,7 @@ macro_rules! parse_openssh {
                 path: $key.path,
                 wanted_key_algo,
                 found_key_algo: key.algorithm().into(),
-            }
-            .boxed());
+            }.into());
         }
 
         // Build the expected key type (i.e. convert ssh_key key types to the key types
@@ -227,8 +226,7 @@ macro_rules! parse_openssh {
                             path: $key.path,
                             wanted_key_algo,
                             found_key_algo: key.algorithm().into(),
-                        }
-                        .boxed())
+                        }.into())
                     }
                 }
             }
@@ -236,8 +234,7 @@ macro_rules! parse_openssh {
                 path: $key.path,
                 wanted_key_algo,
                 found_key_algo: key.algorithm().into(),
-            }
-            .boxed()),
+            }.into())
         }
     }};
 }
@@ -326,7 +323,7 @@ impl KeyType {
                     arti_extension: arti_extension.clone(),
                 },
             )
-            .boxed()),
+            .into()),
         }
     }
 
@@ -351,7 +348,7 @@ impl KeyType {
                     arti_extension: arti_extension.clone(),
                 },
             )
-            .boxed()),
+            .into()),
         }
     }
 }
