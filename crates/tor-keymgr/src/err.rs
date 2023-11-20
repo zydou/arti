@@ -72,9 +72,6 @@ pub enum ArtiPathError {
 }
 
 /// An error caused by keystore corruption.
-///
-// TODO HSS: refactor the keymgr error types to be variants of a top-level KeyMgrError enum
-// (it should only be necessary to impl KeystoreError for custom/opaque keystore errors).
 #[derive(thiserror::Error, Debug, Copy, Clone)]
 #[error("Keystore corruption")]
 #[non_exhaustive]
