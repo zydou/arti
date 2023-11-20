@@ -10,6 +10,7 @@ use tor_error::{Bug, ErrorKind, HasKind};
 use tor_keymgr::KeystoreError;
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
+use crate::HsNickname;
 
 /// An error which occurs trying to create and start up an onion service
 ///
@@ -129,14 +130,9 @@ pub enum FatalError {
     #[error("failed to access keystore")]
     Keystore(#[from] Box<dyn KeystoreError>),
 
-    /// A key we needed could not be found in the keystore.
-    //
-    // TODO HSS: considering adding (Box<dyn KeySpecifier>, KeyType) to the error context and
-    // making the inner type a KeyNotFoundError.
-    //
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955706
-    #[error("A key we needed could not be found in the keystore: {0}")]
-    MissingKey(String),
+    /// The identity keypair of the service could not be found in the keystore.
+    #[error("Hidden service identity key not found: {0}")]
+    MissingHsIdKeypair(HsNickname),
 
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
@@ -151,7 +147,7 @@ impl HasKind for FatalError {
         match self {
             FE::Spawn { cause, .. } => cause.kind(),
             FE::Keystore(e) => e.kind(),
-            FE::MissingKey(_) => EK::Internal, // TODO HSS this is wrong
+            FE::MissingHsIdKeypair(_) => EK::Internal, // TODO HSS this is wrong
             FE::Bug(e) => e.kind(),
         }
     }

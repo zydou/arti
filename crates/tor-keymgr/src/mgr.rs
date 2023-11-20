@@ -33,7 +33,8 @@ type BoxedKeystore = Box<dyn Keystore>;
 /// insert, remove) will need to be atomic.
 ///
 /// **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
-/// concurrently with any other `KeyMgr` operation that mutates the state of key stores, because
+/// concurrently with any other `KeyMgr` operation that mutates the same key
+/// (i.e. a key with the same `ArtiPath`), because
 /// their outcome depends on whether the selected key store [`contains`][Keystore::contains] the
 /// specified key (and thus suffers from a a TOCTOU race).
 //

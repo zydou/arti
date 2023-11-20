@@ -77,6 +77,9 @@ pub use {
 #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
 pub use dummy::*;
 
+#[doc(hidden)]
+pub use derive_adhoc;
+
 use derive_more::{AsRef, Display};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;

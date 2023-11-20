@@ -373,34 +373,9 @@ pub(crate) enum ReactorError {
     #[error("failed to access keystore")]
     Keystore(#[from] Box<dyn KeystoreError>),
 
-    /// A key we needed could not be found in the keystore.
-    //
-    // TODO HSS: this error should be split into multiple separate errors:
-    //
-    //   * we failed to retrieve a key (such as `KS_hs_id`), and we can't auto-generate it because
-    //   it is stored offline (we assume the key is stored offline if the keystore contains the
-    //   public part of the key (`KP_hs_id`) but not the private one). This can happen, for
-    //   example, if we're trying to retrieve `KS_hs_id` in order to generate a new `hs_blind_id`
-    //   keypair (which would happen outside of keymgr, because the keygr doesn't know about time
-    //   periods).
-    //   * we failed to retrieve a certificate, and we can't auto-generate it because the signing
-    //   key is missing (and can't be auto-generated). For example, `hs_desc_sign_cert` can't be
-    //   found in the keystore, and also can't be auto-generated, because `hs_blind_id` doesn't
-    //   exist in the keystore either (`hs_blind_id` can't be auto-generated because generating
-    //   blinded keys requires knowing the time period).
-    //
-    // TODO HSS: this error should only be returned if the key we're looking for is missing _and_ we
-    // cannot auto-generate it (so perhaps MissingKey is not the best name for this variant).
-    // See also the TODO in read_svc_key() from publish/descriptor.rs
-    //
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1615#note_2946311
-    //
-    // TODO HSS: considering adding (Box<dyn KeySpecifier>, KeyType) to the error context and
-    // making the inner type a KeyNotFoundError.
-    //
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1677#note_2955706
-    #[error("A key we needed could not be found in the keystore: {0}")]
-    MissingKey(String),
+    /// The identity keypair of the service could not be found in the keystore.
+    #[error("Hidden service identity key not found: {0}")]
+    MissingHsIdKeypair(HsNickname),
 
     /// Unable to spawn task
     //
@@ -773,7 +748,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
-                    .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+                    .ok_or_else(|| ReactorError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(&self.imm.nickname, *period);
 
                 // TODO HSS: make this configurable
@@ -1421,7 +1396,7 @@ pub(super) fn read_blind_id_keypair(
     let svc_key_spec = HsIdKeypairSpecifier::new(nickname);
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingKey(svc_key_spec.role().to_string()))?;
+        .ok_or_else(|| ReactorError::MissingHsIdKeypair(nickname.clone()))?;
 
     let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname, period);
 
