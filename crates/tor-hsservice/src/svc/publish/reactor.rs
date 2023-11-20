@@ -28,7 +28,7 @@ use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
 use tor_error::define_asref_dyn_std_error;
-use tor_error::{internal, into_internal, warn_report};
+use tor_error::{error_report, internal, into_internal, warn_report};
 use tor_hscrypto::pk::{
     HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsDescSigningKeypair, HsIdKeypair,
 };
@@ -346,16 +346,33 @@ impl TimePeriodContext {
 
 /// A reactor error
 ///
-/// These are always fatal
+/// These are currently always fatal
 //
-// TODO HSS should this be unified with FatalError ?
+// TODO HSS ReactorError should be abolished:
+//
+// There is no need for a second type for fatal errors; we should use FatalError.
+// So, for example, Reactor::run should throw FatalError.
+// (Eventually we can perhaps arrange that when the publisher crashes, someone
+// outside this crate gets the actual FatalError from it.)
+//
+// However:
+//
+// Many of these errors are recoverable, and so ought not to be FatalError at all.
+// Crashing should be a complete last resort, because the user's only way to recover
+// is to completely tear down the HS, and make a fresh one.  With arti CLI this can
+// only be done by restarting the whole process, or by reconfiguring twice to delete
+// and recreate the hidden service.
+//
+// So simply moving all these variants into FatalError and changing all the error types
+// would simply be churn (and also, it would mix more variants which need reconsideration
+// into an enum we intend to keep).
+//
+// The error type rework should go hand-in-hand with implementing suitable retry policies
+// for errors that occur during publication.  It is those retry policies which should
+// drive the error type(s) for functions that can fail in a way that might be retriable.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub(crate) enum ReactorError {
-    /// Failed to get network directory
-    #[error("failed to get a network directory")]
-    Netdir(#[from] tor_netdir::Error),
-
     /// The network directory provider is shutting down without giving us the
     /// netdir we asked for.
     #[error("{0}")]
@@ -586,8 +603,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         };
 
-        debug!("reactor stopped: {err}");
-
         Err(err)
     }
 
@@ -606,8 +621,24 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
-                let netdir = self.dir_provider.netdir(Timeliness::Timely)?;
-
+                let netdir = match self.dir_provider.netdir(Timeliness::Timely) {
+                    Ok(y) => y,
+                    Err(e) => {
+                        error_report!(e, "HS service {}: netdir unavailable", self.imm.nickname);
+                        // Hopefully a netdir will appear in the future.
+                        // in the meantime, suspend operations.
+                        //
+                        // TODO HSS there is a bug here: we stop reading on our inputs
+                        // including eg publish_status_rx, but it is our job to log some of
+                        // these things.  While we are waiting for a netdir, all those messages
+                        // are "stuck"; they'll appear later, with misleading timestamps.
+                        //
+                        // Probably this should be fixed by moving the logging
+                        // out of the reactor, where it won't be blocked.
+                        wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely)
+                            .await?
+                    }
+                };
                 self.handle_consensus_change(netdir).await?;
             }
             update = self.ipt_watcher.await_update().fuse() => {
