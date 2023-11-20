@@ -10,12 +10,11 @@ use ssh_key::Algorithm;
 use crate::keystore::arti::err::ArtiNativeKeystoreError;
 use crate::{ErasedKey, KeyType, KeystoreError, Result};
 
-use tor_error::{internal, ErrorKind, HasKind};
+use tor_error::internal;
 use tor_llcrypto::pk::{curve25519, ed25519};
 use zeroize::Zeroizing;
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use super::UnknownKeyTypeError;
 
@@ -165,41 +164,6 @@ impl From<Algorithm> for SshKeyAlgorithm {
     }
 }
 
-/// An error that occurred while processing an OpenSSH key.
-#[derive(thiserror::Error, Debug, Clone)]
-pub(crate) enum SshKeyError {
-    /// Failed to parse an OpenSSH key
-    #[error("Failed to parse OpenSSH with type {key_type:?}")]
-    SshKeyParse {
-        /// The path of the malformed key.
-        path: PathBuf,
-        /// The type of key we were trying to fetch.
-        key_type: KeyType,
-        /// The underlying error.
-        #[source]
-        err: Arc<ssh_key::Error>,
-    },
-
-    /// The OpenSSH key we retrieved is of the wrong type.
-    #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
-    UnexpectedSshKeyType {
-        /// The path of the malformed key.
-        path: PathBuf,
-        /// The algorithm we expected the key to use.
-        wanted_key_algo: SshKeyAlgorithm,
-        /// The algorithm of the key we got.
-        found_key_algo: SshKeyAlgorithm,
-    },
-}
-
-impl KeystoreError for SshKeyError {}
-
-impl HasKind for SshKeyError {
-    fn kind(&self) -> ErrorKind {
-        ErrorKind::KeystoreCorrupted
-    }
-}
-
 /// Parse an OpenSSH key, returning its underlying [`KeyData`], if it's a public key, or
 /// [`KeypairData`], if it's a private one.
 macro_rules! parse_openssh {
@@ -229,7 +193,7 @@ macro_rules! parse_openssh {
 
     ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $expanded_ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
         let key = $parse_fn(&*$key.inner).map_err(|e| {
-            SshKeyError::SshKeyParse {
+            ArtiNativeKeystoreError::SshKeyParse {
                 // TODO: rust thinks this clone is necessary because key.path is also used below (but
                 // if we get to this point, we're going to return an error and never reach the other
                 // error handling branches where we use key.path).
@@ -242,7 +206,7 @@ macro_rules! parse_openssh {
         let wanted_key_algo = $key_type.ssh_algorithm()?;
 
         if SshKeyAlgorithm::from(key.algorithm()) != wanted_key_algo {
-            return Err(SshKeyError::UnexpectedSshKeyType {
+            return Err(ArtiNativeKeystoreError::UnexpectedSshKeyType {
                 path: $key.path,
                 wanted_key_algo,
                 found_key_algo: key.algorithm().into(),
@@ -259,7 +223,7 @@ macro_rules! parse_openssh {
                     SshKeyAlgorithm::X25519 => Ok($x25519_fn(other).map(Box::new)?),
                     SshKeyAlgorithm::Ed25519Expanded => Ok($expanded_ed25519_fn(other).map(Box::new)?),
                     _ => {
-                        Err(SshKeyError::UnexpectedSshKeyType {
+                        Err(ArtiNativeKeystoreError::UnexpectedSshKeyType {
                             path: $key.path,
                             wanted_key_algo,
                             found_key_algo: key.algorithm().into(),
@@ -268,7 +232,7 @@ macro_rules! parse_openssh {
                     }
                 }
             }
-            _ => Err(SshKeyError::UnexpectedSshKeyType {
+            _ => Err(ArtiNativeKeystoreError::UnexpectedSshKeyType {
                 path: $key.path,
                 wanted_key_algo,
                 found_key_algo: key.algorithm().into(),
