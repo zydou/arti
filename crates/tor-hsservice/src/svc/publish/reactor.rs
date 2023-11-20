@@ -817,7 +817,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // The fields we're interested in haven't changed, so there's no need to update
         // `inner.config`.
         //
-        // TODO HSS: maybe `Inner` should only contain the fields we're interested in instead of
+        // TODO: maybe `Inner` should only contain the fields we're interested in instead of
         // the entire config.
         //
         // Alternatively, a less error-prone solution would be to introduce a separate

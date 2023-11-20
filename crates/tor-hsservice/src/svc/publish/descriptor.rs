@@ -24,8 +24,6 @@ use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, OnionServiceConfig,
 };
 
-// TODO HSS: Dummy types that should be implemented elsewhere.
-
 /// Build the descriptor.
 ///
 /// The `now` argument is used for computing the expiry of the `intro_{auth, enc}_key_cert`
@@ -42,7 +40,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     rng: &mut Rng,
     now: SystemTime,
 ) -> Result<String, ReactorError> {
-    // TODO HSS: should this be configurable? If so, we should read it from the svc config.
+    // TODO: should this be configurable? If so, we should read it from the svc config.
     //
     /// The CREATE handshake type we support.
     const CREATE2_FORMATS: &[HandshakeType] = &[HandshakeType::NTOR];
