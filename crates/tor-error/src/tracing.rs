@@ -24,6 +24,7 @@ pub const fn fmt_ending_ok(s: &str) -> bool {
     // This implementation is slightly roundabout because we need this function
     // to be const.
     match s.as_bytes() {
+        [.., b'.', b'.', b'.'] => Ok(()),
         [.., b' ' | b'.' | b':'] => Err(()),
         _ => Ok(()),
     }
