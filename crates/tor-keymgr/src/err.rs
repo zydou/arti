@@ -1,6 +1,6 @@
 //! An error type for the `tor-keymgr` crate.
 
-use tor_error::HasKind;
+use tor_error::{ErrorKind, HasKind};
 
 use dyn_clone::DynClone;
 
@@ -42,6 +42,54 @@ impl<K: KeystoreError + Send + Sync> From<K> for Error {
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         (**self).source()
+    }
+}
+
+/// An error caused by an invalid [`ArtiPath`].
+#[derive(thiserror::Error, Debug, Copy, Clone)]
+#[error("Invalid ArtiPath")]
+#[non_exhaustive]
+pub enum ArtiPathError {
+    /// Found an empty path component.
+    #[error("Empty path component")]
+    EmptyPathComponent,
+
+    /// The path contains a disallowed char.
+    #[error("Found disallowed char {0}")]
+    DisallowedChar(char),
+
+    /// The path contains the `..` pattern.
+    #[error("Found `..` pattern")]
+    PathTraversal,
+
+    /// The path starts with a disallowed char.
+    #[error("Path starts or ends with disallowed char {0}")]
+    BadOuterChar(char),
+
+    /// The path contains an invalid key denotator.
+    ///
+    /// See the [`ArtiPath`] docs for more information.
+    InvalidDenotator,
+}
+
+/// An error caused by keystore corruption.
+///
+// TODO HSS: refactor the keymgr error types to be variants of a top-level KeyMgrError enum
+// (it should only be necessary to impl KeystoreError for custom/opaque keystore errors).
+#[derive(thiserror::Error, Debug, Copy, Clone)]
+#[error("Keystore corruption")]
+#[non_exhaustive]
+pub enum KeystoreCorruptionError {
+    /// A keystore contains a key that has an invalid [`ArtiPath`].
+    #[error("{0}")]
+    ArtiPath(#[from] ArtiPathError),
+}
+
+impl KeystoreError for KeystoreCorruptionError {}
+
+impl HasKind for KeystoreCorruptionError {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::KeystoreCorrupted
     }
 }
 
