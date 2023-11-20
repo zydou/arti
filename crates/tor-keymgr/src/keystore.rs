@@ -11,9 +11,11 @@ use ssh_key::public::{Ed25519PublicKey, KeyData, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
 use tor_hscrypto::pk::{
-    HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair, HsClientIntroAuthKeypair,
+    HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair,
     HsDescSigningKeypair, HsIdKey, HsIdKeypair,
 };
+#[allow(deprecated)]
+use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::key_type::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
@@ -305,6 +307,7 @@ impl ToEncodableKey for HsClientDescEncKeypair {
     }
 }
 
+#[allow(deprecated)]
 impl ToEncodableKey for HsClientIntroAuthKeypair {
     type Key = ed25519::Keypair;
 
