@@ -10,12 +10,12 @@ use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKey
 use ssh_key::public::{Ed25519PublicKey, KeyData, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
-use tor_hscrypto::pk::{
-    HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair,
-    HsDescSigningKeypair, HsIdKey, HsIdKeypair,
-};
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
+use tor_hscrypto::pk::{
+    HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair, HsDescSigningKeypair, HsIdKey,
+    HsIdKeypair,
+};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::key_type::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
