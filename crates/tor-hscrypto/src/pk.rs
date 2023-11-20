@@ -487,7 +487,10 @@ define_pk_keypair! {
 ///
 /// This is used to sign a nonce included in an extension in the encrypted
 /// portion of an introduce cell.
-pub struct HsClientIntroAuthKey(ed25519::PublicKey) / HsClientIntroAuthKeypair(ed25519::Keypair);
+#[deprecated(note = "This key type is not used in the protocol implemented today.")]
+pub struct HsClientIntroAuthKey(ed25519::PublicKey) /
+#[deprecated(note = "This key type is not used in the protocol implemented today.")]
+HsClientIntroAuthKeypair(ed25519::Keypair);
 }
 
 define_pk_keypair! {
