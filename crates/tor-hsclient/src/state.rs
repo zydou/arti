@@ -842,6 +842,7 @@ pub(crate) mod test {
         let public = tor_llcrypto::pk::ed25519::PublicKey::from(&secret);
         let kp = tor_llcrypto::pk::ed25519::Keypair { public, secret };
         let mut b = HsClientSecretKeysBuilder::default();
+        #[allow(deprecated)]
         b.ks_hsc_intro_auth(kp.into());
         b.build().unwrap()
     }

@@ -10,7 +10,9 @@ use std::hash::{Hash, Hasher};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 
-use tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientIntroAuthKeypair, HsId};
+#[allow(deprecated)]
+use tor_hscrypto::pk::HsClientIntroAuthKeypair;
+use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
 use tor_keymgr::{
     ArtiPath, ArtiPathComponent, ArtiPathError, ArtiPathUnavailableError, CTorPath, KeySpecifier,
 };
@@ -111,6 +113,7 @@ pub struct HsClientSecretKeysBuilder {
     pub(crate) ks_hsc_desc_enc: Option<HsClientDescEncKeypair>,
 
     /// Possibly, a key that is used to authenticate while introducing.
+    #[allow(deprecated)]
     pub(crate) ks_hsc_intro_auth: Option<HsClientIntroAuthKeypair>,
 }
 
@@ -126,6 +129,8 @@ impl HsClientSecretKeysBuilder {
         self
     }
     /// Provide an introduction authentication key
+    #[deprecated]
+    #[allow(deprecated)]
     pub fn ks_hsc_intro_auth(&mut self, ks: HsClientIntroAuthKeypair) -> &mut Self {
         self.ks_hsc_intro_auth = Some(ks);
         self
