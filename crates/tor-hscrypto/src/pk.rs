@@ -484,26 +484,25 @@ pub struct HsSvcNtorKey(curve25519::PublicKey) / HsSvcNtorSecretKey(curve25519::
 curve25519_pair as HsSvcNtorKeypair;
 }
 
-
 mod hs_client_intro_auth {
-#![allow(deprecated)]
-//! Key type wrappers for the deprecated `HsClientIntroKey`/`HsClientIntroKeypair` types.
+    #![allow(deprecated)]
+    //! Key type wrappers for the deprecated `HsClientIntroKey`/`HsClientIntroKeypair` types.
 
-use tor_llcrypto::pk::ed25519;
+    use tor_llcrypto::pk::ed25519;
 
-use crate::macros::define_pk_keypair;
+    use crate::macros::define_pk_keypair;
 
-define_pk_keypair! {
-/// First type of client authorization key, used for the introduction protocol.
-/// (`KP_hsc_intro_auth`)
-///
-/// This is used to sign a nonce included in an extension in the encrypted
-/// portion of an introduce cell.
-#[deprecated(note = "This key type is not used in the protocol implemented today.")]
-pub struct HsClientIntroAuthKey(ed25519::PublicKey) /
-#[deprecated(note = "This key type is not used in the protocol implemented today.")]
-HsClientIntroAuthKeypair(ed25519::Keypair);
-}
+    define_pk_keypair! {
+    /// First type of client authorization key, used for the introduction protocol.
+    /// (`KP_hsc_intro_auth`)
+    ///
+    /// This is used to sign a nonce included in an extension in the encrypted
+    /// portion of an introduce cell.
+    #[deprecated(note = "This key type is not used in the protocol implemented today.")]
+    pub struct HsClientIntroAuthKey(ed25519::PublicKey) /
+    #[deprecated(note = "This key type is not used in the protocol implemented today.")]
+    HsClientIntroAuthKeypair(ed25519::Keypair);
+    }
 }
 
 define_pk_keypair! {
