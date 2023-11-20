@@ -38,7 +38,7 @@ use {
         HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
         HsClientSpecifier,
     },
-    tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientIntroAuthKeypair},
+    tor_hscrypto::pk::HsClientDescEncKeypair,
     tor_netdir::DirEvent,
 };
 
@@ -1079,23 +1079,9 @@ impl<R: Runtime> TorClient<R> {
                     let ks_hsc_desc_enc =
                         keymgr.get::<HsClientDescEncKeypair>(&desc_enc_key_spec)?;
 
-                    let intro_auth_key_spec = HsClientSecretKeySpecifier::new(
-                        client_id,
-                        hsid,
-                        HsClientKeyRole::IntroAuth,
-                    );
-
-                    let ks_hsc_intro_auth =
-                        keymgr.get::<HsClientIntroAuthKeypair>(&intro_auth_key_spec)?;
-
                     if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
                         debug!("Found descriptor decryption key for {hsid}");
                         hs_client_secret_keys_builder.ks_hsc_desc_enc(ks_hsc_desc_enc);
-                    }
-
-                    if let Some(ks_hsc_intro_auth) = ks_hsc_intro_auth {
-                        debug!("Found INTRODUCE1 signing key for {hsid}");
-                        hs_client_secret_keys_builder.ks_hsc_intro_auth(ks_hsc_intro_auth);
                     }
                 };
 
