@@ -136,6 +136,9 @@ mod tests {
     fn error_source() {
         let e: Error = (Arc::new(TestError(TestErrorSource)) as Arc<dyn KeystoreError>).into();
 
-        assert_eq!(e.source().unwrap().to_string(), TestError(TestErrorSource).to_string());
+        assert_eq!(
+            e.source().unwrap().to_string(),
+            TestError(TestErrorSource).to_string()
+        );
     }
 }
