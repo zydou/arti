@@ -216,7 +216,7 @@ SYNOPSIS
 
 DESCRIPTION
        The key vality checks fail if there are any
-         * keys and certificates not associated with any current onion service
+         * keys and certificates not associated with any current identity
          * unrecognized keys
          * expired keys
          * ... (TODO)
