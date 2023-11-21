@@ -808,7 +808,7 @@ SUBCOMMANDS
        help                  Print this message or the help of the given subcommand(s)
        new-service           Initialize a new hidden service
        generate-online-keys  Generate all the keys necessary to run a hidden service
-       destroy-service       Remove all the keys and state of a hidden service
+       destroy               Remove all the keys and state of a hidden service
        print-onion           Print the .onion address of a service
        auth-clients          Manage the authorized clients of this hidden service
 ```
@@ -867,7 +867,7 @@ EXAMPLES
             Alternatively, if you want to erase the service with nickname
             "shallot", run:
 
-               arti hss --config arti.toml destroy-service \
+               arti hss --config arti.toml destroy \
                    --nickname shallot
 
             before retrying the operation
@@ -946,14 +946,14 @@ EXAMPLES
              --up-to 16904
 ```
 
-### `arti-hss-destroy-service`
+### `arti-hss-destroy`
 
 ```
 NAME
-       arti-hss-destroy-service - remove the persistent state and all the keys of a hidden service
+       arti-hss-destroy - remove the persistent state and all the keys of a hidden service
 
 SYNOPSIS
-       arti hss destroy-service [OPTIONS]
+       arti hss destroy [OPTIONS]
 
 DESCRIPTION
        Remove the persistent state and all the keys of a hidden service.
@@ -969,7 +969,7 @@ OPTIONS
 EXAMPLES
        Erase all the keys and state hidden service with nickname "shallot":
 
-         arti hss --config arti.toml destroy-service \
+         arti hss --config arti.toml destroy \
              --nickname shallot
 ```
 
