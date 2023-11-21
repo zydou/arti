@@ -298,7 +298,7 @@ impl MockExecutor {
         &self,
         desc: impl Display,
         fut: impl Future<Output = T> + Send + 'static,
-    ) -> futures::future::Fuse<futures::channel::oneshot::Receiver<T>> {
+    ) -> impl Future<Output = Result<T, tor_async_utils::oneshot::Canceled>> {
         let (tx, rx) = tor_async_utils::oneshot::channel();
         self.spawn_identified(desc, async move {
             let res = fut.await;

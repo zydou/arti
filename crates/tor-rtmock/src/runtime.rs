@@ -163,7 +163,7 @@ impl MockRuntime {
         &self,
         desc: impl Display,
         fut: impl Future<Output = T> + Send + 'static,
-    ) -> futures::future::Fuse<futures::channel::oneshot::Receiver<T>> {
+    ) -> impl Future<Output = Result<T, tor_async_utils::oneshot::Canceled>> {
         // MSRV: 1.65 cannot cope and erroneously claims that desc has to be 'static
         let desc = desc.to_string();
         self.task.spawn_join(desc, fut)
