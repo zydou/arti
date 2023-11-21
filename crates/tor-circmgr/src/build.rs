@@ -903,7 +903,7 @@ mod test {
         }
         rt.advance_until_stalled().await;
 
-        let circ = outcome.map(|m| Ok(m??.lock().unwrap().clone())).await;
+        let circ = outcome.map(|m| Ok(m?.lock().unwrap().clone())).await;
         let timeouts = timeouts.lock().unwrap().hist.clone();
 
         (circ, timeouts)
