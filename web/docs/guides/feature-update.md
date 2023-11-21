@@ -1,10 +1,12 @@
 ---
-title: What Arti can't do yet
+title: Arti's current capabilities and limitations
 ---
 
-# What Arti Can't Do Yet
+# Arti's current capabilities and limitations
 
-Arti, the Rust implementation of the Tor network, represents a significant step forward in developing more secure and maintainable anonymous communication software. However, Arti is still under development and is not yet ready for production use. As a result, Arti has several limitations that users and developers should know.
+Our eventual goal with Arti is to provide a complete, full-featured implementation of the Tor network in Rust. We have completed some of the necessary features. However, many other important features are pending.
+
+Here is a summary of Arti's current capabilities and limitations as of November 2023.
 
 ## Current Capabilities
 
@@ -16,6 +18,9 @@ Arti can be integrated directly into other Rust applications. This allows you to
 
 You can integrate Arti into your application as a Rust crate. To integrate Arti into your program, you should use the [`arti-client`](https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html) Rust crate. This crate provides the necessary functionalities to interact with the Tor network, such as making anonymized requests or accessing Onion services (turned off by default and currently under development).
 
+Note that some APIs in `arti-client` are explicitly labeled as _experimental_ in the documentation.
+These APIs are only available when you explicitly enable their corresponding [feature flags](https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html#feature-flags).
+These experimental features are not stable. If you use them in your programs, you should expect that future versions of Arti will break your programs.
 
 ## Limitations
 
@@ -43,7 +48,6 @@ The APIs, especially the internal ones, are currently unstable in Arti and may c
 - **Relay Functionality**: Users cannot operate Arti as a relay, an integral part of the Tor network's traffic routing.
 - **Control-Port Protocol Features**: Features dependent on Tor's control-port protocol, which allows applications to control the Tor client, are not supported in Arti.
 - **Proxy Limitations**: Currently, Arti is primarily a SOCKS proxy and does not offer other types of proxy functionalities.
-- **Anti-Censorship Features**: Arti lacks anti-censorship support, including the use of bridges and pluggable transports essential for bypassing internet censorship ([Arti Documentation](https://tpo.pages.torproject.net/core/doc/rust/arti/)).
 
 
 ## Conclusion
