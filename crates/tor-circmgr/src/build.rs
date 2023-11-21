@@ -886,19 +886,13 @@ mod test {
             timeouts::Estimator::new(Arc::clone(&timeouts)),
         );
 
-        let params = CircParameters::default();
-
         rt.block_advance("manually controlling advances");
         rt.allow_one_advance(advance_initial);
-        let outcome = {
-            let (ret_tx, ret_rx) = oneshot::channel();
+        let outcome = rt.spawn_join("build-owned", async move {
             let arcbuilder = Arc::new(builder);
-            rt.spawn_identified("build-owned", async move {
-                let res = arcbuilder.build_owned(path, &params, gs(), usage).await;
-                ret_tx.send(res).unwrap();
-            });
-            ret_rx
-        };
+            let params = CircParameters::default();
+            arcbuilder.build_owned(path, &params, gs(), usage).await
+        });
 
         // Now we wait for a success to finally, finally be reported.
         if advance_on_timeout.is_some() {
