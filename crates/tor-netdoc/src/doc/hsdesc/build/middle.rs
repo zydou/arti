@@ -96,7 +96,7 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
 
                     // As per section 2.5.1.2. of rend-spec-v3, if client auth is disabled, we need to
                     // generate some fake data for the desc-auth-ephemeral-key and auth-client fields.
-                    let secret = EphemeralSecret::new(rng);
+                    let secret = EphemeralSecret::random_from_rng(rng);
                     let dummy_ephemeral_key = PublicKey::from(&secret);
 
                     (
@@ -177,7 +177,7 @@ AQIDBA==
     #[test]
     fn middle_hsdesc_encoding_with_bad_client_auth() {
         let mut rng = Config::Deterministic.into_rng().rng_compat();
-        let secret = curve25519::StaticSecret::new(&mut rng);
+        let secret = curve25519::StaticSecret::random_from_rng(&mut rng);
         let public = curve25519::PublicKey::from(&secret).into();
 
         let client_auth = ClientAuth {
@@ -210,7 +210,7 @@ AQIDBA==
             create_curve25519_pk(&mut rng),
         ];
 
-        let secret = curve25519::StaticSecret::new(&mut rng);
+        let secret = curve25519::StaticSecret::random_from_rng(&mut rng);
         let public = curve25519::PublicKey::from(&secret).into();
 
         let client_auth = ClientAuth {

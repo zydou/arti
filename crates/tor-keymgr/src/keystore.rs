@@ -142,7 +142,7 @@ impl Keygen for curve25519::StaticKeypair {
     where
         Self: Sized,
     {
-        let secret = curve25519::StaticSecret::new(rng);
+        let secret = curve25519::StaticSecret::random_from_rng(rng);
         let public = curve25519::PublicKey::from(&secret);
 
         Ok(curve25519::StaticKeypair { secret, public })
@@ -211,8 +211,8 @@ impl EncodableKey for ed25519::Keypair {
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let keypair = Ed25519Keypair {
-            public: Ed25519PublicKey(self.public.to_bytes()),
-            private: Ed25519PrivateKey::from_bytes(self.secret.as_bytes()),
+            public: Ed25519PublicKey(self.verifying_key().to_bytes()),
+            private: Ed25519PrivateKey::from_bytes(self.as_bytes()),
         };
 
         Ok(KeypairData::Ed25519(keypair).into())
@@ -262,7 +262,7 @@ impl EncodableKey for ed25519::ExpandedKeypair {
             Algorithm::Other(algorithm_name),
         );
 
-        let keypair = OpaqueKeypair::new(self.secret.to_bytes().to_vec(), ssh_public);
+        let keypair = OpaqueKeypair::new(self.to_secret_key_bytes().to_vec(), ssh_public);
 
         Ok(ssh_key::private::KeypairData::Other(keypair).into())
     }

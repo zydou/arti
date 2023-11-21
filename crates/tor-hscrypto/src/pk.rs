@@ -9,11 +9,10 @@ use std::str::FromStr;
 
 use digest::Digest;
 use itertools::{chain, Itertools};
-use signature::Signer;
 use thiserror::Error;
 use tor_basic_utils::{impl_debug_hex, StrExt as _};
 use tor_llcrypto::d::Sha3_256;
-use tor_llcrypto::pk::ed25519::Ed25519PublicKey;
+use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Signer};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
 
@@ -627,11 +626,8 @@ mod test {
         let offset = Duration::new(12 * 60 * 60, 0);
         let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now(), offset).unwrap();
         let keypair = ed25519::Keypair::generate(&mut rng);
-        let id_pub = HsIdKey::from(keypair.public);
-        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair {
-            secret: ed25519::ExpandedSecretKey::from(&keypair.secret),
-            public: id_pub.0,
-        });
+        let id_pub = HsIdKey::from(keypair.verifying_key());
+        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair::from(&keypair));
 
         let (blinded_pub, subcred1) = id_pub.compute_blinded_key(when).unwrap();
         let (blinded_pub2, blinded_keypair, subcred2) =
@@ -660,8 +656,7 @@ mod test {
             secret: ed25519::ExpandedSecretKey::from_bytes(&hex!(
                 "D8C7FF0E31295B66540D789AF3E3DF992038A9592EEA01D8B7CBA06D6E66D159
                  4D6167696320576F7264733A20737065697373636F62616C742062697669756D"
-            ))
-            .unwrap(),
+            )),
             public: ed25519::PublicKey::from_bytes(id.as_ref()).unwrap(),
         });
         let time_period = TimePeriod::new(
@@ -693,11 +688,12 @@ mod test {
         assert_eq!(blinded_pub1.0.to_bytes(), blinded_pub2.0.to_bytes());
         assert_eq!(subcred1.as_ref(), subcred2.as_ref());
         assert_eq!(
-            blinded_sec.0.secret.to_bytes(),
-            hex!(
-                "A958DC83AC885F6814C67035DE817A2C604D5D2F715282079448F789B656350B
-                 4540FE1F80AA3F7E91306B7BF7A8E367293352B14A29FDCC8C19F3558075524B"
-            )
+            blinded_sec.0.secret.scalar.to_bytes(),
+            hex!("A958DC83AC885F6814C67035DE817A2C604D5D2F715282079448F789B656350B")
+        );
+        assert_eq!(
+            blinded_sec.0.secret.hash_prefix,
+            hex!("4540FE1F80AA3F7E91306B7BF7A8E367293352B14A29FDCC8C19F3558075524B")
         );
     }
 }

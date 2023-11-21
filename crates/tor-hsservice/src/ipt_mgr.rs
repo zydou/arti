@@ -438,7 +438,7 @@ impl Ipt {
         tor_netdoc::doc::hsdesc::IntroPointDesc::builder()
             .link_specifiers(details.link_specifiers.clone())
             .ipt_kp_ntor(details.ipt_kp_ntor)
-            .kp_hs_ipt_sid(k_sid.public.into())
+            .kp_hs_ipt_sid(k_sid.verifying_key().into())
             .kp_hss_ntor(self.k_hss_ntor.public().clone())
             .build()
             .map_err(into_internal!("failed to construct IntroPointDesc"))

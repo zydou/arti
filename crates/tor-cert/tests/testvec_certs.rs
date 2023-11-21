@@ -86,7 +86,7 @@ fn test_valid_rsa_cc() {
     let wrong_pk = tor_llcrypto::pk::rsa::PublicKey::from_der(&wrong_pk[..]).unwrap();
 
     let ed_identity = hex!("DCB604DB2034B00FD16986D4ADB9D16B21CB4E4457A33DEC0F538903683E96E9");
-    let ed_identity = tor_llcrypto::pk::ed25519::PublicKey::from_bytes(&ed_identity[..]).unwrap();
+    let ed_identity = tor_llcrypto::pk::ed25519::PublicKey::from_bytes(&ed_identity).unwrap();
 
     let c = hex!(
         "DCB604DB2034B00FD16986D4ADB9D16B21CB4E4457A33DEC0F538903683E96E9

@@ -110,7 +110,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     let auth_clients = vec![];
 
     let desc_signing_key_cert = create_desc_sign_key_cert(
-        &hs_desc_sign.as_ref().public,
+        &hs_desc_sign.as_ref().verifying_key(),
         &blind_id_kp,
         hs_desc_sign_cert_expiry,
     )
@@ -254,8 +254,8 @@ mod test {
 
     #[test]
     fn build_auth_clients_curve25519() {
-        let a: PublicKey = (&StaticSecret::new(testing_rng().rng_compat())).into();
-        let b: PublicKey = (&StaticSecret::new(testing_rng().rng_compat())).into();
+        let a: PublicKey = (&StaticSecret::random_from_rng(testing_rng().rng_compat())).into();
+        let b: PublicKey = (&StaticSecret::random_from_rng(testing_rng().rng_compat())).into();
 
         let a_ck = Curve25519Key(a.into());
         let b_ck = Curve25519Key(b.into());

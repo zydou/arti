@@ -1387,7 +1387,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let ope_key = match read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)? {
             Some(key) => {
                 let key: ed25519::ExpandedKeypair = key.into();
-                key.secret.to_bytes()
+                key.to_secret_key_bytes()[0..32]
+                    .try_into()
+                    .expect("Wrong length on slice")
             }
             None => {
                 // TODO HSS: we don't support externally provisioned keys (yet), so this branch

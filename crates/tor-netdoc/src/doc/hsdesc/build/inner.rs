@@ -121,7 +121,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             let signed_auth_key = Ed25519Cert::constructor()
                 .cert_type(CertType::HS_IP_V_SIGNING)
                 .expiration(intro_auth_key_cert_expiry)
-                .signing_key(ed25519::Ed25519Identity::from(hs_desc_sign.public))
+                .signing_key(ed25519::Ed25519Identity::from(hs_desc_sign.verifying_key()))
                 .cert_key(CertifiedKey::Ed25519((*intro_point.ipt_sid_key).into()))
                 .encode_and_sign(hs_desc_sign)
                 .map_err(into_bad_api_usage!("failed to sign the intro auth key"))?;
@@ -158,7 +158,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             let signed_enc_key = Ed25519Cert::constructor()
                 .cert_type(CertType::HS_IP_CC_SIGNING)
                 .expiration(intro_enc_key_cert_expiry)
-                .signing_key(ed25519::Ed25519Identity::from(hs_desc_sign.public))
+                .signing_key(ed25519::Ed25519Identity::from(hs_desc_sign.verifying_key()))
                 .cert_key(CertifiedKey::Ed25519(ed25519::Ed25519Identity::from(
                     &ed_svc_ntor_key,
                 )))

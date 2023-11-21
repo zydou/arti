@@ -163,8 +163,6 @@ mod net_impls {
 /// Implement [`Readable`] and [`Writeable`] for Ed25519 types.
 mod ed25519_impls {
     use super::*;
-    #[allow(unused_imports)] // This `use` is needed with ed25519 < 1.3.0
-    use signature::Signature;
     use tor_llcrypto::pk::ed25519;
 
     impl Writeable for ed25519::PublicKey {
@@ -202,8 +200,7 @@ mod ed25519_impls {
     impl Readable for ed25519::Signature {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
             let bytes: [u8; 64] = b.extract()?;
-            Self::from_bytes(&bytes)
-                .map_err(|_| Error::InvalidMessage("Couldn't decode Ed25519 signature.".into()))
+            Ok(Self::from_bytes(&bytes))
         }
     }
 }
@@ -393,8 +390,6 @@ mod tests {
 
     #[test]
     fn ed25519() {
-        #[allow(unused_imports)] // This `use` is needed with ed25519 < 1.3.0
-        use signature::Signature;
         use tor_llcrypto::pk::ed25519;
         let b = &hex!(
             "68a6cee11d2883661f5876f7aac748992cd140f
@@ -421,17 +416,17 @@ mod tests {
              c804f76a8fa858b9ab43622b9e8335993c422eab15
              6ebb5a047033f35256333a47a508b02699314d22550e"
         );
-        check_roundtrip!(
-            ed25519::Signature,
-            ed25519::Signature::from_bytes(sig).unwrap(),
-            sig
-        );
-        let sig = &hex!(
-            "b8842c083a56076fc27c8af21211f9fe57d1c32d9d
-             c804f76a8fa858b9ab43622b9e8335993c422eab15
-             6ebb5a047033f35256333a47a508b02699314d2255ff"
-        );
-        check_bad!(ed25519::Signature, sig);
+        check_roundtrip!(ed25519::Signature, ed25519::Signature::from_bytes(sig), sig);
+
+        // Test removed: The ed25519::Signature type is now happy to hold any
+        // 64-byte sequence.
+        //
+        // let sig = &hex!(
+        //   "b8842c083a56076fc27c8af21211f9fe57d1c32d9d
+        //     c804f76a8fa858b9ab43622b9e8335993c422eab15
+        //     6ebb5a047033f35256333a47a508b02699314d2255ff"
+        // );
+        // check_bad!(ed25519::Signature, sig);
     }
 
     #[test]

@@ -45,6 +45,7 @@ pub(super) struct HsDescOuter<'a> {
 
 impl<'a> NetdocBuilder for HsDescOuter<'a> {
     fn build_sign<R: RngCore + CryptoRng>(self, _: &mut R) -> Result<String, EncodeError> {
+        use tor_llcrypto::pk::ed25519::Signer as _;
         use HsOuterKwd::*;
 
         let HsDescOuter {
@@ -71,8 +72,7 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
 
         let mut text = HS_DESC_SIGNATURE_PREFIX.to_vec();
         text.extend_from_slice(encoder.slice(beginning, end)?.as_bytes());
-        let signature = ed25519::ExpandedSecretKey::from(&hs_desc_sign.secret)
-            .sign(&text, &hs_desc_sign.public);
+        let signature = hs_desc_sign.sign(&text);
 
         // TODO SPEC encoding of this signature is completely unspecified (rend-spec-v3 2.4)
         // TODO SPEC base64 is sometimes padded, sometimes unpadded, but NONE of the specs ever say!
@@ -130,7 +130,8 @@ mod test {
             .unwrap();
 
         let hs_desc_sign_cert =
-            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, UNIX_EPOCH).unwrap();
+            create_desc_sign_key_cert(&hs_desc_sign.verifying_key(), &blinded_id, UNIX_EPOCH)
+                .unwrap();
 
         let hs_desc = HsDescOuter {
             hs_desc_sign: &hs_desc_sign,

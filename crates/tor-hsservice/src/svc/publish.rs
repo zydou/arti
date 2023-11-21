@@ -394,11 +394,8 @@ mod test {
 
         let mut rng = testing_rng().rng_compat();
         let keypair = ed25519::Keypair::generate(&mut rng);
-        let id_pub = HsIdKey::from(keypair.public);
-        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair {
-            secret: ed25519::ExpandedSecretKey::from(&keypair.secret),
-            public: id_pub.clone().into(),
-        });
+        let id_pub = HsIdKey::from(keypair.verifying_key());
+        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair::from(&keypair));
 
         let (hs_blind_id_key, hs_blind_id_kp, _subcredential) =
             id_keypair.compute_blinded_key(period).unwrap();

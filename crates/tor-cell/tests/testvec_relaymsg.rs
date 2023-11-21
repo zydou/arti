@@ -731,7 +731,7 @@ fn establish_intro_roundtrip() {
     // Now, generate an ESTABLISH_INTRO message and make sure it validates.
     use tor_llcrypto::{pk::ed25519, util::rand_compat::RngCompatExt};
     let keypair = ed25519::Keypair::generate(&mut rng);
-    let body = EstablishIntroDetails::new(keypair.public.into());
+    let body = EstablishIntroDetails::new(keypair.verifying_key().into());
     let mac_key = b"Amaryllidaceae Allium cepa var. proliferum";
     let signed = body
         .clone()

@@ -348,7 +348,7 @@ impl NtorV3SecretKey {
         // Random bytes will work for testing, but aren't necessarily actually a valid id.
         rng.fill_bytes(&mut id);
 
-        let sk = curve25519::StaticSecret::new(rng);
+        let sk = curve25519::StaticSecret::random_from_rng(rng);
 
         let pk = NtorV3PublicKey {
             pk: (&sk).into(),
@@ -410,7 +410,7 @@ fn client_handshake_ntor_v3<R: RngCore + CryptoRng>(
     client_msg: &[u8],
     verification: &[u8],
 ) -> EncodeResult<(NtorV3HandshakeState, Vec<u8>)> {
-    let my_sk = curve25519::StaticSecret::new(rng.rng_compat());
+    let my_sk = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
     client_handshake_ntor_v3_no_keygen(relay_public, client_msg, verification, my_sk)
 }
 
@@ -492,7 +492,7 @@ fn server_handshake_ntor_v3<RNG: CryptoRng + RngCore, REPLY: MsgReply>(
     keys: &[NtorV3SecretKey],
     verification: &[u8],
 ) -> RelayHandshakeResult<(Vec<u8>, NtorV3XofReader)> {
-    let secret_key_y = curve25519::StaticSecret::new(rng.rng_compat());
+    let secret_key_y = curve25519::StaticSecret::random_from_rng(rng.rng_compat());
     server_handshake_ntor_v3_no_keygen(reply_fn, &secret_key_y, message, keys, verification)
 }
 

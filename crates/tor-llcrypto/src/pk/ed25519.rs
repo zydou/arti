@@ -10,10 +10,21 @@
 //! protocol to uniquely identify a relay.
 
 use base64ct::{Base64Unpadded, Encoding as _};
+use curve25519_dalek::Scalar;
+use sha2::Sha512;
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
-pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Signer};
+// TODO DALEK: We are renaming a few types here to maintain consistency with our
+// old names.  Likely, we should deprecate a few of these renamings. Possibly
+// all.
+//
+// TODO DALEK: ALso, it's likely we should remove hazmat::ExpandedSecretKey from
+// our exports, and instead just use ExpandedKeypair.
+pub use ed25519_dalek::{
+    hazmat::ExpandedSecretKey, Signature, Signer, SigningKey as Keypair, Verifier,
+    VerifyingKey as PublicKey,
+};
 
 use crate::util::ct::CtByteArray;
 
@@ -24,26 +35,70 @@ pub const ED25519_ID_LEN: usize = 32;
 pub const ED25519_SIGNATURE_LEN: usize = 64;
 
 /// A variant of [`Keypair`] containing an [`ExpandedSecretKey`].
+///
+/// In the Tor protocol, we use this type to blinded onion service identity keys
+/// (KS_hs_blind_id).  Since their scalar values are computed, rather than taken
+/// directly from a
+/// SHA-512 transformation of a SecretKey, we cannot use the
+//
+// TODO DALEK: It would be better to make the fields here hidden, to prevent
+// the construction of invalid ExpandedKeypairs.
 #[allow(clippy::exhaustive_structs)]
 pub struct ExpandedKeypair {
     /// The secret part of the key.
     pub secret: ExpandedSecretKey,
     /// The public part of this key.
+    ///
+    /// NOTE: As with [`ed25519_dalek::SigningKey`], this public key _must_ be
+    /// the public key matching `secret`.  Putting a different public key in
+    /// here would enable a class of attacks against ed25519 and enable secret
+    /// key recovery.
     pub public: PublicKey,
 }
 
 impl ExpandedKeypair {
     /// Compute a signature over a message using this keypair.
     pub fn sign(&self, message: &[u8]) -> Signature {
-        self.secret.sign(message, &self.public)
+        // See notes on ExpandedKeypair about why this hazmat is okay to use.
+        ed25519_dalek::hazmat::raw_sign::<Sha512>(&self.secret, message, &self.public)
+    }
+
+    /// Return a representation of the secret key in this keypair.
+    ///
+    /// (Since it is an expanded secret key, we represent it as its scalar part
+    /// followed by its hash_prefix.)
+    pub fn to_secret_key_bytes(&self) -> [u8; 64] {
+        let mut output = [0_u8; 64];
+        output[0..32].copy_from_slice(&self.secret.scalar.to_bytes());
+        output[32..64].copy_from_slice(&self.secret.hash_prefix);
+        output
+    }
+
+    /// Reconstruct a key from its byte representation as returned by
+    /// `to_secret_key_bytes()`.
+    ///
+    /// Return None if the input cannot be the output of `to_secret_key_bytes()`.
+    //
+    // NOTE: Returning None is a bit silly, but that's what Dalek does.
+    pub fn from_secret_key_bytes(bytes: [u8; 64]) -> Option<Self> {
+        let scalar = Option::from(Scalar::from_bytes_mod_order(
+            bytes[0..32].try_into().expect("wrong length on slice"),
+        ))?;
+        let hash_prefix = bytes[32..64].try_into().expect("wrong length on slice");
+        let secret = ExpandedSecretKey {
+            scalar,
+            hash_prefix,
+        };
+        let public = PublicKey::from(&secret);
+        Some(Self { secret, public })
     }
 }
 
 impl<'a> From<&'a Keypair> for ExpandedKeypair {
     fn from(kp: &'a Keypair) -> ExpandedKeypair {
         ExpandedKeypair {
-            secret: (&kp.secret).into(),
-            public: kp.public,
+            secret: kp.as_bytes().into(),
+            public: kp.into(),
         }
     }
 }
@@ -126,7 +181,7 @@ impl From<&PublicKey> for Ed25519Identity {
 impl TryFrom<&Ed25519Identity> for PublicKey {
     type Error = ed25519_dalek::SignatureError;
     fn try_from(id: &Ed25519Identity) -> Result<PublicKey, Self::Error> {
-        PublicKey::from_bytes(&id.id.as_ref()[..])
+        PublicKey::from_bytes(id.id.as_ref())
     }
 }
 
@@ -270,7 +325,6 @@ impl ValidatableEd25519Signature {
 
 impl super::ValidatableSignature for ValidatableEd25519Signature {
     fn is_valid(&self) -> bool {
-        use signature::Verifier;
         self.key
             .verify(&self.entire_text_of_signed_thing[..], &self.sig)
             .is_ok()
@@ -323,6 +377,6 @@ pub trait Ed25519PublicKey {
 
 impl Ed25519PublicKey for Keypair {
     fn public_key(&self) -> &PublicKey {
-        &self.public
+        self.as_ref()
     }
 }

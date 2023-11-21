@@ -12,7 +12,7 @@
 //! [`ed25519-dalek`], and the latest [`rand_core`], then you can't use
 //! this code, because of the compatibility issue mentioned above.
 //!
-//! ```compile_fail
+//! ```ignore
 //! use rand_core::OsRng;
 //! use ed25519_dalek::Keypair;
 //!
@@ -25,7 +25,7 @@
 //! But instead, you can wrap the random number generator using the
 //! [`RngCompatExt`] extension trait.
 //!
-//! ```
+//! ```ignore
 //! use tor_llcrypto::util::rand_compat::RngCompatExt;
 //! use rand_core::OsRng;
 //! use ed25519_dalek::Keypair;
@@ -35,6 +35,8 @@
 //!
 //! The wrapped RNG can be used with the old version of the RngCore
 //! trait, as well as the new one.
+
+// TODO DALEK: We no longer need this module.
 
 use old_rand_core::{CryptoRng as OldCryptoRng, Error as OldError, RngCore as OldRngCore};
 use rand_core::{CryptoRng, Error, RngCore};

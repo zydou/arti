@@ -13,6 +13,7 @@ pub mod rsa;
 /// key-agreement trait, but for now we are just re-using the APIs from
 /// [`x25519_dalek`].
 pub mod curve25519 {
+    // TODO DALEK: We may want to migrate from StaticSecret to ReusableSecret.
     pub use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret, StaticSecret};
 
     use educe::Educe;
