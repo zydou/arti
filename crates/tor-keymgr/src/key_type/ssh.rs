@@ -277,8 +277,11 @@ fn convert_expanded_ed25519_kp(
 
 /// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
 fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
-    Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..])
-        .map_err(|_| ArtiNativeKeystoreError::InvalidSshKeyData("bad ed25519 public key ".into()))?)
+    Ok(
+        ed25519::PublicKey::from_bytes(&key.as_ref()[..]).map_err(|_| {
+            ArtiNativeKeystoreError::InvalidSshKeyData("bad ed25519 public key ".into())
+        })?,
+    )
 }
 
 /// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to an [`ed25519::PublicKey`].
