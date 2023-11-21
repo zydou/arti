@@ -294,17 +294,17 @@ impl MockExecutor {
     ///
     /// `desc` should `Display` as some kind of short string (ideally without spaces)
     /// and will be used in the `Debug` impl and trace log messages from `MockExecutor`.
-    pub async fn spawn_join<T: Debug + Clone + Send + 'static>(
+    pub fn spawn_join<T: Debug + Send + 'static>(
         &self,
         desc: impl Display,
         fut: impl Future<Output = T> + Send + 'static,
-    ) -> T {
+    ) -> futures::future::Fuse<futures::channel::oneshot::Receiver<T>> {
         let (tx, rx) = tor_async_utils::oneshot::channel();
         self.spawn_identified(desc, async move {
             let res = fut.await;
             tx.send(res).unwrap();
         });
-        rx.await.unwrap()
+        rx
     }
 
     /// Spawn a task and return its `TaskId`
