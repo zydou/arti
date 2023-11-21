@@ -298,14 +298,14 @@ impl MockExecutor {
         &self,
         desc: impl Display,
         fut: impl Future<Output = T> + Send + 'static,
-    ) -> impl Future<Output = Result<T, tor_async_utils::oneshot::Canceled>> {
+    ) -> impl Future<Output = T> {
         let (tx, rx) = tor_async_utils::oneshot::channel();
         self.spawn_identified(desc, async move {
             let res = fut.await;
             tx.send(res)
                 .expect("Failed to send future's output, did future panic?");
         });
-        rx
+        rx.map(|m| m.unwrap())
     }
 
     /// Spawn a task and return its `TaskId`
