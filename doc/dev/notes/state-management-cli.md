@@ -900,16 +900,23 @@ DESCRIPTION
       running the hidden service), you do not need to run this command, as Arti
       will automatically generate all the necessary keys and certificates.
 
-      The keys should be generated on a secure host where the secret identity
-      key of the service is available, and then exported to the hidden service
-      host.
+      This command should be run on a secure offline system where the secret
+      identity key of the service is available. It generates keys inside an
+      "online" keystore, specified via --online-keystore-dir. Because the
+      "online" keystore is a directory on disk, it can be copied from the
+      offline system to the (online) hidden service host using the file-copying
+      utilities available on your system. On the online system, the
+      storage.keystore.path from the TOML config of the hidden service should
+      point to the path the "online" keystore was copied to.
 
       The service will be able to operate without its secret identity key until
       the time specified via --up-to. After that, additional keys will
       need to be generated.
 
-      This command assumes the hidden service has already been initialized using
-      `arti hss new-service`, and that the identity keypair is available in one
+      This command assumes the hidden service has already been initialized,
+      either manually, using arti-hss-new-service(1), or implicitly,
+      by starting arti as a hidden service,
+      and that the identity keypair is available in one
       of the configured key stores.
 
       Generates the following keys and certificates for each time period
@@ -922,34 +929,36 @@ DESCRIPTION
           signing key with the blinded identity key)
 
 OPTIONS
-       --keystore default
-            Generate the keys in the default keystore. This is the default
-            behavior if the --keystore flag is omitted
-       --keystore <kid>
-            Specifies the ID of the keystore to generate the keys into. The ID
-            must match one of the key store IDs configured in the specified
-            config. It is an error to specify an unrecognized key store ID.
+       --online-keystore-dir
+            The root of the online keystore, where the keys will be generated.
+            The keystore directory will be created if it does not already exist.
        --nickname
             The nickname of the service for which to generate the keys
        --up-to {<TIMESTAMP>|<DURATION>}
             A timestamp or duration representing the validity interval of
             the generated keys. The service will be able to run using the
             generated keys until the specified <TIMESTAMP>, or for the specified
-            <DURATION>, after which new keys will need to be generated.
+            <DURATION>. after which new keys will need to be generated.
             Timestamps represent an absolute date/time given in RFC3339 format.
             Durations are relative to the current time (i.e. the time when this
             command was run), and represent a number of hours, minutes, or days
             (for example "--up-to 48h", --up-to 48 hours", "--up-to 10 days").
 
 EXAMPLES
-       Generate keys for the hidden service with nickname "shallot" in
-       key store foo:
+       Initialize a new "online" keystore at $HOME/foo with the keys needed in
+       order for hidden service "shallot" to run in offline mode until
+       2023-02-09T12:00:00Z (the identity key of the service must be in one of
+       the keystores configured in arti.toml):
 
          arti hss --config arti.toml generate-online-keys \
-             --keystore foo                               \
+             --online-keystore-dir $HOME/foo              \
              --nickname shallot                           \
              --up-to 2023-02-09T12:00:00Z
 
+       Keystore foo can be exported to the online system by copying the
+       $HOME/foo directory. On the online system, in the TOML config of the
+       hidden service, storage.keystore.path should point to the parent directory
+       of foo (TODO: make the keystore ID part of the config).
 ```
 
 ### `arti-hss-destroy`
