@@ -6,7 +6,7 @@ title: Compiling Arti
 
 Arti can act as a SOCKS(Socket Secure) proxy that uses the Tor network. To use Arti as a proxy, it is required that you obtain a Rust development environment and build it yourself as there are no official binaries yet. 
 
-To start building and compiling Arti, clone the Arti repository and navigate to the directory by the running the commands:
+To start building and compiling Arti, clone the Arti repository and navigate to the directory by running the commands:
 
 ```bash
 # clone the repo
@@ -34,6 +34,6 @@ The `--release` flag is used to run the release version. With Arti running, you 
 
 #### Notes:
 
-- The provided instructions assume that you have a working Rust development environment.
+- The provided instructions assume that you have a working [Rust development environment](https://www.rust-lang.org/learn/get-started).
 - Ensure that you are in the correct directory (`arti`) when running the `cargo` commands.
 
