@@ -156,6 +156,19 @@ impl MockRuntime {
         self.task.spawn_identified(desc, fut)
     }
 
+    /// Spawn a task and return its output for further usage
+    ///
+    /// See [`MockExecutor::spawn_join()`]
+    pub fn spawn_join<T: Debug + Send + 'static>(
+        &self,
+        desc: impl Display,
+        fut: impl Future<Output = T> + Send + 'static,
+    ) -> impl Future<Output = T> {
+        // MSRV: 1.65 cannot cope and erroneously claims that desc has to be 'static
+        let desc = desc.to_string();
+        self.task.spawn_join(desc, fut)
+    }
+
     /// Run tasks and advance time, until every task except this one is waiting
     ///
     /// On return the other tasks won't be waiting on timeouts,
