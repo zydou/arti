@@ -305,7 +305,7 @@ impl MockExecutor {
             tx.send(res)
                 .expect("Failed to send future's output, did future panic?");
         });
-        rx.map(|m| m.unwrap())
+        rx.map(|m| m.expect("Failed to receive future's output"))
     }
 
     /// Spawn a task and return its `TaskId`
