@@ -37,6 +37,7 @@ pub struct ArtiNativeKeystore;
 
 /// A dummy `KeyType`.
 #[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyType;
 
 impl KeyType {
