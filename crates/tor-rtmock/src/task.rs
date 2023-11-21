@@ -302,7 +302,8 @@ impl MockExecutor {
         let (tx, rx) = tor_async_utils::oneshot::channel();
         self.spawn_identified(desc, async move {
             let res = fut.await;
-            tx.send(res).unwrap();
+            tx.send(res)
+                .expect("Failed to send future's output, did future panic?");
         });
         rx
     }
