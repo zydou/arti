@@ -905,7 +905,7 @@ DESCRIPTION
       host.
 
       The service will be able to operate without its secret identity key until
-      the time period specified via --up-to. After that, additional keys will
+      the time specified via --up-to. After that, additional keys will
       need to be generated.
 
       This command assumes the hidden service has already been initialized using
@@ -913,7 +913,7 @@ DESCRIPTION
       of the configured key stores.
 
       Generates the following keys and certificates for each time period
-      starting from the current time period up until the time period specified
+      starting from the current time period up until the time specified
       via --up-to:
 
         * blinded identity keypair
@@ -931,10 +931,15 @@ OPTIONS
             config. It is an error to specify an unrecognized key store ID.
        --nickname
             The nickname of the service for which to generate the keys
-       --up-to <TIME_PERIOD>
-            The time period up to which to generate the keys. This is specified
-            as an index representing the number of time periods that have passed
-            since the Unix epoch
+       --up-to {<TIMESTAMP>|<DURATION>}
+            A timestamp or duration representing the validity interval of
+            the generated keys. The service will be able to run using the
+            generated keys until the specified <TIMESTAMP>, or for the specified
+            <DURATION>, after which new keys will need to be generated.
+            Timestamps represent an absolute date/time given in RFC3339 format.
+            Durations are relative to the current time (i.e. the time when this
+            command was run), and represent a number of hours, minutes, or days
+            (for example "--up-to 48h", --up-to 48 hours", "--up-to 10 days").
 
 EXAMPLES
        Generate keys for the hidden service with nickname "shallot" in
@@ -943,7 +948,8 @@ EXAMPLES
          arti hss --config arti.toml generate-online-keys \
              --keystore foo                               \
              --nickname shallot                           \
-             --up-to 16904
+             --up-to 2023-02-09T12:00:00Z
+
 ```
 
 ### `arti-hss-destroy`
