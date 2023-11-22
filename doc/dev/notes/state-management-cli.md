@@ -33,6 +33,10 @@ currently support certificates (but it will in the future. See [arti#955])
 NOTE: `arti-keys`, `arti-keys-raw`, `arti-hsc` and `arti-hss` will be
 implemented as arti subcommands (`arti keys`, `arti hsc`, `arti hss`).
 
+TODO HSS: Design commands for converting C Tor HS service state to an Arti
+keystore and associated state (calling it something like `arti-hss migrate` or
+`arti-hss ctor-migrate`)
+
 ## `arti-keys`
 ```
 NAME
