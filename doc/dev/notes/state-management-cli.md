@@ -811,6 +811,7 @@ SUBCOMMANDS
        destroy               Remove all the keys and state of a hidden service
        print-onion           Print the .onion address of a service
        auth-clients          Manage the authorized clients of this hidden service
+       destroy-and-recreate  Generate a new identity keypair for a hidden service
 ```
 
 ### `arti-hss-new-service`
@@ -1037,4 +1038,30 @@ SUBCOMMANDS
        import                Import the public keys of a client
        disable               Un-authorize a previously authorized client
        enable                Authorize a new client
+```
+
+### `arti-hss-destroy-and-recreate`
+
+```
+NAME
+       arti-hss-destroy-and-recreate - Generate a new identity keypair for a hidden service
+
+SYNOPSIS
+       arti hss destroy-and-recreate [OPTIONS]
+
+DESCRIPTION
+       A command for generating a new set of keys for an existing hidden
+       service.
+
+       This command deletes all the keys, including identity key, of the
+       specified sevice and generates a fresh identity keypair.
+
+       This command preserves the nickname of the service and its configuration
+       (including the authorized clients).
+
+       TODO: Expand on the description, add an example
+
+OPTIONS
+       --nickname
+            The nickname of the service to destroy and recreate
 ```
