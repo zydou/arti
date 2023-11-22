@@ -1,11 +1,13 @@
 //! Declare an error type for the `tor-hsservice` crate.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::task::SpawnError;
 
 use thiserror::Error;
 
+use tor_error::error_report;
 use tor_error::{Bug, ErrorKind, HasKind};
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
@@ -102,6 +104,53 @@ impl HasKind for ClientError {
             ClientError::AcceptStream(e) => e.kind(),
             ClientError::RejectStream(e) => e.kind(),
         }
+    }
+}
+
+/// Latest time to retry a failed IPT store (eg, disk full)
+// TODO HSS configure?
+const IPT_STORE_RETRY_MAX: Duration = Duration::from_secs(60);
+
+/// An error arising when trying to store introduction points
+///
+/// These don't escape the crate, except to be logged.
+///
+/// These errors might be fatal, or they might be something we should retry.
+#[derive(Clone, Debug, Error)]
+pub(crate) enum IptStoreError {
+    /// Unable to store introduction points
+    #[error("Unable to store introduction points")]
+    Store(#[from] tor_persist::Error),
+
+    /// Fatal error
+    #[error("Fatal error")]
+    Fatal(#[from] FatalError),
+}
+
+impl From<Bug> for IptStoreError {
+    fn from(bug: Bug) -> IptStoreError {
+        FatalError::from(bug).into()
+    }
+}
+
+impl IptStoreError {
+    /// Log this error, and report latest time to retry
+    ///
+    /// It's OK to retry this earlier, if we are prompted somehow by other work;
+    /// this is the longest time we should wait, so that we poll periodically
+    /// to see if the situation has improved.
+    ///
+    /// If the operation shouldn't be retried, the problem was a fatal error,
+    /// which is simply returned.
+    // TODO HSS should this be a HasRetryTime impl instead?  But that has different semantics.
+    pub(crate) fn log_retry_max(self, nick: &HsNickname) -> Result<Duration, FatalError> {
+        use IptStoreError as ISE;
+        let wait = match self {
+            ISE::Store(_) => IPT_STORE_RETRY_MAX,
+            ISE::Fatal(e) => return Err(e),
+        };
+        error_report!(self, "HS service {}: error", nick);
+        Ok(wait)
     }
 }
 

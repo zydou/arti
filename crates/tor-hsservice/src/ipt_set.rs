@@ -12,8 +12,8 @@ use futures::StreamExt as _;
 use derive_more::{Deref, DerefMut};
 use itertools::chain;
 
-use crate::FatalError;
 use crate::IptLocalId;
+use crate::IptStoreError;
 
 use tor_error::internal;
 
@@ -339,7 +339,7 @@ impl PublishIptSet {
     pub(crate) fn note_publication_attempt(
         &mut self,
         worst_case_end: Instant,
-    ) -> Result<(), FatalError> {
+    ) -> Result<(), IptStoreError> {
         let ipts = self
             .ipts
             .as_ref()
@@ -409,6 +409,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::FatalError;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
     use tor_rtcompat::{BlockOn as _, SleepProvider as _};

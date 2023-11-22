@@ -41,8 +41,9 @@ use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::svc::ipt_establish;
-use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
-use crate::{FatalError, HsNickname, IptLocalId, OnionServiceConfig, RendRequest, StartupError};
+use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
+use crate::{FatalError, IptStoreError, StartupError};
+use crate::{HsNickname, IptLocalId, OnionServiceConfig, RendRequest};
 use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
 
 use IptStatusStatus as ISS;
@@ -986,7 +987,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         &mut self,
         now: &TrackingNow,
         publish_set: &mut PublishIptSet,
-    ) -> Result<(), FatalError> {
+    ) -> Result<(), IptStoreError> {
         //---------- tell the publisher what to announce ----------
 
         let very_recently: Option<(TrackingInstantOffsetNow, Duration)> = (|| {
@@ -1263,7 +1264,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             //    we have only Faulty IPTs and can't select another due to 2N limit ?
             // Log at info if and when we publish?  Maybe the publisher should do that?
 
-            self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
+            if let Err(operr) = self.compute_iptsetstatus_publish(&now, &mut publish_set) {
+                // This is not good, is it.
+                publish_set.ipts = None;
+                let wait = operr.log_retry_max(&self.imm.nick)?;
+                now.update(wait);
+            };
+
             self.expire_old_expiry_times(&mut publish_set, &now);
 
             drop(publish_set); // release lock, and notify publisher of any changes
