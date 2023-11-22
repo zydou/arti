@@ -513,7 +513,7 @@ mod test {
         let config = build_test_config(nickname.clone());
         let (config_tx, config_rx) = watch::channel_with(Arc::new(config));
 
-        let (mut mv, pv) = ipts_channel(create_storage_handles().1);
+        let (mut mv, pv) = ipts_channel(create_storage_handles().1).unwrap();
         let update_ipts = || {
             let ipts: Vec<IptInSet> = test_data::test_parsed_hsdesc()
                 .unwrap()

@@ -15,7 +15,7 @@ use itertools::chain;
 use serde::{Deserialize, Serialize};
 
 use crate::IptLocalId;
-use crate::IptStoreError;
+use crate::{IptStoreError, StartupError};
 
 use tor_error::internal;
 
@@ -220,9 +220,10 @@ struct NotifyingBorrow<'v> {
 }
 
 /// Create a new shared state channel for the publication instructions
+#[allow(clippy::unnecessary_wraps)] // XXXX
 pub(crate) fn ipts_channel(
     storage: Arc<IptSetStorageHandle>,
-) -> (IptsManagerView, IptsPublisherView) {
+) -> Result<(IptsManagerView, IptsPublisherView), StartupError> {
     // TODO HSS-IPT-PERSIST load this from a file instead
     let last_descriptor_expiry_including_slop = HashMap::new();
 
@@ -238,13 +239,14 @@ pub(crate) fn ipts_channel(
     // We only have one sender and only ever want one outstanding,
     // since we can (and would like to) coalesce notifications.
     let (tx, rx) = mpsc::channel(0);
-    (
+    let r = (
         IptsManagerView {
             shared: shared.clone(),
             notify: tx,
         },
         IptsPublisherView { shared, notify: rx },
-    )
+    );
+    Ok(r)
 }
 
 /// Lock the shared state and obtain a lock guard
@@ -477,7 +479,7 @@ mod test {
             // make a channel; it should have no updates yet
 
             let (_state_mgr, iptpub_state_handle) = create_storage_handles();
-            let (mut mv, mut pv) = ipts_channel(iptpub_state_handle);
+            let (mut mv, mut pv) = ipts_channel(iptpub_state_handle).unwrap();
             assert!(matches!(pv_poll_await_update(&mut pv).await, Pending));
 
             // borrowing publisher view for publish doesn't cause an update

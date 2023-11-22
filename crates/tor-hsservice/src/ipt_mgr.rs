@@ -1652,7 +1652,7 @@ mod test {
 
             let (state_mgr, iptpub_state_handle) = create_storage_handles();
 
-            let (mgr_view, pub_view) = ipt_set::ipts_channel(iptpub_state_handle);
+            let (mgr_view, pub_view) = ipt_set::ipts_channel(iptpub_state_handle).unwrap();
 
             let keymgr = Arc::new(
                 KeyMgrBuilder::default()
