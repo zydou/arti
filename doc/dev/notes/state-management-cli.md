@@ -583,23 +583,18 @@ DESCRIPTION
        extend the protocol to support other forms of client auth, for example)
 
        Generate a hidden service client authorization key, placing the keypair
-       in the specified key store, and copying the public part to the directory
-       specified via the --pubkey option.
+       in the specified key store.
 
-       This generates an x25519 descriptor encryption keypair and two copies of
-       the public key, in formats recognized by C Tor and Arti (the public keys
-       are placed in the directory specified via --pubkey):
-
-          <PUBKEY_DIR>
-          ├── <CLIENT_NAME>.auth          # for C Tor
-          └── <CLIENT_NAME>.x25519_public # for Arti
+       This generates an x25519 descriptor encryption keypair and prints the
+       corresponding public key to stdout in the format specified via the
+       --pub-format option.
 
        This command should be run by clients who want to connect to a hidden
        service that requires client authorization.
 
        To connect to a hidden service that has client authorization enabled,
-       clients need to share the public part of the key (from the --pubkey
-       directory) with the hidden service through a secure channel. The hidden
+       clients need to share the public part of the key
+       with the hidden service through a secure channel. The hidden
        service can then authorize the client to connect by encrypting its
        descriptor with the client's public key. The client uses the generated
        x25519 keypair to compute the keys for decrypting the superencrypted
@@ -617,8 +612,9 @@ OPTIONS
             The nickname of the client for which to generate the key
        --hsid
             The hidden service for which to generate the key
-       --pubkey
-            The directory where to copy the public part of the key
+       --pub-format [arti|ctor]
+            The format to print the public part of the key in
+            TODO: decide what the arti format looks like
        --force
             Whether to overwrite the key if it already exists
 
@@ -628,7 +624,11 @@ EXAMPLES
          arti hsc --config arti.toml generate-key auth --keystore foo  \
              --nickname alice                                          \
              --hsid xyz.onion                                          \
-             --pubkey $HOME/hs-pubkeys
+             --pub-format ctor
+
+      Stdout:
+
+         descriptor:x25519:dz4q5xqlb4ldnbs72iarrml4ephk3du4i7o2cgiva5lwr6wkquja
 ```
 
 ### `arti-hsc-remove-key`
