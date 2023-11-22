@@ -167,6 +167,28 @@ pub enum ErrorKind {
     #[display(fmt = "could not read/write persistent state")]
     PersistentStateAccessFailed,
 
+    /// We could not start up because a local resource is already being used by someone else
+    ///
+    /// Local resources include things like listening ports and state lockfiles.
+    /// (We don't use this error for "out of disk space" and the like.)
+    ///
+    /// This can occur when another process
+    /// (or another caller of Arti APIs)
+    /// is already running a facility that overlaps with the one being requested.
+    ///
+    /// For example,
+    /// running multiple processes each containing instances of the same hidden service,
+    /// using the same state directories etc., is not supported.
+    ///
+    /// Another example:
+    /// if Arti is configured to listen on a particular port,
+    /// but another process on the system is already listening there,
+    /// the resulting error has kind `LocalResourceAlreadyInUse`.
+    // Actually, we only currently listen on ports in `arti` so we don't return
+    // any Rust errors for this situation at all, at the time of writing.
+    #[display(fmt = "local resource (port, lockfile, etc.) already in use")]
+    LocalResourceAlreadyInUse,
+
     /// We encountered a problem with filesystem permissions.
     ///
     /// This is likeliest to be caused by permissions on a file or directory
