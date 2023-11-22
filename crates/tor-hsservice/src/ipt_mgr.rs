@@ -791,9 +791,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         //
         // TODO HSS-IPT-PERSIST well, actually we don't save anything at all, but we will do.
 
-        let all_ours = irelays
-            .iter_mut()
-            .flat_map(|ir| ir.ipts.iter_mut());
+        let all_ours = irelays.iter_mut().flat_map(|ir| ir.ipts.iter_mut());
 
         for ours in all_ours {
             if let Some(theirs) = publish_set
