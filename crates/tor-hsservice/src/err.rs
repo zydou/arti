@@ -36,6 +36,20 @@ pub enum StartupError {
     #[error("The keystore is unrecoverably corrupt")]
     KeystoreCorrupted,
 
+    /// Trouble reading on-disk state
+    #[error("reading on-disk state")]
+    // Not #[from] as that might allow call sites that were *storing* during startup
+    // to accidentally use this variant.  (Such call sites probably shouldn't exist.)
+    LoadState(#[source] tor_persist::Error),
+
+    /// Failed to lock the on-disk state
+    #[error("HS service state locked (concurrent HS service processes are not supported")]
+    StateLocked,
+
+    /// Fatal error (during startup)
+    #[error("fatal error")]
+    Fatal(#[from] FatalError),
+
     /// Unable to spawn task
     //
     // TODO too many types have an open-coded version of FooError::Spawn
@@ -46,6 +60,8 @@ pub enum StartupError {
     //    including our own mock spawner)
     //  * Change every crate's task spawning and error handling to use the new things
     //    (breaking changes to the error type, unless we retain unused compat error variants)
+    //
+    // TODO HSS replace this with a conversion to StartupError::Fatal(FatalError::Spawn ) ?
     #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn
@@ -69,7 +85,17 @@ impl HasKind for StartupError {
             E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
+            // TODO HSS AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
+            E::StateLocked => EK::Other,
+            E::LoadState(e) => e.kind(),
+            E::Fatal(e) => e.kind(),
         }
+    }
+}
+
+impl From<Bug> for StartupError {
+    fn from(bug: Bug) -> StartupError {
+        FatalError::from(bug).into()
     }
 }
 
