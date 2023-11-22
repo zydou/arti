@@ -1208,6 +1208,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         };
 
                         if let Err(e) = ipt_set.note_publication_attempt(
+                            &imm.runtime,
                             worst_case_end,
                         ) {
                             let wait = e.log_retry_max(&imm.nickname)?;

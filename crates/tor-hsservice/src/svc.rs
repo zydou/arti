@@ -155,7 +155,7 @@ impl OnionService {
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
         let (ipt_mgr_view, publisher_view) =
-            crate::ipt_set::ipts_channel(iptpub_storage_handle)?;
+            crate::ipt_set::ipts_channel(&runtime, iptpub_storage_handle)?;
 
         let ipt_mgr = IptManager::new(
             runtime.clone(),

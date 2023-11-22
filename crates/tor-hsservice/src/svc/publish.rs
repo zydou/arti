@@ -513,7 +513,7 @@ mod test {
         let config = build_test_config(nickname.clone());
         let (config_tx, config_rx) = watch::channel_with(Arc::new(config));
 
-        let (mut mv, pv) = ipts_channel(create_storage_handles().1).unwrap();
+        let (mut mv, pv) = ipts_channel(&runtime, create_storage_handles().1).unwrap();
         let update_ipts = || {
             let ipts: Vec<IptInSet> = test_data::test_parsed_hsdesc()
                 .unwrap()
@@ -526,7 +526,7 @@ mod test {
                 })
                 .collect();
 
-            mv.borrow_for_update().ipts = Some(IptSet {
+            mv.borrow_for_update(runtime.clone()).ipts = Some(IptSet {
                 ipts,
                 lifetime: Duration::from_secs(20),
             });
@@ -550,7 +550,7 @@ mod test {
         let expected_upload_count = hsdir_count * multiplier;
 
         run_test(
-            runtime,
+            runtime.clone(),
             hsid,
             nickname,
             keymgr,

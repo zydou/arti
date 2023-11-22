@@ -1248,7 +1248,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // Block to persuade borrow checker that publish_set isn't
             // held over an await point.
 
-            let mut publish_set = publisher.borrow_for_update();
+            let mut publish_set = publisher.borrow_for_update(self.imm.runtime.clone());
 
             Self::import_new_expiry_times(&mut self.state.irelays, &publish_set);
 
@@ -1622,7 +1622,7 @@ mod test {
             let (state_mgr, iptpub_state_handle) = create_storage_handles_from_state_mgr(state_mgr);
 
             let (mgr_view, pub_view) =
-                ipt_set::ipts_channel(iptpub_state_handle).unwrap();
+                ipt_set::ipts_channel(&runtime, iptpub_state_handle).unwrap();
 
             let keymgr = create_keymgr(temp_dir);
             let keymgr = keymgr.into_untracked(); // OK because our return value captures 'd

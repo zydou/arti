@@ -18,6 +18,7 @@ use crate::IptLocalId;
 use crate::{IptStoreError, StartupError};
 
 use tor_error::internal;
+use tor_rtcompat::SleepProvider;
 
 /// Handle for a suitable persistent storage manager
 pub(crate) type IptSetStorageHandle = dyn tor_persist::StorageHandle<StateRecord> + Sync + Send;
@@ -209,7 +210,7 @@ type Shared = Arc<Mutex<PublishIptSet>>;
 ///
 /// Returned by [`IptsManagerView::borrow_for_update`]
 #[derive(Deref, DerefMut)]
-struct NotifyingBorrow<'v> {
+struct NotifyingBorrow<'v, R: SleepProvider> {
     /// Lock guard
     #[deref(forward)]
     #[deref_mut(forward)]
@@ -217,11 +218,17 @@ struct NotifyingBorrow<'v> {
 
     /// To be notified on drop
     notify: &'v mut mpsc::Sender<()>,
+
+    /// For saving!
+    #[allow(dead_code)] // XXXX
+    runtime: R,
 }
 
 /// Create a new shared state channel for the publication instructions
 #[allow(clippy::unnecessary_wraps)] // XXXX
 pub(crate) fn ipts_channel(
+    #[allow(unused_variables)] // XXXX
+    runtime: &impl SleepProvider,
     storage: Arc<IptSetStorageHandle>,
 ) -> Result<(IptsManagerView, IptsPublisherView), StartupError> {
     // TODO HSS-IPT-PERSIST load this from a file instead
@@ -268,11 +275,13 @@ impl IptsManagerView {
     /// The publisher will be notified when it is dropped.
     pub(crate) fn borrow_for_update(
         &mut self,
+        runtime: impl SleepProvider,
     ) -> impl DerefMut<Target = PublishIptSet> + '_ {
         let guard = lock_shared(&self.shared);
         NotifyingBorrow {
             guard,
             notify: &mut self.notify,
+            runtime,
         }
     }
 
@@ -285,7 +294,7 @@ impl IptsManagerView {
     }
 }
 
-impl Drop for NotifyingBorrow<'_> {
+impl<R: SleepProvider> Drop for NotifyingBorrow<'_, R> {
     fn drop(&mut self) {
         // Channel full?  Well, then the receiver is indeed going to wake up, so fine
         // Channel disconnected?  The publisher has crashed or terminated,
@@ -364,6 +373,8 @@ impl PublishIptSet {
     /// will either complete, or be abandoned, before `worst_case_end`.
     pub(crate) fn note_publication_attempt(
         &mut self,
+        #[allow(unused_variables)] // XXXX
+        runtime: &impl SleepProvider,
         worst_case_end: Instant,
     ) -> Result<(), IptStoreError> {
         let ipts = self
@@ -445,7 +456,7 @@ mod test {
     use crate::FatalError;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
-    use tor_rtcompat::{BlockOn as _, SleepProvider as _};
+    use tor_rtcompat::BlockOn as _;
 
     fn test_intro_point() -> Ipt {
         use tor_netdoc::doc::hsdesc::test_data;
@@ -469,11 +480,12 @@ mod test {
     }
 
     fn pv_note_publication_attempt(
+        runtime: &impl SleepProvider,
         pv: &IptsPublisherView,
         worst_case_end: Instant,
     ) {
         pv.borrow_for_publish()
-            .note_publication_attempt(worst_case_end)
+            .note_publication_attempt(runtime, worst_case_end)
             .unwrap();
     }
 
@@ -492,7 +504,7 @@ mod test {
             // make a channel; it should have no updates yet
 
             let (_state_mgr, iptpub_state_handle) = create_storage_handles();
-            let (mut mv, mut pv) = ipts_channel(iptpub_state_handle).unwrap();
+            let (mut mv, mut pv) = ipts_channel(&runtime, iptpub_state_handle).unwrap();
             assert!(matches!(pv_poll_await_update(&mut pv).await, Pending));
 
             // borrowing publisher view for publish doesn't cause an update
@@ -508,7 +520,7 @@ mod test {
 
             // borrowing manager view for update *does* cause one update
 
-            let mut mg = mv.borrow_for_update();
+            let mut mg = mv.borrow_for_update(runtime.clone());
             mg.ipts = Some(IptSet {
                 ipts: vec![],
                 lifetime: Duration::ZERO,
@@ -522,12 +534,12 @@ mod test {
             const LIFETIME: Duration = Duration::from_secs(1800);
             const PUBLISH_END_TIMEOUT: Duration = Duration::from_secs(300);
 
-            mv.borrow_for_update()
+            mv.borrow_for_update(runtime.clone())
                 .ipts
                 .as_mut()
                 .unwrap()
                 .lifetime = LIFETIME;
-            mv.borrow_for_update()
+            mv.borrow_for_update(runtime.clone())
                 .ipts
                 .as_mut()
                 .unwrap()
@@ -541,7 +553,7 @@ mod test {
 
             // test setting lifetime
 
-            pv_note_publication_attempt(&pv, runtime.now() + PUBLISH_END_TIMEOUT);
+            pv_note_publication_attempt(&runtime, &pv, runtime.now() + PUBLISH_END_TIMEOUT);
 
             let expected_expiry =
                 runtime.now() + PUBLISH_END_TIMEOUT + LIFETIME + IPT_PUBLISH_EXPIRY_SLOP;
@@ -549,7 +561,7 @@ mod test {
 
             // setting an *earlier* lifetime is ignored
 
-            pv_note_publication_attempt(&pv, runtime.now() - Duration::from_secs(10));
+            pv_note_publication_attempt(&runtime, &pv, runtime.now() - Duration::from_secs(10));
             assert_eq!(mv_get_0_expiry(&mut mv), expected_expiry);
         });
     }
