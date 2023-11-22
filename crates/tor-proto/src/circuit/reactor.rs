@@ -1186,7 +1186,7 @@ impl Reactor {
 
     /// Use the ntor handshake to connect to the first hop of this circuit.
     ///
-    /// Note that the provided 'target' must match the channel's target,
+    /// Note that the provided keys must match the channel's target,
     /// or the handshake will fail.
     async fn create_firsthop_ntor(
         &mut self,
