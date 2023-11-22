@@ -266,7 +266,9 @@ impl IptsManagerView {
     /// The returned value is a lock guard.
     /// (It is not `Send` so cannot be held across await points.)
     /// The publisher will be notified when it is dropped.
-    pub(crate) fn borrow_for_update(&mut self) -> impl DerefMut<Target = PublishIptSet> + '_ {
+    pub(crate) fn borrow_for_update(
+        &mut self,
+    ) -> impl DerefMut<Target = PublishIptSet> + '_ {
         let guard = lock_shared(&self.shared);
         NotifyingBorrow {
             guard,
@@ -466,7 +468,10 @@ mod test {
         assert!(matches!(pv_poll_await_update(pv).await, Pending));
     }
 
-    fn pv_note_publication_attempt(pv: &IptsPublisherView, worst_case_end: Instant) {
+    fn pv_note_publication_attempt(
+        pv: &IptsPublisherView,
+        worst_case_end: Instant,
+    ) {
         pv.borrow_for_publish()
             .note_publication_attempt(worst_case_end)
             .unwrap();
@@ -517,7 +522,11 @@ mod test {
             const LIFETIME: Duration = Duration::from_secs(1800);
             const PUBLISH_END_TIMEOUT: Duration = Duration::from_secs(300);
 
-            mv.borrow_for_update().ipts.as_mut().unwrap().lifetime = LIFETIME;
+            mv.borrow_for_update()
+                .ipts
+                .as_mut()
+                .unwrap()
+                .lifetime = LIFETIME;
             mv.borrow_for_update()
                 .ipts
                 .as_mut()

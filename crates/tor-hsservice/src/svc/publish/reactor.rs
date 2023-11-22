@@ -1207,7 +1207,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
                         };
 
-                        if let Err(e) = ipt_set.note_publication_attempt(worst_case_end) {
+                        if let Err(e) = ipt_set.note_publication_attempt(
+                            worst_case_end,
+                        ) {
                             let wait = e.log_retry_max(&imm.nickname)?;
                             // TODO HSS retry instead of this
                             return Err(internal!(

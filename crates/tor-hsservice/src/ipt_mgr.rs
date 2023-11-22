@@ -1621,7 +1621,8 @@ mod test {
 
             let (state_mgr, iptpub_state_handle) = create_storage_handles_from_state_mgr(state_mgr);
 
-            let (mgr_view, pub_view) = ipt_set::ipts_channel(iptpub_state_handle).unwrap();
+            let (mgr_view, pub_view) =
+                ipt_set::ipts_channel(iptpub_state_handle).unwrap();
 
             let keymgr = create_keymgr(temp_dir);
             let keymgr = keymgr.into_untracked(); // OK because our return value captures 'd
