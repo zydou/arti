@@ -413,7 +413,7 @@ coverage-aggregated:
     paths:
       - coverage
   tags:
-    - tpa
+    - ipv6
 
 check-targets:
   rules:
