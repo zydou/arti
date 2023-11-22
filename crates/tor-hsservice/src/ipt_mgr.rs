@@ -823,28 +823,55 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
     fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) {
-        let Some(publish_set) = &publish_set.ipts else {
-            // Nothing to update
-            return;
-        };
+        // Every entry in the PublishIptSet ought to correspond to an ipt in self.
+        //
+        // If there are IPTs in publish_set.last_descriptor_expiry_including_slop
+        // that aren't in self, those are IPTs that we know were published,
+        // but can't establish since we have forgotten their details.
+        //
+        // We are not supposed to allow that to happen:
+        // we save IPTs to disk before we allow them to be published.
+        //
+        // TODO HSS-IPT-PERSIST well, actually we don't save anything at all, but we will do.
 
-        // Every entry in the PublishIptSet corresponds to an ipt in self.
-        // And the ordering is the same.  So we can do an O(N) merge-join.
         let all_ours = self
             .state
             .irelays
             .iter_mut()
             .flat_map(|ir| ir.ipts.iter_mut());
 
-        for (_lid, ours, theirs) in merge_join_subset_by(
-            all_ours,
-            |ours| ours.lid,
-            &publish_set.ipts,
-            |theirs| theirs.lid,
-        ) {
-            ours.last_descriptor_expiry_including_slop =
-                theirs.last_descriptor_expiry_including_slop;
+        for ours in all_ours {
+            if let Some(theirs) = publish_set
+                .last_descriptor_expiry_including_slop
+                .get(&ours.lid)
+            {
+                ours.last_descriptor_expiry_including_slop = Some(*theirs);
+            }
         }
+    }
+
+    /// Expire old entries in publish_set.last_descriptor_expiry_including_slop
+    ///
+    /// Deletes entries where `now` > `last_descriptor_expiry_including_slop`,
+    /// ie, entries where the publication's validity time has expired,
+    /// meaning we don't need to maintain that IPT any more,
+    /// at least, not just because we've published it.
+    ///
+    /// We may expire even entries for IPTs that we, the manager, still want to maintain.
+    /// That's fine: this is (just) the information about what we have previously published.
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
+    fn expire_old_expiry_times(&self, publish_set: &mut PublishIptSet, now: &TrackingNow) {
+        // We don't want to bother waking up just to expire things,
+        // so use an untracked comparison.
+        let now = now.instant().get_now_untracked();
+
+        publish_set.last_descriptor_expiry_including_slop.retain(|_lid, expiry| {
+            *expiry <= now
+        });
     }
 
     /// Compute the IPT set to publish, and update the data shared with the publisher
@@ -1061,8 +1088,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 let publish = ipt_set::IptInSet {
                     ipt: publish,
                     lid: current_ipt.lid,
-                    last_descriptor_expiry_including_slop: current_ipt
-                        .last_descriptor_expiry_including_slop,
                 };
 
                 Ok::<_, FatalError>(publish)
@@ -1145,6 +1170,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // Log at info if and when we publish?  Maybe the publisher should do that?
 
             self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
+            self.expire_old_expiry_times(&mut publish_set, &now);
 
             drop(publish_set); // release lock, and notify publisher of any changes
 
@@ -1298,6 +1324,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 ///
 /// The algorithm has complexity `O(N_bigger)`,
 /// and also a working set of `O(N_bigger)`.
+#[allow(dead_code)] // TODO HSS remove
 fn merge_join_subset_by<'out, K, BI, SI>(
     bigger: impl IntoIterator<Item = BI> + 'out,
     bigger_keyf: impl Fn(&BI) -> K + 'out,

@@ -523,7 +523,6 @@ mod test {
                 .map(|(i, ipt)| IptInSet {
                     ipt: ipt.clone(),
                     lid: IptLocalId([i.try_into().unwrap(); 32]),
-                    last_descriptor_expiry_including_slop: None,
                 })
                 .collect();
 
