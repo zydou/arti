@@ -1,7 +1,7 @@
 //! IPT set - the principal API between the IPT manager and publisher
 
 use std::collections::HashMap;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -273,6 +273,14 @@ impl IptsManagerView {
             notify: &mut self.notify,
         }
     }
+
+    /// Peek at the list of introduction points we are providing to the publisher
+    ///
+    /// (Used for testing and during startup.)
+    #[allow(dead_code)] // XXXX
+    pub(crate) fn borrow_for_read(&mut self) -> impl Deref<Target = PublishIptSet> + '_ {
+        lock_shared(&self.shared)
+    }
 }
 
 impl Drop for NotifyingBorrow<'_> {
@@ -465,7 +473,7 @@ mod test {
     }
 
     fn mv_get_0_expiry(mv: &mut IptsManagerView) -> Instant {
-        let g = mv.borrow_for_update();
+        let g = mv.borrow_for_read();
         let lid = g.ipts.as_ref().unwrap().ipts[0].lid;
         *g.last_descriptor_expiry_including_slop.get(&lid).unwrap()
     }
