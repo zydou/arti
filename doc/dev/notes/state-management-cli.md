@@ -593,12 +593,11 @@ DESCRIPTION
        service that requires client authorization.
 
        To connect to a hidden service that has client authorization enabled,
-       clients need to share the public part of the key
-       with the hidden service through a secure channel. The hidden
-       service can then authorize the client to connect by encrypting its
-       descriptor with the client's public key. The client uses the generated
-       x25519 keypair to compute the keys for decrypting the superencrypted
-       layer of the descriptor.
+       clients need to share the public part of the key with the hidden service
+       through a secure channel. The hidden service can then authorize the
+       client to connect by encrypting its descriptor with the client's public
+       key. The client uses the generated x25519 keypair to compute the keys for
+       decrypting the superencrypted layer of the descriptor.
 
 OPTIONS
        --keystore default
