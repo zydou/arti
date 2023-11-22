@@ -117,6 +117,7 @@ pub trait StateMgr: Clone {
 /// A possible outcome from calling [`StateMgr::try_lock()`]
 #[allow(clippy::exhaustive_enums)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[must_use]
 pub enum LockStatus {
     /// We didn't have the lock and were unable to acquire it.
     NoLock,
