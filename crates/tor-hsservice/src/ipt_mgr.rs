@@ -20,6 +20,7 @@ use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
+use itertools::Itertools as _;
 use postage::watch;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -101,7 +102,6 @@ pub(crate) struct Immutable<R> {
 
     /// The on-disk state storage handle.
     #[educe(Debug(ignore))]
-    #[allow(dead_code)] // XXXX
     storage: Arc<IptStorageHandle>,
 
     /// The key manager.
@@ -471,7 +471,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         mockable: M,
         keymgr: Arc<KeyMgr>,
     ) -> Result<Self, StartupError> {
-        // TODO HSS-IPT-PERSIST load persistent state
+        let irelays = vec![]; // See TODO near persist::load call, in launch_background_tasks
 
         // We don't need buffering; since this is written to by dedicated tasks which
         // are reading watches.
@@ -496,7 +496,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_recv,
             mockable,
             shutdown,
-            irelays: vec![],
+            irelays,
             last_irelay_selection_outcome: Ok(()),
             runtime: PhantomData,
         };
@@ -507,9 +507,19 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Send the IPT manager off to run and establish intro points
     pub(crate) fn launch_background_tasks(
-        self,
-        publisher: IptsManagerView,
+        mut self,
+        mut publisher: IptsManagerView,
     ) -> Result<(), StartupError> {
+        // TODO maybe this should be done in new(), so we don't have this dummy irelays
+        // but then new() would need the IptsManagerView
+        assert!(self.state.irelays.is_empty());
+        self.state.irelays = persist::load(
+            &self.imm,
+            &self.state.new_configs,
+            &mut self.state.mockable,
+            &publisher.borrow_for_read(),
+        )?;
+
         let runtime = self.imm.runtime.clone();
         runtime
             .spawn(self.main_loop_task(publisher))
@@ -1095,7 +1105,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         //---------- store persistent state ----------
 
-        // TODO HSS-IPT-PERSIST store persistent state
+        persist::store(&self.imm, &self.state)?;
 
         Ok(())
     }
