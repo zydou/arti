@@ -453,6 +453,7 @@ mod test {
 
     #[allow(clippy::too_many_arguments)]
     fn run_test<I: PollReadIter>(
+        runtime: MockRuntime,
         hsid: HsId,
         nickname: HsNickname,
         keymgr: Arc<KeyMgr>,
@@ -463,8 +464,6 @@ mod test {
         poll_read_responses: I,
         expected_upload_count: usize,
     ) {
-        let runtime = MockRuntime::new();
-
         runtime.clone().block_on(async move {
             let netdir_provider: Arc<dyn NetDirProvider> =
                 Arc::new(TestNetDirProvider::from(netdir));
@@ -509,6 +508,7 @@ mod test {
     /// behave the same, so the number of uploads is the number of HSDirs multiplied by the number
     /// of retries).
     fn publish_after_ipt_change<I: PollReadIter>(poll_read_responses: I, multiplier: usize) {
+        let runtime = MockRuntime::new();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let config = build_test_config(nickname.clone());
         let (config_tx, config_rx) = watch::channel_with(Arc::new(config));
@@ -550,6 +550,7 @@ mod test {
         let expected_upload_count = hsdir_count * multiplier;
 
         run_test(
+            runtime,
             hsid,
             nickname,
             keymgr,
