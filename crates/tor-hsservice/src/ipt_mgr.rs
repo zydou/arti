@@ -752,11 +752,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
-                ir.make_new_ipt(
-                    &self.imm,
-                    &self.state.new_configs,
-                    &mut self.state.mockable,
-                )?;
+                ir.make_new_ipt(&self.imm, &self.state.new_configs, &mut self.state.mockable)?;
                 return CONTINUE;
             }
         }
