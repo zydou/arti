@@ -869,9 +869,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // so use an untracked comparison.
         let now = now.instant().get_now_untracked();
 
-        publish_set.last_descriptor_expiry_including_slop.retain(|_lid, expiry| {
-            *expiry <= now
-        });
+        publish_set
+            .last_descriptor_expiry_including_slop
+            .retain(|_lid, expiry| *expiry <= now);
     }
 
     /// Compute the IPT set to publish, and update the data shared with the publisher

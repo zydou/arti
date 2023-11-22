@@ -374,8 +374,12 @@ impl PublishIptSet {
 
             // Open-coding Entry::insert(); unstable insert_netry() would do
             match entry {
-                Entry::Occupied(mut oe) => { oe.insert(to_store); },
-                Entry::Vacant(ve) => { ve.insert(to_store); },
+                Entry::Occupied(mut oe) => {
+                    oe.insert(to_store);
+                }
+                Entry::Vacant(ve) => {
+                    ve.insert(to_store);
+                }
             };
         }
 
