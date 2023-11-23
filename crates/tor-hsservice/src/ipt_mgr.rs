@@ -1615,6 +1615,7 @@ mod test {
     use crate::test_temp_dir::TestTempDir;
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
+    use std::collections::BTreeMap;
     use std::sync::Mutex;
     use tor_basic_utils::test_rng::TestingRng;
     use tor_netdir::testprovider::TestNetDirProvider;
@@ -1640,6 +1641,7 @@ mod test {
     #[derive(Debug)]
     struct MockEstabState {
         st_tx: watch::Sender<IptStatus>,
+        params: IptParameters,
     }
 
     #[derive(Debug)]
@@ -1659,10 +1661,10 @@ mod test {
         fn make_new_ipt(
             &mut self,
             _imm: &Immutable<MockRuntime>,
-            _params: IptParameters,
+            params: IptParameters,
         ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
             let (st_tx, st_rx) = watch::channel();
-            let estab = MockEstabState { st_tx };
+            let estab = MockEstabState { st_tx, params };
             let esid = self.estabs.lock().unwrap().insert(estab);
             let estab = MockEstab {
                 esid,
@@ -1761,6 +1763,22 @@ mod test {
             runtime.progress_until_stalled().await;
             assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
         }
+
+        fn estabs_inventory(&self) -> impl Eq + Debug + 'static {
+            let estabs = self.estabs.lock().unwrap();
+            let estabs = estabs.values().map(|MockEstabState { params: p, .. }| (
+                p.lid,
+                (p.target.clone(),
+                 // We want to check the key values, but they're very hard to get at
+                 // in a way we can compare.  Especially the private keys, for which
+                 // we can't getting a clone or copy of the private key material out of the Arc.
+                 // They're keypairs, we can use the debug rep which shows the public half.
+                 // That will have to do.
+                 format!("{:?}", p.k_sid),
+                 format!("{:?}", p.k_ntor)),
+            )).collect::<BTreeMap<_, _>>();
+            estabs
+        }
     }
 
     #[test]
@@ -1824,6 +1842,8 @@ mod test {
                 }
             };
 
+            let estabs_inventory = m.estabs_inventory();
+
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
 
@@ -1832,6 +1852,8 @@ mod test {
 
             let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
             runtime.progress_until_stalled().await;
+
+            assert_eq!(estabs_inventory, m.estabs_inventory());
 
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
