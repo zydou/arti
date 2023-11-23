@@ -208,6 +208,13 @@ pub enum FatalError {
     #[error("Hidden service identity key not found: {0}")]
     MissingHsIdKeypair(HsNickname),
 
+    /// IPT keys found for being-created IPT
+    ///
+    /// This could only happen if someone is messing with our RNG
+    /// or our code is completely wrong, or something.
+    #[error("IPT keys found for being-created IPT {0} (serious key management problems!)")]
+    IptKeysFoundUnexpectedly(tor_keymgr::ArtiPath),
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
@@ -222,6 +229,7 @@ impl HasKind for FatalError {
             FE::Spawn { cause, .. } => cause.kind(),
             FE::Keystore(e) => e.kind(),
             FE::MissingHsIdKeypair(_) => EK::Internal, // TODO HSS this is wrong
+            FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::Bug(e) => e.kind(),
         }
     }

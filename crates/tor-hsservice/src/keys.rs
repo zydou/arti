@@ -72,7 +72,6 @@ pub struct DescSigningKeypairSpecifier<'a> {
 /// Denotates one of the keys, in the context of a particular HS and intro point
 #[derive(Debug, strum::Display)]
 #[strum(serialize_all = "snake_case")]
-#[allow(dead_code)] // XXXX
 pub(crate) enum IptKeyRole {
     /// `k_hss_ntor`
     KHssNtor,

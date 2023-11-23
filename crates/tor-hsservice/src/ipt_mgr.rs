@@ -25,7 +25,7 @@ use postage::watch;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tor_keymgr::KeyMgr;
+use tor_keymgr::{KeyMgr, KeySpecifier as _};
 use tracing::{debug, error, info, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
@@ -41,6 +41,7 @@ use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
+use crate::keys::{IptKeyRole, IptKeySpecifier};
 use crate::svc::ipt_establish;
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
@@ -340,6 +341,7 @@ impl IptRelay {
             &self.relay,
             lid,
             Some(IsCurrent),
+            None::<IptExpectExistingKeys>,
             // None is precisely right: the descriptor hasn't been published.
             PromiseLastDescriptorExpiryNoneIsGood {},
         )?;
@@ -356,8 +358,13 @@ impl IptRelay {
 /// to set `last_descriptor_expiry_including_slop` to `None`.
 struct PromiseLastDescriptorExpiryNoneIsGood {}
 
+/// Token telling [`Ipt::start_establisher`] to expect existing keys in the keystore
+#[derive(Debug, Clone, Copy)]
+struct IptExpectExistingKeys;
+
 impl Ipt {
     /// Start a new IPT establisher, and create and return an `Ipt`
+    #[allow(clippy::too_many_arguments)] // There's only two call sites
     fn start_establisher<R: Runtime, M: Mockable<R>>(
         imm: &Immutable<R>,
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
@@ -365,14 +372,71 @@ impl Ipt {
         relay: &RelayIds,
         lid: IptLocalId,
         is_current: Option<IsCurrent>,
+        expect_existing_keys: Option<IptExpectExistingKeys>,
         _: PromiseLastDescriptorExpiryNoneIsGood,
     ) -> Result<Ipt, CreateIptError> {
         let mut rng = mockable.thread_rng();
 
-        // TODO HSS-IPT-PERSIST try loading keys before generating them
-        let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
-        let k_sid = ed25519::Keypair::generate(&mut rng).into();
-        let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
+        /// Load (from disk) or generate an IPT key with role IptKeyRole::$role
+        ///
+        /// Ideally this would be a closure, but it has to be generic over the
+        /// returned key type.  So it's a macro.  (A proper function would have
+        /// many type parameters and arguments and be quite annoying.)
+        macro_rules! get_or_gen_key { { $Keypair:ty, $role:ident } => { (||{
+            let spec = IptKeySpecifier {
+                nick: &imm.nick,
+                role: IptKeyRole::$role,
+                lid,
+            };
+            // Our desired behaviour:
+            //  expect_existing_keys == None
+            //     The keys shouldn't exist.  Generate and insert.
+            //     If they do exist then things are badly messed up
+            //     (we're creating a new IPT with a fres lid).
+            //     So, then, crash.
+            //  expect_existing_keys == Some(IptExpectExistingKeys)
+            //     The key is supposed to exist.  Load them.
+            //     We ought to have stored them before storing in our on-disk records that
+            //     this IPT exists.  But this could happen due to file deletion or something.
+            //     And we could recover by creating fresh keys, although maybe some clients
+            //     would find the previous keys in old descriptors.
+            //     So if the keys are missing, make and store new ones, logging an error msg.
+            // TODO HSS See #1074: The current keymgr API doesn't make this easy
+            // Tidy this code up when the API is better.
+            let k: Option<$Keypair> = imm.keymgr.get(&spec)?;
+            let arti_path = || {
+                spec
+                    .arti_path()
+                    .map_err(|e| {
+                        CreateIptError::Fatal(
+                            into_internal!("bad ArtiPath from IPT key spec")(e).into()
+                        )
+                    })
+            };
+            match (expect_existing_keys, &k) {
+                (None, None) | (Some(_), Some(_)) => {}
+                (None, Some(_)) => {
+                    return Err(FatalError::IptKeysFoundUnexpectedly(arti_path()?).into())
+                },
+                (Some(_), None) => {
+                    error!("HS service {} missing previous key {:?}, regenerating",
+                           &imm.nick, arti_path()?);
+                }
+            }
+            let k = k.map(Ok).unwrap_or_else(|| {
+                // TODO HSS get_or_generate is strictly speaking a bit wrong here, see above
+                imm.keymgr.get_or_generate(
+                    &spec,
+                    tor_keymgr::KeystoreSelector::Default,
+                    &mut rng,
+                )
+            })?;
+            Ok::<_, CreateIptError>(Arc::new(k))
+        })() } }
+
+        let k_hss_ntor = get_or_gen_key!(HsSvcNtorKeypair, KHssNtor)?;
+        let k_sid = get_or_gen_key!(HsIntroPtSessionIdKeypair, KSid)?;
+        drop(rng);
 
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
@@ -389,7 +453,6 @@ impl Ipt {
             k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
-        drop(rng);
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
         imm.runtime
@@ -428,8 +491,13 @@ impl Ipt {
         };
 
         debug!(
-            "HS service {}: {lid:?} establishing new IPT at relay {}",
-            &imm.nick, &relay
+            "Hs service {}: {lid:?} establishing {} IPT at relay {}",
+            &imm.nick,
+            match expect_existing_keys {
+                None => "new",
+                Some(_) => "previous",
+            },
+            &relay,
         );
 
         Ok(ipt)

@@ -155,6 +155,7 @@ impl IptRecord {
             relay,
             lid,
             is_current.then_some(IsCurrent),
+            Some(IptExpectExistingKeys),
             // last_descriptor_expiry_including_slop
             // is restored by the `import_new_expiry_times` call in `load`
             PromiseLastDescriptorExpiryNoneIsGood {},
