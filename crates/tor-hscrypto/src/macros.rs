@@ -58,6 +58,11 @@ macro_rules! define_pk_keypair {
                     /// Return the secret part of this keypair.
                     pub fn secret(&self) -> &$sk { &self.secret }
                     /// Generate a new keypair from a secure random number generator.
+                    //
+                    // TODO HSS this should be implemented in terms of
+                    // `<curve25519::StaticSecret as tor_keymgr::Keygen>` and
+                    // `<$pair as From<curve25519::StaticKeypair>>`
+                    // See https://gitlab.torproject.org/tpo/core/arti/-/issues/1137#note_2969181
                     pub fn generate<R>(rng: &mut R) -> Self
                     where
                         R: rand::Rng + rand::CryptoRng,
