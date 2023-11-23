@@ -7,7 +7,7 @@
 
 use std::any::Any;
 use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
@@ -168,7 +168,6 @@ pub(crate) struct Real<R: Runtime> {
 }
 
 /// One selected relay, at which we are establishing (or relavantly advertised) IPTs
-#[derive(Debug)]
 struct IptRelay {
     /// The actual relay
     relay: RelayIds,
@@ -1228,6 +1227,32 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // TODO HSS max_n_intro_relays should be configurable
         // TODO HSS consider default, in context of intro point forcing attacks
         self.target_n_intro_points() * 2
+    }
+}
+
+// This is somewhat abbreviated but it is legible and enough for most purposes.
+impl Debug for IptRelay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "IptRelay {}", self.relay)?;
+        write!(
+            f,
+            "          planned_retirement: {:?}",
+            self.planned_retirement
+        )?;
+        for ipt in &self.ipts {
+            write!(
+                f,
+                "\n          ipt {} {} {:?} ldeis={:?}",
+                match ipt.is_current {
+                    Some(IsCurrent) => "cur",
+                    None => "old",
+                },
+                &ipt.lid,
+                &ipt.status_last,
+                &ipt.last_descriptor_expiry_including_slop,
+            )?;
+        }
+        Ok(())
     }
 }
 
