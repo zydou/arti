@@ -385,7 +385,6 @@ pub(crate) mod test {
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
-    use tor_persist::StateMgr as _;
 
     use crate::ipt_set::IptSetStorageHandle;
     use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
@@ -414,7 +413,15 @@ pub(crate) mod test {
 
     pub(crate) fn create_storage_handles(
     ) -> (tor_persist::TestingStateMgr, Arc<IptSetStorageHandle>) {
-        let state_mgr = tor_persist::TestingStateMgr::new();
+        create_storage_handles_from_state_mgr(tor_persist::TestingStateMgr::new())
+    }
+
+    pub(crate) fn create_storage_handles_from_state_mgr<S>(
+        state_mgr: S,
+    ) -> (S, Arc<IptSetStorageHandle>)
+    where
+        S: tor_persist::StateMgr + Send + Sync + 'static,
+    {
         match state_mgr.try_lock() {
             Ok(tor_persist::LockStatus::NewlyAcquired) => {}
             other => panic!("{:?}", other),
