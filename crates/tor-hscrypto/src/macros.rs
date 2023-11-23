@@ -67,6 +67,22 @@ macro_rules! define_pk_keypair {
                         }
                     }
                 }
+                impl From<curve25519::StaticKeypair> for $pair {
+                    fn from(input: curve25519::StaticKeypair) -> $pair {
+                        $pair {
+                            secret: input.secret.into(),
+                            public: input.public.into(),
+                        }
+                    }
+                }
+                impl From<$pair> for curve25519::StaticKeypair {
+                    fn from(input: $pair) -> curve25519::StaticKeypair {
+                        curve25519::StaticKeypair {
+                            secret: input.secret.into(),
+                            public: input.public.into(),
+                        }
+                    }
+                }
             )?
         }
     };
