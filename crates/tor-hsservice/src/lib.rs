@@ -103,4 +103,14 @@ pub(crate) struct IptLocalId([u8; 32]);
 
 impl_debug_hex!(IptLocalId.0);
 
+impl IptLocalId {
+    /// Return a fixed dummy `IptLocalId`, for testing etc.
+    ///
+    /// The id is made by repeating `which` 32 times.
+    #[cfg(test)]
+    pub(crate) fn dummy(which: u8) -> Self {
+        IptLocalId([which; 32]) // I can't think of a good way not to specify 32 again here
+    }
+}
+
 pub use helpers::handle_rend_requests;
