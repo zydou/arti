@@ -8,7 +8,7 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{KeystoreError, KeystoreSelector, Result};
+use crate::{BoxedKeystore, KeystoreError, KeystoreSelector, Result};
 use tor_error::HasKind;
 
 use fs_mistrust::Mistrust;
@@ -22,12 +22,19 @@ use std::path::Path;
 ///
 /// For operations that normally involve updating the state of the key manager and/or its
 /// underlying storage, such as `insert` or `remove`, this `KeyMgr` always returns an error.
-#[derive(Copy, Clone, Debug)]
+#[derive(derive_builder::Builder)]
+#[builder(pattern = "owned")]
 #[non_exhaustive]
-pub struct KeyMgr;
+pub struct KeyMgr {
+    /// The default key store.
+    default_store: BoxedKeystore,
+    /// The secondary key stores.
+    #[builder(default)]
+    secondary_stores: Vec<BoxedKeystore>,
+}
 
 /// A dummy key store trait.
-pub trait Keystore {
+pub trait Keystore: Send + Sync + 'static {
     // TODO(gabi): Add the missing functions and impls
 }
 
