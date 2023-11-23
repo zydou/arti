@@ -6,6 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use educe::Educe;
 use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
 use itertools::Itertools;
 use postage::watch;
@@ -174,6 +175,8 @@ impl IptError {
 ///  * The runtime (which would force this struct to have a type parameter)
 ///  * The circuit builder (leaving this out makes it possible to use this
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
+#[derive(Educe)]
+#[educe(Debug)]
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
 pub(crate) struct IptParameters {
     // TODO HSS:
@@ -182,9 +185,12 @@ pub(crate) struct IptParameters {
     // which means that we should possibly be watching for changes in our
     // configuration.  Right now, though, we only copy out the configuration
     // on startup.
+    #[educe(Debug(ignore))]
     pub(crate) config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     // TODO HSS: maybe this should be a bunch of refs.
+    #[educe(Debug(ignore))]
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
+    #[educe(Debug(ignore))]
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
     pub(crate) lid: IptLocalId,
     // TODO HSS: Should this and the following elements be part of some
