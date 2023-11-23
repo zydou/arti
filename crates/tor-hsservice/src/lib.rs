@@ -40,6 +40,8 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+use std::fmt::{self, Display};
+
 use serde::{Deserialize, Serialize};
 
 use tor_basic_utils::impl_debug_hex;
@@ -102,6 +104,15 @@ pub use svc::OnionService;
 pub(crate) struct IptLocalId([u8; 32]);
 
 impl_debug_hex!(IptLocalId.0);
+
+impl Display for IptLocalId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for v in self.0 {
+            write!(f, "{v:02x}")?;
+        }
+        Ok(())
+    }
+}
 
 impl IptLocalId {
     /// Return a fixed dummy `IptLocalId`, for testing etc.
