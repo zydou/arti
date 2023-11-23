@@ -330,7 +330,7 @@ impl IptRelay {
         imm: &Immutable<R>,
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
         mockable: &mut M,
-    ) -> Result<(), FatalError> {
+    ) -> Result<(), CreateIptError> {
         let lid: IptLocalId = mockable.thread_rng().gen();
 
         let ipt = Ipt::start_establisher(
@@ -366,7 +366,7 @@ impl Ipt {
         lid: IptLocalId,
         is_current: Option<IsCurrent>,
         _: PromiseLastDescriptorExpiryNoneIsGood,
-    ) -> Result<Ipt, FatalError> {
+    ) -> Result<Ipt, CreateIptError> {
         let mut rng = mockable.thread_rng();
 
         // TODO HSS-IPT-PERSIST try loading keys before generating them
@@ -577,6 +577,20 @@ impl HasKind for ChooseIptError {
             E::Bug(e) => e.kind(),
         }
     }
+}
+
+/// An error that happened while trying to crate an IPT (at a selected relay)
+///
+/// Used only within the IPT manager.
+#[derive(Debug, Error)]
+enum CreateIptError {
+    /// Fatal error
+    #[error("fatal error")]
+    Fatal(#[from] FatalError),
+
+    /// Error accessing keystore
+    #[error("problems with keystores")]
+    Keystore(#[from] tor_keymgr::Error),
 }
 
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
@@ -806,8 +820,22 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
-                ir.make_new_ipt(&self.imm, &self.state.new_configs, &mut self.state.mockable)?;
-                return CONTINUE;
+                match ir.make_new_ipt(&self.imm, &self.state.new_configs, &mut self.state.mockable)
+                {
+                    Ok(()) => return CONTINUE,
+                    Err(CreateIptError::Fatal(fatal)) => return Err(fatal),
+                    Err(e @ CreateIptError::Keystore(_)) => {
+                        error_report!(e, "HS {}: failed to prepare new IPT", &self.imm.nick);
+                        // Let's not try any more of this.
+                        // We'll run the rest of our "make progress" algorithms,
+                        // presenting them with possibly-suboptimal state.  That's fine.
+                        // At some point we'll be poked to run again and then we'll retry.
+                        /// Retry no later than this:
+                        const KEYSTORE_RETRY: Duration = Duration::from_secs(60);
+                        now.update(KEYSTORE_RETRY);
+                        break;
+                    }
+                }
             }
         }
 

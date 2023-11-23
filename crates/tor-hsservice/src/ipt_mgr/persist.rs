@@ -158,7 +158,16 @@ impl IptRecord {
             // last_descriptor_expiry_including_slop
             // is restored by the `import_new_expiry_times` call in `load`
             PromiseLastDescriptorExpiryNoneIsGood {},
-        )?;
+        )
+        .map_err(|e| match e {
+            CreateIptError::Fatal(e) => e.into(),
+            // During startup we're trying to *read* the keystore;
+            // if it goes wrong, we bail rather than continuing the startup attempt.
+            CreateIptError::Keystore(cause) => StartupError::Keystore {
+                action: "load IPT key(s)",
+                cause,
+            },
+        })?;
 
         // We don't record whether this IPT was published, so we should assume it was.
         mockable.start_accepting(&*ipt.establisher);
