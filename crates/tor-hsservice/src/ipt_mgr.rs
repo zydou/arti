@@ -1505,12 +1505,11 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::svc::ipt_establish::GoodIptDetails;
-    use crate::svc::test::create_storage_handles;
+    use crate::svc::test::{create_keymgr, create_storage_handles};
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
     use std::sync::Mutex;
     use tor_basic_utils::test_rng::TestingRng;
-    use tor_keymgr::{KeyMgrBuilder, Keystore};
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
@@ -1577,56 +1576,11 @@ mod test {
         }
     }
 
-    // TODO HSS: make tor-keymgr provide a mock keystore.
-    struct TestKeystore;
-
-    impl Keystore for TestKeystore {
-        fn id(&self) -> &tor_keymgr::KeystoreId {
-            todo!()
-        }
-
-        fn contains(
-            &self,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<bool> {
-            todo!()
-        }
-
-        fn get(
-            &self,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<Option<tor_keymgr::ErasedKey>> {
-            todo!()
-        }
-
-        fn insert(
-            &self,
-            _key: &dyn tor_keymgr::EncodableKey,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<()> {
-            todo!()
-        }
-
-        fn remove(
-            &self,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<Option<()>> {
-            todo!()
-        }
-
-        fn list(&self) -> tor_keymgr::Result<Vec<(tor_keymgr::KeyPath, tor_keymgr::KeyType)>> {
-            todo!()
-        }
-    }
-
     #[test]
     #[traced_test]
     fn test_mgr_shutdown() {
         MockRuntime::test_with_various(|runtime| async move {
+            let temp_dir = test_temp_dir!();
             let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
                 .unwrap_if_sufficient()
                 .unwrap()
@@ -1654,12 +1608,8 @@ mod test {
 
             let (mgr_view, pub_view) = ipt_set::ipts_channel(iptpub_state_handle).unwrap();
 
-            let keymgr = Arc::new(
-                KeyMgrBuilder::default()
-                    .default_store(Box::new(TestKeystore))
-                    .build()
-                    .unwrap(),
-            );
+            let keymgr = create_keymgr(&temp_dir);
+            let keymgr = keymgr.into_untracked(); // XXXX we'll rework this
             let mgr = IptManager::new(
                 runtime.clone(),
                 Arc::new(dir),
