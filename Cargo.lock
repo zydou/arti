@@ -5262,6 +5262,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "slotmap",
+ "strum",
  "tempfile",
  "thiserror",
  "tor-async-utils",
