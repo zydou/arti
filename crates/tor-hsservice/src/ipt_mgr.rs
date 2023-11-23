@@ -1505,7 +1505,7 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::svc::ipt_establish::GoodIptDetails;
-    use crate::svc::test::{create_keymgr, create_storage_handles};
+    use crate::svc::test::{create_keymgr, create_storage_handles_from_state_mgr};
     use crate::test_temp_dir::TestTempDir;
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
@@ -1613,7 +1613,13 @@ mod test {
                 estabs: estabs.clone(),
             };
 
-            let (state_mgr, iptpub_state_handle) = create_storage_handles();
+            let state_mgr = tor_persist::FsStateMgr::from_path_and_mistrust(
+                temp_dir.subdir_untracked("storage"), // OK because our return value captures 'd
+                &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+            )
+            .unwrap();
+
+            let (state_mgr, iptpub_state_handle) = create_storage_handles_from_state_mgr(state_mgr);
 
             let (mgr_view, pub_view) = ipt_set::ipts_channel(iptpub_state_handle).unwrap();
 
