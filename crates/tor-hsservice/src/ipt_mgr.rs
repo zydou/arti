@@ -1755,6 +1755,12 @@ mod test {
                 temp_dir,
             }
         }
+
+        async fn shutdown_check_no_tasks(self, runtime: &MockRuntime) {
+            drop(self.shut_tx);
+            runtime.progress_until_stalled().await;
+            assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
+        }
     }
 
     #[test]
@@ -1819,10 +1825,7 @@ mod test {
             };
 
             // Shut down
-            drop(m.shut_tx);
-            runtime.progress_until_stalled().await;
-
-            assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
+            m.shutdown_check_no_tasks(&runtime).await;
         });
     }
 
