@@ -1826,6 +1826,15 @@ mod test {
 
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
+
+            // ---------- restart! ----------
+            info!("*** Restarting ***");
+
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
+            runtime.progress_until_stalled().await;
+
+            // Shut down
+            m.shutdown_check_no_tasks(&runtime).await;
         });
     }
 
