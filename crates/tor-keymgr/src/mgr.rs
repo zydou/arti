@@ -46,19 +46,6 @@ pub struct KeyMgr {
 }
 
 impl KeyMgr {
-    /// Create a new [`KeyMgr`] with a default [`Keystore`] and zero or more secondary [`Keystore`]s.
-    ///
-    /// The order of the secondary `Keystore`s is important, because the `KeyMgr` accessors
-    /// (such as [`KeyMgr::get`], or `KeyMgr::get_with_type`)
-    /// search the configured key stores in the order they were given
-    /// (first the default key store, and then the secondary keystores, in order).
-    pub fn new(default_store: impl crate::Keystore, secondary_stores: Vec<BoxedKeystore>) -> Self {
-        Self {
-            default_store: Box::new(default_store),
-            secondary_stores,
-        }
-    }
-
     /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
     ///
     /// The key returned is retrieved from the first key store that contains an entry for the given

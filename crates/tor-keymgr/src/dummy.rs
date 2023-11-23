@@ -80,11 +80,6 @@ impl ArtiNativeKeystore {
 impl Keystore for ArtiNativeKeystore {}
 
 impl KeyMgr {
-    /// Create a new [`KeyMgr`].
-    pub fn new(_: impl Keystore, _: Vec<Box<dyn Keystore>>) -> Self {
-        Self
-    }
-
     /// A dummy `get` implementation that always behaves like the requested key is not found.
     ///
     /// This function always returns `Ok(None)`.
