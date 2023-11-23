@@ -5296,6 +5296,7 @@ dependencies = [
  "dyn-clone",
  "fs-mistrust",
  "glob-match",
+ "inventory",
  "itertools 0.12.0",
  "rand",
  "serde",

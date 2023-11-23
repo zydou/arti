@@ -145,6 +145,14 @@ pub trait KeyInfoExtractor: Send + Sync {
     fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError>;
 }
 
+/// Register a [`KeyInfoExtractor`] for use with [`KeyMgr`].
+#[macro_export]
+macro_rules! register_key_validator {
+    ($kv:expr) => {{
+        $crate::inventory::submit!(&$kv as &dyn $crate::KeyInfoExtractor);
+    }};
+}
+
 /// A pattern that can be used to match [`ArtiPath`]s or [`CTorPath`]s.
 ///
 /// Create a new `KeyPathPattern`.
