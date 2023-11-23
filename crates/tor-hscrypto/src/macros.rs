@@ -4,6 +4,9 @@
 //! crate without additional help.)
 
 /// Define a public key type and a private key type to wrap a given inner key.
+//
+// TODO This macro needs proper formal documentation of its its input syntax and semantics.
+// (Possibly the input syntax ought to be revisited.)
 macro_rules! define_pk_keypair {
     {
         $(#[$meta:meta])* pub struct $pk:ident($pkt:ty) / $(#[$sk_meta:meta])* $sk:ident($skt:ty);
