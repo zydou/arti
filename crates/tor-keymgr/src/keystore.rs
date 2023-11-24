@@ -12,7 +12,7 @@ use ssh_key::{Algorithm, AlgorithmName};
 use tor_error::internal;
 use tor_hscrypto::pk::{
     HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair, HsDescSigningKeypair, HsIdKey,
-    HsIdKeypair,
+    HsIdKeypair, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair,
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
 
@@ -362,5 +362,29 @@ impl ToEncodableKey for HsDescSigningKeypair {
 
     fn from_encodable_key(key: Self::Key) -> Self {
         HsDescSigningKeypair::from(key)
+    }
+}
+
+impl ToEncodableKey for HsIntroPtSessionIdKeypair {
+    type Key = ed25519::Keypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        key.into()
+    }
+}
+
+impl ToEncodableKey for HsSvcNtorKeypair {
+    type Key = curve25519::StaticKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        key.into()
     }
 }

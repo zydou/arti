@@ -15,24 +15,18 @@ pub mod rsa;
 pub mod curve25519 {
     pub use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret, StaticSecret};
 
-    use std::fmt;
+    use educe::Educe;
 
     /// A keypair containing a [`StaticSecret`] and its corresponding public key.
     #[allow(clippy::exhaustive_structs)]
-    #[derive(Clone)]
+    #[derive(Clone, Educe)]
+    #[educe(Debug)]
     pub struct StaticKeypair {
         /// The secret part of the key.
+        #[educe(Debug(ignore))]
         pub secret: StaticSecret,
         /// The public part of this key.
         pub public: PublicKey,
-    }
-
-    impl fmt::Debug for StaticKeypair {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.debug_struct("StaticKeypair")
-                .field("public", &self.public)
-                .finish()
-        }
     }
 }
 

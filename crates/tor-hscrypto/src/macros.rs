@@ -4,6 +4,9 @@
 //! crate without additional help.)
 
 /// Define a public key type and a private key type to wrap a given inner key.
+//
+// TODO This macro needs proper formal documentation of its its input syntax and semantics.
+// (Possibly the input syntax ought to be revisited.)
 macro_rules! define_pk_keypair {
     {
         $(#[$meta:meta])* pub struct $pk:ident($pkt:ty) / $(#[$sk_meta:meta])* $sk:ident($skt:ty);
@@ -55,6 +58,11 @@ macro_rules! define_pk_keypair {
                     /// Return the secret part of this keypair.
                     pub fn secret(&self) -> &$sk { &self.secret }
                     /// Generate a new keypair from a secure random number generator.
+                    //
+                    // TODO HSS this should be implemented in terms of
+                    // `<curve25519::StaticSecret as tor_keymgr::Keygen>` and
+                    // `<$pair as From<curve25519::StaticKeypair>>`
+                    // See https://gitlab.torproject.org/tpo/core/arti/-/issues/1137#note_2969181
                     pub fn generate<R>(rng: &mut R) -> Self
                     where
                         R: rand::Rng + rand::CryptoRng,
@@ -64,6 +72,22 @@ macro_rules! define_pk_keypair {
                         Self {
                             secret: secret.into(),
                             public: public.into(),
+                        }
+                    }
+                }
+                impl From<curve25519::StaticKeypair> for $pair {
+                    fn from(input: curve25519::StaticKeypair) -> $pair {
+                        $pair {
+                            secret: input.secret.into(),
+                            public: input.public.into(),
+                        }
+                    }
+                }
+                impl From<$pair> for curve25519::StaticKeypair {
+                    fn from(input: $pair) -> curve25519::StaticKeypair {
+                        curve25519::StaticKeypair {
+                            secret: input.secret.into(),
+                            public: input.public.into(),
                         }
                     }
                 }
