@@ -87,6 +87,7 @@ tracing = "0.1.36"
 void = "1"
 
 [dev-dependencies]
+anyhow = "1.0.72"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.3" }
 humantime = "2"
 rmp-serde = "1"
