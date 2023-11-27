@@ -57,10 +57,10 @@ mod mgr;
 #[cfg(not(feature = "keymgr"))]
 mod dummy;
 
-pub use err::{Error, KeystoreError};
+pub use err::{ArtiPathError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
-    ArtiPath, ArtiPathComponent, ArtiPathError, ArtiPathUnavailableError, CTorPath, KeyDenotator,
-    KeyPath, KeyPathPattern, KeyPathRange, KeySpecifier, KeystoreCorruptionError, DENOTATOR_SEP,
+    ArtiPath, ArtiPathComponent, ArtiPathUnavailableError, CTorPath, KeyDenotator, KeyPath,
+    KeyPathPattern, KeyPathRange, KeySpecifier, DENOTATOR_SEP,
 };
 
 #[cfg(feature = "keymgr")]

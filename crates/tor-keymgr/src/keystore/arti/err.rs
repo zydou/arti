@@ -1,6 +1,7 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
-use crate::{ArtiPathError, KeystoreError, UnknownKeyTypeError};
+use crate::key_type::ssh::SshKeyAlgorithm;
+use crate::{ArtiPathError, KeyType, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 
 use std::io;
@@ -45,9 +46,36 @@ pub(crate) enum ArtiNativeKeystoreError {
         err: MalformedPathError,
     },
 
-    /// An error due to encountering an unsupported [`KeyType`](crate::KeyType).
+    /// An error due to encountering an unsupported [`KeyType`].
     #[error("{0}")]
     UnknownKeyType(#[from] UnknownKeyTypeError),
+
+    /// Failed to parse an OpenSSH key
+    #[error("Failed to parse OpenSSH with type {key_type:?}")]
+    SshKeyParse {
+        /// The path of the malformed key.
+        path: PathBuf,
+        /// The type of key we were trying to fetch.
+        key_type: KeyType,
+        /// The underlying error.
+        #[source]
+        err: Arc<ssh_key::Error>,
+    },
+
+    /// Found an OpenSSH key that contains invalid key data,
+    #[error("Invalid SSH key data: {0}")]
+    InvalidSshKeyData(String),
+
+    /// The OpenSSH key we retrieved is of the wrong type.
+    #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
+    UnexpectedSshKeyType {
+        /// The path of the malformed key.
+        path: PathBuf,
+        /// The algorithm we expected the key to use.
+        wanted_key_algo: SshKeyAlgorithm,
+        /// The algorithm of the key we got.
+        found_key_algo: SshKeyAlgorithm,
+    },
 
     /// An internal error.
     #[error("Internal error")]
@@ -95,7 +123,17 @@ impl HasKind for ArtiNativeKeystoreError {
             KE::FsMistrust { .. } => ErrorKind::FsPermissions,
             KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
             KE::UnknownKeyType(_) => ErrorKind::KeystoreAccessFailed,
+            KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } => {
+                ErrorKind::KeystoreCorrupted
+            }
+            KE::InvalidSshKeyData(_) => ErrorKind::KeystoreCorrupted,
             KE::Bug(e) => e.kind(),
         }
+    }
+}
+
+impl From<ArtiNativeKeystoreError> for crate::Error {
+    fn from(e: ArtiNativeKeystoreError) -> Self {
+        crate::Error::Keystore(Arc::new(e))
     }
 }

@@ -10,10 +10,9 @@ use derive_adhoc::define_derive_adhoc;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tor_error::{ErrorKind, HasKind};
 use tor_hscrypto::time::TimePeriod;
 
-use crate::KeystoreError;
+use crate::err::{ArtiPathError, KeystoreCorruptionError};
 
 /// A unique identifier for a particular instance of a key.
 ///
@@ -317,54 +316,6 @@ pub enum ArtiPathUnavailableError {
     /// implementation.
     #[error("ArtiPath unvailable")]
     ArtiPathUnavailable,
-}
-
-/// An error caused by an invalid [`ArtiPath`].
-#[derive(Error, Debug, Copy, Clone)]
-#[error("Invalid ArtiPath")]
-#[non_exhaustive]
-pub enum ArtiPathError {
-    /// Found an empty path component.
-    #[error("Empty path component")]
-    EmptyPathComponent,
-
-    /// The path contains a disallowed char.
-    #[error("Found disallowed char {0}")]
-    DisallowedChar(char),
-
-    /// The path contains the `..` pattern.
-    #[error("Found `..` pattern")]
-    PathTraversal,
-
-    /// The path starts with a disallowed char.
-    #[error("Path starts or ends with disallowed char {0}")]
-    BadOuterChar(char),
-
-    /// The path contains an invalid key denotator.
-    ///
-    /// See the [`ArtiPath`] docs for more information.
-    InvalidDenotator,
-}
-
-/// An error caused by keystore corruption.
-///
-// TODO HSS: refactor the keymgr error types to be variants of a top-level KeyMgrError enum
-// (it should only be necessary to impl KeystoreError for custom/opaque keystore errors).
-#[derive(Error, Debug, Copy, Clone)]
-#[error("Keystore corruption")]
-#[non_exhaustive]
-pub enum KeystoreCorruptionError {
-    /// A keysotre contains a key that has an invalid [`ArtiPath`].
-    #[error("{0}")]
-    ArtiPath(#[from] ArtiPathError),
-}
-
-impl KeystoreError for KeystoreCorruptionError {}
-
-impl HasKind for KeystoreCorruptionError {
-    fn kind(&self) -> ErrorKind {
-        ErrorKind::KeystoreCorrupted
-    }
 }
 
 impl KeySpecifier for ArtiPath {

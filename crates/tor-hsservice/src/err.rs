@@ -7,7 +7,6 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 use tor_error::{Bug, ErrorKind, HasKind};
-use tor_keymgr::KeystoreError;
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
 use crate::HsNickname;
@@ -28,7 +27,7 @@ pub enum StartupError {
         action: &'static str,
         /// The underlying error
         #[source]
-        cause: Box<dyn KeystoreError>,
+        cause: tor_keymgr::Error,
     },
 
     /// Keystore corruption.
@@ -128,7 +127,7 @@ pub enum FatalError {
 
     /// Failed to access the keystore.
     #[error("failed to access keystore")]
-    Keystore(#[from] Box<dyn KeystoreError>),
+    Keystore(#[from] tor_keymgr::Error),
 
     /// The identity keypair of the service could not be found in the keystore.
     #[error("Hidden service identity key not found: {0}")]

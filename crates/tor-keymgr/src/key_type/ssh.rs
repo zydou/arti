@@ -8,14 +8,12 @@ use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
 
 use crate::keystore::arti::err::ArtiNativeKeystoreError;
-use crate::{ErasedKey, KeyType, KeystoreError, Result};
+use crate::{ErasedKey, KeyType, Result};
 
-use tor_error::{internal, ErrorKind, HasKind};
 use tor_llcrypto::pk::{curve25519, ed25519};
 use zeroize::Zeroizing;
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use super::UnknownKeyTypeError;
 
@@ -165,41 +163,6 @@ impl From<Algorithm> for SshKeyAlgorithm {
     }
 }
 
-/// An error that occurred while processing an OpenSSH key.
-#[derive(thiserror::Error, Debug, Clone)]
-pub(crate) enum SshKeyError {
-    /// Failed to parse an OpenSSH key
-    #[error("Failed to parse OpenSSH with type {key_type:?}")]
-    SshKeyParse {
-        /// The path of the malformed key.
-        path: PathBuf,
-        /// The type of key we were trying to fetch.
-        key_type: KeyType,
-        /// The underlying error.
-        #[source]
-        err: Arc<ssh_key::Error>,
-    },
-
-    /// The OpenSSH key we retrieved is of the wrong type.
-    #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
-    UnexpectedSshKeyType {
-        /// The path of the malformed key.
-        path: PathBuf,
-        /// The algorithm we expected the key to use.
-        wanted_key_algo: SshKeyAlgorithm,
-        /// The algorithm of the key we got.
-        found_key_algo: SshKeyAlgorithm,
-    },
-}
-
-impl KeystoreError for SshKeyError {}
-
-impl HasKind for SshKeyError {
-    fn kind(&self) -> ErrorKind {
-        ErrorKind::KeystoreCorrupted
-    }
-}
-
 /// Parse an OpenSSH key, returning its underlying [`KeyData`], if it's a public key, or
 /// [`KeypairData`], if it's a private one.
 macro_rules! parse_openssh {
@@ -229,7 +192,7 @@ macro_rules! parse_openssh {
 
     ($key:expr, $key_type:expr, $parse_fn:path, $ed25519_fn:path, $expanded_ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
         let key = $parse_fn(&*$key.inner).map_err(|e| {
-            SshKeyError::SshKeyParse {
+            ArtiNativeKeystoreError::SshKeyParse {
                 // TODO: rust thinks this clone is necessary because key.path is also used below (but
                 // if we get to this point, we're going to return an error and never reach the other
                 // error handling branches where we use key.path).
@@ -242,12 +205,11 @@ macro_rules! parse_openssh {
         let wanted_key_algo = $key_type.ssh_algorithm()?;
 
         if SshKeyAlgorithm::from(key.algorithm()) != wanted_key_algo {
-            return Err(SshKeyError::UnexpectedSshKeyType {
+            return Err(ArtiNativeKeystoreError::UnexpectedSshKeyType {
                 path: $key.path,
                 wanted_key_algo,
                 found_key_algo: key.algorithm().into(),
-            }
-            .boxed());
+            }.into());
         }
 
         // Build the expected key type (i.e. convert ssh_key key types to the key types
@@ -259,47 +221,38 @@ macro_rules! parse_openssh {
                     SshKeyAlgorithm::X25519 => Ok($x25519_fn(other).map(Box::new)?),
                     SshKeyAlgorithm::Ed25519Expanded => Ok($expanded_ed25519_fn(other).map(Box::new)?),
                     _ => {
-                        Err(SshKeyError::UnexpectedSshKeyType {
+                        Err(ArtiNativeKeystoreError::UnexpectedSshKeyType {
                             path: $key.path,
                             wanted_key_algo,
                             found_key_algo: key.algorithm().into(),
-                        }
-                        .boxed())
+                        }.into())
                     }
                 }
             }
-            _ => Err(SshKeyError::UnexpectedSshKeyType {
+            _ => Err(ArtiNativeKeystoreError::UnexpectedSshKeyType {
                 path: $key.path,
                 wanted_key_algo,
                 found_key_algo: key.algorithm().into(),
-            }
-            .boxed()),
+            }.into())
         }
     }};
 }
 
-// TODO HSS: rewrite the convert_* functions to return a better error type (failing to parse a key
-// suggests keystore corruption rather than an internal error).
-
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
 fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
     Ok(ed25519::Keypair::from_bytes(&key.to_bytes())
-        .map_err(|_| internal!("failed to build ed25519 key out of ed25519 OpenSSH key"))?)
+        .map_err(|_| ArtiNativeKeystoreError::InvalidSshKeyData("bad ed25519 keypair".into()))?)
 }
 
 /// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::StaticKeypair`].
 fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519::StaticKeypair> {
-    let public: [u8; 32] = key
-        .public
-        .as_ref()
-        .try_into()
-        .map_err(|_| internal!("invalid x25519 public key"))?;
+    let public: [u8; 32] = key.public.as_ref().try_into().map_err(|_| {
+        ArtiNativeKeystoreError::InvalidSshKeyData("bad x25519 public key length".into())
+    })?;
 
-    let secret: [u8; 32] = key
-        .private
-        .as_ref()
-        .try_into()
-        .map_err(|_| internal!("invalid x25519 secret key"))?;
+    let secret: [u8; 32] = key.private.as_ref().try_into().map_err(|_| {
+        ArtiNativeKeystoreError::InvalidSshKeyData("bad x25519 secret key length".into())
+    })?;
 
     Ok(curve25519::StaticKeypair {
         public: public.into(),
@@ -311,19 +264,24 @@ fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519
 fn convert_expanded_ed25519_kp(
     key: &ssh_key::private::OpaqueKeypair,
 ) -> Result<ed25519::ExpandedKeypair> {
-    let public = ed25519::PublicKey::from_bytes(key.public.as_ref())
-        .map_err(|_| internal!("invalid expanded ed25519 public key"))?;
+    let public = ed25519::PublicKey::from_bytes(key.public.as_ref()).map_err(|_| {
+        ArtiNativeKeystoreError::InvalidSshKeyData("bad expanded ed25519 public key ".into())
+    })?;
 
-    let secret = ed25519::ExpandedSecretKey::from_bytes(key.private.as_ref())
-        .map_err(|_| internal!("invalid expanded ed25519 secret key"))?;
+    let secret = ed25519::ExpandedSecretKey::from_bytes(key.private.as_ref()).map_err(|_| {
+        ArtiNativeKeystoreError::InvalidSshKeyData("bad expanded ed25519 secret key ".into())
+    })?;
 
     Ok(ed25519::ExpandedKeypair { public, secret })
 }
 
 /// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
 fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
-    Ok(ed25519::PublicKey::from_bytes(&key.as_ref()[..])
-        .map_err(|_| internal!("invalid ed25519 public key"))?)
+    Ok(
+        ed25519::PublicKey::from_bytes(&key.as_ref()[..]).map_err(|_| {
+            ArtiNativeKeystoreError::InvalidSshKeyData("bad ed25519 public key ".into())
+        })?,
+    )
 }
 
 /// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to an [`ed25519::PublicKey`].
@@ -334,18 +292,17 @@ fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519
 fn convert_expanded_ed25519_pk(
     _key: &ssh_key::public::OpaquePublicKey,
 ) -> Result<ed25519::PublicKey> {
-    Err(internal!(
-        "invalid ed25519 public key (ed25519 public keys should be stored as ssh-ed25519)"
+    Err(ArtiNativeKeystoreError::InvalidSshKeyData(
+        "invalid ed25519 public key (ed25519 public keys should be stored as ssh-ed25519)".into(),
     )
     .into())
 }
 
 /// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
 fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve25519::PublicKey> {
-    let public: [u8; 32] = key
-        .as_ref()
-        .try_into()
-        .map_err(|_| internal!("invalid x25519 public key"))?;
+    let public: [u8; 32] = key.as_ref().try_into().map_err(|_| {
+        ArtiNativeKeystoreError::InvalidSshKeyData("bad x25519 public key length".into())
+    })?;
 
     Ok(curve25519::PublicKey::from(public))
 }
@@ -362,7 +319,7 @@ impl KeyType {
                     arti_extension: arti_extension.clone(),
                 },
             )
-            .boxed()),
+            .into()),
         }
     }
 
@@ -387,7 +344,7 @@ impl KeyType {
                     arti_extension: arti_extension.clone(),
                 },
             )
-            .boxed()),
+            .into()),
         }
     }
 }

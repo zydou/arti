@@ -1,47 +1,91 @@
 //! An error type for the `tor-keymgr` crate.
 
-use tor_error::HasKind;
+use tor_error::{ErrorKind, HasKind};
 
 use dyn_clone::DynClone;
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::sync::Arc;
 
 /// An Error type for this crate.
-pub type Error = Box<dyn KeystoreError>;
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum Error {
+    /// Detected keustore corruption.
+    #[error("{0}")]
+    Corruption(#[from] KeystoreCorruptionError),
+
+    /// An opaque error returned by a [`Keystore`](crate::Keystore).
+    #[error("{0}")]
+    Keystore(#[from] Arc<dyn KeystoreError>),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
 
 /// An error returned by a [`Keystore`](crate::Keystore).
 pub trait KeystoreError:
     HasKind + StdError + DynClone + fmt::Debug + fmt::Display + Send + Sync + 'static
 {
-    /// Return a boxed version of this error.
-    fn boxed(self) -> Box<Self>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
+}
+
+impl HasKind for Error {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use Error as E;
+
+        match self {
+            E::Keystore(e) => e.kind(),
+            E::Corruption(_) => EK::KeystoreCorrupted,
+            E::Bug(e) => e.kind(),
+        }
     }
 }
 
-// Generate a Clone impl for Box<dyn KeystoreError>
-dyn_clone::clone_trait_object!(KeystoreError);
+/// An error caused by an invalid [`ArtiPath`].
+#[derive(thiserror::Error, Debug, Copy, Clone)]
+#[error("Invalid ArtiPath")]
+#[non_exhaustive]
+pub enum ArtiPathError {
+    /// Found an empty path component.
+    #[error("Empty path component")]
+    EmptyPathComponent,
 
-impl KeystoreError for tor_error::Bug {}
+    /// The path contains a disallowed char.
+    #[error("Found disallowed char {0}")]
+    DisallowedChar(char),
 
-impl<K: KeystoreError + Send + Sync> From<K> for Error {
-    fn from(k: K) -> Self {
-        Box::new(k)
-    }
+    /// The path contains the `..` pattern.
+    #[error("Found `..` pattern")]
+    PathTraversal,
+
+    /// The path starts with a disallowed char.
+    #[error("Path starts or ends with disallowed char {0}")]
+    BadOuterChar(char),
+
+    /// The path contains an invalid key denotator.
+    ///
+    /// See the [`ArtiPath`] docs for more information.
+    InvalidDenotator,
 }
 
-// This impl is needed because tor_keymgr::Error is the error source type of ErrorDetail::Keystore,
-// which _must_ implement StdError (otherwise we get an error about thiserror::AsDynError not being
-// implemented for tor_keymgr::Error).
-//
-// See <https://github.com/dtolnay/thiserror/issues/212>
-impl StdError for Error {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        (**self).source()
+/// An error caused by keystore corruption.
+#[derive(thiserror::Error, Debug, Copy, Clone)]
+#[error("Keystore corruption")]
+#[non_exhaustive]
+pub enum KeystoreCorruptionError {
+    /// A keystore contains a key that has an invalid [`ArtiPath`].
+    #[error("{0}")]
+    ArtiPath(#[from] ArtiPathError),
+}
+
+impl KeystoreError for KeystoreCorruptionError {}
+
+impl HasKind for KeystoreCorruptionError {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::KeystoreCorrupted
     }
 }
 
@@ -80,8 +124,11 @@ mod tests {
 
     #[test]
     fn error_source() {
-        let e: Error = Box::new(TestError(TestErrorSource)) as Error;
+        let e: Error = (Arc::new(TestError(TestErrorSource)) as Arc<dyn KeystoreError>).into();
 
-        assert_eq!(e.source().unwrap().to_string(), TestErrorSource.to_string());
+        assert_eq!(
+            e.source().unwrap().to_string(),
+            TestError(TestErrorSource).to_string()
+        );
     }
 }

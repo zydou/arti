@@ -14,6 +14,7 @@ use tor_error::HasKind;
 use fs_mistrust::Mistrust;
 use std::any::Any;
 use std::path::Path;
+use std::sync::Arc;
 
 /// A dummy key manager implementation.
 ///
@@ -37,6 +38,7 @@ pub struct ArtiNativeKeystore;
 
 /// A dummy `KeyType`.
 #[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyType;
 
 impl KeyType {
@@ -89,13 +91,13 @@ impl KeyMgr {
     ///
     /// This function always returns an error.
     pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<()> {
-        Err(Box::new(Error))
+        Err(crate::Error::Keystore(Arc::new(Error)))
     }
 
     /// A dummy `remove` implementation that always fails.
     ///
     /// This function always returns an error.
     pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
-        Err(Box::new(Error))
+        Err(crate::Error::Keystore(Arc::new(Error)))
     }
 }

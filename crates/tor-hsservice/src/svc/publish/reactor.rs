@@ -19,7 +19,7 @@ use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
-use tor_keymgr::{KeyMgr, KeystoreError};
+use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::ed25519;
 use tracing::{debug, error, trace, warn};
 
@@ -388,7 +388,7 @@ pub(crate) enum ReactorError {
 
     /// Failed to access the keystore.
     #[error("failed to access keystore")]
-    Keystore(#[from] Box<dyn KeystoreError>),
+    Keystore(#[from] tor_keymgr::Error),
 
     /// The identity keypair of the service could not be found in the keystore.
     #[error("Hidden service identity key not found: {0}")]
