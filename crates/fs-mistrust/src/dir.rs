@@ -121,6 +121,46 @@ impl CheckedDir {
         }
     }
 
+    /// List the contents of a directory within this [`CheckedDir`].
+    ///
+    /// `path` must be a relative path, containing no `..` components.  Before
+    /// listing the directory, we verify that that no untrusted user is able
+    /// change its contents or make it point somewhere else.
+    ///
+    /// The return value is an iterator as returned by [`std::fs::ReadDir`].  We
+    /// _do not_ check any properties of the elements of this iterator.
+    pub fn read_directory<P: AsRef<Path>>(&self, path: P) -> Result<std::fs::ReadDir> {
+        let path = path.as_ref();
+        self.check_path(path)?;
+        let path = self.location.join(path);
+        self.verifier().check(&path)?;
+
+        std::fs::read_dir(&path).map_err(|e| Error::io(e, path, "read directory"))
+    }
+
+    /// Remove a file within this [`CheckedDir`].
+    ///
+    /// `path` must be a relative path, containing no `..` components.
+    ///
+    /// Note that we ensure that the _parent_ of the file to be removed is
+    /// unmodifiable by any untrusted user, but we do not check any permissions
+    /// on the file itself, since those are irrelevant to removing it.
+    pub fn remove_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let path = path.as_ref();
+        self.check_path(path)?;
+        let path = self.location.join(path);
+        // We insist that the ownership and permissions on everything up to and
+        // including the _parent_ of the path that we are removing have to be
+        // correct.  (If it were otherwise, we could be tricked into removing
+        // the wrong thing.)  But we don't care about the permissions on file we
+        // are removing.
+        if let Some(parent) = path.parent() {
+            self.verifier().check(parent)?;
+        }
+
+        std::fs::remove_file(&path).map_err(|e| Error::io(e, path, "remove file"))
+    }
+
     /// Return a reference to this directory as a [`Path`].
     ///
     /// Note that this function lets you work with a broader collection of
@@ -382,5 +422,107 @@ mod test {
         assert!(!checked.join("bar.tmp").unwrap().exists());
         let s4 = checked.read_to_string("bar.txt").unwrap();
         assert_eq!(s4, "its hard and nobody understands");
+    }
+
+    #[test]
+    fn read_directory() {
+        let d = Dir::new();
+        d.dir("a");
+        d.chmod("a", 0o700);
+        d.dir("a/b");
+        d.file("a/b/f");
+        d.file("a/c.d");
+        d.dir("a/x");
+
+        d.chmod("a", 0o700);
+        d.chmod("a/b", 0o700);
+        d.chmod("a/x", 0o777);
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
+
+        let checked = m.verifier().secure_dir(d.path("a")).unwrap();
+
+        assert!(matches!(
+            checked.read_directory("/"),
+            Err(Error::InvalidSubdirectory)
+        ));
+        assert!(matches!(
+            checked.read_directory("b/.."),
+            Err(Error::InvalidSubdirectory)
+        ));
+        let mut members: Vec<String> = checked
+            .read_directory(".")
+            .unwrap()
+            .map(|ent| ent.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        members.sort();
+        assert_eq!(members, vec!["b", "c.d", "x"]);
+
+        let members: Vec<String> = checked
+            .read_directory("b")
+            .unwrap()
+            .map(|ent| ent.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(members, vec!["f"]);
+
+        #[cfg(target_family = "unix")]
+        {
+            assert!(matches!(
+                checked.read_directory("x"),
+                Err(Error::BadPermission(_, _, _))
+            ));
+        }
+    }
+
+    #[test]
+    fn remove_file() {
+        let d = Dir::new();
+        d.dir("a");
+        d.chmod("a", 0o700);
+        d.dir("a/b");
+        d.file("a/b/f");
+        d.dir("a/b/d");
+        d.dir("a/x");
+        d.dir("a/x/y");
+        d.file("a/x/y/z");
+
+        d.chmod("a", 0o700);
+        d.chmod("a/b", 0o700);
+        d.chmod("a/x", 0o777);
+
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
+        let checked = m.verifier().secure_dir(d.path("a")).unwrap();
+
+        // Remove a file that is there, and then make sure it is gone.
+        assert!(checked.read_to_string("b/f").is_ok());
+        checked.remove_file("b/f").unwrap();
+        assert!(matches!(
+            checked.read_to_string("b/f"),
+            Err(Error::NotFound(_))
+        ));
+        assert!(matches!(
+            checked.remove_file("b/f"),
+            Err(Error::NotFound(_))
+        ));
+
+        // Remove a file in a nonexistent subdirectory
+        assert!(matches!(
+            checked.remove_file("b/xyzzy/fred"),
+            Err(Error::NotFound(_))
+        ));
+
+        // Remove a file in a directory whose permissions are too open.
+        #[cfg(target_family = "unix")]
+        {
+            assert!(matches!(
+                checked.remove_file("x/y/z"),
+                Err(Error::BadPermission(_, _, _))
+            ));
+        }
     }
 }
