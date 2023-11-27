@@ -393,7 +393,12 @@ mod test {
         )
         .unwrap();
 
-        Arc::new(KeyMgrBuilder::default().default_store(Box::new(keystore)).build().unwrap())
+        Arc::new(
+            KeyMgrBuilder::default()
+                .default_store(Box::new(keystore))
+                .build()
+                .unwrap(),
+        )
     }
 
     macro_rules! maybe_generate_hsid {

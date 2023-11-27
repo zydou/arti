@@ -410,7 +410,10 @@ mod test {
         .unwrap();
 
         // Provision the keystore with the necessary keys:
-        let keymgr = KeyMgrBuilder::default().default_store(Box::new(keystore)).build().unwrap();
+        let keymgr = KeyMgrBuilder::default()
+            .default_store(Box::new(keystore))
+            .build()
+            .unwrap();
 
         insert_svc_key(id_keypair, &keymgr, &HsIdKeypairSpecifier::new(nickname));
 

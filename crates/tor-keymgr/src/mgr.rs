@@ -3,16 +3,16 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    EncodableKey, KeyPath, KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng,
-    KeystoreId, KeystoreSelector, Result, ToEncodableKey, BoxedKeystore,
+    BoxedKeystore, EncodableKey, KeyPath, KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng,
+    KeystoreId, KeystoreSelector, Result, ToEncodableKey,
 };
 
 use itertools::Itertools;
 use std::iter;
 use tor_error::{bad_api_usage, internal};
 
-/// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and any number of secondary
-/// [`Keystore`](crate::Keystore)s.
+/// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
+/// any number of secondary [`Keystore`](crate::Keystore)s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
@@ -32,8 +32,9 @@ use tor_error::{bad_api_usage, internal};
 /// **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
 /// concurrently with any other `KeyMgr` operation that mutates the same key
 /// (i.e. a key with the same `ArtiPath`), because
-/// their outcome depends on whether the selected key store [`contains`][crate::Keystore::contains] the
-/// specified key (and thus suffers from a a TOCTOU race).
+/// their outcome depends on whether the selected key store
+/// [`contains`][crate::Keystore::contains]
+/// the specified key (and thus suffers from a a TOCTOU race).
 #[derive(derive_builder::Builder)]
 #[builder(pattern = "owned")]
 pub struct KeyMgr {
@@ -198,7 +199,8 @@ impl KeyMgr {
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
     /// outcome of [`KeyMgr::generate_with_derived`] depends on whether the selected key store
-    /// [`contains`][crate::Keystore::contains] the specified keypair, and thus suffers from a a TOCTOU race.
+    /// [`contains`][crate::Keystore::contains] the specified keypair, and thus suffers from a
+    /// TOCTOU race.
     //
     // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
@@ -313,7 +315,8 @@ impl KeyMgr {
         store.insert(&key, key_spec, &K::Key::key_type())
     }
 
-    /// Remove the key identified by `key_spec` from the [`Keystore`](crate::Keystore) specified by `selector`.
+    /// Remove the key identified by `key_spec` from the [`Keystore`](crate::Keystore)
+    /// specified by `selector`.
     ///
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
