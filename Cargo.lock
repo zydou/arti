@@ -4975,7 +4975,7 @@ dependencies = [
  "derive_more",
  "digest 0.10.7",
  "educe",
- "event-listener 3.0.1",
+ "event-listener 4.0.0",
  "float_eq",
  "fs-mistrust",
  "fslock",
@@ -5365,7 +5365,7 @@ dependencies = [
 name = "tor-log-ratelim"
 version = "0.0.1"
 dependencies = [
- "event-listener 3.0.1",
+ "event-listener 4.0.0",
  "futures",
  "humantime 2.1.0",
  "once_cell",
