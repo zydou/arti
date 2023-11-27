@@ -27,6 +27,9 @@ use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
     OutboundClientLayer, RelayCellBody, Tor1RelayCrypto,
 };
+use crate::crypto::handshake::fast::CreateFastClient;
+#[cfg(feature = "ntor_v3")]
+use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
@@ -62,6 +65,7 @@ use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
 use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
+use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
 use tracing::{debug, trace, warn};
@@ -92,6 +96,12 @@ pub(super) enum CircuitHandshake {
         /// The Ed25519 identity of the relay, which is verified against the
         /// identity held in the circuit's channel.
         ed_identity: pk::ed25519::Ed25519Identity,
+    },
+    /// Use the ntor-v3 handshake.
+    #[cfg(feature = "ntor_v3")]
+    NtorV3 {
+        /// The public key of the relay.
+        public_key: NtorV3PublicKey,
     },
 }
 
@@ -139,6 +149,22 @@ pub(super) enum CtrlMsg {
         peer_id: OwnedChanTarget,
         /// The handshake type to use for this hop.
         public_key: NtorPublicKey,
+        /// Information about how to connect to the relay we're extending to.
+        linkspecs: Vec<EncodedLinkSpec>,
+        /// Other parameters relevant for circuit extension.
+        params: CircParameters,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
+    },
+    /// Extend a circuit by one hop, using the ntorv3 handshake.
+    #[cfg(feature = "ntor_v3")]
+    ExtendNtorV3 {
+        /// The peer that we're extending to.
+        ///
+        /// Used to extend our record of the circuit's path.
+        peer_id: OwnedChanTarget,
+        /// The handshake type to use for this hop.
+        public_key: NtorV3PublicKey,
         /// Information about how to connect to the relay we're extending to.
         linkspecs: Vec<EncodedLinkSpec>,
         /// Other parameters relevant for circuit extension.
@@ -417,7 +443,7 @@ where
 }
 impl<H, L, FWD, REV> CircuitExtender<H, L, FWD, REV>
 where
-    H: ClientHandshake,
+    H: ClientHandshake + HandshakeAuxDataHandler,
     H::KeyGen: KeyGenerator,
     L: CryptInit + ClientLayer<FWD, REV>,
     FWD: OutboundClientLayer + 'static + Send,
@@ -435,11 +461,11 @@ where
     fn begin(
         cx: &mut Context<'_>,
         peer_id: OwnedChanTarget,
-        handshake_id: u16,
+        handshake_id: HandshakeType,
         key: &H::KeyType,
         linkspecs: Vec<EncodedLinkSpec>,
         params: CircParameters,
-        client_msg: &impl Borrow<H::ClientAuxData>,
+        client_aux_data: &impl Borrow<H::ClientAuxData>,
         reactor: &mut Reactor,
         done: ReactorResultChannel<()>,
     ) -> Result<Self> {
@@ -448,7 +474,7 @@ where
             let unique_id = reactor.unique_id;
 
             use tor_cell::relaycell::msg::Extend2;
-            let (state, msg) = H::client1(&mut rng, key, client_msg)?;
+            let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
 
             let n_hops = reactor.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
@@ -514,13 +540,17 @@ where
         );
         // Now perform the second part of the handshake, and see if it
         // succeeded.
-        // TODO: Process `_server_msg`
-        let (_server_msg, keygen) = H::client2(
+        let (server_aux_data, keygen) = H::client2(
             self.state
                 .take()
                 .expect("CircuitExtender::finish() called twice"),
             relay_handshake,
         )?;
+
+        // Handle auxiliary data returned from the server, e.g. validating that
+        // requested extensions have been acknowledged.
+        H::handle_server_aux_data(reactor, &self.params, &server_aux_data)?;
+
         let layer = L::construct(keygen)?;
 
         debug!("{}: Handshake complete; circuit extended.", self.unique_id);
@@ -540,7 +570,7 @@ where
 
 impl<H, L, FWD, REV> MetaCellHandler for CircuitExtender<H, L, FWD, REV>
 where
-    H: ClientHandshake,
+    H: ClientHandshake + HandshakeAuxDataHandler,
     H::StateType: Send,
     H::KeyGen: KeyGenerator,
     L: CryptInit + ClientLayer<FWD, REV> + Send,
@@ -567,6 +597,72 @@ where
                 "Passed two messages to an CircuitExtender!"
             )))
         }
+    }
+}
+
+/// Specifies handling of auxiliary handshake data for a given `ClientHandshake`.
+//
+// For simplicity we implement this as a trait of the handshake object itself.
+// This is currently sufficient because
+//
+// 1. We only need or want one handler implementation for a given handshake type.
+// 2. We currently don't need to keep extra state; i.e. its method doesn't take
+//    &self.
+//
+// If we end up wanting to instantiate objects for one or both of the
+// `ClientHandshake` object or the `HandshakeAuxDataHandler` object, we could
+// decouple them by making this something like:
+//
+// ```
+// trait HandshakeAuxDataHandler<H> where H: ClientHandshake
+// ```
+trait HandshakeAuxDataHandler: ClientHandshake {
+    /// Handle auxiliary handshake data returned when creating or extending a
+    /// circuit.
+    fn handle_server_aux_data(
+        reactor: &mut Reactor,
+        params: &CircParameters,
+        data: &<Self as ClientHandshake>::ServerAuxData,
+    ) -> Result<()>;
+}
+
+#[cfg(feature = "ntor_v3")]
+impl HandshakeAuxDataHandler for NtorV3Client {
+    fn handle_server_aux_data(
+        _reactor: &mut Reactor,
+        _params: &CircParameters,
+        data: &Vec<NtorV3Extension>,
+    ) -> Result<()> {
+        // There are currently no accepted server extensions,
+        // particularly since we don't request any extensions yet.
+        if !data.is_empty() {
+            return Err(Error::HandshakeProto(
+                "Received unexpected ntorv3 extension".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl HandshakeAuxDataHandler for NtorClient {
+    fn handle_server_aux_data(
+        _reactor: &mut Reactor,
+        _params: &CircParameters,
+        _data: &(),
+    ) -> Result<()> {
+        // This handshake doesn't have any auxiliary data; nothing to do.
+        Ok(())
+    }
+}
+
+impl HandshakeAuxDataHandler for CreateFastClient {
+    fn handle_server_aux_data(
+        _reactor: &mut Reactor,
+        _params: &CircParameters,
+        _data: &(),
+    ) -> Result<()> {
+        // This handshake doesn't have any auxiliary data; nothing to do.
+        Ok(())
     }
 }
 
@@ -940,6 +1036,11 @@ impl Reactor {
                 self.create_firsthop_ntor(recv_created, ed_identity, public_key, params)
                     .await
             }
+            #[cfg(feature = "ntor_v3")]
+            CircuitHandshake::NtorV3 { public_key } => {
+                self.create_firsthop_ntor_v3(recv_created, public_key, params)
+                    .await
+            }
         };
         let _ = done.send(ret); // don't care if sender goes away
 
@@ -1007,12 +1108,12 @@ impl Reactor {
         key: &H::KeyType,
         params: &CircParameters,
         msg: &M,
-    ) -> Result<H::ServerAuxData>
+    ) -> Result<()>
     where
         L: CryptInit + ClientLayer<FWD, REV> + 'static + Send,
         FWD: OutboundClientLayer + 'static + Send,
         REV: InboundClientLayer + 'static + Send,
-        H: ClientHandshake,
+        H: ClientHandshake + HandshakeAuxDataHandler,
         W: CreateHandshakeWrap,
         H::KeyGen: KeyGenerator,
         M: Borrow<H::ClientAuxData>,
@@ -1042,6 +1143,8 @@ impl Reactor {
         let relay_handshake = wrap.decode_chanmsg(reply)?;
         let (server_msg, keygen) = H::client2(state, relay_handshake)?;
 
+        H::handle_server_aux_data(self, params, &server_msg)?;
+
         let layer = L::construct(keygen)?;
 
         debug!("{}: Handshake complete; circuit created.", self.unique_id);
@@ -1056,7 +1159,7 @@ impl Reactor {
             Some(binding),
             params,
         );
-        Ok(server_msg)
+        Ok(())
     }
 
     /// Use the (questionable!) CREATE_FAST handshake to connect to the
@@ -1070,7 +1173,6 @@ impl Reactor {
         recvcreated: oneshot::Receiver<CreateResponse>,
         params: &CircParameters,
     ) -> Result<()> {
-        use crate::crypto::handshake::fast::CreateFastClient;
         let wrap = CreateFastWrap;
         self.create_impl::<Tor1RelayCrypto, _, _, CreateFastClient, _, _>(
             recvcreated,
@@ -1084,7 +1186,7 @@ impl Reactor {
 
     /// Use the ntor handshake to connect to the first hop of this circuit.
     ///
-    /// Note that the provided 'target' must match the channel's target,
+    /// Note that the provided keys must match the channel's target,
     /// or the handshake will fail.
     async fn create_firsthop_ntor(
         &mut self,
@@ -1110,6 +1212,41 @@ impl Reactor {
             &pubkey,
             params,
             &(),
+        )
+        .await
+    }
+
+    /// Use the ntor-v3 handshake to connect to the first hop of this circuit.
+    ///
+    /// Note that the provided key must match the channel's target,
+    /// or the handshake will fail.
+    #[cfg(feature = "ntor_v3")]
+    async fn create_firsthop_ntor_v3(
+        &mut self,
+        recvcreated: oneshot::Receiver<CreateResponse>,
+        pubkey: NtorV3PublicKey,
+        params: &CircParameters,
+    ) -> Result<()> {
+        // Exit now if we have a mismatched key.
+        let target = RelayIds::builder()
+            .ed_identity(pubkey.id)
+            .build()
+            .expect("Unable to build RelayIds");
+        self.channel.check_match(&target)?;
+
+        // TODO: Set client extensions. e.g. request congestion control
+        // if specified in `params`.
+        let client_extensions = [];
+
+        let wrap = Create2Wrap {
+            handshake_type: HandshakeType::NTOR_V3,
+        };
+        self.create_impl::<Tor1RelayCrypto, _, _, NtorV3Client, _, _>(
+            recvcreated,
+            &wrap,
+            &pubkey,
+            params,
+            &client_extensions,
         )
         .await
     }
@@ -1426,11 +1563,35 @@ impl Reactor {
                 let extender = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
                     cx,
                     peer_id,
-                    0x02,
+                    HandshakeType::NTOR,
                     &public_key,
                     linkspecs,
                     params,
                     &(),
+                    self,
+                    done,
+                )?;
+                self.set_meta_handler(Box::new(extender))?;
+            }
+            #[cfg(feature = "ntor_v3")]
+            CtrlMsg::ExtendNtorV3 {
+                peer_id,
+                public_key,
+                linkspecs,
+                params,
+                done,
+            } => {
+                // TODO: Set extensions, e.g. based on `params`.
+                let client_extensions = [];
+
+                let extender = CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
+                    cx,
+                    peer_id,
+                    HandshakeType::NTOR_V3,
+                    &public_key,
+                    linkspecs,
+                    params,
+                    &client_extensions,
                     self,
                     done,
                 )?;

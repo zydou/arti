@@ -314,9 +314,9 @@ impl super::ServerHandshake for NtorV3Server {
 #[derive(Clone, Debug)]
 pub(crate) struct NtorV3PublicKey {
     /// The relay's identity.
-    id: Ed25519Identity,
+    pub(crate) id: Ed25519Identity,
     /// The relay's onion key.
-    pk: curve25519::PublicKey,
+    pub(crate) pk: curve25519::PublicKey,
 }
 
 /// Secret key information used by a relay for the ntor v3 handshake.
@@ -328,6 +328,35 @@ pub(crate) struct NtorV3SecretKey {
 }
 
 impl NtorV3SecretKey {
+    /// Construct a new NtorV3SecretKey from its components.
+    #[allow(unused)]
+    pub(crate) fn new(
+        sk: curve25519::StaticSecret,
+        pk: curve25519::PublicKey,
+        id: Ed25519Identity,
+    ) -> Self {
+        Self {
+            pk: NtorV3PublicKey { id, pk },
+            sk,
+        }
+    }
+
+    /// Generate a key using the given `rng`, suitable for testing.
+    #[cfg(test)]
+    pub(crate) fn generate_for_test<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        let mut id = [0_u8; 32];
+        // Random bytes will work for testing, but aren't necessarily actually a valid id.
+        rng.fill_bytes(&mut id);
+
+        let sk = curve25519::StaticSecret::new(rng);
+
+        let pk = NtorV3PublicKey {
+            pk: (&sk).into(),
+            id: id.into(),
+        };
+        Self { pk, sk }
+    }
+
     /// Checks whether `id` and `pk` match this secret key.
     ///
     /// Used to perform a constant-time secret key lookup.
@@ -693,26 +722,15 @@ mod test {
 
     #[test]
     fn test_ntor3_roundtrip() {
-        let b = curve25519::StaticSecret::new(testing_rng().rng_compat());
         let mut rng = rand::thread_rng();
-        let id = b"not identifier---but correct len";
-
-        let B: curve25519::PublicKey = (&b).into();
-        let relay_public = NtorV3PublicKey {
-            pk: B,
-            id: (*id).into(),
-        };
-        let relay_private = NtorV3SecretKey {
-            pk: relay_public.clone(),
-            sk: b,
-        };
+        let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
         let verification = &b"shared secret"[..];
         let client_message = &b"Hello. I am a client. Let's be friends!"[..];
         let relay_message = &b"Greetings, client. I am a robot. Beep boop."[..];
 
         let (c_state, c_handshake) =
-            client_handshake_ntor_v3(&mut rng, &relay_public, client_message, verification)
+            client_handshake_ntor_v3(&mut rng, &relay_private.pk, client_message, verification)
                 .unwrap();
 
         struct Rep(Vec<u8>, Vec<u8>);
@@ -749,21 +767,11 @@ mod test {
     // Same as previous test, but use the higher-level APIs instead.
     #[test]
     fn test_ntor3_roundtrip_highlevel() {
-        let b = curve25519::StaticSecret::new(testing_rng().rng_compat());
         let mut rng = rand::thread_rng();
-        let id = b"not identifier---but correct len";
+        let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
-        let B: curve25519::PublicKey = (&b).into();
-        let relay_public = NtorV3PublicKey {
-            pk: B,
-            id: (*id).into(),
-        };
-        let relay_private = NtorV3SecretKey {
-            pk: relay_public.clone(),
-            sk: b,
-        };
-
-        let (c_state, c_handshake) = NtorV3Client::client1(&mut rng, &relay_public, &[]).unwrap();
+        let (c_state, c_handshake) =
+            NtorV3Client::client1(&mut rng, &relay_private.pk, &[]).unwrap();
 
         let mut rep = |_: &[NtorV3Extension]| Some(vec![]);
 
@@ -781,26 +789,15 @@ mod test {
     // Same as previous test, but encode some congestion control extensions.
     #[test]
     fn test_ntor3_roundtrip_highlevel_cc() {
-        let b = curve25519::StaticSecret::new(testing_rng().rng_compat());
         let mut rng = rand::thread_rng();
-        let id = b"not identifier---but correct len";
-
-        let B: curve25519::PublicKey = (&b).into();
-        let relay_public = NtorV3PublicKey {
-            pk: B,
-            id: (*id).into(),
-        };
-        let relay_private = NtorV3SecretKey {
-            pk: relay_public.clone(),
-            sk: b,
-        };
+        let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
         let client_exts = vec![NtorV3Extension::RequestCongestionControl];
         let reply_exts = vec![NtorV3Extension::AckCongestionControl { sendme_inc: 42 }];
 
         let (c_state, c_handshake) = NtorV3Client::client1(
             &mut rng,
-            &relay_public,
+            &relay_private.pk,
             &[NtorV3Extension::RequestCongestionControl],
         )
         .unwrap();

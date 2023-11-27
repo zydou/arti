@@ -2,6 +2,7 @@
 
 use tor_basic_utils::test_rng::testing_rng;
 use tor_bytes::Error as BytesError;
+use tor_cell::chancell::msg::HandshakeType;
 /// Example relay messages to encode and decode.
 ///
 /// Except where noted, these were taken by instrumenting Tor
@@ -225,12 +226,12 @@ fn test_extend2() {
     msg(
         cmd,
         body,
-        &msg::Extend2::new(ls, 2, handshake.clone()).into(),
+        &msg::Extend2::new(ls, HandshakeType::NTOR, handshake.clone()).into(),
     );
 
     let message = decode(cmd, &unhex(body)[..]).unwrap();
     if let msg::AnyRelayMsg::Extend2(message) = message {
-        assert_eq!(message.handshake_type(), 2);
+        assert_eq!(message.handshake_type(), HandshakeType::NTOR);
         assert_eq!(message.handshake(), &handshake[..]);
     } else {
         panic!("that wasn't an extend2");

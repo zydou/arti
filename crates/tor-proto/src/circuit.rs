@@ -59,6 +59,8 @@ use crate::circuit::reactor::{
 pub use crate::circuit::unique_id::UniqId;
 pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
+#[cfg(feature = "ntor_v3")]
+use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
@@ -621,6 +623,44 @@ impl ClientCirc {
         Ok(())
     }
 
+    /// Extend the circuit via the ntor handshake to a new target last
+    /// hop.
+    #[cfg(feature = "ntor_v3")]
+    pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
+    where
+        Tg: CircTarget,
+    {
+        let key = NtorV3PublicKey {
+            id: *target
+                .ed_identity()
+                .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
+            pk: *target.ntor_onion_key(),
+        };
+        let mut linkspecs = target
+            .linkspecs()
+            .map_err(into_internal!("Could not encode linkspecs for extend_ntor"))?;
+        if !params.extend_by_ed25519_id() {
+            linkspecs.retain(|ls| ls.lstype() != LinkSpecType::ED25519ID);
+        }
+
+        let (tx, rx) = oneshot::channel();
+
+        let peer_id = OwnedChanTarget::from_chan_target(target);
+        self.control
+            .unbounded_send(CtrlMsg::ExtendNtorV3 {
+                peer_id,
+                public_key: key,
+                linkspecs,
+                params: params.clone(),
+                done: tx,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)??;
+
+        Ok(())
+    }
+
     /// Extend this circuit by a single, "virtual" hop.
     ///
     /// A virtual hop is one for which we do not add an actual network connection
@@ -1040,6 +1080,47 @@ impl PendingClientCirc {
 
         Ok(self.circ)
     }
+
+    /// Use the ntor_v3 handshake to connect to the first hop of this circuit.
+    ///
+    /// Assumes that the target supports ntor_v3. The caller should verify
+    /// this before calling this function, e.g. by validating that the target
+    /// has advertised ["Relay=4"](https://spec.torproject.org/tor-spec/subprotocol-versioning.html#relay).
+    ///
+    /// Note that the provided 'target' must match the channel's target,
+    /// or the handshake will fail.
+    #[cfg(feature = "ntor_v3")]
+    pub async fn create_firsthop_ntor_v3<Tg>(
+        self,
+        target: &Tg,
+        params: CircParameters,
+    ) -> Result<Arc<ClientCirc>>
+    where
+        Tg: tor_linkspec::CircTarget,
+    {
+        let (tx, rx) = oneshot::channel();
+
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::Create {
+                recv_created: self.recvcreated,
+                handshake: CircuitHandshake::NtorV3 {
+                    public_key: NtorV3PublicKey {
+                        id: *target
+                            .ed_identity()
+                            .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
+                        pk: *target.ntor_onion_key(),
+                    },
+                },
+                params: params.clone(),
+                done: tx,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)??;
+
+        Ok(self.circ)
+    }
 }
 
 /// An object that can put a given handshake into a ChanMsg for a CREATE*
@@ -1209,6 +1290,8 @@ mod test {
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
+    #[cfg(feature = "ntor_v3")]
+    use crate::crypto::handshake::ntor_v3::NtorV3Server;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -1219,6 +1302,7 @@ mod test {
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
+    use tor_cell::relaycell::extend::NtorV3Extension;
     use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
@@ -1232,26 +1316,40 @@ mod test {
         ClientCircChanMsg::Relay(chanmsg)
     }
 
+    // Example relay IDs and keys
+    const EXAMPLE_SK: [u8; 32] =
+        hex!("7789d92a89711a7e2874c61ea495452cfd48627b3ca2ea9546aafa5bf7b55803");
+    const EXAMPLE_PK: [u8; 32] =
+        hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253");
+    const EXAMPLE_ED_ID: [u8; 32] = [6; 32];
+    const EXAMPLE_RSA_ID: [u8; 20] = [10; 20];
+
     /// return an example OwnedCircTarget that can get used for an ntor handshake.
     fn example_target() -> OwnedCircTarget {
         let mut builder = OwnedCircTarget::builder();
         builder
             .chan_target()
-            .ed_identity([6; 32].into())
-            .rsa_identity([10; 20].into());
+            .ed_identity(EXAMPLE_ED_ID.into())
+            .rsa_identity(EXAMPLE_RSA_ID.into());
         builder
-            .ntor_onion_key(
-                hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253").into(),
-            )
+            .ntor_onion_key(EXAMPLE_PK.into())
             .protocols("FlowCtrl=1".parse().unwrap())
             .build()
             .unwrap()
     }
     fn example_ntor_key() -> crate::crypto::handshake::ntor::NtorSecretKey {
         crate::crypto::handshake::ntor::NtorSecretKey::new(
-            hex!("7789d92a89711a7e2874c61ea495452cfd48627b3ca2ea9546aafa5bf7b55803").into(),
-            hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253").into(),
-            [10_u8; 20].into(),
+            EXAMPLE_SK.into(),
+            EXAMPLE_PK.into(),
+            EXAMPLE_RSA_ID.into(),
+        )
+    }
+    #[cfg(feature = "ntor_v3")]
+    fn example_ntor_v3_key() -> crate::crypto::handshake::ntor_v3::NtorV3SecretKey {
+        crate::crypto::handshake::ntor_v3::NtorV3SecretKey::new(
+            EXAMPLE_SK.into(),
+            EXAMPLE_PK.into(),
+            EXAMPLE_ED_ID.into(),
         )
     }
 
@@ -1270,7 +1368,16 @@ mod test {
         (channel, rx, tx)
     }
 
-    async fn test_create<R: Runtime>(rt: &R, fast: bool) {
+    /// Which handshake type to use.
+    #[derive(Copy, Clone)]
+    enum HandshakeType {
+        Fast,
+        Ntor,
+        #[cfg(feature = "ntor_v3")]
+        NtorV3,
+    }
+
+    async fn test_create<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
         // We want to try progressing from a pending circuit to a circuit
         // via a crate_fast handshake.
 
@@ -1295,32 +1402,50 @@ mod test {
             let mut rng = testing_rng();
             let create_cell = rx.next().await.unwrap();
             assert_eq!(create_cell.circid(), CircId::new(128));
-            let reply = if fast {
-                let cf = match create_cell.msg() {
-                    AnyChanMsg::CreateFast(cf) => cf,
-                    _ => panic!(),
-                };
-                let (_, rep) = CreateFastServer::server(
-                    &mut rng,
-                    &mut |_: &()| Some(()),
-                    &[()],
-                    cf.handshake(),
-                )
-                .unwrap();
-                CreateResponse::CreatedFast(CreatedFast::new(rep))
-            } else {
-                let c2 = match create_cell.msg() {
-                    AnyChanMsg::Create2(c2) => c2,
-                    _ => panic!(),
-                };
-                let (_, rep) = NtorServer::server(
-                    &mut rng,
-                    &mut |_: &()| Some(()),
-                    &[example_ntor_key()],
-                    c2.body(),
-                )
-                .unwrap();
-                CreateResponse::Created2(Created2::new(rep))
+            let reply = match handshake_type {
+                HandshakeType::Fast => {
+                    let cf = match create_cell.msg() {
+                        AnyChanMsg::CreateFast(cf) => cf,
+                        _ => panic!(),
+                    };
+                    let (_, rep) = CreateFastServer::server(
+                        &mut rng,
+                        &mut |_: &()| Some(()),
+                        &[()],
+                        cf.handshake(),
+                    )
+                    .unwrap();
+                    CreateResponse::CreatedFast(CreatedFast::new(rep))
+                }
+                HandshakeType::Ntor => {
+                    let c2 = match create_cell.msg() {
+                        AnyChanMsg::Create2(c2) => c2,
+                        _ => panic!(),
+                    };
+                    let (_, rep) = NtorServer::server(
+                        &mut rng,
+                        &mut |_: &()| Some(()),
+                        &[example_ntor_key()],
+                        c2.body(),
+                    )
+                    .unwrap();
+                    CreateResponse::Created2(Created2::new(rep))
+                }
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => {
+                    let c2 = match create_cell.msg() {
+                        AnyChanMsg::Create2(c2) => c2,
+                        _ => panic!(),
+                    };
+                    let (_, rep) = NtorV3Server::server(
+                        &mut rng,
+                        &mut |_: &_| Some(vec![]),
+                        &[example_ntor_v3_key()],
+                        c2.body(),
+                    )
+                    .unwrap();
+                    CreateResponse::Created2(Created2::new(rep))
+                }
             };
             created_send.send(reply).unwrap();
         };
@@ -1328,12 +1453,20 @@ mod test {
         let client_fut = async move {
             let target = example_target();
             let params = CircParameters::default();
-            let ret = if fast {
-                trace!("doing fast create");
-                pending.create_firsthop_fast(&params).await
-            } else {
-                trace!("doing ntor create");
-                pending.create_firsthop_ntor(&target, params).await
+            let ret = match handshake_type {
+                HandshakeType::Fast => {
+                    trace!("doing fast create");
+                    pending.create_firsthop_fast(&params).await
+                }
+                HandshakeType::Ntor => {
+                    trace!("doing ntor create");
+                    pending.create_firsthop_ntor(&target, params).await
+                }
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => {
+                    trace!("doing ntor_v3 create");
+                    pending.create_firsthop_ntor_v3(&target, params).await
+                }
             };
             trace!("create done: result {:?}", ret);
             ret
@@ -1353,13 +1486,20 @@ mod test {
     #[test]
     fn test_create_fast() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            test_create(&rt, true).await;
+            test_create(&rt, HandshakeType::Fast).await;
         });
     }
     #[test]
     fn test_create_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            test_create(&rt, false).await;
+            test_create(&rt, HandshakeType::Ntor).await;
+        });
+    }
+    #[cfg(feature = "ntor_v3")]
+    #[test]
+    fn test_create_ntor_v3() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_create(&rt, HandshakeType::NtorV3).await;
         });
     }
 
@@ -1551,73 +1691,108 @@ mod test {
     }
      */
 
+    async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
+        use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
+
+        let (chan, mut rx, _sink) = working_fake_channel(rt);
+        let (circ, mut sink) = newcirc(rt, chan).await;
+        let params = CircParameters::default();
+
+        let extend_fut = async move {
+            let target = example_target();
+            match handshake_type {
+                HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
+                HandshakeType::Ntor => circ.extend_ntor(&target, &params).await.unwrap(),
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, &params).await.unwrap(),
+            };
+            circ // gotta keep the circ alive, or the reactor would exit.
+        };
+        let reply_fut = async move {
+            // We've disabled encryption on this circuit, so we can just
+            // read the extend2 cell.
+            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
+            assert_eq!(id, CircId::new(128));
+            let rmsg = match chmsg {
+                AnyChanMsg::RelayEarly(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                _ => panic!(),
+            };
+            let e2 = match rmsg.msg() {
+                AnyRelayMsg::Extend2(e2) => e2,
+                _ => panic!(),
+            };
+            let mut rng = testing_rng();
+            let reply = match handshake_type {
+                HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
+                HandshakeType::Ntor => {
+                    let (_keygen, reply) = NtorServer::server(
+                        &mut rng,
+                        &mut |_: &()| Some(()),
+                        &[example_ntor_key()],
+                        e2.handshake(),
+                    )
+                    .unwrap();
+                    reply
+                }
+                #[cfg(feature = "ntor_v3")]
+                HandshakeType::NtorV3 => {
+                    let (_keygen, reply) = NtorV3Server::server(
+                        &mut rng,
+                        &mut |_: &[NtorV3Extension]| Some(vec![]),
+                        &[example_ntor_v3_key()],
+                        e2.handshake(),
+                    )
+                    .unwrap();
+                    reply
+                }
+            };
+
+            let extended2 = relaymsg::Extended2::new(reply).into();
+            sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
+            sink // gotta keep the sink alive, or the reactor will exit.
+        };
+
+        let (circ, _) = futures::join!(extend_fut, reply_fut);
+
+        // Did we really add another hop?
+        assert_eq!(circ.n_hops(), 4);
+
+        // Do the path accessors report a reasonable outcome?
+        #[allow(deprecated)]
+        {
+            let path = circ.path();
+            assert_eq!(path.len(), 4);
+            use tor_linkspec::HasRelayIds;
+            assert_eq!(path[3].ed_identity(), example_target().ed_identity());
+            assert_ne!(path[0].ed_identity(), example_target().ed_identity());
+        }
+        {
+            let path = circ.path_ref();
+            assert_eq!(path.n_hops(), 4);
+            use tor_linkspec::HasRelayIds;
+            assert_eq!(
+                path.hops()[3].as_chan_target().unwrap().ed_identity(),
+                example_target().ed_identity()
+            );
+            assert_ne!(
+                path.hops()[0].as_chan_target().unwrap().ed_identity(),
+                example_target().ed_identity()
+            );
+        }
+    }
+
     #[test]
-    fn extend() {
+    fn test_extend_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
+            test_extend(&rt, HandshakeType::Ntor).await;
+        });
+    }
 
-            let (chan, mut rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut sink) = newcirc(&rt, chan).await;
-            let params = CircParameters::default();
-
-            let extend_fut = async move {
-                let target = example_target();
-                circ.extend_ntor(&target, &params).await.unwrap();
-                circ // gotta keep the circ alive, or the reactor would exit.
-            };
-            let reply_fut = async move {
-                // We've disabled encryption on this circuit, so we can just
-                // read the extend2 cell.
-                let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128));
-                let rmsg = match chmsg {
-                    AnyChanMsg::RelayEarly(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
-                    _ => panic!(),
-                };
-                let e2 = match rmsg.msg() {
-                    AnyRelayMsg::Extend2(e2) => e2,
-                    _ => panic!(),
-                };
-                let mut rng = testing_rng();
-                let (_, reply) = NtorServer::server(
-                    &mut rng,
-                    &mut |_: &()| Some(()),
-                    &[example_ntor_key()],
-                    e2.handshake(),
-                )
-                .unwrap();
-                let extended2 = relaymsg::Extended2::new(reply).into();
-                sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
-                sink // gotta keep the sink alive, or the reactor will exit.
-            };
-
-            let (circ, _) = futures::join!(extend_fut, reply_fut);
-
-            // Did we really add another hop?
-            assert_eq!(circ.n_hops(), 4);
-
-            // Do the path accessors report a reasonable outcome?
-            #[allow(deprecated)]
-            {
-                let path = circ.path();
-                assert_eq!(path.len(), 4);
-                use tor_linkspec::HasRelayIds;
-                assert_eq!(path[3].ed_identity(), example_target().ed_identity());
-                assert_ne!(path[0].ed_identity(), example_target().ed_identity());
-            }
-            {
-                let path = circ.path_ref();
-                assert_eq!(path.n_hops(), 4);
-                use tor_linkspec::HasRelayIds;
-                assert_eq!(
-                    path.hops()[3].as_chan_target().unwrap().ed_identity(),
-                    example_target().ed_identity()
-                );
-                assert_ne!(
-                    path.hops()[0].as_chan_target().unwrap().ed_identity(),
-                    example_target().ed_identity()
-                );
-            }
+    #[cfg(feature = "ntor_v3")]
+    #[test]
+    fn test_extend_ntor_v3() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_extend(&rt, HandshakeType::NtorV3).await;
         });
     }
 
