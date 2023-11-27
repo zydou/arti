@@ -17,9 +17,10 @@ pub(crate) fn encode_request(req: &http::Request<String>) -> String {
         .unwrap();
     }
 
-    // TODO SPEC dir-spec says Content-Length is optional but empirically it's required?
-    write!(s, "Content-Length: {}\r\n", req.body().len())
-        .expect("Added an HTTP header that wasn't UTF-8!");
+    if req.method() == http::Method::POST || !req.body().is_empty() {
+        write!(s, "Content-Length: {}\r\n", req.body().len())
+            .expect("Added an HTTP header that wasn't UTF-8!");
+    }
 
     s.push_str("\r\n");
     s.push_str(req.body());
@@ -55,28 +56,24 @@ mod test {
 
     #[test]
     fn format() {
-        fn chk_format(body: &str) {
+        fn chk_format(body: &str, content_length_expected: &str) {
             let req = build_request(body.to_string(), &[]);
 
             assert_eq!(
                 encode_request(&req),
-                format!(
-                    "GET /index.html HTTP/1.0\r\nContent-Length: {}\r\n\r\n{body}",
-                    body.len()
-                )
+                format!("GET /index.html HTTP/1.0\r\n{content_length_expected}\r\n{body}")
             );
 
             let req = build_request(body.to_string(), &[("X-Marsupial", "Opossum")]);
             assert_eq!(
                 encode_request(&req),
                 format!(
-                    "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\nContent-Length: {}\r\n\r\n{body}",
-                    body.len(),
+                    "GET /index.html HTTP/1.0\r\nx-marsupial: Opossum\r\n{content_length_expected}\r\n{body}",
                 )
             );
         }
 
-        chk_format("");
-        chk_format("hello");
+        chk_format("", "");
+        chk_format("hello", "Content-Length: 5\r\n");
     }
 }
