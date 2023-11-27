@@ -50,7 +50,7 @@ pub(crate) struct PublishIptSet {
     ///     ([`IPT_PUBLISH_EXPIRY_SLOP`])
     ///
     /// This field is updated by the publisher, using
-    /// [`note_publication_attempt`](IptSet::note_publication_attempt),
+    /// [`note_publication_attempt`](PublishIptSet::note_publication_attempt),
     /// and read by the manager.
     ///
     /// A separate copy of the information is stored by the manager,
@@ -87,7 +87,7 @@ pub(crate) struct PublishIptSet {
 /// This is not `Clone` and its contents should not be cloned.
 /// When its contents are copied out into a descriptor by the publisher,
 /// this should be accompanied by a call to
-/// [`note_publication_attempt`](IptSet::note_publication_attempt).
+/// [`note_publication_attempt`](PublishIptSet::note_publication_attempt).
 #[derive(Debug)]
 pub(crate) struct IptSet {
     /// The actual introduction points
@@ -298,7 +298,7 @@ impl IptsPublisherView {
     /// Look at the list of introduction points to publish
     ///
     /// Whenever a a publication attempt is started
-    /// [`note_publication_attempt`](IptSet::note_publication_attempt)
+    /// [`note_publication_attempt`](PublishIptSet::note_publication_attempt)
     /// must be called on this same [`IptSet`].
     ///
     /// The returned value is a lock guard.
