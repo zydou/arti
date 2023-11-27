@@ -5196,6 +5196,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "retry-error",
+ "rmp-serde",
  "safelog",
  "serde",
  "serde_json",

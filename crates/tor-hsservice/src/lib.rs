@@ -152,3 +152,51 @@ impl IptLocalId {
 }
 
 pub use helpers::handle_rend_requests;
+
+#[cfg(test)]
+pub(crate) mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use itertools::{chain, Itertools};
+
+    #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+    struct IptLidTest {
+        lid: IptLocalId,
+    }
+
+    #[test]
+    fn lid_serde() {
+        let t = IptLidTest {
+            lid: IptLocalId::dummy(7),
+        };
+        let json = serde_json::to_string(&t).unwrap();
+        assert_eq!(
+            json,
+            // This also tests <IptLocalId as Display> since that's how we serialise it
+            r#"{"lid":"0707070707070707070707070707070707070707070707070707070707070707"}"#,
+        );
+        let u: IptLidTest = serde_json::from_str(&json).unwrap();
+        assert_eq!(t, u);
+
+        let mpack = rmp_serde::to_vec_named(&t).unwrap();
+        assert_eq!(
+            mpack,
+            chain!(&[129, 163], b"lid", &[220, 0, 32], &[0x07; 32],)
+                .cloned()
+                .collect_vec()
+        );
+        let u: IptLidTest = rmp_serde::from_slice(&mpack).unwrap();
+        assert_eq!(t, u);
+    }
+}
