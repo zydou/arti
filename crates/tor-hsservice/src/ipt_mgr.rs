@@ -822,6 +822,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // We are not supposed to allow that to happen:
         // we save IPTs to disk before we allow them to be published.
         //
+        // (This invariant is across two data structures:
+        // `ipt_mgr::State` (specifically, `Ipt`) which is modified only here,
+        // and `ipt_set::PublishIptSet` which is shared with the publisher.
+        // See the comments in PublishIptSet.)
+        //
         // TODO HSS-IPT-PERSIST well, actually we don't save anything at all, but we will do.
 
         let all_ours = irelays.iter_mut().flat_map(|ir| ir.ipts.iter_mut());
