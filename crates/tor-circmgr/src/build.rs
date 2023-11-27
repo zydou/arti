@@ -15,9 +15,10 @@ use tor_async_utils::oneshot;
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_error::warn_report;
 use tor_guardmgr::GuardStatus;
-use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
+use tor_linkspec::{ChanTarget, CircTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
+use tor_protover::ProtoKind;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 mod guardstatus;
@@ -143,13 +144,29 @@ impl Buildable for ClientCirc {
         usage: ChannelUsage,
     ) -> Result<Arc<Self>> {
         let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
-        circ.create_firsthop_ntor(ct, params.clone())
-            .await
-            .map_err(|error| Error::Protocol {
-                peer: Some(ct.to_logged()),
-                error,
-                action: "creating first hop",
-            })
+
+        let params = params.clone();
+        let handshake_res;
+        #[cfg(feature = "ntor_v3")]
+        {
+            // The target supports ntor_v3 iff it supports Relay=4.
+            // <https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3>
+            handshake_res = if ct.protovers().supports_known_subver(ProtoKind::Relay, 4) {
+                circ.create_firsthop_ntor_v3(ct, params).await
+            } else {
+                circ.create_firsthop_ntor(ct, params).await
+            };
+        }
+        #[cfg(not(feature = "ntor_v3"))]
+        {
+            handshake_res = circ.create_firsthop_ntor(ct, params).await
+        }
+
+        handshake_res.map_err(|error| Error::Protocol {
+            peer: Some(ct.to_logged()),
+            error,
+            action: "creating first hop",
+        })
     }
     async fn extend<RT: Runtime>(
         &self,
@@ -157,16 +174,31 @@ impl Buildable for ClientCirc {
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<()> {
-        self.extend_ntor(ct, params)
-            .await
-            .map_err(|error| Error::Protocol {
-                error,
-                // We can't know who caused the error, since it may have been
-                // the hop we were extending from, or the hop we were extending
-                // to.
-                peer: None,
-                action: "extending circuit",
-            })
+        let res;
+
+        #[cfg(feature = "ntor_v3")]
+        {
+            // The target supports ntor_v3 iff it supports Relay=4.
+            // <https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3>
+            res = if ct.protovers().supports_known_subver(ProtoKind::Relay, 4) {
+                self.extend_ntor_v3(ct, params).await
+            } else {
+                self.extend_ntor(ct, params).await
+            };
+        }
+        #[cfg(not(feature = "ntor_v3"))]
+        {
+            res = self.extend_ntor(ct, params).await;
+        }
+
+        res.map_err(|error| Error::Protocol {
+            error,
+            // We can't know who caused the error, since it may have been
+            // the hop we were extending from, or the hop we were extending
+            // to.
+            peer: None,
+            action: "extending circuit",
+        })
     }
 }
 
