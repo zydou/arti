@@ -357,7 +357,7 @@ fn maybe_generate_hsid(
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -384,7 +384,7 @@ mod test {
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
 
-    fn create_keymgr(temp_dir: &TestTempDir) -> UsingTempDir<Arc<KeyMgr>> {
+    pub(crate) fn create_keymgr(temp_dir: &TestTempDir) -> UsingTempDir<Arc<KeyMgr>> {
         temp_dir.in_obtain("keystore", |keystore_dir| {
             let keystore = ArtiNativeKeystore::from_path_and_mistrust(
                 keystore_dir,
