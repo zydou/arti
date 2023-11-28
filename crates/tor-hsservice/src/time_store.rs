@@ -185,17 +185,16 @@ pub struct FutureTimestamp {
 /// During load, should be passed to [`Loading::start`], to build a [`Loading`]
 /// which is then used to convert the [`FutureTimestamp`]s back to `Instant`s.
 ///
-/// (Serialises as a `i64` representing the `time_t` (Unix Time).)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
+/// (Serialises as an absolute time:
+/// in binary, as an `i64` representing the `time_t` (Unix Time);
+/// in human-readable formats, an RFC3339 string with seconds precision and timezone `Z`.)
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[derive(derive_more::Display)]
 #[display(fmt = "{}", "humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))")]
 #[derive(Adhoc)]
-#[derive_adhoc(RawConversions)]
+#[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct Reference {
     /// Unix time (at which the other timestamps were stored)
-    //
-    // TODO HSS change the serialisation to use an ISO8601 string
     time_t: i64,
 }
 
@@ -583,13 +582,9 @@ mod test {
 
         let json = serde_json::to_string(&stored).unwrap();
         println!("{json}");
-        let exp_ref = test_systime
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
         assert_eq!(
             json,
-            format!(r#"{{"stored":{exp_ref},"s0":"+T0:00:00","s1":"+T0:00:10","s2":"+T0:50:00"}}"#)
+            format!(r#"{{"stored":"2008-08-02T00:00:00Z","s0":"+T0:00:00","s1":"+T0:00:10","s2":"+T0:50:00"}}"#)
         );
 
         let mpack = rmp_serde::to_vec_named(&stored).unwrap();
