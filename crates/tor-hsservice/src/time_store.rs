@@ -233,18 +233,23 @@ pub struct Loading {
 
 //---------- implementation ----------
 
+/// Convert a `SystemTime` to an `i64` `time_t`
+fn system_time_to_time_t(st: SystemTime) -> i64 {
+    if let Ok(d) = st.duration_since(SystemTime::UNIX_EPOCH) {
+        d.as_secs().try_into().unwrap_or(i64::MAX)
+    } else if let Ok(d) = SystemTime::UNIX_EPOCH.duration_since(st) {
+        d.as_secs().try_into().map(|v: i64| -v).unwrap_or(i64::MIN)
+    } else {
+        panic!("two SystemTimes are neither <= nor >=")
+    }
+}
+
 impl Now {
     /// Obtain `Now` from a runtime
     fn new(runtime: &impl SleepProvider) -> Self {
         let inst = runtime.now();
         let st = runtime.wallclock();
-        let time_t = if let Ok(d) = st.duration_since(SystemTime::UNIX_EPOCH) {
-            d.as_secs().try_into().unwrap_or(i64::MAX)
-        } else if let Ok(d) = SystemTime::UNIX_EPOCH.duration_since(st) {
-            d.as_secs().try_into().map(|v: i64| -v).unwrap_or(i64::MIN)
-        } else {
-            panic!("two SystemTimes are neither <= nor >=")
-        };
+        let time_t = system_time_to_time_t(st);
         Self { inst, time_t }
     }
 }
