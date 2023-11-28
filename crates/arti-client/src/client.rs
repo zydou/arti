@@ -42,7 +42,7 @@ use {
     tor_netdir::DirEvent,
 };
 
-use tor_keymgr::{ArtiNativeKeystore, KeyMgr};
+use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
@@ -652,8 +652,13 @@ impl<R: Runtime> TorClient<R> {
             // TODO HSS: make the default store configurable
             let default_store = arti_store;
 
+            let keymgr = KeyMgrBuilder::default()
+                .default_store(Box::new(default_store))
+                .build()
+                .map_err(|_| internal!("failed to build keymgr"))?;
+
             // TODO hs: add support for the C Tor key store
-            Some(Arc::new(KeyMgr::new(default_store, vec![])))
+            Some(Arc::new(keymgr))
         } else {
             info!("Running without a keystore");
             None

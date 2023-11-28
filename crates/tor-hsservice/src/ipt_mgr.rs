@@ -1388,7 +1388,7 @@ mod test {
     use slotmap::DenseSlotMap;
     use std::sync::Mutex;
     use tor_basic_utils::test_rng::TestingRng;
-    use tor_keymgr::Keystore;
+    use tor_keymgr::{KeyMgrBuilder, Keystore};
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
@@ -1530,7 +1530,12 @@ mod test {
 
             let (mgr_view, pub_view) = ipt_set::ipts_channel();
 
-            let keymgr = Arc::new(KeyMgr::new(TestKeystore, Default::default()));
+            let keymgr = Arc::new(
+                KeyMgrBuilder::default()
+                    .default_store(Box::new(TestKeystore))
+                    .build()
+                    .unwrap(),
+            );
             let mgr = IptManager::new(
                 runtime.clone(),
                 Arc::new(dir),

@@ -376,7 +376,7 @@ mod test {
     use tempfile::{tempdir, TempDir};
 
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_keymgr::ArtiNativeKeystore;
+    use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
@@ -391,7 +391,12 @@ mod test {
         )
         .unwrap();
 
-        Arc::new(KeyMgr::new(keystore, vec![]))
+        Arc::new(
+            KeyMgrBuilder::default()
+                .default_store(Box::new(keystore))
+                .build()
+                .unwrap(),
+        )
     }
 
     macro_rules! maybe_generate_hsid {

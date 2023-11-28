@@ -193,7 +193,7 @@ mod test {
     use tor_basic_utils::test_rng::{testing_rng, TestingRng};
     use tor_circmgr::hspool::HsCircKind;
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
-    use tor_keymgr::{ArtiNativeKeystore, KeySpecifier, ToEncodableKey};
+    use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeySpecifier, ToEncodableKey};
     use tor_llcrypto::pk::{ed25519, rsa};
     use tor_llcrypto::util::rand_compat::RngCompatExt;
     use tor_netdir::testprovider::TestNetDirProvider;
@@ -410,7 +410,10 @@ mod test {
         .unwrap();
 
         // Provision the keystore with the necessary keys:
-        let keymgr = KeyMgr::new(keystore, vec![]);
+        let keymgr = KeyMgrBuilder::default()
+            .default_store(Box::new(keystore))
+            .build()
+            .unwrap();
 
         insert_svc_key(id_keypair, &keymgr, &HsIdKeypairSpecifier::new(nickname));
 

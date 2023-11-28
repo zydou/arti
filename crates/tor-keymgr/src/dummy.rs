@@ -8,7 +8,7 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{KeystoreError, KeystoreSelector, Result};
+use crate::{BoxedKeystore, KeystoreError, KeystoreSelector, Result};
 use tor_error::HasKind;
 
 use fs_mistrust::Mistrust;
@@ -23,12 +23,54 @@ use std::sync::Arc;
 ///
 /// For operations that normally involve updating the state of the key manager and/or its
 /// underlying storage, such as `insert` or `remove`, this `KeyMgr` always returns an error.
-#[derive(Copy, Clone, Debug)]
+#[derive(derive_builder::Builder)]
+#[builder(pattern = "owned")]
 #[non_exhaustive]
-pub struct KeyMgr;
+pub struct KeyMgr {
+    /// The default key store.
+    default_store: BoxedKeystore,
+    /// The secondary key stores.
+    #[builder(default, setter(custom))]
+    secondary_stores: Vec<BoxedKeystore>,
+}
+
+// TODO: auto-generate using define_list_builder_accessors/define_list_builder_helper
+// when that becomes possible.
+//
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1760#note_2969841
+impl KeyMgrBuilder {
+    /// Access the being-built list of secondary stores (resolving default)
+    ///
+    /// If the field has not yet been set or accessed, the default list will be
+    /// constructed and a mutable reference to the now-defaulted list of builders
+    /// will be returned.
+    pub fn secondary_stores(&mut self) -> &mut Vec<BoxedKeystore> {
+        self.secondary_stores.get_or_insert(Default::default())
+    }
+
+    /// Set the whole list (overriding the default)
+    pub fn set_secondary_stores(mut self, list: Vec<BoxedKeystore>) -> Self {
+        self.secondary_stores = Some(list);
+        self
+    }
+
+    /// Inspect the being-built list (with default unresolved)
+    ///
+    /// If the list has not yet been set, or accessed, `&None` is returned.
+    pub fn opt_secondary_stores(&self) -> &Option<Vec<BoxedKeystore>> {
+        &self.secondary_stores
+    }
+
+    /// Mutably access the being-built list (with default unresolved)
+    ///
+    /// If the list has not yet been set, or accessed, `&mut None` is returned.
+    pub fn opt_secondary_stores_mut(&mut self) -> &mut Option<Vec<BoxedKeystore>> {
+        &mut self.secondary_stores
+    }
+}
 
 /// A dummy key store trait.
-pub trait Keystore {
+pub trait Keystore: Send + Sync + 'static {
     // TODO(gabi): Add the missing functions and impls
 }
 
@@ -75,11 +117,6 @@ impl ArtiNativeKeystore {
 impl Keystore for ArtiNativeKeystore {}
 
 impl KeyMgr {
-    /// Create a new [`KeyMgr`].
-    pub fn new(_: impl Keystore, _: Vec<Box<dyn Keystore>>) -> Self {
-        Self
-    }
-
     /// A dummy `get` implementation that always behaves like the requested key is not found.
     ///
     /// This function always returns `Ok(None)`.

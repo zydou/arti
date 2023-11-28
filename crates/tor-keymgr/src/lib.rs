@@ -69,13 +69,16 @@ pub use {
     key_type::{KeyType, UnknownKeyTypeError},
     keystore::arti::ArtiNativeKeystore,
     keystore::{EncodableKey, ErasedKey, Keygen, KeygenRng, Keystore, SshKeyData, ToEncodableKey},
-    mgr::KeyMgr,
+    mgr::{KeyMgr, KeyMgrBuilder},
     ssh_key,
 };
 
 #[cfg(not(feature = "keymgr"))]
 #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
 pub use dummy::*;
+
+/// A boxed [`Keystore`].
+pub(crate) type BoxedKeystore = Box<dyn Keystore>;
 
 #[doc(hidden)]
 pub use derive_adhoc;

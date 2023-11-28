@@ -1,9 +1,9 @@
-//! Code for managing multiple [`Keystore`]s.
+//! Code for managing multiple [`Keystore`](crate::Keystore)s.
 //!
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    EncodableKey, KeyPath, KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, Keystore,
+    BoxedKeystore, EncodableKey, KeyPath, KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng,
     KeystoreId, KeystoreSelector, Result, ToEncodableKey,
 };
 
@@ -11,11 +11,8 @@ use itertools::Itertools;
 use std::iter;
 use tor_error::{bad_api_usage, internal};
 
-/// A boxed [`Keystore`].
-type BoxedKeystore = Box<dyn Keystore>;
-
-/// A key manager that acts as a frontend to a default [`Keystore`] and any number of secondary
-/// [`Keystore`]s.
+/// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
+/// any number of secondary [`Keystore`](crate::Keystore)s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
@@ -35,31 +32,55 @@ type BoxedKeystore = Box<dyn Keystore>;
 /// **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
 /// concurrently with any other `KeyMgr` operation that mutates the same key
 /// (i.e. a key with the same `ArtiPath`), because
-/// their outcome depends on whether the selected key store [`contains`][Keystore::contains] the
-/// specified key (and thus suffers from a a TOCTOU race).
-//
-// TODO HSS: derive builder for KeyMgr.
+/// their outcome depends on whether the selected key store
+/// [`contains`][crate::Keystore::contains]
+/// the specified key (and thus suffers from a a TOCTOU race).
+#[derive(derive_builder::Builder)]
+#[builder(pattern = "owned")]
 pub struct KeyMgr {
     /// The default key store.
     default_store: BoxedKeystore,
     /// The secondary key stores.
+    #[builder(default, setter(custom))]
     secondary_stores: Vec<BoxedKeystore>,
 }
 
-impl KeyMgr {
-    /// Create a new [`KeyMgr`] with a default [`Keystore`] and zero or more secondary [`Keystore`]s.
+// TODO: auto-generate using define_list_builder_accessors/define_list_builder_helper
+// when that becomes possible.
+//
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1760#note_2969841
+impl KeyMgrBuilder {
+    /// Access the being-built list of secondary stores (resolving default)
     ///
-    /// The order of the secondary `Keystore`s is important, because the `KeyMgr` accessors
-    /// (such as [`KeyMgr::get`], or `KeyMgr::get_with_type`)
-    /// search the configured key stores in the order they were given
-    /// (first the default key store, and then the secondary keystores, in order).
-    pub fn new(default_store: impl Keystore, secondary_stores: Vec<BoxedKeystore>) -> Self {
-        Self {
-            default_store: Box::new(default_store),
-            secondary_stores,
-        }
+    /// If the field has not yet been set or accessed, the default list will be
+    /// constructed and a mutable reference to the now-defaulted list of builders
+    /// will be returned.
+    pub fn secondary_stores(&mut self) -> &mut Vec<BoxedKeystore> {
+        self.secondary_stores.get_or_insert(Default::default())
     }
 
+    /// Set the whole list (overriding the default)
+    pub fn set_secondary_stores(mut self, list: Vec<BoxedKeystore>) -> Self {
+        self.secondary_stores = Some(list);
+        self
+    }
+
+    /// Inspect the being-built list (with default unresolved)
+    ///
+    /// If the list has not yet been set, or accessed, `&None` is returned.
+    pub fn opt_secondary_stores(&self) -> &Option<Vec<BoxedKeystore>> {
+        &self.secondary_stores
+    }
+
+    /// Mutably access the being-built list (with default unresolved)
+    ///
+    /// If the list has not yet been set, or accessed, `&mut None` is returned.
+    pub fn opt_secondary_stores_mut(&mut self) -> &mut Option<Vec<BoxedKeystore>> {
+        &mut self.secondary_stores
+    }
+}
+
+impl KeyMgr {
     /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
     ///
     /// The key returned is retrieved from the first key store that contains an entry for the given
@@ -153,7 +174,7 @@ impl KeyMgr {
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
     /// outcome of [`KeyMgr::generate`] depends on whether the selected key store
-    /// [`contains`][Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
+    /// [`contains`][crate::Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
     //
     // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
@@ -200,7 +221,8 @@ impl KeyMgr {
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
     /// outcome of [`KeyMgr::generate_with_derived`] depends on whether the selected key store
-    /// [`contains`][Keystore::contains] the specified keypair, and thus suffers from a a TOCTOU race.
+    /// [`contains`][crate::Keystore::contains] the specified keypair, and thus suffers from a
+    /// TOCTOU race.
     //
     // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
@@ -295,7 +317,7 @@ impl KeyMgr {
         }
     }
 
-    /// Insert `key` into the [`Keystore`] specified by `selector`.
+    /// Insert `key` into the [`Keystore`](crate::Keystore) specified by `selector`.
     ///
     /// If the key already exists, it is overwritten.
     ///
@@ -315,7 +337,8 @@ impl KeyMgr {
         store.insert(&key, key_spec, &K::Key::key_type())
     }
 
-    /// Remove the key identified by `key_spec` from the [`Keystore`] specified by `selector`.
+    /// Remove the key identified by `key_spec` from the [`Keystore`](crate::Keystore)
+    /// specified by `selector`.
     ///
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
@@ -401,7 +424,7 @@ impl KeyMgr {
         iter::once(&self.default_store).chain(self.secondary_stores.iter())
     }
 
-    /// Return the [`Keystore`] matching the specified `selector`.
+    /// Return the [`Keystore`](crate::Keystore) matching the specified `selector`.
     ///
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
@@ -412,7 +435,7 @@ impl KeyMgr {
         }
     }
 
-    /// Return the [`Keystore`] with the specified `id`.
+    /// Return the [`Keystore`](crate::Keystore) with the specified `id`.
     ///
     /// Returns an error if the specified ID is not the ID of the default keystore or
     /// the ID of one of the configured secondary stores.
@@ -512,7 +535,7 @@ mod tests {
                 }
             }
 
-            impl Keystore for $name {
+            impl crate::Keystore for $name {
                 fn contains(
                     &self,
                     key_spec: &dyn KeySpecifier,
@@ -610,10 +633,13 @@ mod tests {
 
     #[test]
     fn insert_and_get() {
-        let mgr = KeyMgr::new(
-            Keystore1::default(),
-            vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
-        );
+        let mut builder = KeyMgrBuilder::default().default_store(Box::<Keystore1>::default());
+
+        builder
+            .secondary_stores()
+            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+
+        let mgr = builder.build().unwrap();
 
         // Insert a key into Keystore2
         mgr.insert(
@@ -683,10 +709,13 @@ mod tests {
 
     #[test]
     fn remove() {
-        let mgr = KeyMgr::new(
-            Keystore1::default(),
-            vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
-        );
+        let mut builder = KeyMgrBuilder::default().default_store(Box::<Keystore1>::default());
+
+        builder
+            .secondary_stores()
+            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+
+        let mgr = builder.build().unwrap();
 
         assert!(!mgr.secondary_stores[0]
             .contains(&TestKeySpecifier1, &TestKey::key_type())
@@ -746,7 +775,10 @@ mod tests {
 
     #[test]
     fn keygen() {
-        let mgr = KeyMgr::new(Keystore1::default(), vec![]);
+        let mgr = KeyMgrBuilder::default()
+            .default_store(Box::<Keystore1>::default())
+            .build()
+            .unwrap();
 
         mgr.insert(
             "coot".to_string(),
@@ -825,10 +857,13 @@ mod tests {
 
     #[test]
     fn get_or_generate() {
-        let mgr = KeyMgr::new(
-            Keystore1::default(),
-            vec![Keystore2::new_boxed(), Keystore3::new_boxed()],
-        );
+        let mut builder = KeyMgrBuilder::default().default_store(Box::<Keystore1>::default());
+
+        builder
+            .secondary_stores()
+            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+
+        let mgr = builder.build().unwrap();
 
         let keystore2 = KeystoreId::from_str("keystore2").unwrap();
         mgr.insert(
