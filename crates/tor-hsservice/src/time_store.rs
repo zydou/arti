@@ -462,6 +462,15 @@ impl FromStr for FutureTimestamp {
     }
 }
 
+impl FromStr for Reference {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let st = humantime::parse_rfc3339(s).map_err(|_| ParseError {})?;
+        let time_t = system_time_to_time_t(st);
+        Ok(Reference { time_t })
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -521,9 +530,21 @@ mod test {
 
     #[test]
     fn ref_fmt() {
-        let rf = Reference { time_t: 1217635200 };
+        let time_t = 1217635200;
+        let rf = Reference { time_t };
         let s = "2008-08-02T00:00:00Z";
         assert_eq!(rf.to_string(), s);
+
+        let p = Reference::from_str;
+        assert_eq!(Ok(rf), p(s));
+        // we inherit rounding behaviour from humantime; we don't mind tolerating that
+        assert_eq!(Ok(rf), p("2008-08-02T00:00:00.00Z"));
+        assert_eq!(Ok(rf), p("2008-08-02T00:00:00.999Z"));
+        let e = Err(ParseError {});
+        assert_eq!(e, p("2008-08-02T00:00Z"));
+        assert_eq!(e, p("2008-08-02T00:00:00"));
+        assert_eq!(e, p("2008-08-02T00:00:00B"));
+        assert_eq!(e, p("2008-08-02T00:00:00+00:00"));
     }
 
     #[test]
