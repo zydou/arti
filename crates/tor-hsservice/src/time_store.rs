@@ -244,6 +244,65 @@ fn system_time_to_time_t(st: SystemTime) -> i64 {
     }
 }
 
+/// Minimum value of SystemTime
+///
+/// Not a tight bound but tests guarantee no runtime panics.
+#[allow(dead_code)] // XXXX
+fn system_time_min() -> SystemTime {
+    for attempt in [
+        //
+        0x7fff_ffff_ffff_ffff,
+        0x7fff_ffff,
+        0,
+    ] {
+        if let Some(r) = SystemTime::UNIX_EPOCH.checked_sub(Duration::from_secs(attempt)) {
+            return r;
+        }
+    }
+    panic!("cannot calculate a minimum value for the SystemTime!");
+}
+
+/// Maximum value of SystemTime
+///
+/// Not a tight bound but tests guarantee no runtime panics.
+#[allow(dead_code)] // XXXX
+fn system_time_max() -> SystemTime {
+    for attempt in [
+        //
+        0x7fff_ffff_ffff_ffff,
+        0x7fff_ffff,
+    ] {
+        if let Some(r) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(attempt)) {
+            return r;
+        }
+    }
+    panic!("cannot calculate a maximum value for the SystemTime!");
+}
+
+/// Convert a `SystemTime` to an `i64` `time_t`
+//
+// We need this to make the RFC3339 string using humantime.
+// Otherwise we'd have to implement the whole calendar and leap days stuff ourselves.
+// Probably there doesn't end up being any actual code here on Unix at least...
+#[allow(dead_code)] // XXXX
+fn time_t_to_system_time(time_t: i64) -> SystemTime {
+    if let Ok(time_t) = u64::try_from(time_t) {
+        let d = Duration::from_secs(time_t);
+        SystemTime::UNIX_EPOCH
+            .checked_add(d)
+            .unwrap_or_else(system_time_max)
+    } else {
+        let rev: u64 = time_t
+            .saturating_neg()
+            .try_into()
+            .expect("-(-ve i64) not u64");
+        let d = Duration::from_secs(rev);
+        SystemTime::UNIX_EPOCH
+            .checked_sub(d)
+            .unwrap_or_else(system_time_min)
+    }
+}
+
 impl Now {
     /// Obtain `Now` from a runtime
     fn new(runtime: &impl SleepProvider) -> Self {
@@ -446,6 +505,21 @@ mod test {
         assert_eq!(e, FutureTimestamp::from_str("+T70:04:05:09"));
         assert_eq!(e, FutureTimestamp::from_str("+T70:04:05.09"));
         assert_eq!(e, FutureTimestamp::from_str("+Tflibble"));
+    }
+
+    #[test]
+    #[allow(clippy::unusual_byte_groupings)] // we want them to line up, dammit!
+    fn system_time_conversions() {
+        assert!(system_time_min() <= SystemTime::UNIX_EPOCH);
+        assert!(system_time_max() > SystemTime::UNIX_EPOCH);
+
+        let p = |s| parse_rfc3339(s).expect(s);
+        let time_t_2st = time_t_to_system_time;
+        assert_eq!(p("1970-01-01T00:00:00Z"), time_t_2st(0));
+        assert_eq!(p("2038-01-19T03:14:07Z"), time_t_2st(0x___7fff_ffff));
+        assert_eq!(p("2038-01-19T03:14:08Z"), time_t_2st(0x___8000_0000));
+        assert_eq!(p("2106-02-07T06:28:16Z"), time_t_2st(0x_1_0000_0000));
+        assert_eq!(p("4147-08-20T07:32:16Z"), time_t_2st(0x10_0000_0000));
     }
 
     #[test]
