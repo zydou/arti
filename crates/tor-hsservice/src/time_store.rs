@@ -598,7 +598,10 @@ mod test {
         println!("{json}");
         assert_eq!(
             json,
-            format!(r#"{{"stored":"2008-08-02T00:00:00Z","s0":"+T0:00:00","s1":"+T0:00:10","s2":"+T0:50:00"}}"#)
+            format!(concat!(
+                r#"{{"stored":"2008-08-02T00:00:00Z","#,
+                r#""s0":"+T0:00:00","s1":"+T0:00:10","s2":"+T0:50:00"}}"#
+            ))
         );
 
         let mpack = rmp_serde::to_vec_named(&stored).unwrap();
