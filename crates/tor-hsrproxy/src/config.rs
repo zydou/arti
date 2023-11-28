@@ -112,12 +112,30 @@ impl ProxyRule {
 }
 
 /// A set of ports to use when checking how to handle a port.
-#[derive(
-    Clone, Debug, serde_with::DeserializeFromStr, serde_with::SerializeDisplay, Eq, PartialEq,
-)]
+#[derive(Clone, Debug, serde::Deserialize, serde_with::SerializeDisplay, Eq, PartialEq)]
+#[serde(try_from = "ProxyPatternAsEnum")]
 pub struct ProxyPattern(RangeInclusive<u16>);
 
-// TODO HSS: Allow ProxyPattern to also be deserialized from an integer.
+/// Representation for a [`ProxyPattern`]. Used while deserializing.
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum ProxyPatternAsEnum {
+    /// Representation the [`ProxyPattern`] as an integer.
+    Number(u16),
+    /// Representation of the [`ProxyPattern`] as a string.
+    String(String),
+}
+
+impl TryFrom<ProxyPatternAsEnum> for ProxyPattern {
+    type Error = ProxyConfigError;
+
+    fn try_from(value: ProxyPatternAsEnum) -> Result<Self, Self::Error> {
+        match value {
+            ProxyPatternAsEnum::Number(port) => Self::one_port(port),
+            ProxyPatternAsEnum::String(s) => Self::from_str(&s),
+        }
+    }
+}
 
 impl FromStr for ProxyPattern {
     type Err = ProxyConfigError;
@@ -518,7 +536,7 @@ mod test {
         let b: ProxyConfigBuilder = toml::de::from_str(
             r#"
 proxy_ports = [
-    ["80", "127.0.0.1:10080"],
+    [ 80, "127.0.0.1:10080"],
     ["22", "destroy"],
     ["265", "ignore"],
     ["1-1024", "unix:/var/run/allium-cepa/socket"],
