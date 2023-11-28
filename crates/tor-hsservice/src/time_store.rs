@@ -87,6 +87,7 @@ use std::time::{Duration, Instant, SystemTime};
 use derive_adhoc::{define_derive_adhoc, Adhoc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use serde::{Deserializer, Serializer};
 use thiserror::Error;
 use tracing::warn;
 
@@ -125,17 +126,14 @@ define_derive_adhoc! {
 /// Obtain one of these from an `Instant` using [`Storing::store_future()`],
 /// and convert it back to an `Instant` with [`Loading::load_future()`],
 ///
-/// (Serialises as a `u64` representing how many seconds this was into the future,
-/// when it was stored - ie, with respect to the corresponding [`Reference`].)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
+/// (Serialises as a representation of how many seconds this was into the future,
+/// when it was stored - ie, with respect to the corresponding [`Reference`];
+/// in binary as a `u64`, in human readable formats as `+Thhh:mm:ss`.)
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[derive(Adhoc)]
 #[derive_adhoc(RawConversions)]
 pub struct FutureTimestamp {
     /// How far this timestamp was in the future, when we stored it
-    //
-    // TODO HSS change the serialisation to use an ISO8601 string
-    // This will require a change to the in-memory representation, to an i64 time_t probably
     offset: u64,
 }
 
@@ -363,6 +361,31 @@ impl FromStr for FutureTimestamp {
     }
 }
 
+// It would be better to derive this or use a crate or something, but I didn't find one
+impl Serialize for FutureTimestamp {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if s.is_human_readable() {
+            s.collect_str(self)
+        } else {
+            self.offset.serialize(s)
+        }
+    }
+}
+
+// It would be better to derive this or use a crate or something, but I didn't find one
+// Also it would be better to accept either format, but this will do
+impl<'de> Deserialize<'de> for FutureTimestamp {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(if d.is_human_readable() {
+            let s = String::deserialize(d)?;
+            s.parse().map_err(|e: ParseError| serde::de::Error::custom(e))?
+        } else {
+            let offset = Deserialize::deserialize(d)?;
+            FutureTimestamp { offset }
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -447,7 +470,7 @@ mod test {
             .as_secs();
         assert_eq!(
             json,
-            format!(r#"{{"stored":{exp_ref},"s0":0,"s1":10,"s2":3000}}"#)
+            format!(r#"{{"stored":{exp_ref},"s0":"+T0:00:00","s1":"+T0:00:10","s2":"+T0:50:00"}}"#)
         );
 
         let mpack = rmp_serde::to_vec_named(&stored).unwrap();
