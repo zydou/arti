@@ -328,6 +328,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use humantime::parse_rfc3339;
+    use itertools::{chain, Itertools};
     use tor_rtmock::{simple_time::SimpleMockTimeProvider, MockRuntime};
 
     fn secs(s: u64) -> Duration {
@@ -377,6 +378,30 @@ mod test {
         assert_eq!(
             json,
             format!(r#"{{"stored":{exp_ref},"s0":0,"s1":10,"s2":3000}}"#)
+        );
+
+        let mpack = rmp_serde::to_vec_named(&stored).unwrap();
+        println!("{}", hex::encode(&mpack));
+        assert_eq!(
+            mpack,
+            chain!(
+                &[132, 166],
+                b"stored",
+                &[206],
+                &[0x48, 0x93, 0xa3, 0x80], // 0x4893a380 1217635200 = 2008-08-02T00:00:00Z
+                &[162],
+                b"s0",
+                &[0],
+                &[162],
+                b"s1",
+                &[10],
+                &[162],
+                b"s2",
+                &[205],
+                &[0x0b, 0xb8], // 0xbb8 == 3000
+            )
+            .cloned()
+            .collect_vec(),
         );
 
         // Simulate a restart with an Instant which is *smaller* (maybe the host rebooted),
