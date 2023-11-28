@@ -79,10 +79,15 @@
 #![allow(rustdoc::private_intra_doc_links)]
 
 use std::fmt::{self, Display};
+use std::iter;
+use std::num::ParseIntError;
+use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime};
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tracing::warn;
 
 use tor_rtcompat::SleepProvider;
@@ -328,6 +333,36 @@ impl Display for FutureTimestamp {
     }
 }
 
+/// Error parsing a timestamp or reference
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[non_exhaustive]
+#[derive(Error)]
+#[error("invalid timestamp or reference time format")]
+pub struct ParseError {
+    // We probably don't need to say precisely what's wrong
+}
+
+impl FromStr for FutureTimestamp {
+    type Err = ParseError;
+    // Bespoke parser so we have control over our error/overflow cases
+    // (and also since ideally we don't want to deal with a complex HMS time API).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut comps = s
+            .strip_prefix("+T")
+            .ok_or(ParseError {})?
+            .splitn(3, ':')
+            .map(|s| s.parse().map_err(|_: ParseIntError| ParseError {}))
+            .chain(iter::repeat(Err(ParseError {})))
+            .take(3);
+
+        let offset = comps.fold_ok(0_u64, |sum, comp| {
+            sum.saturating_mul(60).saturating_add(comp)
+        })?;
+
+        Ok(FutureTimestamp { offset })
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -358,6 +393,16 @@ mod test {
         };
 
         assert_eq!(ft.to_string(), "+T70:04:05");
+
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("+T70:04:05"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("+T070:4:5"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("+T0:0:252245"));
+        let e = Err(ParseError {});
+        assert_eq!(e, FutureTimestamp::from_str("70:04:05"));
+        assert_eq!(e, FutureTimestamp::from_str("+T70:04"));
+        assert_eq!(e, FutureTimestamp::from_str("+T70:04:05:09"));
+        assert_eq!(e, FutureTimestamp::from_str("+T70:04:05.09"));
+        assert_eq!(e, FutureTimestamp::from_str("+Tflibble"));
     }
 
     #[test]
