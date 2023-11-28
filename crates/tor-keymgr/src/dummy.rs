@@ -29,8 +29,43 @@ pub struct KeyMgr {
     /// The default key store.
     default_store: BoxedKeystore,
     /// The secondary key stores.
-    #[builder(default)]
+    #[builder(default, setter(custom))]
     secondary_stores: Vec<BoxedKeystore>,
+}
+
+// TODO: auto-generate using define_list_builder_accessors/define_list_builder_helper
+// when that becomes possible.
+//
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1760#note_2969841
+impl KeyMgrBuilder {
+    /// Access the being-built list of secondary stores (resolving default)
+    ///
+    /// If the field has not yet been set or accessed, the default list will be
+    /// constructed and a mutable reference to the now-defaulted list of builders
+    /// will be returned.
+    pub fn secondary_stores(&mut self) -> &mut Vec<BoxedKeystore> {
+        self.secondary_stores.get_or_insert(Default::default())
+    }
+
+    /// Set the whole list (overriding the default)
+    pub fn set_secondary_stores(mut self, list: Vec<BoxedKeystore>) -> Self {
+        self.secondary_stores = Some(list);
+        self
+    }
+
+    /// Inspect the being-built list (with default unresolved)
+    ///
+    /// If the list has not yet been set, or accessed, `&None` is returned.
+    pub fn opt_secondary_stores(&self) -> &Option<Vec<BoxedKeystore>> {
+        &self.secondary_stores
+    }
+
+    /// Mutably access the being-built list (with default unresolved)
+    ///
+    /// If the list has not yet been set, or accessed, `&mut None` is returned.
+    pub fn opt_secondary_stores_mut(&mut self) -> &mut Option<Vec<BoxedKeystore>> {
+        &mut self.secondary_stores
+    }
 }
 
 /// A dummy key store trait.
