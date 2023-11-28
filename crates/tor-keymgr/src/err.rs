@@ -44,7 +44,7 @@ impl HasKind for Error {
     }
 }
 
-/// An error caused by an invalid [`ArtiPath`].
+/// An error caused by an invalid [`ArtiPath`](crate::ArtiPath).
 #[derive(thiserror::Error, Debug, Copy, Clone)]
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
@@ -67,7 +67,7 @@ pub enum ArtiPathError {
 
     /// The path contains an invalid key denotator.
     ///
-    /// See the [`ArtiPath`] docs for more information.
+    /// See the [`ArtiPath`](crate::ArtiPath) docs for more information.
     InvalidDenotator,
 }
 
@@ -76,7 +76,7 @@ pub enum ArtiPathError {
 #[error("Keystore corruption")]
 #[non_exhaustive]
 pub enum KeystoreCorruptionError {
-    /// A keystore contains a key that has an invalid [`ArtiPath`].
+    /// A keystore contains a key that has an invalid [`ArtiPath`](crate::ArtiPath).
     #[error("{0}")]
     ArtiPath(#[from] ArtiPathError),
 }
