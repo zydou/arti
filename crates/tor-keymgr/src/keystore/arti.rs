@@ -4,7 +4,6 @@
 
 pub(crate) mod err;
 
-use std::fs;
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
@@ -200,19 +199,10 @@ impl Keystore for ArtiNativeKeystore {
             .key_path(key_spec, key_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
 
-        let abs_key_path =
-            self.keystore_dir
-                .join(&key_path)
-                .map_err(|e| ArtiNativeKeystoreError::FsMistrust {
-                    action: FilesystemAction::Remove,
-                    path: key_path.clone(),
-                    err: e.into(),
-                })?;
-
-        match fs::remove_file(abs_key_path) {
+        match self.keystore_dir.remove_file(&key_path) {
             Ok(()) => Ok(Some(())),
-            Err(e) if matches!(e.kind(), ErrorKind::NotFound) => Ok(None),
-            Err(e) => Err(ArtiNativeKeystoreError::Filesystem {
+            Err(fs_mistrust::Error::NotFound(_)) => Ok(None),
+            Err(e) => Err(ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Remove,
                 path: key_path,
                 err: e.into(),
@@ -222,7 +212,6 @@ impl Keystore for ArtiNativeKeystore {
     }
 
     fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
-        // TODO: maybe CheckedDir should provide a read_dir() function
         WalkDir::new(self.keystore_dir.as_path())
             .into_iter()
             .map(|entry| {
@@ -257,6 +246,18 @@ impl Keystore for ArtiNativeKeystore {
                             self.keystore_dir.as_path().display()
                         )
                     })?;
+
+                if let Some(parent) = path.parent() {
+                    // Check the properties of the parent directory by attempting to list its
+                    // contents.
+                    self.keystore_dir.read_directory(parent).map_err(|e| {
+                        ArtiNativeKeystoreError::FsMistrust {
+                            action: FilesystemAction::Read,
+                            path: parent.into(),
+                            err: e.into(),
+                        }
+                    })?;
+                }
 
                 let malformed_err = |path: &Path, err| ArtiNativeKeystoreError::MalformedPath {
                     path: path.into(),
@@ -434,22 +435,34 @@ mod tests {
         let key_path = key_path(&key_store, &KeyType::Ed25519Keypair);
 
         // Make the permissions of the test key too permissive
-        fs::set_permissions(key_path, fs::Permissions::from_mode(0o777)).unwrap();
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o777)).unwrap();
         assert!(key_store
             .get(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
             .is_err());
 
-        // TODO HSS: maybe list() should also fail if the permissions are not strict enough
-        // assert!(key_store.list().is_err());
+        // Make the permissions of the parent directory too lax
+        fs::set_permissions(
+            key_path.parent().unwrap(),
+            fs::Permissions::from_mode(0o777),
+        )
+        .unwrap();
 
-        // TODO HSS: remove works even if the permissions are not restrictive enough for other
-        // the operations... I **think** this is alright, but we might want to give this a bit more
-        // thought before we document and advertise this behaviour.
+        assert!(key_store.list().is_err());
+
+        let key_spec = TestSpecifier::default();
+        let ed_key_type = &KeyType::Ed25519Keypair;
         assert_eq!(
             key_store
-                .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
-                .unwrap(),
-            Some(())
+                .remove(&key_spec, ed_key_type)
+                .unwrap_err()
+                .to_string(),
+            format!(
+                "Invalid path or permissions on {} while attempting to Remove",
+                key_store
+                    .key_path(&key_spec, ed_key_type)
+                    .unwrap()
+                    .display()
+            ),
         );
     }
 
