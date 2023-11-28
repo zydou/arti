@@ -1053,7 +1053,7 @@ example config file {which:?}, uncommented={uncommented:?}
         // section opener, and that each line of _real_ configuration in that
         // section begins with "#    ".
         let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow((r"^#    \[onion_service", true), (r"^#? *\[", true));
+        file.narrow((r"^#    \[onion_service", true), (r"^#? *\]", true));
         file.lines.retain(|line| line.starts_with("#    "));
         file.strip_prefix("#    ");
 
