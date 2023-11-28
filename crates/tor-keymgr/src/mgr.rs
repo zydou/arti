@@ -13,6 +13,8 @@ use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
 
+// TODO: unify get()/get_with_type() and remove()/remove_with_type()
+
 /// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
 ///
@@ -379,6 +381,22 @@ impl KeyMgr {
         let store = self.select_keystore(&selector)?;
 
         store.remove(key_spec, &K::Key::key_type())
+    }
+
+    /// Remove the key identified by `key_spec` and `key_type` from the
+    /// [`Keystore`](crate::Keystore) specified by `selector`.
+    ///
+    /// Like [`KeyMgr::remove`], except this function takes an explicit [&KeyType] argument instead
+    /// of obtaining it from the specified type's [`ToEncodableKey`] implementation.
+    pub fn remove_with_type(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        key_type: &KeyType,
+        selector: KeystoreSelector,
+    ) -> Result<Option<()>> {
+        let store = self.select_keystore(&selector)?;
+
+        store.remove(key_spec, key_type)
     }
 
     /// Return the keys matching the specified [`KeyPathPattern`].
