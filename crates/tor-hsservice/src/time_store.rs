@@ -183,8 +183,7 @@ define_derive_adhoc! {
 /// (Serialises as a representation of how many seconds this was into the future,
 /// when it was stored - ie, with respect to the corresponding [`Reference`];
 /// in binary as a `u64`, in human readable formats as `+Thhh:mm:ss`.)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[derive(Adhoc)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Adhoc)]
 #[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct FutureTimestamp {
     /// How far this timestamp was in the future, when we stored it
@@ -202,9 +201,11 @@ pub struct FutureTimestamp {
 /// (Serialises as an absolute time:
 /// in binary, as an `i64` representing the `time_t` (Unix Time);
 /// in human-readable formats, an RFC3339 string with seconds precision and timezone `Z`.)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[derive(derive_more::Display)]
-#[display(fmt = "{}", "humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))")]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, derive_more::Display)]
+#[display(
+    fmt = "{}",
+    "humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))"
+)]
 #[derive(Adhoc)]
 #[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct Reference {
