@@ -189,7 +189,7 @@ pub struct FutureTimestamp {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 #[derive(derive_more::Display)]
-#[display(fmt = "{}", time_t)]
+#[display(fmt = "{}", "humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))")]
 #[derive(Adhoc)]
 #[derive_adhoc(RawConversions)]
 pub struct Reference {
@@ -247,7 +247,6 @@ fn system_time_to_time_t(st: SystemTime) -> i64 {
 /// Minimum value of SystemTime
 ///
 /// Not a tight bound but tests guarantee no runtime panics.
-#[allow(dead_code)] // XXXX
 fn system_time_min() -> SystemTime {
     for attempt in [
         //
@@ -265,7 +264,6 @@ fn system_time_min() -> SystemTime {
 /// Maximum value of SystemTime
 ///
 /// Not a tight bound but tests guarantee no runtime panics.
-#[allow(dead_code)] // XXXX
 fn system_time_max() -> SystemTime {
     for attempt in [
         //
@@ -284,7 +282,6 @@ fn system_time_max() -> SystemTime {
 // We need this to make the RFC3339 string using humantime.
 // Otherwise we'd have to implement the whole calendar and leap days stuff ourselves.
 // Probably there doesn't end up being any actual code here on Unix at least...
-#[allow(dead_code)] // XXXX
 fn time_t_to_system_time(time_t: i64) -> SystemTime {
     if let Ok(time_t) = u64::try_from(time_t) {
         let d = Duration::from_secs(time_t);
@@ -520,6 +517,13 @@ mod test {
         assert_eq!(p("2038-01-19T03:14:08Z"), time_t_2st(0x___8000_0000));
         assert_eq!(p("2106-02-07T06:28:16Z"), time_t_2st(0x_1_0000_0000));
         assert_eq!(p("4147-08-20T07:32:16Z"), time_t_2st(0x10_0000_0000));
+    }
+
+    #[test]
+    fn ref_fmt() {
+        let rf = Reference { time_t: 1217635200 };
+        let s = "2008-08-02T00:00:00Z";
+        assert_eq!(rf.to_string(), s);
     }
 
     #[test]
