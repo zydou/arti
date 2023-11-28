@@ -127,10 +127,7 @@ with our MSRV and our minimal (`Cargo.toml`) dependencies.  Production
 dependencies (`Cargo.lock`) are not tested with our MSRV, and may or may
 not work.
 
-Our current MSRV is 1.56.  We may update our MSRV to a newer version in
-the future: when we do, we'll only require a version released at least
-six months in the past, and we won't update our requirements for no
-reason.
+Our current MSRV and MSRV policy are listed in our top-level README.
 
 Rust versions older than our MSRV are **unsupported**.
 
