@@ -122,7 +122,11 @@ rust-latest-arti-extra-features:
     #
     # Consider enabling the rpc feature when shadow starts supporting pathname
     # addresses, or when we add a config setting for disabling rpc.
-    - cargo build --verbose --target x86_64-unknown-linux-gnu --bin arti --features full,experimental-api,arti-client/keymgr
+    #
+    # Note: `-p arti` is *not* already implied by `--bin arti`. If we omit it,
+    # we'll get the union of all features needed by anything in the workspace,
+    # including examples.
+    - cargo build --verbose --target x86_64-unknown-linux-gnu -p arti --bin arti --features full,experimental-api,arti-client/keymgr
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
