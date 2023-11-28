@@ -212,7 +212,6 @@ impl Keystore for ArtiNativeKeystore {
     }
 
     fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
-        // TODO: maybe CheckedDir should provide a read_dir() function
         WalkDir::new(self.keystore_dir.as_path())
             .into_iter()
             .map(|entry| {
@@ -247,6 +246,18 @@ impl Keystore for ArtiNativeKeystore {
                             self.keystore_dir.as_path().display()
                         )
                     })?;
+
+                if let Some(parent) = path.parent() {
+                    // Check the properties of the parent directory by attempting to list its
+                    // contents.
+                    self.keystore_dir.read_directory(parent).map_err(|e| {
+                        ArtiNativeKeystoreError::FsMistrust {
+                            action: FilesystemAction::Read,
+                            path: parent.into(),
+                            err: e.into(),
+                        }
+                    })?;
+                }
 
                 let malformed_err = |path: &Path, err| ArtiNativeKeystoreError::MalformedPath {
                     path: path.into(),
@@ -436,8 +447,7 @@ mod tests {
         )
         .unwrap();
 
-        // TODO HSS: maybe list() should also fail if the permissions are not strict enough
-        // assert!(key_store.list().is_err());
+        assert!(key_store.list().is_err());
 
         let key_spec = TestSpecifier::default();
         let ed_key_type = &KeyType::Ed25519Keypair;
