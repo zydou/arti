@@ -78,6 +78,7 @@
 // TODO - Remove when this is actually public
 #![allow(rustdoc::private_intra_doc_links)]
 
+use std::fmt::{self, Display};
 use std::time::{Duration, Instant, SystemTime};
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
@@ -123,8 +124,6 @@ define_derive_adhoc! {
 /// when it was stored - ie, with respect to the corresponding [`Reference`].)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-#[derive(derive_more::Display)]
-#[display(fmt = "{}", offset)]
 #[derive(Adhoc)]
 #[derive_adhoc(RawConversions)]
 pub struct FutureTimestamp {
@@ -312,6 +311,23 @@ impl Loading {
     }
 }
 
+//---------- formatting ----------
+
+/// Displays as `+Thhh:mm:ss`.
+//
+// This format is a balance between human-readability and the desire to avoid
+// allowing the possibility of invalid (corrupted) files whose `FutureTimestamp`
+// is actually before the stored `Reference`.
+impl Display for FutureTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let h = self.offset / 3600;
+        let ms = self.offset % 3600;
+        let m = ms / 60;
+        let s = ms % 60;
+        write!(f, "+T{h}:{m:02}:{s:02}")
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -333,6 +349,15 @@ mod test {
 
     fn secs(s: u64) -> Duration {
         Duration::from_secs(s)
+    }
+
+    #[test]
+    fn hms_fmt() {
+        let ft = FutureTimestamp {
+            offset: 70 * 3600 + 4 * 60 + 5,
+        };
+
+        assert_eq!(ft.to_string(), "+T70:04:05");
     }
 
     #[test]
