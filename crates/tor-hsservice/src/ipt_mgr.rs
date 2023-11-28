@@ -10,10 +10,9 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::ops::RangeInclusive;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use futures::channel::mpsc;
 use futures::task::SpawnExt as _;
@@ -50,13 +49,7 @@ use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, I
 use IptStatusStatus as ISS;
 use TrackedStatus as TS;
 
-/// Time for which we'll use an IPT relay before selecting a new relay to be our IPT
-// TODO HSS IPT_RELAY_ROTATION_TIME should be tuneable.  And, is default correct?
-const IPT_RELAY_ROTATION_TIME: RangeInclusive<Duration> = {
-    /// gosh this is clumsy
-    const DAY: u64 = 86400;
-    Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
-};
+mod persist;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 // TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
@@ -104,6 +97,10 @@ pub(crate) struct Immutable<R> {
     /// When we make a new `IptEstablisher` we use this arrange for
     /// its status updates to arrive, appropriately tagged, via `status_recv`
     status_send: mpsc::Sender<(IptLocalId, IptStatus)>,
+
+    /// The key manager.
+    #[educe(Debug(ignore))]
+    keymgr: Arc<KeyMgr>,
 }
 
 /// State of an IPT Manager
@@ -147,11 +144,6 @@ pub(crate) struct State<R, M> {
     /// since `HsCircPool` is a service with interior mutability.
     mockable: M,
 
-    // TODO HSS: keymgr has interior mutability so we can moved it to imm.
-    /// The key manager.
-    #[educe(Debug(ignore))]
-    keymgr: Arc<KeyMgr>,
-
     /// Runtime (to placate compiler)
     runtime: PhantomData<R>,
 }
@@ -174,9 +166,7 @@ struct IptRelay {
     relay: RelayIds,
 
     /// The retirement time we selected for this relay
-    ///
-    /// We use `SystemTime`, not `Instant`, because we will want to save it to disk.
-    planned_retirement: SystemTime,
+    planned_retirement: Instant,
 
     /// IPTs at this relay
     ///
@@ -277,33 +267,6 @@ enum TrackedStatus {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct IsCurrent;
 
-/// Record of intro point establisher state, as stored on disk
-#[derive(Serialize, Deserialize)]
-#[allow(dead_code)] // TODO HSS-IPT-PERSIST remove
-struct StateRecord {
-    /// Relays
-    ipt_relays: Vec<RelayRecord>,
-}
-
-/// Record of a selected intro point relay, as stored on disk
-#[derive(Serialize, Deserialize)]
-#[allow(dead_code)] // TODO HSS-IPT-PERSIST remove
-struct RelayRecord {
-    /// Which relay?
-    relay: RelayIds,
-    /// The IPTs, including the current one and any still-wanted old ones
-    ipts: Vec<IptRecord>,
-}
-
-/// Record of a single intro point, as stored on disk
-#[derive(Serialize, Deserialize)]
-#[allow(dead_code)] // TODO HSS-IPT-PERSIST remove
-struct IptRecord {
-    /// Used to find the cryptographic keys, amongst other things
-    lid: IptLocalId,
-    // TODO HSS-IPT-PERSIST other fields need to be here!
-}
-
 /// Return value from one call to the main loop iteration
 enum ShutdownStatus {
     /// We should continue to operate this IPT manager
@@ -358,30 +321,66 @@ impl IptRelay {
         imm: &Immutable<R>,
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
         mockable: &mut M,
-        keymgr: &Arc<KeyMgr>,
     ) -> Result<(), FatalError> {
+        let lid: IptLocalId = mockable.thread_rng().gen();
+
+        let ipt = Ipt::start_establisher(
+            imm,
+            new_configs,
+            mockable,
+            &self.relay,
+            lid,
+            Some(IsCurrent),
+            // None is precisely right: the descriptor hasn't been published.
+            PromiseLastDescriptorExpiryNoneIsGood {},
+        )?;
+
+        self.ipts.push(ipt);
+
+        Ok(())
+    }
+}
+
+/// Token, representing promise by caller of `start_establisher`
+///
+/// Caller who makes one of these structs promises that it is OK for `start_establisher`
+/// to set `last_descriptor_expiry_including_slop` to `None`.
+struct PromiseLastDescriptorExpiryNoneIsGood {}
+
+impl Ipt {
+    /// Start a new IPT establisher, and create and return an `Ipt`
+    fn start_establisher<R: Runtime, M: Mockable<R>>(
+        imm: &Immutable<R>,
+        new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
+        mockable: &mut M,
+        relay: &RelayIds,
+        lid: IptLocalId,
+        is_current: Option<IsCurrent>,
+        _: PromiseLastDescriptorExpiryNoneIsGood,
+    ) -> Result<Ipt, FatalError> {
+        let mut rng = mockable.thread_rng();
+
+        // TODO HSS-IPT-PERSIST try loading keys before generating them
+        let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
+        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
+        let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
+
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
             started: imm.runtime.now(),
         };
-
-        let mut rng = mockable.thread_rng();
-        let lid: IptLocalId = rng.gen();
-        let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
-        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
-        let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
 
         let params = IptParameters {
             config_rx: new_configs.clone(),
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
             lid,
-            target: self.relay.clone(),
+            target: relay.clone(),
             k_sid: k_sid.clone(),
             k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
-        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params, keymgr)?;
+        let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
         imm.runtime
             .spawn({
@@ -414,22 +413,18 @@ impl IptRelay {
             k_hss_ntor,
             k_sid,
             status_last,
+            is_current,
             last_descriptor_expiry_including_slop: None,
-            is_current: Some(IsCurrent),
         };
 
         debug!(
             "HS service {}: {lid:?} establishing new IPT at relay {}",
-            &imm.nick, &self.relay
+            &imm.nick, &relay
         );
 
-        self.ipts.push(ipt);
-
-        Ok(())
+        Ok(ipt)
     }
-}
 
-impl Ipt {
     /// Returns `true` if this IPT has status Good (and should perhaps be published)
     fn is_good(&self) -> bool {
         match self.status_last {
@@ -477,6 +472,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             nick,
             status_send,
             output_rend_reqs,
+            keymgr,
         };
         let current_config = config.borrow().clone();
 
@@ -489,7 +485,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             irelays: vec![],
             last_irelay_selection_outcome: Ok(()),
             runtime: PhantomData,
-            keymgr,
         };
         let mgr = IptManager { imm, state };
 
@@ -572,7 +567,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
     fn choose_new_ipt_relay(
         &mut self,
         imm: &Immutable<R>,
-        now: SystemTime,
+        now: Instant,
     ) -> Result<(), ChooseIptError> {
         let netdir = imm.dirprovider.timely_netdir()?;
 
@@ -594,7 +589,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             .ok_or(ChooseIptError::TooFewUsableRelays)?;
 
         let retirement = rng
-            .gen_range_checked(IPT_RELAY_ROTATION_TIME)
+            .gen_range_checked(self.current_config.ipt_relay_rotation_time())
             .ok_or_else(|| internal!("IPT_RELAY_ROTATION_TIME range was empty!"))?;
         let retirement = now
             .checked_add(retirement)
@@ -754,12 +749,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
-                ir.make_new_ipt(
-                    &self.imm,
-                    &self.state.new_configs,
-                    &mut self.state.mockable,
-                    &self.state.keymgr,
-                )?;
+                ir.make_new_ipt(&self.imm, &self.state.new_configs, &mut self.state.mockable)?;
                 return CONTINUE;
             }
         }
@@ -786,7 +776,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             {
                 self.state.last_irelay_selection_outcome = self
                     .state
-                    .choose_new_ipt_relay(&self.imm, now.system_time().get_now_untracked())
+                    .choose_new_ipt_relay(&self.imm, now.instant().get_now_untracked())
                     .map_err(|error| {
                         /// Call $report! with the message.
                         // The macros are annoying and want a cost argument.
@@ -822,29 +812,57 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
-    fn import_new_expiry_times(&mut self, publish_set: &PublishIptSet) {
-        let Some(publish_set) = publish_set else {
-            // Nothing to update
-            return;
-        };
+    fn import_new_expiry_times(irelays: &mut [IptRelay], publish_set: &PublishIptSet) {
+        // Every entry in the PublishIptSet ought to correspond to an ipt in self.
+        //
+        // If there are IPTs in publish_set.last_descriptor_expiry_including_slop
+        // that aren't in self, those are IPTs that we know were published,
+        // but can't establish since we have forgotten their details.
+        //
+        // We are not supposed to allow that to happen:
+        // we save IPTs to disk before we allow them to be published.
+        //
+        // (This invariant is across two data structures:
+        // `ipt_mgr::State` (specifically, `Ipt`) which is modified only here,
+        // and `ipt_set::PublishIptSet` which is shared with the publisher.
+        // See the comments in PublishIptSet.)
+        //
+        // TODO HSS-IPT-PERSIST well, actually we don't save anything at all, but we will do.
 
-        // Every entry in the PublishIptSet corresponds to an ipt in self.
-        // And the ordering is the same.  So we can do an O(N) merge-join.
-        let all_ours = self
-            .state
-            .irelays
-            .iter_mut()
-            .flat_map(|ir| ir.ipts.iter_mut());
+        let all_ours = irelays.iter_mut().flat_map(|ir| ir.ipts.iter_mut());
 
-        for (_lid, ours, theirs) in merge_join_subset_by(
-            all_ours,
-            |ours| ours.lid,
-            &publish_set.ipts,
-            |theirs| theirs.lid,
-        ) {
-            ours.last_descriptor_expiry_including_slop =
-                theirs.last_descriptor_expiry_including_slop;
+        for ours in all_ours {
+            if let Some(theirs) = publish_set
+                .last_descriptor_expiry_including_slop
+                .get(&ours.lid)
+            {
+                ours.last_descriptor_expiry_including_slop = Some(*theirs);
+            }
         }
+    }
+
+    /// Expire old entries in publish_set.last_descriptor_expiry_including_slop
+    ///
+    /// Deletes entries where `now` > `last_descriptor_expiry_including_slop`,
+    /// ie, entries where the publication's validity time has expired,
+    /// meaning we don't need to maintain that IPT any more,
+    /// at least, not just because we've published it.
+    ///
+    /// We may expire even entries for IPTs that we, the manager, still want to maintain.
+    /// That's fine: this is (just) the information about what we have previously published.
+    ///
+    /// ### Performance
+    ///
+    /// This function is at worst O(N) where N is the number of IPTs.
+    /// See the performance note on [`run_once()`](Self::run_once).
+    fn expire_old_expiry_times(&self, publish_set: &mut PublishIptSet, now: &TrackingNow) {
+        // We don't want to bother waking up just to expire things,
+        // so use an untracked comparison.
+        let now = now.instant().get_now_untracked();
+
+        publish_set
+            .last_descriptor_expiry_including_slop
+            .retain(|_lid, expiry| *expiry <= now);
     }
 
     /// Compute the IPT set to publish, and update the data shared with the publisher
@@ -951,7 +969,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             Some(IPT_PUBLISH_UNCERTAIN)
         };
 
-        *publish_set = if let Some(lifetime) = publish_lifetime {
+        publish_set.ipts = if let Some(lifetime) = publish_lifetime {
             let selected = self.publish_set_select();
             for ipt in &selected {
                 self.state.mockable.start_accepting(&*ipt.establisher);
@@ -1061,8 +1079,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 let publish = ipt_set::IptInSet {
                     ipt: publish,
                     lid: current_ipt.lid,
-                    last_descriptor_expiry_including_slop: current_ipt
-                        .last_descriptor_expiry_including_slop,
                 };
 
                 Ok::<_, FatalError>(publish)
@@ -1120,7 +1136,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             let mut publish_set = publisher.borrow_for_update();
 
-            self.import_new_expiry_times(&publish_set);
+            Self::import_new_expiry_times(&mut self.state.irelays, &publish_set);
 
             let mut loop_limit = 0..(
                 // Work we do might be O(number of intro points),
@@ -1145,6 +1161,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // Log at info if and when we publish?  Maybe the publisher should do that?
 
             self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
+            self.expire_old_expiry_times(&mut publish_set, &now);
 
             drop(publish_set); // release lock, and notify publisher of any changes
 
@@ -1250,7 +1267,6 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
-        keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError>;
 
     /// Call `IptEstablisher::start_accepting`
@@ -1272,9 +1288,8 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         &mut self,
         imm: &Immutable<R>,
         params: IptParameters,
-        keymgr: &Arc<KeyMgr>,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
-        IptEstablisher::new(&imm.runtime, params, self.circ_pool.clone(), keymgr)
+        IptEstablisher::new(&imm.runtime, params, self.circ_pool.clone(), &imm.keymgr)
     }
 
     fn start_accepting(&self, establisher: &ErasedIptEstablisher) {
@@ -1298,6 +1313,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 ///
 /// The algorithm has complexity `O(N_bigger)`,
 /// and also a working set of `O(N_bigger)`.
+#[allow(dead_code)] // TODO HSS remove
 fn merge_join_subset_by<'out, K, BI, SI>(
     bigger: impl IntoIterator<Item = BI> + 'out,
     bigger_keyf: impl Fn(&BI) -> K + 'out,
@@ -1391,7 +1407,6 @@ mod test {
             &mut self,
             _imm: &Immutable<MockRuntime>,
             _params: IptParameters,
-            _keymgr: &Arc<KeyMgr>,
         ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
             let (st_tx, st_rx) = watch::channel();
             let estab = MockEstabState { st_tx };
@@ -1488,7 +1503,7 @@ mod test {
                 estabs: estabs.clone(),
             };
 
-            let (mgr_view, pub_view) = ipt_set::ipts_channel(None);
+            let (mgr_view, pub_view) = ipt_set::ipts_channel();
 
             let keymgr = Arc::new(KeyMgr::new(TestKeystore, Default::default()));
             let mgr = IptManager::new(
@@ -1509,12 +1524,12 @@ mod test {
             // We expect it to try to establish 3 IPTs
             const EXPECT_N_IPTS: usize = 3;
             assert_eq!(estabs.lock().unwrap().len(), EXPECT_N_IPTS);
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
 
             // Advancing time a bit and it still shouldn't publish anything
             runtime.advance_by(ms(500)).await;
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
 
             let good = GoodIptDetails {
                 link_specifiers: vec![],
@@ -1535,11 +1550,11 @@ mod test {
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(499)).await;
-            assert!(pub_view.borrow_for_publish().is_none());
+            assert!(pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(1)).await;
-            match pub_view.borrow_for_publish().as_mut().unwrap() {
+            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), 1);
                     assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
@@ -1551,7 +1566,7 @@ mod test {
                 e.st_tx.borrow_mut().status = IptStatusStatus::Good(good.clone());
             }
             runtime.progress_until_stalled().await;
-            match pub_view.borrow_for_publish().as_mut().unwrap() {
+            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
                     assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));

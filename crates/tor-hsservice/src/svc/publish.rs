@@ -513,7 +513,7 @@ mod test {
         let config = build_test_config(nickname.clone());
         let (config_tx, config_rx) = watch::channel_with(Arc::new(config));
 
-        let (mut mv, pv) = ipts_channel(None);
+        let (mut mv, pv) = ipts_channel();
         let update_ipts = || {
             let ipts: Vec<IptInSet> = test_data::test_parsed_hsdesc()
                 .unwrap()
@@ -523,11 +523,10 @@ mod test {
                 .map(|(i, ipt)| IptInSet {
                     ipt: ipt.clone(),
                     lid: IptLocalId([i.try_into().unwrap(); 32]),
-                    last_descriptor_expiry_including_slop: None,
                 })
                 .collect();
 
-            *mv.borrow_for_update() = Some(IptSet {
+            mv.borrow_for_update().ipts = Some(IptSet {
                 ipts,
                 lifetime: Duration::from_secs(20),
             });

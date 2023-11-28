@@ -146,9 +146,7 @@ impl OnionService {
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
-        // TODO HSS: How do I give ipt_mgr_view to ipt_mgr?  Does IptManager even take
-        //          one of these?
-        let (ipt_mgr_view, publisher_view) = crate::ipt_set::ipts_channel(None);
+        let (ipt_mgr_view, publisher_view) = crate::ipt_set::ipts_channel();
 
         let ipt_mgr = IptManager::new(
             runtime.clone(),
