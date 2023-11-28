@@ -117,6 +117,46 @@ define_derive_adhoc! {
     }
 }
 
+define_derive_adhoc! {
+    /// Define [`Serialize`] and [`Deserialize`] via string rep or transparently, depending
+    ///
+    /// In human-readable formats, uses the [`Display`] and [`FromStr`].
+    /// In non-human-readable formats, serialises as the single field.
+    ///
+    /// Uses serde's `is_human_readable` to decide.
+    /// structs which don't have exactly one field will cause a compile error.
+    //
+    // This has to be a macro rather than simply a helper newtype
+    // to implement the "transparent" binary version,
+    // since that involves looking into the struct's field.
+    //
+    // TODO see also IptLocalId crates/tor-hsservice/src/lib.rs, which could benefit from this.
+    SerdeStringOrTransparent for struct, expect items =
+
+    impl Serialize for $ttype {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            if s.is_human_readable() {
+                s.collect_str(self)
+            } else {
+                let Self { $( $fname: raw, ) } = self;
+                raw.serialize(s)
+            }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for $ttype {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            Ok(if d.is_human_readable() {
+                let s = String::deserialize(d)?;
+                s.parse().map_err(|e: ParseError| serde::de::Error::custom(e))?
+            } else {
+                let raw = Deserialize::deserialize(d)?;
+                Self { $( $fname: raw, ) }
+            })
+        }
+    }
+}
+
 //---------- data types ----------
 
 /// Representation of an absolute time, in the future, suitable for storing to disk
@@ -131,7 +171,7 @@ define_derive_adhoc! {
 /// in binary as a `u64`, in human readable formats as `+Thhh:mm:ss`.)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[derive(Adhoc)]
-#[derive_adhoc(RawConversions)]
+#[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct FutureTimestamp {
     /// How far this timestamp was in the future, when we stored it
     offset: u64,
@@ -358,31 +398,6 @@ impl FromStr for FutureTimestamp {
         })?;
 
         Ok(FutureTimestamp { offset })
-    }
-}
-
-// It would be better to derive this or use a crate or something, but I didn't find one
-impl Serialize for FutureTimestamp {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        if s.is_human_readable() {
-            s.collect_str(self)
-        } else {
-            self.offset.serialize(s)
-        }
-    }
-}
-
-// It would be better to derive this or use a crate or something, but I didn't find one
-// Also it would be better to accept either format, but this will do
-impl<'de> Deserialize<'de> for FutureTimestamp {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Ok(if d.is_human_readable() {
-            let s = String::deserialize(d)?;
-            s.parse().map_err(|e: ParseError| serde::de::Error::custom(e))?
-        } else {
-            let offset = Deserialize::deserialize(d)?;
-            FutureTimestamp { offset }
-        })
     }
 }
 
