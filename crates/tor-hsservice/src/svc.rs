@@ -25,6 +25,7 @@ use tracing::{info, trace, warn};
 
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
+use crate::svc::keystore_sweeper::KeystoreSweeper;
 use crate::svc::publish::Publisher;
 use crate::HsIdKeypairSpecifier;
 use crate::HsIdPublicKeySpecifier;
@@ -35,6 +36,7 @@ use crate::RendRequest;
 use crate::StartupError;
 
 pub(crate) mod ipt_establish;
+pub(crate) mod keystore_sweeper;
 pub(crate) mod publish;
 pub(crate) mod rend_handshake;
 
@@ -98,6 +100,11 @@ struct ForLaunch<R: Runtime> {
     ///
     ///
     ipt_mgr_view: IptsManagerView,
+
+    /// An unlaunched keystore cleaner.
+    ///
+    /// Used for removing expired keys.
+    keystore_sweeper: KeystoreSweeper<R>,
 }
 
 /// Private trait used to type-erase `ForLaunch<R>`, so that we don't need to
@@ -111,6 +118,8 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
     fn launch(self: Box<Self>) -> Result<(), StartupError> {
         self.ipt_mgr.launch_background_tasks(self.ipt_mgr_view)?;
         self.publisher.launch()?;
+        self.keystore_sweeper.launch()?;
+
         Ok(())
     }
 }
@@ -179,14 +188,17 @@ impl OnionService {
         maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
-            runtime,
-            nickname,
-            netdir_provider,
+            runtime.clone(),
+            nickname.clone(),
+            Arc::clone(&netdir_provider),
             circ_pool,
             publisher_view,
             config_rx,
             Arc::clone(&keymgr),
         );
+
+        let keystore_sweeper =
+            KeystoreSweeper::new(runtime, nickname, Arc::clone(&keymgr), netdir_provider);
 
         // TODO HSS: we need to actually do something with: shutdown_tx,
         // rend_req_rx.  The latter may need to be refactored to actually work
@@ -203,6 +215,7 @@ impl OnionService {
                         publisher,
                         ipt_mgr,
                         ipt_mgr_view,
+                        keystore_sweeper,
                     }),
                 )),
             }),
