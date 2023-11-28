@@ -327,6 +327,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use humantime::parse_rfc3339;
     use tor_rtmock::{simple_time::SimpleMockTimeProvider, MockRuntime};
 
     fn secs(s: u64) -> Duration {
@@ -344,7 +345,7 @@ mod test {
         }
 
         let real_instant = Instant::now();
-        let real_systime = SystemTime::now();
+        let test_systime = parse_rfc3339("2008-08-02T00:00:00Z").unwrap();
 
         let mk_runtime = |instant, systime| {
             let times = SimpleMockTimeProvider::new(instant, systime);
@@ -352,7 +353,7 @@ mod test {
         };
 
         let stored = {
-            let runtime = mk_runtime(real_instant + secs(100_000), real_systime);
+            let runtime = mk_runtime(real_instant + secs(100_000), test_systime);
             let now = Storing::start(&runtime);
 
             let t0 = runtime.now() - secs(1000);
@@ -369,7 +370,7 @@ mod test {
 
         let json = serde_json::to_string(&stored).unwrap();
         println!("{json}");
-        let exp_ref = real_systime
+        let exp_ref = test_systime
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs();
@@ -381,7 +382,7 @@ mod test {
         // Simulate a restart with an Instant which is *smaller* (maybe the host rebooted),
         // but with a wall clock time 200s later.
         {
-            let runtime = mk_runtime(real_instant, real_systime + secs(200));
+            let runtime = mk_runtime(real_instant, test_systime + secs(200));
             let now = Loading::start(&runtime, stored.stored);
 
             let t0 = now.load_future(stored.s0);
@@ -396,7 +397,7 @@ mod test {
         // Simulate a restart with a later Instant
         // and with a wall clock time 1200s *earlier* due to clock skew.
         {
-            let runtime = mk_runtime(real_instant + secs(200_000), real_systime - secs(1200));
+            let runtime = mk_runtime(real_instant + secs(200_000), test_systime - secs(1200));
             let now = Loading::start(&runtime, stored.stored);
 
             let t0 = now.load_future(stored.s0);
