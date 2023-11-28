@@ -144,15 +144,29 @@ define_derive_adhoc! {
         }
     }
 
+    ${define STRING_VISITOR { $<Deserialize $ttype StringVisitor> }}
+
     impl<'de> Deserialize<'de> for $ttype {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-            Ok(if d.is_human_readable() {
-                let s = String::deserialize(d)?;
-                s.parse().map_err(|e: ParseError| serde::de::Error::custom(e))?
+            if d.is_human_readable() {
+                d.deserialize_str($STRING_VISITOR)
             } else {
                 let raw = Deserialize::deserialize(d)?;
-                Self { $( $fname: raw, ) }
-            })
+                Ok(Self { $( $fname: raw, ) })
+            }
+        }
+    }
+
+    /// Visitor for deserializing from a string
+    struct $STRING_VISITOR;
+
+    impl<'de> serde::de::Visitor<'de> for $STRING_VISITOR {
+        type Value = $ttype;
+        fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<$ttype, E> {
+            s.parse().map_err(|e: ParseError| E::custom(e))
+        }
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, concat!("string representing ", stringify!($tname)))
         }
     }
 }
