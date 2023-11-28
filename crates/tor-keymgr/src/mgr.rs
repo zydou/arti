@@ -3,8 +3,9 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    BoxedKeystore, EncodableKey, KeyInfoExtractor, KeyPath, KeyPathPattern, KeySpecifier, KeyType,
-    Keygen, KeygenRng, KeystoreId, KeystoreSelector, Result, ToEncodableKey,
+    BoxedKeystore, EncodableKey, KeyInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
+    KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, KeystoreId, KeystoreSelector, Result,
+    ToEncodableKey,
 };
 
 use itertools::Itertools;
@@ -394,6 +395,20 @@ impl KeyMgr {
             })
             .flatten_ok()
             .collect::<Result<Vec<_>>>()
+    }
+
+    /// Describe the specified key.
+    ///
+    /// Returns [`KeyPathError::Unrecognized`] if none of the registered
+    /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
+    pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
+        for info_extractor in &self.key_info_extractors {
+            if let Ok(info) = info_extractor.describe(path) {
+                return Ok(info);
+            }
+        }
+
+        Err(KeyPathError::Unrecognized(path.clone()))
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.

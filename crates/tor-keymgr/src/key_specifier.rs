@@ -116,6 +116,13 @@ impl KeyPath {
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
+    /// The path is not recognized.
+    ///
+    /// Returned by [`KeyMgr::describe`](crate::KeyMgr::describe) when none of its
+    /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
+    #[error("Unrecognized path: {0}")]
+    Unrecognized(KeyPath),
+
     /// Found an invalid [`ArtiPath`].
     #[error("{0}")]
     InvalidArtiPath(#[from] ArtiPathError),
