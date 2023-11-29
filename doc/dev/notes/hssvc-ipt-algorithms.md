@@ -45,18 +45,15 @@ when a descriptor mentioning that IPT is about to be published,
 so that the IPT Establisher can reject introduction attempts
 using an unpublished IPT.)
 
-I think there are too many possible IPTs
+(There are too many possible IPTs
 to maintain experience information about IPTs we used to use;
 the list of experience information would grow to the size of the network.
-Is this true?
-If not, would recording *all* our IPT experiences
-lead to distinguishability ?
+And recording *all* our IPT experiences might
+lead to distinguishability.)
 
-Some of the persistent state is optional:
-for a persistent hidden service, we prefer to store this information,
-to improve resilience after service restarts.
-But we can work without it,
-for example when we are operating an ephemeral service.
+We might of course also operate a completely ephemeral hidden service,
+which doesn't store anything on disk,
+(and therefore gets a new K_hs_id each time it is started.)
 
 ## IPT selection and startup for a new HS, overall behaviour
 
@@ -100,7 +97,8 @@ if the fault was local (and would therefore affect all relays and IPTs):
 
  * Others: declare the IPT `Faulty`.
 
-If our verification probe fails,
+If we are doing verification, and
+our verification probe fails,
 but the circuit to the IPT appears to remain up:
 
  * If we didn't manage to build the test circuit to the IPT,
