@@ -78,10 +78,14 @@
 // TODO - Remove when this is actually public
 #![allow(rustdoc::private_intra_doc_links)]
 
+use std::fmt::{self, Display};
+use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime};
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
 use serde::{Deserialize, Serialize};
+use serde::{Deserializer, Serializer};
+use thiserror::Error;
 use tracing::warn;
 
 use tor_rtcompat::SleepProvider;
@@ -110,6 +114,60 @@ define_derive_adhoc! {
     }
 }
 
+define_derive_adhoc! {
+    /// Define [`Serialize`] and [`Deserialize`] via string rep or transparently, depending
+    ///
+    /// In human-readable formats, uses the [`Display`] and [`FromStr`].
+    /// In non-human-readable formats, serialises as the single field.
+    ///
+    /// Uses serde's `is_human_readable` to decide.
+    /// structs which don't have exactly one field will cause a compile error.
+    //
+    // This has to be a macro rather than simply a helper newtype
+    // to implement the "transparent" binary version,
+    // since that involves looking into the struct's field.
+    //
+    // TODO see also IptLocalId crates/tor-hsservice/src/lib.rs, which could benefit from this.
+    SerdeStringOrTransparent for struct, expect items =
+
+    impl Serialize for $ttype {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            if s.is_human_readable() {
+                s.collect_str(self)
+            } else {
+                let Self { $( $fname: raw, ) } = self;
+                raw.serialize(s)
+            }
+        }
+    }
+
+    ${define STRING_VISITOR { $<Deserialize $ttype StringVisitor> }}
+
+    impl<'de> Deserialize<'de> for $ttype {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            if d.is_human_readable() {
+                d.deserialize_str($STRING_VISITOR)
+            } else {
+                let raw = Deserialize::deserialize(d)?;
+                Ok(Self { $( $fname: raw, ) })
+            }
+        }
+    }
+
+    /// Visitor for deserializing from a string
+    struct $STRING_VISITOR;
+
+    impl<'de> serde::de::Visitor<'de> for $STRING_VISITOR {
+        type Value = $ttype;
+        fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<$ttype, E> {
+            s.parse().map_err(|e: ParseError| E::custom(e))
+        }
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, concat!("string representing ", stringify!($tname)))
+        }
+    }
+}
+
 //---------- data types ----------
 
 /// Representation of an absolute time, in the future, suitable for storing to disk
@@ -119,19 +177,14 @@ define_derive_adhoc! {
 /// Obtain one of these from an `Instant` using [`Storing::store_future()`],
 /// and convert it back to an `Instant` with [`Loading::load_future()`],
 ///
-/// (Serialises as a `u64` representing how many seconds this was into the future,
-/// when it was stored - ie, with respect to the corresponding [`Reference`].)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-#[derive(derive_more::Display)]
-#[display(fmt = "{}", offset)]
-#[derive(Adhoc)]
-#[derive_adhoc(RawConversions)]
+/// (Serialises as a representation of how many seconds this was into the future,
+/// when it was stored - ie, with respect to the corresponding [`Reference`];
+/// in binary as a `u64`, in human readable formats as
+/// `T+` plus [`humantime`]'s formatting of the `Duration` in seconds.)
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Adhoc)]
+#[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct FutureTimestamp {
     /// How far this timestamp was in the future, when we stored it
-    //
-    // TODO HSS change the serialisation to use an ISO8601 string
-    // This will require a change to the in-memory representation, to an i64 time_t probably
     offset: u64,
 }
 
@@ -143,17 +196,18 @@ pub struct FutureTimestamp {
 /// During load, should be passed to [`Loading::start`], to build a [`Loading`]
 /// which is then used to convert the [`FutureTimestamp`]s back to `Instant`s.
 ///
-/// (Serialises as a `i64` representing the `time_t` (Unix Time).)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-#[derive(derive_more::Display)]
-#[display(fmt = "{}", time_t)]
+/// (Serialises as an absolute time:
+/// in binary, as an `i64` representing the `time_t` (Unix Time);
+/// in human-readable formats, an RFC3339 string with seconds precision and timezone `Z`.)
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, derive_more::Display)]
+#[display(
+    fmt = "{}",
+    "humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))"
+)]
 #[derive(Adhoc)]
-#[derive_adhoc(RawConversions)]
+#[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct Reference {
     /// Unix time (at which the other timestamps were stored)
-    //
-    // TODO HSS change the serialisation to use an ISO8601 string
     time_t: i64,
 }
 
@@ -191,18 +245,79 @@ pub struct Loading {
 
 //---------- implementation ----------
 
+/// Convert a `SystemTime` to an `i64` `time_t`
+fn system_time_to_time_t(st: SystemTime) -> i64 {
+    if let Ok(d) = st.duration_since(SystemTime::UNIX_EPOCH) {
+        d.as_secs().try_into().unwrap_or(i64::MAX)
+    } else if let Ok(d) = SystemTime::UNIX_EPOCH.duration_since(st) {
+        d.as_secs().try_into().map(|v: i64| -v).unwrap_or(i64::MIN)
+    } else {
+        panic!("two SystemTimes are neither <= nor >=")
+    }
+}
+
+/// Minimum value of SystemTime
+///
+/// Not a tight bound but tests guarantee no runtime panics.
+fn system_time_min() -> SystemTime {
+    for attempt in [
+        //
+        0x7fff_ffff_ffff_ffff,
+        0x7fff_ffff,
+        0,
+    ] {
+        if let Some(r) = SystemTime::UNIX_EPOCH.checked_sub(Duration::from_secs(attempt)) {
+            return r;
+        }
+    }
+    panic!("cannot calculate a minimum value for the SystemTime!");
+}
+
+/// Maximum value of SystemTime
+///
+/// Not a tight bound but tests guarantee no runtime panics.
+fn system_time_max() -> SystemTime {
+    for attempt in [
+        //
+        0x7fff_ffff_ffff_ffff,
+        0x7fff_ffff,
+    ] {
+        if let Some(r) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(attempt)) {
+            return r;
+        }
+    }
+    panic!("cannot calculate a maximum value for the SystemTime!");
+}
+
+/// Convert a `SystemTime` to an `i64` `time_t`
+//
+// We need this to make the RFC3339 string using humantime.
+// Otherwise we'd have to implement the whole calendar and leap days stuff ourselves.
+// Probably there doesn't end up being any actual code here on Unix at least...
+fn time_t_to_system_time(time_t: i64) -> SystemTime {
+    if let Ok(time_t) = u64::try_from(time_t) {
+        let d = Duration::from_secs(time_t);
+        SystemTime::UNIX_EPOCH
+            .checked_add(d)
+            .unwrap_or_else(system_time_max)
+    } else {
+        let rev: u64 = time_t
+            .saturating_neg()
+            .try_into()
+            .expect("-(-ve i64) not u64");
+        let d = Duration::from_secs(rev);
+        SystemTime::UNIX_EPOCH
+            .checked_sub(d)
+            .unwrap_or_else(system_time_min)
+    }
+}
+
 impl Now {
     /// Obtain `Now` from a runtime
     fn new(runtime: &impl SleepProvider) -> Self {
         let inst = runtime.now();
         let st = runtime.wallclock();
-        let time_t = if let Ok(d) = st.duration_since(SystemTime::UNIX_EPOCH) {
-            d.as_secs().try_into().unwrap_or(i64::MAX)
-        } else if let Ok(d) = SystemTime::UNIX_EPOCH.duration_since(st) {
-            d.as_secs().try_into().map(|v: i64| -v).unwrap_or(i64::MIN)
-        } else {
-            panic!("two SystemTimes are neither <= nor >=")
-        };
+        let time_t = system_time_to_time_t(st);
         Self { inst, time_t }
     }
 }
@@ -312,6 +427,51 @@ impl Loading {
     }
 }
 
+//---------- formatting ----------
+
+/// Displays as `T+Duration`, where [`Duration`] is in seconds, formatted using [`humantime`]
+//
+// This format is a balance between human-readability and the desire to avoid
+// allowing the possibility of invalid (corrupted) files whose `FutureTimestamp`
+// is actually before the stored `Reference`.
+impl Display for FutureTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = humantime::format_duration(Duration::from_secs(self.offset));
+        write!(f, "T+{}", d)
+    }
+}
+
+/// Error parsing a timestamp or reference
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[non_exhaustive]
+#[derive(Error)]
+#[error("invalid timestamp or reference time format")]
+pub struct ParseError {
+    // We probably don't need to say precisely what's wrong
+}
+
+impl FromStr for FutureTimestamp {
+    type Err = ParseError;
+    // Bespoke parser so we have control over our error/overflow cases
+    // (and also since ideally we don't want to deal with a complex HMS time API).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.strip_prefix("T+").ok_or(ParseError {})?;
+        let offset = humantime::parse_duration(s)
+            .map_err(|_: humantime::DurationError| ParseError {})?
+            .as_secs();
+        Ok(FutureTimestamp { offset })
+    }
+}
+
+impl FromStr for Reference {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let st = humantime::parse_rfc3339(s).map_err(|_| ParseError {})?;
+        let time_t = system_time_to_time_t(st);
+        Ok(Reference { time_t })
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -327,10 +487,67 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use humantime::parse_rfc3339;
+    use itertools::{chain, Itertools};
     use tor_rtmock::{simple_time::SimpleMockTimeProvider, MockRuntime};
 
     fn secs(s: u64) -> Duration {
         Duration::from_secs(s)
+    }
+
+    #[test]
+    fn hms_fmt() {
+        let ft = FutureTimestamp {
+            offset: 2 * 86400 + 22 * 3600 + 4 * 60 + 5,
+        };
+
+        assert_eq!(ft.to_string(), "T+2days 22h 4m 5s");
+
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+2days 22h 4m 5s"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+70h 4m 5s"));
+        // we inherit rounding behaviour from humantime; we don't mind tolerating that
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+2days 22h 4m 5s 100ms"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+2days 22h 4m 5s 900ms"));
+        let e = Err(ParseError {});
+        assert_eq!(e, FutureTimestamp::from_str("2days"));
+        assert_eq!(e, FutureTimestamp::from_str("T+"));
+        assert_eq!(e, FutureTimestamp::from_str("T+ "));
+        assert_eq!(e, FutureTimestamp::from_str("T+X"));
+        assert_eq!(e, FutureTimestamp::from_str("T+23kg"));
+    }
+
+    #[test]
+    #[allow(clippy::unusual_byte_groupings)] // we want them to line up, dammit!
+    fn system_time_conversions() {
+        assert!(system_time_min() <= SystemTime::UNIX_EPOCH);
+        assert!(system_time_max() > SystemTime::UNIX_EPOCH);
+
+        let p = |s| parse_rfc3339(s).expect(s);
+        let time_t_2st = time_t_to_system_time;
+        assert_eq!(p("1970-01-01T00:00:00Z"), time_t_2st(0));
+        assert_eq!(p("2038-01-19T03:14:07Z"), time_t_2st(0x___7fff_ffff));
+        assert_eq!(p("2038-01-19T03:14:08Z"), time_t_2st(0x___8000_0000));
+        assert_eq!(p("2106-02-07T06:28:16Z"), time_t_2st(0x_1_0000_0000));
+        assert_eq!(p("4147-08-20T07:32:16Z"), time_t_2st(0x10_0000_0000));
+    }
+
+    #[test]
+    fn ref_fmt() {
+        let time_t = 1217635200;
+        let rf = Reference { time_t };
+        let s = "2008-08-02T00:00:00Z";
+        assert_eq!(rf.to_string(), s);
+
+        let p = Reference::from_str;
+        assert_eq!(Ok(rf), p(s));
+        // we inherit rounding behaviour from humantime; we don't mind tolerating that
+        assert_eq!(Ok(rf), p("2008-08-02T00:00:00.00Z"));
+        assert_eq!(Ok(rf), p("2008-08-02T00:00:00.999Z"));
+        let e = Err(ParseError {});
+        assert_eq!(e, p("2008-08-02T00:00Z"));
+        assert_eq!(e, p("2008-08-02T00:00:00"));
+        assert_eq!(e, p("2008-08-02T00:00:00B"));
+        assert_eq!(e, p("2008-08-02T00:00:00+00:00"));
     }
 
     #[test]
@@ -344,7 +561,7 @@ mod test {
         }
 
         let real_instant = Instant::now();
-        let real_systime = SystemTime::now();
+        let test_systime = parse_rfc3339("2008-08-02T00:00:00Z").unwrap();
 
         let mk_runtime = |instant, systime| {
             let times = SimpleMockTimeProvider::new(instant, systime);
@@ -352,7 +569,7 @@ mod test {
         };
 
         let stored = {
-            let runtime = mk_runtime(real_instant + secs(100_000), real_systime);
+            let runtime = mk_runtime(real_instant + secs(100_000), test_systime);
             let now = Storing::start(&runtime);
 
             let t0 = runtime.now() - secs(1000);
@@ -369,19 +586,42 @@ mod test {
 
         let json = serde_json::to_string(&stored).unwrap();
         println!("{json}");
-        let exp_ref = real_systime
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
         assert_eq!(
             json,
-            format!(r#"{{"stored":{exp_ref},"s0":0,"s1":10,"s2":3000}}"#)
+            format!(concat!(
+                r#"{{"stored":"2008-08-02T00:00:00Z","#,
+                r#""s0":"T+0s","s1":"T+10s","s2":"T+50m"}}"#
+            ))
+        );
+
+        let mpack = rmp_serde::to_vec_named(&stored).unwrap();
+        println!("{}", hex::encode(&mpack));
+        assert_eq!(
+            mpack,
+            chain!(
+                &[132, 166],
+                b"stored",
+                &[206],
+                &[0x48, 0x93, 0xa3, 0x80], // 0x4893a380 1217635200 = 2008-08-02T00:00:00Z
+                &[162],
+                b"s0",
+                &[0],
+                &[162],
+                b"s1",
+                &[10],
+                &[162],
+                b"s2",
+                &[205],
+                &[0x0b, 0xb8], // 0xbb8 == 3000
+            )
+            .cloned()
+            .collect_vec(),
         );
 
         // Simulate a restart with an Instant which is *smaller* (maybe the host rebooted),
         // but with a wall clock time 200s later.
         {
-            let runtime = mk_runtime(real_instant, real_systime + secs(200));
+            let runtime = mk_runtime(real_instant, test_systime + secs(200));
             let now = Loading::start(&runtime, stored.stored);
 
             let t0 = now.load_future(stored.s0);
@@ -396,7 +636,7 @@ mod test {
         // Simulate a restart with a later Instant
         // and with a wall clock time 1200s *earlier* due to clock skew.
         {
-            let runtime = mk_runtime(real_instant + secs(200_000), real_systime - secs(1200));
+            let runtime = mk_runtime(real_instant + secs(200_000), test_systime - secs(1200));
             let now = Loading::start(&runtime, stored.stored);
 
             let t0 = now.load_future(stored.s0);
