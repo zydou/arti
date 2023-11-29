@@ -16,9 +16,9 @@ use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
 use ed25519_dalek::hazmat::ExpandedSecretKey;
-// TODO DALEK: We are renaming a few types here to maintain consistency with our
-// old names.  Likely, we should deprecate a few of these renamings. Possibly
-// all.
+// NOTE: We are renaming a few types here to maintain consistency with
+// our variable names, and with the nomenclature we use elsewhere for public
+// keys.
 pub use ed25519_dalek::{
     Signature, Signer, SigningKey as Keypair, Verifier, VerifyingKey as PublicKey,
 };
