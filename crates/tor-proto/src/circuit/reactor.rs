@@ -479,7 +479,7 @@ where
             let n_hops = reactor.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
 
-            debug!(
+            trace!(
                 "{}: Extending circuit to hop {} with {:?}",
                 unique_id,
                 n_hops + 1,

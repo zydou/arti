@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::debug;
+use tracing::trace;
 #[cfg(not(feature = "geoip"))]
 use void::Void;
 
@@ -473,7 +473,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 // We need to have at least two circuits that support `port` in order
                 // to reuse them; otherwise, we must create a new circuit, so
                 // that we get closer to having two circuits.
-                debug!(
+                trace!(
                     "preemptive usage {:?} matches {} active circuits",
                     usage,
                     supported.len()

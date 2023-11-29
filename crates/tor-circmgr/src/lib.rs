@@ -476,7 +476,7 @@ impl<R: Runtime> CircMgr<R> {
         &self,
         netdir: DirInfo<'_>,
     ) -> std::result::Result<(), err::PreemptiveCircError> {
-        debug!("Checking preemptive circuit predictions.");
+        trace!("Checking preemptive circuit predictions.");
         let (circs, threshold) = {
             let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
             let threshold = preemptive.config().disable_at_threshold;
