@@ -368,7 +368,7 @@ fn parse_time_period(
     path: &KeyPath,
     captures: &[KeyPathRange],
 ) -> Result<TimePeriod, tor_keymgr::Error> {
-    use tor_keymgr::KeyDenotator;
+    use tor_keymgr::{KeyDenotator, KeystoreCorruptionError as KCE};
 
     let path = match path {
         KeyPath::Arti(path) => path,
@@ -388,7 +388,7 @@ fn parse_time_period(
         return Err(internal!("captured substring out of range?!").into());
     };
 
-    TimePeriod::decode(denotator)
+    Ok(TimePeriod::decode(denotator).map_err(KCE::KeyPath)?)
 }
 
 /// The current status of an introduction point, as defined in

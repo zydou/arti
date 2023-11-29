@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tor_hscrypto::time::TimePeriod;
 
-use crate::err::{ArtiPathError, KeystoreCorruptionError};
+use crate::err::ArtiPathError;
 
 /// A unique identifier for a particular instance of a key.
 ///
@@ -109,6 +109,15 @@ impl KeyPath {
             KeyPath::CTor(ref ctor) => Some(ctor),
         }
     }
+}
+
+/// An error coming form a [`KeyInfoExtractor`].
+#[derive(Debug, Clone, thiserror::Error)]
+#[non_exhaustive]
+pub enum KeyPathError {
+    /// Found an invalid [`ArtiPath`].
+    #[error("{0}")]
+    InvalidArtiPath(#[from] ArtiPathError),
 }
 
 /// A pattern that can be used to match [`ArtiPath`]s or [`CTorPath`]s.
@@ -366,7 +375,7 @@ pub trait KeyDenotator {
     fn encode(&self) -> String;
 
     /// Try to convert the specified string `s` to a value of this type.
-    fn decode(s: &str) -> crate::Result<Self>
+    fn decode(s: &str) -> StdResult<Self, KeyPathError>
     where
         Self: Sized;
 }
@@ -381,7 +390,7 @@ impl KeyDenotator for TimePeriod {
         )
     }
 
-    fn decode(s: &str) -> crate::Result<Self>
+    fn decode(s: &str) -> StdResult<Self, KeyPathError>
     where
         Self: Sized,
     {
@@ -395,7 +404,7 @@ impl KeyDenotator for TimePeriod {
 
             Some((interval_num, length, offset_in_sec))
         })()
-        .ok_or_else(|| KeystoreCorruptionError::from(ArtiPathError::InvalidDenotator))?;
+        .ok_or_else(|| KeyPathError::InvalidArtiPath(ArtiPathError::InvalidDenotator))?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
@@ -567,7 +576,7 @@ mod test {
             self.to_string()
         }
 
-        fn decode(s: &str) -> crate::Result<Self>
+        fn decode(s: &str) -> Result<Self, KeyPathError>
         where
             Self: Sized,
         {
@@ -582,7 +591,7 @@ mod test {
             self.clone()
         }
 
-        fn decode(s: &str) -> crate::Result<Self>
+        fn decode(s: &str) -> Result<Self, KeyPathError>
         where
             Self: Sized,
         {
