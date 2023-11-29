@@ -29,7 +29,7 @@ pub struct HsIdPublicKeySpecifier {
 /// The long-term identity keypair of the service.
 pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: HsNickname,
+    pub(crate) nickname: HsNickname,
 }
 
 #[derive(Adhoc)]
@@ -40,10 +40,10 @@ pub struct HsIdKeypairSpecifier {
 /// The blinded signing keypair.
 pub struct BlindIdKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: HsNickname,
+    pub(crate) nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
-    period: TimePeriod,
+    pub(crate) period: TimePeriod,
 }
 
 #[derive(Adhoc)]
@@ -54,10 +54,10 @@ pub struct BlindIdKeypairSpecifier {
 /// The blinded public key.
 pub struct BlindIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
-    nickname: HsNickname,
+    pub(crate) nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
-    period: TimePeriod,
+    pub(crate) period: TimePeriod,
 }
 
 #[derive(Adhoc)]
@@ -68,10 +68,10 @@ pub struct BlindIdPublicKeySpecifier {
 /// The descriptor signing key.
 pub struct DescSigningKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: HsNickname,
+    pub(crate) nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
-    period: TimePeriod,
+    pub(crate) period: TimePeriod,
 }
 
 /// Denotates one of the keys, in the context of a particular HS and intro point
