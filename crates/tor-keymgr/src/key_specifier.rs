@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 use std::result::Result as StdResult;
+use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use derive_adhoc::define_derive_adhoc;
@@ -116,6 +117,10 @@ impl KeyPath {
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
+    /// The path did not match the expected pattern.
+    #[error("Path does not match pattern: {0:?}")]
+    PatternNotMatched(KeyPathPattern),
+
     /// The path is not recognized.
     ///
     /// Returned by [`KeyMgr::describe`](crate::KeyMgr::describe) when none of its
@@ -123,9 +128,17 @@ pub enum KeyPathError {
     #[error("Unrecognized path: {0}")]
     Unrecognized(KeyPath),
 
+    /// An error coming from a [`KeyPathInfoBuilder`].
+    #[error("{0}")]
+    KeyPathInfoBuild(#[from] Arc<KeyPathInfoBuilderError>),
+
     /// Found an invalid [`ArtiPath`].
     #[error("{0}")]
     InvalidArtiPath(#[from] ArtiPathError),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 /// Information about a [`KeyPath`].
