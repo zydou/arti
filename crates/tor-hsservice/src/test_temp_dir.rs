@@ -3,7 +3,7 @@
 //! Helpers for:
 //!
 //! This module improves on [`tempdir`] by adding several new features for testing:
-//! 
+//!
 //!  * Allowing the user to cause the tests to use predictable paths
 //!  * Allowing the user to cause the tests to leave their temporary directories behind
 //!  * Helping ensure that test directories are not deleted
