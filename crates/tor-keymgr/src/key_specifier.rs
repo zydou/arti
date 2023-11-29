@@ -348,6 +348,21 @@ pub trait KeySpecifier {
     fn ctor_path(&self) -> Option<CTorPath>;
 }
 
+/// A trait for serializing and deserializing specific types of [`ArtiPathComponent`]s.
+///
+/// A `KeySpecifierComponent` is a specific kind of `ArtiPathComponent`. `KeySpecifierComponent` is
+/// always a valid `ArtiPathComponent`, but may have a more restricted charset, or more specific
+/// validation rules. An `ArtiPathComponent` is not always a valid `KeySpecifierComponent`
+/// instance.
+pub trait KeySpecifierComponent {
+    /// Return the [`ArtiPathComponent`] representation of this type.
+    fn as_component(&self) -> ArtiPathComponent;
+    /// Try to convert `c` into an object of this type.
+    fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
+    where
+        Self: Sized;
+}
+
 /// An error returned by a [`KeySpecifier`].
 ///
 /// The putative `KeySpecifier` might be simply invalid,
