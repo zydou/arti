@@ -384,6 +384,7 @@ pub(crate) mod test {
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
 
+    /// Make a fresh `KeyMgr` (containing no keys) using files in `temp_dir`
     pub(crate) fn create_keymgr(temp_dir: &TestTempDir) -> UsingTempDir<Arc<KeyMgr>> {
         temp_dir.in_obtain("keystore", |keystore_dir| {
             let keystore = ArtiNativeKeystore::from_path_and_mistrust(
