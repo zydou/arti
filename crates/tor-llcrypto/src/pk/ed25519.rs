@@ -15,15 +15,12 @@ use sha2::Sha512;
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
+use ed25519_dalek::hazmat::ExpandedSecretKey;
 // TODO DALEK: We are renaming a few types here to maintain consistency with our
 // old names.  Likely, we should deprecate a few of these renamings. Possibly
 // all.
-//
-// TODO DALEK: ALso, it's likely we should remove hazmat::ExpandedSecretKey from
-// our exports, and instead just use ExpandedKeypair.
 pub use ed25519_dalek::{
-    hazmat::ExpandedSecretKey, Signature, Signer, SigningKey as Keypair, Verifier,
-    VerifyingKey as PublicKey,
+    Signature, Signer, SigningKey as Keypair, Verifier, VerifyingKey as PublicKey,
 };
 
 use crate::util::ct::CtByteArray;

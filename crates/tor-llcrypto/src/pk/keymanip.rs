@@ -98,7 +98,7 @@ pub fn convert_curve25519_to_ed25519_private(
     bytes[0..32].clone_from_slice(&privkey.to_bytes());
     bytes[32..64].clone_from_slice(&h[0..32]);
 
-    let secret = pk::ed25519::ExpandedSecretKey::from_bytes(&bytes);
+    let secret = ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(&bytes);
     let public: pk::ed25519::PublicKey = (&secret).into();
     let signbit = public.as_bytes()[31] >> 7;
 

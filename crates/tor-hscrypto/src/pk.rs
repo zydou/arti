@@ -651,13 +651,13 @@ mod test {
             "833990B085C1A688C1D4C8B1F6B56AFAF5A2ECA674449E1D704F83765CCB7BC6"
         ));
         let id_pubkey = HsIdKey::try_from(id).unwrap();
-        let id_seckey = HsIdKeypair::from(ed25519::ExpandedKeypair {
-            secret: ed25519::ExpandedSecretKey::from_bytes(&hex!(
+        let id_seckey = HsIdKeypair::from(
+            ed25519::ExpandedKeypair::from_secret_key_bytes(hex!(
                 "D8C7FF0E31295B66540D789AF3E3DF992038A9592EEA01D8B7CBA06D6E66D159
                  4D6167696320576F7264733A20737065697373636F62616C742062697669756D"
-            )),
-            public: ed25519::PublicKey::from_bytes(id.as_ref()).unwrap(),
-        });
+            ))
+            .unwrap(),
+        );
         let time_period = TimePeriod::new(
             humantime::parse_duration("1 day").unwrap(),
             humantime::parse_rfc3339("1973-05-20T01:50:33Z").unwrap(),
