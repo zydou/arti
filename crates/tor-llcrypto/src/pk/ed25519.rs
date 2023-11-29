@@ -36,7 +36,8 @@ pub const ED25519_SIGNATURE_LEN: usize = 64;
 /// In the Tor protocol, we use this type for blinded onion service identity keys
 /// (KS_hs_blind_id).  Since their scalar values are computed, rather than taken
 /// directly from a
-/// SHA-512 transformation of a SecretKey, we cannot use the
+/// SHA-512 transformation of a SecretKey, we cannot use the regular `Keypair`
+/// type.
 #[allow(clippy::exhaustive_structs)]
 pub struct ExpandedKeypair {
     /// The secret part of the key.
