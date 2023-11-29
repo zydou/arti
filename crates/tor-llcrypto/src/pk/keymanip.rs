@@ -31,16 +31,9 @@ use digest::Digest;
 use thiserror::Error;
 
 use curve25519_dalek::scalar::Scalar;
-// TODO DALEK: We are renaming a few types here to maintain consistency with our
-// old names.  Likely, we should deprecate a few of these renamings. Possibly
-// all.
-//
-// TODO DALEK: ALso, it's likely we should remove hazmat::ExpandedSecretKey from
-// our exports, and instead just use ExpandedKeypair.
-pub use ed25519_dalek::{
-    hazmat::ExpandedSecretKey, Signature, SigningKey as Keypair, VerifyingKey as PublicKey,
-};
-pub use pk::ed25519::ExpandedKeypair;
+// TODO DALEK: Undo renamings.
+use ed25519_dalek::{hazmat::ExpandedSecretKey, SigningKey as Keypair, VerifyingKey as PublicKey};
+use pk::ed25519::ExpandedKeypair;
 
 /// Convert a curve25519 public key (with sign bit) to an ed25519
 /// public key, for use in ntor key cross-certification.

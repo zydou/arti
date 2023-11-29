@@ -107,7 +107,7 @@ mod test {
     use tor_basic_utils::test_rng::Config;
     use tor_hscrypto::pk::HsIdKeypair;
     use tor_hscrypto::time::TimePeriod;
-    use tor_llcrypto::pk::keymanip::ExpandedKeypair;
+    use tor_llcrypto::pk::ed25519::ExpandedKeypair;
     use tor_units::IntegerMinutes;
 
     // Some dummy bytes, not actually encrypted.

@@ -289,8 +289,7 @@ mod test {
     use tor_hscrypto::pk::{HsClientDescEncKeypair, HsIdKeypair};
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
-    use tor_llcrypto::pk::curve25519;
-    use tor_llcrypto::pk::keymanip::ExpandedKeypair;
+    use tor_llcrypto::pk::{curve25519, ed25519::ExpandedKeypair};
 
     // TODO: move the test helpers to a separate module and make them more broadly available if
     // necessary.
