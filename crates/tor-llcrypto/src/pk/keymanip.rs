@@ -141,6 +141,10 @@ pub fn convert_curve25519_to_ed25519_private(
 /// This panic should be impossible unless we have upgraded x25519-dalek without auditing this
 /// function.
 #[cfg(any(test, feature = "cvt-x25519"))]
+#[deprecated(
+    since = "0.6.0",
+    note = "ed25519_to_curve25519 conversion is unused, and no longer supported."
+)]
 pub fn convert_ed25519_to_curve25519_private(
     keypair: &pk::ed25519::Keypair,
 ) -> pk::curve25519::StaticSecret {
@@ -352,6 +356,7 @@ mod tests {
         let ed_kp = ed25519::Keypair::generate(&mut rng);
         let ed_ekp1 = ExpandedKeypair::from(&ed_kp);
 
+        #[allow(deprecated)]
         let curve_sk = convert_ed25519_to_curve25519_private(&ed_kp);
         let curve_pk = curve25519::PublicKey::from(&curve_sk);
 
