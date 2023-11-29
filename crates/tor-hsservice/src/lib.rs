@@ -47,6 +47,10 @@ use serde::{Deserializer, Serializer};
 
 use tor_basic_utils::impl_debug_hex;
 
+#[cfg(test)]
+#[macro_use]
+mod test_temp_dir;
+
 mod anon_level;
 pub mod config;
 mod err;

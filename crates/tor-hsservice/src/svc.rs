@@ -357,7 +357,7 @@ fn maybe_generate_hsid(
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -373,30 +373,33 @@ mod test {
     use super::*;
 
     use fs_mistrust::Mistrust;
-    use tempfile::{tempdir, TempDir};
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
+    use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
 
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
 
-    fn create_keymgr(keystore_dir: &TempDir) -> Arc<KeyMgr> {
-        let keystore = ArtiNativeKeystore::from_path_and_mistrust(
-            keystore_dir,
-            &Mistrust::new_dangerously_trust_everyone(),
-        )
-        .unwrap();
+    /// Make a fresh `KeyMgr` (containing no keys) using files in `temp_dir`
+    pub(crate) fn create_keymgr(temp_dir: &TestTempDir) -> TestTempDirGuard<Arc<KeyMgr>> {
+        temp_dir.used_by("keystore", |keystore_dir| {
+            let keystore = ArtiNativeKeystore::from_path_and_mistrust(
+                keystore_dir,
+                &Mistrust::new_dangerously_trust_everyone(),
+            )
+            .unwrap();
 
-        Arc::new(
-            KeyMgrBuilder::default()
-                .default_store(Box::new(keystore))
-                .build()
-                .unwrap(),
-        )
+            Arc::new(
+                KeyMgrBuilder::default()
+                    .default_store(Box::new(keystore))
+                    .build()
+                    .unwrap(),
+            )
+        })
     }
 
     macro_rules! maybe_generate_hsid {
@@ -428,8 +431,8 @@ mod test {
 
     #[test]
     fn generate_hsid() {
-        let keystore_dir = tempdir().unwrap();
-        let keymgr = create_keymgr(&keystore_dir);
+        let temp_dir = test_temp_dir!();
+        let keymgr = create_keymgr(&temp_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
@@ -446,13 +449,13 @@ mod test {
 
     #[test]
     fn hsid_keypair_already_exists() {
-        let keystore_dir = tempdir().unwrap();
+        let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
         let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
         for hsid_pub_missing in [false, true] {
-            let keymgr = create_keymgr(&keystore_dir);
+            let keymgr = create_keymgr(&temp_dir);
 
             // Insert the preexisting hsid keypair.
             let (existing_hsid_keypair, existing_hsid_public) = create_hsid();
@@ -494,8 +497,8 @@ mod test {
 
     #[test]
     fn generate_hsid_offline_hsid() {
-        let keystore_dir = tempdir().unwrap();
-        let keymgr = create_keymgr(&keystore_dir);
+        let temp_dir = test_temp_dir!();
+        let keymgr = create_keymgr(&temp_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
@@ -509,12 +512,12 @@ mod test {
 
     #[test]
     fn generate_hsid_missing_keypair() {
-        let keystore_dir = tempdir().unwrap();
+        let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
         let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
-        let keymgr = create_keymgr(&keystore_dir);
+        let keymgr = create_keymgr(&temp_dir);
 
         let (_hsid_keypair, hsid_public) = create_hsid();
 
@@ -529,12 +532,12 @@ mod test {
 
     #[test]
     fn generate_hsid_corrupt_keystore() {
-        let keystore_dir = tempdir().unwrap();
+        let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
         let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
 
-        let keymgr = create_keymgr(&keystore_dir);
+        let keymgr = create_keymgr(&temp_dir);
 
         let (hsid_keypair, _hsid_public) = create_hsid();
         let (_hsid_keypair, hsid_public) = create_hsid();
