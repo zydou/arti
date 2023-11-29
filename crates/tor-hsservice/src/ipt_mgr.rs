@@ -681,6 +681,39 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// In that case, the caller must call `compute_iptsetstatus_publish`,
     /// since the IPT set etc. may have changed.
     ///
+    /// ### Goals and algorithms
+    ///
+    /// We attempt to maintain a pool of N established and verified IPTs,
+    /// at N IPT Relays.
+    ///
+    /// When we have fewer than N IPT Relays
+    /// that have `Establishing` or `Good` IPTs (see below)
+    /// and fewer than k*N IPT Relays overall,
+    /// we choose a new IPT Relay at random from the consensus
+    /// and try to establish an IPT on it.
+    ///
+    /// (Rationale for the k*N limit:
+    /// we do want to try to replace faulty IPTs, but
+    /// we don't want an attacker to be able to provoke us into
+    /// rapidly churning through IPT candidates.)
+    ///
+    /// When we select a new IPT Relay, we randomly choose a planned replacement time,
+    /// after which it becomes `Retiring`.
+    ///
+    /// Additionally, any IPT becomes `Retiring`
+    /// after it has been used for a certain number of introductions
+    /// (c.f. C Tor `#define INTRO_POINT_MIN_LIFETIME_INTRODUCTIONS 16384`.)
+    /// When this happens we retain the IPT Relay,
+    /// and make new parameters to make a new IPT at the same Relay.
+    ///
+    /// An IPT is removed from our records, and we give up on it,
+    /// when it is no longer `Good` or `Establishing`
+    /// and all descriptors that mentioned it have expired.
+    ///
+    /// (Until all published descriptors mentioning an IPT expire,
+    /// we consider ourselves bound by those previously-published descriptors,
+    /// and try to maintain the IPT.
+    /// TODO: Allegedly this is unnecessary, but I don't see how it could be.)
     ///
     /// ### Performance
     ///
