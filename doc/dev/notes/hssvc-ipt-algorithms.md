@@ -2,7 +2,7 @@
 
 ## Code structure
 
-There are three main pieces:
+There are three and a half main pieces:
 
  * IPT Establisher:
    One per IPT.
@@ -16,20 +16,24 @@ There are three main pieces:
    monitors their success/failure, etc.
    Persistent (on-disk) state:
    current set of IPT Relays.
-   Optional persistent (on-disk) state:
+   Persistent (on-disk) state:
    current list of IPTs and their (last) states, fault counters, etc.,
-   including secret keys necessary to re-stablish that IPT;
-   all previous descriptor contents (`IptSetForDescriptor`)
+   including secret keys necessary to re-stablish that IPT.
+   Information about previously published
+   descriptor contents (`PublishIptSet`)
    issued to hsdir publisher,
    that have not yet expired.
 
- * hsdir publisher:
+ * hsdir Publisher:
    One per HS.
    Identifies the hsdirs for the relevant time periods.
    Constructs descriptors according to the IPT manager's instructions,
    and publishes them to the hsdirs.
-   Persistent (on-disk) state (optional):
-   which versions (`IptSetForDescriptor`) are published where.
+
+ * `ipt_set`, persistent data structure,
+   shared between Manager and Publisher.
+   Persistent (on-disk) state:
+   which IPTs are published where.
 
 Output of the whole thing:
 Stream of introduction requests,
