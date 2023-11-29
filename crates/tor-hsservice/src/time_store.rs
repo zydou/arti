@@ -455,10 +455,7 @@ impl FromStr for FutureTimestamp {
     // Bespoke parser so we have control over our error/overflow cases
     // (and also since ideally we don't want to deal with a complex HMS time API).
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s
-            .strip_prefix("T+")
-            .ok_or(ParseError {})?
-            ;
+        let s = s.strip_prefix("T+").ok_or(ParseError {})?;
         let offset = humantime::parse_duration(s)
             .map_err(|_: humantime::DurationError| ParseError {})?
             .as_secs();
