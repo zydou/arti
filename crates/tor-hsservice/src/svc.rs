@@ -378,14 +378,14 @@ pub(crate) mod test {
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
     use tor_llcrypto::util::rand_compat::RngCompatExt;
 
-    use crate::test_temp_dir::{TestTempDir, UsingTempDir};
+    use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
 
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
 
     /// Make a fresh `KeyMgr` (containing no keys) using files in `temp_dir`
-    pub(crate) fn create_keymgr(temp_dir: &TestTempDir) -> UsingTempDir<Arc<KeyMgr>> {
+    pub(crate) fn create_keymgr(temp_dir: &TestTempDir) -> TestTempDirGuard<Arc<KeyMgr>> {
         temp_dir.in_obtain("keystore", |keystore_dir| {
             let keystore = ArtiNativeKeystore::from_path_and_mistrust(
                 keystore_dir,

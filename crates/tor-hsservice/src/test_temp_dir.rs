@@ -96,7 +96,7 @@ pub enum TestTempDir {
 /// There might even be security hazards!)
 #[derive(Clone, Copy, Deref, DerefMut, Educe)]
 #[educe(Debug(bound))]
-pub struct UsingTempDir<'d, T> {
+pub struct TestTempDirGuard<'d, T> {
     /// The thing
     #[deref]
     #[deref_mut]
@@ -276,14 +276,14 @@ impl TestTempDir {
         &'d self,
         subdir: &str,
         f: impl FnOnce(PathBuf) -> T,
-    ) -> UsingTempDir<'d, T> {
+    ) -> TestTempDirGuard<'d, T> {
         let dir = self.subdir_untracked(subdir);
         let thing = f(dir);
-        UsingTempDir::with_path(thing, self.as_path_untracked())
+        TestTempDirGuard::with_path(thing, self.as_path_untracked())
     }
 }
 
-impl<'d, T> UsingTempDir<'d, T> {
+impl<'d, T> TestTempDirGuard<'d, T> {
     /// Obtain the inner `T`
     ///
     /// It is up to you to ensure that `T` doesn't outlive
