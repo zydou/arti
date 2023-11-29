@@ -479,7 +479,7 @@ where
             let n_hops = reactor.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
 
-            debug!(
+            trace!(
                 "{}: Extending circuit to hop {} with {:?}",
                 unique_id,
                 n_hops + 1,
@@ -553,7 +553,7 @@ where
 
         let layer = L::construct(keygen)?;
 
-        debug!("{}: Handshake complete; circuit extended.", self.unique_id);
+        trace!("{}: Handshake complete; circuit extended.", self.unique_id);
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back, binding) = layer.split();
@@ -814,7 +814,7 @@ impl Reactor {
                 Err(ReactorError::Err(e)) => break Err(e),
             }
         };
-        debug!("{}: Circuit reactor stopped: {:?}", self.unique_id, result);
+        trace!("{}: Circuit reactor stopped: {:?}", self.unique_id, result);
         result
     }
 
@@ -1129,7 +1129,7 @@ impl Reactor {
             H::client1(&mut rng, key, msg)?
         };
         let create_cell = wrap.to_chanmsg(msg);
-        debug!(
+        trace!(
             "{}: Extending to hop 1 with {}",
             self.unique_id,
             create_cell.cmd()
@@ -1147,7 +1147,7 @@ impl Reactor {
 
         let layer = L::construct(keygen)?;
 
-        debug!("{}: Handshake complete; circuit created.", self.unique_id);
+        trace!("{}: Handshake complete; circuit created.", self.unique_id);
 
         let (layer_fwd, layer_back, binding) = layer.split();
         let peer_id = self.channel.target().clone();

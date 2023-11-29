@@ -173,7 +173,7 @@ impl<S: SleepProvider> Reactor<S> {
         if self.details.closed.load(Ordering::SeqCst) {
             return Err(ChannelClosed.into());
         }
-        debug!("{}: Running reactor", &self);
+        trace!("{}: Running reactor", &self);
         let result: Result<()> = loop {
             match self.run_once().await {
                 Ok(()) => (),
