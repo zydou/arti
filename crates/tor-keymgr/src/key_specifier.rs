@@ -31,6 +31,7 @@ use crate::err::ArtiPathError;
 /// They are separated from the rest of the component, and from each other,
 /// by [`DENOTATOR_SEP`] characters.
 /// Denotators are encoded using their [`KeyDenotator::encode`] implementation.
+/// The denotators **must** come after all the other fields.
 /// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
 ///
 /// For example, the last component of the path `"foo/bar/bax+denotator_example+1"`
@@ -603,6 +604,116 @@ define_derive_adhoc! {
             todo!()
         }
     }
+
+    $crate::paste::paste! {
+        struct [< $tname InfoExtractor >];
+
+        impl<$tgens> $crate::KeyInfoExtractor for [< $tname InfoExtractor >]
+        where $twheres
+        {
+            fn describe(
+                &self,
+                path: &$crate::KeyPath,
+            ) -> std::result::Result<$crate::KeyPathInfo, $crate::KeyPathError> {
+                // Check if this is a valid path
+                let _ = $tname::try_from(path)?;
+
+                // TODO: can we use the first line of the doc string for the summary
+                // (instead of having a separate summary attribute)?
+                Ok(
+                    // TODO: Add extra info the to the Keyinfo
+                    $crate::KeyPathInfoBuilder::default()
+                        .summary(stringify!(${tmeta(summary)}).to_string())
+                        .build()
+                        .map_err(std::sync::Arc::new)?
+                )
+            }
+        }
+
+        impl<$tgens> TryFrom<&$crate::KeyPath> for $tname
+        where $twheres
+        {
+            type Error = $crate::KeyPathError;
+
+            fn try_from(path: &$crate::KeyPath) -> std::result::Result<$tname, Self::Error> {
+                //   1. Match the variable components using arti_pattern()
+                //   2. If the path doesn't match, return an error
+                //   3. If the path matches, check if variable components and denotators can be
+                //   validated with KeySpecifierComponent::from_component and KeyDenotator::decode
+                //   respectively
+
+                #[allow(unused_imports)] // KeyDenotator is unused if there are no denotators
+                use $crate::KeyDenotator;
+                #[allow(unused_imports)] // KeyDenotator is unused if there are no fields
+                use $crate::KeySpecifierComponent;
+                use $crate::KeyPathError as E;
+                // TODO: re-export internal! from tor-keymgr and
+                // use $crate::internal! here.
+                use tor_error::internal;
+
+                match path {
+                    #[allow(unused)] // arti_path is unused if there are no fields
+                    $crate::KeyPath::Arti(arti_path) => {
+                        // Create an arti pattern that matches all ArtiPaths
+                        // associated with this specifier: each variable
+                        // component (i.e. field) is matched using a '*' glob.
+                        let pat = $tname::arti_pattern(
+                            ${for fields { ${when F_IS_PATH} None, }}
+                        );
+
+                        let Some(captures) = path.matches(&pat.clone().into()) else {
+                            // If the pattern doesn't match at all, it
+                            // means the path didn't come from a
+                            // KeySpecifier of this type.
+                            return Err(E::PatternNotMatched(pat));
+                        };
+
+                        let mut c = captures.into_iter();
+
+                        // Try to match each capture with our fields/denotators,
+                        // in order. Conceptually this is like zipping the
+                        // capture iterators with an iterator over fields and
+                        // denotators, if there was such a thing.
+                        $(
+                            let Some(capture) = c.next() else {
+                                return Err(internal!("more fields than captures?!").into());
+                            };
+
+                            let Some(component) = arti_path.substring(&capture) else {
+                                return Err(internal!("capture not within bounds?!").into());
+                            };
+
+                            ${if F_IS_PATH {
+                                let component = $crate::ArtiPathComponent::new(
+                                    component.to_owned()
+                                )?;
+
+                                // This use of $ftype is why we must store owned
+                                // types in the struct the macro is applied to.
+                                let $fname = $ftype::from_component(component)?;
+                            } else {
+                                // Denotator
+                                let $fname = $ftype::decode(component)?;
+                            }}
+                        )
+
+                        if c.next().is_some() {
+                            return Err(internal!("too many captures?!").into());
+                        }
+
+                        Ok($tname::new( $($fname, ) ))
+                    }
+                    _ => {
+                        // TODO HSS: support ctor stores
+                        Err(internal!("not implemented").into())
+                    },
+                }
+            }
+        }
+
+        // Register the info extractor with `KeyMgr`.
+        $crate::inventory::submit!(&[< $tname InfoExtractor >] as &dyn $crate::KeyInfoExtractor);
+    }
 }
 
 #[cfg(test)]
@@ -844,6 +955,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
+        #[adhoc(summary = "A key specifier with some fields and one denotator.")]
         struct TestSpecifier {
             #[adhoc(denotator)]
             /// The denotator.
@@ -880,6 +992,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
+        #[adhoc(summary = "A key specifier with no fields and no denotators.")]
         struct TestSpecifier {}
 
         let key_spec = TestSpecifier {};
@@ -904,6 +1017,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
+        #[adhoc(summary = "A key specifier with no fields and one denotator.")]
         struct TestSpecifier {
             #[adhoc(denotator)]
             count: usize,
@@ -931,6 +1045,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
+        #[adhoc(summary = "A key specifier with fields.")]
         struct TestSpecifier {
             casing: String,
             /// A doc comment.
@@ -962,6 +1077,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
+        #[adhoc(summary = "A key specifier with multiple denotators.")]
         struct TestSpecifier {
             casing: String,
             /// A doc comment.
