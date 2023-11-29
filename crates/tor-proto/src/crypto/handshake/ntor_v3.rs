@@ -239,13 +239,13 @@ impl super::ClientHandshake for NtorV3Client {
     ///
     /// On success, return a state object that will be used to complete the handshake, along
     /// with the message to send.
-    fn client1<R: RngCore + CryptoRng, M: Borrow<Self::ClientAuxData>>(
+    fn client1<R: RngCore + CryptoRng, M: Borrow<[NtorV3Extension]>>(
         rng: &mut R,
         key: &NtorV3PublicKey,
         extensions: &M,
     ) -> Result<(Self::StateType, Vec<u8>)> {
         let mut message = Vec::new();
-        NtorV3Extension::write_many_onto(extensions.borrow().iter(), &mut message)
+        NtorV3Extension::write_many_onto(extensions.borrow(), &mut message)
             .map_err(|e| Error::from_bytes_enc(e, "ntor3 handshake extensions"))?;
         Ok(
             client_handshake_ntor_v3(rng, key, &message, NTOR3_CIRC_VERIFICATION)
@@ -292,7 +292,7 @@ impl super::ServerHandshake for NtorV3Server {
             let client_exts = NtorV3Extension::decode(bytes).ok()?;
             let reply_exts = reply_fn.reply(&client_exts)?;
             let mut out = vec![];
-            NtorV3Extension::write_many_onto(reply_exts.iter(), &mut out).ok()?;
+            NtorV3Extension::write_many_onto(&reply_exts, &mut out).ok()?;
             Some(out)
         };
 

@@ -39,12 +39,12 @@ pub enum NtorV3Extension {
 }
 
 impl NtorV3Extension {
-    /// Encode a set of extensions into a `tor_bytes::Writer`.
-    pub fn write_many_onto<'a, W: Writer>(
-        mut exts: impl Iterator<Item = &'a Self>,
-        out: &mut W,
-    ) -> EncodeResult<()> {
-        exts.try_for_each(|x| x.write_onto(out))
+    /// Encode a set of extensions into a "message" for an ntor v3 handshake.
+    pub fn write_many_onto<W: Writer>(exts: &[NtorV3Extension], out: &mut W) -> EncodeResult<()> {
+        let n_extensions =
+            u8::try_from(exts.len()).map_err(|_| tor_bytes::EncodeError::BadLengthValue)?;
+        out.write_u8(n_extensions);
+        exts.iter().try_for_each(|x| x.write_onto(out))
     }
 
     /// Decode a slice of bytes representing the "message" of an ntor v3 handshake into a set of
@@ -52,13 +52,23 @@ impl NtorV3Extension {
     pub fn decode(message: &[u8]) -> Result<Vec<Self>> {
         let mut reader = Reader::from_slice(message);
         let mut ret = vec![];
-        while reader.remaining() > 0 {
+        let n_extensions = reader.take_u8().map_err(|e| Error::BytesErr {
+            err: e,
+            parsed: "n_extensions",
+        })?;
+        for _ in 0..n_extensions {
             ret.push(
                 NtorV3Extension::take_from(&mut reader).map_err(|err| Error::BytesErr {
                     err,
                     parsed: "an ntor extension",
                 })?,
             );
+        }
+        if reader.remaining() > 0 {
+            return Err(Error::BytesErr {
+                err: tor_bytes::Error::ExtraneousBytes,
+                parsed: "ntor extensions set",
+            });
         }
         Ok(ret)
     }
