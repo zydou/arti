@@ -219,7 +219,7 @@ pub fn create_desc_sign_key_cert(
     Ed25519Cert::constructor()
         .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
         .expiration(expiry)
-        .signing_key(ed25519::Ed25519Identity::from(&blind_id.as_ref().public))
+        .signing_key(ed25519::Ed25519Identity::from(blind_id.as_ref().public()))
         .cert_key(CertifiedKey::Ed25519(hs_desc_sign.into()))
         .encode_and_sign(blind_id)
 }
@@ -418,7 +418,7 @@ mod test {
         // Now decode it...
         let desc = parse_hsdesc(
             encoded_desc.as_str(),
-            blinded_id.as_ref().public,
+            *blinded_id.as_ref().public(),
             &subcredential,
             None, /* No client auth */
         );
@@ -460,7 +460,7 @@ mod test {
         // Now decode it...
         let desc = parse_hsdesc(
             encoded_desc.as_str(),
-            blinded_id.as_ref().public,
+            *blinded_id.as_ref().public(),
             &subcredential,
             Some(&client_kp), /* With client auth */
         );

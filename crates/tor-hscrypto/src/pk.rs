@@ -109,7 +109,7 @@ impl From<HsIdKey> for HsId {
 
 impl From<&HsIdKeypair> for HsIdKey {
     fn from(value: &HsIdKeypair) -> Self {
-        Self(value.0.public)
+        Self(*value.0.public())
     }
 }
 
@@ -355,7 +355,7 @@ impl HsIdKeypair {
         // decide it would be good for something.
         let secret = b"";
 
-        let public_key = HsIdKey(self.0.public);
+        let public_key = HsIdKey(*self.0.public());
 
         // Note: This implementation is somewhat inefficient, as it recomputes
         // the PublicKey, and computes our blinding factor twice.  But we
@@ -413,7 +413,7 @@ impl TryFrom<HsBlindId> for HsBlindIdKey {
 
 impl From<&HsBlindIdKeypair> for HsBlindIdKey {
     fn from(value: &HsBlindIdKeypair) -> Self {
-        HsBlindIdKey(value.0.public)
+        HsBlindIdKey(*value.0.public())
     }
 }
 
@@ -436,7 +436,7 @@ impl Signer<ed25519::Signature> for HsBlindIdKeypair {
 
 impl Ed25519PublicKey for HsBlindIdKeypair {
     fn public_key(&self) -> &ed25519::PublicKey {
-        &self.0.public
+        self.0.public()
     }
 }
 
@@ -687,12 +687,11 @@ mod test {
         assert_eq!(blinded_pub1.0.to_bytes(), blinded_pub2.0.to_bytes());
         assert_eq!(subcred1.as_ref(), subcred2.as_ref());
         assert_eq!(
-            blinded_sec.0.secret.scalar.to_bytes(),
-            hex!("A958DC83AC885F6814C67035DE817A2C604D5D2F715282079448F789B656350B")
-        );
-        assert_eq!(
-            blinded_sec.0.secret.hash_prefix,
-            hex!("4540FE1F80AA3F7E91306B7BF7A8E367293352B14A29FDCC8C19F3558075524B")
+            blinded_sec.0.to_secret_key_bytes(),
+            hex!(
+                "A958DC83AC885F6814C67035DE817A2C604D5D2F715282079448F789B656350B
+                 4540FE1F80AA3F7E91306B7BF7A8E367293352B14A29FDCC8C19F3558075524B"
+            )
         );
     }
 }

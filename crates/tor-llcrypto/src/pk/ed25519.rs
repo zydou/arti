@@ -37,23 +37,29 @@ pub const ED25519_SIGNATURE_LEN: usize = 64;
 /// (KS_hs_blind_id).  Since their scalar values are computed, rather than taken
 /// directly from a
 /// SHA-512 transformation of a SecretKey, we cannot use the
-//
-// TODO DALEK: It would be better to make the fields here hidden, to prevent
-// the construction of invalid ExpandedKeypairs.
 #[allow(clippy::exhaustive_structs)]
 pub struct ExpandedKeypair {
     /// The secret part of the key.
-    pub secret: ExpandedSecretKey,
+    pub(crate) secret: ExpandedSecretKey,
     /// The public part of this key.
     ///
     /// NOTE: As with [`ed25519_dalek::SigningKey`], this public key _must_ be
     /// the public key matching `secret`.  Putting a different public key in
     /// here would enable a class of attacks against ed25519 and enable secret
     /// key recovery.
-    pub public: PublicKey,
+    pub(crate) public: PublicKey,
 }
 
 impl ExpandedKeypair {
+    /// Return the public part of this expanded keypair.
+    pub fn public(&self) -> &PublicKey {
+        &self.public
+    }
+
+    // NOTE: There is deliberately no secret() function.  If we had one, we
+    // would be exposing an unescorted secret key, which is part of
+    // ed25519::hazmat.
+
     /// Compute a signature over a message using this keypair.
     pub fn sign(&self, message: &[u8]) -> Signature {
         // See notes on ExpandedKeypair about why this hazmat is okay to use.
@@ -89,6 +95,10 @@ impl ExpandedKeypair {
         let public = PublicKey::from(&secret);
         Some(Self { secret, public })
     }
+
+    // NOTE: There is deliberately no constructor here that takes a (secret,
+    // public) pair.  If there were, you could construct a pair with a
+    // mismatched public key.
 }
 
 impl<'a> From<&'a Keypair> for ExpandedKeypair {

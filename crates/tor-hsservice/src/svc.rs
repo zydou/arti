@@ -325,7 +325,7 @@ fn maybe_generate_hsid(
                 &hsid_spec,
                 &pub_hsid_spec,
                 keystore_sel,
-                |sk| sk.public,
+                |sk| *sk.public(),
                 &mut rng,
                 false, /* overwrite */
             )
@@ -437,7 +437,7 @@ mod test {
         let hsid_keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
 
         let keypair: ed25519::ExpandedKeypair = hsid_keypair.into();
-        assert_eq!(hsid_public.as_ref(), &keypair.public);
+        assert_eq!(hsid_public.as_ref(), keypair.public());
     }
 
     #[test]

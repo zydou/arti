@@ -256,7 +256,7 @@ impl EncodableKey for ed25519::ExpandedKeypair {
             .map_err(|_| internal!("invalid algorithm name"))?;
 
         let ssh_public = OpaquePublicKey::new(
-            self.public.to_bytes().to_vec(),
+            self.public().to_bytes().to_vec(),
             Algorithm::Other(algorithm_name),
         );
 

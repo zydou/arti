@@ -279,7 +279,7 @@ fn convert_expanded_ed25519_kp(
         ArtiNativeKeystoreError::InvalidSshKeyData("bad expanded ed25519 secret key ".into())
     })?;
 
-    if public != keypair.public {
+    if &public != keypair.public() {
         return Err(ArtiNativeKeystoreError::InvalidSshKeyData(
             "mismatched ed25519 keypair".into(),
         )
