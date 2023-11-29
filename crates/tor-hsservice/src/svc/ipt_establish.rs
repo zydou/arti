@@ -335,7 +335,7 @@ fn compute_subcredentials(
         .get::<HsIdKey>(&hsid_key_spec)?
         .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
 
-    let pattern = BlindIdKeypairSpecifier::arti_pattern(&nickname);
+    let pattern = BlindIdKeypairSpecifier::arti_pattern(Some(&nickname));
 
     let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
         .list_matching(&pattern)?

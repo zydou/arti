@@ -488,8 +488,7 @@ define_derive_adhoc! {
     /// The inner components of the [`ArtiPath`] of the specifier are built
     /// from the string representation of its path fields, taken in declaration order,
     /// followed by the encoding of its denotators, also taken in the order they were declared.
-    /// As such, all path fields, must implement [`Display`](std::fmt::Display),
-    /// and the `Display` impl must generate only valid components for an `ArtiPath`,
+    /// As such, all path fields, must implement [`KeySpecifierComponent`].
     /// and all denotators must implement [`KeyDenotator`].
     /// The denotators are separated from the rest of the path, and from each other,
     /// by `+` characters.
@@ -522,10 +521,15 @@ define_derive_adhoc! {
         /// of the keys associated with this specifier.
         ///
         /// Returns the `ArtiPath`, minus the denotators.
-        fn arti_path_prefix( $(${when F_IS_PATH} $fname: &$ftype , ) ) -> String {
+        fn arti_path_prefix( $(${when F_IS_PATH} $fname: Option<&$ftype> , ) ) -> String {
             vec![
                 stringify!(${tmeta(prefix)}).to_string(),
-                $(${when F_IS_PATH} $fname.to_string() , )
+                $(
+                    ${when F_IS_PATH}
+                    $fname
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "*".to_string()) ,
+                )
                 stringify!(${tmeta(role)}).to_string()
             ].join("/")
         }
@@ -539,7 +543,7 @@ define_derive_adhoc! {
         //
         // TODO HSS consider abolishing or modifying this depending on call site experiences
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
-        $tvis fn arti_pattern( $(${when F_IS_PATH} $fname: &$ftype,) ) -> $crate::KeyPathPattern {
+        $tvis fn arti_pattern( $(${when F_IS_PATH} $fname: Option<&$ftype>,) ) -> $crate::KeyPathPattern {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
             let mut pat = Self::arti_path_prefix( $(${when F_IS_PATH} $fname,) );
 
@@ -554,7 +558,7 @@ define_derive_adhoc! {
 
         /// A convenience wrapper around `Self::arti_path_prefix`.
         fn prefix(&self) -> String {
-            Self::arti_path_prefix( $(${when F_IS_PATH} &self.$fname,) )
+            Self::arti_path_prefix( $(${when F_IS_PATH} Some(&self.$fname),) )
         }
     }
 
@@ -918,7 +922,7 @@ mod test {
         );
 
         assert_eq!(
-            TestSpecifier::arti_pattern(&"logarithmic".into(), &"prefabulating".into()),
+            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
@@ -961,7 +965,7 @@ mod test {
         );
 
         assert_eq!(
-            TestSpecifier::arti_pattern(&"logarithmic".into(), &"prefabulating".into()),
+            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
     }
