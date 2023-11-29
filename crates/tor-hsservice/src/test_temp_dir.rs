@@ -239,6 +239,11 @@ impl TestTempDir {
 
     /// Obtain a `T` which uses paths in `self`
     ///
+    /// Within `f`, construct `T` using the supplied filesystem path.
+    ///
+    /// Do not store or copy the path anywhere other than the return value;
+    /// such copies would not be protected by Rust lifetimes against early deletion.
+    ///
     /// Rust lifetime tracking ensures that the temporary directory
     /// won't be cleaned up until the `T` is destroyed.
     pub fn in_obtain<'d, T>(
