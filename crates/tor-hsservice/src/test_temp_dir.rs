@@ -222,7 +222,7 @@ impl TestTempDir {
     ///
     /// Rust lifetime tracking ensures that the temporary directory
     /// won't be cleaned up until the `T` is destroyed.
-    pub fn in_obtain<T>(&self, subdir: &str, f: impl FnOnce(PathBuf) -> T) -> UsingTempDir<T> {
+    pub fn in_obtain<'d, T>(&'d self, subdir: &str, f: impl FnOnce(PathBuf) -> T) -> UsingTempDir<'d, T> {
         let dir = self.subdir_untracked(subdir);
         let thing = f(dir);
         UsingTempDir::with_path(thing, self.as_path_untracked())
