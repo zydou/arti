@@ -182,7 +182,7 @@ define_derive_adhoc! {
 ///
 /// (Serialises as a representation of how many seconds this was into the future,
 /// when it was stored - ie, with respect to the corresponding [`Reference`];
-/// in binary as a `u64`, in human readable formats as `+Thhh:mm:ss`.)
+/// in binary as a `u64`, in human readable formats as `T+hhh:mm:ss`.)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Adhoc)]
 #[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct FutureTimestamp {
@@ -431,7 +431,7 @@ impl Loading {
 
 //---------- formatting ----------
 
-/// Displays as `+Thhh:mm:ss`.
+/// Displays as `T+hhh:mm:ss`.
 //
 // This format is a balance between human-readability and the desire to avoid
 // allowing the possibility of invalid (corrupted) files whose `FutureTimestamp`
@@ -442,7 +442,7 @@ impl Display for FutureTimestamp {
         let ms = self.offset % 3600;
         let m = ms / 60;
         let s = ms % 60;
-        write!(f, "+T{h}:{m:02}:{s:02}")
+        write!(f, "T+{h}:{m:02}:{s:02}")
     }
 }
 
@@ -461,7 +461,7 @@ impl FromStr for FutureTimestamp {
     // (and also since ideally we don't want to deal with a complex HMS time API).
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut comps = s
-            .strip_prefix("+T")
+            .strip_prefix("T+")
             .ok_or(ParseError {})?
             .splitn(3, ':')
             .map(|s| s.parse().map_err(|_: ParseIntError| ParseError {}))
@@ -514,17 +514,17 @@ mod test {
             offset: 70 * 3600 + 4 * 60 + 5,
         };
 
-        assert_eq!(ft.to_string(), "+T70:04:05");
+        assert_eq!(ft.to_string(), "T+70:04:05");
 
-        assert_eq!(Ok(ft), FutureTimestamp::from_str("+T70:04:05"));
-        assert_eq!(Ok(ft), FutureTimestamp::from_str("+T070:4:5"));
-        assert_eq!(Ok(ft), FutureTimestamp::from_str("+T0:0:252245"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+70:04:05"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+070:4:5"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+0:0:252245"));
         let e = Err(ParseError {});
         assert_eq!(e, FutureTimestamp::from_str("70:04:05"));
-        assert_eq!(e, FutureTimestamp::from_str("+T70:04"));
-        assert_eq!(e, FutureTimestamp::from_str("+T70:04:05:09"));
-        assert_eq!(e, FutureTimestamp::from_str("+T70:04:05.09"));
-        assert_eq!(e, FutureTimestamp::from_str("+Tflibble"));
+        assert_eq!(e, FutureTimestamp::from_str("T+70:04"));
+        assert_eq!(e, FutureTimestamp::from_str("T+70:04:05:09"));
+        assert_eq!(e, FutureTimestamp::from_str("T+70:04:05.09"));
+        assert_eq!(e, FutureTimestamp::from_str("T+flibble"));
     }
 
     #[test]
@@ -601,7 +601,7 @@ mod test {
             json,
             format!(concat!(
                 r#"{{"stored":"2008-08-02T00:00:00Z","#,
-                r#""s0":"+T0:00:00","s1":"+T0:00:10","s2":"+T0:50:00"}}"#
+                r#""s0":"T+0:00:00","s1":"T+0:00:10","s2":"T+0:50:00"}}"#
             ))
         );
 
