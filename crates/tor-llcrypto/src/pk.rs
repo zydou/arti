@@ -9,7 +9,7 @@ pub mod rsa;
 
 /// Re-exporting Curve25519 implementations.
 ///
-/// *TODO*: Eventually we should probably recommend using is code via some
+/// *TODO*: Eventually we should probably recommend using this code via some
 /// key-agreement trait, but for now we are just re-using the APIs from
 /// [`x25519_dalek`].
 pub mod curve25519 {
