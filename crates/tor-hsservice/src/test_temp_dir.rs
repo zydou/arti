@@ -89,7 +89,7 @@ pub enum TestTempDir {
 
 /// A `T` which relies on some temporary directory with lifetime `d`
 ///
-/// Obtained from `TestTempDir::in_obtain`.
+/// Obtained from `TestTempDir::used_by`.
 ///
 /// Using this type means that the `T` won't outlive the temporary directory.
 /// (Typically, if it were to, things would malfunction.
@@ -237,7 +237,7 @@ impl TestTempDir {
 
     /// Obtain a reference to the `Path` of this temp directory
     ///
-    /// Prefer to use [`.in_obtain()`](TestTempDir::in_obtain) where possible.
+    /// Prefer to use [`.used_by()`](TestTempDir::used_by) where possible.
     ///
     /// The lifetime of the temporary directory will not be properly represented
     /// by Rust lifetimes.  For example, calling
@@ -272,7 +272,7 @@ impl TestTempDir {
     ///
     /// Rust lifetime tracking ensures that the temporary directory
     /// won't be cleaned up until the `T` is destroyed.
-    pub fn in_obtain<'d, T>(
+    pub fn used_by<'d, T>(
         &'d self,
         subdir: &str,
         f: impl FnOnce(PathBuf) -> T,
