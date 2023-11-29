@@ -291,8 +291,8 @@ fn maybe_generate_hsid(
     nickname: &HsNickname,
     offline_hsid: bool,
 ) -> Result<(), StartupError> {
-    let hsid_spec = HsIdKeypairSpecifier::new(nickname);
-    let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname);
+    let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+    let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
     let has_hsid_kp = keymgr
         .get::<HsIdKeypair>(&hsid_spec)
@@ -434,8 +434,8 @@ pub(crate) mod test {
     macro_rules! maybe_generate_hsid {
         ($keymgr:expr, $offline_hsid:expr) => {{
             let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-            let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-            let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+            let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+            let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
             assert!($keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().is_none());
             assert!($keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().is_none());
@@ -461,8 +461,8 @@ pub(crate) mod test {
         let keymgr = create_keymgr(&temp_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname);
 
         maybe_generate_hsid!(keymgr, false /* offline_hsid */);
 
@@ -477,8 +477,8 @@ pub(crate) mod test {
     fn hsid_keypair_already_exists() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         for hsid_pub_missing in [false, true] {
             let keymgr = create_keymgr(&temp_dir);
@@ -526,8 +526,8 @@ pub(crate) mod test {
         let keymgr = create_keymgr(&temp_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         maybe_generate_hsid!(keymgr, true /* offline_hsid */);
 
@@ -539,8 +539,8 @@ pub(crate) mod test {
     fn generate_hsid_missing_keypair() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         let keymgr = create_keymgr(&temp_dir);
 
@@ -559,8 +559,8 @@ pub(crate) mod test {
     fn generate_hsid_corrupt_keystore() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         let keymgr = create_keymgr(&temp_dir);
 

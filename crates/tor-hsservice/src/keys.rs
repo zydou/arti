@@ -14,30 +14,33 @@ use crate::IptLocalId;
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_id")]
+#[adhoc(summary = "The public part of the identity key of the service.")]
 /// The public part of the identity key of the service.
-pub struct HsIdPublicKeySpecifier<'a> {
+pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    nickname: HsNickname,
 }
 
 #[derive(Adhoc)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_id")]
+#[adhoc(summary = "The long-term identity keypair of the service.")]
 /// The long-term identity keypair of the service.
-pub struct HsIdKeypairSpecifier<'a> {
+pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    nickname: HsNickname,
 }
 
 #[derive(Adhoc)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_blind_id")]
+#[adhoc(summary = "The blinded signing keypair.")]
 /// The blinded signing keypair.
-pub struct BlindIdKeypairSpecifier<'a> {
+pub struct BlindIdKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
     period: TimePeriod,
@@ -47,10 +50,11 @@ pub struct BlindIdKeypairSpecifier<'a> {
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_blind_id")]
+#[adhoc(summary = "The blinded public key.")]
 /// The blinded public key.
-pub struct BlindIdPublicKeySpecifier<'a> {
+pub struct BlindIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
     period: TimePeriod,
@@ -60,10 +64,11 @@ pub struct BlindIdPublicKeySpecifier<'a> {
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_desc_sign")]
+#[adhoc(summary = "The descriptor signing key.")]
 /// The descriptor signing key.
-pub struct DescSigningKeypairSpecifier<'a> {
+pub struct DescSigningKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
     period: TimePeriod,
@@ -123,13 +128,13 @@ mod test {
     #[test]
     fn hsid_key_specifiers() {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
-        let key_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let key_spec = HsIdPublicKeySpecifier::new(nickname.clone());
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KP_hs_id"
         );
 
-        let key_spec = HsIdKeypairSpecifier::new(&nickname);
+        let key_spec = HsIdKeypairSpecifier::new(nickname);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_id"
@@ -140,13 +145,13 @@ mod test {
     fn blind_id_key_specifiers() {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
-        let key_spec = BlindIdPublicKeySpecifier::new(&nickname, period);
+        let key_spec = BlindIdPublicKeySpecifier::new(nickname.clone(), period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KP_hs_blind_id+2_1_3"
         );
 
-        let key_spec = BlindIdKeypairSpecifier::new(&nickname, period);
+        let key_spec = BlindIdKeypairSpecifier::new(nickname, period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_blind_id+2_1_3"
@@ -157,7 +162,7 @@ mod test {
     fn desc_signing_key_specifiers() {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
-        let key_spec = DescSigningKeypairSpecifier::new(&nickname, period);
+        let key_spec = DescSigningKeypairSpecifier::new(nickname, period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_desc_sign+2_1_3"

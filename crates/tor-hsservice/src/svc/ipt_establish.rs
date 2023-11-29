@@ -329,7 +329,7 @@ fn compute_subcredentials(
     nickname: &HsNickname,
     keymgr: &Arc<KeyMgr>,
 ) -> Result<Vec<Subcredential>, FatalError> {
-    let hsid_key_spec = HsIdPublicKeySpecifier::new(nickname);
+    let hsid_key_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
     let hsid = keymgr
         .get::<HsIdKey>(&hsid_key_spec)?

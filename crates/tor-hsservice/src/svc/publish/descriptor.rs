@@ -63,13 +63,13 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let nickname = &config.nickname;
 
-    let svc_key_spec = HsIdKeypairSpecifier::new(nickname);
+    let svc_key_spec = HsIdKeypairSpecifier::new(nickname.clone());
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
         .ok_or_else(|| ReactorError::MissingHsIdKeypair(nickname.clone()))?;
     let hsid = HsIdKey::from(&hsid_kp);
 
-    let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname, period);
+    let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname.clone(), period);
 
     // TODO: make the keystore selector configurable
     let keystore_selector = Default::default();
@@ -79,7 +79,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     let blind_id_key = HsBlindIdKey::from(&blind_id_kp);
     let subcredential = hsid.compute_subcredential(&blind_id_key, period);
 
-    let hs_desc_sign_key_spec = DescSigningKeypairSpecifier::new(nickname, period);
+    let hs_desc_sign_key_spec = DescSigningKeypairSpecifier::new(nickname.clone(), period);
     let hs_desc_sign = keymgr.get_or_generate::<HsDescSigningKeypair>(
         &hs_desc_sign_key_spec,
         keystore_selector,
