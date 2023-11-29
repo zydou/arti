@@ -117,6 +117,31 @@ impl TestTempDir {
     // This is also used by some other crates.
     // If it turns out not to be true, we'll end up panicking.
     //
+    // This is rather a shonky approach.  We take it here for the following reasons:
+    //
+    // It is important that the persistent test output filename is stable,
+    // even if the source code is edited.  For example, if we used the line number
+    // of the macro call, editing the source would change the output filenames.
+    // When the output filenames change willy-nilly, it is very easy to accidentally
+    // look at an out-of-date filename containing out-of-date test data,
+    // which can be very confusing.
+    //
+    // We could ask the user to supply a string, but we'd then need
+    // some kind of contraption for verifying its uniqueness, since
+    // non-unique test names would risk tests overwriting each others'
+    // files, making for flaky or malfunctioning tests.
+    //
+    // So the test function name is the best stable identifier we have,
+    // and the thread name is the only way we have of discovering it.
+    // Happily this works with `cargo nextest too`.
+    //
+    // For the same reasons, it wouldn't be a good idea to fall back
+    // from the stable name to some less stable but more reliably obtainable id.
+    //
+    // And, the code structure is deliberately arranged that we *always*
+    // try to determine the test name, even if TEST_TEMP_RETAIN isn't set.
+    // Otherwise a latent situation, where TEST_TEMP_RETAIN doesn't work, could develop.
+    //
     /// And, expects that `mod_path` is the crate name,
     /// and then the module path within the crate.
     /// This is what Rust's builtin `module_path!` macro returns.
