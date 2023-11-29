@@ -109,55 +109,6 @@ after it has been used for a certain number of introductions
 When this happens we retain the IPT Relay,
 and make new parameters to make a new IPT at the same Relay.
 
-## IPT states
-
-Each IPT Relay can have multiple IPTs,
-but all but one are Retiring.
-
-Each IPT can be in the following states:
-
- * `Establishing`:
-   The IPT has been selected,
-   but we are still establishing it
-   and verifying it for the first time
-   (either because we restarted, or because the HS was just created,
-   or because our connect to the Tor network failed).
-   It won't be published in any descriptor.
-
- * `Good`:
-   The IPT is good.  We have a circuit to it,
-   and the last verification was successful.
-   This IPT will be included in descriptors.
-
- * `Faulty`:
-   The IPT has been advertised but appears to be faulty.
-   (For example, the circuit to it has collapsed
-   and could not be reestablished.)
-   But we won't publish it in any descriptor.
-   We will allow the re-establishment attempt to proceed,
-   but if it doesn't yield success within a reasonable time,
-   we will try to replace this IPT with another IPT.
-
- * `Retiring`:
-   We have reached the IPT's planned replacement time,
-   or the IPT has been used for many rendezvous requests.
-   (We will continue to maintain our circuit to it
-   so long as descriptors with it are valid.)
-
-(`Establishing/Good/Faulty` are reported by the IPT Establisher
-to the IPT Manager.  
-`Retiring` is actually orthogonal, and dealt with by the IPT Manager.)
-
-We also maintain for each IPT:
-
- * The duration of the last or current establishment attempt.
-
- * The latest expiry time of any descriptor that mentions it
-   that we published (or tried to).
-
- * A fault counter (per IPT Relay, not per IPT)
-   which is incremented each time the IPT enters the state `Faulty`.
-
 An IPT is removed from our records, and we give up on it,
 when it is no longer `Good` or `Establishing`
 and all descriptors that mentioned it have expired.

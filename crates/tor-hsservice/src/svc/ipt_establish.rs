@@ -396,6 +396,8 @@ pub(crate) enum IptStatusStatus {
     /// We are (re)establishing our connection to the IPT
     ///
     /// But we don't think there's anything wrong with it.
+    ///
+    /// The IPT manager should *not* arrange to include this in descriptors.
     Establishing,
 
     /// The IPT is established and ready to accept rendezvous requests
@@ -403,12 +405,18 @@ pub(crate) enum IptStatusStatus {
     /// Also contains information about the introduction point
     /// necessary for making descriptors,
     /// including information from the netdir about the relay
+    ///
+    /// The IPT manager *should* arrange to include this in descriptors.
     Good(GoodIptDetails),
 
     /// We don't have the IPT and it looks like it was the IPT's fault
     ///
     /// This should be used whenever trying another IPT relay is likely to work better;
     /// regardless of whether attempts to establish *this* IPT can continue.
+    ///
+    /// The IPT manager should *not* arrange to include this in descriptors.
+    /// If this persists, the IPT manager should replace this IPT
+    /// with a new IPT at a different relay.
     Faulty,
 }
 

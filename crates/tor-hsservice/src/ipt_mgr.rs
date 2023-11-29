@@ -228,6 +228,7 @@ struct Ipt {
     /// `None` might mean:
     ///  * WantsToRetire
     ///  * We have >N IPTs and we have been using this IPT so long we want to rotate it out
+    ///    (the [`IptRelay`] has reached its `planned_retirement` time)
     is_current: Option<IsCurrent>,
 }
 
