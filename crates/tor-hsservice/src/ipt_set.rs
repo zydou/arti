@@ -18,6 +18,11 @@ use crate::IptLocalId;
 use tor_error::internal;
 
 /// Information shared between the IPT manager and the IPT publisher
+///
+/// The principal information is `ipts`, which is calculated by the IPT Manager.
+/// See
+/// [`IptManager::compute_iptsetstatus_publish`](crate::ipt_mgr::IptManager::compute_iptsetstatus_publish)
+/// for more detailed information about how this is calculated.
 #[derive(Debug)]
 pub(crate) struct PublishIptSet {
     /// Set of introduction points to be advertised in a descriptor (if we are to publish)
