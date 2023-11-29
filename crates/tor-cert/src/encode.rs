@@ -190,11 +190,10 @@ mod test {
     use super::*;
     use crate::CertifiedKey;
     use tor_checkable::{SelfSigned, Timebound};
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     #[test]
     fn signed_cert_without_key() {
-        let mut rng = rand::thread_rng().rng_compat();
+        let mut rng = rand::thread_rng();
         let keypair = ed25519::Keypair::generate(&mut rng);
         let now = SystemTime::now();
         let day = Duration::from_secs(86400);

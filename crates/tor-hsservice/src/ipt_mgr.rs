@@ -36,7 +36,6 @@ use tor_error::{internal, into_internal, Bug, ErrorKind, HasKind};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
-use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
@@ -361,7 +360,7 @@ impl Ipt {
 
         // TODO HSS-IPT-PERSIST try loading keys before generating them
         let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
-        let k_sid = ed25519::Keypair::generate(&mut rng.rng_compat()).into();
+        let k_sid = ed25519::Keypair::generate(&mut rng).into();
         let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
 
         // we'll treat it as Establishing until we find otherwise
@@ -379,6 +378,7 @@ impl Ipt {
             k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
+        drop(rng);
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
         imm.runtime

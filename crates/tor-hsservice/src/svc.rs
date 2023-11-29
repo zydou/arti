@@ -377,7 +377,6 @@ mod test {
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
 
@@ -414,7 +413,7 @@ mod test {
 
     /// Create a test hsid keypair.
     fn create_hsid() -> (HsIdKeypair, HsIdKey) {
-        let mut rng = testing_rng().rng_compat();
+        let mut rng = testing_rng();
         let keypair = ed25519::Keypair::generate(&mut rng);
 
         let id_pub = HsIdKey::from(keypair.verifying_key());

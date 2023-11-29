@@ -90,11 +90,10 @@ fn test_rsa_is_zero() {
 #[test]
 fn batch_verify() {
     use ll::pk::ed25519::*;
-    use ll::util::rand_compat::RngCompatExt;
     use rand_core::RngCore;
     use tor_basic_utils::test_rng::testing_rng;
 
-    let mut rng = testing_rng().rng_compat();
+    let mut rng = testing_rng();
     let mut sigs = Vec::new();
     for _ in 0..3 {
         let kp = Keypair::generate(&mut rng);

@@ -1132,7 +1132,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "740fe28e594155f10cfc383984cbefd529d7396050557148f79cb0f621204124"
 dependencies = [
  "generic-array",
- "rand_core 0.6.4",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -1542,7 +1542,7 @@ dependencies = [
  "curve25519-dalek",
  "ed25519",
  "merlin",
- "rand_core 0.6.4",
+ "rand_core",
  "serde",
  "sha2",
  "subtle",
@@ -1580,7 +1580,7 @@ dependencies = [
  "generic-array",
  "group",
  "pkcs8",
- "rand_core 0.6.4",
+ "rand_core",
  "sec1",
  "subtle",
  "zeroize",
@@ -1757,7 +1757,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
- "rand_core 0.6.4",
+ "rand_core",
  "subtle",
 ]
 
@@ -2085,7 +2085,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
  "ff",
- "rand_core 0.6.4",
+ "rand_core",
  "subtle",
 ]
 
@@ -2136,7 +2136,7 @@ dependencies = [
  "fixed-capacity-vec",
  "hex",
  "hex-literal",
- "rand_core 0.6.4",
+ "rand_core",
  "thiserror",
 ]
 
@@ -2633,7 +2633,7 @@ checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
 dependencies = [
  "byteorder",
  "keccak",
- "rand_core 0.6.4",
+ "rand_core",
  "zeroize",
 ]
 
@@ -3393,7 +3393,7 @@ checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha",
- "rand_core 0.6.4",
+ "rand_core",
 ]
 
 [[package]]
@@ -3403,14 +3403,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core 0.6.4",
+ "rand_core",
 ]
-
-[[package]]
-name = "rand_core"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
 
 [[package]]
 name = "rand_core"
@@ -3623,7 +3617,7 @@ dependencies = [
  "num-traits",
  "pkcs1",
  "pkcs8",
- "rand_core 0.6.4",
+ "rand_core",
  "sha2",
  "signature 2.1.0",
  "spki",
@@ -4116,7 +4110,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
 dependencies = [
  "digest",
- "rand_core 0.6.4",
+ "rand_core",
 ]
 
 [[package]]
@@ -4245,7 +4239,7 @@ checksum = "2180b3bc4955efd5661a97658d3cf4c8107e0d132f619195afe9486c13cca313"
 dependencies = [
  "p256",
  "p384",
- "rand_core 0.6.4",
+ "rand_core",
  "rsa",
  "sec1",
  "sha2",
@@ -5072,7 +5066,7 @@ dependencies = [
  "itertools 0.12.0",
  "postage",
  "rand",
- "rand_core 0.6.4",
+ "rand_core",
  "retry-error",
  "safelog",
  "slotmap",
@@ -5118,7 +5112,7 @@ dependencies = [
  "itertools 0.12.0",
  "paste",
  "rand",
- "rand_core 0.6.4",
+ "rand_core",
  "safelog",
  "serde",
  "signature 2.1.0",
@@ -5192,7 +5186,7 @@ dependencies = [
  "once_cell",
  "postage",
  "rand",
- "rand_core 0.6.4",
+ "rand_core",
  "retry-error",
  "rmp-serde",
  "safelog",
@@ -5301,8 +5295,7 @@ dependencies = [
  "hex-literal",
  "openssl",
  "rand",
- "rand_core 0.5.1",
- "rand_core 0.6.4",
+ "rand_core",
  "rsa",
  "safelog",
  "serde",
@@ -5457,7 +5450,7 @@ dependencies = [
  "itertools 0.12.0",
  "pin-project",
  "rand",
- "rand_core 0.6.4",
+ "rand_core",
  "regex",
  "safelog",
  "statrs",
@@ -6260,7 +6253,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb66477291e7e8d2b0ff1bcb900bf29489a9692816d79874bea351e7a8b6de96"
 dependencies = [
  "curve25519-dalek",
- "rand_core 0.6.4",
+ "rand_core",
  "serde",
  "zeroize",
 ]

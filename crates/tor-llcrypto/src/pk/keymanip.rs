@@ -319,11 +319,10 @@ mod tests {
     #[test]
     fn curve_to_ed_compatible() {
         use crate::pk::{curve25519, ed25519};
-        use crate::util::rand_compat::RngCompatExt;
         use ed25519_dalek::Verifier;
         use tor_basic_utils::test_rng::testing_rng;
 
-        let rng = testing_rng().rng_compat();
+        let rng = testing_rng();
 
         let curve_sk = curve25519::StaticSecret::random_from_rng(rng);
         let curve_pk = curve25519::PublicKey::from(&curve_sk);
@@ -346,11 +345,10 @@ mod tests {
     #[test]
     fn ed_to_curve_compatible() {
         use crate::pk::{curve25519, ed25519};
-        use crate::util::rand_compat::RngCompatExt;
         use ed25519_dalek::Verifier;
         use tor_basic_utils::test_rng::testing_rng;
 
-        let mut rng = testing_rng().rng_compat();
+        let mut rng = testing_rng();
         let ed_kp = ed25519::Keypair::generate(&mut rng);
         let ed_ekp1 = ExpandedKeypair::from(&ed_kp);
 

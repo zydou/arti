@@ -201,7 +201,6 @@ mod test {
     use std::time::UNIX_EPOCH;
     use tor_basic_utils::test_rng::Config;
     use tor_linkspec::LinkSpec;
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     /// Build an inner document using the specified parameters.
     fn create_inner_desc(
@@ -210,8 +209,7 @@ mod test {
         is_single_onion_service: bool,
         intro_points: &[IntroPointDesc],
     ) -> Result<String, EncodeError> {
-        let hs_desc_sign =
-            ed25519::Keypair::generate(&mut Config::Deterministic.into_rng().rng_compat());
+        let hs_desc_sign = ed25519::Keypair::generate(&mut Config::Deterministic.into_rng());
 
         HsDescInner {
             hs_desc_sign: &hs_desc_sign,
@@ -351,7 +349,7 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
 
     #[test]
     fn inner_hsdesc_intro_auth() {
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         let link_specs = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
         let intros = &[create_intro_point_descriptor(&mut rng, link_specs)];
         let auth = SmallVec::from([IntroAuthType::Ed25519, IntroAuthType::Ed25519]);

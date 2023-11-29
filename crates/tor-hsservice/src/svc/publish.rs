@@ -195,7 +195,6 @@ mod test {
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeySpecifier, ToEncodableKey};
     use tor_llcrypto::pk::{ed25519, rsa};
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_netdir::{testnet, NetDir};
     use tor_netdoc::doc::hsdesc::test_data;
@@ -392,7 +391,7 @@ mod test {
     ) -> (HsId, HsBlindId, Arc<KeyMgr>) {
         let period = netdir.hs_time_period();
 
-        let mut rng = testing_rng().rng_compat();
+        let mut rng = testing_rng();
         let keypair = ed25519::Keypair::generate(&mut rng);
         let id_pub = HsIdKey::from(keypair.verifying_key());
         let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair::from(&keypair));

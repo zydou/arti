@@ -108,7 +108,6 @@ mod test {
     use tor_hscrypto::pk::HsIdKeypair;
     use tor_hscrypto::time::TimePeriod;
     use tor_llcrypto::pk::keymanip::ExpandedKeypair;
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
     use tor_units::IntegerMinutes;
 
     // Some dummy bytes, not actually encrypted.
@@ -116,7 +115,7 @@ mod test {
 
     #[test]
     fn outer_hsdesc() {
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         let hs_id = ed25519::Keypair::generate(&mut rng);
         let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
         let period = TimePeriod::new(

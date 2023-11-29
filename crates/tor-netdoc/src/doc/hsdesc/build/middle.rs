@@ -146,7 +146,6 @@ mod test {
     use tor_basic_utils::test_rng::Config;
     use tor_hscrypto::pk::HsSvcDescEncKeypair;
     use tor_llcrypto::pk::curve25519;
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     // Some dummy bytes, not actually encrypted.
     const TEST_ENCRYPTED_VALUE: &[u8] = &[1, 2, 3, 4];
@@ -176,7 +175,7 @@ AQIDBA==
 
     #[test]
     fn middle_hsdesc_encoding_with_bad_client_auth() {
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         let secret = curve25519::StaticSecret::random_from_rng(&mut rng);
         let public = curve25519::PublicKey::from(&secret).into();
 
@@ -203,7 +202,7 @@ AQIDBA==
 
     #[test]
     fn middle_hsdesc_encoding_client_auth() {
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         // 2 authorized clients
         let auth_clients = vec![
             create_curve25519_pk(&mut rng),

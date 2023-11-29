@@ -191,13 +191,11 @@ impl EncodableKey for curve25519::PublicKey {
 }
 
 impl Keygen for ed25519::Keypair {
-    fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
+    fn generate(mut rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
     {
-        use tor_llcrypto::util::rand_compat::RngCompatExt;
-
-        Ok(ed25519::Keypair::generate(&mut rng.rng_compat()))
+        Ok(ed25519::Keypair::generate(&mut rng))
     }
 }
 

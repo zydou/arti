@@ -291,7 +291,6 @@ mod test {
     use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::curve25519;
     use tor_llcrypto::pk::keymanip::ExpandedKeypair;
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     // TODO: move the test helpers to a separate module and make them more broadly available if
     // necessary.
@@ -322,9 +321,7 @@ mod test {
         IntroPointDesc {
             link_specifiers,
             ipt_ntor_key: create_curve25519_pk(rng),
-            ipt_sid_key: ed25519::Keypair::generate(&mut rng.rng_compat())
-                .verifying_key()
-                .into(),
+            ipt_sid_key: ed25519::Keypair::generate(rng).verifying_key().into(),
             svc_ntor_key: create_curve25519_pk(rng).into(),
         }
     }
@@ -370,7 +367,7 @@ mod test {
         const REVISION_COUNT: u64 = 2;
         const CERT_EXPIRY_SECS: u64 = 60 * 60;
 
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         // The identity keypair of the hidden service.
         let hs_id = ed25519::Keypair::generate(&mut rng);
         let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
@@ -385,7 +382,7 @@ mod test {
             .unwrap();
 
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)
                 .encode()

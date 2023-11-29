@@ -572,7 +572,6 @@ mod test {
     use signature::Verifier;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 
     use super::*;
 
@@ -622,7 +621,7 @@ mod test {
 
     #[test]
     fn key_blinding_blackbox() {
-        let mut rng = testing_rng().rng_compat();
+        let mut rng = testing_rng();
         let offset = Duration::new(12 * 60 * 60, 0);
         let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now(), offset).unwrap();
         let keypair = ed25519::Keypair::generate(&mut rng);
