@@ -258,7 +258,7 @@ impl IptEstablisher {
             // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
             // clone.  We should either make it Clone, or hold it in an Arc.
             kp_hss_ntor: Arc::clone(&k_ntor),
-            kp_hs_ipt_sid: k_sid.as_ref().as_ref().public.into(),
+            kp_hs_ipt_sid: k_sid.as_ref().as_ref().verifying_key().into(),
             subcredentials,
             netdir_provider: netdir_provider.clone(),
             circ_pool: pool.clone(),
@@ -725,7 +725,7 @@ impl<R: Runtime> Reactor<R> {
             .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
 
         let establish_intro = {
-            let ipt_sid_id = (*self.k_sid).as_ref().public.into();
+            let ipt_sid_id = (*self.k_sid).as_ref().verifying_key().into();
             let mut details = EstablishIntroDetails::new(ipt_sid_id);
             if let Some(dos_params) = &self.extensions.dos_params {
                 // We only send the Dos extension when the relay is known to

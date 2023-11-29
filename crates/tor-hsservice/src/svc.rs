@@ -325,7 +325,7 @@ fn maybe_generate_hsid(
                 &hsid_spec,
                 &pub_hsid_spec,
                 keystore_sel,
-                |sk| sk.public,
+                |sk| *sk.public(),
                 &mut rng,
                 false, /* overwrite */
             )
@@ -376,7 +376,6 @@ pub(crate) mod test {
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
 
     use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
@@ -417,14 +416,11 @@ pub(crate) mod test {
 
     /// Create a test hsid keypair.
     fn create_hsid() -> (HsIdKeypair, HsIdKey) {
-        let mut rng = testing_rng().rng_compat();
+        let mut rng = testing_rng();
         let keypair = ed25519::Keypair::generate(&mut rng);
 
-        let id_pub = HsIdKey::from(keypair.public);
-        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair {
-            secret: ed25519::ExpandedSecretKey::from(&keypair.secret),
-            public: id_pub.clone().into(),
-        });
+        let id_pub = HsIdKey::from(keypair.verifying_key());
+        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair::from(&keypair));
 
         (id_keypair, id_pub)
     }
@@ -444,7 +440,7 @@ pub(crate) mod test {
         let hsid_keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
 
         let keypair: ed25519::ExpandedKeypair = hsid_keypair.into();
-        assert_eq!(hsid_public.as_ref(), &keypair.public);
+        assert_eq!(hsid_public.as_ref(), keypair.public());
     }
 
     #[test]
@@ -462,7 +458,7 @@ pub(crate) mod test {
             let existing_keypair: ed25519::ExpandedKeypair = existing_hsid_keypair.into();
             // Expanded keypairs are not clone, so we have to extract the private key bytes here to use
             // them in an assertion that comes after the insert()
-            let existing_keypair_secret = existing_keypair.secret.to_bytes();
+            let existing_keypair_secret = existing_keypair.to_secret_key_bytes();
 
             let existing_hsid_keypair = HsIdKeypair::from(existing_keypair);
 
@@ -481,7 +477,6 @@ pub(crate) mod test {
                     )
                     .unwrap();
             }
-
             maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
 
             let hsid_public = keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().unwrap();
@@ -491,7 +486,7 @@ pub(crate) mod test {
 
             // The keypair was not overwritten. The public key matches the existing keypair.
             assert_eq!(hsid_public.as_ref(), existing_hsid_public.as_ref());
-            assert_eq!(keypair.secret.to_bytes(), existing_keypair_secret);
+            assert_eq!(keypair.to_secret_key_bytes(), existing_keypair_secret);
         }
     }
 

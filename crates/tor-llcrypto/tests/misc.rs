@@ -90,12 +90,10 @@ fn test_rsa_is_zero() {
 #[test]
 fn batch_verify() {
     use ll::pk::ed25519::*;
-    use ll::util::rand_compat::RngCompatExt;
     use rand_core::RngCore;
-    use signature::Signer;
     use tor_basic_utils::test_rng::testing_rng;
 
-    let mut rng = testing_rng().rng_compat();
+    let mut rng = testing_rng();
     let mut sigs = Vec::new();
     for _ in 0..3 {
         let kp = Keypair::generate(&mut rng);
@@ -105,7 +103,7 @@ fn batch_verify() {
 
         let sig = kp.sign(&bytes[..]);
 
-        let val = ValidatableEd25519Signature::new(kp.public, sig, &bytes[..]);
+        let val = ValidatableEd25519Signature::new(kp.verifying_key(), sig, &bytes[..]);
 
         sigs.push(val);
     }
@@ -120,7 +118,7 @@ fn batch_verify() {
     let kp = Keypair::generate(&mut rng);
     let sig = kp.sign(&b"Apples"[..]);
     sigs.push(ValidatableEd25519Signature::new(
-        kp.public,
+        kp.verifying_key(),
         sig,
         &b"Oranges!"[..],
     ));

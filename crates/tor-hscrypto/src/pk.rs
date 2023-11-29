@@ -9,11 +9,10 @@ use std::str::FromStr;
 
 use digest::Digest;
 use itertools::{chain, Itertools};
-use signature::Signer;
 use thiserror::Error;
 use tor_basic_utils::{impl_debug_hex, StrExt as _};
 use tor_llcrypto::d::Sha3_256;
-use tor_llcrypto::pk::ed25519::Ed25519PublicKey;
+use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Signer};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
 
@@ -110,7 +109,7 @@ impl From<HsIdKey> for HsId {
 
 impl From<&HsIdKeypair> for HsIdKey {
     fn from(value: &HsIdKeypair) -> Self {
-        Self(value.0.public)
+        Self(*value.0.public())
     }
 }
 
@@ -356,7 +355,7 @@ impl HsIdKeypair {
         // decide it would be good for something.
         let secret = b"";
 
-        let public_key = HsIdKey(self.0.public);
+        let public_key = HsIdKey(*self.0.public());
 
         // Note: This implementation is somewhat inefficient, as it recomputes
         // the PublicKey, and computes our blinding factor twice.  But we
@@ -414,7 +413,7 @@ impl TryFrom<HsBlindId> for HsBlindIdKey {
 
 impl From<&HsBlindIdKeypair> for HsBlindIdKey {
     fn from(value: &HsBlindIdKeypair) -> Self {
-        HsBlindIdKey(value.0.public)
+        HsBlindIdKey(*value.0.public())
     }
 }
 
@@ -437,7 +436,7 @@ impl Signer<ed25519::Signature> for HsBlindIdKeypair {
 
 impl Ed25519PublicKey for HsBlindIdKeypair {
     fn public_key(&self) -> &ed25519::PublicKey {
-        &self.0.public
+        self.0.public()
     }
 }
 
@@ -573,7 +572,6 @@ mod test {
     use signature::Verifier;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_llcrypto::util::rand_compat::RngCompatExt as _;
 
     use super::*;
 
@@ -623,15 +621,12 @@ mod test {
 
     #[test]
     fn key_blinding_blackbox() {
-        let mut rng = testing_rng().rng_compat();
+        let mut rng = testing_rng();
         let offset = Duration::new(12 * 60 * 60, 0);
         let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now(), offset).unwrap();
         let keypair = ed25519::Keypair::generate(&mut rng);
-        let id_pub = HsIdKey::from(keypair.public);
-        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair {
-            secret: ed25519::ExpandedSecretKey::from(&keypair.secret),
-            public: id_pub.0,
-        });
+        let id_pub = HsIdKey::from(keypair.verifying_key());
+        let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair::from(&keypair));
 
         let (blinded_pub, subcred1) = id_pub.compute_blinded_key(when).unwrap();
         let (blinded_pub2, blinded_keypair, subcred2) =
@@ -656,14 +651,13 @@ mod test {
             "833990B085C1A688C1D4C8B1F6B56AFAF5A2ECA674449E1D704F83765CCB7BC6"
         ));
         let id_pubkey = HsIdKey::try_from(id).unwrap();
-        let id_seckey = HsIdKeypair::from(ed25519::ExpandedKeypair {
-            secret: ed25519::ExpandedSecretKey::from_bytes(&hex!(
+        let id_seckey = HsIdKeypair::from(
+            ed25519::ExpandedKeypair::from_secret_key_bytes(hex!(
                 "D8C7FF0E31295B66540D789AF3E3DF992038A9592EEA01D8B7CBA06D6E66D159
                  4D6167696320576F7264733A20737065697373636F62616C742062697669756D"
             ))
             .unwrap(),
-            public: ed25519::PublicKey::from_bytes(id.as_ref()).unwrap(),
-        });
+        );
         let time_period = TimePeriod::new(
             humantime::parse_duration("1 day").unwrap(),
             humantime::parse_rfc3339("1973-05-20T01:50:33Z").unwrap(),
@@ -693,7 +687,7 @@ mod test {
         assert_eq!(blinded_pub1.0.to_bytes(), blinded_pub2.0.to_bytes());
         assert_eq!(subcred1.as_ref(), subcred2.as_ref());
         assert_eq!(
-            blinded_sec.0.secret.to_bytes(),
+            blinded_sec.0.to_secret_key_bytes(),
             hex!(
                 "A958DC83AC885F6814C67035DE817A2C604D5D2F715282079448F789B656350B
                  4540FE1F80AA3F7E91306B7BF7A8E367293352B14A29FDCC8C19F3558075524B"

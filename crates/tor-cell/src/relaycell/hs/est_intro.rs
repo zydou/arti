@@ -300,7 +300,7 @@ impl EstablishIntroDetails {
         mac_key: impl Into<HsMacKey<'a>>,
     ) -> crate::Result<Vec<u8>> {
         use tor_llcrypto::pk::ed25519::Signer;
-        if Ed25519Identity::from(&keypair.public) != self.auth_key {
+        if Ed25519Identity::from(keypair.verifying_key()) != self.auth_key {
             return Err(crate::Error::Internal(bad_api_usage!("Key mismatch")));
         }
 

@@ -51,15 +51,13 @@ fn tv_curve25519() {
 #[test]
 fn tv_ed25519() {
     use ll::pk::ed25519::*;
-    use signature::{Signer, Verifier};
     // Test vectors from RFC 8032.
 
     // TEST 1
-    let sk = SecretKey::from_bytes(&hex!(
+    let sk = Keypair::from(&hex!(
         "9d61b19deffd5a60ba844af492ec2cc4
                4449c5697b326919703bac031cae7f60"
-    ))
-    .expect("Bad value");
+    ));
 
     let pk_bytes = hex!("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a");
     let pk: PublicKey = (&sk).into();
@@ -78,11 +76,7 @@ fn tv_ed25519() {
     let pk_again: PublicKey = (&pk_as_id).try_into().unwrap();
     assert_eq!(pk_again, pk);
 
-    let kp = Keypair {
-        public: pk,
-        secret: sk,
-    };
-    let sig = kp.sign(&b""[..]);
+    let sig = sk.sign(&b""[..]);
     assert_eq!(
         &sig.to_bytes()[..],
         &hex!(
@@ -93,14 +87,14 @@ fn tv_ed25519() {
         )[..]
     );
 
-    assert!(kp.public.verify(&b""[..], &sig).is_ok());
+    assert!(sk.verify(&b""[..], &sig).is_ok());
+    assert!(sk.verifying_key().verify(&b""[..], &sig).is_ok());
 
     // TEST 3
-    let sk = SecretKey::from_bytes(&hex!(
+    let sk = Keypair::from(&hex!(
         "c5aa8df43f9f837bedb7442f31dcb7b1
                66d38535076f094b85ce3a2e0b4458f7"
-    ))
-    .expect("Bad value");
+    ));
 
     let pk: PublicKey = (&sk).into();
 
@@ -112,11 +106,7 @@ fn tv_ed25519() {
         )
     );
 
-    let kp = Keypair {
-        public: pk,
-        secret: sk,
-    };
-    let sig = kp.sign(&hex!("af82"));
+    let sig = sk.sign(&hex!("af82"));
     assert_eq!(
         &sig.to_bytes()[..],
         &hex!(
@@ -127,14 +117,15 @@ fn tv_ed25519() {
         )[..]
     );
 
-    assert!(kp.public.verify(&hex!("af82"), &sig).is_ok());
-
-    assert!(kp.public.verify(&hex!(""), &sig).is_err());
+    assert!(sk.verify(&hex!("af82"), &sig).is_ok());
+    assert!(sk.verify(&hex!(""), &sig).is_err());
 }
 
 #[cfg(feature = "relay")]
 #[test]
 fn tv_ed25519_convert() {
+    use curve25519_dalek::Scalar;
+
     fn edconv_single_test(curve_sk: [u8; 32], ed_sk: &[u8], signbit: u8, ed_pk: &[u8]) {
         use tor_llcrypto::pk::curve25519;
         use tor_llcrypto::pk::ed25519;
@@ -144,11 +135,18 @@ fn tv_ed25519_convert() {
         let curve_pk = curve25519::PublicKey::from(&curve_sk);
         let (got_kp, got_signbit) =
             keymanip::convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
-        let got_sk = got_kp.secret;
-        let got_pk0 = got_kp.public;
-        assert_eq!(&got_sk.to_bytes()[..], ed_sk);
+        let got_sk_bytes = got_kp.to_secret_key_bytes();
+        let got_pk0 = got_kp.public();
+        assert_eq!(
+            Scalar::from_bytes_mod_order(got_sk_bytes[0..32].try_into().unwrap()),
+            Scalar::from_bytes_mod_order(ed_sk[0..32].try_into().unwrap())
+        );
+        assert_eq!(got_sk_bytes[32..64], ed_sk[32..64]);
         assert_eq!(got_signbit, signbit);
-        let got_pk1: ed25519::PublicKey = (&got_sk).into();
+        let got_pk1: ed25519::PublicKey =
+            *ed25519::ExpandedKeypair::from_secret_key_bytes(got_sk_bytes)
+                .unwrap()
+                .public();
         let got_pk2 = keymanip::convert_curve25519_to_ed25519_public(&curve_pk, signbit).unwrap();
         assert_eq!(got_pk0.as_bytes(), ed_pk);
         assert_eq!(got_pk1.as_bytes(), ed_pk);

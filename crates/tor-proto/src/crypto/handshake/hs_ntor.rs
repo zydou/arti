@@ -32,7 +32,6 @@ use tor_hscrypto::{
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
 use tor_llcrypto::util::ct::CtByteArray;
-use tor_llcrypto::util::rand_compat::RngCompatExt;
 
 use cipher::{KeyIvInit, StreamCipher};
 
@@ -157,7 +156,7 @@ impl HsNtorClientState {
     where
         R: rand::RngCore + rand::CryptoRng,
     {
-        let x = curve25519::StaticSecret::new(rng.rng_compat());
+        let x = curve25519::StaticSecret::random_from_rng(rng);
         Self::new_no_keygen(service_info, x)
     }
 
@@ -321,7 +320,7 @@ pub fn server_receive_intro<R>(
 where
     R: rand::RngCore + rand::CryptoRng,
 {
-    let y = curve25519::StaticSecret::new(rng.rng_compat());
+    let y = curve25519::StaticSecret::random_from_rng(rng);
     server_receive_intro_no_keygen(&y, k_hss_ntor, auth_key, subcredential, intro_header, msg)
 }
 
@@ -563,12 +562,12 @@ mod test {
     /// Basic HS Ntor test that does the handshake between client and service
     /// and makes sure that the resulting keys and KDF is legit.
     fn hs_ntor() -> Result<()> {
-        let mut rng = testing_rng().rng_compat();
+        let mut rng = testing_rng();
 
         // Let's initialize keys for the client (and the intro point)
-        let intro_b_privkey = curve25519::StaticSecret::new(&mut rng);
+        let intro_b_privkey = curve25519::StaticSecret::random_from_rng(&mut rng);
         let intro_b_pubkey = curve25519::PublicKey::from(&intro_b_privkey);
-        let intro_auth_key_privkey = ed25519::SecretKey::generate(&mut rng);
+        let intro_auth_key_privkey = ed25519::Keypair::generate(&mut rng);
         let intro_auth_key_pubkey = ed25519::PublicKey::from(&intro_auth_key_privkey);
         drop(intro_auth_key_privkey); // not actually used in this part of the protocol.
 

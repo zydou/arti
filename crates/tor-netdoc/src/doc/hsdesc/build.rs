@@ -112,7 +112,7 @@ impl<'a> ClientAuth<'a> {
         // Generate a new `N_hs_desc_enc` descriptor_cookie key for this descriptor.
         let descriptor_cookie = rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(rng);
 
-        let secret = curve25519::StaticSecret::new(rng);
+        let secret = curve25519::StaticSecret::random_from_rng(rng);
         let ephemeral_key = HsSvcDescEncKeypair {
             public: curve25519::PublicKey::from(&secret).into(),
             secret: secret.into(),
@@ -219,7 +219,7 @@ pub fn create_desc_sign_key_cert(
     Ed25519Cert::constructor()
         .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
         .expiration(expiry)
-        .signing_key(ed25519::Ed25519Identity::from(&blind_id.as_ref().public))
+        .signing_key(ed25519::Ed25519Identity::from(blind_id.as_ref().public()))
         .cert_key(CertifiedKey::Ed25519(hs_desc_sign.into()))
         .encode_and_sign(blind_id)
 }
@@ -289,9 +289,7 @@ mod test {
     use tor_hscrypto::pk::{HsClientDescEncKeypair, HsIdKeypair};
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
-    use tor_llcrypto::pk::curve25519;
-    use tor_llcrypto::pk::keymanip::ExpandedKeypair;
-    use tor_llcrypto::util::rand_compat::RngCompatExt;
+    use tor_llcrypto::pk::{curve25519, ed25519::ExpandedKeypair};
 
     // TODO: move the test helpers to a separate module and make them more broadly available if
     // necessary.
@@ -322,9 +320,7 @@ mod test {
         IntroPointDesc {
             link_specifiers,
             ipt_ntor_key: create_curve25519_pk(rng),
-            ipt_sid_key: ed25519::Keypair::generate(&mut rng.rng_compat())
-                .public
-                .into(),
+            ipt_sid_key: ed25519::Keypair::generate(rng).verifying_key().into(),
             svc_ntor_key: create_curve25519_pk(rng).into(),
         }
     }
@@ -333,7 +329,7 @@ mod test {
     pub(super) fn create_curve25519_pk<R: RngCore + CryptoRng>(
         rng: &mut R,
     ) -> curve25519::PublicKey {
-        let ephemeral_key = curve25519::EphemeralSecret::new(rng);
+        let ephemeral_key = curve25519::EphemeralSecret::random_from_rng(rng);
         (&ephemeral_key).into()
     }
 
@@ -370,7 +366,7 @@ mod test {
         const REVISION_COUNT: u64 = 2;
         const CERT_EXPIRY_SECS: u64 = 60 * 60;
 
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         // The identity keypair of the hidden service.
         let hs_id = ed25519::Keypair::generate(&mut rng);
         let hs_desc_sign = ed25519::Keypair::generate(&mut rng);
@@ -385,18 +381,18 @@ mod test {
             .unwrap();
 
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
-        let mut rng = Config::Deterministic.into_rng().rng_compat();
+        let mut rng = Config::Deterministic.into_rng();
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)
                 .encode()
                 .unwrap()],
             ipt_ntor_key: create_curve25519_pk(&mut rng),
-            ipt_sid_key: ed25519::Keypair::generate(&mut rng).public.into(),
+            ipt_sid_key: ed25519::Keypair::generate(&mut rng).verifying_key().into(),
             svc_ntor_key: create_curve25519_pk(&mut rng).into(),
         }];
 
         let hs_desc_sign_cert =
-            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
+            create_desc_sign_key_cert(&hs_desc_sign.verifying_key(), &blinded_id, expiry).unwrap();
         let blinded_pk = (&blinded_id).into();
         let builder = HsDescBuilder::default()
             .blinded_id(&blinded_pk)
@@ -422,13 +418,13 @@ mod test {
         // Now decode it...
         let desc = parse_hsdesc(
             encoded_desc.as_str(),
-            blinded_id.as_ref().public,
+            *blinded_id.as_ref().public(),
             &subcredential,
             None, /* No client auth */
         );
 
         let hs_desc_sign_cert =
-            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
+            create_desc_sign_key_cert(&hs_desc_sign.verifying_key(), &blinded_id, expiry).unwrap();
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()
@@ -464,13 +460,13 @@ mod test {
         // Now decode it...
         let desc = parse_hsdesc(
             encoded_desc.as_str(),
-            blinded_id.as_ref().public,
+            *blinded_id.as_ref().public(),
             &subcredential,
             Some(&client_kp), /* With client auth */
         );
 
         let hs_desc_sign_cert =
-            create_desc_sign_key_cert(&hs_desc_sign.public, &blinded_id, expiry).unwrap();
+            create_desc_sign_key_cert(&hs_desc_sign.verifying_key(), &blinded_id, expiry).unwrap();
         // ...and build a new descriptor using the information from the parsed descriptor,
         // asserting that the resulting descriptor is identical to the original.
         let reencoded_desc = HsDescBuilder::default()

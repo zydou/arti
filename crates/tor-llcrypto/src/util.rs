@@ -5,7 +5,6 @@
 
 use simple_asn1::{oid, ASN1Block};
 pub mod ct;
-pub mod rand_compat;
 
 /// Given an X.509 certificate in DER, return its SubjectPublicKey if that key
 /// is an RSA key.

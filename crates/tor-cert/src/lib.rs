@@ -44,9 +44,9 @@ mod err;
 pub mod rsa;
 
 use caret::caret_int;
-use signature::Verifier;
 use tor_bytes::{Error as BytesError, Result as BytesResult};
 use tor_bytes::{Readable, Reader};
+use tor_llcrypto::pk::ed25519::Verifier as _;
 use tor_llcrypto::pk::*;
 
 use std::time;

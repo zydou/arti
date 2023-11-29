@@ -67,7 +67,7 @@ macro_rules! define_pk_keypair {
                     where
                         R: rand::Rng + rand::CryptoRng,
                     {
-                        let secret = curve25519::StaticSecret::new(rng);
+                        let secret = curve25519::StaticSecret::random_from_rng(rng);
                         let public: curve25519::PublicKey = (&secret).into();
                         Self {
                             secret: secret.into(),
