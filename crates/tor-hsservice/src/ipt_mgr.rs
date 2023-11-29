@@ -941,7 +941,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///  * Unless we have at least one `Good` IPT: `Unknown`.
     ///
     ///  * Otherwise: if there are IPTs in `Establishing`,
-    ///    and they have been in `Establishing` only a short time [1]:
+    ///    and they have been in `Establishing` only a short time \[1\]:
     ///    `Unknown`; otherwise `Uncertain`.
     ///
     /// The effect is that we delay publishing an initial descriptor
@@ -962,7 +962,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// (Rationale: if IPTs are regularly misbehaving,
     /// we should be cautious and limit our exposure to the damage.)
     ///
-    /// [1] NOTE: We wait a "short time" between establishing our first IPT,
+    /// \[1\] NOTE: We wait a "short time" between establishing our first IPT,
     /// and publishing an incomplete (<N) descriptor -
     /// this is a compromise between
     /// availability (publishing as soon as we have any working IPT)
