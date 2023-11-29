@@ -57,7 +57,9 @@
 //! This is a module for use in tests.
 //! Most error conditions will cause a panic.
 
-#![allow(unreachable_pub)] // TODO make this into a pub module somewhere (where?)
+// TODO make this into a pub module somewhere, perhaps tor-basic-utils
+// When we do that, add a proper tested example
+#![allow(unreachable_pub)]
 
 // We have a nonstandard test lint block
 #![allow(clippy::print_stdout)]
