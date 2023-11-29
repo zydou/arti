@@ -134,7 +134,7 @@ impl TestTempDir {
     //
     // So the test function name is the best stable identifier we have,
     // and the thread name is the only way we have of discovering it.
-    // Happily this works with `cargo nextest too`.
+    // Happily this works with `cargo nextest` too.
     //
     // For the same reasons, it wouldn't be a good idea to fall back
     // from the stable name to some less stable but more reliably obtainable id.
