@@ -33,7 +33,7 @@ pub const ED25519_SIGNATURE_LEN: usize = 64;
 
 /// A variant of [`Keypair`] containing an [`ExpandedSecretKey`].
 ///
-/// In the Tor protocol, we use this type to blinded onion service identity keys
+/// In the Tor protocol, we use this type for blinded onion service identity keys
 /// (KS_hs_blind_id).  Since their scalar values are computed, rather than taken
 /// directly from a
 /// SHA-512 transformation of a SecretKey, we cannot use the
