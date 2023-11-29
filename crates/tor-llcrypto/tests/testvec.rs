@@ -76,10 +76,7 @@ fn tv_ed25519() {
     let pk_again: PublicKey = (&pk_as_id).try_into().unwrap();
     assert_eq!(pk_again, pk);
 
-    // TODO DALEK: keypair and signingkey used to be different types.
-    // Now they are the same thing. Perhaps remove some of these tests.
-    let kp = sk;
-    let sig = kp.sign(&b""[..]);
+    let sig = sk.sign(&b""[..]);
     assert_eq!(
         &sig.to_bytes()[..],
         &hex!(
@@ -90,8 +87,8 @@ fn tv_ed25519() {
         )[..]
     );
 
-    assert!(kp.verify(&b""[..], &sig).is_ok());
-    assert!(kp.verifying_key().verify(&b""[..], &sig).is_ok());
+    assert!(sk.verify(&b""[..], &sig).is_ok());
+    assert!(sk.verifying_key().verify(&b""[..], &sig).is_ok());
 
     // TEST 3
     let sk = Keypair::from(&hex!(
@@ -109,9 +106,7 @@ fn tv_ed25519() {
         )
     );
 
-    // TODO DALEK: As above.
-    let kp = sk;
-    let sig = kp.sign(&hex!("af82"));
+    let sig = sk.sign(&hex!("af82"));
     assert_eq!(
         &sig.to_bytes()[..],
         &hex!(
@@ -122,8 +117,8 @@ fn tv_ed25519() {
         )[..]
     );
 
-    assert!(kp.verify(&hex!("af82"), &sig).is_ok());
-    assert!(kp.verify(&hex!(""), &sig).is_err());
+    assert!(sk.verify(&hex!("af82"), &sig).is_ok());
+    assert!(sk.verify(&hex!(""), &sig).is_err());
 }
 
 #[cfg(feature = "relay")]
