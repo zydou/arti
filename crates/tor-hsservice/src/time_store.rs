@@ -79,13 +79,10 @@
 #![allow(rustdoc::private_intra_doc_links)]
 
 use std::fmt::{self, Display};
-use std::iter;
-use std::num::ParseIntError;
 use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime};
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
 use thiserror::Error;
@@ -182,7 +179,8 @@ define_derive_adhoc! {
 ///
 /// (Serialises as a representation of how many seconds this was into the future,
 /// when it was stored - ie, with respect to the corresponding [`Reference`];
-/// in binary as a `u64`, in human readable formats as `T+hhh:mm:ss`.)
+/// in binary as a `u64`, in human readable formats as
+/// `T+` plus [`humantime`]'s formatting of the `Duration` in seconds.)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Adhoc)]
 #[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
 pub struct FutureTimestamp {
@@ -431,18 +429,15 @@ impl Loading {
 
 //---------- formatting ----------
 
-/// Displays as `T+hhh:mm:ss`.
+/// Displays as `T+Duration`, where [`Duration`] is in seconds, formatted using [`humantime`]
 //
 // This format is a balance between human-readability and the desire to avoid
 // allowing the possibility of invalid (corrupted) files whose `FutureTimestamp`
 // is actually before the stored `Reference`.
 impl Display for FutureTimestamp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let h = self.offset / 3600;
-        let ms = self.offset % 3600;
-        let m = ms / 60;
-        let s = ms % 60;
-        write!(f, "T+{h}:{m:02}:{s:02}")
+        let d = humantime::format_duration(Duration::from_secs(self.offset));
+        write!(f, "T+{}", d)
     }
 }
 
@@ -460,18 +455,13 @@ impl FromStr for FutureTimestamp {
     // Bespoke parser so we have control over our error/overflow cases
     // (and also since ideally we don't want to deal with a complex HMS time API).
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut comps = s
+        let s = s
             .strip_prefix("T+")
             .ok_or(ParseError {})?
-            .splitn(3, ':')
-            .map(|s| s.parse().map_err(|_: ParseIntError| ParseError {}))
-            .chain(iter::repeat(Err(ParseError {})))
-            .take(3);
-
-        let offset = comps.fold_ok(0_u64, |sum, comp| {
-            sum.saturating_mul(60).saturating_add(comp)
-        })?;
-
+            ;
+        let offset = humantime::parse_duration(s)
+            .map_err(|_: humantime::DurationError| ParseError {})?
+            .as_secs();
         Ok(FutureTimestamp { offset })
     }
 }
@@ -511,20 +501,22 @@ mod test {
     #[test]
     fn hms_fmt() {
         let ft = FutureTimestamp {
-            offset: 70 * 3600 + 4 * 60 + 5,
+            offset: 2 * 86400 + 22 * 3600 + 4 * 60 + 5,
         };
 
-        assert_eq!(ft.to_string(), "T+70:04:05");
+        assert_eq!(ft.to_string(), "T+2days 22h 4m 5s");
 
-        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+70:04:05"));
-        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+070:4:5"));
-        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+0:0:252245"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+2days 22h 4m 5s"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+70h 4m 5s"));
+        // we inherit rounding behaviour from humantime; we don't mind tolerating that
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+2days 22h 4m 5s 100ms"));
+        assert_eq!(Ok(ft), FutureTimestamp::from_str("T+2days 22h 4m 5s 900ms"));
         let e = Err(ParseError {});
-        assert_eq!(e, FutureTimestamp::from_str("70:04:05"));
-        assert_eq!(e, FutureTimestamp::from_str("T+70:04"));
-        assert_eq!(e, FutureTimestamp::from_str("T+70:04:05:09"));
-        assert_eq!(e, FutureTimestamp::from_str("T+70:04:05.09"));
-        assert_eq!(e, FutureTimestamp::from_str("T+flibble"));
+        assert_eq!(e, FutureTimestamp::from_str("2days"));
+        assert_eq!(e, FutureTimestamp::from_str("T+"));
+        assert_eq!(e, FutureTimestamp::from_str("T+ "));
+        assert_eq!(e, FutureTimestamp::from_str("T+X"));
+        assert_eq!(e, FutureTimestamp::from_str("T+23kg"));
     }
 
     #[test]
@@ -601,7 +593,7 @@ mod test {
             json,
             format!(concat!(
                 r#"{{"stored":"2008-08-02T00:00:00Z","#,
-                r#""s0":"T+0:00:00","s1":"T+0:00:10","s2":"T+0:50:00"}}"#
+                r#""s0":"T+0s","s1":"T+10s","s2":"T+50m"}}"#
             ))
         );
 
