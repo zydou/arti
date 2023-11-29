@@ -31,8 +31,7 @@ use digest::Digest;
 use thiserror::Error;
 
 use curve25519_dalek::scalar::Scalar;
-// TODO DALEK: Undo renamings.
-use ed25519_dalek::{hazmat::ExpandedSecretKey, SigningKey as Keypair, VerifyingKey as PublicKey};
+use ed25519_dalek::{hazmat::ExpandedSecretKey, SigningKey, VerifyingKey};
 use pk::ed25519::ExpandedKeypair;
 
 /// Convert a curve25519 public key (with sign bit) to an ed25519
@@ -215,7 +214,7 @@ fn clamp_blinding_factor(h: [u8; 32]) -> Scalar {
 ///
 /// This function is only available when the `hsv3-client` feature is enabled.
 #[cfg(feature = "hsv3-client")]
-pub fn blind_pubkey(pk: &PublicKey, h: [u8; 32]) -> Result<PublicKey, BlindingError> {
+pub fn blind_pubkey(pk: &VerifyingKey, h: [u8; 32]) -> Result<VerifyingKey, BlindingError> {
     use curve25519_dalek::edwards::CompressedEdwardsY;
 
     let blinding_factor = clamp_blinding_factor(h);
@@ -228,7 +227,7 @@ pub fn blind_pubkey(pk: &PublicKey, h: [u8; 32]) -> Result<PublicKey, BlindingEr
     // Do the scalar multiplication and get a point back
     let blinded_pubkey_point = (blinding_factor * pubkey_point).compress();
     // Turn the point back into bytes and return it
-    Ok(PublicKey::from_bytes(&blinded_pubkey_point.0)?)
+    Ok(VerifyingKey::from_bytes(&blinded_pubkey_point.0)?)
 }
 
 /// Blind the ed25519 secret key `sk` using the blinding factor `h`, and
@@ -283,7 +282,7 @@ pub fn blind_keypair(
         scalar: blinded_secret_scalar,
         hash_prefix: blinded_secret_hash_prefix,
     };
-    let public = PublicKey::from(&secret);
+    let public = VerifyingKey::from(&secret);
 
     #[cfg(debug_assertions)]
     {
@@ -461,7 +460,7 @@ mod tests {
         for i in 0..pubkeys.len() {
             let sk: [u8; 32] = hex::decode(seckeys[i]).unwrap().try_into().unwrap();
             let esk = ExpandedSecretKey::from(&sk);
-            let kp = Keypair::from(&sk);
+            let kp = SigningKey::from(&sk);
 
             let esk_bytes_from_c_tor = hex::decode(expanded_seckeys[i]).unwrap();
             // Because of the differences in how we calculate the scalar, we
@@ -484,9 +483,9 @@ mod tests {
             };
 
             let pk =
-                PublicKey::from_bytes(&hex::decode(pubkeys[i]).unwrap()[..].try_into().unwrap())
+                VerifyingKey::from_bytes(&hex::decode(pubkeys[i]).unwrap()[..].try_into().unwrap())
                     .unwrap();
-            assert_eq!(pk, PublicKey::from(&kp));
+            assert_eq!(pk, VerifyingKey::from(&kp));
 
             let param = hex::decode(params[i]).unwrap().try_into().unwrap();
             // Blind the secret key, and make sure that the result is expected.
