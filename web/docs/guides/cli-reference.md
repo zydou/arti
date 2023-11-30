@@ -2,9 +2,7 @@
 title: CLI Reference
 ---
 
-Once you've obtained an [arti binary](/guides/compiling-arti), you may use the Command Line Interface (CLI) to run various commands for configuration. 
-
-Once you obtain an arti binary, you can use it as a Command Line Interface (CLI).
+Once you've obtained an [arti binary](/guides/compiling-arti), you may use the Command Line Interface (CLI) to run various commands. 
 
 The Arti CLI commands support a number [flags](#cli-flag-options) that can be used to configure the behavior of the command.
 If you are running Arti through `cargo`, the flags are specified using the format:
@@ -35,7 +33,6 @@ target/debug/arti <subcommand> <flag>
 | `-h`, `--help` | Print help information. |
 | `-l`, `--log-level` | Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error'). |
 | `-o <KEY=VALUE>` | Override config file parameters, using TOML-like syntax. |
-
 
 ### Usage Examples
 
