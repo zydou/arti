@@ -77,30 +77,17 @@ impl ProxyConfig {
 /// A single rule in a `ProxyConfig`.
 ///
 /// Rules take the form of, "When this pattern matches, take this action."
-#[derive(
-    Clone,
-    Debug,
-    // Serialize,
-    // Deserialize,
-    Eq,
-    PartialEq,
-    serde_with::DeserializeFromStr,
-    serde_with::SerializeDisplay,
-)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 // TODO HSS: we might someday want to accept structs here as well, so that
 // we can add per-rule fields if we need to.  We can make that an option if/when
 // it comes up, however.
-// TODO HSS restore this as part of #1058.
-//     #[serde(from = "ProxyRuleAsTuple", into = "ProxyRuleAsTuple")]
+#[serde(from = "ProxyRuleAsTuple", into = "ProxyRuleAsTuple")]
 pub struct ProxyRule {
     /// Any connections to a port matching this pattern match this rule.
     source: ProxyPattern,
     /// When this rule matches, we take this action.
     target: ProxyAction,
 }
-
-/*
-  TODO HSS restore this code when we do #1058
 
 /// Helper type used to (de)serialize ProxyRule.
 type ProxyRuleAsTuple = (ProxyPattern, ProxyAction);
@@ -117,30 +104,6 @@ impl From<ProxyRule> for ProxyRuleAsTuple {
         (value.source, value.target)
     }
 }
-*/
-
-// TODO HSS Remove this once we restore the original configuration format in
-// #1058. This format/display code is just temporary.
-impl std::fmt::Display for ProxyRule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} => {}", self.source, self.target)
-    }
-}
-impl FromStr for ProxyRule {
-    type Err = ProxyConfigError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (source, target) = s
-            .split_once("=>")
-            // TODO HSS: This is the wrong error type, but this is throwaway code.
-            .ok_or(ProxyConfigError::UnrecognizedTargetType)?;
-        Ok(ProxyRule {
-            source: source.trim().parse()?,
-            target: target.trim().parse()?,
-        })
-    }
-}
-
 impl ProxyRule {
     /// Create a new ProxyRule mapping `source` to `target`.
     pub fn new(source: ProxyPattern, target: ProxyAction) -> Self {
@@ -149,12 +112,30 @@ impl ProxyRule {
 }
 
 /// A set of ports to use when checking how to handle a port.
-#[derive(
-    Clone, Debug, serde_with::DeserializeFromStr, serde_with::SerializeDisplay, Eq, PartialEq,
-)]
+#[derive(Clone, Debug, serde::Deserialize, serde_with::SerializeDisplay, Eq, PartialEq)]
+#[serde(try_from = "ProxyPatternAsEnum")]
 pub struct ProxyPattern(RangeInclusive<u16>);
 
-// TODO HSS: Allow ProxyPattern to also be deserialized from an integer.
+/// Representation for a [`ProxyPattern`]. Used while deserializing.
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum ProxyPatternAsEnum {
+    /// Representation the [`ProxyPattern`] as an integer.
+    Number(u16),
+    /// Representation of the [`ProxyPattern`] as a string.
+    String(String),
+}
+
+impl TryFrom<ProxyPatternAsEnum> for ProxyPattern {
+    type Error = ProxyConfigError;
+
+    fn try_from(value: ProxyPatternAsEnum) -> Result<Self, Self::Error> {
+        match value {
+            ProxyPatternAsEnum::Number(port) => Self::one_port(port),
+            ProxyPatternAsEnum::String(s) => Self::from_str(&s),
+        }
+    }
+}
 
 impl FromStr for ProxyPattern {
     type Err = ProxyConfigError;
@@ -497,19 +478,11 @@ mod test {
     fn deserialize() {
         use Encapsulation::Simple;
         use TargetAddr as A;
-        /* TODO HSS #1058 restore this.
         let ex = r#"{
             "proxy_ports": [
                 [ "443", "127.0.0.1:11443" ],
                 [ "80", "ignore" ],
                 [ "*", "destroy" ]
-            ]
-        }"#; */
-        let ex = r#"{
-            "proxy_ports": [
-                "443 => 127.0.0.1:11443",
-                "80 => ignore",
-                "* => destroy"
             ]
         }"#;
         let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
@@ -530,19 +503,11 @@ mod test {
     #[test]
     fn validation_fail() {
         // this should fail; the third pattern isn't reachable.
-        /* TODO HSS #1058 restore this.
         let ex = r#"{
             "proxy_ports": [
                 [ "2-300", "127.0.0.1:11443" ],
                 [ "301-999", "ignore" ],
                 [ "30-310", "destroy" ]
-            ]
-        }"#; */
-        let ex = r#"{
-            "proxy_ports": [
-                "2-300 => 127.0.0.1:11443",
-                "301-999 => ignore",
-                "30-310 => destroy"
             ]
         }"#;
         let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
@@ -555,19 +520,11 @@ mod test {
         }
 
         // This should work; the third pattern is not completely covered.
-        /* TODO HSS #1058 restore this.
         let ex = r#"{
             "proxy_ports": [
                 [ "2-300", "127.0.0.1:11443" ],
                 [ "302-999", "ignore" ],
                 [ "30-310", "destroy" ]
-            ]
-        }"#; */
-        let ex = r#"{
-            "proxy_ports": [
-                "2-300 => 127.0.0.1:11443",
-                "302-999 => ignore",
-                "30-310 => destroy"
             ]
         }"#;
         let bld: ProxyConfigBuilder = serde_json::from_str(ex).unwrap();
@@ -577,21 +534,12 @@ mod test {
     #[test]
     fn demo() {
         let b: ProxyConfigBuilder = toml::de::from_str(
-            /* TODO HSS #1058 restore this.
-                        r#"
-            proxy_ports = [
-                ["80", "127.0.0.1:10080"],
-                ["22", "destroy"],
-                ["265", "ignore"],
-                ["1-1024", "unix:/var/run/allium-cepa/socket"],
-            ]
-            "#, */
             r#"
 proxy_ports = [
-    "80 => 127.0.0.1:10080",
-    "22 => destroy",
-    "265 => ignore",
-    "1-1024 => unix:/var/run/allium-cepa/socket",
+    [ 80, "127.0.0.1:10080"],
+    ["22", "destroy"],
+    ["265", "ignore"],
+    ["1-1024", "unix:/var/run/allium-cepa/socket"],
 ]
 "#,
         )
