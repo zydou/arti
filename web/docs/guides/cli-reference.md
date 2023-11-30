@@ -2,9 +2,9 @@
 title: CLI Reference
 ---
 
-Once you've obtained an [arti binary](/guides/compiling-arti), you may use the Command Line Interface (CLI) to run various commands for configuration. 
+Once you've obtained an [arti binary](/guides/compiling-arti), you can use the Command Line Interface (CLI) to run various commands for configuration. 
 
-The Arti CLI commands support a number [flags](#flag-options) that can be used to configure the behavior of the command.
+The Arti CLI commands support a number [flags](#flags) that can be used to configure the behavior of the command.
 If you are running Arti through `cargo`, the flags are specified using the format:
 
 ```bash
@@ -24,7 +24,7 @@ target/debug/arti <subcommand> <flag>
 | `help` | Print help information. |
 | `proxy` | Run Arti in SOCKS proxy mode, proxying connections through the Tor network. |
 
-### Flag Options
+### Flags
 
 | Flag | Description |
 | --- | --- |
@@ -42,7 +42,7 @@ For example, the following command is used to launch Arti in SOCKS proxy mode wi
 target/debug/arti proxy
 ```
 
-To override the default settings, you can use the `-o` flag to specify the parameters you want to change. For example, the following command is used to launch Arti in SOCKS proxy mode with the default settings, but with the `proxy.port` parameter set to `9050`.
+To override the default settings, you can use the `-o` flag to specify the parameters you want to change. For example, the following command is used to launch Arti in SOCKS proxy mode with the default settings, but with the `proxy.port` parameter set to `9000`.
 
 ```bash
 target/debug/arti proxy -o proxy.socks_port=9000
