@@ -1766,17 +1766,24 @@ mod test {
 
         fn estabs_inventory(&self) -> impl Eq + Debug + 'static {
             let estabs = self.estabs.lock().unwrap();
-            let estabs = estabs.values().map(|MockEstabState { params: p, .. }| (
-                p.lid,
-                (p.target.clone(),
-                 // We want to check the key values, but they're very hard to get at
-                 // in a way we can compare.  Especially the private keys, for which
-                 // we can't getting a clone or copy of the private key material out of the Arc.
-                 // They're keypairs, we can use the debug rep which shows the public half.
-                 // That will have to do.
-                 format!("{:?}", p.k_sid),
-                 format!("{:?}", p.k_ntor)),
-            )).collect::<BTreeMap<_, _>>();
+            let estabs = estabs
+                .values()
+                .map(|MockEstabState { params: p, .. }| {
+                    (
+                        p.lid,
+                        (
+                            p.target.clone(),
+                            // We want to check the key values, but they're very hard to get at
+                            // in a way we can compare.  Especially the private keys, for which
+                            // we can't getting a clone or copy of the private key material out of the Arc.
+                            // They're keypairs, we can use the debug rep which shows the public half.
+                            // That will have to do.
+                            format!("{:?}", p.k_sid),
+                            format!("{:?}", p.k_ntor),
+                        ),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
             estabs
         }
     }
