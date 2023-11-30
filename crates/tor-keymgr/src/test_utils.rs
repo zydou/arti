@@ -7,7 +7,8 @@ macro_rules! assert_key_specifier_rountrip {
     ($key_spec_ty:ty, $key_spec:expr) => {{
         assert_eq!(
             $key_spec,
-            <$key_spec_ty>::try_from(&$crate::KeyPath::Arti($key_spec.arti_path().unwrap())).unwrap()
+            <$key_spec_ty>::try_from(&$crate::KeyPath::Arti($key_spec.arti_path().unwrap()))
+                .unwrap()
         );
     }};
 }

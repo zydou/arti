@@ -44,10 +44,10 @@
 // stable
 
 pub mod config;
-#[cfg(any(test, feature = "testing"))]
-pub mod test_utils;
 mod err;
 mod key_specifier;
+#[cfg(any(test, feature = "testing"))]
+pub mod test_utils;
 
 #[cfg(feature = "keymgr")]
 mod key_type;

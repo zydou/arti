@@ -123,7 +123,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_keymgr::KeySpecifier;
+    use tor_keymgr::{assert_key_specifier_rountrip, KeySpecifier};
 
     #[test]
     fn hsid_key_specifiers() {
@@ -139,6 +139,8 @@ mod test {
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_id"
         );
+
+        assert_key_specifier_rountrip!(HsIdKeypairSpecifier, key_spec);
     }
 
     #[test]
@@ -156,6 +158,8 @@ mod test {
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_blind_id+2_1_3"
         );
+
+        assert_key_specifier_rountrip!(BlindIdKeypairSpecifier, key_spec);
     }
 
     #[test]
@@ -167,6 +171,8 @@ mod test {
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_desc_sign+2_1_3"
         );
+
+        assert_key_specifier_rountrip!(DescSigningKeypairSpecifier, key_spec);
     }
 
     #[test]
