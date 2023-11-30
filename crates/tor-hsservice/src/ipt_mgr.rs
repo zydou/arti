@@ -227,6 +227,7 @@ struct Ipt {
     /// `None` might mean:
     ///  * WantsToRetire
     ///  * We have >N IPTs and we have been using this IPT so long we want to rotate it out
+    ///    (the [`IptRelay`] has reached its `planned_retirement` time)
     is_current: Option<IsCurrent>,
 }
 
@@ -680,6 +681,39 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// In that case, the caller must call `compute_iptsetstatus_publish`,
     /// since the IPT set etc. may have changed.
     ///
+    /// ### Goals and algorithms
+    ///
+    /// We attempt to maintain a pool of N established and verified IPTs,
+    /// at N IPT Relays.
+    ///
+    /// When we have fewer than N IPT Relays
+    /// that have `Establishing` or `Good` IPTs (see below)
+    /// and fewer than k*N IPT Relays overall,
+    /// we choose a new IPT Relay at random from the consensus
+    /// and try to establish an IPT on it.
+    ///
+    /// (Rationale for the k*N limit:
+    /// we do want to try to replace faulty IPTs, but
+    /// we don't want an attacker to be able to provoke us into
+    /// rapidly churning through IPT candidates.)
+    ///
+    /// When we select a new IPT Relay, we randomly choose a planned replacement time,
+    /// after which it becomes `Retiring`.
+    ///
+    /// Additionally, any IPT becomes `Retiring`
+    /// after it has been used for a certain number of introductions
+    /// (c.f. C Tor `#define INTRO_POINT_MIN_LIFETIME_INTRODUCTIONS 16384`.)
+    /// When this happens we retain the IPT Relay,
+    /// and make new parameters to make a new IPT at the same Relay.
+    ///
+    /// An IPT is removed from our records, and we give up on it,
+    /// when it is no longer `Good` or `Establishing`
+    /// and all descriptors that mentioned it have expired.
+    ///
+    /// (Until all published descriptors mentioning an IPT expire,
+    /// we consider ourselves bound by those previously-published descriptors,
+    /// and try to maintain the IPT.
+    /// TODO: Allegedly this is unnecessary, but I don't see how it could be.)
     ///
     /// ### Performance
     ///
@@ -871,6 +905,73 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// The noted earliest wakeup can be updated by this function,
     /// for example, with a future time at which the IPT set ought to be published
     /// (eg, the status goes from Unknown to Uncertain).
+    ///
+    /// ## IPT sets and lifetimes
+    ///
+    /// We remember every IPT we have published that is still valid.
+    ///
+    /// At each point in time we have an idea of set of IPTs we want to publish.
+    /// The possibilities are:
+    ///
+    ///  * `Certain`:
+    ///    We are sure of which IPTs we want to publish.
+    ///    We try to do so, talking to hsdirs as necessary,
+    ///    updating any existing information.
+    ///    (We also republish to an hsdir if its descriptor will expire soon,
+    ///    or we haven't published there since Arti was restarted.)
+    ///
+    ///  * `Unknown`:
+    ///    We have no idea which IPTs to publish.
+    ///    We leave whatever is on the hsdirs as-is.
+    ///
+    ///  * `Uncertain`:
+    ///    We have some IPTs we could publish,
+    ///    but we're not confident about them.
+    ///    We publish these to a particular hsdir if:
+    ///     - our last-published descriptor has expired
+    ///     - or it will expire soon
+    ///     - or if we haven't published since Arti was restarted.
+    ///
+    /// The idea of what to publish is calculated as follows:
+    ///
+    ///  * If we have at least N `Good` IPTs: `Certain`.
+    ///    (We publish the "best" N IPTs for some definition of "best".
+    ///    TODO: should we use the fault count?  recency?)
+    ///
+    ///  * Unless we have at least one `Good` IPT: `Unknown`.
+    ///
+    ///  * Otherwise: if there are IPTs in `Establishing`,
+    ///    and they have been in `Establishing` only a short time \[1\]:
+    ///    `Unknown`; otherwise `Uncertain`.
+    ///
+    /// The effect is that we delay publishing an initial descriptor
+    /// by at most 1x the fastest IPT setup time,
+    /// at most doubling the initial setup time.
+    ///
+    /// Each update to the IPT set that isn't `Unknown` comes with a
+    /// proposed descriptor expiry time,
+    /// which is used if the descriptor is to be actually published.
+    /// The proposed descriptor lifetime for `Uncertain`
+    /// is the minimum (30 minutes).
+    /// Otherwise, we double the lifetime each time,
+    /// unless any IPT in the previous descriptor was declared `Faulty`,
+    /// in which case we reset it back to the minimum.
+    /// TODO: Perhaps we should just pick fixed short and long lifetimes instead,
+    /// to limit distinguishability.
+    ///
+    /// (Rationale: if IPTs are regularly misbehaving,
+    /// we should be cautious and limit our exposure to the damage.)
+    ///
+    /// \[1\] NOTE: We wait a "short time" between establishing our first IPT,
+    /// and publishing an incomplete (<N) descriptor -
+    /// this is a compromise between
+    /// availability (publishing as soon as we have any working IPT)
+    /// and
+    /// exposure and hsdir load
+    /// (which would suggest publishing only when our IPT set is stable).
+    /// One possible strategy is to wait as long again
+    /// as the time it took to establish our first IPT.
+    /// Another is to somehow use our circuit timing estimator.
     ///
     /// ### Performance
     ///

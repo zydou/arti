@@ -2,7 +2,7 @@
 
 ## Code structure
 
-There are three main pieces:
+There are three and a half main pieces:
 
  * IPT Establisher:
    One per IPT.
@@ -16,20 +16,24 @@ There are three main pieces:
    monitors their success/failure, etc.
    Persistent (on-disk) state:
    current set of IPT Relays.
-   Optional persistent (on-disk) state:
+   Persistent (on-disk) state:
    current list of IPTs and their (last) states, fault counters, etc.,
-   including secret keys necessary to re-stablish that IPT;
-   all previous descriptor contents (`IptSetForDescriptor`)
+   including secret keys necessary to re-stablish that IPT.
+   Information about previously published
+   descriptor contents (`PublishIptSet`)
    issued to hsdir publisher,
    that have not yet expired.
 
- * hsdir publisher:
+ * hsdir Publisher:
    One per HS.
    Identifies the hsdirs for the relevant time periods.
    Constructs descriptors according to the IPT manager's instructions,
    and publishes them to the hsdirs.
-   Persistent (on-disk) state (optional):
-   which versions (`IptSetForDescriptor`) are published where.
+
+ * `ipt_set`, persistent data structure,
+   shared between Manager and Publisher.
+   Persistent (on-disk) state:
+   which IPTs are published where.
 
 Output of the whole thing:
 Stream of introduction requests,
@@ -41,18 +45,15 @@ when a descriptor mentioning that IPT is about to be published,
 so that the IPT Establisher can reject introduction attempts
 using an unpublished IPT.)
 
-I think there are too many possible IPTs
+(There are too many possible IPTs
 to maintain experience information about IPTs we used to use;
 the list of experience information would grow to the size of the network.
-Is this true?
-If not, would recording *all* our IPT experiences
-lead to distinguishability ?
+And recording *all* our IPT experiences might
+lead to distinguishability.)
 
-Some of the persistent state is optional:
-for a persistent hidden service, we prefer to store this information,
-to improve resilience after service restarts.
-But we can work without it,
-for example when we are operating an ephemeral service.
+We might of course also operate a completely ephemeral hidden service,
+which doesn't store anything on disk,
+(and therefore gets a new K_hs_id each time it is started.)
 
 ## IPT selection and startup for a new HS, overall behaviour
 
@@ -86,87 +87,6 @@ We maintain records of each still-possibly-relevant IPT.
 an intended or established introduction point with particular keys etc.,
 from an "IPT Relay", which is a relay at which we'll establish the IPT.)
 
-We attempt to maintain a pool of N established and verified IPTs,
-at N IPT Relays.
-
-When we have fewer than N IPT Relays
-that have `Establishing` or `Good` IPTs (see below)
-and fewer than k*N IPT Relays overall,
-we choose a new IPT Relay at random from the consensus
-and try to establish an IPT on it.
-
-(Rationale for the k*N limit:
-we do want to try to replace faulty IPTs, but
-we don't want an attacker to be able to provoke us into
-rapidly churning through IPT candidates.)
-
-When we select a new IPT Relay, we randomly choose a planned replacement time,
-after which it becomes `Retiring`.
-
-Additionally, any IPT becomes `Retiring`
-after it has been used for a certain number of introductions
-(c.f. C Tor `#define INTRO_POINT_MIN_LIFETIME_INTRODUCTIONS 16384`.)
-When this happens we retain the IPT Relay,
-and make new parameters to make a new IPT at the same Relay.
-
-## IPT states
-
-Each IPT Relay can have multiple IPTs,
-but all but one are Retiring.
-
-Each IPT can be in the following states:
-
- * `Establishing`:
-   The IPT has been selected,
-   but we are still establishing it
-   and verifying it for the first time
-   (either because we restarted, or because the HS was just created,
-   or because our connect to the Tor network failed).
-   It won't be published in any descriptor.
-
- * `Good`:
-   The IPT is good.  We have a circuit to it,
-   and the last verification was successful.
-   This IPT will be included in descriptors.
-
- * `Faulty`:
-   The IPT has been advertised but appears to be faulty.
-   (For example, the circuit to it has collapsed
-   and could not be reestablished.)
-   But we won't publish it in any descriptor.
-   We will allow the re-establishment attempt to proceed,
-   but if it doesn't yield success within a reasonable time,
-   we will try to replace this IPT with another IPT.
-
- * `Retiring`:
-   We have reached the IPT's planned replacement time,
-   or the IPT has been used for many rendezvous requests.
-   (We will continue to maintain our circuit to it
-   so long as descriptors with it are valid.)
-
-(`Establishing/Good/Faulty` are reported by the IPT Establisher
-to the IPT Manager.  
-`Retiring` is actually orthogonal, and dealt with by the IPT Manager.)
-
-We also maintain for each IPT:
-
- * The duration of the last or current establishment attempt.
-
- * The latest expiry time of any descriptor that mentions it
-   that we published (or tried to).
-
- * A fault counter (per IPT Relay, not per IPT)
-   which is incremented each time the IPT enters the state `Faulty`.
-
-An IPT is removed from our records, and we give up on it,
-when it is no longer `Good` or `Establishing`
-and all descriptors that mentioned it have expired.
-
-(Until all published descriptors mentioning an IPT expire,
-we consider ourselves bound by those previously-published descriptors,
-and try to maintain the IPT.
-TODO: Allegedly this is unnecessary, but I don't see how it could be.)
-
 When we lose our circuit to an IPT,
 we look at the `ErrorKind` to try to determine
 if the fault was local (and would therefore affect all relays and IPTs):
@@ -177,7 +97,8 @@ if the fault was local (and would therefore affect all relays and IPTs):
 
  * Others: declare the IPT `Faulty`.
 
-If our verification probe fails,
+If we are doing verification, and
+our verification probe fails,
 but the circuit to the IPT appears to remain up:
 
  * If we didn't manage to build the test circuit to the IPT,
@@ -186,73 +107,6 @@ but the circuit to the IPT appears to remain up:
  * If we managed to build the test circuit to the IPT,
    but the probe failed (or the probe payload didn't arrive),
    declare the IPT `Faulty`.
-
-## IPT sets and lifetimes
-
-We remember every IPT we have published that is still valid.
-
-At each point in time we have an idea of set of IPTs we want to publish.
-The possibilities are:
-
- * `Certain`:
-   We are sure of which IPTs we want to publish.
-   We try to do so, talking to hsdirs as necessary,
-   updating any existing information.
-   (We also republish to an hsdir if its descriptor will expire soon,
-   or we haven't published there since Arti was restarted.)
-
- * `Unknown`:
-   We have no idea which IPTs to publish.
-   We leave whatever is on the hsdirs as-is.
-
- * `Uncertain`:
-   We have some IPTs we could publish,
-   but we're not confident about them.
-   We publish these to a particular hsdir if:
-    - our last-published descriptor has expired
-    - or it will expire soon
-    - or if we haven't published since Arti was restarted.
-
-The idea of what to publish is calculated as follows:
-
- * If we have at least N `Good` IPTs: `Certain`.
-   (We publish the "best" N IPTs for some definition of "best".
-   TODO: should we use the fault count?  recency?)
-
- * Unless we have at least one `Good` IPT: `Unknown`.
-
- * Otherwise: if there are IPTs in `Establishing`,
-   and they have been in `Establishing` only a short time [1]:
-   `Unknown`; otherwise `Uncertain`.
-
-The effect is that we delay publishing an initial descriptor
-by at most 1x the fastest IPT setup time,
-at most doubling the initial setup time.
-
-Each update to the IPT set that isn't `Unknown` comes with a
-proposed descriptor expiry time,
-which is used if the descriptor is to be actually published.
-The proposed descriptor lifetime for `Uncertain`
-is the minimum (30 minutes).
-Otherwise, we double the lifetime each time,
-unless any IPT in the previous descriptor was declared `Faulty`,
-in which case we reset it back to the minimum.
-TODO: Perhaps we should just pick fixed short and long lifetimes instead,
-to limit distinguishability.
-
-(Rationale: if IPTs are regularly misbehaving,
-we should be cautious and limit our exposure to the damage.)
-
-[1] NOTE: We wait a "short time" between establishing our first IPT,
-and publishing an incomplete (<N) descriptor -
-this is a compromise between
-availability (publishing as soon as we have any working IPT)
-and
-exposure and hsdir load
-(which would suggest publishing only when our IPT set is stable).
-One possible strategy is to wait as long again
-as the time it took to establish our first IPT.
-Another is to somehow use our circuit timing estimator.
 
 ## Descriptor publication
 
