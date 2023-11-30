@@ -44,6 +44,8 @@
 // stable
 
 pub mod config;
+#[cfg(any(test, feature = "testing"))]
+pub mod test_utils;
 mod err;
 mod key_specifier;
 
