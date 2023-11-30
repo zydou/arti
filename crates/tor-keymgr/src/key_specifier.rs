@@ -540,7 +540,7 @@ define_derive_adhoc! {
                 $(
                     ${when F_IS_PATH}
                     $fname
-                        .map(|s| s.to_string())
+                        .map(|s| $crate::KeySpecifierComponent::as_component(s).to_string())
                         .unwrap_or_else(|| "*".to_string()) ,
                 )
                 stringify!(${tmeta(role)}).to_string()
@@ -668,6 +668,19 @@ mod test {
             Self: Sized,
         {
             Ok(s.into())
+        }
+    }
+
+    impl KeySpecifierComponent for String {
+        fn as_component(&self) -> ArtiPathComponent {
+            ArtiPathComponent::new(self.clone()).unwrap()
+        }
+
+        fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
+        where
+            Self: Sized,
+        {
+            Ok(c.to_string())
         }
     }
 
