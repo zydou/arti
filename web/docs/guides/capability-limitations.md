@@ -1,5 +1,5 @@
 ---
-title: Arti's current capabilities and limitations
+title: Capability and Limitations
 ---
 
 # Arti's current capabilities and limitations
