@@ -54,7 +54,7 @@ use crate::{
 /// current time.
 //
 // TODO HSS: this value is probably not right.
-const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
+const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 
 /// The maximum number of concurrent upload tasks per time period.
 //
