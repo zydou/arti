@@ -2,21 +2,29 @@
 title: CLI Reference
 ---
 
-Once you have successfully compiled Arti, you can execute various commands through the Command Line Interface (CLI) for configuration purposes. 
+Once you've obtained an [arti binary](/guides/compiling-arti), you may use the Command Line Interface (CLI) to run various commands for configuration. 
 
-To utilize the Arti CLI commands alongside specific flags, there are two main approaches available: using the `cargo` package manager or running the compiled binary directly.
+Once you obtain an arti binary, you can use it as a Command Line Interface (CLI).
 
-When using `cargo`, you can run the command:
-
-```bash
-cargo run -p arti --all-features -- <flag>
-```
-
-Alternatively, if you've already compiled the binary, you can directly run the Arti CLI command:
+The Arti CLI commands support a number [flags](#cli-flag-options) that can be used to configure the behavior of the command.
+If you are running Arti through `cargo`, the flags are specified using the format:
 
 ```bash
-target/debug/arti <flag>
+cargo run -p arti --all-features <subcommand> -- <flags>
 ```
+
+Alternatively, if you have already compiled the binary, you can pass the flags directly to the `arti` command using:
+
+```bash
+target/debug/arti <subcommand> <flag>
+```
+
+### CLI Subcommands
+
+| Subcommand | Description |
+| --- | --- |
+| `help` | Print help information. |
+| `proxy` | Run Arti in SOCKS proxy mode, proxying connections through the Tor network. |
 
 ### CLI flag Options
 
@@ -27,4 +35,14 @@ target/debug/arti <flag>
 | `-h`, `--help` | Print help information. |
 | `-l`, `--log-level` | Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error'). |
 | `-o <KEY=VALUE>` | Override config file parameters, using TOML-like syntax. |
-| `proxy` | Run Arti in SOCKS proxy mode, proxying connections through the Tor network. |
+
+
+### CLI Usage Examples
+
+For instance, to simply run Arti as in SOCKS proxy mode using default settings the following command is run. 
+
+```bash
+target/debug/arti proxy
+```
+
+
