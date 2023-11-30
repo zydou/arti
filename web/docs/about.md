@@ -4,7 +4,7 @@ title: About Arti
 
 # About Arti
 
-Arti is a project committed to delivering an embeddable, production-quality implementation of the [Tor](https://www.torproject.org/) anonymity protocols, crafted in the [Rust](https://www.rust-lang.org/) programming language.
+Arti is a project committed to delivering an embeddable, production-quality [Rust](https://www.rust-lang.org/) implementation of the [Tor](https://www.torproject.org/) anonymity protocols. It is a complete rewrite of the [C tor](https://gitweb.torproject.org/tor.git/) codebase, and it is currently under active development.
 
 ## Why rewrite Tor in Rust?
 
