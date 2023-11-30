@@ -196,9 +196,7 @@ coverage:
 
 minimal-versions:
   stage: test
-  # when this reaches at least rust 1.68, we should enable crates-io sparse protocol
-  # (which becomes default in 1.70), to make builds faster.
-  image: rust:1.65
+  image: rust:1.70
   script:
     - rustup install nightly
     - ./maint/downgrade_dependencies
