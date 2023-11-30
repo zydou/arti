@@ -6,15 +6,15 @@
 use futures::lock::Mutex;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
+use hickory_proto::op::{
+    header::MessageType, op_code::OpCode, response_code::ResponseCode, Message, Query,
+};
+use hickory_proto::rr::{rdata, DNSClass, Name, RData, Record, RecordType};
+use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
-use trust_dns_proto::op::{
-    header::MessageType, op_code::OpCode, response_code::ResponseCode, Message, Query,
-};
-use trust_dns_proto::rr::{rdata, DNSClass, Name, RData, Record, RecordType};
-use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
 use safelog::sensitive as sv;
@@ -219,7 +219,7 @@ where
             Ok(r) => r,
             Err(e) => {
                 // The response message probably contains the query DNS name, and the error
-                // might well do so too.  (Many variants of trust_dns_proto's ProtoErrorKind
+                // might well do so too.  (Many variants of hickory_proto's ProtoErrorKind
                 // contain domain names.)  Digging into these to be more useful is tiresome,
                 // so just mark the whole response message, and error, as sensitive.
                 error_report!(e, "Failed to serialize DNS packet: {:?}", sv(&response));
