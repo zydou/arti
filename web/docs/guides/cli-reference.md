@@ -19,14 +19,14 @@ Alternatively, if you have already compiled the binary, you can pass the flags d
 target/debug/arti <subcommand> <flag>
 ```
 
-### CLI Subcommands
+### Subcommands
 
 | Subcommand | Description |
 | --- | --- |
 | `help` | Print help information. |
 | `proxy` | Run Arti in SOCKS proxy mode, proxying connections through the Tor network. |
 
-### CLI flag Options
+### Flag Options
 
 | Flag | Description |
 | --- | --- |
@@ -37,12 +37,24 @@ target/debug/arti <subcommand> <flag>
 | `-o <KEY=VALUE>` | Override config file parameters, using TOML-like syntax. |
 
 
-### CLI Usage Examples
+### Usage Examples
 
-For instance, to simply run Arti as in SOCKS proxy mode using default settings the following command is run. 
+For example, the following command is used to launch Arti in SOCKS proxy mode with the default settings. 
 
 ```bash
 target/debug/arti proxy
 ```
 
+To override the default settings, you can use the `-o` flag to specify the parameters you want to change. For example, the following command is used to launch Arti in SOCKS proxy mode with the default settings, but with the `proxy.port` parameter set to `9050`.
 
+```bash
+target/debug/arti proxy -o proxy.socks_port=9000
+```
+
+This starts Arti in SOCKS proxy mode using default settings, listening on port 9000 instead of 9150.
+
+### Configuration File
+
+The Arti CLI uses a configuration file to specify the parameters for the Arti instance. The default configuration file is `arti-config.toml`. You can override the default configuration file using the `-c` flag.
+
+You can create your own configuration file by copying the sample file and modifying the parameters as needed. See the sample file [`arti-config-example.toml`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti/src/arti-example-config.toml) to create your own configuration file.
