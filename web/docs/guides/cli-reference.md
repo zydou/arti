@@ -4,9 +4,7 @@ title: CLI Reference
 
 Once you've obtained an [arti binary](/guides/compiling-arti), you may use the Command Line Interface (CLI) to run various commands for configuration. 
 
-Once you obtain an arti binary, you can use it as a Command Line Interface (CLI).
-
-The Arti CLI commands support a number [flags](#cli-flag-options) that can be used to configure the behavior of the command.
+The Arti CLI commands support a number [flags](#flag-options) that can be used to configure the behavior of the command.
 If you are running Arti through `cargo`, the flags are specified using the format:
 
 ```bash
@@ -36,7 +34,6 @@ target/debug/arti <subcommand> <flag>
 | `-l`, `--log-level` | Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error'). |
 | `-o <KEY=VALUE>` | Override config file parameters, using TOML-like syntax. |
 
-
 ### Usage Examples
 
 For example, the following command is used to launch Arti in SOCKS proxy mode with the default settings. 
@@ -55,6 +52,6 @@ This starts Arti in SOCKS proxy mode using default settings, listening on port 9
 
 ### Configuration File
 
-The Arti CLI uses a configuration file to specify the parameters for the Arti instance. The default configuration file is `arti-config.toml`. You can override the default configuration file using the `-c` flag.
+The Arti CLI uses a configuration file to specify the parameters for the Arti instance. The default configuration file is `arti.toml`. You can override the default configuration file using the `-c` flag.
 
 You can create your own configuration file by copying the sample file and modifying the parameters as needed. See the sample file [`arti-config-example.toml`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti/src/arti-example-config.toml) to create your own configuration file.
