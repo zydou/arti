@@ -1506,6 +1506,7 @@ mod test {
     use crate::config::OnionServiceConfigBuilder;
     use crate::svc::ipt_establish::GoodIptDetails;
     use crate::svc::test::{create_keymgr, create_storage_handles};
+    use crate::test_temp_dir::TestTempDir;
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
     use std::sync::Mutex;
@@ -1576,11 +1577,18 @@ mod test {
         }
     }
 
-    #[test]
-    #[traced_test]
-    fn test_mgr_shutdown() {
-        MockRuntime::test_with_various(|runtime| async move {
-            let temp_dir = test_temp_dir!();
+    struct MockedIptManager<'d> {
+        estabs: MockEstabs,
+        pub_view: ipt_set::IptsPublisherView,
+        shut_tx: oneshot::Sender<Void>,
+        #[allow(dead_code)]
+        cfg_tx: watch::Sender<Arc<OnionServiceConfig>>,
+        #[allow(dead_code)] // ensures temp dir lifetime; paths stored in self
+        temp_dir: &'d TestTempDir,
+    }
+
+    impl<'d> MockedIptManager<'d> {
+        fn startup(runtime: MockRuntime, temp_dir: &'d TestTempDir) -> Self {
             let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
                 .unwrap_if_sufficient()
                 .unwrap()
@@ -1593,7 +1601,8 @@ mod test {
                 .build()
                 .unwrap();
 
-            let (_cfg_tx, cfg_rx) = watch::channel_with(Arc::new(cfg));
+            let (cfg_tx, cfg_rx) = watch::channel_with(Arc::new(cfg));
+
             let (rend_tx, _rend_rx) = mpsc::channel(10);
             let (shut_tx, shut_rx) = oneshot::channel::<Void>();
 
@@ -1608,8 +1617,8 @@ mod test {
 
             let (mgr_view, pub_view) = ipt_set::ipts_channel(iptpub_state_handle).unwrap();
 
-            let keymgr = create_keymgr(&temp_dir);
-            let keymgr = keymgr.into_untracked(); // XXXX we'll rework this
+            let keymgr = create_keymgr(temp_dir);
+            let keymgr = keymgr.into_untracked(); // OK because our return value captures 'd
             let mgr = IptManager::new(
                 runtime.clone(),
                 Arc::new(dir),
@@ -1624,17 +1633,35 @@ mod test {
             .unwrap();
 
             mgr.launch_background_tasks(mgr_view).unwrap();
+
+            MockedIptManager {
+                estabs,
+                pub_view,
+                shut_tx,
+                cfg_tx,
+                temp_dir,
+            }
+        }
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_mgr_lifecycle() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let temp_dir = test_temp_dir!();
+
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
             runtime.progress_until_stalled().await;
 
             // We expect it to try to establish 3 IPTs
             const EXPECT_N_IPTS: usize = 3;
-            assert_eq!(estabs.lock().unwrap().len(), EXPECT_N_IPTS);
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert_eq!(m.estabs.lock().unwrap().len(), EXPECT_N_IPTS);
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
 
             // Advancing time a bit and it still shouldn't publish anything
             runtime.advance_by(ms(500)).await;
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
 
             let good = GoodIptDetails {
                 link_specifiers: vec![],
@@ -1642,7 +1669,7 @@ mod test {
             };
 
             // Imagine that one of our IPTs becomes good
-            estabs
+            m.estabs
                 .lock()
                 .unwrap()
                 .values_mut()
@@ -1655,11 +1682,11 @@ mod test {
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(499)).await;
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(1)).await;
-            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
+            match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), 1);
                     assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
@@ -1667,11 +1694,11 @@ mod test {
             };
 
             // Set the other IPTs to be Good too
-            for e in estabs.lock().unwrap().values_mut().skip(1) {
+            for e in m.estabs.lock().unwrap().values_mut().skip(1) {
                 e.st_tx.borrow_mut().status = IptStatusStatus::Good(good.clone());
             }
             runtime.progress_until_stalled().await;
-            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
+            match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
                     assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));
@@ -1679,7 +1706,7 @@ mod test {
             };
 
             // Shut down
-            drop(shut_tx);
+            drop(m.shut_tx);
             runtime.progress_until_stalled().await;
 
             assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
