@@ -10,7 +10,7 @@ use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
 use crate::HsNickname;
 use crate::IptLocalId;
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_id")]
@@ -21,7 +21,7 @@ pub struct HsIdPublicKeySpecifier {
     nickname: HsNickname,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_id")]
@@ -32,7 +32,7 @@ pub struct HsIdKeypairSpecifier {
     pub(crate) nickname: HsNickname,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_blind_id")]
@@ -46,7 +46,7 @@ pub struct BlindIdKeypairSpecifier {
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_blind_id")]
@@ -60,7 +60,7 @@ pub struct BlindIdPublicKeySpecifier {
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_desc_sign")]
