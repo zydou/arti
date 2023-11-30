@@ -5,7 +5,7 @@
 //! TODO HSS: move docs from `hssvc-ipt-algorithm.md`
 //!
 //! See the docs for
-//! [`IptManager::idempotently_progress_things_now`](crate::IptManager::idempotently_progress_things_now)
+//! [`IptManager::idempotently_progress_things_now`](crate::ipt_mgr::IptManager::idempotently_progress_things_now)
 //! for details of our algorithm.
 
 use std::sync::{Arc, Mutex};
