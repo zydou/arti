@@ -679,7 +679,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
     fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().expect("poisoned lock");
-        inner.last_uploaded = Some(self.imm.runtime.now());
 
         // Check which time period these uploads pertain to.
         let period = inner
@@ -959,8 +958,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
         let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
-        if let Some(last_uploaded) = last_uploaded {
-            let duration_since_upload = last_uploaded.duration_since(now);
+        if let Some(ts) = last_uploaded {
+            let duration_since_upload = now.duration_since(ts);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 trace!("we are rate-limited; deferring descriptor upload");
@@ -970,6 +969,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
+
+        let _ = inner.last_uploaded.insert(now);
 
         for period_ctx in inner.time_periods.iter_mut() {
             let upload_task_complete_tx = self.upload_task_complete_tx.clone();
