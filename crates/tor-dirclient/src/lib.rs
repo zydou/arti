@@ -243,6 +243,7 @@ where
     if header.status != Some(200) {
         return Ok(DirResponse::new(
             header.status.unwrap_or(0),
+            header.status_message,
             None,
             vec![],
             source,
@@ -266,7 +267,7 @@ where
         (_, Ok(()), _) => Ok(()),
     };
 
-    Ok(DirResponse::new(200, ok.err(), result, source))
+    Ok(DirResponse::new(200, None, ok.err(), result, source))
 }
 
 /// Read and parse HTTP/1 headers from `stream`.
@@ -304,6 +305,7 @@ where
                 if response.code != Some(200) {
                     return Ok(HeaderStatus {
                         status: response.code,
+                        status_message: response.reason.map(str::to_owned),
                         encoding: None,
                     });
                 }
@@ -325,6 +327,7 @@ where
                 assert!(n_parsed == buf.len());
                 return Ok(HeaderStatus {
                     status: Some(200),
+                    status_message: None,
                     encoding,
                 });
             }
@@ -340,6 +343,8 @@ where
 struct HeaderStatus {
     /// HTTP status code.
     status: Option<u16>,
+    /// HTTP status message associated with the status code.
+    status_message: Option<String>,
     /// The Content-Encoding header, if any.
     encoding: Option<String>,
 }

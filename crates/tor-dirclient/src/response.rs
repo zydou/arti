@@ -14,6 +14,8 @@ use crate::{RequestError, RequestFailedError};
 pub struct DirResponse {
     /// An HTTP status code.
     status: u16,
+    /// The message associated with the status code.
+    status_message: Option<String>,
     /// The decompressed output that we got from the directory cache.
     output: Vec<u8>,
     /// The error, if any, that caused us to stop getting this response early.
@@ -39,12 +41,14 @@ impl DirResponse {
     /// Construct a new DirResponse from its parts
     pub(crate) fn new(
         status: u16,
+        status_message: Option<String>,
         error: Option<RequestError>,
         output: Vec<u8>,
         source: Option<SourceInfo>,
     ) -> Self {
         DirResponse {
             status,
+            status_message,
             output,
             error,
             source,
@@ -53,7 +57,7 @@ impl DirResponse {
 
     /// Construct a new successful DirResponse from its body.
     pub fn from_body(body: impl AsRef<[u8]>) -> Self {
-        Self::new(200, None, body.as_ref().to_vec(), None)
+        Self::new(200, None, None, body.as_ref().to_vec(), None)
     }
 
     /// Return the HTTP status code for this response.
@@ -141,7 +145,11 @@ impl DirResponse {
         }
         assert!(!self.is_partial(), "partial but no error?");
         if self.status_code() != 200 {
-            return wrap_err(RequestError::HttpStatus(self.status_code()));
+            let msg = match &self.status_message {
+                Some(m) => m.clone(),
+                None => "".to_owned(),
+            };
+            return wrap_err(RequestError::HttpStatus(self.status_code(), msg));
         }
         Ok(())
     }
@@ -186,7 +194,7 @@ mod test {
 
     #[test]
     fn errors() {
-        let mut response = DirResponse::new(200, None, vec![b'Y'], None);
+        let mut response = DirResponse::new(200, None, None, vec![b'Y'], None);
 
         assert_eq!(response.output().unwrap(), b"Y");
         assert_eq!(response.clone().into_output().unwrap(), b"Y");
@@ -214,7 +222,8 @@ mod test {
         with_error(&response);
 
         response.status = 404;
-        expect_error(&response, RequestError::HttpStatus(404));
+        response.status_message = Some("Not found".into());
+        expect_error(&response, RequestError::HttpStatus(404, "Not found".into()));
 
         with_error(&response);
     }

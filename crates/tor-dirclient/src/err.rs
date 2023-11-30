@@ -112,8 +112,8 @@ pub enum RequestError {
     EmptyRequest,
 
     /// HTTP status code indicates a not completely successful request
-    #[error("HTTP status code {0}")]
-    HttpStatus(u16),
+    #[error("HTTP status code {0}: {1:?}")]
+    HttpStatus(u16, String),
 }
 
 impl From<TimeoutError> for RequestError {
@@ -192,7 +192,7 @@ impl HasKind for RequestError {
             E::ContentEncoding(_) => EK::TorProtocolViolation,
             E::TooMuchClockSkew => EK::TorDirectoryError,
             E::EmptyRequest => EK::Internal,
-            E::HttpStatus(_) => EK::TorDirectoryError,
+            E::HttpStatus(_, _) => EK::TorDirectoryError,
         }
     }
 }
