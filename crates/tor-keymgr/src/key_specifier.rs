@@ -732,6 +732,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    use crate::assert_key_specifier_rountrip;
     use derive_adhoc::Adhoc;
 
     macro_rules! assert_err {
@@ -951,20 +952,19 @@ mod test {
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
-        #[derive(Adhoc)]
+        #[derive(Adhoc, Debug, PartialEq)]
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
         #[adhoc(summary = "A key specifier with some fields and one denotator.")]
         struct TestSpecifier {
-            #[adhoc(denotator)]
-            /// The denotator.
-            count: usize,
-
             // The remaining fields
             kind: String,
             base: String,
             casing: String,
+            #[adhoc(denotator)]
+            /// The denotator.
+            count: usize,
         }
 
         let key_spec = TestSpecifier {
@@ -983,12 +983,14 @@ mod test {
             key_spec.prefix(),
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane"
         );
+
+        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_no_fields() {
-        #[derive(Adhoc)]
+        #[derive(Adhoc, Debug, PartialEq)]
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
@@ -1008,12 +1010,14 @@ mod test {
         );
 
         assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
+
+        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_denotator() {
-        #[derive(Adhoc)]
+        #[derive(Adhoc, Debug, PartialEq)]
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
@@ -1036,12 +1040,14 @@ mod test {
         );
 
         assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
+
+        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields() {
-        #[derive(Adhoc)]
+        #[derive(Adhoc, Debug, PartialEq)]
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
@@ -1068,12 +1074,14 @@ mod test {
         );
 
         assert_eq!(key_spec.prefix(), "encabulator/logarithmic/spurving/fan");
+
+        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_multiple_denotators() {
-        #[derive(Adhoc)]
+        #[derive(Adhoc, Debug, PartialEq)]
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
@@ -1110,6 +1118,8 @@ mod test {
             TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
+
+        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[test]
