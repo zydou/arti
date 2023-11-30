@@ -1,6 +1,6 @@
 //! An error type for the `tor-keymgr` crate.
 
-use tor_error::{ErrorKind, HasKind};
+use tor_error::HasKind;
 
 use dyn_clone::DynClone;
 
@@ -79,14 +79,6 @@ pub enum KeystoreCorruptionError {
     /// A keystore contains a key that has an invalid [`ArtiPath`](crate::ArtiPath).
     #[error("{0}")]
     ArtiPath(#[from] ArtiPathError),
-}
-
-impl KeystoreError for KeystoreCorruptionError {}
-
-impl HasKind for KeystoreCorruptionError {
-    fn kind(&self) -> ErrorKind {
-        ErrorKind::KeystoreCorrupted
-    }
 }
 
 #[cfg(test)]
