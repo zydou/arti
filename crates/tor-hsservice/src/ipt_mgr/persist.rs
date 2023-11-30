@@ -12,8 +12,7 @@ pub(crate) type IptStorageHandle = dyn tor_persist::StorageHandle<StateRecord> +
 //---------- On disk data structures, done with serde ----------
 
 /// Record of intro point establisher state, as stored on disk
-#[derive(Serialize, Deserialize)]
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct StateRecord {
     /// Relays
     ipt_relays: Vec<RelayRecord>,
@@ -22,8 +21,7 @@ pub(crate) struct StateRecord {
 }
 
 /// Record of a selected intro point relay, as stored on disk
-#[derive(Serialize, Deserialize)]
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct RelayRecord {
     /// Which relay?
     relay: RelayIds,
@@ -34,8 +32,7 @@ struct RelayRecord {
 }
 
 /// Record of a single intro point, as stored on disk
-#[derive(Serialize, Deserialize)]
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct IptRecord {
     /// Used to find the cryptographic keys, amongst other things
     lid: IptLocalId,
