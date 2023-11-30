@@ -1823,6 +1823,8 @@ mod test {
                 .borrow_mut()
                 .status = IptStatusStatus::Good(good.clone());
 
+            // TODO HSS test that we havne't called  start_accepting
+
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms
             runtime.progress_until_stalled().await;
@@ -1837,6 +1839,8 @@ mod test {
                 }
             };
 
+            // TODO HSS test that we have called start_accepting on the right IPTs
+
             // Set the other IPTs to be Good too
             for e in m.estabs.lock().unwrap().values_mut().skip(1) {
                 e.st_tx.borrow_mut().status = IptStatusStatus::Good(good.clone());
@@ -1848,6 +1852,8 @@ mod test {
                     assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));
                 }
             };
+
+            // TODO HSS test that we have called start_accepting on the right IPTs
 
             let estabs_inventory = m.estabs_inventory();
 
@@ -1861,6 +1867,8 @@ mod test {
             runtime.progress_until_stalled().await;
 
             assert_eq!(estabs_inventory, m.estabs_inventory());
+
+            // TODO HSS test that we have called start_accepting on all the old IPTs
 
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
