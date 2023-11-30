@@ -27,7 +27,12 @@ const sidebars = {
     {
       type: 'category',
       label: 'Guides',
-      items: ['guides/guides','guides/compiling-arti', 'guides/safer-build-options', 'guides/starting-arti', 'guides/configuring-arti', 'guides/connecting-to-onion', 'guides/censorship-circumvention', 'guides/bridges', 'guides/troubleshooting','guides/compatibility', 'guides/feature-update', 'guides/cli-reference', 'guides/config-manual']
+      items: ['guides/guides','guides/compiling-arti', 'guides/safer-build-options', 'guides/starting-arti', 'guides/configuring-arti', 'guides/connecting-to-onion', 'guides/troubleshooting', 'guides/compatibility', 'guides/feature-update', 'guides/cli-reference', 'guides/config-manual']
+    },
+    {
+      type: 'category',
+      label: 'Censorship',
+      items: ['censorship/bridges', 'censorship/pluggable-transports']
     },
     {
       type: 'category',
@@ -49,7 +54,7 @@ const sidebars = {
         {
           type: 'category',
           label: 'For Developers',
-          items: ['contributing/for-developers/project-status', 'contributing/for-developers/architecture', 'contributing/for-developers/config-options', 'contributing/for-developers/exposing-api', 'contributing/for-developers/testing', 'contributing/for-developers/logging']
+          items: ['contributing/for-developers/project-status', 'contributing/for-developers/architecture', 'contributing/for-developers/config-options','contributing/for-developers/crates', 'contributing/for-developers/exposing-api', 'contributing/for-developers/testing', 'contributing/for-developers/logging']
         },
         {
           type: 'link',
