@@ -122,7 +122,7 @@ pub fn convert_curve25519_to_ed25519_private(
 ///
 /// It's important to note that converting a private key from ed25519 -> curve25519 -> ed25519 will
 /// yield an [`ExpandedKeypair`] that is _not_ identical to the
-/// expanded version of the original [`Keypair`]: the lower halves (the keys) of
+/// expanded version of the original [`Keypair`](ed25519_dalek::SigningKey): the lower halves (the keys) of
 /// the expanded key pairs will be the same, but their upper halves (the nonces) will be different.
 ///
 /// # Panics
