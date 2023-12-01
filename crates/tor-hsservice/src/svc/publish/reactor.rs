@@ -130,7 +130,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// This field is initialized in [`Reactor::run`].
     ///
     // TODO HSS: decide if this is the right approach for implementing rate-limiting
-    rate_lim_upload_tx: Option<watch::Sender<Option<Instant>>>,
+    reattempt_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
@@ -535,7 +535,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             config_rx,
             publish_status_rx,
             publish_status_tx,
-            rate_lim_upload_tx: None,
+            reattempt_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
         }
@@ -561,16 +561,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
 
         // There will be at most one pending upload.
-        let (rate_lim_upload_tx, mut rate_lim_upload_rx) = watch::channel();
+        let (reattempt_upload_tx, mut reattempt_upload_rx) = watch::channel();
         let (mut schedule_upload_tx, mut schedule_upload_rx) = watch::channel();
 
-        self.rate_lim_upload_tx = Some(rate_lim_upload_tx);
+        self.reattempt_upload_tx = Some(reattempt_upload_tx);
 
         let rt = self.imm.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
-            while let Some(scheduled_time) = rate_lim_upload_rx.next().await {
+            while let Some(scheduled_time) = reattempt_upload_rx.next().await {
                 let Some(scheduled_time) = scheduled_time else {
                     // `None` is the initially observed, default value of this postage::watch
                     // channel, and it means there are no pending uploads to reschedule.
@@ -1072,7 +1072,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Tell the "upload reminder" task to remind us to retry an upload that was rate-limited.
     async fn schedule_pending_upload(&mut self) -> Result<(), ReactorError> {
         if let Err(e) = self
-            .rate_lim_upload_tx
+            .reattempt_upload_tx
             .as_mut()
             .ok_or(internal!(
                 "channel not initialized (schedule_pending_upload called before run?!)"
