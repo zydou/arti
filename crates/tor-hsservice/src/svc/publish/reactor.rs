@@ -247,9 +247,6 @@ struct Inner {
     /// Note: This is only used for deciding when to reschedule a rate-limited upload. It is _not_
     /// used for retrying failed uploads (these are handled internally by
     /// [`Reactor::upload_descriptor_with_retries`]).
-    //
-    // TODO HSS: maybe we should implement rate-limiting on a per-hsdir basis? It's probably not
-    // necessary though.
     last_uploaded: Option<Instant>,
 }
 
