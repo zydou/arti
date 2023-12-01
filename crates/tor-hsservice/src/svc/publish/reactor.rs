@@ -729,6 +729,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Maybe update our list of HsDirs.
     async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
+        trace!("the consensus has changed; recomputing HSDirs");
+
         let _old: Option<Arc<NetDir>> = self.replace_netdir(netdir);
 
         self.recompute_hs_dirs()?;
@@ -857,17 +859,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
     ) -> Result<(), ReactorError> {
+        trace!("received IPT change notification from IPT manager");
         match update {
             Some(Ok(())) => {
                 let should_upload = self.note_ipt_change();
-                trace!("the introduction points have changed");
+                debug!("the introduction points have changed");
 
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
             Some(Err(_)) => Err(ReactorError::ShuttingDown),
             None => {
-                trace!("no IPTs available, ceasing uploads");
+                debug!("no IPTs available, ceasing uploads");
                 self.update_publish_status(PublishStatus::AwaitingIpts)
                     .await
             }
