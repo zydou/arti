@@ -22,7 +22,7 @@ cargo run -p arti -- -o address_filter.allow_onion_addrs=true proxy
 
 ### By editing your config file
 
-In your configuration file, locate the section `[address_filter]`, and set the `allow_onion_addrs` parameter value to true using `allow_onion_addrs = true`.
+In your configuration file, locate the section `[address_filter]`, and set the `allow_onion_addrs` parameter value to `true` using `allow_onion_addrs = true`.
 
 To test that you’ve configured it correctly, you can attempt to make a connection to a `.onion` service by running the command:
 
