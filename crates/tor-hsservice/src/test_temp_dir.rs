@@ -326,5 +326,5 @@ impl<'d, T> TestTempDirGuard<'d, T> {
 /// **`fn test_temp_dir() -> TestTempDir;`**
 #[macro_export]
 macro_rules! test_temp_dir { {} => {
-    TestTempDir::from_module_path_and_thread(module_path!())
+    $crate::test_temp_dir::TestTempDir::from_module_path_and_thread(module_path!())
 } }

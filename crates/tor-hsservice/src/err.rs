@@ -1,11 +1,13 @@
 //! Declare an error type for the `tor-hsservice` crate.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::task::SpawnError;
 
 use thiserror::Error;
 
+use tor_error::error_report;
 use tor_error::{Bug, ErrorKind, HasKind};
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
@@ -34,6 +36,20 @@ pub enum StartupError {
     #[error("The keystore is unrecoverably corrupt")]
     KeystoreCorrupted,
 
+    /// Trouble reading on-disk state
+    #[error("reading on-disk state")]
+    // Not #[from] as that might allow call sites that were *storing* during startup
+    // to accidentally use this variant.  (Such call sites probably shouldn't exist.)
+    LoadState(#[source] tor_persist::Error),
+
+    /// Failed to lock the on-disk state
+    #[error("HS service state locked (concurrent HS service processes are not supported")]
+    StateLocked,
+
+    /// Fatal error (during startup)
+    #[error("fatal error")]
+    Fatal(#[from] FatalError),
+
     /// Unable to spawn task
     //
     // TODO too many types have an open-coded version of FooError::Spawn
@@ -44,6 +60,8 @@ pub enum StartupError {
     //    including our own mock spawner)
     //  * Change every crate's task spawning and error handling to use the new things
     //    (breaking changes to the error type, unless we retain unused compat error variants)
+    //
+    // TODO HSS replace this with a conversion to StartupError::Fatal(FatalError::Spawn ) ?
     #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn
@@ -67,7 +85,17 @@ impl HasKind for StartupError {
             E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
+            // TODO HSS AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
+            E::StateLocked => EK::Other,
+            E::LoadState(e) => e.kind(),
+            E::Fatal(e) => e.kind(),
         }
+    }
+}
+
+impl From<Bug> for StartupError {
+    fn from(bug: Bug) -> StartupError {
+        FatalError::from(bug).into()
     }
 }
 
@@ -105,6 +133,53 @@ impl HasKind for ClientError {
     }
 }
 
+/// Latest time to retry a failed IPT store (eg, disk full)
+// TODO HSS configure?
+const IPT_STORE_RETRY_MAX: Duration = Duration::from_secs(60);
+
+/// An error arising when trying to store introduction points
+///
+/// These don't escape the crate, except to be logged.
+///
+/// These errors might be fatal, or they might be something we should retry.
+#[derive(Clone, Debug, Error)]
+pub(crate) enum IptStoreError {
+    /// Unable to store introduction points
+    #[error("Unable to store introduction points")]
+    Store(#[from] tor_persist::Error),
+
+    /// Fatal error
+    #[error("Fatal error")]
+    Fatal(#[from] FatalError),
+}
+
+impl From<Bug> for IptStoreError {
+    fn from(bug: Bug) -> IptStoreError {
+        FatalError::from(bug).into()
+    }
+}
+
+impl IptStoreError {
+    /// Log this error, and report latest time to retry
+    ///
+    /// It's OK to retry this earlier, if we are prompted somehow by other work;
+    /// this is the longest time we should wait, so that we poll periodically
+    /// to see if the situation has improved.
+    ///
+    /// If the operation shouldn't be retried, the problem was a fatal error,
+    /// which is simply returned.
+    // TODO HSS should this be a HasRetryTime impl instead?  But that has different semantics.
+    pub(crate) fn log_retry_max(self, nick: &HsNickname) -> Result<Duration, FatalError> {
+        use IptStoreError as ISE;
+        let wait = match self {
+            ISE::Store(_) => IPT_STORE_RETRY_MAX,
+            ISE::Fatal(e) => return Err(e),
+        };
+        error_report!(self, "HS service {}: error", nick);
+        Ok(wait)
+    }
+}
+
 /// An error which means we cannot continue to try to operate an onion service.
 ///
 /// These errors only occur during operation, and only for catastrophic reasons
@@ -133,6 +208,13 @@ pub enum FatalError {
     #[error("Hidden service identity key not found: {0}")]
     MissingHsIdKeypair(HsNickname),
 
+    /// IPT keys found for being-created IPT
+    ///
+    /// This could only happen if someone is messing with our RNG
+    /// or our code is completely wrong, or something.
+    #[error("IPT keys found for being-created IPT {0} (serious key management problems!)")]
+    IptKeysFoundUnexpectedly(tor_keymgr::ArtiPath),
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
@@ -147,6 +229,7 @@ impl HasKind for FatalError {
             FE::Spawn { cause, .. } => cause.kind(),
             FE::Keystore(e) => e.kind(),
             FE::MissingHsIdKeypair(_) => EK::Internal, // TODO HSS this is wrong
+            FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::Bug(e) => e.kind(),
         }
     }

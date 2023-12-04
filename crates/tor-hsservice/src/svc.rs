@@ -135,18 +135,27 @@ impl OnionService {
         S: tor_persist::StateMgr + Send + Sync + 'static,
     {
         let nickname = config.nickname.clone();
-        // TODO HSS: Maybe, adjust tor_persist::fs to handle subdirectories, and
-        // use onion/{nickname}?
-        let storage_key = format!("onion_svc_{nickname}");
-        // TODO HSS-IPT-PERSIST: Use this handle, and use a real struct type instead.
-        let storage_handle: Arc<dyn tor_persist::StorageHandle<()>> =
-            statemgr.create_handle(storage_key);
+
+        {
+            use tor_persist::LockStatus as LS;
+            match statemgr.try_lock().map_err(StartupError::LoadState)? {
+                LS::NoLock => return Err(StartupError::StateLocked),
+                LS::AlreadyHeld => {}
+                LS::NewlyAcquired => {}
+            }
+        }
+        // We pass the "cooked" handle, with the storage key embedded, to ipt_set,
+        // since the ipt_set code doesn't otherwise have access to the HS nickname.
+        let iptpub_storage_handle = statemgr
+            .clone()
+            .create_handle(format!("hs_iptpub_{nickname}"));
 
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
-        let (ipt_mgr_view, publisher_view) = crate::ipt_set::ipts_channel();
+        let (ipt_mgr_view, publisher_view) =
+            crate::ipt_set::ipts_channel(&runtime, iptpub_storage_handle)?;
 
         let ipt_mgr = IptManager::new(
             runtime.clone(),
@@ -155,6 +164,7 @@ impl OnionService {
             config_rx.clone(),
             rend_req_tx,
             shutdown_rx,
+            statemgr,
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
             },
@@ -377,6 +387,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
 
+    use crate::ipt_set::IptSetStorageHandle;
     use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
 
@@ -399,6 +410,25 @@ pub(crate) mod test {
                     .unwrap(),
             )
         })
+    }
+
+    pub(crate) fn create_storage_handles(
+    ) -> (tor_persist::TestingStateMgr, Arc<IptSetStorageHandle>) {
+        create_storage_handles_from_state_mgr(tor_persist::TestingStateMgr::new())
+    }
+
+    pub(crate) fn create_storage_handles_from_state_mgr<S>(
+        state_mgr: S,
+    ) -> (S, Arc<IptSetStorageHandle>)
+    where
+        S: tor_persist::StateMgr + Send + Sync + 'static,
+    {
+        match state_mgr.try_lock() {
+            Ok(tor_persist::LockStatus::NewlyAcquired) => {}
+            other => panic!("{:?}", other),
+        }
+        let iptpub_state_handle = state_mgr.clone().create_handle("hs_iptpub_dummy");
+        (state_mgr, iptpub_state_handle)
     }
 
     macro_rules! maybe_generate_hsid {

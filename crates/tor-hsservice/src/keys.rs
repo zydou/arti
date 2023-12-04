@@ -1,11 +1,14 @@
-//! [`KeySpecifier`](tor_keymgr::KeySpecifier) implementations for hidden service keys.
+//! [`KeySpecifier`] implementations for hidden service keys.
 
 use derive_adhoc::Adhoc;
 
+use tor_error::into_internal;
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::{derive_adhoc_template_KeySpecifierDefault, KeyPathPattern};
+use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
 
 use crate::HsNickname;
+use crate::IptLocalId;
 
 #[derive(Adhoc)]
 #[derive_adhoc(KeySpecifierDefault)]
@@ -66,6 +69,40 @@ pub struct DescSigningKeypairSpecifier<'a> {
     period: TimePeriod,
 }
 
+/// Denotates one of the keys, in the context of a particular HS and intro point
+#[derive(Debug, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub(crate) enum IptKeyRole {
+    /// `k_hss_ntor`
+    KHssNtor,
+    /// `k_hss_ntor`
+    KSid,
+}
+
+/// Specifies an intro point key
+#[derive(Debug)]
+pub(crate) struct IptKeySpecifier<'s> {
+    /// nick
+    pub(crate) nick: &'s HsNickname,
+    /// lid
+    pub(crate) lid: IptLocalId,
+    /// which key
+    pub(crate) role: IptKeyRole,
+}
+
+// TODO HSS soup up the `KeySpecifierDefault` macro to be able to generate this ArtiPath
+// (the ArtiPath itself is right, so this ought to change impl but not tests)
+impl KeySpecifier for IptKeySpecifier<'_> {
+    fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
+        let IptKeySpecifier { nick, lid, role } = self;
+        let s = format!("hs/{nick}/ipts/{role}+{lid}");
+        Ok(ArtiPath::new(s).map_err(into_internal!("made wrong ArtiPath"))?)
+    }
+    fn ctor_path(&self) -> Option<CTorPath> {
+        None
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -124,6 +161,26 @@ mod test {
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_desc_sign+2_1_3"
+        );
+    }
+
+    #[test]
+    fn ipt_key_specifiers() {
+        let nick = HsNickname::try_from("shallot".to_string()).unwrap();
+        let lid = IptLocalId::dummy(1);
+        let spec = |role| IptKeySpecifier {
+            nick: &nick,
+            lid,
+            role,
+        };
+        let lid_s = "0101010101010101010101010101010101010101010101010101010101010101";
+        assert_eq!(
+            spec(IptKeyRole::KHssNtor).arti_path().unwrap().as_str(),
+            format!("hs/shallot/ipts/k_hss_ntor+{lid_s}"),
+        );
+        assert_eq!(
+            spec(IptKeyRole::KSid).arti_path().unwrap().as_str(),
+            format!("hs/shallot/ipts/k_sid+{lid_s}"),
         );
     }
 }

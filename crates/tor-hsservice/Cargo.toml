@@ -59,6 +59,7 @@ retry-error = { version = "0.5.0", path = "../retry-error" }
 safelog = { path = "../safelog", version = "0.3.3" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
+strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
@@ -96,5 +97,6 @@ slotmap = "1.0.6"
 tempfile = "3"
 tor-netdir = { version = "0.10.0", path = "../tor-netdir", features = ["hs-service", "testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.10.0", features = ["testing"] }
+tor-persist = { version = "0.8.0", path = "../tor-persist", features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.11.1" }
 tracing-test = "0.2"

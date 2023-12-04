@@ -1207,8 +1207,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
                         };
 
-                        ipt_set
-                            .note_publication_attempt(worst_case_end)?;
+                        if let Err(e) = ipt_set.note_publication_attempt(
+                            &imm.runtime,
+                            worst_case_end,
+                        ) {
+                            let wait = e.log_retry_max(&imm.nickname)?;
+                            // TODO HSS retry instead of this
+                            return Err(internal!(
+                                "ought to retry after {wait:?}, crashing instead"
+                            ).into());
+                        }
                     }
 
                     let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload()).await {

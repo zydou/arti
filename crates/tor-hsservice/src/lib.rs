@@ -97,6 +97,8 @@ pub use status::OnionServiceStatus;
 pub use svc::netdir::NetdirProviderShutdown;
 pub use svc::OnionService;
 
+use err::IptStoreError;
+
 /// Persistent local identifier for an introduction point
 ///
 /// Changes when the IPT relay changes, or the IPT key material changes.

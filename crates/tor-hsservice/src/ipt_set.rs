@@ -1,7 +1,7 @@
 //! IPT set - the principal API between the IPT manager and publisher
 
 use std::collections::HashMap;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -10,12 +10,19 @@ use futures::channel::mpsc;
 use futures::StreamExt as _;
 
 use derive_more::{Deref, DerefMut};
-use itertools::chain;
+use educe::Educe;
+use itertools::{chain, Itertools as _};
+use serde::{Deserialize, Serialize};
 
-use crate::FatalError;
+use crate::time_store;
 use crate::IptLocalId;
+use crate::{IptStoreError, StartupError};
 
-use tor_error::internal;
+use tor_error::{internal, warn_report};
+use tor_rtcompat::SleepProvider;
+
+/// Handle for a suitable persistent storage manager
+pub(crate) type IptSetStorageHandle = dyn tor_persist::StorageHandle<StateRecord> + Sync + Send;
 
 /// Information shared between the IPT manager and the IPT publisher
 ///
@@ -23,7 +30,8 @@ use tor_error::internal;
 /// See
 /// [`IptManager::compute_iptsetstatus_publish`](crate::ipt_mgr::IptManager::compute_iptsetstatus_publish)
 /// for more detailed information about how this is calculated.
-#[derive(Debug)]
+#[derive(Educe)]
+#[educe(Debug)]
 pub(crate) struct PublishIptSet {
     /// Set of introduction points to be advertised in a descriptor (if we are to publish)
     ///
@@ -82,6 +90,10 @@ pub(crate) struct PublishIptSet {
     // but don't succeed in recording that we published, and then, on restart,
     // don't know that we need to (re)establish this IPT.)
     pub(crate) last_descriptor_expiry_including_slop: HashMap<IptLocalId, Instant>,
+
+    /// The on-disk state storage handle.
+    #[educe(Debug(ignore))]
+    storage: Arc<IptSetStorageHandle>,
 }
 
 /// A set of introduction points for publication
@@ -198,7 +210,7 @@ type Shared = Arc<Mutex<PublishIptSet>>;
 ///
 /// Returned by [`IptsManagerView::borrow_for_update`]
 #[derive(Deref, DerefMut)]
-struct NotifyingBorrow<'v> {
+struct NotifyingBorrow<'v, R: SleepProvider> {
     /// Lock guard
     #[deref(forward)]
     #[deref_mut(forward)]
@@ -206,17 +218,18 @@ struct NotifyingBorrow<'v> {
 
     /// To be notified on drop
     notify: &'v mut mpsc::Sender<()>,
+
+    /// For saving!
+    runtime: R,
 }
 
 /// Create a new shared state channel for the publication instructions
-pub(crate) fn ipts_channel() -> (IptsManagerView, IptsPublisherView) {
+pub(crate) fn ipts_channel(
+    runtime: &impl SleepProvider,
+    storage: Arc<IptSetStorageHandle>,
+) -> Result<(IptsManagerView, IptsPublisherView), StartupError> {
     // TODO HSS-IPT-PERSIST load this from a file instead
-    let last_descriptor_expiry_including_slop = HashMap::new();
-
-    let initial_state = PublishIptSet {
-        ipts: None,
-        last_descriptor_expiry_including_slop,
-    };
+    let initial_state = PublishIptSet::load(storage, runtime)?;
     let shared = Arc::new(Mutex::new(initial_state));
     // Zero buffer is right.  Docs for `mpsc::channel` say:
     //   each sender gets a guaranteed slot in the channel capacity,
@@ -224,13 +237,14 @@ pub(crate) fn ipts_channel() -> (IptsManagerView, IptsPublisherView) {
     // We only have one sender and only ever want one outstanding,
     // since we can (and would like to) coalesce notifications.
     let (tx, rx) = mpsc::channel(0);
-    (
+    let r = (
         IptsManagerView {
             shared: shared.clone(),
             notify: tx,
         },
         IptsPublisherView { shared, notify: rx },
-    )
+    );
+    Ok(r)
 }
 
 /// Lock the shared state and obtain a lock guard
@@ -250,22 +264,51 @@ impl IptsManagerView {
     /// The returned value is a lock guard.
     /// (It is not `Send` so cannot be held across await points.)
     /// The publisher will be notified when it is dropped.
-    pub(crate) fn borrow_for_update(&mut self) -> impl DerefMut<Target = PublishIptSet> + '_ {
+    pub(crate) fn borrow_for_update(
+        &mut self,
+        runtime: impl SleepProvider,
+    ) -> impl DerefMut<Target = PublishIptSet> + '_ {
         let guard = lock_shared(&self.shared);
         NotifyingBorrow {
             guard,
             notify: &mut self.notify,
+            runtime,
         }
+    }
+
+    /// Peek at the list of introduction points we are providing to the publisher
+    ///
+    /// (Used for testing and during startup.)
+    pub(crate) fn borrow_for_read(&mut self) -> impl Deref<Target = PublishIptSet> + '_ {
+        lock_shared(&self.shared)
     }
 }
 
-impl Drop for NotifyingBorrow<'_> {
+impl<R: SleepProvider> Drop for NotifyingBorrow<'_, R> {
     fn drop(&mut self) {
         // Channel full?  Well, then the receiver is indeed going to wake up, so fine
         // Channel disconnected?  The publisher has crashed or terminated,
         // but we are not in a position to fail and shut down the establisher.
         // If our HS is shutting down, the manager will be shut down by other means.
         let _: Result<(), mpsc::TrySendError<_>> = self.notify.try_send(());
+
+        () = self.guard.save(&self.runtime).unwrap_or_else(|err| {
+            // TODO HSS should this be a log_ratelim ?
+            warn_report!(err, "failed to possibly delete expiry times for old IPTs");
+            // That message is a true description for the following reasons:
+            //
+            // "until" times can only be extended by the *publisher*.
+            // The manager won't ever shorten them either, but if they are in the past,
+            // it might delete them if it has decided to retire the IPT.
+            // Leaving them undeleted is not ideal from a privacy pov,
+            // but it doesn't prevent us continuing to operate correctly.
+            //
+            // It is therefore OK to acting on the error here.
+            //
+            // In practice, we're likely to try to save as a result of the publisher's
+            // operation, too.  That's going to be more of a problem, but it's handled
+            // by other code paths.
+        });
 
         // Now the fields will be dropped, includeing `guard`.
         // I.e. the mutex gets unlocked.  This means we notify the publisher
@@ -338,8 +381,9 @@ impl PublishIptSet {
     /// will either complete, or be abandoned, before `worst_case_end`.
     pub(crate) fn note_publication_attempt(
         &mut self,
+        runtime: &impl SleepProvider,
         worst_case_end: Instant,
-    ) -> Result<(), FatalError> {
+    ) -> Result<(), IptStoreError> {
         let ipts = self
             .ipts
             .as_ref()
@@ -388,9 +432,92 @@ impl PublishIptSet {
             };
         }
 
-        // TODO HSS-IPT-PERSIST store last_descriptor_expiry_including_slop
+        self.save(runtime)?;
 
         Ok(())
+    }
+}
+
+//---------- On disk data structures, done with serde ----------
+
+/// Record of intro point publications
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct StateRecord {
+    /// Ipts
+    ipts: Vec<IptRecord>,
+    /// Reference time
+    stored: time_store::Reference,
+}
+
+/// Record of publication of one intro point
+#[derive(Serialize, Deserialize, Debug, Ord, PartialOrd, Eq, PartialEq)]
+struct IptRecord {
+    /// Which ipt?
+    lid: IptLocalId,
+    /// Maintain until, `last_descriptor_expiry_including_slop`
+    // We use a shorter variable name so the on disk files aren't silly
+    until: time_store::FutureTimestamp,
+}
+
+impl PublishIptSet {
+    /// Save the publication times to the persistent state
+    fn save(&self, runtime: &impl SleepProvider) -> Result<(), IptStoreError> {
+        // Throughout, we use exhaustive struct patterns on the in-memory data,
+        // so we avoid missing any of the data.
+        let PublishIptSet {
+            ipts,
+            last_descriptor_expiry_including_slop,
+            storage,
+        } = self;
+
+        let tstoring = time_store::Storing::start(runtime);
+
+        // we don't save the instructions to the publisher; on reload that becomes None
+        let _: &Option<IptSet> = ipts;
+
+        let mut ipts = last_descriptor_expiry_including_slop
+            .iter()
+            .map(|(&lid, &until)| {
+                let until = tstoring.store_future(until);
+                IptRecord { lid, until }
+            })
+            .collect_vec();
+        ipts.sort(); // normalise
+
+        let on_disk = StateRecord {
+            ipts,
+            stored: tstoring.store_ref(),
+        };
+
+        Ok(storage.store(&on_disk)?)
+    }
+
+    /// Load the publication times from the persistent state
+    fn load(
+        storage: Arc<IptSetStorageHandle>,
+        runtime: &impl SleepProvider,
+    ) -> Result<PublishIptSet, StartupError> {
+        let on_disk = storage.load().map_err(StartupError::LoadState)?;
+        let last_descriptor_expiry_including_slop = on_disk
+            .map(|record| {
+                // Throughout, we use exhaustive struct patterns on the data we got from disk,
+                // so we avoid missing any of the data.
+                let StateRecord { ipts, stored } = record;
+                let tloading = time_store::Loading::start(runtime, stored);
+                ipts.into_iter()
+                    .map(|ipt| {
+                        let IptRecord { lid, until } = ipt;
+                        let until = tloading.load_future(until);
+                        (lid, until)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(PublishIptSet {
+            ipts: None,
+            last_descriptor_expiry_including_slop,
+            storage,
+        })
     }
 }
 
@@ -409,9 +536,11 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::svc::test::create_storage_handles;
+    use crate::FatalError;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
-    use tor_rtcompat::{BlockOn as _, SleepProvider as _};
+    use tor_rtcompat::BlockOn as _;
 
     fn test_intro_point() -> Ipt {
         use tor_netdoc::doc::hsdesc::test_data;
@@ -434,14 +563,18 @@ mod test {
         assert!(matches!(pv_poll_await_update(pv).await, Pending));
     }
 
-    fn pv_note_publication_attempt(pv: &IptsPublisherView, worst_case_end: Instant) {
+    fn pv_note_publication_attempt(
+        runtime: &impl SleepProvider,
+        pv: &IptsPublisherView,
+        worst_case_end: Instant,
+    ) {
         pv.borrow_for_publish()
-            .note_publication_attempt(worst_case_end)
+            .note_publication_attempt(runtime, worst_case_end)
             .unwrap();
     }
 
     fn mv_get_0_expiry(mv: &mut IptsManagerView) -> Instant {
-        let g = mv.borrow_for_update();
+        let g = mv.borrow_for_read();
         let lid = g.ipts.as_ref().unwrap().ipts[0].lid;
         *g.last_descriptor_expiry_including_slop.get(&lid).unwrap()
     }
@@ -454,7 +587,8 @@ mod test {
         runtime.clone().block_on(async move {
             // make a channel; it should have no updates yet
 
-            let (mut mv, mut pv) = ipts_channel();
+            let (_state_mgr, iptpub_state_handle) = create_storage_handles();
+            let (mut mv, mut pv) = ipts_channel(&runtime, iptpub_state_handle).unwrap();
             assert!(matches!(pv_poll_await_update(&mut pv).await, Pending));
 
             // borrowing publisher view for publish doesn't cause an update
@@ -470,7 +604,7 @@ mod test {
 
             // borrowing manager view for update *does* cause one update
 
-            let mut mg = mv.borrow_for_update();
+            let mut mg = mv.borrow_for_update(runtime.clone());
             mg.ipts = Some(IptSet {
                 ipts: vec![],
                 lifetime: Duration::ZERO,
@@ -484,8 +618,12 @@ mod test {
             const LIFETIME: Duration = Duration::from_secs(1800);
             const PUBLISH_END_TIMEOUT: Duration = Duration::from_secs(300);
 
-            mv.borrow_for_update().ipts.as_mut().unwrap().lifetime = LIFETIME;
-            mv.borrow_for_update()
+            mv.borrow_for_update(runtime.clone())
+                .ipts
+                .as_mut()
+                .unwrap()
+                .lifetime = LIFETIME;
+            mv.borrow_for_update(runtime.clone())
                 .ipts
                 .as_mut()
                 .unwrap()
@@ -499,7 +637,7 @@ mod test {
 
             // test setting lifetime
 
-            pv_note_publication_attempt(&pv, runtime.now() + PUBLISH_END_TIMEOUT);
+            pv_note_publication_attempt(&runtime, &pv, runtime.now() + PUBLISH_END_TIMEOUT);
 
             let expected_expiry =
                 runtime.now() + PUBLISH_END_TIMEOUT + LIFETIME + IPT_PUBLISH_EXPIRY_SLOP;
@@ -507,7 +645,7 @@ mod test {
 
             // setting an *earlier* lifetime is ignored
 
-            pv_note_publication_attempt(&pv, runtime.now() - Duration::from_secs(10));
+            pv_note_publication_attempt(&runtime, &pv, runtime.now() - Duration::from_secs(10));
             assert_eq!(mv_get_0_expiry(&mut mv), expected_expiry);
         });
     }

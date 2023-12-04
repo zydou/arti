@@ -20,11 +20,12 @@ use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
+use itertools::Itertools as _;
 use postage::watch;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tor_keymgr::KeyMgr;
+use tor_keymgr::{KeyMgr, KeySpecifier as _};
 use tracing::{debug, error, info, trace, warn};
 use void::{ResultVoidErrExt as _, Void};
 
@@ -40,15 +41,18 @@ use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
+use crate::keys::{IptKeyRole, IptKeySpecifier};
 use crate::svc::ipt_establish;
-use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow};
-use crate::{FatalError, HsNickname, IptLocalId, OnionServiceConfig, RendRequest, StartupError};
+use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
+use crate::{FatalError, IptStoreError, StartupError};
+use crate::{HsNickname, IptLocalId, OnionServiceConfig, RendRequest};
 use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
 
 use IptStatusStatus as ISS;
 use TrackedStatus as TS;
 
 mod persist;
+use persist::IptStorageHandle;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 // TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
@@ -96,6 +100,10 @@ pub(crate) struct Immutable<R> {
     /// When we make a new `IptEstablisher` we use this arrange for
     /// its status updates to arrive, appropriately tagged, via `status_recv`
     status_send: mpsc::Sender<(IptLocalId, IptStatus)>,
+
+    /// The on-disk state storage handle.
+    #[educe(Debug(ignore))]
+    storage: Arc<IptStorageHandle>,
 
     /// The key manager.
     #[educe(Debug(ignore))]
@@ -323,7 +331,7 @@ impl IptRelay {
         imm: &Immutable<R>,
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
         mockable: &mut M,
-    ) -> Result<(), FatalError> {
+    ) -> Result<(), CreateIptError> {
         let lid: IptLocalId = mockable.thread_rng().gen();
 
         let ipt = Ipt::start_establisher(
@@ -333,6 +341,7 @@ impl IptRelay {
             &self.relay,
             lid,
             Some(IsCurrent),
+            None::<IptExpectExistingKeys>,
             // None is precisely right: the descriptor hasn't been published.
             PromiseLastDescriptorExpiryNoneIsGood {},
         )?;
@@ -349,8 +358,13 @@ impl IptRelay {
 /// to set `last_descriptor_expiry_including_slop` to `None`.
 struct PromiseLastDescriptorExpiryNoneIsGood {}
 
+/// Token telling [`Ipt::start_establisher`] to expect existing keys in the keystore
+#[derive(Debug, Clone, Copy)]
+struct IptExpectExistingKeys;
+
 impl Ipt {
     /// Start a new IPT establisher, and create and return an `Ipt`
+    #[allow(clippy::too_many_arguments)] // There's only two call sites
     fn start_establisher<R: Runtime, M: Mockable<R>>(
         imm: &Immutable<R>,
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
@@ -358,14 +372,71 @@ impl Ipt {
         relay: &RelayIds,
         lid: IptLocalId,
         is_current: Option<IsCurrent>,
+        expect_existing_keys: Option<IptExpectExistingKeys>,
         _: PromiseLastDescriptorExpiryNoneIsGood,
-    ) -> Result<Ipt, FatalError> {
+    ) -> Result<Ipt, CreateIptError> {
         let mut rng = mockable.thread_rng();
 
-        // TODO HSS-IPT-PERSIST try loading keys before generating them
-        let k_hss_ntor = Arc::new(HsSvcNtorKeypair::generate(&mut rng));
-        let k_sid = ed25519::Keypair::generate(&mut rng).into();
-        let k_sid: Arc<HsIntroPtSessionIdKeypair> = Arc::new(k_sid);
+        /// Load (from disk) or generate an IPT key with role IptKeyRole::$role
+        ///
+        /// Ideally this would be a closure, but it has to be generic over the
+        /// returned key type.  So it's a macro.  (A proper function would have
+        /// many type parameters and arguments and be quite annoying.)
+        macro_rules! get_or_gen_key { { $Keypair:ty, $role:ident } => { (||{
+            let spec = IptKeySpecifier {
+                nick: &imm.nick,
+                role: IptKeyRole::$role,
+                lid,
+            };
+            // Our desired behaviour:
+            //  expect_existing_keys == None
+            //     The keys shouldn't exist.  Generate and insert.
+            //     If they do exist then things are badly messed up
+            //     (we're creating a new IPT with a fres lid).
+            //     So, then, crash.
+            //  expect_existing_keys == Some(IptExpectExistingKeys)
+            //     The key is supposed to exist.  Load them.
+            //     We ought to have stored them before storing in our on-disk records that
+            //     this IPT exists.  But this could happen due to file deletion or something.
+            //     And we could recover by creating fresh keys, although maybe some clients
+            //     would find the previous keys in old descriptors.
+            //     So if the keys are missing, make and store new ones, logging an error msg.
+            // TODO HSS See #1074: The current keymgr API doesn't make this easy
+            // Tidy this code up when the API is better.
+            let k: Option<$Keypair> = imm.keymgr.get(&spec)?;
+            let arti_path = || {
+                spec
+                    .arti_path()
+                    .map_err(|e| {
+                        CreateIptError::Fatal(
+                            into_internal!("bad ArtiPath from IPT key spec")(e).into()
+                        )
+                    })
+            };
+            match (expect_existing_keys, &k) {
+                (None, None) | (Some(_), Some(_)) => {}
+                (None, Some(_)) => {
+                    return Err(FatalError::IptKeysFoundUnexpectedly(arti_path()?).into())
+                },
+                (Some(_), None) => {
+                    error!("HS service {} missing previous key {:?}, regenerating",
+                           &imm.nick, arti_path()?);
+                }
+            }
+            let k = k.map(Ok).unwrap_or_else(|| {
+                // TODO HSS get_or_generate is strictly speaking a bit wrong here, see above
+                imm.keymgr.get_or_generate(
+                    &spec,
+                    tor_keymgr::KeystoreSelector::Default,
+                    &mut rng,
+                )
+            })?;
+            Ok::<_, CreateIptError>(Arc::new(k))
+        })() } }
+
+        let k_hss_ntor = get_or_gen_key!(HsSvcNtorKeypair, KHssNtor)?;
+        let k_sid = get_or_gen_key!(HsIntroPtSessionIdKeypair, KSid)?;
+        drop(rng);
 
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {
@@ -382,7 +453,6 @@ impl Ipt {
             k_ntor: Arc::clone(&k_hss_ntor),
             accepting_requests: ipt_establish::RequestDisposition::NotAdvertised,
         };
-        drop(rng);
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
         imm.runtime
@@ -421,8 +491,13 @@ impl Ipt {
         };
 
         debug!(
-            "HS service {}: {lid:?} establishing new IPT at relay {}",
-            &imm.nick, &relay
+            "Hs service {}: {lid:?} establishing {} IPT at relay {}",
+            &imm.nick,
+            match expect_existing_keys {
+                None => "new",
+                Some(_) => "previous",
+            },
+            &relay,
         );
 
         Ok(ipt)
@@ -460,14 +535,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         config: watch::Receiver<Arc<OnionServiceConfig>>,
         output_rend_reqs: mpsc::Sender<RendRequest>,
         shutdown: oneshot::Receiver<Void>,
+        storage: impl tor_persist::StateMgr + Send + Sync + 'static,
         mockable: M,
         keymgr: Arc<KeyMgr>,
     ) -> Result<Self, StartupError> {
-        // TODO HSS-IPT-PERSIST load persistent state
+        let irelays = vec![]; // See TODO near persist::load call, in launch_background_tasks
 
         // We don't need buffering; since this is written to by dedicated tasks which
         // are reading watches.
         let (status_send, status_recv) = mpsc::channel(0);
+
+        let storage = storage.create_handle(format!("hs_ipts_{nick}"));
 
         let imm = Immutable {
             runtime,
@@ -476,6 +554,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_send,
             output_rend_reqs,
             keymgr,
+            storage,
         };
         let current_config = config.borrow().clone();
 
@@ -485,7 +564,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_recv,
             mockable,
             shutdown,
-            irelays: vec![],
+            irelays,
             last_irelay_selection_outcome: Ok(()),
             runtime: PhantomData,
         };
@@ -496,9 +575,19 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Send the IPT manager off to run and establish intro points
     pub(crate) fn launch_background_tasks(
-        self,
-        publisher: IptsManagerView,
+        mut self,
+        mut publisher: IptsManagerView,
     ) -> Result<(), StartupError> {
+        // TODO maybe this should be done in new(), so we don't have this dummy irelays
+        // but then new() would need the IptsManagerView
+        assert!(self.state.irelays.is_empty());
+        self.state.irelays = persist::load(
+            &self.imm,
+            &self.state.new_configs,
+            &mut self.state.mockable,
+            &publisher.borrow_for_read(),
+        )?;
+
         let runtime = self.imm.runtime.clone();
         runtime
             .spawn(self.main_loop_task(publisher))
@@ -556,6 +645,20 @@ impl HasKind for ChooseIptError {
             E::Bug(e) => e.kind(),
         }
     }
+}
+
+/// An error that happened while trying to crate an IPT (at a selected relay)
+///
+/// Used only within the IPT manager.
+#[derive(Debug, Error)]
+enum CreateIptError {
+    /// Fatal error
+    #[error("fatal error")]
+    Fatal(#[from] FatalError),
+
+    /// Error accessing keystore
+    #[error("problems with keystores")]
+    Keystore(#[from] tor_keymgr::Error),
 }
 
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
@@ -785,8 +888,22 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             if !ir.should_retire(&now) && ir.current_ipt_mut().is_none() {
                 // We don't have a current IPT at this relay, but we should.
-                ir.make_new_ipt(&self.imm, &self.state.new_configs, &mut self.state.mockable)?;
-                return CONTINUE;
+                match ir.make_new_ipt(&self.imm, &self.state.new_configs, &mut self.state.mockable)
+                {
+                    Ok(()) => return CONTINUE,
+                    Err(CreateIptError::Fatal(fatal)) => return Err(fatal),
+                    Err(e @ CreateIptError::Keystore(_)) => {
+                        error_report!(e, "HS {}: failed to prepare new IPT", &self.imm.nick);
+                        // Let's not try any more of this.
+                        // We'll run the rest of our "make progress" algorithms,
+                        // presenting them with possibly-suboptimal state.  That's fine.
+                        // At some point we'll be poked to run again and then we'll retry.
+                        /// Retry no later than this:
+                        const KEYSTORE_RETRY: Duration = Duration::from_secs(60);
+                        now.update(KEYSTORE_RETRY);
+                        break;
+                    }
+                }
             }
         }
 
@@ -986,7 +1103,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         &mut self,
         now: &TrackingNow,
         publish_set: &mut PublishIptSet,
-    ) -> Result<(), FatalError> {
+    ) -> Result<(), IptStoreError> {
         //---------- tell the publisher what to announce ----------
 
         let very_recently: Option<(TrackingInstantOffsetNow, Duration)> = (|| {
@@ -1084,7 +1201,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         //---------- store persistent state ----------
 
-        // TODO HSS-IPT-PERSIST store persistent state
+        persist::store(&self.imm, &self.state)?;
 
         Ok(())
     }
@@ -1237,7 +1354,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // Block to persuade borrow checker that publish_set isn't
             // held over an await point.
 
-            let mut publish_set = publisher.borrow_for_update();
+            let mut publish_set = publisher.borrow_for_update(self.imm.runtime.clone());
 
             Self::import_new_expiry_times(&mut self.state.irelays, &publish_set);
 
@@ -1263,7 +1380,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             //    we have only Faulty IPTs and can't select another due to 2N limit ?
             // Log at info if and when we publish?  Maybe the publisher should do that?
 
-            self.compute_iptsetstatus_publish(&now, &mut publish_set)?;
+            if let Err(operr) = self.compute_iptsetstatus_publish(&now, &mut publish_set) {
+                // This is not good, is it.
+                publish_set.ipts = None;
+                let wait = operr.log_retry_max(&self.imm.nick)?;
+                now.update(wait);
+            };
+
             self.expire_old_expiry_times(&mut publish_set, &now);
 
             drop(publish_set); // release lock, and notify publisher of any changes
@@ -1488,11 +1611,13 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::svc::ipt_establish::GoodIptDetails;
+    use crate::svc::test::{create_keymgr, create_storage_handles_from_state_mgr};
+    use crate::test_temp_dir::TestTempDir;
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
+    use std::collections::BTreeMap;
     use std::sync::Mutex;
     use tor_basic_utils::test_rng::TestingRng;
-    use tor_keymgr::{KeyMgrBuilder, Keystore};
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
@@ -1516,6 +1641,7 @@ mod test {
     #[derive(Debug)]
     struct MockEstabState {
         st_tx: watch::Sender<IptStatus>,
+        params: IptParameters,
     }
 
     #[derive(Debug)]
@@ -1535,10 +1661,10 @@ mod test {
         fn make_new_ipt(
             &mut self,
             _imm: &Immutable<MockRuntime>,
-            _params: IptParameters,
+            params: IptParameters,
         ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
             let (st_tx, st_rx) = watch::channel();
-            let estab = MockEstabState { st_tx };
+            let estab = MockEstabState { st_tx, params };
             let esid = self.estabs.lock().unwrap().insert(estab);
             let estab = MockEstab {
                 esid,
@@ -1559,56 +1685,18 @@ mod test {
         }
     }
 
-    // TODO HSS: make tor-keymgr provide a mock keystore.
-    struct TestKeystore;
-
-    impl Keystore for TestKeystore {
-        fn id(&self) -> &tor_keymgr::KeystoreId {
-            todo!()
-        }
-
-        fn contains(
-            &self,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<bool> {
-            todo!()
-        }
-
-        fn get(
-            &self,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<Option<tor_keymgr::ErasedKey>> {
-            todo!()
-        }
-
-        fn insert(
-            &self,
-            _key: &dyn tor_keymgr::EncodableKey,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<()> {
-            todo!()
-        }
-
-        fn remove(
-            &self,
-            _key_spec: &dyn tor_keymgr::KeySpecifier,
-            _key_type: &tor_keymgr::KeyType,
-        ) -> tor_keymgr::Result<Option<()>> {
-            todo!()
-        }
-
-        fn list(&self) -> tor_keymgr::Result<Vec<(tor_keymgr::KeyPath, tor_keymgr::KeyType)>> {
-            todo!()
-        }
+    struct MockedIptManager<'d> {
+        estabs: MockEstabs,
+        pub_view: ipt_set::IptsPublisherView,
+        shut_tx: oneshot::Sender<Void>,
+        #[allow(dead_code)]
+        cfg_tx: watch::Sender<Arc<OnionServiceConfig>>,
+        #[allow(dead_code)] // ensures temp dir lifetime; paths stored in self
+        temp_dir: &'d TestTempDir,
     }
 
-    #[test]
-    #[traced_test]
-    fn test_mgr_shutdown() {
-        MockRuntime::test_with_various(|runtime| async move {
+    impl<'d> MockedIptManager<'d> {
+        fn startup(runtime: MockRuntime, temp_dir: &'d TestTempDir) -> Self {
             let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
                 .unwrap_if_sufficient()
                 .unwrap()
@@ -1621,7 +1709,8 @@ mod test {
                 .build()
                 .unwrap();
 
-            let (_cfg_tx, cfg_rx) = watch::channel_with(Arc::new(cfg));
+            let (cfg_tx, cfg_rx) = watch::channel_with(Arc::new(cfg));
+
             let (rend_tx, _rend_rx) = mpsc::channel(10);
             let (shut_tx, shut_rx) = oneshot::channel::<Void>();
 
@@ -1632,14 +1721,19 @@ mod test {
                 estabs: estabs.clone(),
             };
 
-            let (mgr_view, pub_view) = ipt_set::ipts_channel();
+            let state_mgr = tor_persist::FsStateMgr::from_path_and_mistrust(
+                temp_dir.subdir_untracked("storage"), // OK because our return value captures 'd
+                &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+            )
+            .unwrap();
 
-            let keymgr = Arc::new(
-                KeyMgrBuilder::default()
-                    .default_store(Box::new(TestKeystore))
-                    .build()
-                    .unwrap(),
-            );
+            let (state_mgr, iptpub_state_handle) = create_storage_handles_from_state_mgr(state_mgr);
+
+            let (mgr_view, pub_view) =
+                ipt_set::ipts_channel(&runtime, iptpub_state_handle).unwrap();
+
+            let keymgr = create_keymgr(temp_dir);
+            let keymgr = keymgr.into_untracked(); // OK because our return value captures 'd
             let mgr = IptManager::new(
                 runtime.clone(),
                 Arc::new(dir),
@@ -1647,23 +1741,71 @@ mod test {
                 cfg_rx,
                 rend_tx,
                 shut_rx,
+                state_mgr,
                 mocks,
                 keymgr,
             )
             .unwrap();
 
             mgr.launch_background_tasks(mgr_view).unwrap();
+
+            MockedIptManager {
+                estabs,
+                pub_view,
+                shut_tx,
+                cfg_tx,
+                temp_dir,
+            }
+        }
+
+        async fn shutdown_check_no_tasks(self, runtime: &MockRuntime) {
+            drop(self.shut_tx);
+            runtime.progress_until_stalled().await;
+            assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
+        }
+
+        fn estabs_inventory(&self) -> impl Eq + Debug + 'static {
+            let estabs = self.estabs.lock().unwrap();
+            let estabs = estabs
+                .values()
+                .map(|MockEstabState { params: p, .. }| {
+                    (
+                        p.lid,
+                        (
+                            p.target.clone(),
+                            // We want to check the key values, but they're very hard to get at
+                            // in a way we can compare.  Especially the private keys, for which
+                            // we can't getting a clone or copy of the private key material out of the Arc.
+                            // They're keypairs, we can use the debug rep which shows the public half.
+                            // That will have to do.
+                            format!("{:?}", p.k_sid),
+                            format!("{:?}", p.k_ntor),
+                        ),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            estabs
+        }
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_mgr_lifecycle() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let temp_dir = test_temp_dir!();
+
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
             runtime.progress_until_stalled().await;
 
             // We expect it to try to establish 3 IPTs
             const EXPECT_N_IPTS: usize = 3;
-            assert_eq!(estabs.lock().unwrap().len(), EXPECT_N_IPTS);
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert_eq!(m.estabs.lock().unwrap().len(), EXPECT_N_IPTS);
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
 
             // Advancing time a bit and it still shouldn't publish anything
             runtime.advance_by(ms(500)).await;
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
 
             let good = GoodIptDetails {
                 link_specifiers: vec![],
@@ -1671,7 +1813,7 @@ mod test {
             };
 
             // Imagine that one of our IPTs becomes good
-            estabs
+            m.estabs
                 .lock()
                 .unwrap()
                 .values_mut()
@@ -1681,37 +1823,55 @@ mod test {
                 .borrow_mut()
                 .status = IptStatusStatus::Good(good.clone());
 
+            // TODO HSS test that we havne't called  start_accepting
+
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms
             runtime.progress_until_stalled().await;
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(499)).await;
-            assert!(pub_view.borrow_for_publish().ipts.is_none());
+            assert!(m.pub_view.borrow_for_publish().ipts.is_none());
             runtime.advance_by(ms(1)).await;
-            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
+            match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), 1);
                     assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
                 }
             };
 
+            // TODO HSS test that we have called start_accepting on the right IPTs
+
             // Set the other IPTs to be Good too
-            for e in estabs.lock().unwrap().values_mut().skip(1) {
+            for e in m.estabs.lock().unwrap().values_mut().skip(1) {
                 e.st_tx.borrow_mut().status = IptStatusStatus::Good(good.clone());
             }
             runtime.progress_until_stalled().await;
-            match pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
+            match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
                     assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));
                 }
             };
 
+            // TODO HSS test that we have called start_accepting on the right IPTs
+
+            let estabs_inventory = m.estabs_inventory();
+
             // Shut down
-            drop(shut_tx);
+            m.shutdown_check_no_tasks(&runtime).await;
+
+            // ---------- restart! ----------
+            info!("*** Restarting ***");
+
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
             runtime.progress_until_stalled().await;
 
-            assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
+            assert_eq!(estabs_inventory, m.estabs_inventory());
+
+            // TODO HSS test that we have called start_accepting on all the old IPTs
+
+            // Shut down
+            m.shutdown_check_no_tasks(&runtime).await;
         });
     }
 
