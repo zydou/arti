@@ -93,15 +93,9 @@ impl<R: Runtime> KeystoreSweeper<R> {
 
                                 // TODO: any invalid/malformed keys are ignored (rather than
                                 // removed).
-                                remove_if_expired!(
-                                    BlindIdPublicKeySpecifier
-                                );
-                                remove_if_expired!(
-                                    BlindIdKeypairSpecifier
-                                );
-                                remove_if_expired!(
-                                    DescSigningKeypairSpecifier
-                                );
+                                remove_if_expired!(BlindIdPublicKeySpecifier);
+                                remove_if_expired!(BlindIdKeypairSpecifier);
+                                remove_if_expired!(DescSigningKeypairSpecifier);
                             }
 
                             Ok(())
