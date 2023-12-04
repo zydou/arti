@@ -26,10 +26,10 @@ use crate::err::ArtiPathError;
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
-/// of one or more [`KeyDenotator`]s.
+/// of one or more [`KeySpecifierComponent`]s representing the denotators of the key.
 /// They are separated from the rest of the component, and from each other,
 /// by [`DENOTATOR_SEP`] characters.
-/// Denotators are encoded using their [`KeyDenotator::encode`] implementation.
+/// Denotators are encoded using their [`KeySpecifierComponent::as_component`] implementation.
 /// The denotators **must** come after all the other fields.
 /// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
 ///
@@ -224,7 +224,7 @@ pub enum KeyPathPattern {
 /// A separator for `ArtiPath`s.
 const PATH_SEP: char = '/';
 
-/// A separator for that marks the beginning of the [`KeyDenotator`]s
+/// A separator for that marks the beginning of the keys denotators
 /// within an [`ArtiPath`].
 ///
 /// This separator can only appear within the last component of an [`ArtiPath`],
@@ -512,7 +512,7 @@ define_derive_adhoc! {
     /// from the string representation of its path fields, taken in declaration order,
     /// followed by the encoding of its denotators, also taken in the order they were declared.
     /// As such, all path fields, must implement [`KeySpecifierComponent`].
-    /// and all denotators must implement [`KeyDenotator`].
+    /// and all denotators must implement [`KeySpecifierComponent`].
     /// The denotators are separated from the rest of the path, and from each other,
     /// by `+` characters.
     ///
@@ -651,10 +651,10 @@ define_derive_adhoc! {
                 //   1. Match the variable components using arti_pattern()
                 //   2. If the path doesn't match, return an error
                 //   3. If the path matches, check if variable components and denotators can be
-                //   validated with KeySpecifierComponent::from_component and KeyDenotator::decode
+                //   validated with KeySpecifierComponent::from_component
                 //   respectively
 
-                #[allow(unused_imports)] // KeyDenotator is unused if there are no fields
+                #[allow(unused_imports)] // KeySpecifierComponent is unused if there are no fields
                 use $crate::KeySpecifierComponent;
                 use $crate::KeyPathError as E;
                 // TODO: re-export internal! from tor-keymgr and
