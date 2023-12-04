@@ -175,10 +175,25 @@ impl BuilderExt for MistrustBuilder {
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct StorageConfig {
-    /// Location on disk for cached directory information.
+    /// Location on disk for cached information.
+    ///
+    /// This follows the rules for `/var/cache`: "sufficiently old" filesystem objects
+    /// in it may be deleted outside of the control of Arti,
+    /// and Arti will continue to function properly.
+    /// It is also fine to delete the directory as a whole, while Arti is not running.
+    //
+    // Usage note, for implementations of Arti components:
+    //
+    // When files in this directory are to be used by a component, the cache_dir
+    // value should be passed through to the component as-is, and the component is
+    // then responsibile for constructing an appropriate sub-path (for example,
+    // tor-dirmgr receives cache_dir, and appends components such as "dir_blobs".
+    //
+    // (This consistency rule is not current always followed by every component.)
     #[builder(setter(into), default = "default_cache_dir()")]
     cache_dir: CfgPath,
     /// Location on disk for less-sensitive persistent state information.
+    // Usage note: see the note for `cache_dir`, above.
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
     /// Location on disk for the Arti keystore.
@@ -665,7 +680,7 @@ impl TorClientConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
             tolerance:           self.directory_tolerance.clone(),
-            cache_path:          self.storage.expand_cache_dir()?,
+            cache_dir:           self.storage.expand_cache_dir()?,
             cache_trust:         self.storage.permissions.clone(),
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),

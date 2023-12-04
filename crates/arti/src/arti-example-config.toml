@@ -99,8 +99,6 @@
 #
 # Multiple processes can share the same cache_dir.  If they do, one of them
 # will download directory information for all of the others.
-#
-# The state directory is not yet used.
 [storage]
 #cache_dir = "${ARTI_CACHE}"
 #state_dir = "${ARTI_LOCAL_DATA}"
