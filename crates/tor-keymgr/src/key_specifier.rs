@@ -576,6 +576,7 @@ define_derive_adhoc! {
     where $twheres
     {
         #[doc = concat!("Create a new`", stringify!($ttype), "`")]
+        #[allow(dead_code)] // caller might just construct Self with a struct literal
         pub(crate) fn new( $( $fname: $ftype , ) ) -> Self {
             Self {
                 $( $fname , )
@@ -960,7 +961,6 @@ mod test {
         assert_eq!(path.substring(&(0..0).into()).unwrap(), "");
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -996,7 +996,6 @@ mod test {
         );
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_no_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -1018,7 +1017,6 @@ mod test {
         assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_denotator() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -1043,7 +1041,6 @@ mod test {
         assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -1072,7 +1069,6 @@ mod test {
         assert_eq!(key_spec.prefix(), "encabulator/logarithmic/spurving/fan");
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_multiple_denotators() {
         #[derive(Adhoc, Debug, PartialEq)]
