@@ -44,8 +44,8 @@ thiserror = "1"
 tls-api = "0.9.0"
 tls-api-native-tls = "0.9.0"
 tokio = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros"] }
-tor-error = { path = "../tor-error", version = "0.5.4" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", features = ["tokio"] }
+tor-error = { path = "../tor-error", version = "0.5.5" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6", features = ["tokio"] }
 
 [target.'cfg(target_vendor="apple")'.dev-dependencies]
 tls-api-openssl = "0.9.0"

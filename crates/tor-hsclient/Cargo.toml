@@ -55,9 +55,9 @@ tor-bytes = { path = "../tor-bytes", version = "0.7.5" }
 tor-cell = { path = "../tor-cell", version = "0.13.0", features = ["hs"] }
 tor-checkable = { path = "../tor-checkable", version = "0.5.5" }
 tor-circmgr = { version = "0.12.0", path = "../tor-circmgr", features = ["hs-client"] }
-tor-config = { path = "../tor-config", version = "0.9.6" }
+tor-config = { path = "../tor-config", version = "0.9.7" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.10.0", default-features = false, features = ["hs-client"] }
-tor-error = { path = "../tor-error", version = "0.5.4", features = ["tracing"] }
+tor-error = { path = "../tor-error", version = "0.5.5", features = ["tracing"] }
 tor-hscrypto = { version = "0.3.4", path = "../tor-hscrypto" }
 tor-keymgr = { version = "0.4.0", path = "../tor-keymgr", default-features = false }
 tor-linkspec = { version = "0.8.3", path = "../tor-linkspec", features = ["decode", "verbatim"] }
@@ -65,7 +65,7 @@ tor-llcrypto = { version = "0.5.5", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.9.6", path = "../tor-netdir", features = ["hs-client"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.9.1", features = ["hs-client"] }
 tor-proto = { version = "0.13.0", path = "../tor-proto", features = ["hs-client", "send-control-msg"] }
-tor-rtcompat = { version = "0.9.5", path = "../tor-rtcompat" }
+tor-rtcompat = { version = "0.9.6", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 
 [dev-dependencies]
@@ -79,6 +79,6 @@ tor-guardmgr = { path = "../tor-guardmgr", version = "0.11.0", features = ["test
 tor-netdir = { path = "../tor-netdir", version = "0.9.6", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.9.1", features = ["testing"] }
 tor-persist = { path = "../tor-persist", version = "0.7.3", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.5", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.11.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.11.1" }
 tracing-test = "0.2"

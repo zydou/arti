@@ -17,7 +17,7 @@ digest = { version = "0.10.0", features = ["subtle", "mac"] }
 educe = "0.4.6"
 signature = "2"
 thiserror = "1"
-tor-error = { path = "../tor-error", version = "0.5.4" }
+tor-error = { path = "../tor-error", version = "0.5.5" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.5.5" }
 zeroize = "1"
 

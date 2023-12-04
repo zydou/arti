@@ -64,8 +64,8 @@ thiserror = "1"
 time = { version = "0.3.17", features = ["macros"], optional = true }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.5.5" }
-tor-config = { path = "../tor-config", version = "0.9.6" }
-tor-error = { path = "../tor-error", version = "0.5.4" }
+tor-config = { path = "../tor-config", version = "0.9.7" }
+tor-error = { path = "../tor-error", version = "0.5.5" }
 tor-geoip = { path = "../tor-geoip", version = "0.1.1", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.3.4", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.8.3" }

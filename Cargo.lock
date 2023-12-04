@@ -192,7 +192,7 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "arti"
-version = "1.1.10"
+version = "1.1.11"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -1867,7 +1867,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -4903,7 +4903,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "config",
  "derive-adhoc",
@@ -5041,7 +5041,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "backtrace",
  "derive_more",
@@ -5603,7 +5603,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "async-io 2.2.1",
  "async-native-tls",
@@ -5624,7 +5624,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "amplify",
  "async-trait",
