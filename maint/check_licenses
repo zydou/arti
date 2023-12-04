@@ -39,6 +39,11 @@ NO_LICENSE=(
     # License appears to be ISC.
     webpki
     rustls-webpki
+    # The unicode folks have their own license now that is no longer
+    # "Unicode-DFS-2016" and which might not even have a SPDX
+    # entry. But it still seems to be a permissive DFSG-compliant
+    # license.
+    tinystr
 )
 
 # List of packages which we allow to use the MPL-2.0 license.
