@@ -156,6 +156,9 @@ pub enum KeyPathError {
 ///
 /// The information is extracted from the [`KeyPath`] itself
 /// (_not_ from the key data) by a [`KeyInfoExtractor`].
+//
+// TODO This should have getters or something; currently you can build it but not inspect it
+// TODO HSS maybe the getters should be combined with the builder, or something?
 #[derive(Debug, Clone, PartialEq, derive_builder::Builder)]
 pub struct KeyPathInfo {
     /// A human-readable summary string describing what the [`KeyPath`] is for.
@@ -564,7 +567,23 @@ define_derive_adhoc! {
     ///
     /// A key specifier of this form, with denotators that encode to "d1" and "d2",
     /// would look like this: `"foo/<field1_str>/<field2_str>/../bar+d1+d2"`.
-    //
+    ///
+    /// ### Custom attributes
+    ///
+    ///  * **`#[adhoc(prefix)]`** (toplevel):
+    ///    Specifies the fixed prefix (the first path component).
+    ///
+    ///  * **`#[adhoc(role = "...")]`** (toplevel, mandatory):
+    ///    Specifies the role - the initial portion of the leafname.
+    ///
+    ///  * **`#[adhoc(summary = "...")]`** (summary, mandatory):
+    ///    Specifies the summary; ends up as the `summary` field in [`KeyPathInfo`].
+    ///    (See [`KeyPathInfoBuilder::summary()`].)
+    ///
+    ///  * **`#[adhoc(denotator)]`** (field):
+    ///    Designates a field that should be represented
+    ///    in the key file leafname, after the role.
+    ///
     // TODO HSS: extend this to work for c-tor paths too (it will likely be a breaking
     // change).
     pub KeySpecifierDefault =
