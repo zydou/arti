@@ -180,6 +180,9 @@ impl KeyPathInfoBuilder {
 }
 
 /// A trait for extracting info out of a [`KeyPath`]s.
+///
+/// This trait is used by [`KeyMgr::describe`](crate::KeyMgr::describe)
+/// to extract information out of [`KeyPath`]s.
 pub trait KeyInfoExtractor: Send + Sync {
     /// Describe the specified `path`.
     fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError>;
