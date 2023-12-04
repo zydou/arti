@@ -574,9 +574,14 @@ define_derive_adhoc! {
     ///    Specifies the fixed prefix (the first path component).
     ///    Must be a literal string.
     ///
-    ///  * **`#[adhoc(role = "...")]`** (toplevel, mandatory):
+    ///  * **`#[adhoc(role = "...")]`** (toplevel):
     ///    Specifies the role - the initial portion of the leafname.
     ///    Must be a literal string.
+    ///    This or the field-level `#[adhoc(role)]` must be specified.
+    ///
+    ///  * **`[adhoc(role)]` (field):
+    ///    Specifies that the role is determined at runtime.
+    ///    The field type must implement [`KeyDenotator`].
     ///
     ///  * **`#[adhoc(summary = "...")]`** (summary, mandatory):
     ///    Specifies the summary; ends up as the `summary` field in [`KeyPathInfo`].
@@ -603,7 +608,8 @@ define_derive_adhoc! {
     pub KeySpecifierDefault =
 
     // A condition that evaluates to `true` for path fields.
-    ${defcond F_IS_PATH not(fmeta(denotator))}
+    ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
+    ${defcond F_IS_ROLE all(fmeta(role), not(tmeta(role)))}
 
     impl<$tgens> $ttype
     where $twheres
@@ -620,21 +626,30 @@ define_derive_adhoc! {
         /// of the keys associated with this specifier.
         ///
         /// Returns the `ArtiPath`, minus the denotators.
-        fn arti_path_prefix( $(${when F_IS_PATH} $fname: Option<&$ftype> , ) ) -> String {
+        //
+        // TODO HSS this function is a rather unprincipled addition to Self's API
+        fn arti_path_prefix(
+            $(${when F_IS_ROLE} $fname: Option<&$ftype> , )
+            $(${when F_IS_PATH} $fname: Option<&$ftype> , )
+        ) -> String {
             // TODO this has a lot of needless allocations
+            ${define F_COMP_STRING {
+                $fname
+                    .map(|s| $crate::KeySpecifierComponent::as_component(s).to_string())
+                    .unwrap_or_else(|| "*".to_string()) ,
+            }}
             vec![
                 ${tmeta(prefix) as str}.to_string(),
                 $(
                   ${if fmeta(fixed_path_component) {
                         ${fmeta(fixed_path_component) as str} .to_owned(),
                   }}
-                  ${if F_IS_PATH {
-                    $fname
-                        .map(|s| $crate::KeySpecifierComponent::as_component(s).to_string())
-                        .unwrap_or_else(|| "*".to_string()) ,
-                  }}
+                  ${if F_IS_PATH { $F_COMP_STRING }}
                 )
-                ${tmeta(role) as str}.to_string()
+                ${for fields {
+                  ${if F_IS_ROLE { $F_COMP_STRING }}
+                }}
+                ${if tmeta(role) { ${tmeta(role) as str}.to_string() , }}
             ].join("/")
         }
 
@@ -647,9 +662,15 @@ define_derive_adhoc! {
         //
         // TODO HSS consider abolishing or modifying this depending on call site experiences
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
-        $tvis fn arti_pattern( $(${when F_IS_PATH} $fname: Option<&$ftype>,) ) -> $crate::KeyPathPattern {
+          $tvis fn arti_pattern(
+              $(${when F_IS_ROLE} $fname: Option<&$ftype>,)
+              $(${when F_IS_PATH} $fname: Option<&$ftype>,)
+          ) -> $crate::KeyPathPattern {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut pat = Self::arti_path_prefix( $(${when F_IS_PATH} $fname,) );
+              let mut pat = Self::arti_path_prefix(
+                  $(${when fmeta(role)} $fname,)
+                  $(${when F_IS_PATH} $fname,)
+              );
 
             ${for fields {
                 ${when fmeta(denotator)}
@@ -662,7 +683,10 @@ define_derive_adhoc! {
 
         /// A convenience wrapper around `Self::arti_path_prefix`.
         fn prefix(&self) -> String {
-            Self::arti_path_prefix( $(${when F_IS_PATH} Some(&self.$fname),) )
+            Self::arti_path_prefix(
+                $(${when F_IS_ROLE} Some(&self.$fname),)
+                $(${when F_IS_PATH} Some(&self.$fname),)
+            )
         }
     }
 
@@ -753,6 +777,7 @@ define_derive_adhoc! {
                         // associated with this specifier: each variable
                         // component (i.e. field) is matched using a '*' glob.
                         let pat = $tname::arti_pattern(
+                            ${for fields { ${when F_IS_ROLE} None, }}
                             ${for fields { ${when F_IS_PATH} None, }}
                         );
 
@@ -769,7 +794,7 @@ define_derive_adhoc! {
                         // in order. Conceptually this is like zipping the
                         // capture iterators with an iterator over fields and
                         // denotators, if there was such a thing.
-                        $(
+                        let mut component = || {
                             let Some(capture) = c.next() else {
                                 return Err(internal!("more fields than captures?!").into());
                             };
@@ -782,10 +807,18 @@ define_derive_adhoc! {
                                     component.to_owned()
                                 )?;
 
+                            Ok::<_, Self::Error>(component)
+                        };
+
+                        ${define F_EXTRACT {
                             // This use of $ftype is why we must store owned
                             // types in the struct the macro is applied to.
-                            let $fname = $ftype::from_component(component)?;
-                        )
+                            let $fname = $ftype::from_component(component()?)?;
+                        }}
+
+                        ${for fields { ${when         F_IS_PATH             } $F_EXTRACT }}
+                        ${for fields { ${when                    F_IS_ROLE  } $F_EXTRACT }}
+                        ${for fields { ${when not(any(F_IS_PATH, F_IS_ROLE))} $F_EXTRACT }}
 
                         if c.next().is_some() {
                             return Err(internal!("too many captures?!").into());
@@ -1155,6 +1188,30 @@ mod test {
         assert_eq!(
             TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
+        );
+    }
+
+    #[test]
+    fn define_key_specifier_role_field() {
+        #[derive(Adhoc, Debug, Eq, PartialEq)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "prefix")]
+        #[adhoc(summary = "test key")]
+        struct TestSpecifier {
+            #[adhoc(role)]
+            role: String,
+            i: usize,
+            #[adhoc(denotator)]
+            den: bool,
+        }
+
+        check_key_specifier(
+            &TestSpecifier {
+                i: 1,
+                role: "role".to_string(),
+                den: true,
+            },
+            "prefix/1/role+true",
         );
     }
 
