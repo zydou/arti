@@ -90,6 +90,8 @@ pub(crate) struct IptKeySpecifier<'s> {
     pub(crate) role: IptKeyRole,
 }
 
+// TODO HSS soup up the `KeySpecifierDefault` macro to be able to generate this ArtiPath
+// (the ArtiPath itself is right, so this ought to change impl but not tests)
 impl KeySpecifier for IptKeySpecifier<'_> {
     fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
         let IptKeySpecifier { nick, lid, role } = self;
