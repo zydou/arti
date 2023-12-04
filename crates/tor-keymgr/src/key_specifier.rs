@@ -584,8 +584,14 @@ define_derive_adhoc! {
     ///    Designates a field that should be represented
     ///    in the key file leafname, after the role.
     ///
-    // TODO HSS: extend this to work for c-tor paths too (it will likely be a breaking
-    // change).
+    ///  * **`#[adhoc(ctor_path = "expression")]`** (toplevel):
+    ///    Specifies that this kind of key has a representation in C Tor keystores,
+    ///    and provides an expression for computing the path.
+    ///    The expression should have type `impl Fn(&Self) -> CTorPath`.
+    ///
+    ///    If not specified, the generated [`KeySpecifier::ctor_path`]
+    ///    implementation will always return `None`.
+    ///
     pub KeySpecifierDefault =
 
     // A condition that evaluates to `true` for path fields.
@@ -667,12 +673,16 @@ define_derive_adhoc! {
         }
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
-            // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the directories used
-            // by C tor. The resulting CTorPath will be prefixed with the appropriate C tor directory,
-            // based on the HsSvcKeyRole.
-            //
-            // This function will return `None` for keys that aren't stored on disk by C tor.
-            todo!()
+            ${if tmeta(ctor_path) {
+                // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the
+                // directories used by C tor. The resulting CTorPath will be prefixed with the
+                // appropriate C tor directory, based on the HsSvcKeyRole.
+                //
+                // Ie, provide the #[adhoc(ctor_path)] attribute
+                Some( ${tmeta(ctor_path) as tokens} (self) )
+            } else {
+                None
+            }}
         }
     }
 
@@ -1085,6 +1095,8 @@ mod test {
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
+        assert_eq!(key_spec.ctor_path(), None);
+
         assert_eq!(key_spec.prefix(), "encabulator/logarithmic/spurving/fan");
     }
 
@@ -1127,6 +1139,33 @@ mod test {
             TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
+    }
+
+    #[test]
+    fn define_key_specifier_ctor_path() {
+        #[derive(Adhoc, Debug, Eq, PartialEq)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "p")]
+        #[adhoc(role = "r")]
+        #[adhoc(ctor_path = "Self::ctp")]
+        #[adhoc(summary = "test key")]
+        struct TestSpecifier {
+            i: usize,
+        }
+
+        impl TestSpecifier {
+            fn ctp(&self) -> CTorPath {
+                // TODO HSS this ought to use CTorPath's public constructor
+                // but it doesn't have one
+                CTorPath(self.i.to_string())
+            }
+        }
+
+        let spec = TestSpecifier { i: 42 };
+
+        check_key_specifier(&spec, "p/42/r");
+
+        assert_eq!(spec.ctor_path(), Some(CTorPath("42".into())),);
     }
 
     #[test]
