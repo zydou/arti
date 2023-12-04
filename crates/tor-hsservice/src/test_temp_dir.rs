@@ -65,7 +65,7 @@
 
 use std::env::{self, VarError};
 use std::fs;
-use std::io;
+use std::io::{self, ErrorKind};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
@@ -267,6 +267,8 @@ impl TestTempDir {
     ///
     /// Within `f`, construct `T` using the supplied filesystem path.
     ///
+    /// The directory `subdir` will be created, if it doesn't already exist.
+    ///
     /// Do not store or copy the path anywhere other than the return value;
     /// such copies would not be protected by Rust lifetimes against early deletion.
     ///
@@ -278,6 +280,13 @@ impl TestTempDir {
         f: impl FnOnce(PathBuf) -> T,
     ) -> TestTempDirGuard<'d, T> {
         let dir = self.subdir_untracked(subdir);
+
+        match fs::create_dir(&dir) {
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => Ok(()),
+            other => other,
+        }
+        .expect("create subdir");
+
         let thing = f(dir);
         TestTempDirGuard::with_path(thing, self.as_path_untracked())
     }
