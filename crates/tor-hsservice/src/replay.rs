@@ -43,7 +43,7 @@ pub(crate) struct ReplayLog {
 
 /// A magic string that we put at the start of each log file, to make sure that
 /// we don't confuse this file format with others.
-const MAGIC: &[u8; 16] = b"<onion replay>  ";
+const MAGIC: &[u8; 32] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
 
 impl ReplayLog {
     /// Create a new ReplayLog not backed by any data storage.
