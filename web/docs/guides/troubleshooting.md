@@ -4,7 +4,7 @@ title: Troubleshooting
 
 # Fixing some common (and not-so-common) problems
 
-Here's an infrequently-asked-questions list about fixing some common (and not-so-common) issues in your Arti compilation or usage.
+The following are some common (and not-so-common) issues that may occur in your Arti compilation or usage, and how to fix them .
 
 If you run into a problem that isn't on this list, please let us know on [our bugtracker](https://gitlab.torproject.org/tpo/core/arti/#how-can-i-report-bugs).
 
@@ -60,7 +60,7 @@ You must choose:
 
 Pass these in with the `--features` argument when compiling (e.g. `--features tokio,native-tls`).
 
-Note that Arti configures Tokio and native-tls by default, so if you're gettnig this error, you probably tried to do something fancy with `--no-default-features`.
+Note that Arti configures Tokio and native-tls by default, so if you're gettnig this error, you probably tried to do some extra setup with `--no-default-features`.
 
 ### Arti isn't respecting my custom runtime choice!
 
