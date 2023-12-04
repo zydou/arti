@@ -249,6 +249,15 @@ struct Inner {
     netdir: Option<Arc<NetDir>>,
     /// The timestamp of our last upload.
     ///
+    /// This is the time when the last update was _initiated_ (rather than completed), to prevent
+    /// the publisher from spawning multiple upload tasks at once in response to multiple external
+    /// events happening in quick succession, such as the IPT manager sending multiple IPT change
+    /// notifications in a short time frame (#1142), or an IPT change notification that's
+    /// immediately followed by a consensus change. Starting two upload tasks at once is not only
+    /// inefficient, but it also causes the publisher to generate two different descriptors with
+    /// the same revision counter (the revision counter is derived from the current timestamp),
+    /// which ultimately causes the slower upload task to fail (see #1142).
+    ///
     /// Note: This is only used for deciding when to reschedule a rate-limited upload. It is _not_
     /// used for retrying failed uploads (these are handled internally by
     /// [`Reactor::upload_descriptor_with_retries`]).
