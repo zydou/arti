@@ -176,6 +176,11 @@ impl BuilderExt for MistrustBuilder {
 #[non_exhaustive]
 pub struct StorageConfig {
     /// Location on disk for cached information.
+    ///
+    /// This follows the rules for `/var/cache`: "sufficiently old" filesystem objects
+    /// in it may be deleted outside of the control of Arti,
+    /// and Arti will continue to function properly.
+    /// It is also fine to delete the directory as a whole, while Arti is not running.
     #[builder(setter(into), default = "default_cache_dir()")]
     cache_dir: CfgPath,
     /// Location on disk for less-sensitive persistent state information.
