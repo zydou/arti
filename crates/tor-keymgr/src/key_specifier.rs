@@ -451,37 +451,20 @@ impl KeySpecifier for KeyPath {
     }
 }
 
-/// A trait for displaying key denotators, for use within an [`ArtiPath`]
-/// or [`CTorPath`].
-///
-/// A key's denotators *denote* an instance of a key.
-//
-// TODO HSS: consider adding a helper trait or d-a macro KeyDenotatorViaFromStrAndDisplay
-pub trait KeyDenotator {
-    /// Encode the denotators in a format that can be used within an
-    /// [`ArtiPath`] or [`CTorPath`].
-    fn encode(&self) -> String;
-
-    /// Try to convert the specified string `s` to a value of this type.
-    fn decode(s: &str) -> StdResult<Self, KeyPathError>
-    where
-        Self: Sized;
-}
-
-impl KeyDenotator for TimePeriod {
-    fn encode(&self) -> String {
-        format!(
+impl KeySpecifierComponent for TimePeriod {
+    fn as_component(&self) -> ArtiPathComponent {
+        ArtiPathComponent(format!(
             "{}_{}_{}",
             self.interval_num(),
             self.length(),
             self.epoch_offset_in_sec()
-        )
+        ))
     }
 
-    fn decode(s: &str) -> StdResult<Self, KeyPathError>
+    fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
     where
-        Self: Sized,
-    {
+        Self: Sized {
+        let s = c.to_string();
         let (interval_num, length, offset_in_sec) = (|| {
             let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
             let [interval, len, offset]: [&str; 3] = parts.into_inner().ok()?;
@@ -606,9 +589,9 @@ define_derive_adhoc! {
                 // We only care about the fields that are denotators
                 ${ when fmeta(denotator) }
 
-                let denotator = $crate::KeyDenotator::encode(&self.$fname);
+                let denotator = $crate::KeySpecifierComponent::as_component(&self.$fname);
                 path.push($crate::DENOTATOR_SEP);
-                path.push_str(&denotator);
+                path.push_str(&denotator.to_string());
             )
 
             return Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?);
@@ -664,8 +647,6 @@ define_derive_adhoc! {
                 //   validated with KeySpecifierComponent::from_component and KeyDenotator::decode
                 //   respectively
 
-                #[allow(unused_imports)] // KeyDenotator is unused if there are no denotators
-                use $crate::KeyDenotator;
                 #[allow(unused_imports)] // KeyDenotator is unused if there are no fields
                 use $crate::KeySpecifierComponent;
                 use $crate::KeyPathError as E;
@@ -705,18 +686,13 @@ define_derive_adhoc! {
                                 return Err(internal!("capture not within bounds?!").into());
                             };
 
-                            ${if F_IS_PATH {
                                 let component = $crate::ArtiPathComponent::new(
                                     component.to_owned()
                                 )?;
 
-                                // This use of $ftype is why we must store owned
-                                // types in the struct the macro is applied to.
-                                let $fname = $ftype::from_component(component)?;
-                            } else {
-                                // Denotator
-                                let $fname = $ftype::decode(component)?;
-                            }}
+                            // This use of $ftype is why we must store owned
+                            // types in the struct the macro is applied to.
+                            let $fname = $ftype::from_component(component)?;
                         )
 
                         if c.next().is_some() {
@@ -778,43 +754,26 @@ mod test {
         }};
     }
 
-    impl KeyDenotator for usize {
-        fn encode(&self) -> String {
-            self.to_string()
+    impl KeySpecifierComponent for usize {
+        fn as_component(&self) -> ArtiPathComponent {
+            ArtiPathComponent::new(self.to_string()).unwrap()
         }
 
-        fn decode(s: &str) -> Result<Self, KeyPathError>
+        fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
         where
-            Self: Sized,
-        {
-            use std::str::FromStr;
-
-            Ok(usize::from_str(s).unwrap())
-        }
-    }
-
-    impl KeyDenotator for String {
-        fn encode(&self) -> String {
-            self.clone()
-        }
-
-        fn decode(s: &str) -> Result<Self, KeyPathError>
-        where
-            Self: Sized,
-        {
-            Ok(s.into())
+            Self: Sized {
+            Ok(c.to_string().parse::<usize>().unwrap())
         }
     }
 
     impl KeySpecifierComponent for String {
         fn as_component(&self) -> ArtiPathComponent {
-            ArtiPathComponent::new(self.clone()).unwrap()
+            ArtiPathComponent::new(self.to_string()).unwrap()
         }
 
         fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
         where
-            Self: Sized,
-        {
+            Self: Sized {
             Ok(c.to_string())
         }
     }
@@ -1148,12 +1107,12 @@ mod test {
     #[test]
     fn encode_time_period() {
         let period = TimePeriod::from_parts(1, 2, 3);
-        let encoded_period = period.encode();
+        let encoded_period = period.as_component();
 
-        assert_eq!(encoded_period, "2_1_3");
-        assert_eq!(period, TimePeriod::decode(&encoded_period).unwrap());
+        assert_eq!(encoded_period.to_string(), "2_1_3");
+        assert_eq!(period, TimePeriod::from_component(encoded_period).unwrap());
 
-        assert!(TimePeriod::decode("invalid_tp").is_err());
+        assert!(TimePeriod::from_component(ArtiPathComponent::new("invalid_tp".to_string()).unwrap()).is_err());
     }
 
     #[test]

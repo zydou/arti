@@ -29,7 +29,9 @@ use tor_hscrypto::{
     time::TimePeriod,
     Subcredential,
 };
+use tor_keymgr::ArtiPathComponent;
 use tor_keymgr::KeyPath;
+use tor_keymgr::KeySpecifierComponent;
 use tor_keymgr::{KeyMgr, KeyPathRange};
 use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
@@ -368,7 +370,7 @@ fn parse_time_period(
     path: &KeyPath,
     captures: &[KeyPathRange],
 ) -> Result<TimePeriod, tor_keymgr::Error> {
-    use tor_keymgr::{KeyDenotator, KeystoreCorruptionError as KCE};
+    use tor_keymgr::{KeystoreCorruptionError as KCE, KeyPathError};
 
     let path = match path {
         KeyPath::Arti(path) => path,
@@ -388,7 +390,7 @@ fn parse_time_period(
         return Err(internal!("captured substring out of range?!").into());
     };
 
-    Ok(TimePeriod::decode(denotator).map_err(KCE::KeyPath)?)
+    Ok(TimePeriod::from_component(ArtiPathComponent::new(denotator.to_string()).map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?).map_err(KCE::KeyPath)?)
 }
 
 /// The current status of an introduction point, as defined in
