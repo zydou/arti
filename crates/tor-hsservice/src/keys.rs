@@ -14,7 +14,7 @@ use crate::IptLocalId;
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_id")]
-#[adhoc(summary = "The public part of the identity key of the service.")]
+#[adhoc(summary = "Public part of the identity key")]
 /// The public part of the identity key of the service.
 pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
@@ -25,7 +25,7 @@ pub struct HsIdPublicKeySpecifier {
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_id")]
-#[adhoc(summary = "The long-term identity keypair of the service.")]
+#[adhoc(summary = "Long-term identity keypair")]
 /// The long-term identity keypair of the service.
 pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
@@ -36,7 +36,7 @@ pub struct HsIdKeypairSpecifier {
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_blind_id")]
-#[adhoc(summary = "The blinded signing keypair.")]
+#[adhoc(summary = "Blinded signing keypair")]
 /// The blinded signing keypair.
 pub struct BlindIdKeypairSpecifier {
     /// The nickname of the  hidden service.
@@ -50,7 +50,7 @@ pub struct BlindIdKeypairSpecifier {
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_blind_id")]
-#[adhoc(summary = "The blinded public key.")]
+#[adhoc(summary = "Blinded public key")]
 /// The blinded public key.
 pub struct BlindIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
@@ -64,7 +64,7 @@ pub struct BlindIdPublicKeySpecifier {
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_desc_sign")]
-#[adhoc(summary = "The descriptor signing key.")]
+#[adhoc(summary = "Descriptor signing key")]
 /// The descriptor signing key.
 pub struct DescSigningKeypairSpecifier {
     /// The nickname of the  hidden service.
