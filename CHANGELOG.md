@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.11 — 4 December 2023
 
-Arti 1.1.10 continues work on support for running onion services.
+Arti 1.1.11 continues work on support for running onion services.
 Onion services are now working in our testing, and we expect we'll
 have something testable by others in our next release.
 
@@ -39,8 +39,8 @@ to 1.70, in accordance with our [MSRV policy].
   [!1733])
 - Refactoring and refinement on the definitions of onion-service-related
   errors. ([!1718], [!1724], [!1750], [!1751], [!1779])
-- Add a "time-store" mechanism for safely storing and loading multiple
-  timestamps relative to a single reference time. ([!1723], [!1774])
+- Add a "time-store" mechanism for (as correctly as possible) storing and loading
+  future timestamps, even in the presence of system clock skew ([!1723], [!1774])
 - Implement a replay-log backend to prevent INTRODUCE replay attacks
   against onion services. ([!1725])
 - Improved encoding for key-denotators in the key manager. ([#1063],
@@ -83,13 +83,13 @@ to 1.70, in accordance with our [MSRV policy].
 - Add a `spawn_join` method to mock runtimes, to simplify
   tests. ([!1746])
 - Prototype a "testing temp dir" facitility to ensure that temporary
-  directories used in tests can be persistent if necessary, and that
+  directories used in tests can be persistent if desired, and that
   they live for long enough. ([!1762])
 
 ### Cleanups, minor features, and bugfixes
 
 - Fix various warnings from Clippy. ([!1719])
-- Solve a that prevented `Conversation::send_message` from working.
+- Solve a bug that prevented `Conversation::send_message` from working.
   ([#1085], [!1726])
 - Upgrade to version 4 of the `clap` option-parsing library.
   ([!1735])
