@@ -1070,6 +1070,7 @@ example config file {which:?}, uncommented={uncommented:?}
         {
             // TODO HSS: Make us get an error when we configure onion services
             // without onion service support.
+            let _ = result;
         }
     }
 
