@@ -168,7 +168,7 @@ pub trait KeyInfoExtractor: Send + Sync {
 
 /// Register a [`KeyInfoExtractor`] for use with [`KeyMgr`].
 #[macro_export]
-macro_rules! register_key_validator {
+macro_rules! register_key_info_extractor {
     ($kv:expr) => {{
         $crate::inventory::submit!(&$kv as &dyn $crate::KeyInfoExtractor);
     }};
