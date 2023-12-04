@@ -5,7 +5,6 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::result::Result as StdResult;
-use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use derive_adhoc::define_derive_adhoc;
@@ -128,10 +127,6 @@ pub enum KeyPathError {
     /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
     #[error("Unrecognized path: {0}")]
     Unrecognized(KeyPath),
-
-    /// An error coming from a [`KeyPathInfoBuilder`].
-    #[error("{0}")]
-    KeyPathInfoBuild(#[from] Arc<KeyPathInfoBuilderError>),
 
     /// Found an invalid [`ArtiPath`].
     #[error("{0}")]
@@ -639,6 +634,10 @@ define_derive_adhoc! {
                 &self,
                 path: &$crate::KeyPath,
             ) -> std::result::Result<$crate::KeyPathInfo, $crate::KeyPathError> {
+                // TODO: re-export into_internal! from tor-keymgr and
+                // use $crate::into_internal! here.
+                use tor_error::into_internal;
+
                 // Check if this is a valid path
                 let _ = $tname::try_from(path)?;
 
@@ -648,7 +647,7 @@ define_derive_adhoc! {
                     $crate::KeyPathInfoBuilder::default()
                         .summary(stringify!(${tmeta(summary)}).to_string())
                         .build()
-                        .map_err(std::sync::Arc::new)?
+                        .map_err(into_internal!("failed to build KeyPathInfo"))?
                 )
             }
         }
