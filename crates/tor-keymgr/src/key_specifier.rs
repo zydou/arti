@@ -572,13 +572,16 @@ define_derive_adhoc! {
     ///
     ///  * **`#[adhoc(prefix)]`** (toplevel):
     ///    Specifies the fixed prefix (the first path component).
+    ///    Must be a literal string.
     ///
     ///  * **`#[adhoc(role = "...")]`** (toplevel, mandatory):
     ///    Specifies the role - the initial portion of the leafname.
+    ///    Must be a literal string.
     ///
     ///  * **`#[adhoc(summary = "...")]`** (summary, mandatory):
     ///    Specifies the summary; ends up as the `summary` field in [`KeyPathInfo`].
     ///    (See [`KeyPathInfoBuilder::summary()`].)
+    ///    Must be a literal string.
     ///
     ///  * **`#[adhoc(denotator)]`** (field):
     ///    Designates a field that should be represented
@@ -620,7 +623,7 @@ define_derive_adhoc! {
         fn arti_path_prefix( $(${when F_IS_PATH} $fname: Option<&$ftype> , ) ) -> String {
             // TODO this has a lot of needless allocations
             vec![
-                stringify!(${tmeta(prefix)}).to_string(),
+                ${tmeta(prefix) as str}.to_string(),
                 $(
                   ${if fmeta(fixed_path_component) {
                         ${fmeta(fixed_path_component) as str} .to_owned(),
@@ -631,7 +634,7 @@ define_derive_adhoc! {
                         .unwrap_or_else(|| "*".to_string()) ,
                   }}
                 )
-                stringify!(${tmeta(role)}).to_string()
+                ${tmeta(role) as str}.to_string()
             ].join("/")
         }
 
@@ -717,7 +720,7 @@ define_derive_adhoc! {
                 Ok(
                     // TODO: Add extra info the to the Keyinfo
                     $crate::KeyPathInfoBuilder::default()
-                        .summary(stringify!(${tmeta(summary)}).to_string())
+                        .summary(${tmeta(summary) as str}.to_string())
                         .build()
                         .map_err(into_internal!("failed to build KeyPathInfo"))?
                 )
