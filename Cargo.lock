@@ -267,7 +267,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -326,7 +326,7 @@ version = "0.6.4"
 
 [[package]]
 name = "arti-hyper"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpcserver"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "arti-client",
  "asynchronous-codec",
@@ -4753,7 +4753,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "bytes",
  "digest",
@@ -4769,7 +4769,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "bitflags 2.4.1",
  "bytes",
@@ -4793,7 +4793,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "base64ct",
  "caret",
@@ -4812,7 +4812,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -4847,7 +4847,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.5.5"
+version = "0.6.0"
 dependencies = [
  "humantime 2.1.0",
  "signature 1.6.4",
@@ -4857,7 +4857,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -4946,7 +4946,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.5.6"
+version = "0.6.0"
 dependencies = [
  "digest",
  "hex",
@@ -4956,7 +4956,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "async-compression",
  "base64ct",
@@ -4984,7 +4984,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5081,7 +5081,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -5122,7 +5122,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsclient"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -5167,7 +5167,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.3.4"
+version = "0.4.0"
 dependencies = [
  "cipher",
  "data-encoding",
@@ -5209,7 +5209,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsrproxy"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "derive-adhoc",
  "derive_builder_fork_arti",
@@ -5234,7 +5234,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5292,7 +5292,7 @@ dependencies = [
 
 [[package]]
 name = "tor-keymgr"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "arrayvec",
  "derive-adhoc",
@@ -5320,7 +5320,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "base64ct",
  "by_address",
@@ -5347,7 +5347,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.5.6"
+version = "0.6.0"
 dependencies = [
  "aes",
  "base64ct",
@@ -5383,7 +5383,7 @@ dependencies = [
 
 [[package]]
 name = "tor-log-ratelim"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "futures",
  "humantime 2.1.0",
@@ -5397,7 +5397,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.9.6"
+version = "0.10.0"
 dependencies = [
  "bitflags 2.4.1",
  "derive_builder_fork_arti",
@@ -5436,7 +5436,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -5482,7 +5482,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "derive_more",
  "fs-mistrust",
@@ -5498,7 +5498,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "asynchronous-codec",
  "bitvec",
@@ -5558,7 +5558,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5653,7 +5653,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "arbitrary",
  "caret",
