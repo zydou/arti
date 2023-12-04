@@ -419,6 +419,10 @@ impl KeyMgr {
     ///
     /// Returns [`KeyPathError::Unrecognized`] if none of the registered
     /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
+    ///
+    /// This function uses the [`KeyInfoExtractors`] registered using
+    /// [`register_key_info_extractor`](crate::register_key_info_extractor),
+    /// or by [`DefaultKeySpecifier`](derive_adhoc_template_KeySpecifierDefault).
     pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
         for info_extractor in &self.key_info_extractors {
             if let Ok(info) = info_extractor.describe(path) {
