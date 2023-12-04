@@ -47,23 +47,11 @@ enum LogPrecision {
 /// Compute the smallest n such that 10^n >= x.
 ///
 /// Since the input is a u32, this will return a value in the range 0..10.
-///
-/// This implementation isn't efficient or constant-time.
-///
-/// TODO: Our MSRV doesn't let us use u32::ckecked_ilog10, and rounding up
-/// doesn't exactly work with that anyway.
 fn ilog10_roundup(x: u32) -> u8 {
-    let mut exp = 1;
-    for n in 0..=9 {
-        if exp >= x {
-            return n;
-        }
-        // This wraps on the last time through the loop, but we don't care
-        // because we discard the result.  If there were a "we-don't-care-mul"
-        // I'd use that instead. Feel free to refactor.
-        exp = exp.wrapping_mul(10);
-    }
-    10
+    x.saturating_sub(1)
+        .checked_ilog10()
+        .map(|x| (x + 1) as u8)
+        .unwrap_or(0)
 }
 
 /// Describe how to compute the current time.

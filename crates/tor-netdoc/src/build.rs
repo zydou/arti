@@ -113,10 +113,7 @@ impl NetdocEncoder {
     /// Doesn't call `f` if the building has already failed,
     /// and handles the error if `f` fails.
     fn write_with(&mut self, f: impl FnOnce(&mut String) -> Result<(), Bug>) {
-        // MSRV 1.65.0: change to let ... else
-        let build = if let Ok(b) = &mut self.built {
-            b
-        } else {
+        let Ok(build) = &mut self.built else {
             return;
         };
         match f(build) {

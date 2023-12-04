@@ -3586,12 +3586,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
-name = "retain_mut"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4389f1d5789befaf6029ebd9f7dac4af7f7e3d61b69d4f30e2ac02b57e7712b0"
-
-[[package]]
 name = "retry-error"
 version = "0.5.1"
 dependencies = [
@@ -5097,7 +5091,6 @@ dependencies = [
  "pin-project",
  "postage",
  "rand",
- "retain_mut",
  "safelog",
  "serde",
  "serde_json",

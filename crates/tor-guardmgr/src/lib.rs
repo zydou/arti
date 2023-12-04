@@ -1328,17 +1328,12 @@ impl GuardMgrInner {
     /// expire them and tell the circuit manager that their circuits
     /// are unusable.
     fn expire_and_answer_pending_requests(&mut self, now: Instant) {
-        // TODO: Use Vec::drain_filter or Vec::retain_mut when/if it's stable.
-        #[allow(deprecated)]
-        use retain_mut::RetainMut;
-
         // A bit ugly: we use a separate Vec here to avoid borrowing issues,
         // and put it back when we're done.
         let mut waiting = Vec::new();
         std::mem::swap(&mut waiting, &mut self.waiting);
 
-        #[allow(deprecated)]
-        RetainMut::retain_mut(&mut waiting, |pending| {
+        waiting.retain_mut(|pending| {
             let expired = pending
                 .waiting_since()
                 .and_then(|w| now.checked_duration_since(w))

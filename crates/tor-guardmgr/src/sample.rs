@@ -195,10 +195,7 @@ impl GuardSet {
         /// in `guards`, and update the others to have any extra identities
         /// listed in `guards`.
         fn fix_id_list(guards: &ByRelayIds<Guard>, id_list: &mut Vec<GuardId>) {
-            // TODO: Use Vec::retain_mut when our MSRV >= 1.61
-            #![allow(deprecated)]
-            use retain_mut::RetainMut;
-            RetainMut::retain_mut(id_list, |id| match guards.by_all_ids(id) {
+            id_list.retain_mut(|id| match guards.by_all_ids(id) {
                 Some(guard) => {
                     *id = guard.guard_id().clone();
                     true

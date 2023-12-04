@@ -673,9 +673,7 @@ mod test {
 
     #[test]
     fn flattenable_extract_fields_a_test() {
-        // use std::hint::black_box
-        let black_box = std::convert::identity; // replace with `use` when MSRV 1.66.0
-
+        use std::hint::black_box;
         let f: fn() -> _ = black_box(flattenable_extract_fields_a);
         eprintln!("{:?}", f());
     }
