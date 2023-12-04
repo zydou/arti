@@ -148,7 +148,9 @@ pub enum KeyPathError {
 /// (_not_ from the key data) by a [`KeyInfoExtractor`].
 #[derive(Debug, Clone, PartialEq, derive_builder::Builder)]
 pub struct KeyPathInfo {
-    /// A summary string describing what the [`KeyPath`] is for.
+    /// A human-readable summary string describing what the [`KeyPath`] is for.
+    ///
+    /// This should *not* recapitulate information in the `extra_info`.
     summary: String,
     /// Additional information, in the form of key-value pairs.
     ///
