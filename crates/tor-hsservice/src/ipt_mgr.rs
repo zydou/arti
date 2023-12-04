@@ -21,7 +21,7 @@ use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
 use itertools::Itertools as _;
-use postage::{watch, broadcast};
+use postage::{broadcast, watch};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

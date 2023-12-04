@@ -197,8 +197,13 @@ impl OnionService {
             Arc::clone(&keymgr),
         );
 
-        let keystore_sweeper =
-            KeystoreSweeper::new(runtime, nickname, Arc::clone(&keymgr), netdir_provider, shutdown_rx);
+        let keystore_sweeper = KeystoreSweeper::new(
+            runtime,
+            nickname,
+            Arc::clone(&keymgr),
+            netdir_provider,
+            shutdown_rx,
+        );
 
         // TODO HSS: we need to actually do something with: shutdown_tx,
         // rend_req_rx.  The latter may need to be refactored to actually work

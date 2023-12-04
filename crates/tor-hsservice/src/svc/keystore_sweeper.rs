@@ -6,14 +6,14 @@ use crate::{
     BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier, HsNickname,
     StartupError,
 };
-use futures::{task::SpawnExt, select_biased};
-use futures::{StreamExt, FutureExt};
+use futures::{select_biased, task::SpawnExt};
+use futures::{FutureExt, StreamExt};
 use postage::broadcast;
 use tor_error::error_report;
 use tor_keymgr::KeyMgr;
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_rtcompat::Runtime;
-use tracing::{warn, debug};
+use tracing::{debug, warn};
 use void::Void;
 
 /// A helper for removing the expired keys of a hidden service.
@@ -67,67 +67,67 @@ impl<R: Runtime> KeystoreSweeper<R> {
         let () = runtime
             .spawn(async move {
                 loop {
-                select_biased! {
-                shutdown = shutdown.next().fuse() => {
-                    debug!(nickname=%nickname, "terminating keystore sweeper task due to shutdown signal");
-                    // We shouldn't be receiving anything on thisi channel.
-                    assert!(shutdown.is_none());
-                    return;
-                },
-                event = netdir_events.next().fuse() => {
-                    let Some(event) = event else {
-                        warn!(nickname=%nickname, "netdir provider sender dropped");
-                        return;
-                    };
-                    if event == DirEvent::NewConsensus {
-                        let netdir = match netdir_provider.timely_netdir() {
-                            Ok(netdir) => netdir,
-                            Err(e) => {
-                                error_report!(e, "failed to get a timely netdir");
-                                continue;
-                            }
-                        };
+                    select_biased! {
+                        shutdown = shutdown.next().fuse() => {
+                            debug!(nickname=%nickname, "terminating keystore sweeper task due to shutdown signal");
+                            // We shouldn't be receiving anything on thisi channel.
+                            assert!(shutdown.is_none());
+                            return;
+                        },
+                        event = netdir_events.next().fuse() => {
+                            let Some(event) = event else {
+                                warn!(nickname=%nickname, "netdir provider sender dropped");
+                                return;
+                            };
+                            if event == DirEvent::NewConsensus {
+                                let netdir = match netdir_provider.timely_netdir() {
+                                    Ok(netdir) => netdir,
+                                    Err(e) => {
+                                        error_report!(e, "failed to get a timely netdir");
+                                        continue;
+                                    }
+                                };
 
-                        let relevant_periods = netdir.hs_all_time_periods();
-                        // The consensus changed, so we need to remove any expired keys.
-                        let expire_keys = || -> tor_keymgr::Result<()> {
-                            let all_arti_keys = keymgr.list_matching(&match_all_arti_pat)?;
+                                let relevant_periods = netdir.hs_all_time_periods();
+                                // The consensus changed, so we need to remove any expired keys.
+                                let expire_keys = || -> tor_keymgr::Result<()> {
+                                    let all_arti_keys = keymgr.list_matching(&match_all_arti_pat)?;
 
-                            for (key_path, key_type) in all_arti_keys {
-                                /// Remove the specified key, if it's no longer relevant.
-                                macro_rules! remove_if_expired {
-                                    ($K:ty) => {{
-                                        if let Ok(spec) = <$K>::try_from(&key_path) {
-                                            // Only remove the keys of the hidden service that concerns us
-                                            if &spec.nickname == &nickname {
-                                                let is_expired = !relevant_periods.contains(&spec.period);
-                                                // TODO: make the keystore selector configurable
-                                                let selector = Default::default();
+                                    for (key_path, key_type) in all_arti_keys {
+                                        /// Remove the specified key, if it's no longer relevant.
+                                        macro_rules! remove_if_expired {
+                                            ($K:ty) => {{
+                                                if let Ok(spec) = <$K>::try_from(&key_path) {
+                                                    // Only remove the keys of the hidden service that concerns us
+                                                    if &spec.nickname == &nickname {
+                                                        let is_expired = !relevant_periods.contains(&spec.period);
+                                                        // TODO: make the keystore selector configurable
+                                                        let selector = Default::default();
 
-                                                if is_expired {
-                                                    keymgr.remove_with_type(&key_path, &key_type, selector)?;
+                                                        if is_expired {
+                                                            keymgr.remove_with_type(&key_path, &key_type, selector)?;
+                                                        }
+                                                    }
                                                 }
-                                            }
+                                            }};
                                         }
-                                    }};
+
+                                        // TODO: any invalid/malformed keys are ignored (rather than
+                                        // removed).
+                                        remove_if_expired!(BlindIdPublicKeySpecifier);
+                                        remove_if_expired!(BlindIdKeypairSpecifier);
+                                        remove_if_expired!(DescSigningKeypairSpecifier);
+                                    }
+
+                                    Ok(())
+                                };
+
+                                if let Err(e) = expire_keys() {
+                                    error_report!(e, "failed to remove expired keys");
                                 }
-
-                                // TODO: any invalid/malformed keys are ignored (rather than
-                                // removed).
-                                remove_if_expired!(BlindIdPublicKeySpecifier);
-                                remove_if_expired!(BlindIdKeypairSpecifier);
-                                remove_if_expired!(DescSigningKeypairSpecifier);
                             }
-
-                            Ok(())
-                        };
-
-                        if let Err(e) = expire_keys() {
-                            error_report!(e, "failed to remove expired keys");
                         }
                     }
-                }
-                }
                 }
             })
             .map_err(|e| StartupError::Spawn {
