@@ -54,7 +54,7 @@ use crate::{
 /// current time.
 //
 // TODO HSS: this value is probably not right.
-const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(5 * 60);
+const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 
 /// The maximum number of concurrent upload tasks per time period.
 //
@@ -71,6 +71,11 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 //
 // TODO HSS: this value is probably not right.
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+/// The amount of time to wait before retrying a failed `upload_all()` task.
+//
+// TODO HSS: this value is probably not right.
+const RETRY_UPLOAD_DELAY: Duration = Duration::from_secs(5 * 60);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
@@ -113,7 +118,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// we can start publishing descriptors.
     publish_status_tx: watch::Sender<PublishStatus>,
     /// A channel for the telling the upload reminder task (spawned in [`Reactor::run`]) when to
-    /// remind us that we need to retry a rate-limited upload.
+    /// remind us that we need to retry a failed or rate-limited upload.
     ///
     /// The [`Instant`] sent on this channel represents the earliest time when the upload can be
     /// rescheduled. The receiving end of this channel will initially observe `None` (the default
@@ -130,7 +135,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// This field is initialized in [`Reactor::run`].
     ///
     // TODO HSS: decide if this is the right approach for implementing rate-limiting
-    rate_lim_upload_tx: Option<watch::Sender<Option<Instant>>>,
+    reattempt_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
@@ -244,12 +249,18 @@ struct Inner {
     netdir: Option<Arc<NetDir>>,
     /// The timestamp of our last upload.
     ///
+    /// This is the time when the last update was _initiated_ (rather than completed), to prevent
+    /// the publisher from spawning multiple upload tasks at once in response to multiple external
+    /// events happening in quick succession, such as the IPT manager sending multiple IPT change
+    /// notifications in a short time frame (#1142), or an IPT change notification that's
+    /// immediately followed by a consensus change. Starting two upload tasks at once is not only
+    /// inefficient, but it also causes the publisher to generate two different descriptors with
+    /// the same revision counter (the revision counter is derived from the current timestamp),
+    /// which ultimately causes the slower upload task to fail (see #1142).
+    ///
     /// Note: This is only used for deciding when to reschedule a rate-limited upload. It is _not_
     /// used for retrying failed uploads (these are handled internally by
     /// [`Reactor::upload_descriptor_with_retries`]).
-    //
-    // TODO HSS: maybe we should implement rate-limiting on a per-hsdir basis? It's probably not
-    // necessary though.
     last_uploaded: Option<Instant>,
 }
 
@@ -535,7 +546,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             config_rx,
             publish_status_rx,
             publish_status_tx,
-            rate_lim_upload_tx: None,
+            reattempt_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
         }
@@ -545,8 +556,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// Under normal circumstances, this function runs indefinitely.
     ///
-    /// Note: this also spawns the "reminder task" that we use to reschedule uploads whenever we
-    /// get rate-limited.
+    /// Note: this also spawns the "reminder task" that we use to reschedule uploads whenever an
+    /// upload fails or is rate-limited.
     pub(super) async fn run(mut self) -> Result<(), ReactorError> {
         debug!("starting descriptor publisher reactor");
 
@@ -561,16 +572,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
 
         // There will be at most one pending upload.
-        let (rate_lim_upload_tx, mut rate_lim_upload_rx) = watch::channel();
+        let (reattempt_upload_tx, mut reattempt_upload_rx) = watch::channel();
         let (mut schedule_upload_tx, mut schedule_upload_rx) = watch::channel();
 
-        self.rate_lim_upload_tx = Some(rate_lim_upload_tx);
+        self.reattempt_upload_tx = Some(reattempt_upload_tx);
 
         let rt = self.imm.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
-            while let Some(scheduled_time) = rate_lim_upload_rx.next().await {
+            while let Some(scheduled_time) = reattempt_upload_rx.next().await {
                 let Some(scheduled_time) = scheduled_time else {
                     // `None` is the initially observed, default value of this postage::watch
                     // channel, and it means there are no pending uploads to reschedule.
@@ -659,10 +670,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 // Our PublishStatus changed -- are we ready to publish?
                 if should_upload == PublishStatus::UploadScheduled {
-                    // TODO HSS: if upload_all fails, we don't reattempt the upload until a state
-                    // change is triggered by an external event (such as a consensus or IPT change)
                     self.update_publish_status_unless_waiting(PublishStatus::Idle).await?;
-                    self.upload_all().await?;
+                    if let Err(e) = self.upload_all().await {
+                        // TODO HSS: don't retry if the error is fatal
+                        error_report!(
+                            e,
+                            "failed to upload descriptor for HS service {}. Retrying in {}s",
+                            self.imm.nickname,
+                            RETRY_UPLOAD_DELAY.as_secs()
+                        );
+
+                        self.schedule_pending_upload(RETRY_UPLOAD_DELAY).await?;
+                    }
                 }
             }
         }
@@ -679,7 +698,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
     fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().expect("poisoned lock");
-        inner.last_uploaded = Some(self.imm.runtime.now());
 
         // Check which time period these uploads pertain to.
         let period = inner
@@ -733,6 +751,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Maybe update our list of HsDirs.
     async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
+        trace!("the consensus has changed; recomputing HSDirs");
+
         let _old: Option<Arc<NetDir>> = self.replace_netdir(netdir);
 
         self.recompute_hs_dirs()?;
@@ -861,17 +881,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
     ) -> Result<(), ReactorError> {
+        trace!("received IPT change notification from IPT manager");
         match update {
             Some(Ok(())) => {
                 let should_upload = self.note_ipt_change();
-                trace!("the introduction points have changed");
+                debug!("the introduction points have changed");
 
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
             Some(Err(_)) => Err(ReactorError::ShuttingDown),
             None => {
-                trace!("no IPTs available, ceasing uploads");
+                debug!("no IPTs available, ceasing uploads");
                 self.update_publish_status(PublishStatus::AwaitingIpts)
                     .await
             }
@@ -959,17 +980,21 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
         let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
-        if let Some(last_uploaded) = last_uploaded {
-            let duration_since_upload = last_uploaded.duration_since(now);
+        if let Some(ts) = last_uploaded {
+            let duration_since_upload = now.duration_since(ts);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 trace!("we are rate-limited; deferring descriptor upload");
-                return self.schedule_pending_upload().await;
+                return self
+                    .schedule_pending_upload(UPLOAD_RATE_LIM_THRESHOLD)
+                    .await;
             }
         }
 
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
+
+        let _ = inner.last_uploaded.insert(now);
 
         for period_ctx in inner.time_periods.iter_mut() {
             let upload_task_complete_tx = self.upload_task_complete_tx.clone();
@@ -1048,18 +1073,23 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         desc: hsdesc.clone(),
                         revision_counter,
                     };
-                    if let Err(_e) = Self::upload_for_time_period(
+                    if let Err(e) = Self::upload_for_time_period(
                         hsdesc,
                         hs_dirs,
                         &netdir,
                         time_period,
-                        imm,
+                        Arc::clone(&imm),
                         ipt_upload_view.clone(),
                         upload_task_complete_tx,
                     )
                     .await
                     {
-                        // TODO HSS
+                        error_report!(
+                            e,
+                            "descriptor upload failed for HS service {} and time period {:?}",
+                            imm.nickname,
+                            time_period
+                        );
                     }
                 })
                 .map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
@@ -1068,15 +1098,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Tell the "upload reminder" task to remind us to retry an upload that was rate-limited.
-    async fn schedule_pending_upload(&mut self) -> Result<(), ReactorError> {
+    /// Tell the "upload reminder" task to remind us to retry an upload that failed or was rate-limited.
+    async fn schedule_pending_upload(&mut self, delay: Duration) -> Result<(), ReactorError> {
         if let Err(e) = self
-            .rate_lim_upload_tx
+            .reattempt_upload_tx
             .as_mut()
             .ok_or(internal!(
                 "channel not initialized (schedule_pending_upload called before run?!)"
             ))?
-            .send(Some(self.imm.runtime.now() + UPLOAD_RATE_LIM_THRESHOLD))
+            .send(Some(self.imm.runtime.now() + delay))
             .await
         {
             // TODO HSS: return an error
