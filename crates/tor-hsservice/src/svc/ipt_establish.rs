@@ -819,9 +819,18 @@ impl<R: Runtime> Reactor<R> {
         if established.iter_extensions().next().is_some() {
             // We do not support any extensions from the introduction point; if it
             // sent us any, that's a protocol violation.
+            //
+            // TODO HSS this check needs to happen in IptMsgHandler::handle_msg,
+            // because otherwise handle_msg might go on to handle messages despite
+            // us wanting to crash, here.  (Providing reliable teardown of the
+            // IptMsgHandler wouldn't be sufficient, since there would be a race.)
             return Err(IptError::BadEstablished);
         }
 
+        // TODO HSS arrange for the IptMsgHandler to be torn down if the
+        // Establisher (and this IntroPtSession) is - or if this function returns
+        // early somehow.  Otherwise we might leak the IptMsgHandler and the whole
+        // circuit?  Given the design of the circuit msg interface this seems nontrivial.
         Ok(IntroPtSession {
             intro_circ: circuit,
         })
