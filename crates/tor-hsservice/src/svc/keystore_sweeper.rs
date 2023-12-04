@@ -6,12 +6,15 @@ use crate::{
     BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier, HsNickname,
     StartupError,
 };
-use futures::task::SpawnExt;
-use futures::StreamExt;
+use futures::{task::SpawnExt, select_biased};
+use futures::{StreamExt, FutureExt};
+use postage::broadcast;
 use tor_error::error_report;
 use tor_keymgr::KeyMgr;
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_rtcompat::Runtime;
+use tracing::{warn, debug};
+use void::Void;
 
 /// A helper for removing the expired keys of a hidden service.
 ///
@@ -26,6 +29,8 @@ pub(crate) struct KeystoreSweeper<R: Runtime> {
     keymgr: Arc<KeyMgr>,
     /// A netdir provider for watching for consensus changes.
     netdir_provider: Arc<dyn NetDirProvider>,
+    /// A channel for receiving the signal to shut down.
+    shutdown: broadcast::Receiver<Void>,
 }
 
 impl<R: Runtime> KeystoreSweeper<R> {
@@ -35,12 +40,14 @@ impl<R: Runtime> KeystoreSweeper<R> {
         nickname: HsNickname,
         keymgr: Arc<KeyMgr>,
         netdir_provider: Arc<dyn NetDirProvider>,
+        shutdown: broadcast::Receiver<Void>,
     ) -> Self {
         Self {
             runtime,
             nickname,
             keymgr,
             netdir_provider,
+            shutdown,
         }
     }
 
@@ -51,13 +58,27 @@ impl<R: Runtime> KeystoreSweeper<R> {
             nickname,
             keymgr,
             netdir_provider,
+            mut shutdown,
         } = self;
+
+        let match_all_arti_pat = tor_keymgr::KeyPathPattern::Arti("*".into());
+        let mut netdir_events = netdir_provider.events();
 
         let () = runtime
             .spawn(async move {
-                let match_all_arti_pat = tor_keymgr::KeyPathPattern::Arti("*".into());
-
-                while let Some(event) = netdir_provider.events().next().await {
+                loop {
+                select_biased! {
+                shutdown = shutdown.next().fuse() => {
+                    debug!(nickname=%nickname, "terminating keystore sweeper task due to shutdown signal");
+                    // We shouldn't be receiving anything on thisi channel.
+                    assert!(shutdown.is_none());
+                    return;
+                },
+                event = netdir_events.next().fuse() => {
+                    let Some(event) = event else {
+                        warn!(nickname=%nickname, "netdir provider sender dropped");
+                        return;
+                    };
                     if event == DirEvent::NewConsensus {
                         let netdir = match netdir_provider.timely_netdir() {
                             Ok(netdir) => netdir,
@@ -105,6 +126,8 @@ impl<R: Runtime> KeystoreSweeper<R> {
                             error_report!(e, "failed to remove expired keys");
                         }
                     }
+                }
+                }
                 }
             })
             .map_err(|e| StartupError::Spawn {

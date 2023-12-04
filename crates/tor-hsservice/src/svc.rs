@@ -172,7 +172,7 @@ impl OnionService {
             nickname.clone(),
             config_rx.clone(),
             rend_req_tx,
-            shutdown_rx,
+            shutdown_rx.clone(),
             statemgr,
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
@@ -198,7 +198,7 @@ impl OnionService {
         );
 
         let keystore_sweeper =
-            KeystoreSweeper::new(runtime, nickname, Arc::clone(&keymgr), netdir_provider);
+            KeystoreSweeper::new(runtime, nickname, Arc::clone(&keymgr), netdir_provider, shutdown_rx);
 
         // TODO HSS: we need to actually do something with: shutdown_tx,
         // rend_req_rx.  The latter may need to be refactored to actually work
