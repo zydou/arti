@@ -65,12 +65,14 @@ impl ReplayLog {
     /// resolve to the same file.
     pub(crate) fn new_logged(path: impl AsRef<Path>) -> io::Result<Self> {
         let mut file = {
-            #[cfg(target_family = "unix")]
-            use std::os::unix::fs::OpenOptionsExt as _;
             let mut options = OpenOptions::new();
             options.read(true).write(true).create(true);
+
             #[cfg(target_family = "unix")]
-            options.mode(0o600);
+            {
+                use std::os::unix::fs::OpenOptionsExt as _;
+                options.mode(0o600);
+            }
 
             options.open(path)?
         };
