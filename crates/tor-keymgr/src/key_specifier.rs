@@ -616,10 +616,11 @@ define_derive_adhoc! {
             vec![
                 stringify!(${tmeta(prefix)}).to_string(),
                 $(
-                    ${when F_IS_PATH}
+                  ${if F_IS_PATH {
                     $fname
                         .map(|s| $crate::KeySpecifierComponent::as_component(s).to_string())
                         .unwrap_or_else(|| "*".to_string()) ,
+                  }}
                 )
                 stringify!(${tmeta(role)}).to_string()
             ].join("/")
