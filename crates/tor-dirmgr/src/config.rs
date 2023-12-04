@@ -218,7 +218,7 @@ pub struct DirMgrConfig {
     /// directory information.
     ///
     /// Cannot be changed on a running Arti client.
-    pub cache_path: PathBuf,
+    pub cache_dir: PathBuf,
 
     /// Rules for whether to trust the the permissions on the cache_path.
     pub cache_trust: fs_mistrust::Mistrust,
@@ -267,7 +267,7 @@ impl DirMgrConfig {
     pub(crate) fn open_store(&self, readonly: bool) -> Result<DynStore> {
         Ok(Box::new(
             crate::storage::SqliteStore::from_path_and_mistrust(
-                &self.cache_path,
+                &self.cache_dir,
                 &self.cache_trust,
                 readonly,
             )?,
@@ -290,7 +290,7 @@ impl DirMgrConfig {
     /// Any fields which aren't allowed to change at runtime are copied from self.
     pub(crate) fn update_from_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
         DirMgrConfig {
-            cache_path: self.cache_path.clone(),
+            cache_dir: self.cache_dir.clone(),
             cache_trust: self.cache_trust.clone(),
             network: NetworkConfig {
                 fallback_caches: new_config.network.fallback_caches.clone(),
@@ -345,7 +345,7 @@ mod test {
         let tmp = tempdir().unwrap();
 
         let dir = DirMgrConfig {
-            cache_path: tmp.path().into(),
+            cache_dir: tmp.path().into(),
             ..Default::default()
         };
 
@@ -438,7 +438,7 @@ mod test {
         let tmp = tempdir().unwrap();
 
         bld.override_net_params.set("circwindow".into(), 999);
-        bld.cache_path = tmp.path().into();
+        bld.cache_dir = tmp.path().into();
 
         assert_eq!(bld.override_net_params.get("circwindow").unwrap(), &999);
 

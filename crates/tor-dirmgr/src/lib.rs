@@ -763,8 +763,8 @@ impl<R: Runtime> DirMgr<R> {
         // We don't support changing these: doing so basically would require us
         // to abort all our in-progress downloads, since they might be based on
         // no-longer-viable information.
-        if new_config.cache_path != config.cache_path {
-            how.cannot_change("storage.cache_path")?;
+        if new_config.cache_dir != config.cache_dir {
+            how.cannot_change("storage.cache_dir")?;
         }
         if new_config.authorities() != config.authorities() {
             how.cannot_change("network.authorities")?;
@@ -1159,7 +1159,7 @@ mod test {
     pub(crate) fn new_mgr<R: Runtime>(runtime: R) -> (TempDir, DirMgr<R>) {
         let dir = TempDir::new().unwrap();
         let config = DirMgrConfig {
-            cache_path: dir.path().into(),
+            cache_dir: dir.path().into(),
             ..Default::default()
         };
         let store = DirMgrStore::new(&config, runtime.clone(), false).unwrap();

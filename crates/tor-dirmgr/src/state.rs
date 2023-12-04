@@ -1320,7 +1320,7 @@ mod test {
             netcfg.set_authorities(a);
         }
         let cfg = DirMgrConfig {
-            cache_path: "/we_will_never_use_this/".into(),
+            cache_dir: "/we_will_never_use_this/".into(),
             network: netcfg.build().unwrap(),
             ..Default::default()
         };

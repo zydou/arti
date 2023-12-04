@@ -670,7 +670,7 @@ impl TorClientConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
             tolerance:           self.directory_tolerance.clone(),
-            cache_path:          self.storage.expand_cache_dir()?,
+            cache_dir:           self.storage.expand_cache_dir()?,
             cache_trust:         self.storage.permissions.clone(),
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
