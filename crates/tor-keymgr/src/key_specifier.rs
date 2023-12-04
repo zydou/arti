@@ -2,7 +2,7 @@
 #![allow(clippy::crate_in_macro_def)] // TODO: clippy thinks we are not using `$crate` in the
                                       // `define_derive_adhoc!` below
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::result::Result as StdResult;
 use std::sync::Arc;
@@ -159,7 +159,7 @@ pub struct KeyPathInfo {
     /// `hs/foo/KS_hs_id.expanded_ed25519_private`, the extra information could
     /// be `("kind", "service)`, `("nickname", "foo")`, etc.
     #[builder(default)]
-    extra_info: HashMap<String, String>,
+    extra_info: BTreeMap<String, String>,
 }
 
 /// A trait for extracting info out of a [`KeyPath`]s.
