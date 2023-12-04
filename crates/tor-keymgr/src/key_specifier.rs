@@ -463,7 +463,8 @@ impl KeySpecifierComponent for TimePeriod {
 
     fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
     where
-        Self: Sized {
+        Self: Sized,
+    {
         let s = c.to_string();
         let (interval_num, length, offset_in_sec) = (|| {
             let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
@@ -761,7 +762,8 @@ mod test {
 
         fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
         where
-            Self: Sized {
+            Self: Sized,
+        {
             Ok(c.to_string().parse::<usize>().unwrap())
         }
     }
@@ -773,7 +775,8 @@ mod test {
 
         fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
         where
-            Self: Sized {
+            Self: Sized,
+        {
             Ok(c.to_string())
         }
     }
@@ -1112,7 +1115,10 @@ mod test {
         assert_eq!(encoded_period.to_string(), "2_1_3");
         assert_eq!(period, TimePeriod::from_component(encoded_period).unwrap());
 
-        assert!(TimePeriod::from_component(ArtiPathComponent::new("invalid_tp".to_string()).unwrap()).is_err());
+        assert!(TimePeriod::from_component(
+            ArtiPathComponent::new("invalid_tp".to_string()).unwrap()
+        )
+        .is_err());
     }
 
     #[test]

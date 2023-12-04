@@ -370,7 +370,7 @@ fn parse_time_period(
     path: &KeyPath,
     captures: &[KeyPathRange],
 ) -> Result<TimePeriod, tor_keymgr::Error> {
-    use tor_keymgr::{KeystoreCorruptionError as KCE, KeyPathError};
+    use tor_keymgr::{KeyPathError, KeystoreCorruptionError as KCE};
 
     let path = match path {
         KeyPath::Arti(path) => path,
@@ -390,7 +390,11 @@ fn parse_time_period(
         return Err(internal!("captured substring out of range?!").into());
     };
 
-    Ok(TimePeriod::from_component(ArtiPathComponent::new(denotator.to_string()).map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?).map_err(KCE::KeyPath)?)
+    Ok(TimePeriod::from_component(
+        ArtiPathComponent::new(denotator.to_string())
+            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?,
+    )
+    .map_err(KCE::KeyPath)?)
 }
 
 /// The current status of an introduction point, as defined in
