@@ -980,7 +980,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
-        #[adhoc(summary = "A key specifier with some fields and one denotator.")]
+        #[adhoc(summary = "test key")]
         struct TestSpecifier {
             // The remaining fields
             kind: String,
@@ -1018,7 +1018,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
-        #[adhoc(summary = "A key specifier with no fields and no denotators.")]
+        #[adhoc(summary = "test key")]
         struct TestSpecifier {}
 
         let key_spec = TestSpecifier {};
@@ -1045,7 +1045,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
-        #[adhoc(summary = "A key specifier with no fields and one denotator.")]
+        #[adhoc(summary = "test key")]
         struct TestSpecifier {
             #[adhoc(denotator)]
             count: usize,
@@ -1075,7 +1075,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
-        #[adhoc(summary = "A key specifier with fields.")]
+        #[adhoc(summary = "test key")]
         struct TestSpecifier {
             casing: String,
             /// A doc comment.
@@ -1109,7 +1109,7 @@ mod test {
         #[derive_adhoc(KeySpecifierDefault)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
-        #[adhoc(summary = "A key specifier with multiple denotators.")]
+        #[adhoc(summary = "test key")]
         struct TestSpecifier {
             casing: String,
             /// A doc comment.
