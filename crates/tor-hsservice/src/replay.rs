@@ -286,6 +286,8 @@ mod test {
     use std::path::PathBuf;
 
     use super::*;
+    use crate::test_temp_dir;
+    use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use rand::Rng;
 
     fn rand_h<R: Rng>(rng: &mut R) -> H {
@@ -323,6 +325,15 @@ mod test {
         }
     }
 
+    const TEST_TEMP_SUBDIR: &str = "replaylog";
+
+    fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<ReplayLog> {
+        dir.used_by(TEST_TEMP_SUBDIR, |dir| {
+            let p: PathBuf = dir.join("logfile");
+            ReplayLog::new_logged(p).unwrap()
+        })
+    }
+
     /// Basic tests on an persistent ReplayLog.
     #[test]
     fn logging_basics() {
@@ -330,15 +341,14 @@ mod test {
         let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
         let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
 
-        let dir = tempfile::TempDir::new().unwrap();
-        let p: PathBuf = dir.path().to_path_buf().join("logfile");
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let dir = test_temp_dir!();
+        let mut log = create_logged(&dir);
         // Add everything in group 1, then close and reload.
         for h in &group_1 {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         // Make sure everything in group 1 is still there.
         for h in &group_1 {
             assert!(log.check_inner(h).is_err());
@@ -348,7 +358,7 @@ mod test {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
         for h in group_1.iter().chain(group_2.iter()) {
             assert!(log.check_inner(h).is_err());
@@ -362,24 +372,26 @@ mod test {
         let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
         let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
 
-        let dir = tempfile::TempDir::new().unwrap();
-        let p: PathBuf = dir.path().to_path_buf().join("logfile");
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let dir = test_temp_dir!();
+        let mut log = create_logged(&dir);
         for h in &group_1 {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
         // Truncate the file by 7 bytes.
-        {
-            let file = OpenOptions::new().write(true).open(&p).unwrap();
+        dir.used_by(TEST_TEMP_SUBDIR, |dir| {
+            let file = OpenOptions::new()
+                .write(true)
+                .open(dir.join("logfile"))
+                .unwrap();
             // Make sure that the file has the length we expect.
             let expected_len = MAGIC.len() + HASH_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
             file.set_len((expected_len - 7) as u64).unwrap();
-        }
+        });
         // Now, reload the log. We should be able to recover every non-truncated
         // item...
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         for h in &group_1[..group_1.len() - 1] {
             assert!(log.check_inner(h).is_err());
         }
@@ -393,7 +405,7 @@ mod test {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
         for h in group_1.iter().chain(group_2.iter()) {
             assert!(log.check_inner(h).is_err());
