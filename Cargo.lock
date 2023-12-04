@@ -5253,6 +5253,7 @@ dependencies = [
  "digest",
  "educe",
  "fs-mistrust",
+ "fslock",
  "futures",
  "growable-bloom-filter",
  "hex",

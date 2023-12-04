@@ -14,6 +14,7 @@
 
 #![allow(dead_code)] // TODO HSS Remove once something uses ReplayLog.
 
+use fslock::LockFile;
 use hash::{hash, H, HASH_LEN};
 use std::{
     fs::{File, OpenOptions},
@@ -39,6 +40,15 @@ pub(crate) struct ReplayLog {
     seen: data::Filter,
     /// A file logging fingerprints of the messages we have seen.  If there is no such file, this RelayLog is ephemeral.
     log: Option<BufWriter<File>>,
+    /// Filesystem lock which must not be released until after we finish writing
+    ///
+    /// Must come last so that the drop order is correct
+    //
+    // Maybe this and `log` should be in the same `Option`, eliminating the erroneous
+    // state where we only have one?  But that would be tiresome, since it would
+    // involve another struct (and we never actually use `lock`).
+    #[allow(dead_code)] // Held just so we unlock on drop
+    lock: Option<Arc<LockFile>>,
 }
 
 /// A magic string that we put at the start of each log file, to make sure that
@@ -51,6 +61,7 @@ impl ReplayLog {
         Self {
             seen: data::Filter::new(),
             log: None,
+            lock: None,
         }
     }
     /// Create a ReplayLog backed by the file at a given path.
@@ -58,12 +69,15 @@ impl ReplayLog {
     /// If the file already exists, load its contents and append any new
     /// contents to it; otherwise, create the file.
     ///
+    /// **`lock` must already have been locked** and this
+    /// *cannot be assured by the type system*.
+    ///
     /// # Limitations
     ///
     /// It is the caller's responsibility to make sure that there are never two
     /// `ReplayLogs` open at once for the same path, or for two paths that
     /// resolve to the same file.
-    pub(crate) fn new_logged(path: impl AsRef<Path>) -> io::Result<Self> {
+    pub(crate) fn new_logged(path: impl AsRef<Path>, lock: Arc<LockFile>) -> io::Result<Self> {
         let mut file = {
             let mut options = OpenOptions::new();
             options.read(true).write(true).create(true);
@@ -121,6 +135,7 @@ impl ReplayLog {
         Ok(Self {
             seen,
             log: Some(BufWriter::new(file)),
+            lock: Some(lock),
         })
     }
 
@@ -329,8 +344,13 @@ mod test {
 
     fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<ReplayLog> {
         dir.used_by(TEST_TEMP_SUBDIR, |dir| {
+            let lock = LockFile::open(&dir.join("lock")).unwrap();
+            // Really ReplayLog::new should take a lock file type that guarantees the
+            // returned value has actually been locked.  But it doesn't.  Because
+            // the LockFile API is defective and doesn't provide such a type.
+            // So, we can skip actually locking, in these tests...
             let p: PathBuf = dir.join("logfile");
-            ReplayLog::new_logged(p).unwrap()
+            ReplayLog::new_logged(p, Arc::new(lock)).unwrap()
         })
     }
 
