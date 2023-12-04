@@ -3,6 +3,192 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.11 — 4 December 2023
+
+Arti 1.1.11 continues work on support for running onion services.
+Onion services are now working in our testing, and we expect we'll
+have something testable by others in our next release.
+
+Arti 1.1.11 also increases our MSRV (Minimum Supported Rust Version)
+to 1.70, in accordance with our [MSRV policy].
+
+### Breaking changes
+
+- Arti now requires Rust 1.70 or later. ([!1773])
+
+### Breaking changes in lower-level crates
+
+- The `LockStatus` type in tor-persist is now `#[must_use]`. ([#1753])
+- The `tor-dirclient` crate now exposes `http::Error` from
+  http 1.0. ([c5b386fb1009a1d9])
+- The `tor-dirclient` crate's `RequestError` type now includes status text
+  from the directory server, to help diagnose problems. ([!1780])
+- We've upgraded to the latest versions of [dalek-cryptography].  This
+  is a breaking change to every internal Arti API that takes a
+  curve25519 or ed25519 key as its input. ([#808], [!1767])
+- In `tor-cell`, `HandshakeType` is now used in several places
+  in place of `u16`. ([5d7f70c0fe515aee])
+
+### Onion service development
+
+- Correct our handling of BEGIN and END messages to bring them
+  into conformance with the C Tor implementation and the specification.
+  ([#1077], [!1694], [!1738])
+- In our key manager, use macros to define key specifiers, instead of
+  repeating the same boilerplate code. ([#1069], [#1093], [!1710],
+  [!1733])
+- Refactoring and refinement on the definitions of onion-service-related
+  errors. ([!1718], [!1724], [!1750], [!1751], [!1779])
+- Add a "time-store" mechanism for (as correctly as possible) storing and loading
+  future timestamps, even in the presence of system clock skew ([!1723], [!1774])
+- Implement a replay-log backend to prevent INTRODUCE replay attacks
+  against onion services. ([!1725])
+- Improved encoding for key-denotators in the key manager. ([#1063],
+  [#1070], [!1722])
+- Allow a single key to have more than one denotator in its path.
+  ([#1112], [!1747])
+- Use an order-preserving-encryption back-end to generate
+  monotonically increasing revision counters for onion service
+  descriptors.  We do this to ensure a reproducible series of counters
+  without leaking our clock skew.  ([#1053], [!1741], [!1744])
+- Deprecate key types for INTRODUCE-based authentication:
+  C tor has never implemented this, and we do not plan to implement it
+  without additional specification work. ([#1037], [!1749])
+- When establishing an introduction point, send the `intro_dos`
+  extension as appropriate. ([#723], [!1740])
+- Added conversion functions and initial persistence support for
+  introduction point keys. ([!1756])
+- Start work on introduction point persistence. ([!1755], [!1765]).
+- Make a `Builder` type for key managers. ([#1114], [!1760])
+- Revert to our intended configuration format for onion service proxy rules.
+  ([#1058], [!1771])
+- Resolve miscellaneous "TODO" items throughout the onion service
+  code. ([#1066], [!1728], [!1731], [!1732], [!1742])
+
+### Client features
+
+- Backend and API code for the "ntor-v3" circuit-extension handshake.
+  This handshake adds the ability to send additional options
+  from the client to the relay when creating or extending a circuit,
+  and will eventually be used to negotiate protocol features like
+  RTT-based congestion control and UDP-over-Tor support.
+  ([!1720], [!1739])
+
+### Testing
+
+- Simplify the usage of time-simulating mock runtimes.
+  ([ee96e5e454ba5db2])
+- Use time-simulating mock runtimes in more circuit-manager tests, to
+  make them more reliable. ([#1090], [!1727])
+- Add a `spawn_join` method to mock runtimes, to simplify
+  tests. ([!1746])
+- Prototype a "testing temp dir" facitility to ensure that temporary
+  directories used in tests can be persistent if desired, and that
+  they live for long enough. ([!1762])
+
+### Cleanups, minor features, and bugfixes
+
+- Fix various warnings from Clippy. ([!1719])
+- Solve a bug that prevented `Conversation::send_message` from working.
+  ([#1085], [!1726])
+- Upgrade to version 4 of the `clap` option-parsing library.
+  ([!1735])
+- New backend to generate rate limited problem reports without
+  spamming the logs.  ([#1076], [!1734], [!1752])
+- Correct our decisions about sending Content-Length on HTTP
+  requests. Previously we had sent it unconditionally. ([#1024],
+  [!1671])
+- Add directory-listing and file-deletion support to
+  `fs-mistrust::CheckedDir`. ([#1117], [!1759])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Andrew, Jim Newsome, rdbo, Saksham Mittal, and
+Trinity Pointard.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+
+
+
+
+
+
+[!1671]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1671
+[!1694]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1694
+[!1710]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1710
+[!1718]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1718
+[!1719]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1719
+[!1720]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1720
+[!1722]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1722
+[!1723]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1723
+[!1724]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1724
+[!1725]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1725
+[!1726]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1726
+[!1727]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1727
+[!1728]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1728
+[!1731]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1731
+[!1732]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1732
+[!1733]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733
+[!1734]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1734
+[!1735]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1735
+[!1738]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1738
+[!1739]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1739
+[!1740]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1740
+[!1741]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1741
+[!1742]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1742
+[!1744]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1744
+[!1746]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1746
+[!1747]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1747
+[!1749]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1749
+[!1750]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1750
+[!1751]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1751
+[!1752]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1752
+[!1755]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1755
+[!1759]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1759
+[!1760]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1760
+[!1762]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1762
+[!1756]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1756
+[!1765]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1765
+[!1767]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1767
+[!1771]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1771
+[!1773]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1773
+[!1774]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1774
+[!1779]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1779
+[!1780]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1780
+[#723]: https://gitlab.torproject.org/tpo/core/arti/-/issues/723
+[#808]: https://gitlab.torproject.org/tpo/core/arti/-/issues/808
+[#1024]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1024
+[#1037]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1037
+[#1053]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1053
+[#1058]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1058
+[#1063]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1063
+[#1066]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1066
+[#1069]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1069
+[#1070]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1070
+[#1076]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1076
+[#1077]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1077
+[#1085]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1085
+[#1090]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1090
+[#1093]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1093
+[#1112]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1112
+[#1114]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1114
+[#1117]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1117
+[#1753]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1753
+[c5b386fb1009a1d9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5b386fb1009a1d91a830aeb67921c6057b98a1e
+[ee96e5e454ba5db2]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ee96e5e454ba5db27daaab0f8757732994454f0b
+[MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
+[Zcash Community Grants]:  https://zcashcommunitygrants.org/
+[dalek-cryptography]: https://github.com/dalek-cryptography/
+[other sponsors]:  https://www.torproject.org/about/sponsors/
+
+
+
+
+
+
 # Arti 1.1.10 — 31 October 2023
 
 Arti 1.1.10 continues work on support for onion services in Arti.
@@ -186,6 +372,7 @@ for funding the development of Arti!
 [#1078]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1078
 [#1080]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1080
 [21605d2c9e601c3a]: https://gitlab.torproject.org/tpo/core/arti/-/commit/21605d2c9e601c3a5099bfd8d8c887cbb3b36c0a
+[5d7f70c0fe515aee]:  https://gitlab.torproject.org/tpo/core/arti/-/commit/5d7f70c0fe515aee8640f336cc799b70828fd109
 [cfe641613e6b6f4f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cfe641613e6b6f4f55de87621eadacf24d22a939
 [`IoErrorExt`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/trait.IoErrorExt.html
 [`Requestable`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirclient/request/trait.Requestable.html
