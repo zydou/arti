@@ -158,8 +158,30 @@ pub struct KeyPathInfo {
     /// components of a KeyPath. For example, for the [`ArtiPath`]
     /// `hs/foo/KS_hs_id.expanded_ed25519_private`, the extra information could
     /// be `("kind", "service)`, `("nickname", "foo")`, etc.
-    #[builder(default)]
+    #[builder(default, setter(custom))]
     extra_info: BTreeMap<String, String>,
+}
+
+impl KeyPathInfoBuilder {
+    /// Initialize the additional information of this builder with the specified values.
+    ///
+    /// Erases the preexisting `extra_info`.
+    pub fn set_all_extra_info(
+        &mut self,
+        all_extra_info: impl Iterator<Item = (String, String)>,
+    ) -> &mut Self {
+        self.extra_info = Some(all_extra_info.collect());
+        self
+    }
+
+    /// Append the specified key-value pair to the `extra_info`.
+    ///
+    /// The preexisting `extra_info` is preserved.
+    pub fn extra_info(&mut self, key: impl Into<String>, value: impl Into<String>) -> &mut Self {
+        let extra_info = self.extra_info.get_or_insert(Default::default());
+        extra_info.insert(key.into(), value.into());
+        self
+    }
 }
 
 /// A trait for extracting info out of a [`KeyPath`]s.
@@ -735,6 +757,7 @@ mod test {
 
     use crate::assert_key_specifier_rountrip;
     use derive_adhoc::Adhoc;
+    use itertools::Itertools;
 
     macro_rules! assert_err {
         ($ty:ident, $inner:expr, $error_kind:pat) => {{
@@ -1132,5 +1155,65 @@ mod test {
         assert_eq!(period, TimePeriod::decode(&encoded_period).unwrap());
 
         assert!(TimePeriod::decode("invalid_tp").is_err());
+    }
+
+    #[test]
+    fn key_info_builder() {
+        // A helper to check the extra_info of a `KeyPathInfo`
+        macro_rules! assert_extra_info_eq {
+            ($key_info:expr, [$(($k:expr, $v:expr),)*]) => {{
+                assert_eq!(
+                    $key_info.extra_info.into_iter().collect_vec(),
+                    vec![
+                        $(($k.into(), $v.into()),)*
+                    ]
+                );
+            }}
+        }
+        let extra_info = vec![("nickname".into(), "bar".into())];
+
+        let key_info = KeyPathInfoBuilder::default()
+            .summary("test summary".into())
+            .set_all_extra_info(extra_info.clone().into_iter())
+            .build()
+            .unwrap();
+
+        assert_eq!(key_info.extra_info.into_iter().collect_vec(), extra_info);
+
+        let key_info = KeyPathInfoBuilder::default()
+            .summary("test summary".into())
+            .set_all_extra_info(extra_info.clone().into_iter())
+            .extra_info("type", "service")
+            .extra_info("time period", "100")
+            .build()
+            .unwrap();
+
+        assert_extra_info_eq!(
+            key_info,
+            [
+                ("nickname", "bar"),
+                ("time period", "100"),
+                ("type", "service"),
+            ]
+        );
+
+        let key_info = KeyPathInfoBuilder::default()
+            .summary("test summary".into())
+            .extra_info("type", "service")
+            .extra_info("time period", "100")
+            .set_all_extra_info(extra_info.clone().into_iter())
+            .build()
+            .unwrap();
+
+        assert_extra_info_eq!(key_info, [("nickname", "bar"),]);
+
+        let key_info = KeyPathInfoBuilder::default()
+            .summary("test summary".into())
+            .extra_info("type", "service")
+            .extra_info("time period", "100")
+            .build()
+            .unwrap();
+
+        assert_extra_info_eq!(key_info, [("time period", "100"), ("type", "service"),]);
     }
 }
