@@ -279,7 +279,6 @@ impl IptsManagerView {
     /// Peek at the list of introduction points we are providing to the publisher
     ///
     /// (Used for testing and during startup.)
-    #[allow(dead_code)] // XXXX
     pub(crate) fn borrow_for_read(&mut self) -> impl Deref<Target = PublishIptSet> + '_ {
         lock_shared(&self.shared)
     }
