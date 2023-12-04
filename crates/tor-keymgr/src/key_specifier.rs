@@ -387,6 +387,12 @@ pub trait KeySpecifier {
 /// always a valid `ArtiPathComponent`, but may have a more restricted charset, or more specific
 /// validation rules. An `ArtiPathComponent` is not always a valid `KeySpecifierComponent`
 /// instance.
+///
+/// If you are deriving [`DefaultKeySpecifier`](derive_adhoc_template_KeySpecifierDefault) for a
+/// struct, all of its fields must implement this trait.
+///
+/// If you are implementing [`KeySpecifier`] and [`KeyInfoExtractor`] manually rather than by
+/// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
     /// Return the [`ArtiPathComponent`] representation of this type.
     fn as_component(&self) -> ArtiPathComponent;
