@@ -620,8 +620,7 @@ define_derive_adhoc! {
                 // Check if this is a valid path
                 let _ = $tname::try_from(path)?;
 
-                // TODO: can we use the first line of the doc string for the summary
-                // (instead of having a separate summary attribute)?
+                // TODO: allow users to specify a `spec_name` for the key specifier.
                 Ok(
                     // TODO: Add extra info the to the Keyinfo
                     $crate::KeyPathInfoBuilder::default()
