@@ -175,7 +175,7 @@ impl BuilderExt for MistrustBuilder {
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct StorageConfig {
-    /// Location on disk for cached directory information.
+    /// Location on disk for cached information.
     #[builder(setter(into), default = "default_cache_dir()")]
     cache_dir: CfgPath,
     /// Location on disk for less-sensitive persistent state information.
