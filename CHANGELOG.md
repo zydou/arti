@@ -26,6 +26,8 @@ to 1.70, in accordance with our [MSRV policy].
 - We've upgraded to the latest versions of [dalek-cryptography].  This
   is a breaking change to every internal Arti API that takes a
   curve25519 or ed25519 key as its input. ([#808], [!1767])
+- In `tor-cell`, `HandshakeType` is now used in several places
+  in place of `u16`. ([5d7f70c0fe515aee])
 
 ### Onion service development
 
@@ -370,6 +372,7 @@ for funding the development of Arti!
 [#1078]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1078
 [#1080]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1080
 [21605d2c9e601c3a]: https://gitlab.torproject.org/tpo/core/arti/-/commit/21605d2c9e601c3a5099bfd8d8c887cbb3b36c0a
+[5d7f70c0fe515aee]:  https://gitlab.torproject.org/tpo/core/arti/-/commit/5d7f70c0fe515aee8640f336cc799b70828fd109
 [cfe641613e6b6f4f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cfe641613e6b6f4f55de87621eadacf24d22a939
 [`IoErrorExt`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/trait.IoErrorExt.html
 [`Requestable`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirclient/request/trait.Requestable.html
