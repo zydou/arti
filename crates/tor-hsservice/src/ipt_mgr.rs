@@ -41,6 +41,7 @@ use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier};
+use crate::replay::ReplayLog;
 use crate::svc::{ipt_establish, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
@@ -428,7 +429,13 @@ impl Ipt {
             started: imm.runtime.now(),
         };
 
+        // TODO HSS: This should actually be persistent!  We want to use a
+        // separate file for each (KP_hss_ntor) key, and use the same file
+        // for every KP_hss_ntor key.
+        let replay_log = ReplayLog::new_ephemeral();
+
         let params = IptParameters {
+            replay_log,
             config_rx: new_configs.clone(),
             netdir_provider: imm.dirprovider.clone(),
             introduce_tx: imm.output_rend_reqs.clone(),
