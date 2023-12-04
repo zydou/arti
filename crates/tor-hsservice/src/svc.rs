@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
 use futures::Stream;
+use postage::broadcast;
 use safelog::sensitive;
-use tor_async_utils::oneshot;
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::{Reconfigure, ReconfigureError};
@@ -69,7 +69,7 @@ struct SvcInner {
     keymgr: Arc<KeyMgr>,
 
     /// A oneshot that will be dropped when this object is dropped.
-    shutdown_tx: oneshot::Sender<void::Void>,
+    shutdown_tx: postage::broadcast::Sender<void::Void>,
 
     /// Handles that we'll take ownership of when launching the service.
     ///
@@ -160,7 +160,7 @@ impl OnionService {
             .create_handle(format!("hs_iptpub_{nickname}"));
 
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
         let (ipt_mgr_view, publisher_view) =
