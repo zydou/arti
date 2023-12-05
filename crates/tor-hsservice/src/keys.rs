@@ -99,10 +99,10 @@ impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 pub(crate) struct IptKeySpecifier<'s> {
     /// nick
     pub(crate) nick: &'s HsNickname,
-    /// lid
-    pub(crate) lid: IptLocalId,
     /// which key
     pub(crate) role: IptKeyRole,
+    /// lid
+    pub(crate) lid: IptLocalId,
 }
 
 // TODO HSS soup up the `KeySpecifierDefault` macro to be able to generate this ArtiPath
