@@ -160,7 +160,7 @@ define_derive_adhoc! {
     impl<'de> serde::de::Visitor<'de> for $STRING_VISITOR {
         type Value = $ttype;
         fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<$ttype, E> {
-            s.parse().map_err(|e: ParseError| E::custom(e))
+            s.parse().map_err(|e| E::custom(e))
         }
         fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, concat!("string representing ", stringify!($tname)))

@@ -51,6 +51,9 @@ use tor_basic_utils::impl_debug_hex;
 #[macro_use]
 mod test_temp_dir;
 
+#[macro_use] // SerdeStringOrTransparent
+mod time_store;
+
 mod anon_level;
 pub mod config;
 mod err;
@@ -63,7 +66,6 @@ mod replay;
 mod req;
 mod status;
 mod svc;
-mod time_store;
 mod timeout_track;
 
 // rustdoc doctests can't use crate-public APIs, so are broken if provided for private items.
