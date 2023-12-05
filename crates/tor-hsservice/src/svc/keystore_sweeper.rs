@@ -98,14 +98,21 @@ impl<R: Runtime> KeystoreSweeper<R> {
                                         macro_rules! remove_if_expired {
                                             ($K:ty) => {{
                                                 if let Ok(spec) = <$K>::try_from(&key_path) {
-                                                    // Only remove the keys of the hidden service that concerns us
+                                                    // Only remove the keys of the hidden service
+                                                    // that concerns us
                                                     if &spec.nickname == &nickname {
-                                                        let is_expired = !relevant_periods.contains(&spec.period);
-                                                        // TODO: make the keystore selector configurable
+                                                        let is_expired = !relevant_periods
+                                                            .contains(&spec.period);
+                                                        // TODO: make the keystore selector
+                                                        // configurable
                                                         let selector = Default::default();
 
                                                         if is_expired {
-                                                            keymgr.remove_with_type(&key_path, &key_type, selector)?;
+                                                            keymgr.remove_with_type(
+                                                                &key_path,
+                                                                &key_type,
+                                                                selector
+                                                            )?;
                                                         }
                                                     }
                                                 }
