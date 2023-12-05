@@ -11,6 +11,7 @@ use derive_adhoc::Adhoc;
 
 use tor_error::into_internal;
 use tor_hscrypto::time::TimePeriod;
+use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
 use tor_keymgr::{derive_adhoc_template_KeySpecifierDefault, KeyPathPattern};
 use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
 
@@ -82,7 +83,7 @@ pub struct DescSigningKeypairSpecifier {
 }
 
 /// Denotates one of the keys, in the context of a particular HS and intro point
-#[derive(Debug, strum::Display)]
+#[derive(Debug, strum::Display, strum::EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub(crate) enum IptKeyRole {
     /// `k_hss_ntor`
@@ -90,6 +91,8 @@ pub(crate) enum IptKeyRole {
     /// `k_hss_ntor`
     KSid,
 }
+
+impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 
 /// Specifies an intro point key
 #[derive(Debug)]
