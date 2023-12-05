@@ -49,6 +49,7 @@ use serde::{Deserializer, Serializer};
 use thiserror::Error;
 
 use tor_basic_utils::impl_debug_hex;
+use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
 
 #[cfg(test)]
 #[macro_use]
@@ -139,6 +140,8 @@ impl FromStr for IptLocalId {
         Ok(IptLocalId(b))
     }
 }
+
+impl KeySpecifierComponentViaDisplayFromStr for IptLocalId {}
 
 impl IptLocalId {
     /// Return a fixed dummy `IptLocalId`, for testing etc.
