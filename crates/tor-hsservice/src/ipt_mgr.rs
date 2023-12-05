@@ -1461,6 +1461,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 Ok(ShutdownStatus::Terminate) => break,
             }
         }
+        // TODO HSS: Set status to Shutdown.
     }
 
     /// Target number of intro points

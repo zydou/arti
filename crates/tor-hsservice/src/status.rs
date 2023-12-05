@@ -27,6 +27,12 @@ pub struct OnionServiceStatus {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum State {
+    /// The service is not launched.
+    ///
+    /// Either [`OnionService::launch`](crate::OnionService::launch) has not
+    /// been called, or the service has been shut down.
+    Shutdown,
+
     /// The service is bootstrapping.
     ///
     /// Specifically, we have been offline, or we just initialized:
@@ -56,9 +62,9 @@ pub enum State {
 
 impl OnionServiceStatus {
     /// Create a new OnionServiceStatus for a service that has not been bootstrapped.
-    pub(crate) fn new_unbootstrapped() -> Self {
+    pub(crate) fn new_shutdown() -> Self {
         Self {
-            state: State::Bootstrapping,
+            state: State::Shutdown,
         }
     }
 

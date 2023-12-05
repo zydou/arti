@@ -612,7 +612,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 break e;
             }
         };
-
+        // TODO HSS: Set status to Shutdown.
         Err(err)
     }
 

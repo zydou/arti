@@ -215,7 +215,7 @@ impl OnionService {
 
         // TODO HSS: We should pass a copy of this to the publisher and/or the
         // IptMgr, and they should adjust it as needed.
-        let status_tx = StatusSender::new(OnionServiceStatus::new_unbootstrapped());
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         Ok(Arc::new(OnionService {
             inner: Mutex::new(SvcInner {
@@ -296,7 +296,14 @@ impl OnionService {
                 .ok_or(StartupError::AlreadyLaunched)?
         };
 
-        launch.launch()?;
+        // TODO HSS: Set status to Bootstrapping.
+        match launch.launch() {
+            Ok(()) => {}
+            Err(e) => {
+                // TODO HSS: Set status to Shutdown, record error.
+                return Err(e);
+            }
+        }
 
         // TODO HSS:  This needs to launch at least the following tasks:
         //
