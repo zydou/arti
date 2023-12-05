@@ -126,8 +126,6 @@ define_derive_adhoc! {
     // This has to be a macro rather than simply a helper newtype
     // to implement the "transparent" binary version,
     // since that involves looking into the struct's field.
-    //
-    // TODO see also IptLocalId crates/tor-hsservice/src/lib.rs, which could benefit from this.
     SerdeStringOrTransparent for struct, expect items =
 
     impl Serialize for $ttype {
