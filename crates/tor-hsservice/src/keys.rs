@@ -13,6 +13,7 @@ use tor_error::into_internal;
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
 use tor_keymgr::{derive_adhoc_template_KeySpecifierDefault, KeyPathPattern};
+#[allow(unused_imports)] // XXXX
 use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
 
 use crate::HsNickname;
@@ -95,27 +96,20 @@ pub(crate) enum IptKeyRole {
 impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 
 /// Specifies an intro point key
-#[derive(Debug)]
+#[derive(Debug, Adhoc)]
+#[derive_adhoc(KeySpecifierDefault)]
+#[adhoc(prefix = "hs")]
+#[adhoc(summary = "introduction point key")]
 pub(crate) struct IptKeySpecifier {
     /// nick
     pub(crate) nick: HsNickname,
     /// which key
+    #[adhoc(fixed_path_component = "ipts")]
+    #[adhoc(role)]
     pub(crate) role: IptKeyRole,
     /// lid
+    #[adhoc(denotator)]
     pub(crate) lid: IptLocalId,
-}
-
-// TODO HSS soup up the `KeySpecifierDefault` macro to be able to generate this ArtiPath
-// (the ArtiPath itself is right, so this ought to change impl but not tests)
-impl KeySpecifier for IptKeySpecifier {
-    fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
-        let IptKeySpecifier { nick, lid, role } = self;
-        let s = format!("hs/{nick}/ipts/{role}+{lid}");
-        Ok(ArtiPath::new(s).map_err(into_internal!("made wrong ArtiPath"))?)
-    }
-    fn ctor_path(&self) -> Option<CTorPath> {
-        None
-    }
 }
 
 #[cfg(test)]
