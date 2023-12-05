@@ -1,7 +1,5 @@
 //! Configure and implement onion service reverse-proxy feature.
 
-#![allow(dead_code)] // XXXX
-
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -204,14 +202,16 @@ impl Proxy {
 
 /// A set of configured onion service proxies.
 #[must_use = "a hidden service ProxySet object will terminate the services when dropped"]
-pub(crate) struct ProxySet {
+pub(crate) struct ProxySet<R: Runtime> {
+    /// The arti_client that we use to launch proxies.
+    client: arti_client::TorClient<R>,
     /// The proxies themselves, indexed by nickname.
     proxies: Mutex<HashMap<HsNickname, Proxy>>,
 }
 
-impl ProxySet {
+impl<R: Runtime> ProxySet<R> {
     /// Create and launch a set of onion service proxies.
-    pub(crate) fn launch_new<R: Runtime>(
+    pub(crate) fn launch_new(
         client: &arti_client::TorClient<R>,
         config_list: OnionServiceProxyConfigList,
     ) -> anyhow::Result<Self> {
@@ -226,6 +226,7 @@ impl ProxySet {
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
         Ok(Self {
+            client: client.clone(),
             proxies: Mutex::new(proxies),
         })
     }
@@ -235,9 +236,8 @@ impl ProxySet {
     ///
     /// Launches or closes proxies as necessary.  Does not close existing
     /// connections.
-    pub(crate) fn reconfigure<R: Runtime>(
-        &mut self,
-        client: &arti_client::TorClient<R>,
+    pub(crate) fn reconfigure(
+        &self,
         new_config: OnionServiceProxyConfigList,
     ) -> Result<(), anyhow::Error> {
         let mut proxy_map = self.proxies.lock().expect("lock poisoned");
@@ -262,7 +262,7 @@ impl ProxySet {
                 Entry::Vacant(ent) => {
                     // We do not have a proxy by this name, so we try to launch
                     // one.
-                    match Proxy::launch_new(client, cfg) {
+                    match Proxy::launch_new(&self.client, cfg) {
                         Ok(new_proxy) => {
                             ent.insert(new_proxy);
                         }
@@ -287,6 +287,13 @@ impl ProxySet {
             drop(defunct_proxy);
         }
 
+        Ok(())
+    }
+}
+
+impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
+    fn reconfigure(&self, new: &crate::ArtiCombinedConfig) -> anyhow::Result<()> {
+        ProxySet::reconfigure(self, new.0.onion_services.clone())?;
         Ok(())
     }
 }
