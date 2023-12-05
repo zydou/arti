@@ -153,6 +153,80 @@ struct Immutable<R: Runtime, M: Mockable> {
     keymgr: Arc<KeyMgr>,
 }
 
+impl<R: Runtime, M: Mockable> Immutable<R, M> {
+    /// Create an [`AesOpeKey`] for generating revision counters for the descriptors associated
+    /// with the specified [`TimePeriod`].
+    ///
+    /// If the onion service is not running in offline mode, the key of the returned `AesOpeKey` is
+    /// the private part of the blinded identity key. Otherwise, the key is the private part of the
+    /// descriptor signing key.
+    ///
+    /// Returns an error if the service is running in offline mode and the descriptor signing
+    /// keypair of the specified `period` is not available.
+    //
+    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
+    // built from the blinded id key
+    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
+        let ope_key = match read_blind_id_keypair(&self.keymgr, &self.nickname, period)? {
+            Some(key) => {
+                let key: ed25519::ExpandedKeypair = key.into();
+                key.to_secret_key_bytes()[0..32]
+                    .try_into()
+                    .expect("Wrong length on slice")
+            }
+            None => {
+                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
+                // is unreachable (for now).
+                let desc_sign_key_spec =
+                    DescSigningKeypairSpecifier::new(self.nickname.clone(), period);
+                let key: ed25519::Keypair = self
+                    .keymgr
+                    .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
+                    // TODO HSS(#1129): internal! is not the right type for this error (we need an
+                    // error type for the case where a hidden service running in offline mode has
+                    // run out of its pre-previsioned keys). This is somewhat related to #1083
+                    // This will be addressed as part of #1129
+                    .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
+                    .into();
+                key.to_bytes()
+            }
+        };
+
+        Ok(AesOpeKey::from_secret(&ope_key))
+    }
+
+    /// Generate a revision counter for a descriptor associated with the specified
+    /// [`TimePeriod`].
+    ///
+    /// Returns a revision counter generated according to the [encrypted time in period] scheme.
+    ///
+    /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
+    fn generate_revision_counter(
+        &self,
+        period: TimePeriod,
+        now: SystemTime,
+    ) -> Result<RevisionCounter, ReactorError> {
+        // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
+        // to each time we generate a new descriptor), for performance reasons.
+        let ope_key = self.create_ope_key(period)?;
+        let offset = period
+            .offset_within_period(now)
+            .ok_or_else(|| match period.range() {
+                Ok(std::ops::Range { start, .. }) => {
+                    internal!(
+                        "current wallclock time not within TP?! (now={:?}, TP_start={:?})",
+                        now,
+                        start
+                    )
+                }
+                Err(e) => into_internal!("failed to get TimePeriod::range()")(e),
+            })?;
+        let rev = ope_key.encrypt(offset);
+
+        Ok(RevisionCounter::from(rev))
+    }
+}
+
 /// Mockable state for the descriptor publisher reactor.
 ///
 /// This enables us to mock parts of the [`Reactor`] for testing purposes.
@@ -1020,7 +1094,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             // We're about to generate a new version of the descriptor: generate a new revision
             // counter.
             let now = self.imm.runtime.wallclock();
-            let revision_counter = self.generate_revision_counter(time_period, now)?;
+            let revision_counter = self.imm.generate_revision_counter(time_period, now)?;
 
             // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
             // here. See the TODO HSS about note_publication_attempt() below.
@@ -1396,79 +1470,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             )(err)
             .into()),
         }
-    }
-
-    /// Generate a revision counter for a descriptor associated with the specified
-    /// [`TimePeriod`].
-    ///
-    /// Returns a revision counter generated according to the [encrypted time in period] scheme.
-    ///
-    /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
-    fn generate_revision_counter(
-        &self,
-        period: TimePeriod,
-        now: SystemTime,
-    ) -> Result<RevisionCounter, ReactorError> {
-        // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
-        // to each time we generate a new descriptor), for performance reasons.
-        let ope_key = self.create_ope_key(period)?;
-        let offset = period
-            .offset_within_period(now)
-            .ok_or_else(|| match period.range() {
-                Ok(std::ops::Range { start, .. }) => {
-                    internal!(
-                        "current wallclock time not within TP?! (now={:?}, TP_start={:?})",
-                        now,
-                        start
-                    )
-                }
-                Err(e) => into_internal!("failed to get TimePeriod::range()")(e),
-            })?;
-        let rev = ope_key.encrypt(offset);
-
-        Ok(RevisionCounter::from(rev))
-    }
-
-    /// Create an [`AesOpeKey`] for generating revision counters for the descriptors associated
-    /// with the specified [`TimePeriod`].
-    ///
-    /// If the onion service is not running in offline mode, the key of the returned `AesOpeKey` is
-    /// the private part of the blinded identity key. Otherwise, the key is the private part of the
-    /// descriptor signing key.
-    ///
-    /// Returns an error if the service is running in offline mode and the descriptor signing
-    /// keypair of the specified `period` is not available.
-    //
-    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
-    // built from the blinded id key
-    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
-        let ope_key = match read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)? {
-            Some(key) => {
-                let key: ed25519::ExpandedKeypair = key.into();
-                key.to_secret_key_bytes()[0..32]
-                    .try_into()
-                    .expect("Wrong length on slice")
-            }
-            None => {
-                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
-                // is unreachable (for now).
-                let desc_sign_key_spec =
-                    DescSigningKeypairSpecifier::new(self.imm.nickname.clone(), period);
-                let key: ed25519::Keypair = self
-                    .imm
-                    .keymgr
-                    .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
-                    // TODO HSS(#1129): internal! is not the right type for this error (we need an
-                    // error type for the case where a hidden service running in offline mode has
-                    // run out of its pre-previsioned keys). This is somewhat related to #1083
-                    // This will be addressed as part of #1129
-                    .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
-                    .into();
-                key.to_bytes()
-            }
-        };
-
-        Ok(AesOpeKey::from_secret(&ope_key))
     }
 }
 
