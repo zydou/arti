@@ -47,7 +47,7 @@ impl HasKind for Error {
 }
 
 /// An error caused by an invalid [`ArtiPath`](crate::ArtiPath).
-#[derive(thiserror::Error, Debug, Copy, Clone)]
+#[derive(thiserror::Error, Debug, Clone)]
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
 pub enum ArtiPathError {
