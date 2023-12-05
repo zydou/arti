@@ -46,6 +46,8 @@
 pub mod config;
 mod err;
 mod key_specifier;
+#[cfg(any(test, feature = "testing"))]
+pub mod test_utils;
 
 #[cfg(feature = "keymgr")]
 mod key_type;
@@ -59,8 +61,9 @@ mod dummy;
 
 pub use err::{ArtiPathError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
-    ArtiPath, ArtiPathComponent, ArtiPathUnavailableError, CTorPath, KeyDenotator, KeyPath,
-    KeyPathPattern, KeyPathRange, KeySpecifier, DENOTATOR_SEP,
+    ArtiPath, ArtiPathComponent, ArtiPathUnavailableError, CTorPath, KeyInfoExtractor, KeyPath,
+    KeyPathError, KeyPathInfo, KeyPathInfoBuilder, KeyPathPattern, KeyPathRange, KeySpecifier,
+    KeySpecifierComponent, DENOTATOR_SEP,
 };
 
 #[cfg(feature = "keymgr")]
@@ -81,7 +84,7 @@ pub use dummy::*;
 pub(crate) type BoxedKeystore = Box<dyn Keystore>;
 
 #[doc(hidden)]
-pub use derive_adhoc;
+pub use {derive_adhoc, inventory, paste};
 
 use derive_more::{AsRef, Display};
 use serde::{Deserialize, Serialize};

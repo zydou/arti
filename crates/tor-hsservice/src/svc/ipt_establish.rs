@@ -29,7 +29,9 @@ use tor_hscrypto::{
     time::TimePeriod,
     Subcredential,
 };
+use tor_keymgr::ArtiPathComponent;
 use tor_keymgr::KeyPath;
+use tor_keymgr::KeySpecifierComponent;
 use tor_keymgr::{KeyMgr, KeyPathRange};
 use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
@@ -329,13 +331,13 @@ fn compute_subcredentials(
     nickname: &HsNickname,
     keymgr: &Arc<KeyMgr>,
 ) -> Result<Vec<Subcredential>, FatalError> {
-    let hsid_key_spec = HsIdPublicKeySpecifier::new(nickname);
+    let hsid_key_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
     let hsid = keymgr
         .get::<HsIdKey>(&hsid_key_spec)?
         .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
 
-    let pattern = BlindIdKeypairSpecifier::arti_pattern(&nickname);
+    let pattern = BlindIdKeypairSpecifier::arti_pattern(Some(nickname));
 
     let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
         .list_matching(&pattern)?
@@ -368,7 +370,7 @@ fn parse_time_period(
     path: &KeyPath,
     captures: &[KeyPathRange],
 ) -> Result<TimePeriod, tor_keymgr::Error> {
-    use tor_keymgr::KeyDenotator;
+    use tor_keymgr::{KeyPathError, KeystoreCorruptionError as KCE};
 
     let path = match path {
         KeyPath::Arti(path) => path,
@@ -388,7 +390,11 @@ fn parse_time_period(
         return Err(internal!("captured substring out of range?!").into());
     };
 
-    TimePeriod::decode(denotator)
+    Ok(TimePeriod::from_component(
+        ArtiPathComponent::new(denotator.to_string())
+            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?,
+    )
+    .map_err(KCE::KeyPath)?)
 }
 
 /// The current status of an introduction point, as defined in

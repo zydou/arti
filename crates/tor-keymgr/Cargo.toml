@@ -22,6 +22,7 @@ keymgr = ["__is_experimental", "tor-error/experimental", "tor-config/experimenta
 __is_experimental = []
 full = ["fs-mistrust/full", "tor-error/full", "tor-hscrypto/full", "tor-llcrypto/full", "tor-config/full"]
 experimental = ["keymgr"]
+testing = []
 
 [dependencies]
 arrayvec = "0.7.3"
@@ -32,7 +33,9 @@ downcast-rs = "1.2.0"
 dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.5", features = ["serde", "walkdir"] }
 glob-match = "0.2.1"
+inventory = "0.3.13"
 itertools = "0.12.0"
+paste = "1"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 ssh-key = { version = "0.6.1", features = ["std"] }

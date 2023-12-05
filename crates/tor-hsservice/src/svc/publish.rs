@@ -412,30 +412,34 @@ mod test {
             .build()
             .unwrap();
 
-        insert_svc_key(id_keypair, &keymgr, &HsIdKeypairSpecifier::new(nickname));
+        insert_svc_key(
+            id_keypair,
+            &keymgr,
+            &HsIdKeypairSpecifier::new(nickname.clone()),
+        );
 
         insert_svc_key(
             id_pub.clone(),
             &keymgr,
-            &HsIdPublicKeySpecifier::new(nickname),
+            &HsIdPublicKeySpecifier::new(nickname.clone()),
         );
 
         insert_svc_key(
             hs_blind_id_kp,
             &keymgr,
-            &BlindIdKeypairSpecifier::new(nickname, period),
+            &BlindIdKeypairSpecifier::new(nickname.clone(), period),
         );
 
         insert_svc_key(
             hs_blind_id_key.clone(),
             &keymgr,
-            &BlindIdPublicKeySpecifier::new(nickname, period),
+            &BlindIdPublicKeySpecifier::new(nickname.clone(), period),
         );
 
         insert_svc_key(
             HsDescSigningKeypair::from(ed25519::Keypair::generate(&mut rng)),
             &keymgr,
-            &DescSigningKeypairSpecifier::new(nickname, period),
+            &DescSigningKeypairSpecifier::new(nickname.clone(), period),
         );
 
         let hs_id = id_pub.into();

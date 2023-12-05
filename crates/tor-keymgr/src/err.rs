@@ -8,6 +8,8 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::KeyPathError;
+
 /// An Error type for this crate.
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
@@ -72,13 +74,13 @@ pub enum ArtiPathError {
 }
 
 /// An error caused by keystore corruption.
-#[derive(thiserror::Error, Debug, Copy, Clone)]
+#[derive(thiserror::Error, Debug, Clone)]
 #[error("Keystore corruption")]
 #[non_exhaustive]
 pub enum KeystoreCorruptionError {
-    /// A keystore contains a key that has an invalid [`ArtiPath`](crate::ArtiPath).
+    /// A keystore contains a key that has an invalid [`KeyPath`](crate::KeyPath).
     #[error("{0}")]
-    ArtiPath(#[from] ArtiPathError),
+    KeyPath(#[from] KeyPathError),
 }
 
 #[cfg(test)]

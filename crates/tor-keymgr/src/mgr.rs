@@ -3,13 +3,17 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    BoxedKeystore, EncodableKey, KeyPath, KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng,
-    KeystoreId, KeystoreSelector, Result, ToEncodableKey,
+    BoxedKeystore, EncodableKey, KeyInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
+    KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, KeystoreId, KeystoreSelector, Result,
+    ToEncodableKey,
 };
 
 use itertools::Itertools;
 use std::iter;
+use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
+
+// TODO: unify get()/get_with_type() and remove()/remove_with_type()
 
 /// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -36,13 +40,33 @@ use tor_error::{bad_api_usage, internal};
 /// [`contains`][crate::Keystore::contains]
 /// the specified key (and thus suffers from a a TOCTOU race).
 #[derive(derive_builder::Builder)]
-#[builder(pattern = "owned")]
+#[builder(pattern = "owned", build_fn(private, name = "build_unvalidated"))]
 pub struct KeyMgr {
     /// The default key store.
     default_store: BoxedKeystore,
     /// The secondary key stores.
     #[builder(default, setter(custom))]
     secondary_stores: Vec<BoxedKeystore>,
+    /// The key info extractors.
+    ///
+    /// These are initialized internally by [`KeyMgrBuilder::build`], using the values collected
+    /// using `inventory`.
+    #[builder(default, setter(skip))]
+    key_info_extractors: Vec<&'static dyn KeyInfoExtractor>,
+}
+
+impl KeyMgrBuilder {
+    /// Construct a [`KeyMgr`] from this builder.
+    pub fn build(self) -> StdResult<KeyMgr, KeyMgrBuilderError> {
+        let mut keymgr = self.build_unvalidated()?;
+
+        keymgr.key_info_extractors = inventory::iter::<&'static dyn KeyInfoExtractor>
+            .into_iter()
+            .copied()
+            .collect();
+
+        Ok(keymgr)
+    }
 }
 
 // TODO: auto-generate using define_list_builder_accessors/define_list_builder_helper
@@ -79,6 +103,8 @@ impl KeyMgrBuilder {
         &mut self.secondary_stores
     }
 }
+
+inventory::collect!(&'static dyn crate::KeyInfoExtractor);
 
 impl KeyMgr {
     /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
@@ -357,6 +383,22 @@ impl KeyMgr {
         store.remove(key_spec, &K::Key::key_type())
     }
 
+    /// Remove the key identified by `key_spec` and `key_type` from the
+    /// [`Keystore`](crate::Keystore) specified by `selector`.
+    ///
+    /// Like [`KeyMgr::remove`], except this function takes an explicit [&KeyType] argument instead
+    /// of obtaining it from the specified type's [`ToEncodableKey`] implementation.
+    pub fn remove_with_type(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        key_type: &KeyType,
+        selector: KeystoreSelector,
+    ) -> Result<Option<()>> {
+        let store = self.select_keystore(&selector)?;
+
+        store.remove(key_spec, key_type)
+    }
+
     /// Return the keys matching the specified [`KeyPathPattern`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
@@ -371,6 +413,24 @@ impl KeyMgr {
             })
             .flatten_ok()
             .collect::<Result<Vec<_>>>()
+    }
+
+    /// Describe the specified key.
+    ///
+    /// Returns [`KeyPathError::Unrecognized`] if none of the registered
+    /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
+    ///
+    /// This function uses the [`KeyInfoExtractors`] registered using
+    /// [`register_key_info_extractor`](crate::register_key_info_extractor),
+    /// or by [`DefaultKeySpecifier`](derive_adhoc_template_KeySpecifierDefault).
+    pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
+        for info_extractor in &self.key_info_extractors {
+            if let Ok(info) = info_extractor.describe(path) {
+                return Ok(info);
+            }
+        }
+
+        Err(KeyPathError::Unrecognized(path.clone()))
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.

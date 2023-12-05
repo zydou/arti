@@ -1,4 +1,11 @@
 //! [`KeySpecifier`] implementations for hidden service keys.
+//!
+//! Some of these `KeySpecifier`s represent time-bound keys (that are only valid
+//! as long as their time period is relevant). Time-bound keys are expired (removed)
+//! by the [`KeystoreSweeper`](crate::svc::keystore_sweeper::KeystoreSweeper) task.
+//! If you add a new time-bound key, you also need to update
+//! [`KeystoreSweeper`](crate::svc::keystore_sweeper::KeystoreSweeper::launch)
+//! to expire the key when its time-period is no longer relevant.
 
 use derive_adhoc::Adhoc;
 
@@ -10,63 +17,68 @@ use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
 use crate::HsNickname;
 use crate::IptLocalId;
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_id")]
+#[adhoc(summary = "Public part of the identity key")]
 /// The public part of the identity key of the service.
-pub struct HsIdPublicKeySpecifier<'a> {
+pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    nickname: HsNickname,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_id")]
+#[adhoc(summary = "Long-term identity keypair")]
 /// The long-term identity keypair of the service.
-pub struct HsIdKeypairSpecifier<'a> {
+pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    pub(crate) nickname: HsNickname,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_blind_id")]
+#[adhoc(summary = "Blinded signing keypair")]
 /// The blinded signing keypair.
-pub struct BlindIdKeypairSpecifier<'a> {
+pub struct BlindIdKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    pub(crate) nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
-    period: TimePeriod,
+    pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_blind_id")]
+#[adhoc(summary = "Blinded public key")]
 /// The blinded public key.
-pub struct BlindIdPublicKeySpecifier<'a> {
+pub struct BlindIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    pub(crate) nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
-    period: TimePeriod,
+    pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc)]
+#[derive(Adhoc, PartialEq, Debug)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_desc_sign")]
+#[adhoc(summary = "Descriptor signing key")]
 /// The descriptor signing key.
-pub struct DescSigningKeypairSpecifier<'a> {
+pub struct DescSigningKeypairSpecifier {
     /// The nickname of the  hidden service.
-    nickname: &'a HsNickname,
+    pub(crate) nickname: HsNickname,
     #[adhoc(denotator)]
     /// The time period associated with this key.
-    period: TimePeriod,
+    pub(crate) period: TimePeriod,
 }
 
 /// Denotates one of the keys, in the context of a particular HS and intro point
@@ -118,50 +130,56 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_keymgr::KeySpecifier;
+    use tor_keymgr::{assert_key_specifier_rountrip, KeySpecifier};
 
     #[test]
     fn hsid_key_specifiers() {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
-        let key_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let key_spec = HsIdPublicKeySpecifier::new(nickname.clone());
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KP_hs_id"
         );
 
-        let key_spec = HsIdKeypairSpecifier::new(&nickname);
+        let key_spec = HsIdKeypairSpecifier::new(nickname);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_id"
         );
+
+        assert_key_specifier_rountrip!(HsIdKeypairSpecifier, key_spec);
     }
 
     #[test]
     fn blind_id_key_specifiers() {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
-        let key_spec = BlindIdPublicKeySpecifier::new(&nickname, period);
+        let key_spec = BlindIdPublicKeySpecifier::new(nickname.clone(), period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KP_hs_blind_id+2_1_3"
         );
 
-        let key_spec = BlindIdKeypairSpecifier::new(&nickname, period);
+        let key_spec = BlindIdKeypairSpecifier::new(nickname, period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_blind_id+2_1_3"
         );
+
+        assert_key_specifier_rountrip!(BlindIdKeypairSpecifier, key_spec);
     }
 
     #[test]
     fn desc_signing_key_specifiers() {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
-        let key_spec = DescSigningKeypairSpecifier::new(&nickname, period);
+        let key_spec = DescSigningKeypairSpecifier::new(nickname, period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
             "hs/shallot/KS_hs_desc_sign+2_1_3"
         );
+
+        assert_key_specifier_rountrip!(DescSigningKeypairSpecifier, key_spec);
     }
 
     #[test]

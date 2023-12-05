@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
 use futures::Stream;
+use postage::broadcast;
 use safelog::sensitive;
-use tor_async_utils::oneshot;
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::{Reconfigure, ReconfigureError};
@@ -25,6 +25,7 @@ use tracing::{info, trace, warn};
 
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
+use crate::svc::keystore_sweeper::KeystoreSweeper;
 use crate::svc::publish::Publisher;
 use crate::HsIdKeypairSpecifier;
 use crate::HsIdPublicKeySpecifier;
@@ -35,6 +36,7 @@ use crate::RendRequest;
 use crate::StartupError;
 
 pub(crate) mod ipt_establish;
+pub(crate) mod keystore_sweeper;
 pub(crate) mod publish;
 pub(crate) mod rend_handshake;
 
@@ -67,7 +69,7 @@ struct SvcInner {
     keymgr: Arc<KeyMgr>,
 
     /// A oneshot that will be dropped when this object is dropped.
-    shutdown_tx: oneshot::Sender<void::Void>,
+    shutdown_tx: postage::broadcast::Sender<void::Void>,
 
     /// Handles that we'll take ownership of when launching the service.
     ///
@@ -98,6 +100,11 @@ struct ForLaunch<R: Runtime> {
     ///
     ///
     ipt_mgr_view: IptsManagerView,
+
+    /// An unlaunched keystore cleaner.
+    ///
+    /// Used for removing expired keys.
+    keystore_sweeper: KeystoreSweeper<R>,
 }
 
 /// Private trait used to type-erase `ForLaunch<R>`, so that we don't need to
@@ -111,6 +118,8 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
     fn launch(self: Box<Self>) -> Result<(), StartupError> {
         self.ipt_mgr.launch_background_tasks(self.ipt_mgr_view)?;
         self.publisher.launch()?;
+        self.keystore_sweeper.launch()?;
+
         Ok(())
     }
 }
@@ -151,7 +160,7 @@ impl OnionService {
             .create_handle(format!("hs_iptpub_{nickname}"));
 
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
         let (ipt_mgr_view, publisher_view) =
@@ -163,7 +172,7 @@ impl OnionService {
             nickname.clone(),
             config_rx.clone(),
             rend_req_tx,
-            shutdown_rx,
+            shutdown_rx.clone(),
             statemgr,
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
@@ -179,13 +188,21 @@ impl OnionService {
         maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
-            runtime,
-            nickname,
-            netdir_provider,
+            runtime.clone(),
+            nickname.clone(),
+            Arc::clone(&netdir_provider),
             circ_pool,
             publisher_view,
             config_rx,
             Arc::clone(&keymgr),
+        );
+
+        let keystore_sweeper = KeystoreSweeper::new(
+            runtime,
+            nickname,
+            Arc::clone(&keymgr),
+            netdir_provider,
+            shutdown_rx,
         );
 
         // TODO HSS: we need to actually do something with: shutdown_tx,
@@ -203,6 +220,7 @@ impl OnionService {
                         publisher,
                         ipt_mgr,
                         ipt_mgr_view,
+                        keystore_sweeper,
                     }),
                 )),
             }),
@@ -291,8 +309,8 @@ fn maybe_generate_hsid(
     nickname: &HsNickname,
     offline_hsid: bool,
 ) -> Result<(), StartupError> {
-    let hsid_spec = HsIdKeypairSpecifier::new(nickname);
-    let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname);
+    let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+    let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
     let has_hsid_kp = keymgr
         .get::<HsIdKeypair>(&hsid_spec)
@@ -434,8 +452,8 @@ pub(crate) mod test {
     macro_rules! maybe_generate_hsid {
         ($keymgr:expr, $offline_hsid:expr) => {{
             let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-            let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-            let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+            let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+            let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
             assert!($keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().is_none());
             assert!($keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().is_none());
@@ -461,8 +479,8 @@ pub(crate) mod test {
         let keymgr = create_keymgr(&temp_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname);
 
         maybe_generate_hsid!(keymgr, false /* offline_hsid */);
 
@@ -477,8 +495,8 @@ pub(crate) mod test {
     fn hsid_keypair_already_exists() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         for hsid_pub_missing in [false, true] {
             let keymgr = create_keymgr(&temp_dir);
@@ -526,8 +544,8 @@ pub(crate) mod test {
         let keymgr = create_keymgr(&temp_dir);
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         maybe_generate_hsid!(keymgr, true /* offline_hsid */);
 
@@ -539,8 +557,8 @@ pub(crate) mod test {
     fn generate_hsid_missing_keypair() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         let keymgr = create_keymgr(&temp_dir);
 
@@ -559,8 +577,8 @@ pub(crate) mod test {
     fn generate_hsid_corrupt_keystore() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(&nickname);
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(&nickname);
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         let keymgr = create_keymgr(&temp_dir);
 

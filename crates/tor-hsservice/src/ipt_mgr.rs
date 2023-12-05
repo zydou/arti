@@ -21,13 +21,13 @@ use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
 use itertools::Itertools as _;
-use postage::watch;
+use postage::{broadcast, watch};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tor_keymgr::{KeyMgr, KeySpecifier as _};
 use tracing::{debug, error, info, trace, warn};
-use void::{ResultVoidErrExt as _, Void};
+use void::Void;
 
 use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
@@ -145,7 +145,7 @@ pub(crate) struct State<R, M> {
     last_irelay_selection_outcome: Result<(), ()>,
 
     /// Signal for us to shut down
-    shutdown: oneshot::Receiver<Void>,
+    shutdown: broadcast::Receiver<Void>,
 
     /// Mockable state, normally [`Real`]
     ///
@@ -534,7 +534,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         nick: HsNickname,
         config: watch::Receiver<Arc<OnionServiceConfig>>,
         output_rend_reqs: mpsc::Sender<RendRequest>,
-        shutdown: oneshot::Receiver<Void>,
+        shutdown: broadcast::Receiver<Void>,
         storage: impl tor_persist::StateMgr + Send + Sync + 'static,
         mockable: M,
         keymgr: Arc<KeyMgr>,
@@ -1404,9 +1404,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         select_biased! {
             () = now.wait_for_earliest(&self.imm.runtime).fuse() => {},
-            shutdown = &mut self.state.shutdown => {
+            shutdown = self.state.shutdown.next().fuse() => {
                 info!("HS service {}: terminating due to shutdown signal", &self.imm.nick);
-                return Ok(shutdown.void_unwrap_err().into())
+                // We shouldn't be receiving anything on thisi channel.
+                assert!(shutdown.is_none());
+                return Ok(ShutdownStatus::Terminate)
             },
 
             update = self.state.status_recv.next() => {
@@ -1688,7 +1690,7 @@ mod test {
     struct MockedIptManager<'d> {
         estabs: MockEstabs,
         pub_view: ipt_set::IptsPublisherView,
-        shut_tx: oneshot::Sender<Void>,
+        shut_tx: broadcast::Sender<Void>,
         #[allow(dead_code)]
         cfg_tx: watch::Sender<Arc<OnionServiceConfig>>,
         #[allow(dead_code)] // ensures temp dir lifetime; paths stored in self
@@ -1712,7 +1714,7 @@ mod test {
             let (cfg_tx, cfg_rx) = watch::channel_with(Arc::new(cfg));
 
             let (rend_tx, _rend_rx) = mpsc::channel(10);
-            let (shut_tx, shut_rx) = oneshot::channel::<Void>();
+            let (shut_tx, shut_rx) = broadcast::channel::<Void>(0);
 
             let estabs: MockEstabs = Default::default();
 

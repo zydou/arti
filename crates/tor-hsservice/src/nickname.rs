@@ -4,7 +4,7 @@ use derive_more::{Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use tor_keymgr::ArtiPathComponent;
+use tor_keymgr::{ArtiPathComponent, KeyPathError, KeySpecifierComponent};
 
 /// Nickname (local identifier) for a Tor hidden service
 ///
@@ -18,11 +18,29 @@ use tor_keymgr::ArtiPathComponent;
 /// (but punctuation is not allowed at the start or end).
 ///
 /// (These are the same rules as [`tor_keymgr::ArtiPathComponent`]
+//
+// NOTE: if at some point we decide HsNickname should have a more restrictive syntax/charset than
+// ArtiPathComponent, we should remember to also update `KeySpecifierComponent::from_component` (it
+// should return an error if the specified string is a valid ArtiPathComponent, but not a valid
+// HsNickname).
 #[derive(
     Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Display, From, Into, Serialize, Deserialize,
 )]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(ArtiPathComponent);
+
+impl KeySpecifierComponent for HsNickname {
+    fn as_component(&self) -> ArtiPathComponent {
+        self.0.clone()
+    }
+
+    fn from_component(c: ArtiPathComponent) -> Result<Self, KeyPathError>
+    where
+        Self: Sized,
+    {
+        Ok(HsNickname(c))
+    }
+}
 
 /// Local nickname for Tor Hidden Service (`.onion` service) was syntactically invalid
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Error)]

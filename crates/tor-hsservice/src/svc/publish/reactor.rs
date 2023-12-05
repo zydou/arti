@@ -793,13 +793,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .hs_all_time_periods()
             .iter()
             .map(|period| {
-                let svc_key_spec = HsIdKeypairSpecifier::new(&self.imm.nickname);
+                let svc_key_spec = HsIdKeypairSpecifier::new(self.imm.nickname.clone());
                 let hsid_kp = self
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
                     .ok_or_else(|| ReactorError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
-                let svc_key_spec = BlindIdKeypairSpecifier::new(&self.imm.nickname, *period);
+                let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), *period);
 
                 // TODO HSS: make this configurable
                 let keystore_selector = Default::default();
@@ -1433,7 +1433,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // TODO HSS: we don't support externally provisioned keys (yet), so this branch
                 // is unreachable (for now).
                 let desc_sign_key_spec =
-                    DescSigningKeypairSpecifier::new(&self.imm.nickname, period);
+                    DescSigningKeypairSpecifier::new(self.imm.nickname.clone(), period);
                 let key: ed25519::Keypair = self
                     .imm
                     .keymgr
@@ -1463,12 +1463,12 @@ pub(super) fn read_blind_id_keypair(
     nickname: &HsNickname,
     period: TimePeriod,
 ) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
-    let svc_key_spec = HsIdKeypairSpecifier::new(nickname);
+    let svc_key_spec = HsIdKeypairSpecifier::new(nickname.clone());
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
         .ok_or_else(|| ReactorError::MissingHsIdKeypair(nickname.clone()))?;
 
-    let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname, period);
+    let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname.clone(), period);
 
     // TODO: make the keystore selector configurable
     let keystore_selector = Default::default();

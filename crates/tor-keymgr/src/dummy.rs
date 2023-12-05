@@ -138,3 +138,5 @@ impl KeyMgr {
         Err(crate::Error::Keystore(Arc::new(Error)))
     }
 }
+
+inventory::collect!(&'static dyn crate::KeyInfoExtractor);
