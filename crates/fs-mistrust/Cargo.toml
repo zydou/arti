@@ -36,7 +36,7 @@ pwd-grp = "0.1.1"
 [dev-dependencies]
 serde_json = "1.0.50"
 tempfile = "3"
-toml = "0.7.2"
+toml = "0.8.8"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
