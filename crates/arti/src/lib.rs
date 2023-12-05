@@ -78,6 +78,7 @@ mod rpc;
 
 use std::ffi::OsString;
 use std::fmt::Write;
+use std::sync::Arc;
 
 pub use cfg::{
     ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig, ArtiConfig, ArtiConfigBuilder,
@@ -186,6 +187,12 @@ async fn run<R: Runtime>(
         .bootstrap_behavior(OnDemand);
     let client = client_builder.create_unbootstrapped()?;
 
+    #[allow(unused_mut)]
+    let mut reconfigurable_modules: Vec<Arc<dyn reload_cfg::ReconfigurableModule>> = vec![
+        Arc::new(client.clone()),
+        Arc::new(reload_cfg::Application::new(arti_config.clone())),
+    ];
+
     let onion_services;
     #[allow(clippy::needless_late_init)] // False positive
     {
@@ -203,7 +210,12 @@ async fn run<R: Runtime>(
     }
 
     // TODO HSS: We need to feed changes to onion services as well.
-    reload_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
+    reload_cfg::watch_for_config_changes(
+        config_sources,
+        &arti_config,
+        &client,
+        reconfigurable_modules,
+    )?;
 
     #[cfg(all(feature = "rpc", feature = "tokio"))]
     let rpc_mgr = {
