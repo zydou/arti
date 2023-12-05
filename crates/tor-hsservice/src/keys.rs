@@ -1,4 +1,11 @@
 //! [`KeySpecifier`] implementations for hidden service keys.
+//!
+//! Some of these `KeySpecifier`s represent time-bound keys (that are only valid
+//! as long as their time period is relevant). Time-bound keys are expired (removed)
+//! by the [`KeystoreSweeper`](crate::svc::keystore_sweeper::KeystoreSweeper) task.
+//! If you add a new time-bound key, you also need to update
+//! [`KeystoreSweeper`](crate::svc::keystore_sweeper::KeystoreSweeper::launch)
+//! to expire the key when its time-period is no longer relevant.
 
 use derive_adhoc::Adhoc;
 
