@@ -634,7 +634,7 @@ define_derive_adhoc! {
                 // Check if this is a valid path
                 let _ = $tname::try_from(path)?;
 
-                // TODO: allow users to specify a `spec_name` for the key specifier.
+                // TODO: have users specify a `spec_name` for the key specifier.
                 Ok(
                     // TODO: Add extra info the to the Keyinfo
                     $crate::KeyPathInfoBuilder::default()
