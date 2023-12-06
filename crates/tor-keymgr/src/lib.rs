@@ -43,6 +43,7 @@
 // TODO HSS: write more comprehensive documentation when the API is a bit more
 // stable
 
+mod arti_path;
 pub mod config;
 mod err;
 mod key_specifier;
@@ -59,11 +60,12 @@ mod mgr;
 #[cfg(not(feature = "keymgr"))]
 mod dummy;
 
+pub use arti_path::{ArtiPath, ArtiPathComponent, DENOTATOR_SEP};
 pub use err::{ArtiPathError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
-    ArtiPath, ArtiPathComponent, ArtiPathUnavailableError, CTorPath, KeyInfoExtractor, KeyPath,
+    ArtiPathUnavailableError, CTorPath, KeyInfoExtractor, KeyPath,
     KeyPathError, KeyPathInfo, KeyPathInfoBuilder, KeyPathPattern, KeyPathRange, KeySpecifier,
-    KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr, DENOTATOR_SEP,
+    KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
 };
 
 #[cfg(feature = "keymgr")]
