@@ -1401,9 +1401,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
         // to each time we generate a new descriptor), for performance reasons.
         let ope_key = self.create_ope_key(period)?;
-        let offset = period.offset_within_period(now).ok_or_else(|| {
-            internal!("current wallclock time not within specified time period?!")
-        })?;
+        let offset = period
+            .offset_within_period(now)
+            .ok_or_else(|| match period.range() {
+                Ok(std::ops::Range { start, .. }) => {
+                    internal!(
+                        "current wallclock time not within TP?! (now={:?}, TP_start={:?})",
+                        now,
+                        start
+                    )
+                }
+                Err(e) => into_internal!("failed to get TimePeriod::range()")(e),
+            })?;
         let rev = ope_key.encrypt(offset);
 
         Ok(RevisionCounter::from(rev))
