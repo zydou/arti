@@ -128,7 +128,12 @@ impl KeyPath {
     }
 }
 
-/// An error coming form a [`KeyInfoExtractor`].
+/// An error while attempting to extract information about a key given its path
+///
+/// For example, from a [`KeyInfoExtractor`].
+//
+// TODO HSS places where this error is embedded should include the actual filename,
+// for reporting purposes.  (Or abn ArtiPath if they don't have filesystem filenames.)
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
@@ -143,13 +148,50 @@ pub enum KeyPathError {
     #[error("Unrecognized path: {0}")]
     Unrecognized(KeyPath),
 
-    /// Found an invalid [`ArtiPath`].
+    /// Found an invalid [`ArtiPath`], which is syntactically invalid on its face
     #[error("{0}")]
     InvalidArtiPath(#[from] ArtiPathError),
+
+    /// An invalid key path component value string was encountered
+    ///
+    /// When attempting to interpret a key path, one of the elements in the path
+    /// contained a string value which wasn't a legitimate representation of the
+    /// type of data expected there for this kind of key.
+    ///
+    /// (But the key path is in the proper character set.)
+    #[error("invalid string value for element of key path")]
+    InvalidKeyPathComponentValue {
+        /// What was wrong with the value
+        #[source]
+        error: InvalidKeyPathComponentValue,
+        /// The name of the "key" (what data we were extracting)
+        ///
+        /// Should be valid Rust identifier syntax.
+        key: String,
+        /// The substring of the `ArtiPath` that couldn't be parsed.
+        value: ArtiPathComponent,
+    },
 
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+/// Error to be returned by `KeySpecifierComponent::from_component` implementations
+///
+/// Currently this error contains little information,
+/// but the context and value are provided in
+/// [`KeyPathError::InvalidKeyPathComponentValue`].
+#[derive(Error, Clone, Debug, Hash)]
+#[non_exhaustive]
+#[error("invalid key denotator")]
+pub struct InvalidKeyPathComponentValue {}
+
+impl InvalidKeyPathComponentValue {
+    /// Create an `InvalidDenotator` error with no further information about the problem
+    fn new() -> Self {
+        InvalidKeyPathComponentValue {}
+    }
 }
 
 /// Information about a [`KeyPath`].
@@ -426,7 +468,7 @@ pub trait KeySpecifierComponent {
     /// Return the [`ArtiPathComponent`] representation of this type.
     fn as_component(&self) -> ArtiPathComponent;
     /// Try to convert `c` into an object of this type.
-    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, KeyPathError>
+    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized;
 }
@@ -496,7 +538,7 @@ impl KeySpecifierComponent for TimePeriod {
         ))
     }
 
-    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, KeyPathError>
+    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
@@ -511,7 +553,7 @@ impl KeySpecifierComponent for TimePeriod {
 
             Some((interval_num, length, offset_in_sec))
         })()
-        .ok_or_else(|| KeyPathError::InvalidArtiPath(ArtiPathError::InvalidDenotator))?;
+        .ok_or_else(InvalidKeyPathComponentValue::new)?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
@@ -524,12 +566,12 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
         ArtiPathComponent::new(self.to_string())
             .expect("!!") // XXXX We don't want to panic here but the return value forces us to
     }
-    fn from_component(s: &ArtiPathComponent) -> Result<Self, KeyPathError>
+    fn from_component(s: &ArtiPathComponent) -> Result<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
         s.parse()
-            .map_err(|_| KeyPathError::InvalidArtiPath(ArtiPathError::InvalidDenotator))
+            .map_err(|_| InvalidKeyPathComponentValue::new())
     }
 }
 
@@ -810,10 +852,20 @@ define_derive_adhoc! {
                             Ok::<_, Self::Error>(component)
                         };
 
+                        let error_handler = |fname: &'static str, value| {
+                            move |error| $crate::KeyPathError::InvalidKeyPathComponentValue {
+                                error,
+                                key: fname.to_owned(),
+                                value,
+                            }
+                        };
+
                         ${define F_EXTRACT {
                             // This use of $ftype is why we must store owned
                             // types in the struct the macro is applied to.
-                            let $fname = $ftype::from_component(&component()?)?;
+                            let comp = component()?;
+                            let $fname = $ftype::from_component(&comp)
+                                .map_err(error_handler(stringify!($fname), comp))?;
                         }}
 
                         ${for fields { ${when         F_IS_PATH             } $F_EXTRACT }}
