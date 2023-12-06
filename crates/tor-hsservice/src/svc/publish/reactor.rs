@@ -1091,47 +1091,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
 
             let time_period = period_ctx.period;
-            // We're about to generate a new version of the descriptor: generate a new revision
-            // counter.
-            let now = self.imm.runtime.wallclock();
-            let revision_counter = self.imm.generate_revision_counter(time_period, now)?;
 
             // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
             // here. See the TODO HSS about note_publication_attempt() below.
             let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
-            let hsdesc = {
-                trace!(
-                    nickname=%self.imm.nickname, time_period=?period_ctx.period,
-                    "building descriptor"
-                );
-                let mut rng = self.imm.mockable.thread_rng();
-
-                let mut ipt_set = self.ipt_watcher.borrow_for_publish();
-                let Some(ipt_set) = ipt_set.ipts.as_mut() else {
-                    trace!(
-                        nickname=%self.imm.nickname, time_period=?period_ctx.period,
-                        "no introduction points; skipping upload"
-                    );
-                    return Ok(());
-                };
-
-                build_sign(
-                    &self.imm.keymgr,
-                    &inner.config,
-                    ipt_set,
-                    time_period,
-                    revision_counter,
-                    &mut rng,
-                    self.imm.runtime.wallclock(),
-                )?
-            };
-
-            trace!(nickname=%self.imm.nickname, time_period=?time_period, revision_counter=?hsdesc.revision_counter,
-                "generated new descriptor for time period",
-            );
-
             let netdir = Arc::clone(
                 inner
                     .netdir
@@ -1141,6 +1106,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             let imm = Arc::clone(&self.imm);
             let ipt_upload_view = self.ipt_watcher.upload_view();
+            let config = Arc::clone(&inner.config);
 
             trace!(nickname=%self.imm.nickname, time_period=?time_period,
                 "spawning upload task"
@@ -1151,9 +1117,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 .runtime
                 .spawn(async move {
                     if let Err(e) = Self::upload_for_time_period(
-                        hsdesc.clone(),
                         hs_dirs,
                         &netdir,
+                        config,
                         time_period,
                         Arc::clone(&imm),
                         ipt_upload_view.clone(),
@@ -1198,9 +1164,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
     /// well as in what cases this will return an error).
     async fn upload_for_time_period(
-        hsdesc: VersionedDescriptor,
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
+        config: Arc<OnionServiceConfig>,
         time_period: TimePeriod,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
@@ -1208,20 +1174,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), ReactorError> {
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
-        let VersionedDescriptor {
-            desc,
-            revision_counter,
-        } = &hsdesc;
-
         let hsdir_count = hs_dirs.len();
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
+                let config = Arc::clone(&config);
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
 
                 async move {
-                    let run_upload = || async {
+                    let run_upload = |desc| async {
                         let Some(hsdir) = netdir.by_ids(&relay_ids) else {
                             // This should never happen (all of our relay_ids are from the stored netdir).
                             return Err::<(), ReactorError>(
@@ -1233,7 +1195,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         };
 
                         Self::upload_descriptor_with_retries(
-                            desc.clone(),
+                            desc,
                             &netdir,
                             &hsdir,
                             Arc::clone(&imm),
@@ -1252,8 +1214,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                     // How long until we're supposed to time out?
                     let worst_case_end = imm.runtime.now() + UPLOAD_TIMEOUT;
-
-                    {
+                    // We generate a new descriptor before _each_ HsDir upload. This means each
+                    // HsDir could, in theory, receive a different descriptor (not just in terms of
+                    // revision-counters, but also with a different set of IPTs). It may seem like
+                    // this could lead to some HsDirs being left with an outdated descriptor, but
+                    // that's not the case: after the upload completes, the publisher will be
+                    // notified by the ipt_watcher of the IPT change event (if there was one to
+                    // begin with), which will trigger another upload job.
+                    let hsdesc = {
                         // This scope is needed because the ipt_set MutexGuard is not Send, so it
                         // needs to fall out of scope before the await point below
                         let mut ipt_set = ipt_upload_view.borrow_for_publish();
@@ -1270,7 +1238,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // and generate a fresh descriptor anyway.
                         //
                         // Ideally, this shouldn't happen very often (if at all).
-                        let Some(_ipts) = ipt_set.ipts.as_mut() else {
+                        let Some(ipts) = ipt_set.ipts.as_mut() else {
                             // TODO HSS: maybe it's worth defining an separate error type for this.
                             //
                             // This is due to a TOCTOU race: after the check from upload_all succeeds
@@ -1284,6 +1252,29 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
                         };
 
+                        let hsdesc = {
+                            trace!(
+                                nickname=%imm.nickname, time_period=?time_period,
+                                "building descriptor"
+                            );
+                            let mut rng = imm.mockable.thread_rng();
+
+                            // We're about to generate a new version of the descriptor: generate a new revision
+                            // counter.
+                            let now = imm.runtime.wallclock();
+                            let revision_counter = imm.generate_revision_counter(time_period, now)?;
+
+                            build_sign(
+                                &imm.keymgr,
+                                &config,
+                                ipts,
+                                time_period,
+                                revision_counter,
+                                &mut rng,
+                                imm.runtime.wallclock(),
+                            )?
+                        };
+
                         if let Err(e) = ipt_set.note_publication_attempt(
                             &imm.runtime,
                             worst_case_end,
@@ -1294,9 +1285,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 "ought to retry after {wait:?}, crashing instead"
                             ).into());
                         }
-                    }
 
-                    let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload()).await {
+                        hsdesc
+                    };
+
+                    let VersionedDescriptor { desc, revision_counter } = hsdesc;
+
+                    trace!(nickname=%imm.nickname, time_period=?time_period, revision_counter=?revision_counter,
+                        "generated new descriptor for time period",
+                    );
+
+
+                    let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload(desc.clone())).await {
                         Ok(res) => {
                             match res {
                                 Ok(()) => {
@@ -1331,7 +1331,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     Ok(HsDirUploadStatus {
                         relay_ids,
                         upload_res,
-                        revision_counter: *revision_counter,
+                        revision_counter,
                     })
                 }
             })
