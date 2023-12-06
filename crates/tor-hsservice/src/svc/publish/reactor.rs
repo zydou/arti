@@ -1128,7 +1128,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 )?
             };
 
-            trace!(nickname=%self.imm.nickname, time_period=?time_period, hsdesc=hsdesc,
+            trace!(nickname=%self.imm.nickname, time_period=?time_period, revision_counter=?hsdesc.revision_counter,
                 "generated new descriptor for time period",
             );
 
@@ -1150,12 +1150,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 .imm
                 .runtime
                 .spawn(async move {
-                    let hsdesc = VersionedDescriptor {
-                        desc: hsdesc.clone(),
-                        revision_counter,
-                    };
                     if let Err(e) = Self::upload_for_time_period(
-                        hsdesc,
+                        hsdesc.clone(),
                         hs_dirs,
                         &netdir,
                         time_period,

@@ -31,7 +31,7 @@ use crate::{
 ///
 /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
 /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
-pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
+pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     keymgr: &Arc<KeyMgr>,
     config: &Arc<OnionServiceConfig>,
     ipt_set: &IptSet,
@@ -39,7 +39,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
     revision_counter: RevisionCounter,
     rng: &mut Rng,
     now: SystemTime,
-) -> Result<String, ReactorError> {
+) -> Result<VersionedDescriptor, ReactorError> {
     // TODO: should this be configurable? If so, we should read it from the svc config.
     //
     /// The CREATE handshake type we support.
@@ -118,7 +118,7 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         "failed to sign the descriptor signing key"
     ))?;
 
-    Ok(HsDescBuilder::default()
+    let desc = HsDescBuilder::default()
         .blinded_id(&(&blind_id_kp).into())
         .hs_desc_sign(hs_desc_sign.as_ref())
         .hs_desc_sign_cert(desc_signing_key_cert)
@@ -132,7 +132,12 @@ pub(crate) fn build_sign<Rng: RngCore + CryptoRng>(
         .revision_counter(revision_counter)
         .subcredential(subcredential)
         .auth_clients(&auth_clients)
-        .build_sign(rng)?)
+        .build_sign(rng)?;
+
+    Ok(VersionedDescriptor {
+        desc,
+        revision_counter,
+    })
 }
 
 /// Decode an encoded curve25519 key.
