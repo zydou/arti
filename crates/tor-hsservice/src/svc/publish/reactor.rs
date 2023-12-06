@@ -1092,8 +1092,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             let time_period = period_ctx.period;
 
-            // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
-            // here. See the TODO HSS about note_publication_attempt() below.
             let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
@@ -1240,15 +1238,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // Ideally, this shouldn't happen very often (if at all).
                         let Some(ipts) = ipt_set.ipts.as_mut() else {
                             // TODO HSS: maybe it's worth defining an separate error type for this.
-                            //
-                            // This is due to a TOCTOU race: after the check from upload_all succeeds
-                            // (i.e. borrow_for_publish returns Some), the IPT manager decides none of
-                            // its IPTs are suitable anymore, so when we borrow_for_publish here, just
-                            // before publishing, we find out the IPTs from hsdesc no longer exist).
-                            //
-                            // TODO HSS: it's possible the IPTs from `ipt_set` are different from the
-                            // ones from the built `hsdesc` (due to the race described above). Maybe
-                            // the hsdesc should be built here instead?
                             return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
                         };
 
