@@ -84,7 +84,7 @@ pub struct DescSigningKeypairSpecifier {
 }
 
 /// Denotates one of the keys, in the context of a particular HS and intro point
-#[derive(Debug, strum::Display, strum::EnumString)]
+#[derive(Debug, Adhoc, Eq, PartialEq, strum::Display, strum::EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub(crate) enum IptKeyRole {
     /// `k_hss_ntor`
@@ -96,7 +96,7 @@ pub(crate) enum IptKeyRole {
 impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 
 /// Specifies an intro point key
-#[derive(Debug, Adhoc)]
+#[derive(Debug, Adhoc, Eq, PartialEq)]
 #[derive_adhoc(KeySpecifierDefault)]
 #[adhoc(prefix = "hs")]
 #[adhoc(summary = "introduction point key")]
@@ -175,13 +175,13 @@ mod test {
             role,
         };
         let lid_s = "0101010101010101010101010101010101010101010101010101010101010101";
-        assert_eq!(
-            spec(IptKeyRole::KHssNtor).arti_path().unwrap().as_str(),
-            format!("hs/shallot/ipts/k_hss_ntor+{lid_s}"),
+        check_key_specifier(
+            &spec(IptKeyRole::KHssNtor),
+            &format!("hs/shallot/ipts/k_hss_ntor+{lid_s}"),
         );
-        assert_eq!(
-            spec(IptKeyRole::KSid).arti_path().unwrap().as_str(),
-            format!("hs/shallot/ipts/k_sid+{lid_s}"),
+        check_key_specifier(
+            &spec(IptKeyRole::KSid),
+            &format!("hs/shallot/ipts/k_sid+{lid_s}"),
         );
     }
 }
