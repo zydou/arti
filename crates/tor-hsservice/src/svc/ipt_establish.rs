@@ -391,15 +391,14 @@ fn parse_time_period(
     };
 
     let comp = ArtiPathComponent::new(denotator.to_string())
-            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?;
-    let tp = TimePeriod::from_component(&comp)
-        .map_err(|error| {
-            KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
-                key: "time_period".to_owned(),
-                value: comp,
-                error,
-            })
-        })?;
+        .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?;
+    let tp = TimePeriod::from_component(&comp).map_err(|error| {
+        KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
+            key: "time_period".to_owned(),
+            value: comp,
+            error,
+        })
+    })?;
 
     Ok(tp)
 }

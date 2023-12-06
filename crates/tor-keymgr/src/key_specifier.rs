@@ -570,8 +570,7 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
     where
         Self: Sized,
     {
-        s.parse()
-            .map_err(|_| InvalidKeyPathComponentValue::new())
+        s.parse().map_err(|_| InvalidKeyPathComponentValue::new())
     }
 }
 
