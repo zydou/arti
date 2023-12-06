@@ -2,10 +2,10 @@
 title: Protocol support & Compatibility
 ---
 
- Protocol support and compatibility in Arti
+# Protocol support and compatibility in Arti
 
-There is no support in Arti yet for running as a relay, running as a directory authority, using onion services, or providing onion services.
-There is also no anticensorship support. We hope to build these in the future, but the timeline is not set.
+As of late 2023, there is no support in Arti yet for running as a relay or running as a directory authority.
+Support for providing onion services is almost (but not quite) done. However, we hope to build these in the future.
 
 Arti aims for compatibility with all _currently recommended_ Tor protocols. We have not implemented, and do not plan to implement, obsolete versions of anything.
 
