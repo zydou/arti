@@ -32,7 +32,7 @@ use crate::err::ArtiPathError;
 /// of one or more [`KeySpecifierComponent`]s representing the denotators of the key.
 /// They are separated from the rest of the component, and from each other,
 /// by [`DENOTATOR_SEP`] characters.
-/// Denotators are encoded using their [`KeySpecifierComponent::as_component`] implementation.
+/// Denotators are encoded using their [`KeySpecifierComponent::to_component`] implementation.
 /// The denotators **must** come after all the other fields.
 /// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
 ///
@@ -467,7 +467,7 @@ pub trait KeySpecifier {
 /// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
     /// Return the [`ArtiPathComponent`] representation of this type.
-    fn as_component(&self) -> Result<ArtiPathComponent, Bug>;
+    fn to_component(&self) -> Result<ArtiPathComponent, Bug>;
     /// Try to convert `c` into an object of this type.
     fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
@@ -530,7 +530,7 @@ impl KeySpecifier for KeyPath {
 }
 
 impl KeySpecifierComponent for TimePeriod {
-    fn as_component(&self) -> Result<ArtiPathComponent, Bug> {
+    fn to_component(&self) -> Result<ArtiPathComponent, Bug> {
         // TODO HSS bypassing ArtiPathComponent constructor ought to be prevented.
         // (previously this constructor bypassesed the syntax check)
         // I think this would mean moving ArtiPathComponent out of this module.
@@ -567,7 +567,7 @@ impl KeySpecifierComponent for TimePeriod {
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
 pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
 impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
-    fn as_component(&self) -> Result<ArtiPathComponent, Bug> {
+    fn to_component(&self) -> Result<ArtiPathComponent, Bug> {
         self.to_string()
             .try_into()
             .map_err(into_internal!("Display generated bad ArtiPathComponent"))
@@ -682,7 +682,7 @@ define_derive_adhoc! {
             // TODO this has a lot of needless allocations
             ${define F_COMP_STRING {
                 match $fname {
-                    Some(s) => $crate::KeySpecifierComponent::as_component(s)?.to_string(),
+                    Some(s) => $crate::KeySpecifierComponent::to_component(s)?.to_string(),
                     None => "*".to_string(),
                 },
             }}
@@ -749,7 +749,7 @@ define_derive_adhoc! {
                 // We only care about the fields that are denotators
                 ${ when fmeta(denotator) }
 
-                let denotator = $crate::KeySpecifierComponent::as_component(&self.$fname)?;
+                let denotator = $crate::KeySpecifierComponent::to_component(&self.$fname)?;
                 path.push($crate::DENOTATOR_SEP);
                 path.push_str(&denotator.to_string());
             )
@@ -1324,7 +1324,7 @@ mod test {
     #[test]
     fn encode_time_period() {
         let period = TimePeriod::from_parts(1, 2, 3);
-        let encoded_period = period.as_component().unwrap();
+        let encoded_period = period.to_component().unwrap();
 
         assert_eq!(encoded_period.to_string(), "2_1_3");
         assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
