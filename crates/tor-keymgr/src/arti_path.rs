@@ -1,7 +1,5 @@
 //! [`ArtiPath`] and [`ArtiPathComponent`]
 
-use std::result::Result as StdResult; // XXXX we'll delete this in a moment
-
 use derive_more::{Deref, DerefMut, Display, Into};
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +67,7 @@ impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
-    pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
+    pub fn new(inner: String) -> Result<Self, ArtiPathError> {
         // Validate the denotators, if there are any.
         let path = if let Some((inner, denotators)) = inner.split_once(DENOTATOR_SEP) {
             for d in denotators.split(DENOTATOR_SEP) {
@@ -143,7 +141,7 @@ impl ArtiPathComponent {
     /// Create a new [`ArtiPathComponent`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
-    pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
+    pub fn new(inner: String) -> Result<Self, ArtiPathError> {
         Self::validate_str(&inner)?;
 
         Ok(Self(inner))
@@ -155,7 +153,7 @@ impl ArtiPathComponent {
     }
 
     /// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
-    fn validate_str(inner: &str) -> StdResult<(), ArtiPathError> {
+    fn validate_str(inner: &str) -> Result<(), ArtiPathError> {
         /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
         const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
 
@@ -184,7 +182,7 @@ impl ArtiPathComponent {
 impl TryFrom<String> for ArtiPathComponent {
     type Error = ArtiPathError;
 
-    fn try_from(s: String) -> StdResult<ArtiPathComponent, ArtiPathError> {
+    fn try_from(s: String) -> Result<ArtiPathComponent, ArtiPathError> {
         Self::new(s)
     }
 }
