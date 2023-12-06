@@ -980,7 +980,7 @@ mod test {
 
         check_key_specifier(
             &key_spec,
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6"
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6",
         );
 
         assert_eq!(
@@ -1001,10 +1001,7 @@ mod test {
 
         let key_spec = TestSpecifier {};
 
-        check_key_specifier(
-            &key_spec,
-            "encabulator/marzlevane"
-        );
+        check_key_specifier(&key_spec, "encabulator/marzlevane");
 
         assert_eq!(
             TestSpecifier::arti_pattern(),
@@ -1029,10 +1026,7 @@ mod test {
 
         let key_spec = TestSpecifier { count: 6 };
 
-        check_key_specifier(
-            &key_spec,
-            "encabulator/marzlevane+6"
-        );
+        check_key_specifier(&key_spec, "encabulator/marzlevane+6");
 
         assert_eq!(
             TestSpecifier::arti_pattern(),
@@ -1061,10 +1055,7 @@ mod test {
             bearings: "spurving".into(),
         };
 
-        check_key_specifier(
-            &key_spec,
-            "encabulator/logarithmic/spurving/fan"
-        );
+        check_key_specifier(&key_spec, "encabulator/logarithmic/spurving/fan");
 
         assert_eq!(
             TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
@@ -1107,7 +1098,7 @@ mod test {
 
         check_key_specifier(
             &key_spec,
-            "encabulator/logarithmic/spurving/fan+8+2000+lunar"
+            "encabulator/logarithmic/spurving/fan+8+2000+lunar",
         );
 
         assert_eq!(
