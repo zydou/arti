@@ -1334,7 +1334,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(
+        debug!(
             nickname=%imm.nickname, time_period=?time_period,
             "descriptor uploaded successfully to {}/{} HSDirs",
             succeeded.len(), hsdir_count
