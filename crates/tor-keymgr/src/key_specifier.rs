@@ -172,6 +172,13 @@ pub struct KeyPathInfo {
     extra_info: BTreeMap<String, String>,
 }
 
+impl KeyPathInfo {
+    /// Start to build a [`KeyPathInfo`]: return a fresh [`KeyPathInfoBuilder`]
+    pub fn builder() -> KeyPathInfoBuilder {
+        KeyPathInfoBuilder::default()
+    }
+}
+
 impl KeyPathInfoBuilder {
     /// Initialize the additional information of this builder with the specified values.
     ///
@@ -1136,7 +1143,7 @@ mod test {
         }
         let extra_info = vec![("nickname".into(), "bar".into())];
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .set_all_extra_info(extra_info.clone().into_iter())
             .build()
@@ -1144,7 +1151,7 @@ mod test {
 
         assert_eq!(key_info.extra_info.into_iter().collect_vec(), extra_info);
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .set_all_extra_info(extra_info.clone().into_iter())
             .extra_info("type", "service")
@@ -1161,7 +1168,7 @@ mod test {
             ]
         );
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .extra_info("type", "service")
             .extra_info("time period", "100")
@@ -1171,7 +1178,7 @@ mod test {
 
         assert_extra_info_eq!(key_info, [("nickname", "bar"),]);
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .extra_info("type", "service")
             .extra_info("time period", "100")
