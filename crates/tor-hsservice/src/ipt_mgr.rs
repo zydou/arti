@@ -384,7 +384,7 @@ impl Ipt {
         /// many type parameters and arguments and be quite annoying.)
         macro_rules! get_or_gen_key { { $Keypair:ty, $role:ident } => { (||{
             let spec = IptKeySpecifier {
-                nick: &imm.nick,
+                nick: imm.nick.clone(),
                 role: IptKeyRole::$role,
                 lid,
             };

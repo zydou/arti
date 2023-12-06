@@ -96,9 +96,9 @@ impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 
 /// Specifies an intro point key
 #[derive(Debug)]
-pub(crate) struct IptKeySpecifier<'s> {
+pub(crate) struct IptKeySpecifier {
     /// nick
-    pub(crate) nick: &'s HsNickname,
+    pub(crate) nick: HsNickname,
     /// which key
     pub(crate) role: IptKeyRole,
     /// lid
@@ -107,7 +107,7 @@ pub(crate) struct IptKeySpecifier<'s> {
 
 // TODO HSS soup up the `KeySpecifierDefault` macro to be able to generate this ArtiPath
 // (the ArtiPath itself is right, so this ought to change impl but not tests)
-impl KeySpecifier for IptKeySpecifier<'_> {
+impl KeySpecifier for IptKeySpecifier {
     fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
         let IptKeySpecifier { nick, lid, role } = self;
         let s = format!("hs/{nick}/ipts/{role}+{lid}");
@@ -176,7 +176,7 @@ mod test {
         let nick = HsNickname::try_from("shallot".to_string()).unwrap();
         let lid = IptLocalId::dummy(1);
         let spec = |role| IptKeySpecifier {
-            nick: &nick,
+            nick: nick.clone(),
             lid,
             role,
         };
