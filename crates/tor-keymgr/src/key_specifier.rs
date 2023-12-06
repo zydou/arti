@@ -772,7 +772,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    use crate::assert_key_specifier_rountrip;
+    use crate::test_utils::check_key_specifier;
     use derive_adhoc::Adhoc;
     use itertools::Itertools;
     use std::fmt::Debug;
@@ -978,8 +978,8 @@ mod test {
             count: 6,
         };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6"
         );
 
@@ -987,8 +987,6 @@ mod test {
             key_spec.prefix(),
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane"
         );
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
@@ -1003,8 +1001,8 @@ mod test {
 
         let key_spec = TestSpecifier {};
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "encabulator/marzlevane"
         );
 
@@ -1014,8 +1012,6 @@ mod test {
         );
 
         assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
@@ -1033,8 +1029,8 @@ mod test {
 
         let key_spec = TestSpecifier { count: 6 };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "encabulator/marzlevane+6"
         );
 
@@ -1044,8 +1040,6 @@ mod test {
         );
 
         assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
@@ -1067,8 +1061,8 @@ mod test {
             bearings: "spurving".into(),
         };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "encabulator/logarithmic/spurving/fan"
         );
 
@@ -1078,8 +1072,6 @@ mod test {
         );
 
         assert_eq!(key_spec.prefix(), "encabulator/logarithmic/spurving/fan");
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[allow(dead_code)] // some of the auto-generated functions are unused
@@ -1113,8 +1105,8 @@ mod test {
             kind: "lunar".into(),
         };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "encabulator/logarithmic/spurving/fan+8+2000+lunar"
         );
 
@@ -1122,8 +1114,6 @@ mod test {
             TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
     #[test]

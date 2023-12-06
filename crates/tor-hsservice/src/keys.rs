@@ -130,7 +130,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_keymgr::{assert_key_specifier_rountrip, KeySpecifier};
+    use tor_keymgr::test_utils::check_key_specifier;
+    use tor_keymgr::KeySpecifier;
 
     #[test]
     fn hsid_key_specifiers() {
@@ -142,12 +143,10 @@ mod test {
         );
 
         let key_spec = HsIdKeypairSpecifier::new(nickname);
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "hs/shallot/KS_hs_id"
         );
-
-        assert_key_specifier_rountrip!(HsIdKeypairSpecifier, key_spec);
     }
 
     #[test]
@@ -161,12 +160,10 @@ mod test {
         );
 
         let key_spec = BlindIdKeypairSpecifier::new(nickname, period);
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "hs/shallot/KS_hs_blind_id+2_1_3"
         );
-
-        assert_key_specifier_rountrip!(BlindIdKeypairSpecifier, key_spec);
     }
 
     #[test]
@@ -174,12 +171,10 @@ mod test {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
         let key_spec = DescSigningKeypairSpecifier::new(nickname, period);
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
+        check_key_specifier(
+            &key_spec,
             "hs/shallot/KS_hs_desc_sign+2_1_3"
         );
-
-        assert_key_specifier_rountrip!(DescSigningKeypairSpecifier, key_spec);
     }
 
     #[test]
