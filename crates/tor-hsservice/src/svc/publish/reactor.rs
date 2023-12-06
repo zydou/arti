@@ -1400,11 +1400,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             })?
             .into_output_string()?; // This returns an error if we received an error response
 
-        trace!(
-            nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
-            "successfully uploaded descriptor"
-        );
-
         Ok(())
     }
 
