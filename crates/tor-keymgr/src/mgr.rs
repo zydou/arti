@@ -386,7 +386,8 @@ impl KeyMgr {
     /// Remove the key identified by `key_spec` and `key_type` from the
     /// [`Keystore`](crate::Keystore) specified by `selector`.
     ///
-    /// Like [`KeyMgr::remove`], except this function takes an explicit [&KeyType] argument instead
+    /// Like [`KeyMgr::remove`], except this function takes an explicit
+    /// [`&KeyType`](crate::KeyType) argument instead
     /// of obtaining it from the specified type's [`ToEncodableKey`] implementation.
     pub fn remove_with_type(
         &self,
@@ -420,9 +421,9 @@ impl KeyMgr {
     /// Returns [`KeyPathError::Unrecognized`] if none of the registered
     /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
     ///
-    /// This function uses the [`KeyInfoExtractors`] registered using
+    /// This function uses the [`KeyInfoExtractor`]s registered using
     /// [`register_key_info_extractor`](crate::register_key_info_extractor),
-    /// or by [`DefaultKeySpecifier`](derive_adhoc_template_KeySpecifierDefault).
+    /// or by [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifierDefault).
     pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
         for info_extractor in &self.key_info_extractors {
             if let Ok(info) = info_extractor.describe(path) {

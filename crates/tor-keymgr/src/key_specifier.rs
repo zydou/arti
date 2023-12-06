@@ -188,7 +188,7 @@ pub trait KeyInfoExtractor: Send + Sync {
     fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError>;
 }
 
-/// Register a [`KeyInfoExtractor`] for use with [`KeyMgr`].
+/// Register a [`KeyInfoExtractor`] for use with [`KeyMgr`](crate::KeyMgr).
 #[macro_export]
 macro_rules! register_key_info_extractor {
     ($kv:expr) => {{
@@ -391,7 +391,7 @@ pub trait KeySpecifier {
 /// validation rules. An `ArtiPathComponent` is not always a valid `KeySpecifierComponent`
 /// instance.
 ///
-/// If you are deriving [`DefaultKeySpecifier`](derive_adhoc_template_KeySpecifierDefault) for a
+/// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifierDefault) for a
 /// struct, all of its fields must implement this trait.
 ///
 /// If you are implementing [`KeySpecifier`] and [`KeyInfoExtractor`] manually rather than by
