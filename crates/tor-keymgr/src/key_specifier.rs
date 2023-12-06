@@ -592,6 +592,11 @@ define_derive_adhoc! {
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
     ///
+    ///  * **`#[adhoc(fixed_path_component = "component")]`** (field):
+    ///    Before this field insert a fixed path component `component`.
+    ///    (Can be even used before a denotator component,
+    ///    to add a final fixed path component.)
+    ///
     pub KeySpecifierDefault =
 
     // A condition that evaluates to `true` for path fields.
@@ -613,9 +618,13 @@ define_derive_adhoc! {
         ///
         /// Returns the `ArtiPath`, minus the denotators.
         fn arti_path_prefix( $(${when F_IS_PATH} $fname: Option<&$ftype> , ) ) -> String {
+            // TODO this has a lot of needless allocations
             vec![
                 stringify!(${tmeta(prefix)}).to_string(),
                 $(
+                  ${if fmeta(fixed_path_component) {
+                        ${fmeta(fixed_path_component) as str} .to_owned(),
+                  }}
                   ${if F_IS_PATH {
                     $fname
                         .map(|s| $crate::KeySpecifierComponent::as_component(s).to_string())
@@ -837,6 +846,10 @@ mod test {
 
     impl KeySpecifierComponentViaDisplayFromStr for usize {}
     impl KeySpecifierComponentViaDisplayFromStr for String {}
+
+    // This impl probably shouldn't be made non-test, since it produces longer paths
+    // than is necessary.  `t`/`f` would be better representation.  But it's fine for tests.
+    impl KeySpecifierComponentViaDisplayFromStr for bool {}
 
     #[test]
     #[allow(clippy::cognitive_complexity)]
@@ -1167,6 +1180,22 @@ mod test {
         check_key_specifier(&spec, "p/42/r");
 
         assert_eq!(spec.ctor_path(), Some(CTorPath("42".into())),);
+    }
+
+    #[test]
+    fn define_key_specifier_fixed_path_component() {
+        #[derive(Adhoc, Debug, Eq, PartialEq)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "prefix")]
+        #[adhoc(role = "role")]
+        #[adhoc(summary = "test key")]
+        struct TestSpecifier {
+            x: usize,
+            #[adhoc(fixed_path_component = "fixed")]
+            z: bool,
+        }
+
+        check_key_specifier(&TestSpecifier { x: 1, z: true }, "prefix/1/fixed/true/role");
     }
 
     #[test]
