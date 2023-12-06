@@ -18,10 +18,14 @@ use crate::{ArtiPathError, KeyPathRange};
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
-/// of one or more [`KeySpecifierComponent`]s representing the denotators of the key.
+/// of one or more
+/// [`KeySpecifierComponent`](crate::KeySpecifierComponent)
+/// s representing the denotators of the key.
 /// They are separated from the rest of the component, and from each other,
 /// by [`DENOTATOR_SEP`] characters.
-/// Denotators are encoded using their [`KeySpecifierComponent::to_component`] implementation.
+/// Denotators are encoded using their
+/// [`KeySpecifierComponent::to_component`](crate::KeySpecifierComponent::to_component)
+/// implementation.
 /// The denotators **must** come after all the other fields.
 /// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
 ///
