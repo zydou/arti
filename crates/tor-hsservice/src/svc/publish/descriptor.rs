@@ -223,6 +223,7 @@ pub(super) enum DescriptorStatus {
 }
 
 /// A descriptor and its revision.
+#[derive(Clone)]
 pub(super) struct VersionedDescriptor {
     /// The serialized descriptor.
     pub(super) desc: String,
