@@ -96,7 +96,12 @@ pub(crate) enum FilesystemAction {
     Remove,
 }
 
-/// An error caused by an invalid key path.
+/// The keystore contained a file whose name syntactically improper
+///
+/// Keys are supposed to have pathnames consisting of an `ArtiPath`
+/// followed by a file extension.
+///
+/// See also [`KeyPathError`](crate::KeyPathError), which occurs at a higher level.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum MalformedPathError {
     /// Found a key with a non-UTF-8 path.

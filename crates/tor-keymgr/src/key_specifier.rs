@@ -88,6 +88,9 @@ impl KeyPath {
 /// An error while attempting to extract information about a key given its path
 ///
 /// For example, from a [`KeyInfoExtractor`].
+///
+/// See also `crate::keystore::arti::MalformedPathError`,
+/// which occurs at a lower level.
 //
 // TODO HSS places where this error is embedded should include the actual filename,
 // for reporting purposes.  (Or abn ArtiPath if they don't have filesystem filenames.)
