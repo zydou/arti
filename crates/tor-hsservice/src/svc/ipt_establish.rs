@@ -391,7 +391,7 @@ fn parse_time_period(
     };
 
     Ok(TimePeriod::from_component(
-        ArtiPathComponent::new(denotator.to_string())
+        &ArtiPathComponent::new(denotator.to_string())
             .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?,
     )
     .map_err(KCE::KeyPath)?)

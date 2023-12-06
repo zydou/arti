@@ -426,7 +426,7 @@ pub trait KeySpecifierComponent {
     /// Return the [`ArtiPathComponent`] representation of this type.
     fn as_component(&self) -> ArtiPathComponent;
     /// Try to convert `c` into an object of this type.
-    fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
+    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, KeyPathError>
     where
         Self: Sized;
 }
@@ -496,7 +496,7 @@ impl KeySpecifierComponent for TimePeriod {
         ))
     }
 
-    fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
+    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, KeyPathError>
     where
         Self: Sized,
     {
@@ -524,7 +524,7 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
         ArtiPathComponent::new(self.to_string())
             .expect("!!") // XXXX We don't want to panic here but the return value forces us to
     }
-    fn from_component(s: ArtiPathComponent) -> Result<Self, KeyPathError>
+    fn from_component(s: &ArtiPathComponent) -> Result<Self, KeyPathError>
     where
         Self: Sized,
     {
@@ -813,7 +813,7 @@ define_derive_adhoc! {
                         ${define F_EXTRACT {
                             // This use of $ftype is why we must store owned
                             // types in the struct the macro is applied to.
-                            let $fname = $ftype::from_component(component()?)?;
+                            let $fname = $ftype::from_component(&component()?)?;
                         }}
 
                         ${for fields { ${when         F_IS_PATH             } $F_EXTRACT }}
@@ -1264,10 +1264,10 @@ mod test {
         let encoded_period = period.as_component();
 
         assert_eq!(encoded_period.to_string(), "2_1_3");
-        assert_eq!(period, TimePeriod::from_component(encoded_period).unwrap());
+        assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
 
         assert!(TimePeriod::from_component(
-            ArtiPathComponent::new("invalid_tp".to_string()).unwrap()
+            &ArtiPathComponent::new("invalid_tp".to_string()).unwrap()
         )
         .is_err());
     }
