@@ -42,8 +42,20 @@ use crate::err::ArtiPathError;
 /// conversion is not supported.
 ///
 // But this should be done _after_ we rewrite define_key_specifier using d-a
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
-#[derive(derive_more::FromStr)]
+#[derive(
+    Clone,
+    Debug,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Hash,
+    Deref,
+    DerefMut,
+    Into,
+    Display,
+    derive_more::FromStr,
+)]
 pub struct ArtiPath(String);
 
 /// The identifier of a key.

@@ -24,9 +24,20 @@ use tor_keymgr::{ArtiPathComponent, KeyPathError, KeySpecifierComponent};
 // should return an error if the specified string is a valid ArtiPathComponent, but not a valid
 // HsNickname).
 #[derive(
-    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Display, From, Into, Serialize, Deserialize,
+    Clone,
+    Debug,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Display,
+    From,
+    Into,
+    Serialize,
+    Deserialize,
+    derive_more::FromStr,
 )]
-#[derive(derive_more::FromStr)]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(ArtiPathComponent);
 
