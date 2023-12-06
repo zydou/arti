@@ -26,6 +26,7 @@ use tor_keymgr::{ArtiPathComponent, KeyPathError, KeySpecifierComponent};
 #[derive(
     Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Display, From, Into, Serialize, Deserialize,
 )]
+#[derive(derive_more::FromStr)]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(ArtiPathComponent);
 
