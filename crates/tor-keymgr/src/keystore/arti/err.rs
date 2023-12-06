@@ -1,7 +1,7 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
 use crate::key_type::ssh::SshKeyAlgorithm;
-use crate::{ArtiPathError, KeyType, KeystoreError, UnknownKeyTypeError};
+use crate::{ArtiPathSyntaxError, KeyType, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 
 use std::io;
@@ -109,7 +109,7 @@ pub(crate) enum MalformedPathError {
 
     /// The file path is not a valid [`ArtiPath`](crate::ArtiPath).
     #[error("not a valid ArtiPath")]
-    InvalidArtiPath(ArtiPathError),
+    InvalidArtiPath(ArtiPathSyntaxError),
 }
 
 impl KeystoreError for ArtiNativeKeystoreError {}

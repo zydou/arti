@@ -56,7 +56,7 @@ impl HasKind for Error {
 #[derive(thiserror::Error, Debug, Clone)]
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
-pub enum ArtiPathError {
+pub enum ArtiPathSyntaxError {
     /// Found an empty path component.
     #[error("Empty path component")]
     EmptyPathComponent,

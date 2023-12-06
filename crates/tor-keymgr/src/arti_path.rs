@@ -3,7 +3,7 @@
 use derive_more::{Deref, DerefMut, Display, Into};
 use serde::{Deserialize, Serialize};
 
-use crate::{ArtiPathError, KeyPathRange};
+use crate::{ArtiPathSyntaxError, KeyPathRange};
 
 /// A unique identifier for a particular instance of a key.
 ///
@@ -67,7 +67,7 @@ impl ArtiPath {
     /// Create a new [`ArtiPath`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
-    pub fn new(inner: String) -> Result<Self, ArtiPathError> {
+    pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
         // Validate the denotators, if there are any.
         let path = if let Some((inner, denotators)) = inner.split_once(DENOTATOR_SEP) {
             for d in denotators.split(DENOTATOR_SEP) {
@@ -95,8 +95,8 @@ impl ArtiPath {
     ///
     /// ### Example
     /// ```
-    /// # use tor_keymgr::{ArtiPath, KeyPathRange, ArtiPathError};
-    /// # fn demo() -> Result<(), ArtiPathError> {
+    /// # use tor_keymgr::{ArtiPath, KeyPathRange, ArtiPathSyntaxError};
+    /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
     /// let path = ArtiPath::new("foo_bar_bax_1".into())?;
     ///
     /// let range = KeyPathRange::from(2..5);
@@ -141,7 +141,7 @@ impl ArtiPathComponent {
     /// Create a new [`ArtiPathComponent`].
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
-    pub fn new(inner: String) -> Result<Self, ArtiPathError> {
+    pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
         Self::validate_str(&inner)?;
 
         Ok(Self(inner))
@@ -153,25 +153,25 @@ impl ArtiPathComponent {
     }
 
     /// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
-    fn validate_str(inner: &str) -> Result<(), ArtiPathError> {
+    fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
         /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
         const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
 
         if inner.is_empty() {
-            return Err(ArtiPathError::EmptyPathComponent);
+            return Err(ArtiPathSyntaxError::EmptyPathComponent);
         }
 
         if let Some(c) = inner.chars().find(|c| !Self::is_allowed_char(*c)) {
-            return Err(ArtiPathError::DisallowedChar(c));
+            return Err(ArtiPathSyntaxError::DisallowedChar(c));
         }
 
         if inner.contains("..") {
-            return Err(ArtiPathError::PathTraversal);
+            return Err(ArtiPathSyntaxError::PathTraversal);
         }
 
         for c in MIDDLE_ONLY {
             if inner.starts_with(*c) || inner.ends_with(*c) {
-                return Err(ArtiPathError::BadOuterChar(*c));
+                return Err(ArtiPathSyntaxError::BadOuterChar(*c));
             }
         }
 
@@ -180,9 +180,9 @@ impl ArtiPathComponent {
 }
 
 impl TryFrom<String> for ArtiPathComponent {
-    type Error = ArtiPathError;
+    type Error = ArtiPathSyntaxError;
 
-    fn try_from(s: String) -> Result<ArtiPathComponent, ArtiPathError> {
+    fn try_from(s: String) -> Result<ArtiPathComponent, ArtiPathSyntaxError> {
         Self::new(s)
     }
 }
