@@ -63,7 +63,7 @@ pub use err::{ArtiPathError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
     ArtiPath, ArtiPathComponent, ArtiPathUnavailableError, CTorPath, KeyInfoExtractor, KeyPath,
     KeyPathError, KeyPathInfo, KeyPathInfoBuilder, KeyPathPattern, KeyPathRange, KeySpecifier,
-    KeySpecifierComponent, DENOTATOR_SEP,
+    KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr, DENOTATOR_SEP,
 };
 
 #[cfg(feature = "keymgr")]

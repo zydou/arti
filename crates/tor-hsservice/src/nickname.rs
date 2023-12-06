@@ -4,7 +4,7 @@ use derive_more::{Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use tor_keymgr::{ArtiPathComponent, KeyPathError, KeySpecifierComponent};
+use tor_keymgr::{ArtiPathComponent, KeySpecifierComponentViaDisplayFromStr};
 
 /// Nickname (local identifier) for a Tor hidden service
 ///
@@ -41,18 +41,7 @@ use tor_keymgr::{ArtiPathComponent, KeyPathError, KeySpecifierComponent};
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(ArtiPathComponent);
 
-impl KeySpecifierComponent for HsNickname {
-    fn as_component(&self) -> ArtiPathComponent {
-        self.0.clone()
-    }
-
-    fn from_component(c: ArtiPathComponent) -> Result<Self, KeyPathError>
-    where
-        Self: Sized,
-    {
-        Ok(HsNickname(c))
-    }
-}
+impl KeySpecifierComponentViaDisplayFromStr for HsNickname {}
 
 /// Local nickname for Tor Hidden Service (`.onion` service) was syntactically invalid
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Error)]

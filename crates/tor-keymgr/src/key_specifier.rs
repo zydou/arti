@@ -3,8 +3,10 @@
                                       // `define_derive_adhoc!` below
 
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::ops::Range;
 use std::result::Result as StdResult;
+use std::str::FromStr;
 
 use arrayvec::ArrayVec;
 use derive_adhoc::define_derive_adhoc;
@@ -505,6 +507,22 @@ impl KeySpecifierComponent for TimePeriod {
     }
 }
 
+/// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
+pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
+impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
+    fn as_component(&self) -> ArtiPathComponent {
+        ArtiPathComponent::new(self.to_string())
+            .expect("!!") // XXXX We don't want to panic here but the return value forces us to
+    }
+    fn from_component(s: ArtiPathComponent) -> Result<Self, KeyPathError>
+    where
+        Self: Sized,
+    {
+        s.parse()
+            .map_err(|_| KeyPathError::InvalidArtiPath(ArtiPathError::InvalidDenotator))
+    }
+}
+
 define_derive_adhoc! {
     /// A helper for implementing [`KeySpecifier`]s.
     ///
@@ -757,6 +775,7 @@ mod test {
     use crate::assert_key_specifier_rountrip;
     use derive_adhoc::Adhoc;
     use itertools::Itertools;
+    use std::fmt::Debug;
 
     macro_rules! assert_err {
         ($ty:ident, $inner:expr, $error_kind:pat) => {{
@@ -778,31 +797,8 @@ mod test {
         }};
     }
 
-    impl KeySpecifierComponent for usize {
-        fn as_component(&self) -> ArtiPathComponent {
-            ArtiPathComponent::new(self.to_string()).unwrap()
-        }
-
-        fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
-        where
-            Self: Sized,
-        {
-            Ok(c.to_string().parse::<usize>().unwrap())
-        }
-    }
-
-    impl KeySpecifierComponent for String {
-        fn as_component(&self) -> ArtiPathComponent {
-            ArtiPathComponent::new(self.to_string()).unwrap()
-        }
-
-        fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
-        where
-            Self: Sized,
-        {
-            Ok(c.to_string())
-        }
-    }
+    impl KeySpecifierComponentViaDisplayFromStr for usize {}
+    impl KeySpecifierComponentViaDisplayFromStr for String {}
 
     #[test]
     #[allow(clippy::cognitive_complexity)]
