@@ -780,11 +780,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             if upload_res.upload_res == UploadStatus::Success {
                 let update_last_successful = match period.last_successful {
                     None => true,
-                    Some(counter) => counter <= results.revision_counter,
+                    Some(counter) => counter <= upload_res.revision_counter,
                 };
 
                 if update_last_successful {
-                    period.last_successful = Some(results.revision_counter);
+                    period.last_successful = Some(upload_res.revision_counter);
                     // TODO HSS: Is it possible that this won't update the statuses promptly
                     // enough. For example, it's possible for the reactor to see a Dirty descriptor
                     // and start an upload task for a descriptor has already been uploaded (or is
@@ -1331,6 +1331,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     Ok(HsDirUploadStatus {
                         relay_ids,
                         upload_res,
+                        revision_counter: *revision_counter,
                     })
                 }
             })
@@ -1352,7 +1353,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
-                revision_counter: *revision_counter,
                 time_period,
                 hsdir_result: upload_results,
             })
@@ -1558,8 +1558,6 @@ impl RetriableError for UploadError {
 /// The outcome of uploading a descriptor to the HSDirs from a particular time period.
 #[derive(Debug, Clone)]
 struct TimePeriodUploadResult {
-    /// The revision counter of the descriptor we tried to upload.
-    revision_counter: RevisionCounter,
     /// The time period.
     time_period: TimePeriod,
     /// The upload results.
@@ -1573,6 +1571,8 @@ struct HsDirUploadStatus {
     relay_ids: RelayIds,
     /// The outcome of this attempt.
     upload_res: UploadStatus,
+    /// The revision counter of the descriptor we tried to upload.
+    revision_counter: RevisionCounter,
 }
 
 /// The outcome of uploading a descriptor.
