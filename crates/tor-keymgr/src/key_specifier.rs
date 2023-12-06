@@ -793,27 +793,47 @@ mod test {
 
         for path in DISALLOWED_CHAR_ARTI_PATHS {
             assert_err!(ArtiPath, path, ArtiPathSyntaxError::DisallowedChar(_));
-            assert_err!(ArtiPathComponent, path, ArtiPathSyntaxError::DisallowedChar(_));
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::DisallowedChar(_)
+            );
         }
 
         for path in BAD_OUTER_CHAR_ARTI_PATHS {
             assert_err!(ArtiPath, path, ArtiPathSyntaxError::BadOuterChar(_));
-            assert_err!(ArtiPathComponent, path, ArtiPathSyntaxError::BadOuterChar(_));
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::BadOuterChar(_)
+            );
         }
 
         for path in EMPTY_PATH_COMPONENT {
             assert_err!(ArtiPath, path, ArtiPathSyntaxError::EmptyPathComponent);
-            assert_err!(ArtiPathComponent, path, ArtiPathSyntaxError::DisallowedChar('/'));
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::DisallowedChar('/')
+            );
         }
 
         const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid ArtiPathComponent
         let path = format!("a{SEP}client{SEP}key.private");
         assert_ok!(ArtiPath, &path);
-        assert_err!(ArtiPathComponent, &path, ArtiPathSyntaxError::DisallowedChar('/'));
+        assert_err!(
+            ArtiPathComponent,
+            &path,
+            ArtiPathSyntaxError::DisallowedChar('/')
+        );
 
         const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
-        assert_err!(ArtiPath, PATH_WITH_TRAVERSAL, ArtiPathSyntaxError::PathTraversal);
+        assert_err!(
+            ArtiPath,
+            PATH_WITH_TRAVERSAL,
+            ArtiPathSyntaxError::PathTraversal
+        );
         assert_err!(
             ArtiPathComponent,
             PATH_WITH_TRAVERSAL,
@@ -829,7 +849,11 @@ mod test {
         );
 
         const EMPTY_DENOTATOR: &str = "c++";
-        assert_err!(ArtiPath, EMPTY_DENOTATOR, ArtiPathSyntaxError::EmptyPathComponent);
+        assert_err!(
+            ArtiPath,
+            EMPTY_DENOTATOR,
+            ArtiPathSyntaxError::EmptyPathComponent
+        );
         assert_err!(
             ArtiPathComponent,
             EMPTY_DENOTATOR,
@@ -854,8 +878,16 @@ mod test {
             let path = format!("hs_client+{denotator}");
 
             assert_err!(ArtiPath, path, ArtiPathSyntaxError::BadOuterChar(_));
-            assert_err!(ArtiPathComponent, denotator, ArtiPathSyntaxError::BadOuterChar(_));
-            assert_err!(ArtiPathComponent, path, ArtiPathSyntaxError::DisallowedChar('+'));
+            assert_err!(
+                ArtiPathComponent,
+                denotator,
+                ArtiPathSyntaxError::BadOuterChar(_)
+            );
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::DisallowedChar('+')
+            );
         }
 
         // An ArtiPath with multiple denotators

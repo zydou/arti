@@ -14,7 +14,8 @@ use std::sync::Arc;
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
 use tor_keymgr::{
-    ArtiPath, ArtiPathComponent, ArtiPathSyntaxError, ArtiPathUnavailableError, CTorPath, KeySpecifier,
+    ArtiPath, ArtiPathComponent, ArtiPathSyntaxError, ArtiPathUnavailableError, CTorPath,
+    KeySpecifier,
 };
 
 /// Keys (if any) to use when connecting to a specific onion service.
