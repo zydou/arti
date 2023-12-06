@@ -9,7 +9,7 @@ This could be a problem if, for example, you are building from a path like `/hom
 
 There is a good overview of the issues here at [https://github.com/betrusted-io/xous-core/issues/57](https://github.com/betrusted-io/xous-core/issues/57) .
 
-To workaround this issue, you can use one of the following options:
+To work around this issue, you can use one of the following options:
 
 ### Reproducible build
 
@@ -17,7 +17,7 @@ If you have Docker, you can run a reproducible build of Arti, so that the binary
 
 See the [`docker_reproducible_build`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/maint/docker_reproducible_build) script for more information.
 
-### RUST flags
+### RUSTFLAGS
 
 As a quick-and-dirty solution, you can use the `--remap-path-prefix` option to tell the Rust compiler to re-map your paths into anonymized ones.
 
