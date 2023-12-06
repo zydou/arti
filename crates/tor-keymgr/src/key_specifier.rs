@@ -13,6 +13,7 @@ use derive_adhoc::define_derive_adhoc;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tor_error::{into_internal, Bug};
 use tor_hscrypto::time::TimePeriod;
 
 use crate::err::ArtiPathError;
@@ -466,7 +467,7 @@ pub trait KeySpecifier {
 /// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
     /// Return the [`ArtiPathComponent`] representation of this type.
-    fn as_component(&self) -> ArtiPathComponent;
+    fn as_component(&self) -> Result<ArtiPathComponent, Bug>;
     /// Try to convert `c` into an object of this type.
     fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
@@ -529,13 +530,17 @@ impl KeySpecifier for KeyPath {
 }
 
 impl KeySpecifierComponent for TimePeriod {
-    fn as_component(&self) -> ArtiPathComponent {
-        ArtiPathComponent(format!(
+    fn as_component(&self) -> Result<ArtiPathComponent, Bug> {
+        // TODO HSS bypassing ArtiPathComponent constructor ought to be prevented.
+        // (previously this constructor bypassesed the syntax check)
+        // I think this would mean moving ArtiPathComponent out of this module.
+        ArtiPathComponent::new(format!(
             "{}_{}_{}",
             self.interval_num(),
             self.length(),
             self.epoch_offset_in_sec()
         ))
+        .map_err(into_internal!("TP formatting went wrong"))
     }
 
     fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
@@ -562,9 +567,10 @@ impl KeySpecifierComponent for TimePeriod {
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
 pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
 impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
-    fn as_component(&self) -> ArtiPathComponent {
-        ArtiPathComponent::new(self.to_string())
-            .expect("!!") // XXXX We don't want to panic here but the return value forces us to
+    fn as_component(&self) -> Result<ArtiPathComponent, Bug> {
+        self.to_string()
+            .try_into()
+            .map_err(into_internal!("Display generated bad ArtiPathComponent"))
     }
     fn from_component(s: &ArtiPathComponent) -> Result<Self, InvalidKeyPathComponentValue>
     where
@@ -672,14 +678,15 @@ define_derive_adhoc! {
         fn arti_path_prefix(
             $(${when F_IS_ROLE} $fname: Option<&$ftype> , )
             $(${when F_IS_PATH} $fname: Option<&$ftype> , )
-        ) -> String {
+        ) -> Result<String, tor_error::Bug> {
             // TODO this has a lot of needless allocations
             ${define F_COMP_STRING {
-                $fname
-                    .map(|s| $crate::KeySpecifierComponent::as_component(s).to_string())
-                    .unwrap_or_else(|| "*".to_string()) ,
+                match $fname {
+                    Some(s) => $crate::KeySpecifierComponent::as_component(s)?.to_string(),
+                    None => "*".to_string(),
+                },
             }}
-            vec![
+            Ok(vec![
                 ${tmeta(prefix) as str}.to_string(),
                 $(
                   ${if fmeta(fixed_path_component) {
@@ -691,7 +698,7 @@ define_derive_adhoc! {
                   ${if F_IS_ROLE { $F_COMP_STRING }}
                 }}
                 ${if tmeta(role) { ${tmeta(role) as str}.to_string() , }}
-            ].join("/")
+            ].join("/"))
         }
 
         /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
@@ -706,12 +713,12 @@ define_derive_adhoc! {
           $tvis fn arti_pattern(
               $(${when F_IS_ROLE} $fname: Option<&$ftype>,)
               $(${when F_IS_PATH} $fname: Option<&$ftype>,)
-          ) -> $crate::KeyPathPattern {
+          ) -> Result<$crate::KeyPathPattern, tor_error::Bug> {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
               let mut pat = Self::arti_path_prefix(
                   $(${when fmeta(role)} $fname,)
                   $(${when F_IS_PATH} $fname,)
-              );
+              )?;
 
             ${for fields {
                 ${when fmeta(denotator)}
@@ -719,11 +726,11 @@ define_derive_adhoc! {
                 pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
             }}
 
-            KeyPathPattern::Arti(pat)
+            Ok(KeyPathPattern::Arti(pat))
         }
 
         /// A convenience wrapper around `Self::arti_path_prefix`.
-        fn prefix(&self) -> String {
+        fn prefix(&self) -> Result<String, tor_error::Bug> {
             Self::arti_path_prefix(
                 $(${when F_IS_ROLE} Some(&self.$fname),)
                 $(${when F_IS_PATH} Some(&self.$fname),)
@@ -736,13 +743,13 @@ define_derive_adhoc! {
     {
         fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut path = self.prefix();
+            let mut path = self.prefix()?;
 
             $(
                 // We only care about the fields that are denotators
                 ${ when fmeta(denotator) }
 
-                let denotator = $crate::KeySpecifierComponent::as_component(&self.$fname);
+                let denotator = $crate::KeySpecifierComponent::as_component(&self.$fname)?;
                 path.push($crate::DENOTATOR_SEP);
                 path.push_str(&denotator.to_string());
             )
@@ -820,7 +827,7 @@ define_derive_adhoc! {
                         let pat = $tname::arti_pattern(
                             ${for fields { ${when F_IS_ROLE} None, }}
                             ${for fields { ${when F_IS_PATH} None, }}
-                        );
+                        )?;
 
                         let Some(captures) = path.matches(&pat.clone().into()) else {
                             // If the pattern doesn't match at all, it
@@ -1121,7 +1128,7 @@ mod test {
         );
 
         assert_eq!(
-            key_spec.prefix(),
+            key_spec.prefix().unwrap(),
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane"
         );
     }
@@ -1140,11 +1147,11 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/marzlevane");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(),
+            TestSpecifier::arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane".into())
         );
 
-        assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
+        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
     #[test]
@@ -1164,11 +1171,11 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/marzlevane+6");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(),
+            TestSpecifier::arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane+*".into())
         );
 
-        assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
+        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
     #[test]
@@ -1192,13 +1199,13 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/logarithmic/spurving/fan");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
+            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())).unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
         assert_eq!(key_spec.ctor_path(), None);
 
-        assert_eq!(key_spec.prefix(), "encabulator/logarithmic/spurving/fan");
+        assert_eq!(key_spec.prefix().unwrap(), "encabulator/logarithmic/spurving/fan");
     }
 
     #[test]
@@ -1237,7 +1244,7 @@ mod test {
         );
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
+            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())).unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
     }
@@ -1312,7 +1319,7 @@ mod test {
     #[test]
     fn encode_time_period() {
         let period = TimePeriod::from_parts(1, 2, 3);
-        let encoded_period = period.as_component();
+        let encoded_period = period.as_component().unwrap();
 
         assert_eq!(encoded_period.to_string(), "2_1_3");
         assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
