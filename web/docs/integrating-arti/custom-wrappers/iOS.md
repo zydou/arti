@@ -27,7 +27,7 @@ $ rustup target add aarch64-apple-ios \
 
 ## Configuring a Rust project
 
-To create a new project in the directory you're in. You can do:
+To create a new project in the directory you're in, run the command:
 
 ```sh
 $ cargo init <project-name> --lib
@@ -35,13 +35,11 @@ $ cargo init <project-name> --lib
 
 You'll then need to add some content to the `Cargo.toml`.
 
-First add the subcrates of arti you want to use to the `[dependencies]` section. You'll have to add `features=["static"]` to crates that support this feature
-(at the moment tor-rtcompat, tor-dirmgr and arti-client): otherwise they will fail either to compile or to run.
+First add the subcrates of arti you want to use to the `[dependencies]` section. You'll have to add `features=["static"]` to crates that support this feature (at the moment `tor-rtcompat`, `tor-dirmgr` and `arti-client`). Otherwise they will fail either to compile or to run.
 
-You'll probably want to add some other dependencies, like futures, but these are not technically requirements.
+Other dependencies, such as futures, can be included if needed, but they are not technically required.
 
-You'll also need to specify what kind of lib this is. By default, it's a Rust lib that can only be used in the rust ecosystem.
-We want it to be a static library:
+Next, specify what kind of `lib` it is. By default, it's a Rust `lib` that can only be used in the rust ecosystem. To make it a static library:
 
 ```toml
 [lib]
@@ -68,7 +66,7 @@ void my_function(void);
 
 There exist a tool to build this header file for you, see in `Tips and caveats` below.
 
-Once you are satisfied with your code, you can compile it by running these commands. (This is a good time to take a coffee break)
+After setting up your code, initiate the compilation process by executing this command. The compilation time may vary depending on the size of your project.
 
 ```sh
  ## build for 64bit iPhone/iPad (32bit is no longer supported since iOS 11)
@@ -79,15 +77,13 @@ $ cargo build --target aarch64-apple-ios-sim
 $ cargo build --target x86_64-apple-ios
 ```
 
-You can add `--release` to each of this commands to build release libs that are smaller and faster, but take longer to compile.
+You can add `--release` to each of this commands to build release `libs` that are smaller and faster, but take longer to compile.
 
 ## The Swift part
 
-We assume you already have a project setup. This can be a brand new project, or an already existing one.
+After setting up your [Rust project](#configuring-a-rust-project), you'll need to create an Swift project. To do this, adjust your project's `build` settings and configure the Objective-C bridging header to point to the path of your C header file. This will add the native library and its header into your project.
 
-First you'll need to add the native library and its header to your project. Open your project settings Go in Build Settings and search Objective-C Bridging Header. Set it to the path to your C header file.
-
-Now close XCode, and open your project.pbxproj in a text editor. Jump to `LD_RUNPATH_SEARCH_PATHS`. You should find it two times, in a section named Debug and an other named Release.
+Close Xcode, then open your `project.pbxproj` file in a text editor. Navigate to the `LD_RUNPATH_SEARCH_PATHS` entry, which should appear twice, once under the "Debug" section and again under the "Release" section.
 
 In the Debug section, after `LD_RUNPATH_SEARCH_PATHS`, add the following:
 
@@ -112,22 +108,23 @@ OTHER_LDFLAGS = (
 
 In the Release section, add the same block, but replace `debug` at the end of each path with `release`.
 
-Now you can start calling your Rust functions from Swift like normal functions. Types are a bit difficult to work with, strings get transformed into char\* at the FFI interface, and Swift consider them as `Optional<UnsafeMutablePointer<CChar>>` which need unwrapping and conversion before being used. You also need to free such a pointer by passing it back to Rust and dropping the value there. Otherwise these functions should work almost as any other.
+You are now able to invoke your Rust functions from Swift just like regular functions. Dealing with types might be a bit challenging; for instance, strings are transformed into `char*` at the FFI interface. In Swift, they are treated as `Optional<UnsafeMutablePointer<CChar>>`, requiring unwrapping and conversion before use. Additionally, remember to free such a pointer by passing it back to Rust and dropping the value there. Aside from these considerations, these functions should work almost like any other.
 
-You can now build your application, and test it in an emulator or on your device. Hopefully it should work.
+You can now build your application, and test it in an emulator or on your device. If you have any problems, check the [debugging](#debugging-and-stability) section below.
 
 ## Tips and caveats
 
-You can find a sample project to build a very basic app using Arti [here](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/). It does not respect most good practices of app development, but should otherwise be a good starting point.
+The sample project [arti-mobile-example](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/) is a simple app that serves as a solid foundation for compiling Android apps with Arti. Additionally, it incorporates the majority of the provided tips below.
 
 ## Generating C headers from Rust code
-Instead of writing C headers manually and hopping to not make mistakes, it's possible to generate them automatically by using cbindgen. First install it.
+
+Instead of writing C headers manually and hopping to not make mistakes, you can generate them automatically using `cbindgen`. To install it, run:
 
 ```sh
 $ cargo install cbindgen
 ```
 
-Then use bindgen to generate the headers. You should put all functions you want to export in a single rust file.
+Then use `cbindgen` to generate the headers, after putting all functions you want to export in a single Rust file.
 
 ```sh
 $ cbindgen src/lib.rs -l c > arti-mobile.h
@@ -151,9 +148,10 @@ Subscriber::new()
   .init(); // this must be called only once, otherwise your app will probably crash
 ```
 
-You should take great care about your rust code not unwinding into Swift Runtime: If it does, it will crash your app with no error message to help you. If your code can panic, you should use `catch_unwind` to capture it before it reaches Swift.
+Take great care about your rust code not unwinding into Swift Runtime; if it does, it will crash your app with no error message to help you. If your code can panic, you should use `catch_unwind` to capture it before it reaches Swift.
 
 ## Async and Swift
-Arti relies a lot on Rust futures. There is no easy way to use these futures from Swift. The easiest ways is probably to block on futures if you are okay with it. Otherwise you have to pass callbacks from Swift to Rust, and make so they are called when the future completes.
 
-Eventually, Arti will provide a set of blocking APIs for use for embedding; please get in touch if you want to help design them.
+Arti relies a lot on Rust futures. The easiest way to use these futures from Swift is to block on futures if you are okay with it. Otherwise you have to pass callbacks from Swift to Rust, and make sure they are called when the future completes.
+
+Eventually, Arti will provide a set of blocking APIs for use for embedding. To help design these APIs, check out our [contributing guide](/contributing/).
