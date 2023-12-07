@@ -773,7 +773,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// The specified `time_periods` are used to preserve the `DescriptorStatus` of the
     /// HsDirs where possible.
-    fn compute_time_periods<'r>(
+    fn compute_time_periods(
         &self,
         netdir: &Arc<NetDir>,
         time_periods: &[TimePeriodContext],
