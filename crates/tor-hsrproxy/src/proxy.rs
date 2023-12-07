@@ -274,12 +274,16 @@ where
     FUT: Future<Output = Result<TS, IoError>>,
     TS: AsyncRead + AsyncWrite + Send + 'static,
 {
-    let local_stream = match target_stream_future.await {
+    let local_stream = target_stream_future.await.map_err(Arc::new);
+
+    log_ratelim!(
+        "Connecting to {} for onion service {}", sv(addr), nickname;
+        local_stream
+    );
+
+    let local_stream = match local_stream {
         Ok(s) => s,
         Err(e_connecting) => {
-            // TODO HSS: We should log more, since this is likely a missing
-            // local service.
-            // TODO HSS: (This is a major usability problem!)
             let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE);
             if let Err(e_rejecting) = request.reject(end).await {
                 debug_report!(
@@ -287,7 +291,7 @@ where
                     "Unable to reject onion service request from client"
                 );
             }
-            return Err(RequestFailed::ConnectLocal(Arc::new(e_connecting)));
+            return Err(RequestFailed::ConnectLocal(e_connecting));
         }
     };
 
