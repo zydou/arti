@@ -777,8 +777,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // Update our list of relevant time periods.
         inner.time_periods = self.compute_time_periods(&netdir)?;
 
-        for period in inner.time_periods.iter_mut() {
-            period.recompute_hs_dirs(&netdir)?;
+        for ctx in inner.time_periods.iter_mut() {
+            ctx.recompute_hs_dirs(&netdir)?;
         }
 
         Ok(())
