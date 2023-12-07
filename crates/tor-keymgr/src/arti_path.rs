@@ -1,9 +1,41 @@
 //! [`ArtiPath`] and [`ArtiPathComponent`]
 
+use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::{Deref, DerefMut, Display, Into};
 use serde::{Deserialize, Serialize};
 
 use crate::{ArtiPathSyntaxError, KeyPathRange};
+
+define_derive_adhoc! {
+    /// Implement `new()`, `TryFrom<String>` in terms of `validate_str`, and `as_ref<str>`
+    //
+    // TODO maybe this is generally useful?  Or maybe we should find a crate?
+    ValidatedString for struct, expect items =
+
+    impl $ttype {
+        #[doc = concat!("Create a new [`", stringify!($tname), "`].")]
+        ///
+        /// This function returns an error if `inner` is not in the right syntax.
+        pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
+            Self::validate_str(&inner)?;
+            Ok(Self(inner))
+        }
+    }
+
+    impl TryFrom<String> for $ttype {
+        type Error = ArtiPathSyntaxError;
+
+        fn try_from(s: String) -> Result<Self, ArtiPathSyntaxError> {
+            Self::new(s)
+        }
+    }
+
+    impl AsRef<str> for $ttype {
+        fn as_ref(&self) -> &str {
+            &self.0
+        }
+    }
+}
 
 /// A unique identifier for a particular instance of a key.
 ///
@@ -49,7 +81,9 @@ use crate::{ArtiPathSyntaxError, KeyPathRange};
     Into,
     Display,
     derive_more::FromStr,
+    Adhoc,
 )]
+#[derive_adhoc(ValidatedString)]
 pub struct ArtiPath(String);
 
 /// A separator for `ArtiPath`s.
@@ -64,13 +98,6 @@ pub(crate) const PATH_SEP: char = '/';
 pub const DENOTATOR_SEP: char = '+';
 
 impl ArtiPath {
-    /// Create a new [`ArtiPath`].
-    ///
-    /// This function returns an error if `inner` is not a valid `ArtiPath`.
-    pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
-        Self::validate_str(&inner)?;
-        Ok(Self(inner))
-    }
     /// Validate the underlying representation of an `ArtiPath`
     fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
         // Validate the denotators, if there are any.
@@ -138,20 +165,13 @@ impl ArtiPath {
     PartialOrd,
     Serialize,
     Deserialize,
+    Adhoc,
 )]
+#[derive_adhoc(ValidatedString)]
 #[serde(try_from = "String", into = "String")]
 pub struct ArtiPathComponent(String);
 
 impl ArtiPathComponent {
-    /// Create a new [`ArtiPathComponent`].
-    ///
-    /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
-    pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
-        Self::validate_str(&inner)?;
-
-        Ok(Self(inner))
-    }
-
     /// Check whether `c` can be used within an `ArtiPathComponent`.
     fn is_allowed_char(c: char) -> bool {
         c.is_alphanumeric() || c == '_' || c == '-' || c == '.'
@@ -181,19 +201,5 @@ impl ArtiPathComponent {
         }
 
         Ok(())
-    }
-}
-
-impl TryFrom<String> for ArtiPathComponent {
-    type Error = ArtiPathSyntaxError;
-
-    fn try_from(s: String) -> Result<ArtiPathComponent, ArtiPathSyntaxError> {
-        Self::new(s)
-    }
-}
-
-impl AsRef<str> for ArtiPathComponent {
-    fn as_ref(&self) -> &str {
-        &self.0
     }
 }
