@@ -126,8 +126,6 @@ define_derive_adhoc! {
     // This has to be a macro rather than simply a helper newtype
     // to implement the "transparent" binary version,
     // since that involves looking into the struct's field.
-    //
-    // TODO see also IptLocalId crates/tor-hsservice/src/lib.rs, which could benefit from this.
     SerdeStringOrTransparent for struct, expect items =
 
     impl Serialize for $ttype {
@@ -160,7 +158,7 @@ define_derive_adhoc! {
     impl<'de> serde::de::Visitor<'de> for $STRING_VISITOR {
         type Value = $ttype;
         fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<$ttype, E> {
-            s.parse().map_err(|e: ParseError| E::custom(e))
+            s.parse().map_err(|e| E::custom(e))
         }
         fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, concat!("string representing ", stringify!($tname)))

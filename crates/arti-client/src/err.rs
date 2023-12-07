@@ -285,7 +285,7 @@ enum ErrorDetail {
 
     /// Encountered a malformed client specifier.
     #[error("Bad client specifier")]
-    BadClientSpecifier(#[from] tor_keymgr::ArtiPathError),
+    BadClientSpecifier(#[from] tor_keymgr::ArtiPathSyntaxError),
 
     /// We tried to parse an onion address, but we found that it was invalid.
     #[cfg(feature = "onion-service-client")]

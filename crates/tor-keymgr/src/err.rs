@@ -46,11 +46,17 @@ impl HasKind for Error {
     }
 }
 
-/// An error caused by an invalid [`ArtiPath`](crate::ArtiPath).
-#[derive(thiserror::Error, Debug, Copy, Clone)]
+/// An error caused by a syntactically invalid [`ArtiPath`](crate::ArtiPath).
+///
+/// The `ArtiPath` is not in the legal syntax: it contains bad characters,
+/// or a syntactically invalid components.
+///
+/// (Does not include any errors arising from paths which are invalid
+/// *for the particular key*.)
+#[derive(thiserror::Error, Debug, Clone, Eq, PartialEq)]
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
-pub enum ArtiPathError {
+pub enum ArtiPathSyntaxError {
     /// Found an empty path component.
     #[error("Empty path component")]
     EmptyPathComponent,
@@ -66,11 +72,6 @@ pub enum ArtiPathError {
     /// The path starts with a disallowed char.
     #[error("Path starts or ends with disallowed char {0}")]
     BadOuterChar(char),
-
-    /// The path contains an invalid key denotator.
-    ///
-    /// See the [`ArtiPath`](crate::ArtiPath) docs for more information.
-    InvalidDenotator,
 }
 
 /// An error caused by keystore corruption.

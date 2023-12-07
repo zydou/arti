@@ -11,8 +11,8 @@ use derive_adhoc::Adhoc;
 
 use tor_error::into_internal;
 use tor_hscrypto::time::TimePeriod;
+use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
 use tor_keymgr::{derive_adhoc_template_KeySpecifierDefault, KeyPathPattern};
-use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
 
 use crate::HsNickname;
 use crate::IptLocalId;
@@ -82,7 +82,7 @@ pub struct DescSigningKeypairSpecifier {
 }
 
 /// Denotates one of the keys, in the context of a particular HS and intro point
-#[derive(Debug, strum::Display)]
+#[derive(Debug, Adhoc, Eq, PartialEq, strum::Display, strum::EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub(crate) enum IptKeyRole {
     /// `k_hss_ntor`
@@ -91,28 +91,23 @@ pub(crate) enum IptKeyRole {
     KSid,
 }
 
-/// Specifies an intro point key
-#[derive(Debug)]
-pub(crate) struct IptKeySpecifier<'s> {
-    /// nick
-    pub(crate) nick: &'s HsNickname,
-    /// lid
-    pub(crate) lid: IptLocalId,
-    /// which key
-    pub(crate) role: IptKeyRole,
-}
+impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 
-// TODO HSS soup up the `KeySpecifierDefault` macro to be able to generate this ArtiPath
-// (the ArtiPath itself is right, so this ought to change impl but not tests)
-impl KeySpecifier for IptKeySpecifier<'_> {
-    fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
-        let IptKeySpecifier { nick, lid, role } = self;
-        let s = format!("hs/{nick}/ipts/{role}+{lid}");
-        Ok(ArtiPath::new(s).map_err(into_internal!("made wrong ArtiPath"))?)
-    }
-    fn ctor_path(&self) -> Option<CTorPath> {
-        None
-    }
+/// Specifies an intro point key
+#[derive(Debug, Adhoc, Eq, PartialEq)]
+#[derive_adhoc(KeySpecifierDefault)]
+#[adhoc(prefix = "hs")]
+#[adhoc(summary = "introduction point key")]
+pub(crate) struct IptKeySpecifier {
+    /// nick
+    pub(crate) nick: HsNickname,
+    /// which key
+    #[adhoc(fixed_path_component = "ipts")]
+    #[adhoc(role)]
+    pub(crate) role: IptKeyRole,
+    /// lid
+    #[adhoc(denotator)]
+    pub(crate) lid: IptLocalId,
 }
 
 #[cfg(test)]
@@ -130,7 +125,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_keymgr::{assert_key_specifier_rountrip, KeySpecifier};
+    use tor_keymgr::test_utils::check_key_specifier;
+    use tor_keymgr::KeySpecifier;
 
     #[test]
     fn hsid_key_specifiers() {
@@ -142,12 +138,7 @@ mod test {
         );
 
         let key_spec = HsIdKeypairSpecifier::new(nickname);
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KS_hs_id"
-        );
-
-        assert_key_specifier_rountrip!(HsIdKeypairSpecifier, key_spec);
+        check_key_specifier(&key_spec, "hs/shallot/KS_hs_id");
     }
 
     #[test]
@@ -161,12 +152,7 @@ mod test {
         );
 
         let key_spec = BlindIdKeypairSpecifier::new(nickname, period);
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KS_hs_blind_id+2_1_3"
-        );
-
-        assert_key_specifier_rountrip!(BlindIdKeypairSpecifier, key_spec);
+        check_key_specifier(&key_spec, "hs/shallot/KS_hs_blind_id+2_1_3");
     }
 
     #[test]
@@ -174,12 +160,7 @@ mod test {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
         let key_spec = DescSigningKeypairSpecifier::new(nickname, period);
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KS_hs_desc_sign+2_1_3"
-        );
-
-        assert_key_specifier_rountrip!(DescSigningKeypairSpecifier, key_spec);
+        check_key_specifier(&key_spec, "hs/shallot/KS_hs_desc_sign+2_1_3");
     }
 
     #[test]
@@ -187,18 +168,18 @@ mod test {
         let nick = HsNickname::try_from("shallot".to_string()).unwrap();
         let lid = IptLocalId::dummy(1);
         let spec = |role| IptKeySpecifier {
-            nick: &nick,
+            nick: nick.clone(),
             lid,
             role,
         };
         let lid_s = "0101010101010101010101010101010101010101010101010101010101010101";
-        assert_eq!(
-            spec(IptKeyRole::KHssNtor).arti_path().unwrap().as_str(),
-            format!("hs/shallot/ipts/k_hss_ntor+{lid_s}"),
+        check_key_specifier(
+            &spec(IptKeyRole::KHssNtor),
+            &format!("hs/shallot/ipts/k_hss_ntor+{lid_s}"),
         );
-        assert_eq!(
-            spec(IptKeyRole::KSid).arti_path().unwrap().as_str(),
-            format!("hs/shallot/ipts/k_sid+{lid_s}"),
+        check_key_specifier(
+            &spec(IptKeyRole::KSid),
+            &format!("hs/shallot/ipts/k_sid+{lid_s}"),
         );
     }
 }

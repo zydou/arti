@@ -1,7 +1,7 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
 use crate::key_type::ssh::SshKeyAlgorithm;
-use crate::{ArtiPathError, KeyType, KeystoreError, UnknownKeyTypeError};
+use crate::{ArtiPathSyntaxError, KeyType, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 
 use std::io;
@@ -96,7 +96,12 @@ pub(crate) enum FilesystemAction {
     Remove,
 }
 
-/// An error caused by an invalid key path.
+/// The keystore contained a file whose name syntactically improper
+///
+/// Keys are supposed to have pathnames consisting of an `ArtiPath`
+/// followed by a file extension.
+///
+/// See also [`KeyPathError`](crate::KeyPathError), which occurs at a higher level.
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum MalformedPathError {
     /// Found a key with a non-UTF-8 path.
@@ -109,7 +114,7 @@ pub(crate) enum MalformedPathError {
 
     /// The file path is not a valid [`ArtiPath`](crate::ArtiPath).
     #[error("not a valid ArtiPath")]
-    InvalidArtiPath(ArtiPathError),
+    InvalidArtiPath(ArtiPathSyntaxError),
 }
 
 impl KeystoreError for ArtiNativeKeystoreError {}

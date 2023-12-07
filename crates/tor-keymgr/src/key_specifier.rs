@@ -3,47 +3,19 @@
                                       // `define_derive_adhoc!` below
 
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::ops::Range;
 use std::result::Result as StdResult;
+use std::str::FromStr;
 
 use arrayvec::ArrayVec;
 use derive_adhoc::define_derive_adhoc;
 use derive_more::{Deref, DerefMut, Display, From, Into};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tor_error::{into_internal, Bug};
 use tor_hscrypto::time::TimePeriod;
 
-use crate::err::ArtiPathError;
-
-/// A unique identifier for a particular instance of a key.
-///
-/// In an [`ArtiNativeKeystore`](crate::ArtiNativeKeystore), this also represents the path of the
-/// key relative to the root of the keystore, minus the file extension.
-///
-/// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
-/// components may contain UTF-8 alphanumerics, and (except as the first or last character) `-`,
-/// `_`, or  `.`.
-/// Consequently, leading or trailing or duplicated / are forbidden.
-///
-/// The last component of the path may optionally contain the encoded (string) representation
-/// of one or more [`KeySpecifierComponent`]s representing the denotators of the key.
-/// They are separated from the rest of the component, and from each other,
-/// by [`DENOTATOR_SEP`] characters.
-/// Denotators are encoded using their [`KeySpecifierComponent::as_component`] implementation.
-/// The denotators **must** come after all the other fields.
-/// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
-///
-/// For example, the last component of the path `"foo/bar/bax+denotator_example+1"`
-/// is `"bax+denotator_example+1"`.
-/// Its denotators are `"denotator_example"` and `"1"` (encoded as strings).
-///
-/// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
-/// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
-/// conversion is not supported.
-///
-// But this should be done _after_ we rewrite define_key_specifier using d-a
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
-pub struct ArtiPath(String);
+use crate::{ArtiPath, ArtiPathComponent, ArtiPathSyntaxError};
 
 /// The identifier of a key.
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, From, Display)]
@@ -57,7 +29,7 @@ pub enum KeyPath {
 
 /// A range specifying a substring of a [`KeyPath`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash, From)]
-pub struct KeyPathRange(Range<usize>);
+pub struct KeyPathRange(pub(crate) Range<usize>);
 
 impl KeyPath {
     /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
@@ -66,8 +38,8 @@ impl KeyPath {
     ///
     /// ### Example
     /// ```
-    /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathError};
-    /// # fn demo() -> Result<(), ArtiPathError> {
+    /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathSyntaxError};
+    /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
     /// let path = KeyPath::Arti(ArtiPath::new("foo_bar_baz_1".into())?);
     /// let pattern = KeyPathPattern::Arti("*_bar_baz_*".into());
     /// let matches = path.matches(&pattern).unwrap();
@@ -113,7 +85,15 @@ impl KeyPath {
     }
 }
 
-/// An error coming form a [`KeyInfoExtractor`].
+/// An error while attempting to extract information about a key given its path
+///
+/// For example, from a [`KeyInfoExtractor`].
+///
+/// See also `crate::keystore::arti::MalformedPathError`,
+/// which occurs at a lower level.
+//
+// TODO HSS places where this error is embedded should include the actual filename,
+// for reporting purposes.  (Or abn ArtiPath if they don't have filesystem filenames.)
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
@@ -128,19 +108,59 @@ pub enum KeyPathError {
     #[error("Unrecognized path: {0}")]
     Unrecognized(KeyPath),
 
-    /// Found an invalid [`ArtiPath`].
+    /// Found an invalid [`ArtiPath`], which is syntactically invalid on its face
     #[error("{0}")]
-    InvalidArtiPath(#[from] ArtiPathError),
+    InvalidArtiPath(#[from] ArtiPathSyntaxError),
+
+    /// An invalid key path component value string was encountered
+    ///
+    /// When attempting to interpret a key path, one of the elements in the path
+    /// contained a string value which wasn't a legitimate representation of the
+    /// type of data expected there for this kind of key.
+    ///
+    /// (But the key path is in the proper character set.)
+    #[error("invalid string value for element of key path")]
+    InvalidKeyPathComponentValue {
+        /// What was wrong with the value
+        #[source]
+        error: InvalidKeyPathComponentValue,
+        /// The name of the "key" (what data we were extracting)
+        ///
+        /// Should be valid Rust identifier syntax.
+        key: String,
+        /// The substring of the `ArtiPath` that couldn't be parsed.
+        value: ArtiPathComponent,
+    },
 
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
 }
 
+/// Error to be returned by `KeySpecifierComponent::from_component` implementations
+///
+/// Currently this error contains little information,
+/// but the context and value are provided in
+/// [`KeyPathError::InvalidKeyPathComponentValue`].
+#[derive(Error, Clone, Debug, Hash)]
+#[non_exhaustive]
+#[error("invalid key denotator")]
+pub struct InvalidKeyPathComponentValue {}
+
+impl InvalidKeyPathComponentValue {
+    /// Create an `InvalidDenotator` error with no further information about the problem
+    fn new() -> Self {
+        InvalidKeyPathComponentValue {}
+    }
+}
+
 /// Information about a [`KeyPath`].
 ///
 /// The information is extracted from the [`KeyPath`] itself
 /// (_not_ from the key data) by a [`KeyInfoExtractor`].
+//
+// TODO This should have getters or something; currently you can build it but not inspect it
+// TODO HSS maybe the getters should be combined with the builder, or something?
 #[derive(Debug, Clone, PartialEq, derive_builder::Builder)]
 pub struct KeyPathInfo {
     /// A human-readable summary string describing what the [`KeyPath`] is for.
@@ -155,6 +175,13 @@ pub struct KeyPathInfo {
     /// be `("kind", "service)`, `("nickname", "foo")`, etc.
     #[builder(default, setter(custom))]
     extra_info: BTreeMap<String, String>,
+}
+
+impl KeyPathInfo {
+    /// Start to build a [`KeyPathInfo`]: return a fresh [`KeyPathInfoBuilder`]
+    pub fn builder() -> KeyPathInfoBuilder {
+        KeyPathInfoBuilder::default()
+    }
 }
 
 impl KeyPathInfoBuilder {
@@ -224,146 +251,6 @@ pub enum KeyPathPattern {
     CTor(String),
 }
 
-/// A separator for `ArtiPath`s.
-const PATH_SEP: char = '/';
-
-/// A separator for that marks the beginning of the keys denotators
-/// within an [`ArtiPath`].
-///
-/// This separator can only appear within the last component of an [`ArtiPath`],
-/// and the substring that follows it is assumed to be the string representation
-/// of the denotators of the path.
-pub const DENOTATOR_SEP: char = '+';
-
-impl ArtiPath {
-    /// Create a new [`ArtiPath`].
-    ///
-    /// This function returns an error if `inner` is not a valid `ArtiPath`.
-    pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
-        // Validate the denotators, if there are any.
-        let path = if let Some((inner, denotators)) = inner.split_once(DENOTATOR_SEP) {
-            for d in denotators.split(DENOTATOR_SEP) {
-                let () = ArtiPathComponent::validate_str(d)?;
-            }
-
-            inner
-        } else {
-            inner.as_ref()
-        };
-
-        if let Some(e) = path
-            .split(PATH_SEP)
-            .find_map(|s| ArtiPathComponent::validate_str(s).err())
-        {
-            return Err(e);
-        }
-
-        Ok(Self(inner))
-    }
-
-    /// Return the substring corresponding to the specified `range`.
-    ///
-    /// Returns `None` if `range` is not within the bounds of this `ArtiPath`.
-    ///
-    /// ### Example
-    /// ```
-    /// # use tor_keymgr::{ArtiPath, KeyPathRange, ArtiPathError};
-    /// # fn demo() -> Result<(), ArtiPathError> {
-    /// let path = ArtiPath::new("foo_bar_bax_1".into())?;
-    ///
-    /// let range = KeyPathRange::from(2..5);
-    /// assert_eq!(path.substring(&range), Some("o_b"));
-    ///
-    /// let range = KeyPathRange::from(22..50);
-    /// assert_eq!(path.substring(&range), None);
-    /// # Ok(())
-    /// # }
-    /// #
-    /// # demo().unwrap();
-    /// ```
-    pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
-        self.0.get(range.0.clone())
-    }
-}
-
-/// A component of an [`ArtiPath`].
-///
-/// Path components may contain UTF-8 alphanumerics, and (except as the first or last character)
-/// `-`,  `_`, or `.`.
-#[derive(
-    Clone,
-    Debug,
-    derive_more::Deref,
-    derive_more::DerefMut,
-    derive_more::Into,
-    derive_more::Display,
-    Hash,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-pub struct ArtiPathComponent(String);
-
-impl ArtiPathComponent {
-    /// Create a new [`ArtiPathComponent`].
-    ///
-    /// This function returns an error if `inner` is not a valid `ArtiPathComponent`.
-    pub fn new(inner: String) -> StdResult<Self, ArtiPathError> {
-        Self::validate_str(&inner)?;
-
-        Ok(Self(inner))
-    }
-
-    /// Check whether `c` can be used within an `ArtiPathComponent`.
-    fn is_allowed_char(c: char) -> bool {
-        c.is_alphanumeric() || c == '_' || c == '-' || c == '.'
-    }
-
-    /// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
-    fn validate_str(inner: &str) -> StdResult<(), ArtiPathError> {
-        /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
-        const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
-
-        if inner.is_empty() {
-            return Err(ArtiPathError::EmptyPathComponent);
-        }
-
-        if let Some(c) = inner.chars().find(|c| !Self::is_allowed_char(*c)) {
-            return Err(ArtiPathError::DisallowedChar(c));
-        }
-
-        if inner.contains("..") {
-            return Err(ArtiPathError::PathTraversal);
-        }
-
-        for c in MIDDLE_ONLY {
-            if inner.starts_with(*c) || inner.ends_with(*c) {
-                return Err(ArtiPathError::BadOuterChar(*c));
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl TryFrom<String> for ArtiPathComponent {
-    type Error = ArtiPathError;
-
-    fn try_from(s: String) -> StdResult<ArtiPathComponent, ArtiPathError> {
-        Self::new(s)
-    }
-}
-
-impl AsRef<str> for ArtiPathComponent {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
 /// The path of a key in the C Tor key store.
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
 pub struct CTorPath(String);
@@ -398,9 +285,9 @@ pub trait KeySpecifier {
 /// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
     /// Return the [`ArtiPathComponent`] representation of this type.
-    fn as_component(&self) -> ArtiPathComponent;
+    fn to_component(&self) -> Result<ArtiPathComponent, Bug>;
     /// Try to convert `c` into an object of this type.
-    fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
+    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized;
 }
@@ -461,16 +348,17 @@ impl KeySpecifier for KeyPath {
 }
 
 impl KeySpecifierComponent for TimePeriod {
-    fn as_component(&self) -> ArtiPathComponent {
-        ArtiPathComponent(format!(
+    fn to_component(&self) -> Result<ArtiPathComponent, Bug> {
+        ArtiPathComponent::new(format!(
             "{}_{}_{}",
             self.interval_num(),
             self.length(),
             self.epoch_offset_in_sec()
         ))
+        .map_err(into_internal!("TP formatting went wrong"))
     }
 
-    fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
+    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
@@ -485,9 +373,25 @@ impl KeySpecifierComponent for TimePeriod {
 
             Some((interval_num, length, offset_in_sec))
         })()
-        .ok_or_else(|| KeyPathError::InvalidArtiPath(ArtiPathError::InvalidDenotator))?;
+        .ok_or_else(InvalidKeyPathComponentValue::new)?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
+    }
+}
+
+/// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
+pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
+impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
+    fn to_component(&self) -> Result<ArtiPathComponent, Bug> {
+        self.to_string()
+            .try_into()
+            .map_err(into_internal!("Display generated bad ArtiPathComponent"))
+    }
+    fn from_component(s: &ArtiPathComponent) -> Result<Self, InvalidKeyPathComponentValue>
+    where
+        Self: Sized,
+    {
+        s.parse().map_err(|_| InvalidKeyPathComponentValue::new())
     }
 }
 
@@ -525,18 +429,55 @@ define_derive_adhoc! {
     ///
     /// A key specifier of this form, with denotators that encode to "d1" and "d2",
     /// would look like this: `"foo/<field1_str>/<field2_str>/../bar+d1+d2"`.
-    //
-    // TODO HSS: extend this to work for c-tor paths too (it will likely be a breaking
-    // change).
+    ///
+    /// ### Custom attributes
+    ///
+    ///  * **`#[adhoc(prefix)]`** (toplevel):
+    ///    Specifies the fixed prefix (the first path component).
+    ///    Must be a literal string.
+    ///
+    ///  * **`#[adhoc(role = "...")]`** (toplevel):
+    ///    Specifies the role - the initial portion of the leafname.
+    ///    Must be a literal string.
+    ///    This or the field-level `#[adhoc(role)]` must be specified.
+    ///
+    ///  * **`[adhoc(role)]` (field):
+    ///    Specifies that the role is determined at runtime.
+    ///    The field type must implement [`KeyDenotator`].
+    ///
+    ///  * **`#[adhoc(summary = "...")]`** (summary, mandatory):
+    ///    Specifies the summary; ends up as the `summary` field in [`KeyPathInfo`].
+    ///    (See [`KeyPathInfoBuilder::summary()`].)
+    ///    Must be a literal string.
+    ///
+    ///  * **`#[adhoc(denotator)]`** (field):
+    ///    Designates a field that should be represented
+    ///    in the key file leafname, after the role.
+    ///
+    ///  * **`#[adhoc(ctor_path = "expression")]`** (toplevel):
+    ///    Specifies that this kind of key has a representation in C Tor keystores,
+    ///    and provides an expression for computing the path.
+    ///    The expression should have type `impl Fn(&Self) -> CTorPath`.
+    ///
+    ///    If not specified, the generated [`KeySpecifier::ctor_path`]
+    ///    implementation will always return `None`.
+    ///
+    ///  * **`#[adhoc(fixed_path_component = "component")]`** (field):
+    ///    Before this field insert a fixed path component `component`.
+    ///    (Can be even used before a denotator component,
+    ///    to add a final fixed path component.)
+    ///
     pub KeySpecifierDefault =
 
     // A condition that evaluates to `true` for path fields.
-    ${defcond F_IS_PATH not(fmeta(denotator))}
+    ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
+    ${defcond F_IS_ROLE all(fmeta(role), not(tmeta(role)))}
 
     impl<$tgens> $ttype
     where $twheres
     {
         #[doc = concat!("Create a new`", stringify!($ttype), "`")]
+        #[allow(dead_code)] // caller might just construct Self with a struct literal
         pub(crate) fn new( $( $fname: $ftype , ) ) -> Self {
             Self {
                 $( $fname , )
@@ -547,17 +488,32 @@ define_derive_adhoc! {
         /// of the keys associated with this specifier.
         ///
         /// Returns the `ArtiPath`, minus the denotators.
-        fn arti_path_prefix( $(${when F_IS_PATH} $fname: Option<&$ftype> , ) ) -> String {
-            vec![
-                stringify!(${tmeta(prefix)}).to_string(),
+        //
+        // TODO HSS this function is a rather unprincipled addition to Self's API
+        fn arti_path_prefix(
+            $(${when F_IS_ROLE} $fname: Option<&$ftype> , )
+            $(${when F_IS_PATH} $fname: Option<&$ftype> , )
+        ) -> Result<String, tor_error::Bug> {
+            // TODO this has a lot of needless allocations
+            ${define F_COMP_STRING {
+                match $fname {
+                    Some(s) => $crate::KeySpecifierComponent::to_component(s)?.to_string(),
+                    None => "*".to_string(),
+                },
+            }}
+            Ok(vec![
+                ${tmeta(prefix) as str}.to_string(),
                 $(
-                    ${when F_IS_PATH}
-                    $fname
-                        .map(|s| $crate::KeySpecifierComponent::as_component(s).to_string())
-                        .unwrap_or_else(|| "*".to_string()) ,
+                  ${if fmeta(fixed_path_component) {
+                        ${fmeta(fixed_path_component) as str} .to_owned(),
+                  }}
+                  ${if F_IS_PATH { $F_COMP_STRING }}
                 )
-                stringify!(${tmeta(role)}).to_string()
-            ].join("/")
+                ${for fields {
+                  ${if F_IS_ROLE { $F_COMP_STRING }}
+                }}
+                ${if tmeta(role) { ${tmeta(role) as str}.to_string() , }}
+            ].join("/"))
         }
 
         /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
@@ -569,9 +525,15 @@ define_derive_adhoc! {
         //
         // TODO HSS consider abolishing or modifying this depending on call site experiences
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
-        $tvis fn arti_pattern( $(${when F_IS_PATH} $fname: Option<&$ftype>,) ) -> $crate::KeyPathPattern {
+          $tvis fn arti_pattern(
+              $(${when F_IS_ROLE} $fname: Option<&$ftype>,)
+              $(${when F_IS_PATH} $fname: Option<&$ftype>,)
+          ) -> Result<$crate::KeyPathPattern, tor_error::Bug> {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut pat = Self::arti_path_prefix( $(${when F_IS_PATH} $fname,) );
+              let mut pat = Self::arti_path_prefix(
+                  $(${when fmeta(role)} $fname,)
+                  $(${when F_IS_PATH} $fname,)
+              )?;
 
             ${for fields {
                 ${when fmeta(denotator)}
@@ -579,12 +541,15 @@ define_derive_adhoc! {
                 pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
             }}
 
-            KeyPathPattern::Arti(pat)
+            Ok(KeyPathPattern::Arti(pat))
         }
 
         /// A convenience wrapper around `Self::arti_path_prefix`.
-        fn prefix(&self) -> String {
-            Self::arti_path_prefix( $(${when F_IS_PATH} Some(&self.$fname),) )
+        fn prefix(&self) -> Result<String, tor_error::Bug> {
+            Self::arti_path_prefix(
+                $(${when F_IS_ROLE} Some(&self.$fname),)
+                $(${when F_IS_PATH} Some(&self.$fname),)
+            )
         }
     }
 
@@ -593,13 +558,13 @@ define_derive_adhoc! {
     {
         fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
             #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut path = self.prefix();
+            let mut path = self.prefix()?;
 
             $(
                 // We only care about the fields that are denotators
                 ${ when fmeta(denotator) }
 
-                let denotator = $crate::KeySpecifierComponent::as_component(&self.$fname);
+                let denotator = $crate::KeySpecifierComponent::to_component(&self.$fname)?;
                 path.push($crate::DENOTATOR_SEP);
                 path.push_str(&denotator.to_string());
             )
@@ -608,12 +573,16 @@ define_derive_adhoc! {
         }
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
-            // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the directories used
-            // by C tor. The resulting CTorPath will be prefixed with the appropriate C tor directory,
-            // based on the HsSvcKeyRole.
-            //
-            // This function will return `None` for keys that aren't stored on disk by C tor.
-            todo!()
+            ${if tmeta(ctor_path) {
+                // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the
+                // directories used by C tor. The resulting CTorPath will be prefixed with the
+                // appropriate C tor directory, based on the HsSvcKeyRole.
+                //
+                // Ie, provide the #[adhoc(ctor_path)] attribute
+                Some( ${tmeta(ctor_path) as tokens} (self) )
+            } else {
+                None
+            }}
         }
     }
 
@@ -638,7 +607,7 @@ define_derive_adhoc! {
                 Ok(
                     // TODO: Add extra info the to the Keyinfo
                     $crate::KeyPathInfoBuilder::default()
-                        .summary(stringify!(${tmeta(summary)}).to_string())
+                        .summary(${tmeta(summary) as str}.to_string())
                         .build()
                         .map_err(into_internal!("failed to build KeyPathInfo"))?
                 )
@@ -671,8 +640,9 @@ define_derive_adhoc! {
                         // associated with this specifier: each variable
                         // component (i.e. field) is matched using a '*' glob.
                         let pat = $tname::arti_pattern(
+                            ${for fields { ${when F_IS_ROLE} None, }}
                             ${for fields { ${when F_IS_PATH} None, }}
-                        );
+                        )?;
 
                         let Some(captures) = path.matches(&pat.clone().into()) else {
                             // If the pattern doesn't match at all, it
@@ -687,7 +657,7 @@ define_derive_adhoc! {
                         // in order. Conceptually this is like zipping the
                         // capture iterators with an iterator over fields and
                         // denotators, if there was such a thing.
-                        $(
+                        let mut component = || {
                             let Some(capture) = c.next() else {
                                 return Err(internal!("more fields than captures?!").into());
                             };
@@ -700,10 +670,28 @@ define_derive_adhoc! {
                                     component.to_owned()
                                 )?;
 
+                            Ok::<_, Self::Error>(component)
+                        };
+
+                        let error_handler = |fname: &'static str, value| {
+                            move |error| $crate::KeyPathError::InvalidKeyPathComponentValue {
+                                error,
+                                key: fname.to_owned(),
+                                value,
+                            }
+                        };
+
+                        ${define F_EXTRACT {
                             // This use of $ftype is why we must store owned
                             // types in the struct the macro is applied to.
-                            let $fname = $ftype::from_component(component)?;
-                        )
+                            let comp = component()?;
+                            let $fname = $ftype::from_component(&comp)
+                                .map_err(error_handler(stringify!($fname), comp))?;
+                        }}
+
+                        ${for fields { ${when         F_IS_PATH             } $F_EXTRACT }}
+                        ${for fields { ${when                    F_IS_ROLE  } $F_EXTRACT }}
+                        ${for fields { ${when not(any(F_IS_PATH, F_IS_ROLE))} $F_EXTRACT }}
 
                         if c.next().is_some() {
                             return Err(internal!("too many captures?!").into());
@@ -740,65 +728,64 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    use crate::assert_key_specifier_rountrip;
+    use crate::arti_path::PATH_SEP;
+    use crate::test_utils::check_key_specifier;
     use derive_adhoc::Adhoc;
-    use itertools::Itertools;
+    use itertools::{chain, Itertools};
+    use serde::{Deserialize, Serialize};
+    use std::fmt::Debug;
 
+    // TODO I think this could be a function?
     macro_rules! assert_err {
         ($ty:ident, $inner:expr, $error_kind:pat) => {{
             let path = $ty::new($inner.to_string());
+            let path_fromstr: Result<$ty, _> = $inner.parse();
+            let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
             assert!(path.is_err(), "{} should be invalid", $inner);
             assert!(
                 matches!(path.as_ref().unwrap_err(), $error_kind),
                 "wrong error type for {}: {path:?}",
                 $inner
             );
+            assert_eq!(path, path_fromstr);
+            assert_eq!(path, path_tryfrom);
         }};
     }
 
     macro_rules! assert_ok {
         ($ty:ident, $inner:expr) => {{
             let path = $ty::new($inner.to_string());
+            let path_fromstr: Result<$ty, _> = $inner.parse();
+            let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
             assert!(path.is_ok(), "{} should be valid", $inner);
-            assert_eq!(path.unwrap().to_string(), *$inner);
+            assert_eq!(path.as_ref().unwrap().to_string(), *$inner);
+            assert_eq!(path, path_fromstr);
+            assert_eq!(path, path_tryfrom);
         }};
     }
 
-    impl KeySpecifierComponent for usize {
-        fn as_component(&self) -> ArtiPathComponent {
-            ArtiPathComponent::new(self.to_string()).unwrap()
-        }
+    impl KeySpecifierComponentViaDisplayFromStr for usize {}
+    impl KeySpecifierComponentViaDisplayFromStr for String {}
 
-        fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
-        where
-            Self: Sized,
-        {
-            Ok(c.to_string().parse::<usize>().unwrap())
-        }
-    }
+    // This impl probably shouldn't be made non-test, since it produces longer paths
+    // than is necessary.  `t`/`f` would be better representation.  But it's fine for tests.
+    impl KeySpecifierComponentViaDisplayFromStr for bool {}
 
-    impl KeySpecifierComponent for String {
-        fn as_component(&self) -> ArtiPathComponent {
-            ArtiPathComponent::new(self.to_string()).unwrap()
-        }
-
-        fn from_component(c: ArtiPathComponent) -> StdResult<Self, KeyPathError>
-        where
-            Self: Sized,
-        {
-            Ok(c.to_string())
-        }
-    }
+    // TODO many of these tests should be in arti_path.rs
 
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn arti_path_validation() {
-        const VALID_ARTI_PATHS: &[&str] = &[
+        const VALID_ARTI_PATH_COMPONENTS: &[&str] = &[
             "my-hs-client-2",
             "hs_client",
             "client٣¾",
             "clientß",
             "client.key",
+        ];
+        const VALID_ARTI_PATHS: &[&str] = &[
+            "path/to/client+sub.value+fish",
+            //
         ];
 
         const BAD_OUTER_CHAR_ARTI_PATHS: &[&str] = &[
@@ -817,58 +804,85 @@ mod test {
         const EMPTY_PATH_COMPONENT: &[&str] =
             &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
 
-        for path in VALID_ARTI_PATHS {
+        for path in chain!(VALID_ARTI_PATH_COMPONENTS, VALID_ARTI_PATHS) {
             assert_ok!(ArtiPath, path);
+        }
+        for path in VALID_ARTI_PATH_COMPONENTS {
             assert_ok!(ArtiPathComponent, path);
         }
 
         for path in DISALLOWED_CHAR_ARTI_PATHS {
-            assert_err!(ArtiPath, path, ArtiPathError::DisallowedChar(_));
-            assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar(_));
+            assert_err!(ArtiPath, path, ArtiPathSyntaxError::DisallowedChar(_));
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::DisallowedChar(_)
+            );
         }
 
         for path in BAD_OUTER_CHAR_ARTI_PATHS {
-            assert_err!(ArtiPath, path, ArtiPathError::BadOuterChar(_));
-            assert_err!(ArtiPathComponent, path, ArtiPathError::BadOuterChar(_));
+            assert_err!(ArtiPath, path, ArtiPathSyntaxError::BadOuterChar(_));
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::BadOuterChar(_)
+            );
         }
 
         for path in EMPTY_PATH_COMPONENT {
-            assert_err!(ArtiPath, path, ArtiPathError::EmptyPathComponent);
-            assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar('/'));
+            assert_err!(ArtiPath, path, ArtiPathSyntaxError::EmptyPathComponent);
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::DisallowedChar('/')
+            );
         }
 
         const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid ArtiPathComponent
         let path = format!("a{SEP}client{SEP}key.private");
         assert_ok!(ArtiPath, &path);
-        assert_err!(ArtiPathComponent, &path, ArtiPathError::DisallowedChar('/'));
+        assert_err!(
+            ArtiPathComponent,
+            &path,
+            ArtiPathSyntaxError::DisallowedChar('/')
+        );
 
         const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
-        assert_err!(ArtiPath, PATH_WITH_TRAVERSAL, ArtiPathError::PathTraversal);
+        assert_err!(
+            ArtiPath,
+            PATH_WITH_TRAVERSAL,
+            ArtiPathSyntaxError::PathTraversal
+        );
         assert_err!(
             ArtiPathComponent,
             PATH_WITH_TRAVERSAL,
-            ArtiPathError::DisallowedChar('/')
+            ArtiPathSyntaxError::DisallowedChar('/')
         );
 
         const REL_PATH: &str = "./bob";
-        assert_err!(ArtiPath, REL_PATH, ArtiPathError::BadOuterChar('.'));
+        assert_err!(ArtiPath, REL_PATH, ArtiPathSyntaxError::BadOuterChar('.'));
         assert_err!(
             ArtiPathComponent,
             REL_PATH,
-            ArtiPathError::DisallowedChar('/')
+            ArtiPathSyntaxError::DisallowedChar('/')
         );
 
         const EMPTY_DENOTATOR: &str = "c++";
-        assert_err!(ArtiPath, EMPTY_DENOTATOR, ArtiPathError::EmptyPathComponent);
+        assert_err!(
+            ArtiPath,
+            EMPTY_DENOTATOR,
+            ArtiPathSyntaxError::EmptyPathComponent
+        );
         assert_err!(
             ArtiPathComponent,
             EMPTY_DENOTATOR,
-            ArtiPathError::DisallowedChar('+')
+            ArtiPathSyntaxError::DisallowedChar('+')
         );
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn arti_path_with_denotator() {
         const VALID_ARTI_DENOTATORS: &[&str] = &["foo", "one_two_three-f0ur"];
 
@@ -884,9 +898,17 @@ mod test {
         for denotator in BAD_OUTER_CHAR_DENOTATORS {
             let path = format!("hs_client+{denotator}");
 
-            assert_err!(ArtiPath, path, ArtiPathError::BadOuterChar(_));
-            assert_err!(ArtiPathComponent, denotator, ArtiPathError::BadOuterChar(_));
-            assert_err!(ArtiPathComponent, path, ArtiPathError::DisallowedChar('+'));
+            assert_err!(ArtiPath, path, ArtiPathSyntaxError::BadOuterChar(_));
+            assert_err!(
+                ArtiPathComponent,
+                denotator,
+                ArtiPathSyntaxError::BadOuterChar(_)
+            );
+            assert_err!(
+                ArtiPathComponent,
+                path,
+                ArtiPathSyntaxError::DisallowedChar('+')
+            );
         }
 
         // An ArtiPath with multiple denotators
@@ -902,7 +924,7 @@ mod test {
             "foo/bar/qux+{}+{}+foo+",
             VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
         );
-        assert_err!(ArtiPath, path, ArtiPathError::EmptyPathComponent);
+        assert_err!(ArtiPath, path, ArtiPathSyntaxError::EmptyPathComponent);
     }
 
     #[test]
@@ -943,7 +965,6 @@ mod test {
         assert_eq!(path.substring(&(0..0).into()).unwrap(), "");
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -968,20 +989,17 @@ mod test {
             count: 6,
         };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6"
+        check_key_specifier(
+            &key_spec,
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6",
         );
 
         assert_eq!(
-            key_spec.prefix(),
+            key_spec.prefix().unwrap(),
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane"
         );
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_no_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -993,22 +1011,16 @@ mod test {
 
         let key_spec = TestSpecifier {};
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "encabulator/marzlevane"
-        );
+        check_key_specifier(&key_spec, "encabulator/marzlevane");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(),
+            TestSpecifier::arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane".into())
         );
 
-        assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
+        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_denotator() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -1023,22 +1035,16 @@ mod test {
 
         let key_spec = TestSpecifier { count: 6 };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "encabulator/marzlevane+6"
-        );
+        check_key_specifier(&key_spec, "encabulator/marzlevane+6");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(),
+            TestSpecifier::arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane+*".into())
         );
 
-        assert_eq!(key_spec.prefix(), "encabulator/marzlevane");
-
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
+        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -1057,22 +1063,22 @@ mod test {
             bearings: "spurving".into(),
         };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "encabulator/logarithmic/spurving/fan"
-        );
+        check_key_specifier(&key_spec, "encabulator/logarithmic/spurving/fan");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
+            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into()))
+                .unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
-        assert_eq!(key_spec.prefix(), "encabulator/logarithmic/spurving/fan");
+        assert_eq!(key_spec.ctor_path(), None);
 
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
+        assert_eq!(
+            key_spec.prefix().unwrap(),
+            "encabulator/logarithmic/spurving/fan"
+        );
     }
 
-    #[allow(dead_code)] // some of the auto-generated functions are unused
     #[test]
     fn define_key_specifier_with_multiple_denotators() {
         #[derive(Adhoc, Debug, PartialEq)]
@@ -1103,29 +1109,95 @@ mod test {
             kind: "lunar".into(),
         };
 
-        assert_eq!(
-            key_spec.arti_path().unwrap().as_str(),
-            "encabulator/logarithmic/spurving/fan+8+2000+lunar"
+        check_key_specifier(
+            &key_spec,
+            "encabulator/logarithmic/spurving/fan+8+2000+lunar",
         );
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into())),
+            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into()))
+                .unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
+    }
 
-        assert_key_specifier_rountrip!(TestSpecifier, key_spec);
+    #[test]
+    fn define_key_specifier_role_field() {
+        #[derive(Adhoc, Debug, Eq, PartialEq)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "prefix")]
+        #[adhoc(summary = "test key")]
+        struct TestSpecifier {
+            #[adhoc(role)]
+            role: String,
+            i: usize,
+            #[adhoc(denotator)]
+            den: bool,
+        }
+
+        check_key_specifier(
+            &TestSpecifier {
+                i: 1,
+                role: "role".to_string(),
+                den: true,
+            },
+            "prefix/1/role+true",
+        );
+    }
+
+    #[test]
+    fn define_key_specifier_ctor_path() {
+        #[derive(Adhoc, Debug, Eq, PartialEq)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "p")]
+        #[adhoc(role = "r")]
+        #[adhoc(ctor_path = "Self::ctp")]
+        #[adhoc(summary = "test key")]
+        struct TestSpecifier {
+            i: usize,
+        }
+
+        impl TestSpecifier {
+            fn ctp(&self) -> CTorPath {
+                // TODO HSS this ought to use CTorPath's public constructor
+                // but it doesn't have one
+                CTorPath(self.i.to_string())
+            }
+        }
+
+        let spec = TestSpecifier { i: 42 };
+
+        check_key_specifier(&spec, "p/42/r");
+
+        assert_eq!(spec.ctor_path(), Some(CTorPath("42".into())),);
+    }
+
+    #[test]
+    fn define_key_specifier_fixed_path_component() {
+        #[derive(Adhoc, Debug, Eq, PartialEq)]
+        #[derive_adhoc(KeySpecifierDefault)]
+        #[adhoc(prefix = "prefix")]
+        #[adhoc(role = "role")]
+        #[adhoc(summary = "test key")]
+        struct TestSpecifier {
+            x: usize,
+            #[adhoc(fixed_path_component = "fixed")]
+            z: bool,
+        }
+
+        check_key_specifier(&TestSpecifier { x: 1, z: true }, "prefix/1/fixed/true/role");
     }
 
     #[test]
     fn encode_time_period() {
         let period = TimePeriod::from_parts(1, 2, 3);
-        let encoded_period = period.as_component();
+        let encoded_period = period.to_component().unwrap();
 
         assert_eq!(encoded_period.to_string(), "2_1_3");
-        assert_eq!(period, TimePeriod::from_component(encoded_period).unwrap());
+        assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
 
         assert!(TimePeriod::from_component(
-            ArtiPathComponent::new("invalid_tp".to_string()).unwrap()
+            &ArtiPathComponent::new("invalid_tp".to_string()).unwrap()
         )
         .is_err());
     }
@@ -1145,7 +1217,7 @@ mod test {
         }
         let extra_info = vec![("nickname".into(), "bar".into())];
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .set_all_extra_info(extra_info.clone().into_iter())
             .build()
@@ -1153,7 +1225,7 @@ mod test {
 
         assert_eq!(key_info.extra_info.into_iter().collect_vec(), extra_info);
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .set_all_extra_info(extra_info.clone().into_iter())
             .extra_info("type", "service")
@@ -1170,7 +1242,7 @@ mod test {
             ]
         );
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .extra_info("type", "service")
             .extra_info("time period", "100")
@@ -1180,7 +1252,7 @@ mod test {
 
         assert_extra_info_eq!(key_info, [("nickname", "bar"),]);
 
-        let key_info = KeyPathInfoBuilder::default()
+        let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
             .extra_info("type", "service")
             .extra_info("time period", "100")

@@ -337,7 +337,7 @@ fn compute_subcredentials(
         .get::<HsIdKey>(&hsid_key_spec)?
         .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
 
-    let pattern = BlindIdKeypairSpecifier::arti_pattern(Some(nickname));
+    let pattern = BlindIdKeypairSpecifier::arti_pattern(Some(nickname))?;
 
     let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
         .list_matching(&pattern)?
@@ -390,11 +390,17 @@ fn parse_time_period(
         return Err(internal!("captured substring out of range?!").into());
     };
 
-    Ok(TimePeriod::from_component(
-        ArtiPathComponent::new(denotator.to_string())
-            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?,
-    )
-    .map_err(KCE::KeyPath)?)
+    let comp = ArtiPathComponent::new(denotator.to_string())
+        .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?;
+    let tp = TimePeriod::from_component(&comp).map_err(|error| {
+        KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
+            key: "time_period".to_owned(),
+            value: comp,
+            error,
+        })
+    })?;
+
+    Ok(tp)
 }
 
 /// The current status of an introduction point, as defined in
