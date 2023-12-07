@@ -171,6 +171,10 @@ impl ReplayLog {
     fn check_inner(&mut self, h: &H) -> Result<(), ReplayError> {
         self.seen.test_and_add(h)?;
         if let Some(f) = self.log.as_mut() {
+            // TODO HSS if write_all fails, it might have written part of the data;
+            // in that case, we must truncate the file to resynchronise.
+            // We should probably set a note to truncate just before we call write_all
+            // and clear it again afterwards.
             f.write_all(&h.0[..])
                 .map_err(|e| ReplayError::Log(Arc::new(e)))?;
         }
