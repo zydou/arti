@@ -227,7 +227,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-util",
- "toml 0.7.8",
+ "toml 0.8.8",
  "tor-config",
  "tor-error",
  "tor-hsrproxy",
@@ -290,7 +290,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
- "toml 0.7.8",
+ "toml 0.8.8",
  "tor-async-utils",
  "tor-basic-utils",
  "tor-cell",
@@ -1879,7 +1879,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
- "toml 0.7.8",
+ "toml 0.8.8",
  "walkdir",
 ]
 
@@ -4673,14 +4673,14 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.7.8"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd79e69d3b627db300ff956027cc6c3798cef26d22526befdfcd12feeb6d2257"
+checksum = "a1a195ec8c9da26928f773888e0742ca3ca1040c6cd859c919c9f59c1954ab35"
 dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "toml_edit 0.19.15",
+ "toml_edit 0.21.0",
 ]
 
 [[package]]
@@ -4699,8 +4699,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
  "indexmap 2.1.0",
- "serde",
- "serde_spanned",
  "toml_datetime",
  "winnow",
 ]
@@ -4712,6 +4710,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70f427fce4d84c72b5b732388bf4a9f4531b53f74e2887e3ecb2481f68f66d81"
 dependencies = [
  "indexmap 2.1.0",
+ "toml_datetime",
+ "winnow",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d34d383cd00a163b4a5b85053df514d45bc330f6de7737edfe0a93311d1eaa03"
+dependencies = [
+ "indexmap 2.1.0",
+ "serde",
+ "serde_spanned",
  "toml_datetime",
  "winnow",
 ]
@@ -4797,7 +4808,6 @@ dependencies = [
  "hex-literal",
  "humantime 2.1.0",
  "rand",
- "signature 1.6.4",
  "thiserror",
  "tor-bytes",
  "tor-checkable",
@@ -4920,7 +4930,7 @@ dependencies = [
  "strum",
  "tempfile",
  "thiserror",
- "toml 0.7.8",
+ "toml 0.8.8",
  "tor-basic-utils",
  "tor-error",
  "tracing",
@@ -5096,7 +5106,7 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror",
- "toml 0.7.8",
+ "toml 0.8.8",
  "tor-async-utils",
  "tor-basic-utils",
  "tor-config",
@@ -5213,7 +5223,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "thiserror",
- "toml 0.7.8",
+ "toml 0.8.8",
  "tor-async-utils",
  "tor-cell",
  "tor-config",

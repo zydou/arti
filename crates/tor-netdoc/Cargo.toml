@@ -27,7 +27,8 @@ full = [
     "tor-linkspec?/full",
     "tor-llcrypto/full",
     "tor-protover/full",
-    "tor-units?/full", "tor-cell/full",
+    "tor-units?/full",
+    "tor-cell/full",
 ]
 experimental = [
     "build_docs",
