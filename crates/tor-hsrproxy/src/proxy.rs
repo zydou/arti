@@ -11,7 +11,8 @@ use std::io::{Error as IoError, Result as IoResult};
 use tor_async_utils::oneshot;
 use tor_cell::relaycell::msg as relaymsg;
 use tor_error::{debug_report, ErrorKind, HasKind};
-use tor_hsservice::{RendRequest, StreamRequest};
+use tor_hsservice::{HsNickname, RendRequest, StreamRequest};
+use tor_log_ratelim::log_ratelim;
 use tor_proto::stream::{DataStream, IncomingStreamRequest};
 use tor_rtcompat::Runtime;
 
@@ -98,9 +99,12 @@ impl OnionServiceReverseProxy {
     ///
     /// The future returned by this function blocks indefinitely, so you may
     /// want to spawn a separate task for it.
+    ///
+    /// The provided nickname is used for logging.
     pub async fn handle_requests<R, S>(
         &self,
         runtime: R,
+        nickname: HsNickname,
         requests: S,
     ) -> Result<(), HandleRequestsError>
     where
@@ -115,6 +119,7 @@ impl OnionServiceReverseProxy {
             .shutdown_rx
             .clone()
             .fuse();
+        let nickname = Arc::new(nickname);
 
         loop {
             let stream_request = select_biased! {
@@ -131,11 +136,14 @@ impl OnionServiceReverseProxy {
             let action = self.choose_action(stream_request.request());
             let a_clone = action.clone();
             let rt_clone = runtime.clone();
+            let nn_clone = Arc::clone(&nickname);
             let req = stream_request.request().clone();
 
             runtime
                 .spawn(async move {
-                    if let Err(e) = run_action(rt_clone, action, stream_request).await {
+                    if let Err(e) =
+                        run_action(rt_clone, nn_clone.as_ref(), action, stream_request).await
+                    {
                         debug_report!(
                             e,
                             "Unable to perform action {:?} for onion service request {:?}",
@@ -180,6 +188,7 @@ impl OnionServiceReverseProxy {
 /// Take the configured action from `action` on the incoming request `request`.
 async fn run_action<R: Runtime>(
     runtime: R,
+    nickname: &HsNickname,
     action: ProxyAction,
     request: StreamRequest,
 ) -> Result<(), RequestFailed> {
@@ -190,9 +199,9 @@ async fn run_action<R: Runtime>(
                 .map_err(RequestFailed::CantDestroy)?;
         }
         ProxyAction::Forward(encap, target) => match (encap, target) {
-            (Encapsulation::Simple, TargetAddr::Inet(a)) => {
+            (Encapsulation::Simple, ref addr @ TargetAddr::Inet(a)) => {
                 let rt_clone = runtime.clone();
-                forward_connection(rt_clone, request, runtime.connect(&a)).await?;
+                forward_connection(rt_clone, request, runtime.connect(&a), nickname, addr).await?;
             }
             (Encapsulation::Simple, TargetAddr::Unix(_)) => {
                 // TODO HSS: We need to implement unix connections.
@@ -257,6 +266,8 @@ async fn forward_connection<R, FUT, TS>(
     runtime: R,
     request: StreamRequest,
     target_stream_future: FUT,
+    nickname: &HsNickname,
+    addr: &TargetAddr,
 ) -> Result<(), RequestFailed>
 where
     R: Runtime,
