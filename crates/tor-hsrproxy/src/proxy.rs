@@ -296,7 +296,6 @@ where
     };
 
     let onion_service_stream: DataStream = {
-        // TODO HSS: Does this match the behavior from C tor?
         let connected = relaymsg::Connected::new_empty();
         request
             .accept(connected)
