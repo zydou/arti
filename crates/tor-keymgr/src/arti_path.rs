@@ -79,23 +79,11 @@ define_derive_adhoc! {
 /// conversion is not supported.
 ///
 // But this should be done _after_ we rewrite define_key_specifier using d-a
-#[derive(
-    Clone,
-    Debug,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    Hash,
-    Deref,
-    Into,
-    Display,
-    Serialize,
-    Deserialize,
-    Adhoc,
-)]
-#[derive_adhoc(ValidatedString)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, Into, Display)] //
+#[derive(Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
+#[derive(Adhoc)]
+#[derive_adhoc(ValidatedString)]
 pub struct ArtiPath(String);
 
 /// A separator for `ArtiPath`s.
@@ -162,23 +150,11 @@ impl ArtiPath {
 ///
 /// Path components may contain UTF-8 alphanumerics, and (except as the first or last character)
 /// `-`,  `_`, or `.`.
-#[derive(
-    Clone,
-    Debug,
-    Deref,
-    Into,
-    Display,
-    Hash,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    Adhoc,
-)]
-#[derive_adhoc(ValidatedString)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, Into, Display)] //
+#[derive(Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
+#[derive(Adhoc)]
+#[derive_adhoc(ValidatedString)]
 pub struct ArtiPathComponent(String);
 
 impl ArtiPathComponent {
