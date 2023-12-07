@@ -529,6 +529,8 @@ impl<R: Runtime> TorClient<R> {
             .into());
         }
 
+        let state_dir = config.storage.expand_state_dir()?;
+
         let dormant = DormantMode::Normal;
         let dir_cfg = {
             let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config()?;
@@ -536,7 +538,7 @@ impl<R: Runtime> TorClient<R> {
             c
         };
         let statemgr = FsStateMgr::from_path_and_mistrust(
-            config.storage.expand_state_dir()?,
+            &state_dir,
             config.storage.permissions(),
         )
         .map_err(ErrorDetail::StateMgrSetup)?;
@@ -561,8 +563,7 @@ impl<R: Runtime> TorClient<R> {
 
         #[cfg(feature = "pt-client")]
         let pt_mgr = {
-            let mut pt_state_dir = config.storage.expand_state_dir()?;
-            pt_state_dir.push("pt_state");
+            let pt_state_dir = state_dir.as_path().join("pt_state");
             config.storage.permissions().make_directory(&pt_state_dir)?;
 
             let mgr = Arc::new(tor_ptmgr::PtMgr::new(
