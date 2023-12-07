@@ -479,11 +479,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             hs_dirs.len()
         );
 
-        // We might consider launching multiple requests in parallel?
+        // We might consider launching requests to multiple HsDirs in parallel.
         //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1118#note_2894463
         // But C Tor doesn't and our HS experts don't consider that important:
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914436
-        // TODO SPEC: Discuss hsdir descriptor fetch (non)-parallelism
+        // (Additionally, making multiple HSDir requests at once may make us
+        // more vulnerable to traffic analysis.)
         let mut attempts = hs_dirs.iter().cycle().take(max_total_attempts);
         let mut errors = RetryError::in_attempt_to("retrieve hidden service descriptor");
         let desc = loop {
@@ -739,11 +740,13 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // for different services, it wouldn't be reusable anyway.
         let mut saved_rendezvous = None;
 
-        // We might consider making multiple attempts to different IPTs in in parallel,
-        // and somehow aggregating the errors and experiences.
+        // We might consider making multiple INTRODUCE attempts to different
+        // IPTs in in parallel, and somehow aggregating the errors and
+        // experiences.
         // However our HS experts don't consider that important:
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914438
-        // TODO SPEC: Discuss HS introduction (non)-parallelism, possibly with same x,X
+        // Parallelizing our HsCircPool circuit building would likely have
+        // greater impact. (See #1149.)
         loop {
             // When did we start doing things that depended on the IPT?
             //
@@ -782,8 +785,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 // Our HS experts don't consider it important to increase the parallelism:
                 //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914444
                 //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914445
-                //
-                // TODO SPEC: Discuss HS rendezvous (and rend vs intro) (non)-parallelism
                 if saved_rendezvous.is_none() {
                     debug!("hs conn to {}: setting up rendezvous point", &self.hsid);
                     // Establish a rendezvous circuit.
