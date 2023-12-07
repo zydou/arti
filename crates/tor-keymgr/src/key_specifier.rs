@@ -739,20 +739,28 @@ mod test {
     macro_rules! assert_err {
         ($ty:ident, $inner:expr, $error_kind:pat) => {{
             let path = $ty::new($inner.to_string());
+            let path_fromstr: Result<$ty, _> = $inner.parse();
+            let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
             assert!(path.is_err(), "{} should be invalid", $inner);
             assert!(
                 matches!(path.as_ref().unwrap_err(), $error_kind),
                 "wrong error type for {}: {path:?}",
                 $inner
             );
+            assert_eq!(path, path_fromstr);
+            assert_eq!(path, path_tryfrom);
         }};
     }
 
     macro_rules! assert_ok {
         ($ty:ident, $inner:expr) => {{
             let path = $ty::new($inner.to_string());
+            let path_fromstr: Result<$ty, _> = $inner.parse();
+            let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
             assert!(path.is_ok(), "{} should be valid", $inner);
-            assert_eq!(path.unwrap().to_string(), *$inner);
+            assert_eq!(path.as_ref().unwrap().to_string(), *$inner);
+            assert_eq!(path, path_fromstr);
+            assert_eq!(path, path_tryfrom);
         }};
     }
 
@@ -874,6 +882,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn arti_path_with_denotator() {
         const VALID_ARTI_DENOTATORS: &[&str] = &["foo", "one_two_three-f0ur"];
 
