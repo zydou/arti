@@ -69,12 +69,12 @@ impl ArtiPath {
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
     pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
         // Validate the denotators, if there are any.
-        let path = if let Some((inner, denotators)) = inner.split_once(DENOTATOR_SEP) {
+        let path = if let Some((main_part, denotators)) = inner.split_once(DENOTATOR_SEP) {
             for d in denotators.split(DENOTATOR_SEP) {
                 let () = ArtiPathComponent::validate_str(d)?;
             }
 
-            inner
+            main_part
         } else {
             inner.as_ref()
         };
