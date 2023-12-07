@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
-use derive_more::{Deref, DerefMut, Display, Into};
+use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
 
 use crate::{ArtiPathSyntaxError, KeyPathRange};
@@ -88,7 +88,6 @@ define_derive_adhoc! {
     Eq,
     Hash,
     Deref,
-    DerefMut,
     Into,
     Display,
     Adhoc,
@@ -164,7 +163,6 @@ impl ArtiPath {
     Clone,
     Debug,
     derive_more::Deref,
-    derive_more::DerefMut,
     derive_more::Into,
     derive_more::Display,
     Hash,
