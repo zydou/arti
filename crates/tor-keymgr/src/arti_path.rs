@@ -162,9 +162,9 @@ impl ArtiPath {
 #[derive(
     Clone,
     Debug,
-    derive_more::Deref,
-    derive_more::Into,
-    derive_more::Display,
+    Deref,
+    Into,
+    Display,
     Hash,
     Eq,
     PartialEq,
