@@ -53,7 +53,7 @@ impl HasKind for Error {
 ///
 /// (Does not include any errors arising from paths which are invalid
 /// *for the particular key*.)
-#[derive(thiserror::Error, Debug, Clone)]
+#[derive(thiserror::Error, Debug, Clone, Eq, PartialEq)]
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
 pub enum ArtiPathSyntaxError {
