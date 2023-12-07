@@ -68,6 +68,11 @@ impl ArtiPath {
     ///
     /// This function returns an error if `inner` is not a valid `ArtiPath`.
     pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
+        Self::validate_str(&inner)?;
+        Ok(Self(inner))
+    }
+    /// Validate the underlying representation of an `ArtiPath`
+    fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
         // Validate the denotators, if there are any.
         let path = if let Some((main_part, denotators)) = inner.split_once(DENOTATOR_SEP) {
             for d in denotators.split(DENOTATOR_SEP) {
@@ -76,7 +81,7 @@ impl ArtiPath {
 
             main_part
         } else {
-            inner.as_ref()
+            inner
         };
 
         if let Some(e) = path
@@ -86,7 +91,7 @@ impl ArtiPath {
             return Err(e);
         }
 
-        Ok(Self(inner))
+        Ok(())
     }
 
     /// Return the substring corresponding to the specified `range`.
@@ -152,7 +157,7 @@ impl ArtiPathComponent {
         c.is_alphanumeric() || c == '_' || c == '-' || c == '.'
     }
 
-    /// Validate the underlying representation of an `ArtiPath` or `ArtiPathComponent`.
+    /// Validate the underlying representation of an `ArtiPathComponent`.
     fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
         /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
         const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
