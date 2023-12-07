@@ -128,9 +128,6 @@ impl OnionServiceReverseProxy {
                     None => return Ok(()),
                     Some(s) => s,
                 }
-                // TODO HSS: we might want to have some mechanism here to report
-                // any fatal errors that occur from run_action, or from one of
-                // the tasks it spawns.
             };
 
             let action = self.choose_action(stream_request.request());
@@ -141,16 +138,14 @@ impl OnionServiceReverseProxy {
 
             runtime
                 .spawn(async move {
-                    if let Err(e) =
-                        run_action(rt_clone, nn_clone.as_ref(), action, stream_request).await
-                    {
-                        debug_report!(
-                            e,
-                            "Unable to perform action {:?} for onion service request {:?}",
-                            sv(a_clone),
-                            sv(req)
-                        );
-                    }
+                    let outcome =
+                        run_action(rt_clone, nn_clone.as_ref(), action, stream_request).await;
+
+                    log_ratelim!(
+                        "Performing action on {}", nn_clone;
+                        outcome;
+                        Err(_) => WARN, "Unable to take action {:?} for request {:?}", sv(a_clone), sv(req)
+                    );
                 })
                 .map_err(|e| HandleRequestsError::Spawn(Arc::new(e)))?;
         }
@@ -232,10 +227,6 @@ enum RequestFailed {
     #[error("Unable to reject onion service request")]
     CantReject(#[source] tor_hsservice::ClientError),
 
-    /// Encountered an error trying to open a local connection.
-    #[error("Unable to open connection to local target")]
-    ConnectLocal(#[source] Arc<IoError>),
-
     /// Encountered an error trying to tell the remote onion service client that
     /// we have accepted their connection.
     #[error("Unable to accept onion service connection")]
@@ -251,7 +242,6 @@ impl HasKind for RequestFailed {
         match self {
             RequestFailed::CantDestroy(e) => e.kind(),
             RequestFailed::CantReject(e) => e.kind(),
-            RequestFailed::ConnectLocal(_) => ErrorKind::LocalNetworkError,
             RequestFailed::AcceptRemote(e) => e.kind(),
             RequestFailed::Spawn(e) => e.kind(),
         }
@@ -260,8 +250,11 @@ impl HasKind for RequestFailed {
 
 /// Try to open a connection to an appropriate local target using
 /// `target_stream_future`.  If successful, try to report success on `request`
-/// and trandmit data between the two stream indefinitely.  On failure, close
+/// and transmit data between the two stream indefinitely.  On failure, close
 /// `request`.
+///
+/// Only return an error if we were unable to behave as intended due to a
+/// problem we did not already report.
 async fn forward_connection<R, FUT, TS>(
     runtime: R,
     request: StreamRequest,
@@ -283,15 +276,18 @@ where
 
     let local_stream = match local_stream {
         Ok(s) => s,
-        Err(e_connecting) => {
+        Err(_) => {
             let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE);
             if let Err(e_rejecting) = request.reject(end).await {
                 debug_report!(
-                    e_rejecting,
+                    &e_rejecting,
                     "Unable to reject onion service request from client"
                 );
+                return Err(RequestFailed::CantReject(e_rejecting));
             }
-            return Err(RequestFailed::ConnectLocal(e_connecting));
+            // We reported the (rate-limited) error from local_stream in
+            // DEBUG_REPORT above.
+            return Ok(());
         }
     };
 
