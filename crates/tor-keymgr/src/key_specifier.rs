@@ -768,7 +768,7 @@ mod test {
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn arti_path_validation() {
-        const VALID_ARTI_PATHS: &[&str] = &[
+        const VALID_ARTI_PATH_COMPONENTS: &[&str] = &[
             "my-hs-client-2",
             "hs_client",
             "client٣¾",
@@ -792,8 +792,10 @@ mod test {
         const EMPTY_PATH_COMPONENT: &[&str] =
             &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
 
-        for path in VALID_ARTI_PATHS {
+        for path in VALID_ARTI_PATH_COMPONENTS {
             assert_ok!(ArtiPath, path);
+        }
+        for path in VALID_ARTI_PATH_COMPONENTS {
             assert_ok!(ArtiPathComponent, path);
         }
 
