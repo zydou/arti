@@ -778,6 +778,23 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         inner.time_periods = self.compute_time_periods(&netdir)?;
 
         for ctx in inner.time_periods.iter_mut() {
+            // TODO HSS: it is a bug to call recompute_hs_dirs here.
+            //
+            // TimePeriodContext::recompute_hs_dirs replaces the HsDirs stored in `ctx` with the
+            // HsDirs returned by NetDir::hs_dirs_upload. If any of the new HsDirs returned by
+            // hs_dirs_upload already exist in `ctx`, their DescriptorStatus (Clean or Dirty) is
+            // preserved. In theory, this is supposed to ensure that when the consensus changes, we
+            // don't unnecessarily republish the descriptor to the HsDirs that already have it. In
+            // practice, however, the logic is flawed:
+            //
+            //    * we have _just_ recomputed the hs_dirs for `ctx`: the `inner.time_periods`
+            //    assignment above creates a new `hs_dirs` entry using the HsDirs returned by
+            //    hs_dirs_upload(), setting them all to Dirty
+            //    * we recompute the hs_dirs again here. Internally, this calls
+            //    NetDir::hs_dirs_upload again, this time attempting to preserve the status of
+            //    ctx.hs_dirs (the status of all of them is always going to be Dirty, because, as
+            //    explained above, inner.time_periods was overwritten, so the old
+            //    DescriptorStatuses are lost)
             ctx.recompute_hs_dirs(&netdir)?;
         }
 
