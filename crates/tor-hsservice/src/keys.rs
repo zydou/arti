@@ -13,8 +13,6 @@ use tor_error::into_internal;
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
 use tor_keymgr::{derive_adhoc_template_KeySpecifierDefault, KeyPathPattern};
-#[allow(unused_imports)] // XXXX
-use tor_keymgr::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
 
 use crate::HsNickname;
 use crate::IptLocalId;
