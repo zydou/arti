@@ -1,5 +1,7 @@
 //! [`ArtiPath`] and [`ArtiPathComponent`]
 
+use std::str::FromStr;
+
 use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::{Deref, DerefMut, Display, Into};
 use serde::{Deserialize, Serialize};
@@ -27,6 +29,15 @@ define_derive_adhoc! {
 
         fn try_from(s: String) -> Result<Self, ArtiPathSyntaxError> {
             Self::new(s)
+        }
+    }
+
+    impl FromStr for $ttype {
+        type Err = ArtiPathSyntaxError;
+
+        fn from_str(s: &str) -> Result<Self, ArtiPathSyntaxError> {
+            Self::validate_str(s)?;
+            Ok(Self(s.to_owned()))
         }
     }
 
@@ -80,7 +91,6 @@ define_derive_adhoc! {
     DerefMut,
     Into,
     Display,
-    derive_more::FromStr,
     Adhoc,
 )]
 #[derive_adhoc(ValidatedString)]
@@ -157,7 +167,6 @@ impl ArtiPath {
     derive_more::DerefMut,
     derive_more::Into,
     derive_more::Display,
-    derive_more::FromStr,
     Hash,
     Eq,
     PartialEq,
