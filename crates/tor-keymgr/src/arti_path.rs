@@ -90,9 +90,12 @@ define_derive_adhoc! {
     Deref,
     Into,
     Display,
+    Serialize,
+    Deserialize,
     Adhoc,
 )]
 #[derive_adhoc(ValidatedString)]
+#[serde(try_from = "String", into = "String")]
 pub struct ArtiPath(String);
 
 /// A separator for `ArtiPath`s.
