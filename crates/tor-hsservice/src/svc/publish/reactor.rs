@@ -283,15 +283,19 @@ struct TimePeriodContext {
 
 impl TimePeriodContext {
     /// Create a new `TimePeriodContext`.
-    fn new(
+    ///
+    /// Any of the specified `old_hsdirs` also present in the new list of HsDirs
+    /// (returned by `NetDir::hs_dirs_upload`) will have their `DescriptorStatus` preserved.
+    fn new<'r>(
         period: TimePeriod,
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
+        old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
     ) -> Result<Self, ReactorError> {
         Ok(Self {
             period,
             blind_id,
-            hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, iter::empty())?,
+            hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?,
             last_successful: None,
         })
     }
@@ -563,7 +567,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         {
             let netdir = wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely).await?;
-            let time_periods = self.compute_time_periods(&netdir)?;
+            let time_periods = self.compute_time_periods(&netdir, &[])?;
 
             let mut inner = self.inner.lock().expect("poisoned lock");
 
@@ -775,36 +779,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         );
 
         // Update our list of relevant time periods.
-        inner.time_periods = self.compute_time_periods(&netdir)?;
-
-        for ctx in inner.time_periods.iter_mut() {
-            // TODO HSS: it is a bug to call recompute_hs_dirs here.
-            //
-            // TimePeriodContext::recompute_hs_dirs replaces the HsDirs stored in `ctx` with the
-            // HsDirs returned by NetDir::hs_dirs_upload. If any of the new HsDirs returned by
-            // hs_dirs_upload already exist in `ctx`, their DescriptorStatus (Clean or Dirty) is
-            // preserved. In theory, this is supposed to ensure that when the consensus changes, we
-            // don't unnecessarily republish the descriptor to the HsDirs that already have it. In
-            // practice, however, the logic is flawed:
-            //
-            //    * we have _just_ recomputed the hs_dirs for `ctx`: the `inner.time_periods`
-            //    assignment above creates a new `hs_dirs` entry using the HsDirs returned by
-            //    hs_dirs_upload(), setting them all to Dirty
-            //    * we recompute the hs_dirs again here. Internally, this calls
-            //    NetDir::hs_dirs_upload again, this time attempting to preserve the status of
-            //    ctx.hs_dirs (the status of all of them is always going to be Dirty, because, as
-            //    explained above, inner.time_periods was overwritten, so the old
-            //    DescriptorStatuses are lost)
-            ctx.recompute_hs_dirs(&netdir)?;
-        }
+        let new_time_periods = self.compute_time_periods(&netdir, &inner.time_periods)?;
+        inner.time_periods = new_time_periods;
 
         Ok(())
     }
 
     /// Compute the [`TimePeriodContext`]s for the time periods from the specified [`NetDir`].
-    fn compute_time_periods(
+    ///
+    /// The specified `time_periods` are used to preserve the `DescriptorStatus` of the
+    /// HsDirs where possible.
+    fn compute_time_periods<'r>(
         &self,
         netdir: &Arc<NetDir>,
+        time_periods: &[TimePeriodContext],
     ) -> Result<Vec<TimePeriodContext>, ReactorError> {
         netdir
             .hs_all_time_periods()
@@ -836,7 +824,23 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     )?;
 
                 let blind_id: HsBlindIdKey = (&blind_id_kp).into();
-                TimePeriodContext::new(*period, blind_id.into(), netdir)
+
+                // If our previous `TimePeriodContext`s also had an entry for `period`, we need to
+                // preserve the `DescriptorStatus` of its HsDirs. This helps prevent unnecessarily
+                // publishing the descriptor to the HsDirs that already have it (the ones that are
+                // marked with DescriptorStatus::Clean).
+                //
+                // In other words, we only want to publish to those HsDirs that
+                //   * are part of a new time period (which we have never published the descriptor
+                //   for), or
+                //   * have just been added to the ring of a time period we already knew about
+                if let Some(ctx) = time_periods.iter().find(|ctx| ctx.period == *period) {
+                    TimePeriodContext::new(*period, blind_id.into(), netdir, ctx.hs_dirs.iter())
+                } else {
+                    // Passing an empty iterator here means all HsDirs in this TimePeriodContext
+                    // will be marked as dirty, meaning we will need to upload our descriptor to them.
+                    TimePeriodContext::new(*period, blind_id.into(), netdir, iter::empty())
+                }
             })
             .collect::<Result<Vec<TimePeriodContext>, ReactorError>>()
     }
