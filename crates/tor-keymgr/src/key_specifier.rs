@@ -735,6 +735,7 @@ mod test {
     use serde::{Deserialize, Serialize};
     use std::fmt::Debug;
 
+    // TODO I think this could be a function?
     macro_rules! assert_err {
         ($ty:ident, $inner:expr, $error_kind:pat) => {{
             let path = $ty::new($inner.to_string());
@@ -761,6 +762,8 @@ mod test {
     // This impl probably shouldn't be made non-test, since it produces longer paths
     // than is necessary.  `t`/`f` would be better representation.  But it's fine for tests.
     impl KeySpecifierComponentViaDisplayFromStr for bool {}
+
+    // TODO many of these tests should be in arti_path.rs
 
     #[test]
     #[allow(clippy::cognitive_complexity)]
