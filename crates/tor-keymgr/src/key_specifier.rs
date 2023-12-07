@@ -731,7 +731,7 @@ mod test {
     use crate::arti_path::PATH_SEP;
     use crate::test_utils::check_key_specifier;
     use derive_adhoc::Adhoc;
-    use itertools::Itertools;
+    use itertools::{chain, Itertools};
     use serde::{Deserialize, Serialize};
     use std::fmt::Debug;
 
@@ -775,6 +775,10 @@ mod test {
             "clientß",
             "client.key",
         ];
+        const VALID_ARTI_PATHS: &[&str] = &[
+            "path/to/client+sub.value+fish",
+            //
+        ];
 
         const BAD_OUTER_CHAR_ARTI_PATHS: &[&str] = &[
             "-hs_client",
@@ -792,7 +796,7 @@ mod test {
         const EMPTY_PATH_COMPONENT: &[&str] =
             &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
 
-        for path in VALID_ARTI_PATH_COMPONENTS {
+        for path in chain!(VALID_ARTI_PATH_COMPONENTS, VALID_ARTI_PATHS) {
             assert_ok!(ArtiPath, path);
         }
         for path in VALID_ARTI_PATH_COMPONENTS {
