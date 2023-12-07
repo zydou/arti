@@ -42,15 +42,15 @@ $ cargo install cargo-ndk
 
 ## Configuring a Rust project
 
-To create a new project in the directory you're in. You can do:
+To create a new project in the directory you're in, run the command:
 
 ```sh
 $ cargo init <project-name> --lib
 ```
 
-You'll then need to add some content to the `Cargo.toml`.
+Now, add some content to the `Cargo.toml`.
 
-First add the subcrates of arti you want to use to the `[dependencies]` section. You'll have to add `features=["static"]` to crates that support this feature (at the moment tor-rtcompat, tor-dirmgr and arti-client): otherwise they will fail either to compile or to run.
+To set up the `Cargo.toml` add the subcrates of arti you want to use to the `[dependencies]` section. You will have to add `features=["static"]` to crates that support this feature (at the moment `tor-rtcompat`, `tor-dirmgr` and `arti-client`). Otherwise they will fail either to compile or to run.
 
 You'll also need to add `jni`, to allow Rust and the Java in your app to work together.
 
@@ -58,10 +58,9 @@ You'll also need to add `jni`, to allow Rust and the Java in your app to work to
 jni = { version = "0.19", default-features = false }
 ```
 
-You'll probably want to add some other dependencies, like futures, but these are not technically requirements.
+Other dependencies, such as futures, can be included if needed, but they are not technically required.
 
-You'll also need to specify what kind of lib this is. By default, it's a Rust lib that can only be used in the rust ecosystem.
-We want it to be a dynamic library:
+Next, specify what kind of `lib` it is. By default, it's a Rust `lib` that can only be used in the rust ecosystem. To make it a dynamic library:
 
 ```toml
 [lib]
@@ -70,7 +69,7 @@ crate-type = ["dylib"]
 
 You are good to start programming in `src/lib.rs`.
 
-To make your functions available to Java, you need to set certain modifiers on them, and to name them with a special convention. You should be familiar with this if you used the JNI before. If not, it's probably time to learn how to use it.
+To make your functions available to Java, you need to set certain modifiers on them, and to name them with a special convention. You should be familiar with this if you used the `JNI` before. If not, it's time to learn how to use it.
 
 ```rust
 // defined the method "myMethod" on class "MyClass" in package "net.example"
@@ -78,7 +77,7 @@ To make your functions available to Java, you need to set certain modifiers on t
 pub extern "C" fn Java_net_example_MyClass_myMethod( /* parameters omitted */ ) {..}
 ```
 
-Once you are satisfied with your code, you can compile it by running this command. (This is a good time to take a coffee break)
+After setting up your code, initiate the compilation process by executing this command. The compilation time may vary depending on the size of your project.
 
 ```sh
  ## build for 32bit and 64bit, x86 (emulator) and arm (most devices).
@@ -89,24 +88,21 @@ $ cargo ndk -t arm64-v8a -o ./jniLibs build
 
 ## The Java part
 
-Note: you can use kotlin if you prefer.  The syntax is obviously slightly different, but it should work either way.
+Note: You can also use Kotlin. The syntax is slightly different, but the following instructions should work either way.
 
-I'll assume you already have a project setup. This can be a brand new project, or an already existing one.
-
-First you'll need to copy your native library inside the Android project (or use a symlink).
+After setting up your [Rust project](#configuring-a-rust-project), you'll need to create an Android project. You can do this by running the following command to copy your native library inside the Android project (or use a symlink).
 
 ```sh
 $ cp -r path/to/rust/project/jniLibs path/to/android/project/app/src/main
 ```
 
-Next, if your application does not already require it, you have to request the permission to access Internet in your `AndroidManifest.xml`
+If your application does not already require it, you have to request the permission to access Internet in your `AndroidManifest.xml`
 
 ```xml
     <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-Finally, you have to create the class referenced in your Rust code, and the method it overrides. This method must be marked "native".
-You also have to put a static block loading the native library:
+Implement the class referred to in your Rust code along with the method it overrides, ensuring that the method is annotated as "native." Next, include a static block that loads the native library using the command:
 
 ```java
 package org.example
@@ -119,14 +115,16 @@ class MyClass {
 }
 ```
 
-You can now build your application, and test it in an emulator or on your device. Hopefully it should work.
+You can now build your application, and test it in an emulator or on your device. If you have any problems, check the [debugging](#debugging-and-stability) section below.
 
 ## Tips and caveats
 
 You can find a sample project to build a very basic app using Arti [here](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/). It does not respect most good practices ("don't run long tasks on the UI thread" for instance), but should otherwise be a good starting point. It's also implementing most of the tips below.
 
+The sample project [arti-mobile-example](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/) is a simple app that serves as a solid foundation for compiling Android apps with Arti. Additionally, it incorporates the majority of the provided tips below.
+
 ### Platform support
-By default, Arti runs only on Android 7.0 and above. Versions under Android 7.0 will get a runtime exception due to a missing symbol. If you want to support Android 5.0 and above, it is possible to implement `lockf` yourself, as it is a rather simple libc function.
+By default, Arti runs only on Android 7.0 and above. Versions under Android 7.0 will get a runtime exception due to a missing symbol. If you want to support Android 5.0 and above, it is possible to implement `lockf` yourself, as it is a rather simple `libc` function.
 
 It might be possible to support even lower Android version by implementing more of these methods (at least create\_epoll1). This has not been explored, as it seems to be harder, and with less possible gain.
 
@@ -150,10 +148,10 @@ Subscriber::new()
   .init(); // this must be called only once, otherwise your app will probably crash
 ```
 
-You should take great care about your rust code not unwinding into Java Runtime: If it does, it will crash your app with no error message to help you.
+Take great care about your rust code not unwinding into Java Runtime; if it does, it will crash your app with no error message to help you.
 If your code can panic, you should use `catch_unwind` to capture it before it reaches the Java Runtime.
 
 ### Async and Java
-Arti relies a lot on Rust futures. There is no easy way to use these futures from Java. The easiest ways is probably to block on futures if you are okay with it. Otherwise you have to pass callbacks from Java to Rust, and make so they are called when the future completes.
+Arti relies a lot on Rust futures. The easiest way to use these futures from Java is to block on futures if you are okay with it. Otherwise you have to pass callbacks from Java to Rust, and make sure they are called when the future completes.
 
-Eventually, Arti will provide a set of blocking APIs for use for embedding; please get in touch if you want to help design them.
+Eventually, Arti will provide a set of blocking APIs for use for embedding. To help design these APIs, check out our [contributing guide](/contributing/).
