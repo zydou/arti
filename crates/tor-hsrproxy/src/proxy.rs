@@ -70,7 +70,7 @@ impl OnionServiceReverseProxy {
     /// Try to change the configuration of this proxy.
     ///
     /// This change applies only to new connections through the proxy; existing
-    /// connections are not affected. (TODO HSS: Is this the desired behavior?)
+    /// connections are not affected.
     pub fn reconfigure(
         &self,
         config: ProxyConfig,
