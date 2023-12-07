@@ -140,6 +140,24 @@ hosts:
       args: ../../../conf/tgen.torclient.graphml.xml
       start_time: 25m
       expected_final_state: {exited: 0}
+  # same as articlient, but uses arti-extra binary, which has experimental features enabled.
+  articlient-extra:
+    network_node_id: 0
+    host_options:
+    processes:
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+      args: proxy -c ./arti.d/arti.common.toml -o proxy.socks_port=9000 --disable-fs-permission-checks -l debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 15m
+      expected_final_state: running
+    - path: tgen
+      environment:
+        OPENBLAS_NUM_THREADS: "1"
+      args: ../../../conf/tgen.torclient.graphml.xml
+      start_time: 25m
+      expected_final_state: {exited: 0}
   articlient-bridge:
     network_node_id: 0
     host_options:
