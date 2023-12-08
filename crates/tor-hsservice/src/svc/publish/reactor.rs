@@ -1274,7 +1274,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(nickname=%imm.nickname, time_period=?time_period, "descriptor uploaded successfully to {}/{} HSDirs", succeeded.len(), hsdir_count);
+        trace!(
+            nickname=%imm.nickname, time_period=?time_period,
+            "descriptor uploaded successfully to {}/{} HSDirs",
+            succeeded.len(), hsdir_count
+        );
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
