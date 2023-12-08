@@ -80,14 +80,6 @@ const RETRY_UPLOAD_DELAY: Duration = Duration::from_secs(5 * 60);
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
 /// The entrypoint is [`Reactor::run`].
-//
-// TODO HSS: We need to make sure we don't end up reuploading an identical descriptor
-// Upon receiving an `Event`, the publisher shouldn't update its `DescriptorBuilder` or mark the
-// descriptor dirty unless it actually changed.
-//
-// If the value of the `DescriptorBuilder` field the `Event` would've updated is the same as the
-// new one read from the `Event`, the publisher should simply not update it (or mark the descriptor
-// dirty).
 #[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]
 pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// The immutable, shared inner state.
