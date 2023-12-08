@@ -539,7 +539,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Note: this also spawns the "reminder task" that we use to reschedule uploads whenever an
     /// upload fails or is rate-limited.
     pub(super) async fn run(mut self) -> Result<(), ReactorError> {
-        debug!("starting descriptor publisher reactor");
+        debug!(nickname=%self.imm.nickname, "starting descriptor publisher reactor");
 
         {
             let netdir = wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely).await?;
@@ -557,6 +557,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         self.reattempt_upload_tx = Some(reattempt_upload_tx);
 
+        let nickname = self.imm.nickname.clone();
         let rt = self.imm.runtime.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
@@ -580,11 +581,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // Enough time has elapsed. Remind the reactor to retry the upload.
                 if let Err(e) = schedule_upload_tx.send(()).await {
                     // TODO HSS: update publisher state
-                    debug!("failed to notify reactor to reattempt upload");
+                    debug!(nickname=%nickname, "failed to notify reactor to reattempt upload");
                 }
             }
 
-            debug!("reupload task channel closed!");
+            debug!(nickname=%nickname, "reupload task channel closed!");
         });
 
         let err = loop {
@@ -878,18 +879,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
     ) -> Result<(), ReactorError> {
-        trace!("received IPT change notification from IPT manager");
+        trace!(nickname=%self.imm.nickname, "received IPT change notification from IPT manager");
         match update {
             Some(Ok(())) => {
                 let should_upload = self.note_ipt_change();
-                debug!("the introduction points have changed");
+                debug!(nickname=%self.imm.nickname, "the introduction points have changed");
 
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
             Some(Err(_)) => Err(ReactorError::ShuttingDown),
             None => {
-                debug!("no IPTs available, ceasing uploads");
+                debug!(nickname=%self.imm.nickname, "no IPTs available, ceasing uploads");
                 self.update_publish_status(PublishStatus::AwaitingIpts)
                     .await
             }
@@ -1027,12 +1028,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
             let hsdesc = {
-                trace!("building descriptor");
+                trace!(
+                    nickname=%self.imm.nickname, time_period=?period_ctx.period,
+                    "building descriptor"
+                );
                 let mut rng = self.imm.mockable.thread_rng();
 
                 let mut ipt_set = self.ipt_watcher.borrow_for_publish();
                 let Some(ipt_set) = ipt_set.ipts.as_mut() else {
-                    trace!("no introduction points; skipping upload");
+                    trace!(
+                        nickname=%self.imm.nickname, time_period=?period_ctx.period,
+                        "no introduction points; skipping upload"
+                    );
                     return Ok(());
                 };
 
@@ -1061,7 +1068,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let imm = Arc::clone(&self.imm);
             let ipt_upload_view = self.ipt_watcher.upload_view();
 
-            trace!("spawning upload task");
+            trace!(nickname=%self.imm.nickname, time_period=?time_period,
+                "spawning upload task"
+            );
+
             let _handle: () = self
                 .imm
                 .runtime
@@ -1107,7 +1117,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .await
         {
             // TODO HSS: return an error
-            debug!("failed to schedule upload reattempt");
+            debug!(nickname=%self.imm.nickname, "failed to schedule upload reattempt");
         }
 
         Ok(())
