@@ -39,7 +39,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
-use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
+use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname,
@@ -1175,35 +1175,37 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
 
+                let ed_id = relay_ids
+                    .rsa_identity()
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "unknown".into());
+                let rsa_id = relay_ids
+                    .rsa_identity()
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "unknown".into());
+
                 async move {
                     let run_upload = |desc| async {
                         let Some(hsdir) = netdir.by_ids(&relay_ids) else {
-                            // This should never happen (all of our relay_ids are from the stored netdir).
-                            return Err::<(), ReactorError>(
-                                internal!(
-                                    "tried to upload descriptor to relay not found in consensus?"
-                                )
-                                .into(),
+                            // This should never happen (all of our relay_ids are from the stored
+                            // netdir).
+                            warn!(
+                                nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                "tried to upload descriptor to relay not found in consensus?!"
                             );
+                            return UploadStatus::Failure;
                         };
 
                         Self::upload_descriptor_with_retries(
                             desc,
                             &netdir,
                             &hsdir,
+                            &ed_id,
+                            &rsa_id,
                             Arc::clone(&imm),
                         )
                         .await
                     };
-
-                    let ed_id = relay_ids
-                        .rsa_identity()
-                        .map(|id| id.to_string())
-                        .unwrap_or_else(|| "unknown".into());
-                    let rsa_id = relay_ids
-                        .rsa_identity()
-                        .map(|id| id.to_string())
-                        .unwrap_or_else(|| "unknown".into());
 
                     // How long until we're supposed to time out?
                     let worst_case_end = imm.runtime.now() + UPLOAD_TIMEOUT;
@@ -1233,7 +1235,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // Ideally, this shouldn't happen very often (if at all).
                         let Some(ipts) = ipt_set.ipts.as_mut() else {
                             // TODO HSS: maybe it's worth defining an separate error type for this.
-                            return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
+                            return Err(ReactorError::Bug(internal!(
+                                "no introduction points; skipping upload"
+                            )));
                         };
 
                         let hsdesc = {
@@ -1246,7 +1250,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             // We're about to generate a new version of the descriptor,
                             // so let's generate a new revision counter.
                             let now = imm.runtime.wallclock();
-                            let revision_counter = imm.generate_revision_counter(time_period, now)?;
+                            let revision_counter =
+                                imm.generate_revision_counter(time_period, now)?;
 
                             build_sign(
                                 &imm.keymgr,
@@ -1259,21 +1264,24 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             )?
                         };
 
-                        if let Err(e) = ipt_set.note_publication_attempt(
-                            &imm.runtime,
-                            worst_case_end,
-                        ) {
+                        if let Err(e) =
+                            ipt_set.note_publication_attempt(&imm.runtime, worst_case_end)
+                        {
                             let wait = e.log_retry_max(&imm.nickname)?;
                             // TODO HSS retry instead of this
                             return Err(internal!(
                                 "ought to retry after {wait:?}, crashing instead"
-                            ).into());
+                            )
+                            .into());
                         }
 
                         hsdesc
                     };
 
-                    let VersionedDescriptor { desc, revision_counter } = hsdesc;
+                    let VersionedDescriptor {
+                        desc,
+                        revision_counter,
+                    } = hsdesc;
 
                     trace!(
                         nickname=%imm.nickname, time_period=?time_period,
@@ -1281,31 +1289,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         "generated new descriptor for time period",
                     );
 
-
-                    let upload_res = match imm.runtime.timeout(
-                        UPLOAD_TIMEOUT, run_upload(desc.clone())
-                    ).await {
-                        Ok(res) => {
-                            match res {
-                                Ok(()) => {
-                                    debug!(
-                                        nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
-                                        "successfully uploaded descriptor to HSDir",
-                                    );
-
-                                    UploadStatus::Success
-                                },
-                                Err(e) => {
-                                    warn_report!(
-                                        e,
-                                        "failed to upload descriptor for service {} (hsdir_id={}, hsdir_rsa_id={})",
-                                        imm.nickname, ed_id, rsa_id
-                                    );
-
-                                    UploadStatus::Failure
-                                }
-                            }
-                        },
+                    let upload_res = match imm
+                        .runtime
+                        .timeout(UPLOAD_TIMEOUT, run_upload(desc.clone()))
+                        .await
+                    {
+                        Ok(res) => res,
                         Err(_e) => {
                             warn!(
                                 nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
@@ -1409,10 +1398,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hsdesc: String,
         netdir: &Arc<NetDir>,
         hsdir: &Relay<'_>,
+        ed_id: &str,
+        rsa_id: &str,
         imm: Arc<Immutable<R, M>>,
-    ) -> Result<(), ReactorError> {
-        use BackoffError as BE;
-
+    ) -> UploadStatus {
         /// The base delay to use for the backoff schedule.
         const BASE_DELAY_MSEC: u32 = 1000;
 
@@ -1432,22 +1421,26 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await
         };
 
-        let res = runner.run(fallible_op).await;
+        match runner.run(fallible_op).await {
+            Ok(res) => {
+                debug!(
+                    nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                    "successfully uploaded descriptor to HSDir",
+                );
 
-        let err = match res {
-            Ok(res) => return Ok(res),
-            Err(e) => e,
-        };
+                UploadStatus::Success
+            }
+            Err(e) => {
+                warn_report!(
+                    e,
+                    "failed to upload descriptor for service {} (hsdir_id={}, hsdir_rsa_id={})",
+                    imm.nickname,
+                    ed_id,
+                    rsa_id
+                );
 
-        match err {
-            BE::FatalError(e)
-            | BE::MaxRetryCountExceeded(e)
-            | BE::Timeout(e)
-            | BE::ExplicitStop(e) => Err(ReactorError::PublishFailure(e)),
-            BE::Spawn { .. } | BE::Bug(_) => Err(into_internal!(
-                "internal error while attempting to publish descriptor"
-            )(err)
-            .into()),
+                UploadStatus::Failure
+            }
         }
     }
 }
