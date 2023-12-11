@@ -221,6 +221,18 @@ pub enum FatalError {
     Bug(#[from] Bug),
 }
 
+impl FatalError {
+    /// Construct a new `FatalError` from a `SpawnError`.
+    //
+    // TODO lots of our Errors have a function exactly like this.
+    pub(super) fn from_spawn(spawning: &'static str, err: SpawnError) -> FatalError {
+        FatalError::Spawn {
+            spawning,
+            cause: Arc::new(err),
+        }
+    }
+}
+
 impl HasKind for FatalError {
     fn kind(&self) -> ErrorKind {
         use ErrorKind as EK;
