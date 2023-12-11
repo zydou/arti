@@ -98,7 +98,7 @@ impl OnionServiceStatus {
 }
 
 /// A stream of OnionServiceStatus events, returned by an onion service.
-///   
+///
 /// Note that multiple status change events may be coalesced into one if the
 /// receiver does not read them as fast as they are generated.  Note also
 /// that it's possible for an item to arise in this stream without an underlying
