@@ -29,7 +29,6 @@ use tor_keymgr::{KeyMgr, KeySpecifier as _};
 use tracing::{debug, error, info, trace, warn};
 use void::Void;
 
-use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{error_report, info_report};
@@ -42,7 +41,7 @@ use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier};
-use crate::svc::ipt_establish;
+use crate::svc::{ipt_establish, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
 use crate::{HsNickname, IptLocalId, OnionServiceConfig, RendRequest};
@@ -276,20 +275,6 @@ enum TrackedStatus {
 /// Token indicating that this introduction point is current (not Retiring)
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct IsCurrent;
-
-/// Return value from one call to the main loop iteration
-enum ShutdownStatus {
-    /// We should continue to operate this IPT manager
-    Continue,
-    /// We should shut down: the service, or maybe the whole process, is shutting down
-    Terminate,
-}
-
-impl From<oneshot::Canceled> for ShutdownStatus {
-    fn from(_: oneshot::Canceled) -> ShutdownStatus {
-        ShutdownStatus::Terminate
-    }
-}
 
 impl rand::distributions::Distribution<IptLocalId> for rand::distributions::Standard {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> IptLocalId {

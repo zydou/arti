@@ -5,6 +5,7 @@ pub(crate) mod netdir;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
+use futures::channel::oneshot;
 use futures::Stream;
 use postage::broadcast;
 use safelog::sensitive;
@@ -125,6 +126,22 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
         self.keystore_sweeper.launch()?;
 
         Ok(())
+    }
+}
+
+/// Return value from one call to the main loop iteration
+///
+/// Used by the publisher reactor and by the [`IptManager`].
+pub(crate) enum ShutdownStatus {
+    /// We should continue to operate this component
+    Continue,
+    /// We should shut down: the service, or maybe the whole process, is shutting down
+    Terminate,
+}
+
+impl From<oneshot::Canceled> for ShutdownStatus {
+    fn from(_: oneshot::Canceled) -> ShutdownStatus {
+        ShutdownStatus::Terminate
     }
 }
 
