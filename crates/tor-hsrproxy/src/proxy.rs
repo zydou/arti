@@ -269,6 +269,8 @@ where
 {
     let local_stream = target_stream_future.await.map_err(Arc::new);
 
+    // TODO HSS change this to "log_ratelim!(nickname=%nickname, ..." when log_ratelim can do that
+    // (we should search for HSS log messages and make them all be in the same form)
     log_ratelim!(
         "Connecting to {} for onion service {}", sv(addr), nickname;
         local_stream
