@@ -13,6 +13,12 @@ use tor_async_utils::PostageWatchSenderExt;
 pub struct OnionServiceStatus {
     /// The current high-level state for this onion service.
     state: State,
+
+    /// The current high-level state for the IPT manager.
+    ipt_mgr_state: State,
+
+    /// The current high-level state for the descriptor publisher.
+    publisher_state: State,
     // TODO HSS: Add key expiration
     // TODO HSS: Add latest-error.
     //
@@ -65,12 +71,25 @@ impl OnionServiceStatus {
     pub(crate) fn new_shutdown() -> Self {
         Self {
             state: State::Shutdown,
+            ipt_mgr_state: State::Shutdown,
+            publisher_state: State::Shutdown,
         }
     }
 
     /// Return the current high-level state of this onion service.
+    ///
+    /// The overall state is derived from the `State`s of its underlying components
+    /// (i.e. the IPT manager and descriptor publisher).
     pub fn state(&self) -> State {
-        self.state
+        use State::*;
+
+        match (self.ipt_mgr_state, self.publisher_state) {
+            (Shutdown, _) | (_, Shutdown) => Shutdown,
+            (Bootstrapping, _) | (_, Bootstrapping) => Bootstrapping,
+            (Running, Running) => Running,
+            (Recovering, _) | (_, Recovering) => Recovering,
+            (Broken, _) | (_, Broken) => Broken,
+        }
     }
 
     /// Return the most severe current problem
@@ -98,7 +117,7 @@ impl OnionServiceStatus {
 }
 
 /// A stream of OnionServiceStatus events, returned by an onion service.
-///   
+///
 /// Note that multiple status change events may be coalesced into one if the
 /// receiver does not read them as fast as they are generated.  Note also
 /// that it's possible for an item to arise in this stream without an underlying
@@ -136,14 +155,28 @@ impl StatusSender {
         StatusSender(Arc::new(Mutex::new(tx)))
     }
 
-    /// Run `func` on the current status, and return a new one.  If it is
-    /// different, update the current status and notify all listeners.
+    /// Update the current IPT manager state.
+    ///
+    /// If the new state is different, update the current status and notify all listeners.
+    //
+    // TODO: should we have separate state enums for the IPT mgr and publisher states?
     #[allow(dead_code)]
-    pub(crate) fn maybe_send<F>(&self, func: F)
-    where
-        F: FnOnce(&OnionServiceStatus) -> OnionServiceStatus,
-    {
-        self.0.lock().expect("Poisoned lock").maybe_send(func);
+    pub(crate) fn maybe_update_ipt_mgr(&self, state: State) {
+        let mut tx = self.0.lock().expect("Poisoned lock");
+        let mut svc_status = tx.borrow().clone();
+        svc_status.ipt_mgr_state = state;
+        tx.maybe_send(|_| svc_status);
+    }
+
+    /// Update the current publisher state.
+    ///
+    /// If the new state is different, update the current status and notify all listeners.
+    #[allow(dead_code)]
+    pub(crate) fn maybe_update_publisher(&self, state: State) {
+        let mut tx = self.0.lock().expect("Poisoned lock");
+        let mut svc_status = tx.borrow().clone();
+        svc_status.publisher_state = state;
+        tx.maybe_send(|_| svc_status);
     }
 
     /// Return a copy of the current status.
