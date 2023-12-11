@@ -1,23 +1,23 @@
 ---
-title: Connecting to Onion services
+title: Connecting to Onion Services
 ---
 
-# Connecting to an Onion service with Arti
+# Connecting to an Onion Service with Arti
 
-Arti has the support to connect to [Tor Hidden Services](https://tb-manual.torproject.org/onion-services/), commonly known as Onion Services. However, it is important to note that this feature is presently deactivated by default. The reason for this default setting is the current lack of "vanguards", *a feature employed by Tor to mitigate guard discovery attacks over time*, within Arti.
+Arti has the support to connect to [Tor Hidden Services](https://tb-manual.torproject.org/onion-services/), commonly known as Onion Services. However, it is important to note that this feature is presently deactivated by default. The reason for this default setting is the current lack of "vanguards", a feature employed by Tor to mitigate guard discovery attacks over time, within Arti.
 
 Therefore, it is recommended that you continue with using C Tor if your usage involves creating numerous connections to onion services, or if the Tor protocol implementation can enable an attacker to manipulate the number of onion service connections you make (for example, when using Arti's SOCKS support through a web browser like Tor Browser).
 
-As part of our ongoing efforts to enhance security, we have plans to address this limitation and subsequently activate `.onion` connections as the default setting in the future.
+As part of our ongoing efforts to enhance security, we have plans to address this limitation and subsequently enable `.onion` connections as the default setting in the future.
 
-In the meantime, there are two ways to activate it if you want to try it out.
+In the meantime, there are two ways to enable it if you want to try it out.
 
 ### Through the command line
 
 You can enable `.onion` connections with Arti by running the command:
 
 ```bash
-cargo run -p arti -- -o address_filter.allow_onion_addrs=true proxy
+target/debug/arti -o address_filter.allow_onion_addrs=true proxy
 ```
 
 ### By editing your config file
