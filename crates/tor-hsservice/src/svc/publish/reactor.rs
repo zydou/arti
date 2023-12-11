@@ -153,6 +153,80 @@ struct Immutable<R: Runtime, M: Mockable> {
     keymgr: Arc<KeyMgr>,
 }
 
+impl<R: Runtime, M: Mockable> Immutable<R, M> {
+    /// Create an [`AesOpeKey`] for generating revision counters for the descriptors associated
+    /// with the specified [`TimePeriod`].
+    ///
+    /// If the onion service is not running in offline mode, the key of the returned `AesOpeKey` is
+    /// the private part of the blinded identity key. Otherwise, the key is the private part of the
+    /// descriptor signing key.
+    ///
+    /// Returns an error if the service is running in offline mode and the descriptor signing
+    /// keypair of the specified `period` is not available.
+    //
+    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
+    // built from the blinded id key
+    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
+        let ope_key = match read_blind_id_keypair(&self.keymgr, &self.nickname, period)? {
+            Some(key) => {
+                let key: ed25519::ExpandedKeypair = key.into();
+                key.to_secret_key_bytes()[0..32]
+                    .try_into()
+                    .expect("Wrong length on slice")
+            }
+            None => {
+                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
+                // is unreachable (for now).
+                let desc_sign_key_spec =
+                    DescSigningKeypairSpecifier::new(self.nickname.clone(), period);
+                let key: ed25519::Keypair = self
+                    .keymgr
+                    .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
+                    // TODO HSS(#1129): internal! is not the right type for this error (we need an
+                    // error type for the case where a hidden service running in offline mode has
+                    // run out of its pre-previsioned keys). This is somewhat related to #1083
+                    // This will be addressed as part of #1129
+                    .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
+                    .into();
+                key.to_bytes()
+            }
+        };
+
+        Ok(AesOpeKey::from_secret(&ope_key))
+    }
+
+    /// Generate a revision counter for a descriptor associated with the specified
+    /// [`TimePeriod`].
+    ///
+    /// Returns a revision counter generated according to the [encrypted time in period] scheme.
+    ///
+    /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
+    fn generate_revision_counter(
+        &self,
+        period: TimePeriod,
+        now: SystemTime,
+    ) -> Result<RevisionCounter, ReactorError> {
+        // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
+        // to each time we generate a new descriptor), for performance reasons.
+        let ope_key = self.create_ope_key(period)?;
+        let offset = period
+            .offset_within_period(now)
+            .ok_or_else(|| match period.range() {
+                Ok(std::ops::Range { start, .. }) => {
+                    internal!(
+                        "current wallclock time not within TP?! (now={:?}, TP_start={:?})",
+                        now,
+                        start
+                    )
+                }
+                Err(e) => into_internal!("failed to get TimePeriod::range()")(e),
+            })?;
+        let rev = ope_key.encrypt(offset);
+
+        Ok(RevisionCounter::from(rev))
+    }
+}
+
 /// Mockable state for the descriptor publisher reactor.
 ///
 /// This enables us to mock parts of the [`Reactor`] for testing purposes.
@@ -706,11 +780,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             if upload_res.upload_res == UploadStatus::Success {
                 let update_last_successful = match period.last_successful {
                     None => true,
-                    Some(counter) => counter <= results.revision_counter,
+                    Some(counter) => counter <= upload_res.revision_counter,
                 };
 
                 if update_last_successful {
-                    period.last_successful = Some(results.revision_counter);
+                    period.last_successful = Some(upload_res.revision_counter);
                     // TODO HSS: Is it possible that this won't update the statuses promptly
                     // enough. For example, it's possible for the reactor to see a Dirty descriptor
                     // and start an upload task for a descriptor has already been uploaded (or is
@@ -1017,47 +1091,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
 
             let time_period = period_ctx.period;
-            // We're about to generate a new version of the descriptor: generate a new revision
-            // counter.
-            let now = self.imm.runtime.wallclock();
-            let revision_counter = self.generate_revision_counter(time_period, now)?;
 
-            // TODO HSS: this is not right, but we have no choice but to compute worst_case_end
-            // here. See the TODO HSS about note_publication_attempt() below.
             let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
-            let hsdesc = {
-                trace!(
-                    nickname=%self.imm.nickname, time_period=?period_ctx.period,
-                    "building descriptor"
-                );
-                let mut rng = self.imm.mockable.thread_rng();
-
-                let mut ipt_set = self.ipt_watcher.borrow_for_publish();
-                let Some(ipt_set) = ipt_set.ipts.as_mut() else {
-                    trace!(
-                        nickname=%self.imm.nickname, time_period=?period_ctx.period,
-                        "no introduction points; skipping upload"
-                    );
-                    return Ok(());
-                };
-
-                build_sign(
-                    &self.imm.keymgr,
-                    &inner.config,
-                    ipt_set,
-                    time_period,
-                    revision_counter,
-                    &mut rng,
-                    self.imm.runtime.wallclock(),
-                )?
-            };
-
-            trace!(nickname=%self.imm.nickname, time_period=?time_period, hsdesc=hsdesc,
-                "generated new descriptor for time period",
-            );
-
             let netdir = Arc::clone(
                 inner
                     .netdir
@@ -1067,6 +1104,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             let imm = Arc::clone(&self.imm);
             let ipt_upload_view = self.ipt_watcher.upload_view();
+            let config = Arc::clone(&inner.config);
 
             trace!(nickname=%self.imm.nickname, time_period=?time_period,
                 "spawning upload task"
@@ -1076,14 +1114,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 .imm
                 .runtime
                 .spawn(async move {
-                    let hsdesc = VersionedDescriptor {
-                        desc: hsdesc.clone(),
-                        revision_counter,
-                    };
                     if let Err(e) = Self::upload_for_time_period(
-                        hsdesc,
                         hs_dirs,
                         &netdir,
+                        config,
                         time_period,
                         Arc::clone(&imm),
                         ipt_upload_view.clone(),
@@ -1128,9 +1162,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
     /// well as in what cases this will return an error).
     async fn upload_for_time_period(
-        hsdesc: VersionedDescriptor,
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
+        config: Arc<OnionServiceConfig>,
         time_period: TimePeriod,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
@@ -1138,20 +1172,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), ReactorError> {
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
-        let VersionedDescriptor {
-            desc,
-            revision_counter,
-        } = &hsdesc;
-
         let hsdir_count = hs_dirs.len();
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
+                let config = Arc::clone(&config);
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
 
                 async move {
-                    let run_upload = || async {
+                    let run_upload = |desc| async {
                         let Some(hsdir) = netdir.by_ids(&relay_ids) else {
                             // This should never happen (all of our relay_ids are from the stored netdir).
                             return Err::<(), ReactorError>(
@@ -1163,7 +1193,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         };
 
                         Self::upload_descriptor_with_retries(
-                            desc.clone(),
+                            desc,
                             &netdir,
                             &hsdir,
                             Arc::clone(&imm),
@@ -1182,8 +1212,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                     // How long until we're supposed to time out?
                     let worst_case_end = imm.runtime.now() + UPLOAD_TIMEOUT;
-
-                    {
+                    // We generate a new descriptor before _each_ HsDir upload. This means each
+                    // HsDir could, in theory, receive a different descriptor (not just in terms of
+                    // revision-counters, but also with a different set of IPTs). It may seem like
+                    // this could lead to some HsDirs being left with an outdated descriptor, but
+                    // that's not the case: after the upload completes, the publisher will be
+                    // notified by the ipt_watcher of the IPT change event (if there was one to
+                    // begin with), which will trigger another upload job.
+                    let hsdesc = {
                         // This scope is needed because the ipt_set MutexGuard is not Send, so it
                         // needs to fall out of scope before the await point below
                         let mut ipt_set = ipt_upload_view.borrow_for_publish();
@@ -1200,18 +1236,32 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // and generate a fresh descriptor anyway.
                         //
                         // Ideally, this shouldn't happen very often (if at all).
-                        let Some(_ipts) = ipt_set.ipts.as_mut() else {
+                        let Some(ipts) = ipt_set.ipts.as_mut() else {
                             // TODO HSS: maybe it's worth defining an separate error type for this.
-                            //
-                            // This is due to a TOCTOU race: after the check from upload_all succeeds
-                            // (i.e. borrow_for_publish returns Some), the IPT manager decides none of
-                            // its IPTs are suitable anymore, so when we borrow_for_publish here, just
-                            // before publishing, we find out the IPTs from hsdesc no longer exist).
-                            //
-                            // TODO HSS: it's possible the IPTs from `ipt_set` are different from the
-                            // ones from the built `hsdesc` (due to the race described above). Maybe
-                            // the hsdesc should be built here instead?
                             return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
+                        };
+
+                        let hsdesc = {
+                            trace!(
+                                nickname=%imm.nickname, time_period=?time_period,
+                                "building descriptor"
+                            );
+                            let mut rng = imm.mockable.thread_rng();
+
+                            // We're about to generate a new version of the descriptor,
+                            // so let's generate a new revision counter.
+                            let now = imm.runtime.wallclock();
+                            let revision_counter = imm.generate_revision_counter(time_period, now)?;
+
+                            build_sign(
+                                &imm.keymgr,
+                                &config,
+                                ipts,
+                                time_period,
+                                revision_counter,
+                                &mut rng,
+                                imm.runtime.wallclock(),
+                            )?
                         };
 
                         if let Err(e) = ipt_set.note_publication_attempt(
@@ -1224,9 +1274,22 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 "ought to retry after {wait:?}, crashing instead"
                             ).into());
                         }
-                    }
 
-                    let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload()).await {
+                        hsdesc
+                    };
+
+                    let VersionedDescriptor { desc, revision_counter } = hsdesc;
+
+                    trace!(
+                        nickname=%imm.nickname, time_period=?time_period,
+                        revision_counter=?revision_counter,
+                        "generated new descriptor for time period",
+                    );
+
+
+                    let upload_res = match imm.runtime.timeout(
+                        UPLOAD_TIMEOUT, run_upload(desc.clone())
+                    ).await {
                         Ok(res) => {
                             match res {
                                 Ok(()) => {
@@ -1261,6 +1324,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     Ok(HsDirUploadStatus {
                         relay_ids,
                         upload_res,
+                        revision_counter,
                     })
                 }
             })
@@ -1274,7 +1338,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .partition(|res| res.upload_res == UploadStatus::Success);
 
-        trace!(
+        debug!(
             nickname=%imm.nickname, time_period=?time_period,
             "descriptor uploaded successfully to {}/{} HSDirs",
             succeeded.len(), hsdir_count
@@ -1282,7 +1346,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         if let Err(e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
-                revision_counter: *revision_counter,
                 time_period,
                 hsdir_result: upload_results,
             })
@@ -1341,11 +1404,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             })?
             .into_output_string()?; // This returns an error if we received an error response
 
-        trace!(
-            nickname=%imm.nickname, hsdir_id=%hsdir.id(), hsdir_rsa_id=%hsdir.rsa_id(),
-            "successfully uploaded descriptor"
-        );
-
         Ok(())
     }
 
@@ -1396,79 +1454,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             )(err)
             .into()),
         }
-    }
-
-    /// Generate a revision counter for a descriptor associated with the specified
-    /// [`TimePeriod`].
-    ///
-    /// Returns a revision counter generated according to the [encrypted time in period] scheme.
-    ///
-    /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
-    fn generate_revision_counter(
-        &self,
-        period: TimePeriod,
-        now: SystemTime,
-    ) -> Result<RevisionCounter, ReactorError> {
-        // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
-        // to each time we generate a new descriptor), for performance reasons.
-        let ope_key = self.create_ope_key(period)?;
-        let offset = period
-            .offset_within_period(now)
-            .ok_or_else(|| match period.range() {
-                Ok(std::ops::Range { start, .. }) => {
-                    internal!(
-                        "current wallclock time not within TP?! (now={:?}, TP_start={:?})",
-                        now,
-                        start
-                    )
-                }
-                Err(e) => into_internal!("failed to get TimePeriod::range()")(e),
-            })?;
-        let rev = ope_key.encrypt(offset);
-
-        Ok(RevisionCounter::from(rev))
-    }
-
-    /// Create an [`AesOpeKey`] for generating revision counters for the descriptors associated
-    /// with the specified [`TimePeriod`].
-    ///
-    /// If the onion service is not running in offline mode, the key of the returned `AesOpeKey` is
-    /// the private part of the blinded identity key. Otherwise, the key is the private part of the
-    /// descriptor signing key.
-    ///
-    /// Returns an error if the service is running in offline mode and the descriptor signing
-    /// keypair of the specified `period` is not available.
-    //
-    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
-    // built from the blinded id key
-    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
-        let ope_key = match read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)? {
-            Some(key) => {
-                let key: ed25519::ExpandedKeypair = key.into();
-                key.to_secret_key_bytes()[0..32]
-                    .try_into()
-                    .expect("Wrong length on slice")
-            }
-            None => {
-                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
-                // is unreachable (for now).
-                let desc_sign_key_spec =
-                    DescSigningKeypairSpecifier::new(self.imm.nickname.clone(), period);
-                let key: ed25519::Keypair = self
-                    .imm
-                    .keymgr
-                    .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
-                    // TODO HSS(#1129): internal! is not the right type for this error (we need an
-                    // error type for the case where a hidden service running in offline mode has
-                    // run out of its pre-previsioned keys). This is somewhat related to #1083
-                    // This will be addressed as part of #1129
-                    .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
-                    .into();
-                key.to_bytes()
-            }
-        };
-
-        Ok(AesOpeKey::from_secret(&ope_key))
     }
 }
 
@@ -1561,8 +1546,6 @@ impl RetriableError for UploadError {
 /// The outcome of uploading a descriptor to the HSDirs from a particular time period.
 #[derive(Debug, Clone)]
 struct TimePeriodUploadResult {
-    /// The revision counter of the descriptor we tried to upload.
-    revision_counter: RevisionCounter,
     /// The time period.
     time_period: TimePeriod,
     /// The upload results.
@@ -1576,6 +1559,8 @@ struct HsDirUploadStatus {
     relay_ids: RelayIds,
     /// The outcome of this attempt.
     upload_res: UploadStatus,
+    /// The revision counter of the descriptor we tried to upload.
+    revision_counter: RevisionCounter,
 }
 
 /// The outcome of uploading a descriptor.
