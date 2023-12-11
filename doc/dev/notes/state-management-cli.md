@@ -95,7 +95,7 @@ SUBCOMMANDS
        verify             Perform validity and consistency checks
 ```
 
-## `arti-keys-list`
+### `arti-keys-list`
 
 ```
 NAME
@@ -208,6 +208,31 @@ EXAMPLES
        TODO: Add JSON output sample
 ```
 
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::list_matching`
+  * `KeyMgr::describe`
+
+TODO: we might want to add a `KeyMgr::list_all` for listing all the keys from a
+given store (today this can be achieved by calling `list_matching` with a `"*"`
+`KeyPathPattern`).
+
+This command will be implemented by an API that uses `KeyMgr::list_matching` and
+`KeyMgr::describe` under the hood. Note: `KeyMgr::list_matching` lists the keys
+from all keystores. It will need to be modified to accept a `KeystoreSelector`
+argument to support only listing the keys from a given keystore (otherwise we
+can't implement the `--keystore` option). We'll also need some way of detecting
+which keys are expired: given a valid `KeyPath`, the API will:
+  * parse it back into its corresponding `KeySpecifier`
+  * check if the `TimePeriod` stored in the `KeySpecifier` is "relevant". If it
+    is not, it will declare the key expired. Checking if the `TimePeriod` is
+    relevant or not can be done by checking if it's one of the
+    `NetDir::hs_all_time_periods()` returned by a recent `NetDir`.
+    Alternatively, the API could try to "guess" which time periods are relevant
+    based on the current wallclock time
+
 ### `arti-keys-verify`
 
 ```
@@ -297,6 +322,17 @@ EXAMPLES
          hs/carol/KS_hs_desc_sign+19666_1440_43200.ed25519_expanded_private (exp) Remove? [y/N]: N
 ```
 
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::list_matching`
+  * `KeyMgr::describe`
+  * `KeyMgr::remove`
+
+This command is exactly like `arti-keys-list`, except it also removes the
+invalid keys if prompted to do so.
+
 ### `arti-keys-describe`
 
 ```
@@ -326,7 +362,7 @@ OPTIONS
 EXAMPLES
        Describe the ArtiPath of a hidden service identity key:
 
-         arti keys --config arti.toml describe hs/carol/KS_hs_id.expanded_ed25519_private
+         arti keys describe hs/carol/KS_hs_id.expanded_ed25519_private
 
        Sample output:
 
@@ -338,7 +374,7 @@ EXAMPLES
 
        Describe a malformed client ArtiPath:
 
-         arti keys --config arti.toml describe \
+         arti keys describe \
              client/alice/xyz.onion/KS_hsc_desc_not_a_valid_name.x25519_private
 
        Sample output:
@@ -349,7 +385,7 @@ EXAMPLES
 
        Describe a malformed ArtiPath:
 
-         arti keys --config arti.toml describe abc.xyz
+         arti keys describe abc.xyz
 
        Sample output:
          ===== abc.xyz =====
@@ -357,6 +393,19 @@ EXAMPLES
            type: unknown
            expired: unknown
 ```
+
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::describe`
+
+This will be implemented by an API based on `KeyMgr::describe`. As mentioned
+under `arti-keys-list`, the API will also need to be able to detect if the
+specified key is expired or not (this is not something `KeyMgr` can do. See
+`KeystoreSweeper` for an example of how key expiration is detected and handled
+today. The key expiration logic will need to be factored out of
+`KeystoreSweeper`, because we'll need it for the CLI APIs too).
 
 ## `arti-keys-raw`
 
@@ -469,6 +518,12 @@ EXAMPLES
            client/bob/def.onion/KS_hsc_desc_enc.x25519_private
 ```
 
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::list_matching`
+
 ### `arti-keys-raw-remove-by-path` (plumbing)
 
 ```
@@ -514,6 +569,12 @@ EXAMPLES
              --keystore foo                                         \
              foo/some-file.txt
 ```
+
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::remove`
 
 ## `arti-hsc`
 
@@ -635,6 +696,12 @@ EXAMPLES
       reach a conclusion in #1028
 ```
 
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::generate`
+
 ### `arti-hsc-remove-key`
 
 ```
@@ -670,6 +737,12 @@ EXAMPLES
              --nickname alice                                          \
              --hsid xyz.onion
 ```
+
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::remove`
 
 ## `arti-hss`
 
@@ -803,6 +876,12 @@ EXAMPLES
 
 ```
 
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::generate`
+
 ### `arti-hss-generate-online-keys`
 
 ```
@@ -883,6 +962,12 @@ EXAMPLES
        of foo (TODO: make the keystore ID part of the config).
 ```
 
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::generate`
+
 ### `arti-hss-destroy`
 
 ```
@@ -910,6 +995,12 @@ EXAMPLES
              --nickname shallot
 ```
 
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::remove`
+
 ### `arti-hss-print-onion`
 
 ```
@@ -936,9 +1027,11 @@ EXAMPLES
         wrxdvcaqpuzakbfww5sxs6r2uybczwijzfn2ezy2osaj7iox7kl7nhad.onion
 ```
 
-[`KeyMgr`]: https://docs.rs/tor-keymgr/0.4.0/tor_keymgr/struct.KeyMgr.html
-[ROFF]: https://crates.io/crates/clap_mangen
-[arti#955]: https://gitlab.torproject.org/tpo/core/arti/-/issues/955
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::get`
 
 ### `arti-hss-auth-clients`
 
@@ -987,3 +1080,17 @@ OPTIONS
        --nickname
             The nickname of the service to destroy and recreate
 ```
+
+#### Implementation
+
+Required `KeyMgr` APIs:
+
+  * `KeyMgr::remove`
+  * `KeyMgr::generate`
+
+
+
+[`KeyMgr`]: https://docs.rs/tor-keymgr/0.4.0/tor_keymgr/struct.KeyMgr.html
+[ROFF]: https://crates.io/crates/clap_mangen
+[arti#955]: https://gitlab.torproject.org/tpo/core/arti/-/issues/955
+
