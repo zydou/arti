@@ -41,6 +41,7 @@ use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
 use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use crate::svc::ShutdownStatus;
 use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname,
 };
@@ -657,20 +658,29 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             debug!(nickname=%nickname, "reupload task channel closed!");
         });
 
-        let err = loop {
-            if let Err(e) = self.run_once(&mut schedule_upload_rx).await {
-                break e;
+        loop {
+            match self.run_once(&mut schedule_upload_rx).await {
+                Ok(ShutdownStatus::Continue) => continue,
+                Ok(ShutdownStatus::Terminate) => return Ok(()),
+                Err(e) => {
+                    error_report!(
+                        e,
+                        "HS service {}: descriptor publisher crashed!",
+                        self.imm.nickname
+                    );
+
+                    // TODO HSS: Set status to Shutdown.
+                    return Err(e);
+                }
             }
-        };
-        // TODO HSS: Set status to Shutdown.
-        Err(err)
+        }
     }
 
     /// Run one iteration of the reactor loop.
     async fn run_once(
         &mut self,
         schedule_upload_rx: &mut watch::Receiver<()>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<ShutdownStatus, ReactorError> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
@@ -681,10 +691,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 );
 
                 assert!(shutdown.is_none());
-                return Err(ReactorError::ShuttingDown);
+                return Ok(ShutdownStatus::Terminate);
             },
             res = self.upload_task_complete_rx.next().fuse() => {
-                let upload_res = res.ok_or(ReactorError::ShuttingDown)?;
+                let Some(upload_res) = res else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
                 self.handle_upload_results(upload_res);
             }
@@ -714,18 +726,25 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.handle_ipt_change(update).await?;
             },
             config = self.config_rx.next().fuse() => {
-                let config = config.ok_or(ReactorError::ShuttingDown)?;
+                let Some(config) = config else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
+
                 self.handle_svc_config_change(config).await?;
             },
             res = schedule_upload_rx.next().fuse() => {
-                let _: () = res.ok_or(ReactorError::ShuttingDown)?;
+                let Some(()) = res else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
                 // Unless we're waiting for IPTs, reattempt the rate-limited upload in the next
                 // iteration.
                 self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled).await?;
             },
             should_upload = self.publish_status_rx.next().fuse() => {
-                let should_upload = should_upload.ok_or(ReactorError::ShuttingDown)?;
+                let Some(should_upload) = should_upload else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
                 // Our PublishStatus changed -- are we ready to publish?
                 if should_upload == PublishStatus::UploadScheduled {
@@ -745,7 +764,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
-        Ok(())
+        Ok(ShutdownStatus::Continue)
     }
 
     /// Returns the current status of the publisher
@@ -966,6 +985,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
+            // XXX: remove when ReactorError is replaced with FatalError
             Some(Err(_)) => Err(ReactorError::ShuttingDown),
             None => {
                 debug!(nickname=%self.imm.nickname, "no IPTs available, ceasing uploads");
