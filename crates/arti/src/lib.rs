@@ -47,14 +47,12 @@
 pub mod cfg;
 pub mod logging;
 
-// TODO HSS: conditionally expose this?
-#[cfg(feature = "onion-service-service")]
-mod onion_proxy;
-
 #[cfg(all(feature = "experimental-api", feature = "dns-proxy"))]
 pub mod dns;
 #[cfg(feature = "experimental-api")]
 pub mod exit;
+#[cfg(all(feature = "experimental-api", feature = "onion-service-service"))]
+pub mod onion_proxy;
 #[cfg(feature = "experimental-api")]
 pub mod process;
 #[cfg(feature = "experimental-api")]
@@ -66,6 +64,8 @@ pub mod socks;
 mod dns;
 #[cfg(not(feature = "experimental-api"))]
 mod exit;
+#[cfg(all(not(feature = "experimental-api"), feature = "onion-service-service"))]
+mod onion_proxy;
 #[cfg(not(feature = "experimental-api"))]
 mod process;
 #[cfg(not(feature = "experimental-api"))]
