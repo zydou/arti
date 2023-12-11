@@ -1248,8 +1248,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             );
                             let mut rng = imm.mockable.thread_rng();
 
-                            // We're about to generate a new version of the descriptor: generate a new revision
-                            // counter.
+                            // We're about to generate a new version of the descriptor,
+                            // so let's generate a new revision counter.
                             let now = imm.runtime.wallclock();
                             let revision_counter = imm.generate_revision_counter(time_period, now)?;
 
