@@ -239,6 +239,7 @@ impl<R: Runtime> ProxySet<R> {
     pub(crate) fn reconfigure(
         &self,
         new_config: OnionServiceProxyConfigList,
+        // TODO HSS this should probably take `how: Reconfigure` and implement an all-or-nothing mode
     ) -> Result<(), anyhow::Error> {
         let mut proxy_map = self.proxies.lock().expect("lock poisoned");
 
