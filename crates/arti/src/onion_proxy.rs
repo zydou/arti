@@ -157,7 +157,10 @@ impl Proxy {
             let proxy = proxy.clone();
             let runtime_clone = client.runtime().clone();
             client.runtime().spawn(async move {
-                match proxy.handle_requests(runtime_clone, request_stream).await {
+                match proxy
+                    .handle_requests(runtime_clone, nickname.clone(), request_stream)
+                    .await
+                {
                     Ok(()) => {
                         debug!("Onion service {} exited cleanly.", nickname);
                     }

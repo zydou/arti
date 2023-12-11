@@ -38,8 +38,12 @@ impl ProxyConfigBuilder {
             covered.insert(range.clone());
         }
 
-        // TODO HSS: Eventually we may want to warn if there are no `Forward`
-        // rules, or if the rule list is empty, since this is likely an accident.
+        // TODO: Eventually we may want to warn if there are no `Forward`
+        // rules, or if the rule list is empty, since this is likely an
+        // accident.
+        //
+        // See arti#1154
+
         Ok(())
     }
 }
@@ -78,7 +82,7 @@ impl ProxyConfig {
 ///
 /// Rules take the form of, "When this pattern matches, take this action."
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-// TODO HSS: we might someday want to accept structs here as well, so that
+// TODO: we might someday want to accept structs here as well, so that
 // we can add per-rule fields if we need to.  We can make that an option if/when
 // it comes up, however.
 #[serde(from = "ProxyRuleAsTuple", into = "ProxyRuleAsTuple")]
@@ -230,7 +234,8 @@ pub enum ProxyAction {
 pub enum TargetAddr {
     /// An address that we can reach over the internet.
     //
-    // TODO HSS: should we warn if this is a public address?
+    // TODO: should we warn if this is a public address?
+    // See arti#1154.
     Inet(SocketAddr),
     /// An address of a local unix socket.
     Unix(PathBuf),

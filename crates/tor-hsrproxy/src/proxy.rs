@@ -11,7 +11,8 @@ use std::io::{Error as IoError, Result as IoResult};
 use tor_async_utils::oneshot;
 use tor_cell::relaycell::msg as relaymsg;
 use tor_error::{debug_report, ErrorKind, HasKind};
-use tor_hsservice::{RendRequest, StreamRequest};
+use tor_hsservice::{HsNickname, RendRequest, StreamRequest};
+use tor_log_ratelim::log_ratelim;
 use tor_proto::stream::{DataStream, IncomingStreamRequest};
 use tor_rtcompat::Runtime;
 
@@ -69,7 +70,7 @@ impl OnionServiceReverseProxy {
     /// Try to change the configuration of this proxy.
     ///
     /// This change applies only to new connections through the proxy; existing
-    /// connections are not affected. (TODO HSS: Is this the desired behavior?)
+    /// connections are not affected.
     pub fn reconfigure(
         &self,
         config: ProxyConfig,
@@ -98,9 +99,12 @@ impl OnionServiceReverseProxy {
     ///
     /// The future returned by this function blocks indefinitely, so you may
     /// want to spawn a separate task for it.
+    ///
+    /// The provided nickname is used for logging.
     pub async fn handle_requests<R, S>(
         &self,
         runtime: R,
+        nickname: HsNickname,
         requests: S,
     ) -> Result<(), HandleRequestsError>
     where
@@ -115,6 +119,7 @@ impl OnionServiceReverseProxy {
             .shutdown_rx
             .clone()
             .fuse();
+        let nickname = Arc::new(nickname);
 
         loop {
             let stream_request = select_biased! {
@@ -123,26 +128,24 @@ impl OnionServiceReverseProxy {
                     None => return Ok(()),
                     Some(s) => s,
                 }
-                // TODO HSS: we might want to have some mechanism here to report
-                // any fatal errors that occur from run_action, or from one of
-                // the tasks it spawns.
             };
 
             let action = self.choose_action(stream_request.request());
             let a_clone = action.clone();
             let rt_clone = runtime.clone();
+            let nn_clone = Arc::clone(&nickname);
             let req = stream_request.request().clone();
 
             runtime
                 .spawn(async move {
-                    if let Err(e) = run_action(rt_clone, action, stream_request).await {
-                        debug_report!(
-                            e,
-                            "Unable to perform action {:?} for onion service request {:?}",
-                            sv(a_clone),
-                            sv(req)
-                        );
-                    }
+                    let outcome =
+                        run_action(rt_clone, nn_clone.as_ref(), action, stream_request).await;
+
+                    log_ratelim!(
+                        "Performing action on {}", nn_clone;
+                        outcome;
+                        Err(_) => WARN, "Unable to take action {:?} for request {:?}", sv(a_clone), sv(req)
+                    );
                 })
                 .map_err(|e| HandleRequestsError::Spawn(Arc::new(e)))?;
         }
@@ -180,6 +183,7 @@ impl OnionServiceReverseProxy {
 /// Take the configured action from `action` on the incoming request `request`.
 async fn run_action<R: Runtime>(
     runtime: R,
+    nickname: &HsNickname,
     action: ProxyAction,
     request: StreamRequest,
 ) -> Result<(), RequestFailed> {
@@ -190,9 +194,9 @@ async fn run_action<R: Runtime>(
                 .map_err(RequestFailed::CantDestroy)?;
         }
         ProxyAction::Forward(encap, target) => match (encap, target) {
-            (Encapsulation::Simple, TargetAddr::Inet(a)) => {
+            (Encapsulation::Simple, ref addr @ TargetAddr::Inet(a)) => {
                 let rt_clone = runtime.clone();
-                forward_connection(rt_clone, request, runtime.connect(&a)).await?;
+                forward_connection(rt_clone, request, runtime.connect(&a), nickname, addr).await?;
             }
             (Encapsulation::Simple, TargetAddr::Unix(_)) => {
                 // TODO HSS: We need to implement unix connections.
@@ -223,10 +227,6 @@ enum RequestFailed {
     #[error("Unable to reject onion service request")]
     CantReject(#[source] tor_hsservice::ClientError),
 
-    /// Encountered an error trying to open a local connection.
-    #[error("Unable to open connection to local target")]
-    ConnectLocal(#[source] Arc<IoError>),
-
     /// Encountered an error trying to tell the remote onion service client that
     /// we have accepted their connection.
     #[error("Unable to accept onion service connection")]
@@ -242,7 +242,6 @@ impl HasKind for RequestFailed {
         match self {
             RequestFailed::CantDestroy(e) => e.kind(),
             RequestFailed::CantReject(e) => e.kind(),
-            RequestFailed::ConnectLocal(_) => ErrorKind::LocalNetworkError,
             RequestFailed::AcceptRemote(e) => e.kind(),
             RequestFailed::Spawn(e) => e.kind(),
         }
@@ -251,37 +250,50 @@ impl HasKind for RequestFailed {
 
 /// Try to open a connection to an appropriate local target using
 /// `target_stream_future`.  If successful, try to report success on `request`
-/// and trandmit data between the two stream indefinitely.  On failure, close
+/// and transmit data between the two stream indefinitely.  On failure, close
 /// `request`.
+///
+/// Only return an error if we were unable to behave as intended due to a
+/// problem we did not already report.
 async fn forward_connection<R, FUT, TS>(
     runtime: R,
     request: StreamRequest,
     target_stream_future: FUT,
+    nickname: &HsNickname,
+    addr: &TargetAddr,
 ) -> Result<(), RequestFailed>
 where
     R: Runtime,
     FUT: Future<Output = Result<TS, IoError>>,
     TS: AsyncRead + AsyncWrite + Send + 'static,
 {
-    let local_stream = match target_stream_future.await {
+    let local_stream = target_stream_future.await.map_err(Arc::new);
+
+    // TODO HSS change this to "log_ratelim!(nickname=%nickname, ..." when log_ratelim can do that
+    // (we should search for HSS log messages and make them all be in the same form)
+    log_ratelim!(
+        "Connecting to {} for onion service {}", sv(addr), nickname;
+        local_stream
+    );
+
+    let local_stream = match local_stream {
         Ok(s) => s,
-        Err(e_connecting) => {
-            // TODO HSS: We should log more, since this is likely a missing
-            // local service.
-            // TODO HSS: (This is a major usability problem!)
+        Err(_) => {
             let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE);
             if let Err(e_rejecting) = request.reject(end).await {
                 debug_report!(
-                    e_rejecting,
+                    &e_rejecting,
                     "Unable to reject onion service request from client"
                 );
+                return Err(RequestFailed::CantReject(e_rejecting));
             }
-            return Err(RequestFailed::ConnectLocal(Arc::new(e_connecting)));
+            // We reported the (rate-limited) error from local_stream in
+            // DEBUG_REPORT above.
+            return Ok(());
         }
     };
 
     let onion_service_stream: DataStream = {
-        // TODO HSS: Does this match the behavior from C tor?
         let connected = relaymsg::Connected::new_empty();
         request
             .accept(connected)

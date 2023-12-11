@@ -5230,6 +5230,7 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-hsservice",
+ "tor-log-ratelim",
  "tor-proto",
  "tor-rtcompat",
  "tracing",
