@@ -1280,7 +1280,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                     let VersionedDescriptor { desc, revision_counter } = hsdesc;
 
-                    trace!(nickname=%imm.nickname, time_period=?time_period, revision_counter=?revision_counter,
+                    trace!(
+                        nickname=%imm.nickname, time_period=?time_period,
+                        revision_counter=?revision_counter,
                         "generated new descriptor for time period",
                     );
 
