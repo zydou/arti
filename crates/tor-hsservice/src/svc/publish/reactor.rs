@@ -43,7 +43,8 @@ use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::ShutdownStatus;
 use crate::{
-    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname, FatalError,
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,
+    HsNickname,
 };
 
 /// The upload rate-limiting threshold.
@@ -1009,10 +1010,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Update the `PublishStatus` of the reactor with `new_state`.
-    async fn update_publish_status(
-        &mut self,
-        new_state: PublishStatus,
-    ) -> Result<(), FatalError> {
+    async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), FatalError> {
         trace!(
             "publisher reactor status change: {:?} -> {:?}",
             self.status(),

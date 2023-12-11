@@ -17,11 +17,10 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
-use crate::svc::publish::reactor::{
-    read_blind_id_keypair, AuthorizedClientConfigError
-};
+use crate::svc::publish::reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
 use crate::{
-    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, OnionServiceConfig, FatalError,
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,
+    OnionServiceConfig,
 };
 
 /// Build the descriptor.
