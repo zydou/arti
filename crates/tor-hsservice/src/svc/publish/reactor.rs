@@ -14,7 +14,6 @@ use futures::task::{SpawnError, SpawnExt};
 use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
 use postage::watch;
-use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
@@ -440,10 +439,6 @@ pub(crate) enum ReactorError {
     /// netdir we asked for.
     #[error("{0}")]
     NetdirProviderShutdown(#[from] NetdirProviderShutdown),
-
-    /// Failed to publish a descriptor.
-    #[error("failed to publish a descriptor")]
-    PublishFailure(#[source] RetryError<UploadError>),
 
     /// Failed to access the keystore.
     #[error("failed to access keystore")]
