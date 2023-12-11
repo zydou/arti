@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel as std_channel, Sender};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -30,6 +31,22 @@ enum Event {
     Rescan,
 }
 
+/// An object that can be reconfigured when our configuration changes.
+///
+/// We use this trait so that we can represent abstract modules in our
+/// application, and pass the configuration to each of them.
+//
+// TODO: It is very likely we will want to refactor this even further once we
+// have a notion of what our modules truly are.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) trait ReconfigurableModule: Send + Sync {
+    /// Try to reconfigure this module according to a newly loaded configuration.
+    ///
+    /// By convention, this should only return fatal errors; any such error
+    /// should cause the program to exit.  For other cases, we should just warn.
+    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()>;
+}
+
 /// Launch a thread to reload our configuration files.
 ///
 /// If current configuration requires it, watch for changes in `sources`
@@ -38,10 +55,11 @@ enum Event {
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
     sources: ConfigurationSources,
-    original: ArtiConfig,
-    client: TorClient<R>,
+    config: &ArtiConfig,
+    client: &TorClient<R>,
+    modules: Vec<Arc<dyn ReconfigurableModule>>,
 ) -> anyhow::Result<()> {
-    let watch_file = original.application().watch_configuration;
+    let watch_file = config.application().watch_configuration;
 
     let (tx, rx) = std_channel();
     let mut watcher = if watch_file {
@@ -113,7 +131,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                         .context("FS watch: failed to rescan config")?
                 };
 
-                match reconfigure(found_files, &original, &client) {
+                match reconfigure(found_files, &modules) {
                     Ok(watch) => {
                         info!("Successfully reloaded configuration.");
                         if watch && watcher.is_none() {
@@ -155,35 +173,75 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     Ok(())
 }
 
+impl<R: Runtime> ReconfigurableModule for TorClient<R> {
+    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+        TorClient::reconfigure(self, &new.1, Reconfigure::WarnOnFailures)?;
+        Ok(())
+    }
+}
+
+/// Internal type to represent the Arti application as a `ReconfigurableModule`.
+pub(crate) struct Application {
+    /// The configuration that Arti had at startup.
+    ///
+    /// We use this to check whether the user is asking for any impermissible
+    /// transitions.
+    original_config: ArtiConfig,
+}
+
+impl Application {
+    /// Construct a new `Application` to receive configuration changes for the
+    /// arti application.
+    pub(crate) fn new(cfg: ArtiConfig) -> Self {
+        Self {
+            original_config: cfg,
+        }
+    }
+}
+
+impl ReconfigurableModule for Application {
+    #[allow(clippy::cognitive_complexity)]
+    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+        let original = &self.original_config;
+        let config = &new.0;
+
+        if config.proxy() != original.proxy() {
+            warn!("Can't (yet) reconfigure proxy settings while arti is running.");
+        }
+        if config.logging() != original.logging() {
+            warn!("Can't (yet) reconfigure logging settings while arti is running.");
+        }
+        if config.application().permit_debugging && !original.application().permit_debugging {
+            warn!("Cannot disable application hardening when it has already been enabled.");
+        }
+
+        // Note that this is the only config transition we actually perform so far.
+        if !config.application().permit_debugging {
+            #[cfg(feature = "harden")]
+            crate::process::enable_process_hardening()?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Reload the configuration files, apply the runtime configuration, and
 /// reconfigure the client as much as we can.
 ///
 /// Return true if we should be watching for configuration changes.
-#[allow(clippy::cognitive_complexity)]
-fn reconfigure<R: Runtime>(
+fn reconfigure(
     found_files: FoundConfigFiles<'_>,
-    original: &ArtiConfig,
-    client: &TorClient<R>,
+    reconfigurable: &[Arc<dyn ReconfigurableModule>],
 ) -> anyhow::Result<bool> {
+    let _ = reconfigurable;
     let config = found_files.load()?;
-    let (config, client_config) = tor_config::resolve::<ArtiCombinedConfig>(config)?;
-    if config.proxy() != original.proxy() {
-        warn!("Can't (yet) reconfigure proxy settings while arti is running.");
-    }
-    if config.logging() != original.logging() {
-        warn!("Can't (yet) reconfigure logging settings while arti is running.");
-    }
-    if config.application().permit_debugging && !original.application().permit_debugging {
-        warn!("Cannot disable application hardening when it has already been enabled.");
-    }
-    client.reconfigure(&client_config, Reconfigure::WarnOnFailures)?;
+    let config = tor_config::resolve::<ArtiCombinedConfig>(config)?;
 
-    if !config.application().permit_debugging {
-        #[cfg(feature = "harden")]
-        crate::process::enable_process_hardening()?;
+    for module in reconfigurable {
+        module.reconfigure(&config)?;
     }
 
-    Ok(config.application().watch_configuration)
+    Ok(config.0.application().watch_configuration)
 }
 
 /// A wrapper around `notify::RecommendedWatcher` to watch a set of parent

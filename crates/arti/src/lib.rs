@@ -78,6 +78,7 @@ mod rpc;
 
 use std::ffi::OsString;
 use std::fmt::Write;
+use std::sync::Arc;
 
 pub use cfg::{
     ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig, ArtiConfig, ArtiConfigBuilder,
@@ -87,7 +88,6 @@ pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
 use arti_client::config::default_config_files;
 use arti_client::{TorClient, TorClientConfig};
-use cfg_if::cfg_if;
 use safelog::with_safe_logging_suppressed;
 use tor_config::{ConfigurationSources, Listen};
 use tor_rtcompat::{BlockOn, Runtime};
@@ -186,24 +186,26 @@ async fn run<R: Runtime>(
         .bootstrap_behavior(OnDemand);
     let client = client_builder.create_unbootstrapped()?;
 
-    let onion_services;
-    #[allow(clippy::needless_late_init)] // False positive
+    #[allow(unused_mut)]
+    let mut reconfigurable_modules: Vec<Arc<dyn reload_cfg::ReconfigurableModule>> = vec![
+        Arc::new(client.clone()),
+        Arc::new(reload_cfg::Application::new(arti_config.clone())),
+    ];
+
+    #[cfg(feature = "onion-service-service")]
     {
-        cfg_if! {
-            if #[cfg(feature = "onion-service-service")] {
-                // TODO HSS: Support reconfiguration.
-                onion_services = onion_proxy::ProxySet::launch_new(
-                    &client,
-                    arti_config.onion_services.clone(),
-                )?;
-            } else {
-                onion_services = ();
-            }
-        };
+        let onion_services =
+            onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
+        reconfigurable_modules.push(Arc::new(onion_services));
     }
 
     // TODO HSS: We need to feed changes to onion services as well.
-    reload_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
+    reload_cfg::watch_for_config_changes(
+        config_sources,
+        &arti_config,
+        &client,
+        reconfigurable_modules,
+    )?;
 
     #[cfg(all(feature = "rpc", feature = "tokio"))]
     let rpc_mgr = {
@@ -273,11 +275,6 @@ async fn run<R: Runtime>(
         }.fuse()
             => r.context("bootstrap"),
     )?;
-
-    // TODO HSS Instead, make Proxy be uninhabited when hss configured out,
-    // so that we can have a value of type ProxySet.
-    #[allow(dropping_copy_types)]
-    drop(onion_services);
 
     Ok(())
 }

@@ -1,10 +1,16 @@
 //! Configure and implement onion service reverse-proxy feature.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{hash_map::Entry, HashMap, HashSet},
+    sync::{Arc, Mutex},
+};
 
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
 use futures::task::SpawnExt;
-use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten};
+use tor_config::{
+    define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten, Reconfigure,
+    ReconfigureError,
+};
 use tor_error::warn_report;
 use tor_hsrproxy::{config::ProxyConfigBuilder, OnionServiceReverseProxy, ProxyConfig};
 use tor_hsservice::{HsNickname, OnionService};
@@ -164,19 +170,48 @@ impl Proxy {
 
         Ok(Proxy { svc, proxy })
     }
+
+    /// Reconfigure this proxy, using the new configuration `config` and the
+    /// rules in `how`.
+    fn reconfigure(
+        &mut self,
+        config: OnionServiceProxyConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
+        if matches!(how, Reconfigure::AllOrNothing) {
+            self.reconfigure_inner(config.clone(), Reconfigure::CheckAllOrNothing)?;
+        }
+
+        self.reconfigure_inner(config, how)
+    }
+
+    /// Helper for reconfigure: Run `reconfigure` on each part of this `Proxy`.
+    fn reconfigure_inner(
+        &mut self,
+        config: OnionServiceProxyConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
+        let OnionServiceProxyConfig { svc_cfg, proxy_cfg } = config;
+
+        self.svc.reconfigure(svc_cfg, how)?;
+        self.proxy.reconfigure(proxy_cfg, how)?;
+
+        Ok(())
+    }
 }
 
 /// A set of configured onion service proxies.
-#[allow(dead_code)] //TODO HSS remove once reconfigure is written.
 #[must_use = "a hidden service ProxySet object will terminate the services when dropped"]
-pub(crate) struct ProxySet {
+pub(crate) struct ProxySet<R: Runtime> {
+    /// The arti_client that we use to launch proxies.
+    client: arti_client::TorClient<R>,
     /// The proxies themselves, indexed by nickname.
-    proxies: HashMap<HsNickname, Proxy>,
+    proxies: Mutex<HashMap<HsNickname, Proxy>>,
 }
 
-impl ProxySet {
+impl<R: Runtime> ProxySet<R> {
     /// Create and launch a set of onion service proxies.
-    pub(crate) fn launch_new<R: Runtime>(
+    pub(crate) fn launch_new(
         client: &arti_client::TorClient<R>,
         config_list: OnionServiceProxyConfigList,
     ) -> anyhow::Result<Self> {
@@ -190,8 +225,76 @@ impl ProxySet {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        Ok(Self { proxies })
+        Ok(Self {
+            client: client.clone(),
+            proxies: Mutex::new(proxies),
+        })
     }
 
-    // TODO HSS: reconfigure
+    /// Try to reconfigure the set of onion proxies according to the
+    /// configuration in `new_config`.
+    ///
+    /// Launches or closes proxies as necessary.  Does not close existing
+    /// connections.
+    pub(crate) fn reconfigure(
+        &self,
+        new_config: OnionServiceProxyConfigList,
+        // TODO HSS this should probably take `how: Reconfigure` and implement an all-or-nothing mode
+    ) -> Result<(), anyhow::Error> {
+        let mut proxy_map = self.proxies.lock().expect("lock poisoned");
+
+        // Set of the nicknames of defunct proxies.
+        let mut defunct_nicknames: HashSet<_> = proxy_map.keys().map(Clone::clone).collect();
+
+        for cfg in new_config.into_iter() {
+            let nickname = cfg.svc_cfg.nickname().clone();
+            // This proxy is still configured, so remove it from the list of
+            // defunct proxies.
+            defunct_nicknames.remove(&nickname);
+
+            match proxy_map.entry(nickname) {
+                Entry::Occupied(mut existing_proxy) => {
+                    // We already have a proxy by this name, so we try to
+                    // reconfigure it.
+                    existing_proxy
+                        .get_mut()
+                        .reconfigure(cfg, Reconfigure::WarnOnFailures)?;
+                }
+                Entry::Vacant(ent) => {
+                    // We do not have a proxy by this name, so we try to launch
+                    // one.
+                    match Proxy::launch_new(&self.client, cfg) {
+                        Ok(new_proxy) => {
+                            ent.insert(new_proxy);
+                        }
+                        // TODO HSS: I'd like to use warn_report(), but it seems
+                        // that anyhow::Error doesn't implement the right
+                        // traits.
+                        Err(err) => {
+                            tracing::warn!("Unable to launch onion service {}: {}", ent.key(), err);
+                        }
+                    }
+                }
+            }
+        }
+
+        for nickname in defunct_nicknames {
+            // We no longer have any configuration for this proxy, so we remove
+            // it from our map.
+            let defunct_proxy = proxy_map
+                .remove(&nickname)
+                .expect("Somehow a proxy disappeared from the map");
+            // This "drop" should shut down the proxy.
+            drop(defunct_proxy);
+        }
+
+        Ok(())
+    }
+}
+
+impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
+    fn reconfigure(&self, new: &crate::ArtiCombinedConfig) -> anyhow::Result<()> {
+        ProxySet::reconfigure(self, new.0.onion_services.clone())?;
+        Ok(())
+    }
 }
