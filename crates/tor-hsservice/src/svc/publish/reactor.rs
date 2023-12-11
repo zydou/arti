@@ -43,7 +43,7 @@ use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::ShutdownStatus;
 use crate::{
-    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname,
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname, FatalError,
 };
 
 /// The upload rate-limiting threshold.
@@ -168,7 +168,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
     //
     // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
     // built from the blinded id key
-    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
+    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, FatalError> {
         let ope_key = match read_blind_id_keypair(&self.keymgr, &self.nickname, period)? {
             Some(key) => {
                 let key: ed25519::ExpandedKeypair = key.into();
@@ -207,7 +207,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
         &self,
         period: TimePeriod,
         now: SystemTime,
-    ) -> Result<RevisionCounter, ReactorError> {
+    ) -> Result<RevisionCounter, FatalError> {
         // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
         // to each time we generate a new descriptor), for performance reasons.
         let ope_key = self.create_ope_key(period)?;
@@ -359,7 +359,7 @@ impl TimePeriodContext {
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
-    ) -> Result<Self, ReactorError> {
+    ) -> Result<Self, FatalError> {
         Ok(Self {
             period,
             blind_id,
@@ -374,7 +374,7 @@ impl TimePeriodContext {
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         mut old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
-    ) -> Result<Vec<(RelayIds, DescriptorStatus)>, ReactorError> {
+    ) -> Result<Vec<(RelayIds, DescriptorStatus)>, FatalError> {
         let hs_dirs = netdir.hs_dirs_upload([(blind_id, period)].into_iter())?;
 
         Ok(hs_dirs
@@ -608,7 +608,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// Note: this also spawns the "reminder task" that we use to reschedule uploads whenever an
     /// upload fails or is rate-limited.
-    pub(super) async fn run(mut self) -> Result<(), ReactorError> {
+    pub(super) async fn run(mut self) -> Result<(), FatalError> {
         debug!(nickname=%self.imm.nickname, "starting descriptor publisher reactor");
 
         {
@@ -680,7 +680,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn run_once(
         &mut self,
         schedule_upload_rx: &mut watch::Receiver<()>,
-    ) -> Result<ShutdownStatus, ReactorError> {
+    ) -> Result<ShutdownStatus, FatalError> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
@@ -828,7 +828,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Maybe update our list of HsDirs.
-    async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
+    async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), FatalError> {
         trace!("the consensus has changed; recomputing HSDirs");
 
         let _old: Option<Arc<NetDir>> = self.replace_netdir(netdir);
@@ -841,7 +841,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Recompute the HsDirs for all relevant time periods.
-    fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
+    fn recompute_hs_dirs(&self) -> Result<(), FatalError> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
@@ -867,7 +867,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &self,
         netdir: &Arc<NetDir>,
         time_periods: &[TimePeriodContext],
-    ) -> Result<Vec<TimePeriodContext>, ReactorError> {
+    ) -> Result<Vec<TimePeriodContext>, FatalError> {
         netdir
             .hs_all_time_periods()
             .iter()
@@ -877,7 +877,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
-                    .ok_or_else(|| ReactorError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
+                    .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), *period);
 
                 // TODO HSS: make this configurable
@@ -916,7 +916,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     TimePeriodContext::new(*period, blind_id.into(), netdir, iter::empty())
                 }
             })
-            .collect::<Result<Vec<TimePeriodContext>, ReactorError>>()
+            .collect::<Result<Vec<TimePeriodContext>, FatalError>>()
     }
 
     /// Replace the old netdir with the new, returning the old.
@@ -975,7 +975,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn handle_ipt_change(
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         trace!(nickname=%self.imm.nickname, "received IPT change notification from IPT manager");
         match update {
             Some(Ok(())) => {
@@ -985,8 +985,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
-            // XXX: remove when ReactorError is replaced with FatalError
-            Some(Err(_)) => Err(ReactorError::ShuttingDown),
+            Some(Err(e)) => Err(e),
             None => {
                 debug!(nickname=%self.imm.nickname, "no IPTs available, ceasing uploads");
                 self.update_publish_status(PublishStatus::AwaitingIpts)
@@ -1000,7 +999,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn update_publish_status_unless_waiting(
         &mut self,
         new_state: PublishStatus,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         // Only update the state if we're not waiting for intro points.
         if self.status() != PublishStatus::AwaitingIpts {
             self.update_publish_status(new_state).await?;
@@ -1013,7 +1012,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn update_publish_status(
         &mut self,
         new_state: PublishStatus,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         trace!(
             "publisher reactor status change: {:?} -> {:?}",
             self.status(),
@@ -1029,7 +1028,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Use the new keys.
-    async fn handle_new_keys(&self) -> Result<(), ReactorError> {
+    async fn handle_new_keys(&self) -> Result<(), FatalError> {
         todo!()
     }
 
@@ -1037,7 +1036,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn handle_svc_config_change(
         &mut self,
         config: Arc<OnionServiceConfig>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         if self.replace_config_if_changed(config) {
             self.mark_all_dirty();
 
@@ -1070,7 +1069,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// well as in what cases this will return an error).
     //
     // TODO HSS: what is N?
-    async fn upload_all(&mut self) -> Result<(), ReactorError> {
+    async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
         let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
@@ -1157,14 +1156,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         );
                     }
                 })
-                .map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
+                .map_err(|e| FatalError::from_spawn("upload_for_time_period task", e))?;
         }
 
         Ok(())
     }
 
     /// Tell the "upload reminder" task to remind us to retry an upload that failed or was rate-limited.
-    async fn schedule_pending_upload(&mut self, delay: Duration) -> Result<(), ReactorError> {
+    async fn schedule_pending_upload(&mut self, delay: Duration) -> Result<(), FatalError> {
         if let Err(e) = self
             .reattempt_upload_tx
             .as_mut()
@@ -1193,7 +1192,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
         let hsdir_count = hs_dirs.len();
@@ -1264,7 +1263,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // Ideally, this shouldn't happen very often (if at all).
                         let Some(ipts) = ipt_set.ipts.as_mut() else {
                             // TODO HSS: maybe it's worth defining an separate error type for this.
-                            return Err(ReactorError::Bug(internal!(
+                            return Err(FatalError::Bug(internal!(
                                 "no introduction points; skipping upload"
                             )));
                         };
@@ -1484,11 +1483,11 @@ pub(super) fn read_blind_id_keypair(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
     period: TimePeriod,
-) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
+) -> Result<Option<HsBlindIdKeypair>, FatalError> {
     let svc_key_spec = HsIdKeypairSpecifier::new(nickname.clone());
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingHsIdKeypair(nickname.clone()))?;
+        .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
 
     let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname.clone(), period);
 

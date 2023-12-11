@@ -18,10 +18,10 @@ use tor_netdoc::NetdocBuilder;
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
 use crate::svc::publish::reactor::{
-    read_blind_id_keypair, AuthorizedClientConfigError, ReactorError,
+    read_blind_id_keypair, AuthorizedClientConfigError
 };
 use crate::{
-    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, OnionServiceConfig,
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, OnionServiceConfig, FatalError,
 };
 
 /// Build the descriptor.
@@ -39,7 +39,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     revision_counter: RevisionCounter,
     rng: &mut Rng,
     now: SystemTime,
-) -> Result<VersionedDescriptor, ReactorError> {
+) -> Result<VersionedDescriptor, FatalError> {
     // TODO: should this be configurable? If so, we should read it from the svc config.
     //
     /// The CREATE handshake type we support.
@@ -66,7 +66,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     let svc_key_spec = HsIdKeypairSpecifier::new(nickname.clone());
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingHsIdKeypair(nickname.clone()))?;
+        .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
     let hsid = HsIdKey::from(&hsid_kp);
 
     let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname.clone(), period);
