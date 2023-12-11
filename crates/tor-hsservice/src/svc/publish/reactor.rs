@@ -38,7 +38,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
-use crate::status::PublisherStatusSender;
+use crate::status::{PublisherStatusSender, State};
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -939,6 +939,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             self.status(),
             new_state
         );
+
+        let onion_status = match new_state {
+            PublishStatus::Idle => State::Running,
+            PublishStatus::UploadScheduled | PublishStatus::AwaitingIpts => State::Bootstrapping,
+        };
+
+        self.imm.status_tx.note_status(onion_status, None);
 
         self.publish_status_tx
             .send(new_state)
