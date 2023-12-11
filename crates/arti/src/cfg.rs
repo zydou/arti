@@ -548,9 +548,10 @@ mod test {
             ],
         );
 
+        // These are commented-out by default, and tested with test::onion_services().
         declare_exceptions(
             None,
-            None, // TODO HSS actually test the example config using semi-ad-hoc approach
+            None,
             FeatureDependent,
             &[
                 // onion-service only settings.
