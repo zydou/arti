@@ -546,6 +546,39 @@ proxy_ports = [
         .unwrap();
         let c = b.build().unwrap();
         assert_eq!(c.proxy_ports.len(), 4);
-        // TODO HSS: test actual contents.
+        assert_eq!(
+            c.proxy_ports[0],
+            ProxyRule::new(
+                ProxyPattern::one_port(80).unwrap(),
+                ProxyAction::Forward(
+                    Encapsulation::Simple,
+                    TargetAddr::Inet("127.0.0.1:10080".parse().unwrap())
+                )
+            )
+        );
+        assert_eq!(
+            c.proxy_ports[1],
+            ProxyRule::new(
+                ProxyPattern::one_port(22).unwrap(),
+                ProxyAction::DestroyCircuit
+            )
+        );
+        assert_eq!(
+            c.proxy_ports[2],
+            ProxyRule::new(
+                ProxyPattern::one_port(265).unwrap(),
+                ProxyAction::IgnoreStream
+            )
+        );
+        assert_eq!(
+            c.proxy_ports[3],
+            ProxyRule::new(
+                ProxyPattern::port_range(1, 1024).unwrap(),
+                ProxyAction::Forward(
+                    Encapsulation::Simple,
+                    TargetAddr::Unix("/var/run/allium-cepa/socket".into())
+                )
+            )
+        );
     }
 }
