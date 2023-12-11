@@ -13,6 +13,12 @@ use tor_async_utils::PostageWatchSenderExt;
 pub struct OnionServiceStatus {
     /// The current high-level state for this onion service.
     state: State,
+
+    /// The current high-level state for the IPT manager.
+    ipt_mgr_state: State,
+
+    /// The current high-level state for the descriptor publisher.
+    publisher_state: State,
     // TODO HSS: Add key expiration
     // TODO HSS: Add latest-error.
     //
@@ -65,12 +71,25 @@ impl OnionServiceStatus {
     pub(crate) fn new_shutdown() -> Self {
         Self {
             state: State::Shutdown,
+            ipt_mgr_state: State::Shutdown,
+            publisher_state: State::Shutdown,
         }
     }
 
     /// Return the current high-level state of this onion service.
+    ///
+    /// The overall state is derived from the `State`s of its underlying components
+    /// (i.e. the IPT manager and descriptor publisher).
     pub fn state(&self) -> State {
-        self.state
+        use State::*;
+
+        match (self.ipt_mgr_state, self.publisher_state) {
+            (Shutdown, _) | (_, Shutdown) => Shutdown,
+            (Bootstrapping, _) | (_, Bootstrapping) => Bootstrapping,
+            (Running, Running) => Running,
+            (Recovering, _) | (_, Recovering) => Recovering,
+            (Broken, _) | (_, Broken) => Broken,
+        }
     }
 
     /// Return the most severe current problem
