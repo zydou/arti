@@ -1249,6 +1249,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         }
                     };
 
+                    // TODO HSS: add a mechanism for rescheduling uploads that have
+                    // UploadStatus::Failure.
+                    //
+                    // Note: UploadStatus::Failure is only returned when
+                    // upload_descriptor_with_retries fails, i.e. if all our retry
+                    // attempts have failed
                     Ok(HsDirUploadStatus {
                         relay_ids,
                         upload_res,
