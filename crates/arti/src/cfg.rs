@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "onion-service-service")]
 use crate::onion_proxy::{
-    OnionServiceProxyConfigBuilder, OnionServiceProxyConfigList, OnionServiceProxyConfigListBuilder,
+    OnionServiceProxyConfigBuilder, OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder,
 };
 use arti_client::TorClientConfig;
 #[cfg(feature = "rpc")]
@@ -240,7 +240,7 @@ pub struct ArtiConfig {
     #[builder(sub_builder, setter(custom))]
     #[builder_field_attr(serde(default))]
     #[cfg(feature = "onion-service-service")]
-    pub(crate) onion_services: OnionServiceProxyConfigList,
+    pub(crate) onion_services: OnionServiceProxyConfigMap,
 }
 
 impl_standard_builder! { ArtiConfig }
@@ -1064,7 +1064,7 @@ example config file {which:?}, uncommented={uncommented:?}
             let cfg = result.unwrap();
             let services = cfg.1.onion_services;
             assert_eq!(services.len(), 1);
-            let _svc = &services[0];
+            let _svc = services.values().next().unwrap();
             // TODO HSS: Actually test that this is as expected, somehow.
         }
         #[cfg(not(feature = "onion-service-service"))]
