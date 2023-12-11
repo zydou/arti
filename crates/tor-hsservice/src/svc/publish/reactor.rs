@@ -22,7 +22,6 @@ use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::ed25519;
 use tracing::{debug, error, trace, warn};
 
-use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
@@ -441,10 +440,6 @@ pub(crate) enum ReactorError {
     /// netdir we asked for.
     #[error("{0}")]
     NetdirProviderShutdown(#[from] NetdirProviderShutdown),
-
-    /// Failed to build a descriptor.
-    #[error("could not build a hidden service descriptor")]
-    HsDescBuild(#[from] EncodeError),
 
     /// Failed to publish a descriptor.
     #[error("failed to publish a descriptor")]

@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime};
 use rand_core::{CryptoRng, RngCore};
 
 use tor_cell::chancell::msg::HandshakeType;
-use tor_error::{internal, into_bad_api_usage};
+use tor_error::{internal, into_bad_api_usage, into_internal};
 use tor_hscrypto::pk::{HsBlindIdKey, HsDescSigningKeypair, HsIdKey, HsIdKeypair};
 use tor_hscrypto::time::TimePeriod;
 use tor_hscrypto::RevisionCounter;
@@ -132,7 +132,8 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
         .revision_counter(revision_counter)
         .subcredential(subcredential)
         .auth_clients(&auth_clients)
-        .build_sign(rng)?;
+        .build_sign(rng)
+        .map_err(|e| into_internal!("failed to build descriptor")(e))?;
 
     Ok(VersionedDescriptor {
         desc,
