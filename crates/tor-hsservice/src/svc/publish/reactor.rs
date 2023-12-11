@@ -1287,7 +1287,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     );
 
 
-                    let upload_res = match imm.runtime.timeout(UPLOAD_TIMEOUT, run_upload(desc.clone())).await {
+                    let upload_res = match imm.runtime.timeout(
+                        UPLOAD_TIMEOUT, run_upload(desc.clone())
+                    ).await {
                         Ok(res) => {
                             match res {
                                 Ok(()) => {
