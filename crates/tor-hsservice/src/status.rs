@@ -11,9 +11,6 @@ use tor_async_utils::PostageWatchSenderExt;
 /// The current reported status of an onion service.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OnionServiceStatus {
-    /// The current high-level state for this onion service.
-    state: State,
-
     /// The current high-level state for the IPT manager.
     ipt_mgr_state: State,
 
@@ -70,7 +67,6 @@ impl OnionServiceStatus {
     /// Create a new OnionServiceStatus for a service that has not been bootstrapped.
     pub(crate) fn new_shutdown() -> Self {
         Self {
-            state: State::Shutdown,
             ipt_mgr_state: State::Shutdown,
             publisher_state: State::Shutdown,
         }
