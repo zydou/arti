@@ -10,7 +10,7 @@ use std::time::{Duration, Instant, SystemTime};
 use async_trait::async_trait;
 use derive_more::{From, Into};
 use futures::channel::mpsc::{self, Receiver, Sender};
-use futures::task::{SpawnError, SpawnExt};
+use futures::task::SpawnExt;
 use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
 use postage::{broadcast, watch};
@@ -38,7 +38,7 @@ use void::Void;
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
-use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
+use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::ShutdownStatus;
@@ -408,88 +408,6 @@ impl TimePeriodContext {
         self.hs_dirs
             .iter_mut()
             .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
-    }
-}
-
-/// A reactor error
-///
-/// These are currently always fatal
-//
-// TODO HSS ReactorError should be abolished:
-//
-// There is no need for a second type for fatal errors; we should use FatalError.
-// So, for example, Reactor::run should throw FatalError.
-// (Eventually we can perhaps arrange that when the publisher crashes, someone
-// outside this crate gets the actual FatalError from it.)
-//
-// However:
-//
-// Many of these errors are recoverable, and so ought not to be FatalError at all.
-// Crashing should be a complete last resort, because the user's only way to recover
-// is to completely tear down the HS, and make a fresh one.  With arti CLI this can
-// only be done by restarting the whole process, or by reconfiguring twice to delete
-// and recreate the hidden service.
-//
-// So simply moving all these variants into FatalError and changing all the error types
-// would simply be churn (and also, it would mix more variants which need reconsideration
-// into an enum we intend to keep).
-//
-// The error type rework should go hand-in-hand with implementing suitable retry policies
-// for errors that occur during publication.  It is those retry policies which should
-// drive the error type(s) for functions that can fail in a way that might be retriable.
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub(crate) enum ReactorError {
-    /// The network directory provider is shutting down without giving us the
-    /// netdir we asked for.
-    #[error("{0}")]
-    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
-
-    /// Failed to access the keystore.
-    #[error("failed to access keystore")]
-    Keystore(#[from] tor_keymgr::Error),
-
-    /// The identity keypair of the service could not be found in the keystore.
-    #[error("Hidden service identity key not found: {0}")]
-    MissingHsIdKeypair(HsNickname),
-
-    /// Unable to spawn task
-    //
-    // TODO lots of our Errors have a variant exactly like this.
-    // Maybe we should make a struct tor_error::SpawnError.
-    #[error("Unable to spawn {spawning}")]
-    Spawn {
-        /// What we were trying to spawn.
-        spawning: &'static str,
-        /// What happened when we tried to spawn it.
-        #[source]
-        cause: Arc<SpawnError>,
-    },
-
-    /// A fatal error that caused the reactor to shut down.
-    //
-    // TODO HSS: add more context to this error?
-    #[error("publisher reactor is shutting down")]
-    ShuttingDown,
-
-    /// A fatal error from somewhere else in crate
-    #[error("other (fatal) error")]
-    Other(#[from] crate::FatalError),
-
-    /// An internal error.
-    #[error("Internal error")]
-    Bug(#[from] tor_error::Bug),
-}
-
-impl ReactorError {
-    /// Construct a new `ReactorError` from a `SpawnError`.
-    //
-    // TODO lots of our Errors have a function exactly like this.
-    pub(super) fn from_spawn(spawning: &'static str, err: SpawnError) -> ReactorError {
-        ReactorError::Spawn {
-            spawning,
-            cause: Arc::new(err),
-        }
     }
 }
 
