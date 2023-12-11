@@ -308,6 +308,8 @@ impl OnionService {
             &state.state_mistrust,
         )?;
 
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
+
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
             nickname.clone(),
@@ -315,6 +317,7 @@ impl OnionService {
             circ_pool,
             publisher_view,
             config_rx,
+            status_tx.clone().into(),
             Arc::clone(&state.keymgr),
         );
 

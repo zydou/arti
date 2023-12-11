@@ -38,6 +38,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
+use crate::status::PublisherStatusSender;
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -147,6 +148,8 @@ struct Immutable<R: Runtime, M: Mockable> {
     nickname: HsNickname,
     /// The key manager,
     keymgr: Arc<KeyMgr>,
+    /// A sender for updating the status of the onion service.
+    status_tx: PublisherStatusSender,
 }
 
 impl<R: Runtime, M: Mockable> Immutable<R, M> {
@@ -470,6 +473,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
@@ -489,6 +493,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             mockable,
             nickname,
             keymgr,
+            status_tx,
         };
 
         let inner = Inner {

@@ -14,6 +14,7 @@ use tor_error::warn_report;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
+use crate::status::PublisherStatusSender;
 use crate::{ipt_set::IptsPublisherView, StartupError};
 use crate::{HsNickname, OnionServiceConfig};
 
@@ -47,6 +48,8 @@ pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     /// The key manager.
     keymgr: Arc<KeyMgr>,
+    /// A sender for updating the status of the onion service.
+    status_tx: PublisherStatusSender,
 }
 
 impl<R: Runtime, M: Mockable> Publisher<R, M> {
@@ -64,6 +67,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         mockable: impl Into<M>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         let config = config_rx.borrow().clone();
@@ -75,6 +79,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
+            status_tx,
             keymgr,
         }
     }
@@ -89,6 +94,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
+            status_tx,
             keymgr,
         } = self;
 
@@ -100,6 +106,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
+            status_tx,
             keymgr,
         );
 
@@ -200,6 +207,7 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
+    use crate::status::{OnionServiceStatus, StatusSender};
     use crate::svc::publish::reactor::MockableClientCirc;
     use crate::svc::test::create_storage_handles;
     use crate::{Anonymity, HsNickname, IptLocalId};
@@ -460,6 +468,7 @@ mod test {
         keymgr: Arc<KeyMgr>,
         pv: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        status_tx: PublisherStatusSender,
         netdir: NetDir,
         reactor_event: impl FnOnce(),
         poll_read_responses: I,
@@ -482,6 +491,7 @@ mod test {
                 circpool,
                 pv,
                 config_rx,
+                status_tx,
                 keymgr,
             );
 
@@ -549,6 +559,7 @@ mod test {
         // If any of the uploads fail, they will be retried. Note that the upload failure will
         // affect _each_ hsdir, so the expected number of uploads is a multiple of hsdir_count.
         let expected_upload_count = hsdir_count * multiplier;
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
 
         run_test(
             runtime.clone(),
@@ -557,6 +568,7 @@ mod test {
             keymgr,
             pv,
             config_rx,
+            status_tx,
             netdir,
             update_ipts,
             poll_read_responses,
