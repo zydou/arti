@@ -199,7 +199,6 @@ async fn run<R: Runtime>(
         reconfigurable_modules.push(Arc::new(onion_services));
     }
 
-    // TODO HSS: We need to feed changes to onion services as well.
     reload_cfg::watch_for_config_changes(
         config_sources,
         &arti_config,

@@ -128,7 +128,6 @@ impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
 ///
 /// This is what a user configures when they add an onion service to their
 /// configuration.
-#[allow(dead_code)] //TODO HSS remove once reconfigure is written.
 #[must_use = "a hidden service Proxy object will terminate the service when dropped"]
 struct Proxy {
     /// The onion service.
