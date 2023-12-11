@@ -155,14 +155,28 @@ impl StatusSender {
         StatusSender(Arc::new(Mutex::new(tx)))
     }
 
-    /// Run `func` on the current status, and return a new one.  If it is
-    /// different, update the current status and notify all listeners.
+    /// Update the current IPT manager state.
+    ///
+    /// If the new state is different, update the current status and notify all listeners.
+    //
+    // TODO: should we have separate state enums for the IPT mgr and publisher states?
     #[allow(dead_code)]
-    pub(crate) fn maybe_send<F>(&self, func: F)
-    where
-        F: FnOnce(&OnionServiceStatus) -> OnionServiceStatus,
-    {
-        self.0.lock().expect("Poisoned lock").maybe_send(func);
+    pub(crate) fn maybe_update_ipt_mgr(&self, state: State) {
+        let mut tx = self.0.lock().expect("Poisoned lock");
+        let mut svc_status = tx.borrow().clone();
+        svc_status.ipt_mgr_state = state;
+        tx.maybe_send(|_| svc_status);
+    }
+
+    /// Update the current publisher state.
+    ///
+    /// If the new state is different, update the current status and notify all listeners.
+    #[allow(dead_code)]
+    pub(crate) fn maybe_update_publisher(&self, state: State) {
+        let mut tx = self.0.lock().expect("Poisoned lock");
+        let mut svc_status = tx.borrow().clone();
+        svc_status.publisher_state = state;
+        tx.maybe_send(|_| svc_status);
     }
 
     /// Return a copy of the current status.
