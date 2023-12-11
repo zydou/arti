@@ -246,14 +246,9 @@ impl<R: Runtime> ProxySet<R> {
         client: &arti_client::TorClient<R>,
         config_list: OnionServiceProxyConfigMap,
     ) -> anyhow::Result<Self> {
-        // TODO HSS: Perhaps OnionServiceProxyConfigList needs to enforce no
-        // duplicate nicknames?
         let proxies: HashMap<_, _> = config_list
-            .into_values()
-            .map(|cfg| {
-                let nickname = cfg.svc_cfg.nickname().clone();
-                Ok((nickname, Proxy::launch_new(client, cfg)?))
-            })
+            .into_iter()
+            .map(|(nickname, cfg)| Ok((nickname, Proxy::launch_new(client, cfg)?)))
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
         Ok(Self {
