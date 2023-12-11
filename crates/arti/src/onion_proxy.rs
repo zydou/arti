@@ -74,6 +74,9 @@ pub(crate) type OnionServiceProxyConfigMap = HashMap<HsNickname, OnionServicePro
 /// a map from nickname to `OnionServiceConfigBuilder`
 type ProxyBuilderMap = HashMap<HsNickname, OnionServiceProxyConfigBuilder>;
 
+// TODO: Someday we might want to have an API for a MapBuilder that is distinct
+// from that of a ListBuilder.  It would have to enforce that everything has a
+// key, and that keys are distinct.
 #[cfg(feature = "onion-service-service")]
 define_list_builder_helper! {
     pub struct OnionServiceProxyConfigMapBuilder {
@@ -129,10 +132,15 @@ impl TryFrom<ProxyBuilderMap> for OnionServiceProxyConfigMapBuilder {
 }
 
 impl From<OnionServiceProxyConfigMapBuilder> for ProxyBuilderMap {
+    /// Convert our Builder representation of a set of onion services into the
+    /// format that serde will serialize.
+    ///
+    /// Note: This is a potentially lossy conversion, since the serialized format
+    /// can't represent partially-built services without a nickname, or
+    /// a collection of services with duplicate nicknames.
     fn from(value: OnionServiceProxyConfigMapBuilder) -> Self {
         let mut map = HashMap::new();
         for cfg in value.services.into_iter().flatten() {
-            // TODO HSS: Validate that nicknames are unique, somehow.
             let nickname = cfg.0 .0.peek_nickname().cloned().unwrap_or_else(|| {
                 "Unnamed"
                     .to_string()
