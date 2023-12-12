@@ -896,8 +896,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                         // presenting them with possibly-suboptimal state.  That's fine.
                         // At some point we'll be poked to run again and then we'll retry.
                         /// Retry no later than this:
-                        const KEYSTORE_RETRY: Duration = Duration::from_secs(60);
-                        now.update(KEYSTORE_RETRY);
+                        const STORAGE_RETRY: Duration = Duration::from_secs(60);
+                        now.update(STORAGE_RETRY);
                         break;
                     }
                 }
