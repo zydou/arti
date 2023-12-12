@@ -70,7 +70,7 @@ impl<'e> AsRef<dyn StdError + 'static> for ReportHelper<'e> {
 /// This is implemented for types that directly implement [`std::error::Error`]` + 'static`.
 /// For types like `anyhow::Error` that `impl AsRef<dyn Error>`,
 /// use `tor_error::Report(err)` directly.
-pub trait ErrorReport: Sealed + StdError + Sized + 'static {
+pub trait ErrorReport: Sealed + StdError + 'static {
     /// Return an object that displays the error and its causes
     //
     // We would ideally have returned `Report<impl AsRef<...>>` but that's TAIT.
