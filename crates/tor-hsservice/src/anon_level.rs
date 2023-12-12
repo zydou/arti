@@ -16,8 +16,6 @@ pub enum Anonymity {
     ///
     /// Can be represented in a serde-based configuration as`"non_anonymous"`
     /// (case insensitive).
-    //
-    // TODO HSS: We may want to put this behind a feature?
     DangerouslyNonAnonymous,
 }
 
