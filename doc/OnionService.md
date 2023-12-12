@@ -9,6 +9,10 @@ This is a temporary document;
 we'll remove most of the limitations here as we do more development,
 and integrate these instructions elsewhere.
 
+**Do not follow these instructions**
+without looking at the Limitations section!
+There are many serious problems right now!
+
 ## Building arti with onion service support
 
 When you build arti, make sure that you enable the `onion-service-service`
@@ -117,10 +121,52 @@ Note that this is only logged on the first startup!
 
 ## Limitations
 
+Arti's Onion Service (hidden service) support is
+**suitable for testing and experimentation only**
+and should not be used for anything you care about.
+It
+**may even compromise the privacy of your other uses of the same Arti instance!**
+
+The limitations discussed here are only the most important ones.
+There are many missing features.
+
 ### Stability
 
 We expect that there will be some stability
 and reachability issues for now.
+You may experience bugs including internal errors and Rust stack backtraces.
+
+### Incompatibility with future versions of Arti
+
+We intend to change the on-disk key file formats, <!-- #1095 #1108 -->
+and perhaps the layout of the on-disk key storage. <!-- #1082 #1111 -->
+
+Therefore, when you upgrade to later versions of Arti
+you won't be able to use the same `.onion` domain!
+We currently don't have any plans to provide a convenient migration path.
+
+We may make other incompatible changes too,
+for example to the configuration format and command line options.
+
+### Persistent state (privacy, usability, and disk space hazards)
+
+Arti needs to generate and record various information on-disk
+as it operates your hidden service.
+Currently, there are many kinds of this state that nothing expires.
+So your state directory (probably in `~/.local`) will grow indefinitely.
+This is a privacy hazard; it's also bad for disk usage,
+although in a test deployment the amount of space used should be modest.
+
+Likewise,
+if you want to decomission a hidden service 
+you'll probably want to delete its state
+but there is no tooling for that.
+
+So, right now
+you'll have to manually remove things.
+But there is not even any documentation about what to safely remove.
+
+<!-- #1087 -->
 
 ### No client authorization
 
@@ -129,7 +175,7 @@ to let you enable client authorization.
 
 > (This is #1028.)
 
-### Missing security features
+### Missing security features; deanonymisation risks
 
 There are a *ton* of missing security featuers.
 You should not expect privacy (yet)
@@ -137,3 +183,24 @@ when you are running onion services with Arti.
 
 > TODO: List these
 
+ * Missing "Vanguard" support means that
+   operating a hidden service with Arti
+   might enable (or help) attackers to discover your Guard relays
+   and deanonymise you.
+   <!-- #98 -->
+
+ * No meaningful protection against denial of service attacks.
+   Rate limits, per-circuit connection limits, and memory limits,
+   are not implemented.
+   <!-- #102 #351 #102 #1124 -->
+
+### Rust API instability
+
+This HOWTO is for using the `arti` command line program.
+However, for the avoidance of doubt:
+the Tor Hidden Service and key management APIs
+in the Arti Rust codebase are quite unstable,
+as is indicated by the need to turn on experimental features.
+
+With those experimental features enabled
+we do not promise not to violate semver!
