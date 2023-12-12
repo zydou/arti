@@ -2,6 +2,7 @@
 #![allow(dead_code, unused_variables)] // TODO hss remove.
 pub(crate) mod netdir;
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
@@ -152,6 +153,7 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
+    #[allow(clippy::too_many_arguments)] // TODO HSS should there be a builder?
     pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
@@ -159,6 +161,8 @@ impl OnionService {
         circ_pool: Arc<HsCircPool<R>>,
         keymgr: Arc<KeyMgr>,
         statemgr: S,
+        state_dir: &Path,
+        state_mistrust: &fs_mistrust::Mistrust,
     ) -> Result<Arc<Self>, StartupError>
     where
         R: Runtime,
@@ -199,6 +203,8 @@ impl OnionService {
                 circ_pool: circ_pool.clone(),
             },
             keymgr.clone(),
+            state_dir,
+            state_mistrust,
         )?;
 
         // TODO HSS: add a config option for specifying whether to expect the KS_hsid to be stored

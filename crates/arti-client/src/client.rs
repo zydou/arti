@@ -49,6 +49,7 @@ use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
 use futures::StreamExt as _;
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
@@ -134,7 +135,13 @@ pub struct TorClient<R: Runtime> {
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
-    /// Location on disk where we store persistent data.
+    /// Location on disk where we store persistent data (raw directory).
+    #[cfg(feature = "onion-service-service")]
+    state_dir: PathBuf,
+    /// Location on disk where we store persistent data (raw directory).
+    #[cfg(feature = "onion-service-service")]
+    storage_mistrust: fs_mistrust::Mistrust,
+    /// Location on disk where we store persistent data (cooked state manager).
     statemgr: FsStateMgr,
     /// Client address configuration
     addrcfg: Arc<MutCfg<ClientAddrConfig>>,
@@ -713,6 +720,10 @@ impl<R: Runtime> TorClient<R> {
             bootstrap_in_progress: Arc::new(AsyncMutex::new(())),
             should_bootstrap: autobootstrap,
             dormant: Arc::new(Mutex::new(dormant_send)),
+            #[cfg(feature = "onion-service-service")]
+            state_dir,
+            #[cfg(feature = "onion-service-service")]
+            storage_mistrust: config.storage.permissions().clone(),
         })
     }
 
@@ -1373,6 +1384,9 @@ impl<R: Runtime> TorClient<R> {
             keymgr,
             // TODO HSS: Allow override of StateMgr for "ephemeral" operation?
             self.statemgr.clone(),
+            // TODO HSS: Allow override of state_dir for "ephemeral" operation?
+            &self.state_dir,
+            &self.storage_mistrust,
         )
         .map_err(ErrorDetail::LaunchOnionService)?;
         let stream = service.launch().map_err(ErrorDetail::LaunchOnionService)?;

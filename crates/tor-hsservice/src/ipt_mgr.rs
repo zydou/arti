@@ -11,6 +11,7 @@ use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -530,6 +531,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         storage: impl tor_persist::StateMgr + Send + Sync + 'static,
         mockable: M,
         keymgr: Arc<KeyMgr>,
+        state_dir: &Path,
+        state_mistrust: &fs_mistrust::Mistrust,
     ) -> Result<Self, StartupError> {
         let irelays = vec![]; // See TODO near persist::load call, in launch_background_tasks
 
@@ -538,6 +541,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         let (status_send, status_recv) = mpsc::channel(0);
 
         let storage = storage.create_handle(format!("hs_ipts_{nick}"));
+
+        let _for_replay_log = (state_dir, state_mistrust); // XXXX
 
         let imm = Immutable {
             runtime,
@@ -1716,9 +1721,16 @@ mod test {
                 estabs: estabs.clone(),
             };
 
+            let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
+
+            // Don't provide a subdir; the ipt_mgr is supposed to add any needed subdirs
+            let state_dir = temp_dir
+                // untracked is OK because our return value captures 'd
+                .subdir_untracked("state_dir");
+
             let state_mgr = tor_persist::FsStateMgr::from_path_and_mistrust(
-                temp_dir.subdir_untracked("storage"), // OK because our return value captures 'd
-                &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+                &state_dir,
+                &mistrust,
             )
             .unwrap();
 
@@ -1740,6 +1752,8 @@ mod test {
                 state_mgr,
                 mocks,
                 keymgr,
+                &state_dir,
+                &mistrust,
             )
             .unwrap();
 
