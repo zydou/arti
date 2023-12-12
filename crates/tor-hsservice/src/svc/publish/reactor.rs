@@ -73,11 +73,6 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 // TODO HSS: this value is probably not right.
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-/// The amount of time to wait before retrying a failed `upload_all()` task.
-//
-// TODO HSS: this value is probably not right.
-const RETRY_UPLOAD_DELAY: Duration = Duration::from_secs(5 * 60);
-
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
 /// The entrypoint is [`Reactor::run`].
@@ -673,17 +668,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // Our PublishStatus changed -- are we ready to publish?
                 if should_upload == PublishStatus::UploadScheduled {
                     self.update_publish_status_unless_waiting(PublishStatus::Idle).await?;
-                    if let Err(e) = self.upload_all().await {
-                        // TODO HSS: don't retry if the error is fatal
-                        error_report!(
-                            e,
-                            "failed to upload descriptor for HS service {}. Retrying in {}s",
-                            self.imm.nickname,
-                            RETRY_UPLOAD_DELAY.as_secs()
-                        );
-
-                        self.schedule_pending_upload(RETRY_UPLOAD_DELAY).await?;
-                    }
+                    self.upload_all().await?;
                 }
             }
         }
