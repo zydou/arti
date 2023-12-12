@@ -121,6 +121,7 @@ Note that this is only logged on the first startup!
 
 We expect that there will be some stability
 and reachability issues for now.
+You may experience bugs including internal errors and Rust stack backtraces.
 
 ### No client authorization
 
