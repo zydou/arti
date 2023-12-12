@@ -135,6 +135,26 @@ We currently don't have any plans to provide a convenient migration path.
 We may make other incompatible changes too,
 for example to the configuration format and command line options.
 
+### Persistent state (privacy, usability, and disk space hazards)
+
+Arti needs to generate and record various information on-disk
+as it operates your hidden service.
+Currently, there are many kinds of this state that nothing expires.
+So your state directory (probably in `~/.local`) will grow indefinitely.
+This is a privacy hazard; it's also bad for disk usage,
+although in a test deployment the amount of space used should be modest.
+
+Likewise,
+if you want to decomission a hidden service 
+you'll probably want to delete its state
+but there is no tooling for that.
+
+So, right now
+you'll have to manually remove things.
+But there is not even any documentation about what to safely remove.
+
+<!-- #1087 -->
+
 ### No client authorization
 
 There is no configuration logic (yet)
