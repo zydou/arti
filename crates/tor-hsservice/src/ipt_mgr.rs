@@ -954,7 +954,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 {
                     Ok(()) => return CONTINUE,
                     Err(CreateIptError::Fatal(fatal)) => return Err(fatal),
-                    Err(e @ (CreateIptError::Keystore(_) | CreateIptError::OpenReplayLog{..})) => {
+                    Err(
+                        e @ (CreateIptError::Keystore(_) | CreateIptError::OpenReplayLog { .. }),
+                    ) => {
                         error_report!(e, "HS {}: failed to prepare new IPT", &self.imm.nick);
                         // Let's not try any more of this.
                         // We'll run the rest of our "make progress" algorithms,
