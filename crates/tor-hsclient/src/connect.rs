@@ -1178,8 +1178,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         // Having received INTRODUCE_ACK. we can forget about this circuit
         // (and potentially tear it down).
-        //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914434
-        // TODO SPEC: State that intro circuit can be discarded after ACK
         drop(intro_circ);
 
         Ok((
