@@ -159,7 +159,7 @@ impl Buildable for ClientCirc {
         }
         #[cfg(not(feature = "ntor_v3"))]
         {
-            handshake_res = circ.create_firsthop_ntor(ct, params).await
+            handshake_res = circ.create_firsthop_ntor(ct, params).await;
         }
 
         handshake_res.map_err(|error| Error::Protocol {
