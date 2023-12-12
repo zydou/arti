@@ -129,13 +129,24 @@ to let you enable client authorization.
 
 > (This is #1028.)
 
-### Missing security features
+### Missing security features; deanonymisation risks
 
 There are a *ton* of missing security featuers.
 You should not expect privacy (yet)
 when you are running onion services with Arti.
 
 > TODO: List these
+
+ * Missing "Vanguard" support means that
+   operating a hidden service with Arti
+   might enable (or help) attackers to discover your Guard relays
+   and deanonymise you.
+   <!-- #98 -->
+
+ * No meaningful protection against denial of service attacks.
+   Rate limits, per-circuit connection limits, and memory limits,
+   are not implemented.
+   <!-- #102 #351 #102 #1124 -->
 
 ### Rust API instability
 
