@@ -548,7 +548,21 @@ where
                         .expect("non-optional nickname flag not specified?!");
 
                     if let Some(_onion_name_matches) = hss_matches.subcommand_matches("onion-name") {
-                        // TODO HSS: fetch the onion address and print it
+                        // TODO: this ignores the enabled flag in the keystore config. Should we print
+                        // an error if the keystore is disabled instead of reading from it anyway?
+                        let keystore_dir = client_config.keystore().expand_keystore_dir()?;
+                        let state_mgr =
+                            tor_hsservice::StateMgr::new(keystore_dir, client_config.fs_mistrust())?;
+
+                        let nickname = tor_hsservice::HsNickname::try_from(nickname.clone())?;
+
+                        // TODO HSS: instead of the printlns here, we should have a formatter type that
+                        // decides how to display the output
+                        if let Some(onion) = state_mgr.onion_name(&nickname) {
+                            println!("{onion}");
+                        } else {
+                            println!("Service {nickname} does not exit, or does not have an K_hsid yet");
+                        }
 
                         return Ok(());
                     }
