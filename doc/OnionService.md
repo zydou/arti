@@ -137,3 +137,13 @@ when you are running onion services with Arti.
 
 > TODO: List these
 
+### Rust API instability
+
+This HOWTO is for using the `arti` command line program.
+However, for the avoidance of doubt:
+the Tor Hidden Service and key management APIs
+in the Arti Rust codebase are quite unstable,
+as is indicated by the need to turn on experimental features.
+
+With those experimental features enabled
+we do not promise not to violate semver!
