@@ -4,6 +4,7 @@ use derive_adhoc::Adhoc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, ops::RangeInclusive, path::PathBuf, str::FromStr};
+use tracing::warn;
 //use tor_config::derive_adhoc_template_Flattenable;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 
@@ -38,11 +39,29 @@ impl ProxyConfigBuilder {
             covered.insert(range.clone());
         }
 
-        // TODO: Eventually we may want to warn if there are no `Forward`
-        // rules, or if the rule list is empty, since this is likely an
-        // accident.
-        //
-        // See arti#1154
+        // Warn about proxy setups that are likely to be surprising.
+        let mut any_forward = false;
+        for rule in self.proxy_ports.access_opt().iter().flatten() {
+            if let ProxyAction::Forward(_, target) = &rule.target {
+                any_forward = true;
+                if !target.is_sufficiently_private() {
+                    // TODO: here and below, we might want to someday
+                    // have a mechanism to suppress these warnings,
+                    // or have them show up only when relevant.
+                    // For now they are unconditional.
+                    // See discussion at #1154.
+                    warn!(
+                        "Onion service target {} does not look like a private address. \
+                         Do you really mean to send connections onto the public internet?",
+                        target
+                    );
+                }
+            }
+        }
+
+        if !any_forward {
+            warn!("Onion service is not configured to accept any connections.");
+        }
 
         Ok(())
     }
@@ -233,12 +252,27 @@ pub enum ProxyAction {
 #[non_exhaustive]
 pub enum TargetAddr {
     /// An address that we can reach over the internet.
-    //
-    // TODO: should we warn if this is a public address?
-    // See arti#1154.
     Inet(SocketAddr),
     /// An address of a local unix socket.
     Unix(PathBuf),
+}
+
+impl TargetAddr {
+    /// Return true if this target is sufficiently private that we can be
+    /// reasonably sure that the user has not misconfigured their onion service
+    /// to relay traffic onto the public network.
+    fn is_sufficiently_private(&self) -> bool {
+        use std::net::IpAddr;
+        match self {
+            TargetAddr::Unix(_) => true,
+
+            // NOTE: We may want to relax these rules in the future!
+            TargetAddr::Inet(sa) => match sa.ip() {
+                IpAddr::V4(ip) => ip.is_loopback() || ip.is_unspecified() || ip.is_private(),
+                IpAddr::V6(ip) => ip.is_loopback() || ip.is_unspecified(),
+            },
+        }
+    }
 }
 
 impl FromStr for TargetAddr {
