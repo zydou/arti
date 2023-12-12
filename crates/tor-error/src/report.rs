@@ -74,12 +74,14 @@ pub trait ErrorReport: Sealed + StdError + Sized + 'static {
     /// Return an object that displays the error and its causes
     //
     // We would ideally have returned `Report<impl AsRef<...>>` but that's TAIT.
+    fn report(&self) -> Report<ReportHelper>;
+}
+impl<E: StdError + Sized + 'static> Sealed for E {}
+impl<E: StdError + Sized + 'static> ErrorReport for E {
     fn report(&self) -> Report<ReportHelper> {
         Report(ReportHelper(self as _))
     }
 }
-impl<E: StdError + Sized + 'static> Sealed for E {}
-impl<E: StdError + Sized + 'static> ErrorReport for E {}
 
 /// Defines `AsRef<dyn StdError + 'static>` for a type implementing [`StdError`]
 ///
