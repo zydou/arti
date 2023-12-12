@@ -131,7 +131,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
-      - -o=proxy.socks_port=9000
+      - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
       - -l debug,tor_proto=trace
       environment:
@@ -154,7 +154,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
-      - -o=proxy.socks_port=9000
+      - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace
       environment:
@@ -179,7 +179,7 @@ hosts:
       - proxy
       - -c=./arti.d/arti.common.toml
       - -c=./arti.d/arti.bridge.toml
-      - -o=proxy.socks_port=9000
+      - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace
       environment:
@@ -201,7 +201,7 @@ hosts:
       - proxy
       - -c=./arti.d/arti.common.toml
       - -c=./arti.d/arti.onion.toml
-      - -o proxy.socks_port=9000
+      - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
       - -l debug,tor_proto=trace
       environment:
@@ -223,7 +223,7 @@ hosts:
       - proxy
       - -c=./arti.d/arti.common.toml
       - -c=./arti.d/arti.onion.toml
-      - -o=proxy.socks_port=9000
+      - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace
       environment:
