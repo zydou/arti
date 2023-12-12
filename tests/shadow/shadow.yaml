@@ -46,6 +46,16 @@ hosts:
   fileserver-onion-arti:
     network_node_id: 0
     processes:
+    # Workaround for
+    # https://gitlab.torproject.org/tpo/core/arti/-/issues/1170
+    #
+    # arti currently doesn't register its hidden service until it's used as a socks proxy.
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.toronionclient.graphml.xml
+      start_time: 20m
+    # tgen server process
     - path: tgen
       # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
       environment: { OPENBLAS_NUM_THREADS: "1" }
@@ -236,6 +246,28 @@ hosts:
       # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
       environment: { OPENBLAS_NUM_THREADS: "1" }
       args: ../../../conf/tgen.toronionclient.graphml.xml
+      start_time: 1500
+  # arti client connecting to the arti onion service
+  articlient-onion-artiserver:
+    network_node_id: 0
+    processes:
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+      args:
+      - proxy
+      - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.onion.toml
+      - -o=proxy.socks_listen="127.0.0.1:9000"
+      - --disable-fs-permission-checks
+      - -l debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 15m
+      expected_final_state: running
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.artionionclient.graphml.xml
       start_time: 1500
   articlient-onion-auth:
     network_node_id: 0
