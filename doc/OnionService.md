@@ -112,6 +112,8 @@ Note that this is only logged on the first startup!
 > NOTE: It might be a good idea to have a
 > "starting onion service with existing ID {}"
 > message for now.
+> (We have one now, but it is at `trace`;
+> `info` would be cleverer until we have the CLI sorted.)
 
 ## Limitations
 
@@ -125,9 +127,13 @@ and reachability issues for now.
 There is no configuration logic (yet)
 to let you enable client authorization.
 
+> (This is #1028.)
+
 ### Missing security features
 
 There are a *ton* of missing security featuers.
 You should not expect privacy (yet)
 when you are running onion services with Arti.
+
+> TODO: List these
 
