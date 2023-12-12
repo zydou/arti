@@ -1,6 +1,4 @@
 //! Configuration information for onion services.
-//
-// TODO HSS: We may want rename some of the types and members here!
 
 use base64ct::{Base64Unpadded, Encoding as _};
 use derive_adhoc::Adhoc;
@@ -23,13 +21,7 @@ use crate::HsNickname;
 #[builder(derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq))]
 #[builder_struct_attr(derive_adhoc(tor_config::Flattenable))]
 pub struct OnionServiceConfig {
-    /// The nickname used to look up this service's keys, state, configuration, etc,
-    //
-    // TODO HSS: It's possible that instead of having this be _part_ of the
-    // service's configuration, we want this to be the key for a map in
-    // which the service's configuration is stored.  We'll see how the code
-    // evolves.
-    // (^ ipt_mgr::IptManager contains a copy of this nickname, that should be fixed too)
+    /// The nickname used to look up this service's keys, state, configuration, etc.
     pub(crate) nickname: HsNickname,
 
     // TODO HSS: Perhaps this belongs at a higher level.
@@ -62,15 +54,15 @@ pub struct OnionServiceConfig {
     /// this service?
     #[builder(default = "65535")]
     max_concurrent_streams_per_circuit: u32,
-    //  --- The POW items are disabled for now, since they aren't implemented.
+    // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
     // // enable_pow: bool,
     // /// Disable the compiled backend for proof-of-work.
     // // disable_pow_compilation: bool,
 
-    // TODO HSS: C tor has this, but I don't know if we want it.
+    // TODO POW: C tor has this, but I don't know if we want it.
     //
-    // TODO HSS: It's possible that we want this to relate, somehow, to our
+    // TODO POW: It's possible that we want this to relate, somehow, to our
     // rate_limit_at_intro settings.
     //
     // /// A rate-limit on dispatching requests from the request queue when
@@ -92,7 +84,7 @@ pub struct OnionServiceConfig {
     // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
     //
     // TODO HSS: Do we want a "descriptor_lifetime" setting? C tor doesn't have
-    // one.
+    // one. See TODOS on IPT_PUBLISH_{,UN}CERTAIN.
 }
 
 impl OnionServiceConfig {
@@ -118,8 +110,15 @@ impl OnionServiceConfig {
             other.nickname = self.nickname.clone();
         }
         if self.anonymity != other.anonymity {
-            // TODO HSS: C Tor absolutely forbids changing between different
-            // values here.  We may want to ease this requirement.
+            // Note: C Tor absolutely forbids changing between different
+            // values here.
+            //
+            // The rationale thinking here is that if you have ever published a
+            // given service non-anonymously, it is de-anonymized forever, and
+            // that if you ever de-anonymize a service, you are de-anonymizing
+            // it retroactively.
+            //
+            // We may someday want to ease this behavior.
             how.cannot_change("anonymity")?;
             other.anonymity = self.anonymity;
         }
@@ -183,7 +182,7 @@ impl OnionServiceConfigBuilder {
 
 /// Configure a token-bucket style limit on some process.
 //
-// TODO HSS: possibly lower this; it will be used in far more places.
+// TODO: Someday we may wish to lower this; it will be used in far more places.
 //
 // TODO: Do we want to parameterize this, or make it always u32?  Do we want to
 // specify "per second"?
