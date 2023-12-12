@@ -68,8 +68,10 @@ impl<'e> AsRef<dyn StdError + 'static> for ReportHelper<'e> {
 /// Extension trait providing `.report()` method on concrete errors
 ///
 /// This is implemented for types that directly implement [`std::error::Error`]` + 'static`.
-/// For types like `anyhow::Error` that `impl AsRef<dyn Error>`,
-/// use `tor_error::Report(err)` directly.
+///
+/// For types like `anyhow::Error` that `impl Deref<Target = dyn Error...>`,
+/// you can use `tor_error::Report(err)` directly,
+/// but you can also call `.report()` via the impl of this trait for `dyn Error`.
 pub trait ErrorReport: Sealed + StdError + 'static {
     /// Return an object that displays the error and its causes
     //
