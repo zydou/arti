@@ -38,6 +38,9 @@ pub(crate) async fn wait_for_netdir(
 }
 
 /// Wait until `provider` lists `target`.
+///
+/// NOTE: This might potentially wait indefinitely, if `target` is never actually
+/// becomes listed in the directory.  It will exit if the `NetDirProvider` shuts down.
 pub(crate) async fn wait_for_netdir_to_list(
     provider: &dyn NetDirProvider,
     target: &RelayIds,
@@ -49,16 +52,18 @@ pub(crate) async fn wait_for_netdir_to_list(
         // We do this before waiting for any events, to avoid race conditions.
         {
             let netdir = wait_for_netdir(provider, tor_netdir::Timeliness::Timely).await?;
-            // TODO HSS: Perhaps we should distinguish Some(false) from None.
-            //
-            // Some(false) means "this relay is definitely not in the current
-            // network directory" and None means "waiting for more info on this
-            // network directory"
             if netdir.ids_listed(target) == Some(true) {
                 return Ok(());
             }
+            // If we reach this point, then ids_listed returned `Some(false)`,
+            // meaning "This relay is definitely not in the current directory";
+            // or it returned `None`, meaning "waiting for more information
+            // about this network directory.
+            // In both cases, it's reasonable to just wait for another netdir
+            // event and try again.
         }
-        // We didn't find the relay; wait for the provider to have a new netdir.
+        // We didn't find the relay; wait for the provider to have a new netdir
+        // or more netdir information.
         if events.next().await.is_none() {
             // The event stream is closed; the provider has shut down.
             return Err(NetdirProviderShutdown);
