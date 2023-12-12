@@ -1722,7 +1722,8 @@ mod test {
             )
             .unwrap();
 
-            let (state_mgr, iptpub_state_handle) = create_storage_handles_from_state_mgr(state_mgr, &nick);
+            let (state_mgr, iptpub_state_handle) =
+                create_storage_handles_from_state_mgr(state_mgr, &nick);
 
             let (mgr_view, pub_view) =
                 ipt_set::ipts_channel(&runtime, iptpub_state_handle).unwrap();
