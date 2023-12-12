@@ -37,6 +37,9 @@ thiserror = "1"
 tracing = { version = "0.1.36", optional = true }
 
 [dev-dependencies]
+anyhow = "1.0.72"
+tracing-test = "0.2"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

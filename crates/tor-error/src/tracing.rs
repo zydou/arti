@@ -162,3 +162,38 @@ define_report_macros! {
     $ [@raw] warn
       [@raw] error
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use crate::report::ErrorReport;
+    use thiserror::Error;
+    use tracing_test::traced_test;
+
+    #[derive(Error, Debug)]
+    #[error("my error")]
+    struct MyError;
+
+    #[test]
+    #[traced_test]
+    fn warn_report() {
+        let me = MyError;
+        let _ = me.report();
+        warn_report!(me, "reporting unwrapped");
+
+        let ae = anyhow::Error::from(me).context("context");
+        let _ = ae.report();
+        warn_report!(ae, "reporting anyhow");
+    }
+}

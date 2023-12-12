@@ -3,6 +3,8 @@
 use std::error::Error as StdError;
 use std::fmt::{self, Debug, Display};
 
+use crate::sealed::Sealed;
+
 /// Wraps any Error, providing a nicely-reporting Display impl
 #[derive(Debug, Copy, Clone)]
 #[allow(clippy::exhaustive_structs)] // this is a transparent wrapper
@@ -66,17 +68,29 @@ impl<'e> AsRef<dyn StdError + 'static> for ReportHelper<'e> {
 /// Extension trait providing `.report()` method on concrete errors
 ///
 /// This is implemented for types that directly implement [`std::error::Error`]` + 'static`.
-/// For types like `anyhow::Error` that `impl AsRef<dyn Error>`,
-/// use `tor_error::Report(err)` directly.
-pub trait ErrorReport: StdError + Sized + 'static {
+///
+/// For types like `anyhow::Error` that `impl Deref<Target = dyn Error...>`,
+/// you can use `tor_error::Report(err)` directly,
+/// but you can also call `.report()` via the impl of this trait for `dyn Error`.
+pub trait ErrorReport: Sealed + StdError + 'static {
     /// Return an object that displays the error and its causes
     //
     // We would ideally have returned `Report<impl AsRef<...>>` but that's TAIT.
+    fn report(&self) -> Report<ReportHelper>;
+}
+impl<E: StdError + Sized + 'static> Sealed for E {}
+impl<E: StdError + Sized + 'static> ErrorReport for E {
     fn report(&self) -> Report<ReportHelper> {
         Report(ReportHelper(self as _))
     }
 }
-impl<E: StdError + Sized + 'static> ErrorReport for E {}
+impl Sealed for dyn StdError + Send + Sync {}
+/// Implementation for `anyhow::Error`, which derefs to `dyn StdError`.
+impl ErrorReport for dyn StdError + Send + Sync {
+    fn report(&self) -> Report<ReportHelper> {
+        Report(ReportHelper(self))
+    }
+}
 
 /// Defines `AsRef<dyn StdError + 'static>` for a type implementing [`StdError`]
 ///

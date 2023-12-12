@@ -5048,6 +5048,7 @@ dependencies = [
 name = "tor-error"
 version = "0.5.5"
 dependencies = [
+ "anyhow",
  "backtrace",
  "derive_more",
  "futures",
@@ -5058,6 +5059,7 @@ dependencies = [
  "strum",
  "thiserror",
  "tracing",
+ "tracing-test",
 ]
 
 [[package]]
