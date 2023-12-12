@@ -9,9 +9,10 @@ use std::any::Any;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
+use std::io;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -21,6 +22,7 @@ use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
+use fslock::LockFile;
 use itertools::Itertools as _;
 use postage::{broadcast, watch};
 use rand::Rng;
@@ -109,6 +111,20 @@ pub(crate) struct Immutable<R> {
     /// The key manager.
     #[educe(Debug(ignore))]
     keymgr: Arc<KeyMgr>,
+
+    /// Replay log directory
+    ///
+    /// Files are named after the (bare) IptLocalId
+    #[educe(Debug(ignore))]
+    replay_log_dir: fs_mistrust::CheckedDir,
+
+    /// Lockfile on the replay log directory
+    ///
+    /// `lock` in `replay_log_dir`.
+    ///
+    /// **Must have been locked** and this cannot be assured by the type system.
+    #[educe(Debug(ignore))]
+    replay_log_lock: Arc<LockFile>,
 }
 
 /// State of an IPT Manager
@@ -430,10 +446,17 @@ impl Ipt {
             started: imm.runtime.now(),
         };
 
-        // TODO HSS: This should actually be persistent!  We want to use a
-        // separate file for each (KP_hss_ntor) key, and use the same file
-        // for every KP_hss_ntor key.
-        let replay_log = ReplayLog::new_ephemeral();
+        // TODO HSS: Support ephemeral services (without persistent replay log)
+        let replay_log = {
+            let replay_log = imm.replay_log_dir.as_path().join(format!("{lid}.bin"));
+
+            ReplayLog::new_logged(&replay_log, imm.replay_log_lock.clone()).map_err(|error| {
+                CreateIptError::OpenReplayLog {
+                    file: replay_log,
+                    error: error.into(),
+                }
+            })?
+        };
 
         let params = IptParameters {
             replay_log,
@@ -542,7 +565,37 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         let storage = storage.create_handle(format!("hs_ipts_{nick}"));
 
-        let _for_replay_log = (state_dir, state_mistrust); // XXXX
+        let (replay_log_dir, replay_log_lock) = {
+            // TODO HSS something should expire these! (and our keys too, obviously)
+            let dir = state_dir.join(format!("hss_iptreplay/{nick}"));
+            let dir = state_mistrust
+                .verifier()
+                .make_secure_dir(dir)
+                .map_err(StartupError::StateDirectoryInaccessible)?;
+            let lock_path = dir.as_path().join("lock");
+            let handle_lockfile_io_error = |action| {
+                let lock_path = lock_path.clone();
+                move |error| {
+                    StartupError::StateDirectoryInaccessible(fs_mistrust::Error::Io {
+                        action,
+                        filename: lock_path,
+                        err: Arc::new(error),
+                    })
+                }
+            };
+            let mut lock =
+                LockFile::open(&lock_path).map_err(handle_lockfile_io_error("opening lockfile"))?;
+            // Lockfile::try_lock is a beartrap which returns Result<bool, ..>
+            let () = lock
+                .try_lock()
+                .map_err(handle_lockfile_io_error("locking lockfile"))?
+                .then_some(())
+                .ok_or_else(|| StartupError::StateLocked)?;
+
+            let lock = Arc::new(lock);
+
+            (dir, lock)
+        };
 
         let imm = Immutable {
             runtime,
@@ -552,6 +605,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             output_rend_reqs,
             keymgr,
             storage,
+            replay_log_dir,
+            replay_log_lock,
         };
         let current_config = config.borrow().clone();
 
@@ -656,6 +711,16 @@ enum CreateIptError {
     /// Error accessing keystore
     #[error("problems with keystores")]
     Keystore(#[from] tor_keymgr::Error),
+
+    /// Error opening the intro request replay log
+    #[error("unable to open the intro req replay log: {file:?}")]
+    OpenReplayLog {
+        /// What filesystem object we tried to do it to
+        file: PathBuf,
+        /// What happened
+        #[source]
+        error: Arc<io::Error>,
+    },
 }
 
 impl<R: Runtime, M: Mockable<R>> State<R, M> {
@@ -889,7 +954,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 {
                     Ok(()) => return CONTINUE,
                     Err(CreateIptError::Fatal(fatal)) => return Err(fatal),
-                    Err(e @ CreateIptError::Keystore(_)) => {
+                    Err(e @ (CreateIptError::Keystore(_) | CreateIptError::OpenReplayLog{..})) => {
                         error_report!(e, "HS {}: failed to prepare new IPT", &self.imm.nick);
                         // Let's not try any more of this.
                         // We'll run the rest of our "make progress" algorithms,
