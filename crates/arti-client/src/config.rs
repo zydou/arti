@@ -700,6 +700,11 @@ impl TorClientConfig {
     pub fn fs_mistrust(&self) -> &Mistrust {
         self.storage.permissions()
     }
+
+    /// Return the keystore config
+    pub fn keystore(&self) -> ArtiNativeKeystoreConfig {
+        self.storage.keystore()
+    }
 }
 
 impl TorClientConfigBuilder {
