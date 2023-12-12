@@ -757,3 +757,9 @@ impl HasKind for futures::task::SpawnError {
         }
     }
 }
+
+/// Sealed
+mod sealed {
+    /// Sealed
+    pub trait Sealed {}
+}
