@@ -267,6 +267,10 @@ impl TargetAddr {
             TargetAddr::Unix(_) => true,
 
             // NOTE: We may want to relax these rules in the future!
+            // NOTE: Contrast this with is_local in arti_client::address,
+            // which has a different purpose. Also see #1159.
+            // The purpose of _this_ test is to make sure that the address is
+            // one that will _probably_ not go over the public internet.
             TargetAddr::Inet(sa) => match sa.ip() {
                 IpAddr::V4(ip) => ip.is_loopback() || ip.is_unspecified() || ip.is_private(),
                 IpAddr::V6(ip) => ip.is_loopback() || ip.is_unspecified(),

@@ -420,7 +420,12 @@ impl Host {
     fn is_local(&self) -> bool {
         match self {
             Host::Hostname(name) => name.eq_ignore_ascii_case("localhost"),
-            // TODO: use is_global once it's stable.
+            // TODO: use is_global once it's stable, perhaps.
+            // NOTE: Contrast this with is_sufficiently_private in tor-hsproxy,
+            // which has a different purpose. Also see #1159.
+            // The purpose of _this_ test is to find addresses that cannot
+            // meaningfully be connected to over Tor, and that the exit
+            // will not accept.
             Host::Ip(IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private(),
             Host::Ip(IpAddr::V6(ip)) => ip.is_loopback(),
             Host::Onion(_) => false,
