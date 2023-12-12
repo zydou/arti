@@ -323,8 +323,7 @@ where
         }
     );
 
-    let clap_app =
-        Command::new("Arti")
+    let clap_app = Command::new("Arti")
             .version(env!("CARGO_PKG_VERSION"))
             .long_version(long_version)
             .author("The Tor Project Developers")
@@ -391,9 +390,36 @@ where
                             .value_name("PORT")
                             .help("Port to listen on for DNS request (overrides the port in the config if specified).")
                     )
+            );
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-service")] {
+            let clap_app = clap_app.subcommand(
+                Command::new("hss")
+                    .about(
+                        "Run state management commands for an Arti hidden service",
+                    )
+                    .arg(
+                        Arg::new("nickname")
+                            .short('n')
+                            .long("nickname")
+                            .action(ArgAction::Set)
+                            .value_name("HS_NICKNAME")
+                            .required(true)
+                            .help("The nickname of the service")
+                    )
+                    .subcommand_required(true)
+                    .subcommand(
+                        Command::new("onion-name")
+                            .about(
+                                "Print the .onion address of a hidden service",
+                            )
+                    )
             )
             .subcommand_required(true)
             .arg_required_else_help(true);
+        }
+    }
 
     // Tracing doesn't log anything when there is no subscriber set.  But we want to see
     // logging messages from config parsing etc.  We can't set the global default subscriber
@@ -512,6 +538,24 @@ where
         ))?;
         Ok(())
     } else {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "onion-service-service")] {
+                // TODO HSS: this will soon grow more complex, so all of the code for handling the
+                // hss subcommand should probably be extracted in a separate module
+                if let Some(hss_matches) = matches.subcommand_matches("hss") {
+                    let nickname = hss_matches
+                        .get_one::<String>("nickname")
+                        .expect("non-optional nickname flag not specified?!");
+
+                    if let Some(_onion_name_matches) = hss_matches.subcommand_matches("onion-name") {
+                        // TODO HSS: fetch the onion address and print it
+
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
         panic!("Subcommand added to clap subcommand list, but not yet implemented")
     }
 }
