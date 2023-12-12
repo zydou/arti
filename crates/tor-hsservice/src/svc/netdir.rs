@@ -22,7 +22,9 @@ pub(crate) async fn wait_for_netdir(
         // We need to retry `provider.netdir()` before waiting for any stream events, to
         // avoid deadlock.
         //
-        // TODO HSS: propagate _some_ possible errors here.
+        // We ignore all errors here: they can all potentially be fixed by
+        // getting a fresh consensus, and they will all get warned about
+        // by the NetDirProvider itself.
         if let Ok(nd) = provider.netdir(timeliness) {
             return Ok(nd);
         }
