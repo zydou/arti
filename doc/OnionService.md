@@ -123,6 +123,18 @@ We expect that there will be some stability
 and reachability issues for now.
 You may experience bugs including internal errors and Rust stack backtraces.
 
+### Incompatibility with future versions of Arti
+
+We intend to change the on-disk key file formats, <!-- #1095 #1108 -->
+and perhaps the layout of the on-disk key storage. <!-- #1082 #1111 -->
+
+Therefore, when you upgrade to later versions of Arti
+you won't be able to use the same `.onion` domain!
+We currently don't have any plans to provide a convenient migration path.
+
+We may make other incompatible changes too,
+for example to the configuration format and command line options.
+
 ### No client authorization
 
 There is no configuration logic (yet)
