@@ -1728,11 +1728,8 @@ mod test {
                 // untracked is OK because our return value captures 'd
                 .subdir_untracked("state_dir");
 
-            let state_mgr = tor_persist::FsStateMgr::from_path_and_mistrust(
-                &state_dir,
-                &mistrust,
-            )
-            .unwrap();
+            let state_mgr =
+                tor_persist::FsStateMgr::from_path_and_mistrust(&state_dir, &mistrust).unwrap();
 
             let (state_mgr, iptpub_state_handle) =
                 create_storage_handles_from_state_mgr(state_mgr, &nick);
