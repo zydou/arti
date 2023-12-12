@@ -270,11 +270,8 @@ impl<R: Runtime> ProxySet<R> {
                         Ok(new_proxy) => {
                             ent.insert(new_proxy);
                         }
-                        // TODO HSS: I'd like to use warn_report(), but it seems
-                        // that anyhow::Error doesn't implement the right
-                        // traits.
                         Err(err) => {
-                            tracing::warn!("Unable to launch onion service {}: {}", ent.key(), err);
+                            warn_report!(err, "Unable to launch onion service {}", ent.key());
                         }
                     }
                 }
