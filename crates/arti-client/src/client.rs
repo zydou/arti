@@ -537,11 +537,8 @@ impl<R: Runtime> TorClient<R> {
             c.extensions = dirmgr_extensions;
             c
         };
-        let statemgr = FsStateMgr::from_path_and_mistrust(
-            &state_dir,
-            config.storage.permissions(),
-        )
-        .map_err(ErrorDetail::StateMgrSetup)?;
+        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, config.storage.permissions())
+            .map_err(ErrorDetail::StateMgrSetup)?;
         // Try to take state ownership early, so we'll know if we have it.
         // (At this point we don't yet care if we have it.)
         let _ignore_status = statemgr.try_lock().map_err(ErrorDetail::StateMgrSetup)?;
