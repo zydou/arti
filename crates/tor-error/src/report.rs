@@ -82,6 +82,13 @@ impl<E: StdError + Sized + 'static> ErrorReport for E {
         Report(ReportHelper(self as _))
     }
 }
+impl Sealed for dyn StdError + Send + Sync {}
+/// Implementation for `anyhow::Error`, which derefs to `dyn StdError`.
+impl ErrorReport for dyn StdError + Send + Sync {
+    fn report(&self) -> Report<ReportHelper> {
+        Report(ReportHelper(self))
+    }
+}
 
 /// Defines `AsRef<dyn StdError + 'static>` for a type implementing [`StdError`]
 ///
