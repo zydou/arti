@@ -9,6 +9,10 @@ This is a temporary document;
 we'll remove most of the limitations here as we do more development,
 and integrate these instructions elsewhere.
 
+**Do not follow these instructions**
+without looking at the Limitations section!
+There are many serious problems right now!
+
 ## Building arti with onion service support
 
 When you build arti, make sure that you enable the `onion-service-service`
@@ -116,6 +120,15 @@ Note that this is only logged on the first startup!
 > `info` would be cleverer until we have the CLI sorted.)
 
 ## Limitations
+
+Arti's Onion Service (hidden service) support is
+**suitable for testing and experimentation only**
+and should not be used for anything you care about.
+It
+**may even compromise the privacy of your other uses of the same Arti instance!**
+
+The limitations discussed here are only the most important ones.
+There are many missing features.
 
 ### Stability
 
