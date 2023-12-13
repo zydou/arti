@@ -2,7 +2,7 @@
 title: Compiling for Android
 ---
 
-# Compilation Arti for Android
+# Compiling Arti for Android
 
 ## Limitations
 At the moment of writing this guide, Arti does not have a stable Rust API yet. For that reason, no proper bindings are provided.
