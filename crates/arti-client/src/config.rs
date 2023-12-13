@@ -200,7 +200,7 @@ pub struct StorageConfig {
     //
     // TODO HSS: try to use #[serde(into / try_from)] instead (and also move the deserialization
     // code to tor-keymgr).
-    #[cfg(feature = "experimental-api")] // TODO HSS: make this unconditional
+    #[cfg(any(feature = "keymgr", feature = "experimental-api"))] // TODO HSS: make this unconditional
     #[builder(default)]
     #[builder_field_attr(serde(default))]
     keystore: ArtiNativeKeystoreConfig,
@@ -247,14 +247,12 @@ impl StorageConfig {
     /// Return the keystore config
     #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn keystore(&self) -> ArtiNativeKeystoreConfig {
-        #[cfg(feature = "experimental-api")]
-        {
-            self.keystore.clone()
-        }
-
-        #[cfg(not(feature = "experimental-api"))]
-        {
-            Default::default()
+        cfg_if::cfg_if! {
+            if #[cfg(any(feature="keymgr", feature="experimental-api"))] {
+                self.keystore.clone()
+            } else {
+                Default::default()
+            }
         }
     }
     /// Return the FS permissions to use for state and cache directories.
@@ -732,7 +730,7 @@ impl TorClientConfigBuilder {
         // Note this will involve writing a custom deserializer for StorageConfig (if
         // `storage.keystore.path` is missing from the config, it will need to be initialized using
         // the value we deserialized for `storage.state_dir` rather than a static default value).
-        #[cfg(feature = "experimental-api")]
+        #[cfg(any(feature = "keymgr", feature = "experimental-api"))]
         {
             use tor_keymgr::config::arti::ArtiNativeKeystoreConfigBuilder;
 
@@ -1027,7 +1025,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "experimental-api")]
+    #[cfg(any(feature = "keymgr", feature = "experimental-api"))]
     fn from_directories_keystore_dir() {
         let builder =
             TorClientConfigBuilder::from_directories("/home/bob/state", "/home/bob/cache");

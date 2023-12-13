@@ -21,13 +21,8 @@ features, as in:
 
 ```
 cargo build -p arti --release \
-    --features=onion-service-service,experimental
+    --features=onion-service-service
 ```
-
-> BUG:
-> "experimental" shouldn't be necessary here, but we don't actually
-> get all the keymgr stuff in arti-client unless it's present,
-> I think.
 
 ## Configuring your onion service(s)
 
