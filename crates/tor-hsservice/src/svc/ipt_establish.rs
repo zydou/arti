@@ -796,6 +796,11 @@ impl<R: Runtime> Reactor<R> {
 
         let (established_tx, established_rx) = oneshot::channel();
 
+        // In theory there ought to be only one IptMsgHandler in existence at any one time,
+        // for any one IptLocalId (ie for any one ReplayLog).  However, the teardown
+        // arrangements are (i) complicated (so might have bugs) and (ii) asynchronous
+        // (so we need to synchronise).  Therefore:
+        //
         // Make sure we don't start writing to the replay log until any previous
         // IptMsgHandler has been torn down.  (Using an async mutex means we
         // don't risk blocking the whole executor even if we have teardown bugs.)
