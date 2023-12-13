@@ -1502,6 +1502,8 @@ struct HsDirUploadStatus {
 }
 
 /// The outcome of uploading a descriptor.
+//
+// TODO: consider making this a type alias for Result<(), ()>
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum UploadStatus {
     /// The descriptor upload succeeded.
