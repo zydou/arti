@@ -8,13 +8,15 @@ The main reason for simulating failures is to ensure that Arti's behavior is "ge
 
 Here "generally reasonable" means that we aren't making a huge number of connections to the network or wasting a huge amount of bandwidth. Similarly, we shouldn't be using huge amounts of CPU, or filling up the logs at level `info` or higher.
 
-It's an extra benefit if we can ensure that our bootstrap reporting mechanisms give us accurate feedback in these cases, and diagnose the problem accurately.
+The primary purpose of simulating failures is to verify that Arti behaves appropriately in scenarios where the network is down or misconfigured, or when the localhost setup is confusing. This includes avoiding excessive network connections, bandwidth consumption, CPU usage, and preventing log overflow at levels `info` or higher.
 
-Most of the examples here will use the [`arti-testing`](https://tpo.pages.torproject.net/core/doc/rust/arti_testing/index.html) tool.  Some will also use a small Chutney network. In either case, you'll need an explicit client configuration, since `arti-testing` doesn't want you to use the default; we'll assume you've put it in `${ARTI_CONF}`.
+It iss an extra benefit if we can ensure that our bootstrap reporting mechanisms give us accurate feedback in these cases, and diagnose the problem accurately.
 
-Note that you shouldn't *need* to use chutney in these cases if Arti is in fact well-behaved. However, it's courteous to do so if you think there might be problems in Arti's behavior because you wouldn't want to flood the real network.
+Most of the examples here will use the [`arti-testing`](https://tpo.pages.torproject.net/core/doc/rust/arti_testing/index.html) tool.  Some will also use a small Chutney network. In either case, you'll need an explicit client configuration, since `arti-testing` does not want you to use the default; we'll assume you've put it in `${ARTI_CONF}`.
 
-This guide explains how to simulate different kinds of bootstrapping and network failures in Arti. However, it assumes that you have a Linux environment.
+**Note:** You would not *need* to use chutney in these cases if Arti is in fact well-behaved. Although, it is helpful to do so if you think there might be problems in Arti's behavior because you would not want to flood the real network.
+
+This guide assumes that you have a Linux environment, and explains how to simulate different kinds of bootstrapping and network failures in Arti.
 
 ## What to look at
 
@@ -129,7 +131,7 @@ a network that blocks everything but HTTPS.
 
 ## Network identity mismatch
 
-One way to get an interesting set of failures is to mix-and-match the `arti.toml` files from two different chutney networks. You can find older chutney networks in subdirectories of `${CHUTNEY_PATH}/net/` other than `nodes`.
+One way to generate a diverse range of failures is to combine and experiment with the `arti.toml` files from two different chutney networks. Older chutney networks can be found in subdirectories of `$CHUTNEY_PATH/net/`, except the `nodes` directory.
 
 If you use an older set of fallback directories, you'll simulate the case where the client can't actually connect to any fallback directories because its beliefs about their identities are all wrong.
 
