@@ -112,9 +112,9 @@ The current available crates are:
 
 ## Design considerations, privacy considerations.
 
-As we build the APIs for Arti, we've been aiming for simplicity and safety: we want it to be as easy as possible to use `arti-client`, while trying to make certain kinds of privacy or security violation hard to write accidentally.
+As we build the APIs for Arti, our focus has been on ensuring user-friendly experiences with the `arti-client`. We plan to make it simple to use, while also working to minimize the risk of unintentional privacy or security breaches.
 
-The lower-level we get, however, the more safety we lose. If we need to allow a piece of functionality that isn't safe for general purposes, we usually put it at a more low-level crate.
+The further we get into lower-level concepts, the greater the compromise on safety. If we need to allow a piece of functionality that isn't safe for general purposes, we usually put it at a more low-level crate.
 
 Privacy isn't just a drop-in feature, however. There are still plenty of ways to accidentally leak information, even if you're anonymizing your connections over Tor. We'll try to document those in a user's guide at some point as Arti becomes more mature.
 
