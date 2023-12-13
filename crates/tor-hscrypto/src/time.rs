@@ -174,7 +174,7 @@ impl TimePeriod {
 
     /// Return an opaque offset for `when` within this time period.
     ///
-    /// If `when` is before the start of this time period, return None.
+    /// If `when` is before the start of this time period, return `Some(TimePeriodOffset(0))`.
     pub fn offset_within_period(&self, when: SystemTime) -> Option<TimePeriodOffset> {
         if let Ok(r @ std::ops::Range { start, end }) = self.range() {
             if when >= start {
@@ -182,6 +182,8 @@ impl TimePeriod {
                     .duration_since(start)
                     .expect("Somehow, range comparison was not reliable!");
                 return Some(TimePeriodOffset(d.as_secs() as u32));
+            } else {
+                return Some(TimePeriodOffset(0));
             }
         }
         None
