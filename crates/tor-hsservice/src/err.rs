@@ -11,7 +11,7 @@ use tor_error::error_report;
 use tor_error::{Bug, ErrorKind, HasKind};
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
-use crate::HsNickname;
+use crate::{HsNickname, NetdirProviderShutdown};
 
 /// An error which occurs trying to create and start up an onion service
 ///
@@ -215,10 +215,27 @@ pub enum FatalError {
     #[error("IPT keys found for being-created IPT {0} (serious key management problems!)")]
     IptKeysFoundUnexpectedly(tor_keymgr::ArtiPath),
 
+    /// The network directory provider is shutting down without giving us the
+    /// netdir we asked for.
+    #[error("{0}")]
+    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
     Bug(#[from] Bug),
+}
+
+impl FatalError {
+    /// Construct a new `FatalError` from a `SpawnError`.
+    //
+    // TODO lots of our Errors have a function exactly like this.
+    pub(super) fn from_spawn(spawning: &'static str, err: SpawnError) -> FatalError {
+        FatalError::Spawn {
+            spawning,
+            cause: Arc::new(err),
+        }
+    }
 }
 
 impl HasKind for FatalError {
@@ -230,6 +247,7 @@ impl HasKind for FatalError {
             FE::Keystore(e) => e.kind(),
             FE::MissingHsIdKeypair(_) => EK::Internal, // TODO HSS this is wrong
             FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
+            FE::NetdirProviderShutdown(e) => e.kind(),
             FE::Bug(e) => e.kind(),
         }
     }

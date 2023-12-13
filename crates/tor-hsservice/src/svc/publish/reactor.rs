@@ -10,19 +10,17 @@ use std::time::{Duration, Instant, SystemTime};
 use async_trait::async_trait;
 use derive_more::{From, Into};
 use futures::channel::mpsc::{self, Receiver, Sender};
-use futures::task::{SpawnError, SpawnExt};
+use futures::task::SpawnExt;
 use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
-use postage::watch;
-use retry_error::RetryError;
+use postage::{broadcast, watch};
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::ed25519;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
-use tor_bytes::EncodeError;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
 use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
@@ -36,14 +34,17 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
+use void::Void;
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
-use crate::svc::netdir::{wait_for_netdir, NetdirProviderShutdown};
-use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
+use crate::svc::netdir::wait_for_netdir;
+use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use crate::svc::ShutdownStatus;
 use crate::{
-    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier, HsNickname,
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,
+    HsNickname,
 };
 
 /// The upload rate-limiting threshold.
@@ -93,6 +94,8 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+    /// A channel for receiving the signal to shut down.
+    shutdown_rx: broadcast::Receiver<Void>,
     /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
     /// The main loop of the reactor watches for updates on this channel.
@@ -166,7 +169,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
     //
     // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
     // built from the blinded id key
-    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, ReactorError> {
+    fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, FatalError> {
         let ope_key = match read_blind_id_keypair(&self.keymgr, &self.nickname, period)? {
             Some(key) => {
                 let key: ed25519::ExpandedKeypair = key.into();
@@ -205,7 +208,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
         &self,
         period: TimePeriod,
         now: SystemTime,
-    ) -> Result<RevisionCounter, ReactorError> {
+    ) -> Result<RevisionCounter, FatalError> {
         // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
         // to each time we generate a new descriptor), for performance reasons.
         let ope_key = self.create_ope_key(period)?;
@@ -357,7 +360,7 @@ impl TimePeriodContext {
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
-    ) -> Result<Self, ReactorError> {
+    ) -> Result<Self, FatalError> {
         Ok(Self {
             period,
             blind_id,
@@ -372,7 +375,7 @@ impl TimePeriodContext {
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         mut old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
-    ) -> Result<Vec<(RelayIds, DescriptorStatus)>, ReactorError> {
+    ) -> Result<Vec<(RelayIds, DescriptorStatus)>, FatalError> {
         let hs_dirs = netdir.hs_dirs_upload([(blind_id, period)].into_iter())?;
 
         Ok(hs_dirs
@@ -405,96 +408,6 @@ impl TimePeriodContext {
         self.hs_dirs
             .iter_mut()
             .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
-    }
-}
-
-/// A reactor error
-///
-/// These are currently always fatal
-//
-// TODO HSS ReactorError should be abolished:
-//
-// There is no need for a second type for fatal errors; we should use FatalError.
-// So, for example, Reactor::run should throw FatalError.
-// (Eventually we can perhaps arrange that when the publisher crashes, someone
-// outside this crate gets the actual FatalError from it.)
-//
-// However:
-//
-// Many of these errors are recoverable, and so ought not to be FatalError at all.
-// Crashing should be a complete last resort, because the user's only way to recover
-// is to completely tear down the HS, and make a fresh one.  With arti CLI this can
-// only be done by restarting the whole process, or by reconfiguring twice to delete
-// and recreate the hidden service.
-//
-// So simply moving all these variants into FatalError and changing all the error types
-// would simply be churn (and also, it would mix more variants which need reconsideration
-// into an enum we intend to keep).
-//
-// The error type rework should go hand-in-hand with implementing suitable retry policies
-// for errors that occur during publication.  It is those retry policies which should
-// drive the error type(s) for functions that can fail in a way that might be retriable.
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub(crate) enum ReactorError {
-    /// The network directory provider is shutting down without giving us the
-    /// netdir we asked for.
-    #[error("{0}")]
-    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
-
-    /// Failed to build a descriptor.
-    #[error("could not build a hidden service descriptor")]
-    HsDescBuild(#[from] EncodeError),
-
-    /// Failed to publish a descriptor.
-    #[error("failed to publish a descriptor")]
-    PublishFailure(#[source] RetryError<UploadError>),
-
-    /// Failed to access the keystore.
-    #[error("failed to access keystore")]
-    Keystore(#[from] tor_keymgr::Error),
-
-    /// The identity keypair of the service could not be found in the keystore.
-    #[error("Hidden service identity key not found: {0}")]
-    MissingHsIdKeypair(HsNickname),
-
-    /// Unable to spawn task
-    //
-    // TODO lots of our Errors have a variant exactly like this.
-    // Maybe we should make a struct tor_error::SpawnError.
-    #[error("Unable to spawn {spawning}")]
-    Spawn {
-        /// What we were trying to spawn.
-        spawning: &'static str,
-        /// What happened when we tried to spawn it.
-        #[source]
-        cause: Arc<SpawnError>,
-    },
-
-    /// A fatal error that caused the reactor to shut down.
-    //
-    // TODO HSS: add more context to this error?
-    #[error("publisher reactor is shutting down")]
-    ShuttingDown,
-
-    /// A fatal error from somewhere else in crate
-    #[error("other (fatal) error")]
-    Other(#[from] crate::FatalError),
-
-    /// An internal error.
-    #[error("Internal error")]
-    Bug(#[from] tor_error::Bug),
-}
-
-impl ReactorError {
-    /// Construct a new `ReactorError` from a `SpawnError`.
-    //
-    // TODO lots of our Errors have a function exactly like this.
-    pub(super) fn from_spawn(spawning: &'static str, err: SpawnError) -> ReactorError {
-        ReactorError::Spawn {
-            spawning,
-            cause: Arc::new(err),
-        }
     }
 }
 
@@ -564,6 +477,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        shutdown_rx: broadcast::Receiver<Void>,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
@@ -598,6 +512,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
+            shutdown_rx,
             publish_status_rx,
             publish_status_tx,
             reattempt_upload_tx: None,
@@ -612,7 +527,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// Note: this also spawns the "reminder task" that we use to reschedule uploads whenever an
     /// upload fails or is rate-limited.
-    pub(super) async fn run(mut self) -> Result<(), ReactorError> {
+    pub(super) async fn run(mut self) -> Result<(), FatalError> {
         debug!(nickname=%self.imm.nickname, "starting descriptor publisher reactor");
 
         {
@@ -662,25 +577,50 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             debug!(nickname=%nickname, "reupload task channel closed!");
         });
 
-        let err = loop {
-            if let Err(e) = self.run_once(&mut schedule_upload_rx).await {
-                break e;
+        loop {
+            match self.run_once(&mut schedule_upload_rx).await {
+                Ok(ShutdownStatus::Continue) => continue,
+                Ok(ShutdownStatus::Terminate) => return Ok(()),
+                Err(e) => {
+                    error_report!(
+                        e,
+                        "HS service {}: descriptor publisher crashed!",
+                        self.imm.nickname
+                    );
+
+                    // TODO HSS: Set status to Shutdown.
+                    return Err(e);
+                }
             }
-        };
-        // TODO HSS: Set status to Shutdown.
-        Err(err)
+        }
     }
 
     /// Run one iteration of the reactor loop.
     async fn run_once(
         &mut self,
         schedule_upload_rx: &mut watch::Receiver<()>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<ShutdownStatus, FatalError> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
+            // TODO HSS: Stop waiting for the shutdown signal
+            // (instead, let the sender of the ipt_watcher being dropped
+            // be our shutdown signal)
+            //
+            // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1812#note_2976757
+            shutdown = self.shutdown_rx.next().fuse() => {
+                info!(
+                    nickname=%self.imm.nickname,
+                    "descriptor publisher terminating due to shutdown signal"
+                );
+
+                assert!(shutdown.is_none());
+                return Ok(ShutdownStatus::Terminate);
+            },
             res = self.upload_task_complete_rx.next().fuse() => {
-                let upload_res = res.ok_or(ReactorError::ShuttingDown)?;
+                let Some(upload_res) = res else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
                 self.handle_upload_results(upload_res);
             }
@@ -710,18 +650,25 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.handle_ipt_change(update).await?;
             },
             config = self.config_rx.next().fuse() => {
-                let config = config.ok_or(ReactorError::ShuttingDown)?;
+                let Some(config) = config else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
+
                 self.handle_svc_config_change(config).await?;
             },
             res = schedule_upload_rx.next().fuse() => {
-                let _: () = res.ok_or(ReactorError::ShuttingDown)?;
+                let Some(()) = res else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
                 // Unless we're waiting for IPTs, reattempt the rate-limited upload in the next
                 // iteration.
                 self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled).await?;
             },
             should_upload = self.publish_status_rx.next().fuse() => {
-                let should_upload = should_upload.ok_or(ReactorError::ShuttingDown)?;
+                let Some(should_upload) = should_upload else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
                 // Our PublishStatus changed -- are we ready to publish?
                 if should_upload == PublishStatus::UploadScheduled {
@@ -741,7 +688,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
-        Ok(())
+        Ok(ShutdownStatus::Continue)
     }
 
     /// Returns the current status of the publisher
@@ -805,7 +752,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Maybe update our list of HsDirs.
-    async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), ReactorError> {
+    async fn handle_consensus_change(&mut self, netdir: Arc<NetDir>) -> Result<(), FatalError> {
         trace!("the consensus has changed; recomputing HSDirs");
 
         let _old: Option<Arc<NetDir>> = self.replace_netdir(netdir);
@@ -818,7 +765,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Recompute the HsDirs for all relevant time periods.
-    fn recompute_hs_dirs(&self) -> Result<(), ReactorError> {
+    fn recompute_hs_dirs(&self) -> Result<(), FatalError> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let inner = &mut *inner;
 
@@ -844,7 +791,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &self,
         netdir: &Arc<NetDir>,
         time_periods: &[TimePeriodContext],
-    ) -> Result<Vec<TimePeriodContext>, ReactorError> {
+    ) -> Result<Vec<TimePeriodContext>, FatalError> {
         netdir
             .hs_all_time_periods()
             .iter()
@@ -854,7 +801,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
-                    .ok_or_else(|| ReactorError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
+                    .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), *period);
 
                 // TODO HSS: make this configurable
@@ -893,7 +840,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     TimePeriodContext::new(*period, blind_id.into(), netdir, iter::empty())
                 }
             })
-            .collect::<Result<Vec<TimePeriodContext>, ReactorError>>()
+            .collect::<Result<Vec<TimePeriodContext>, FatalError>>()
     }
 
     /// Replace the old netdir with the new, returning the old.
@@ -952,7 +899,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn handle_ipt_change(
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         trace!(nickname=%self.imm.nickname, "received IPT change notification from IPT manager");
         match update {
             Some(Ok(())) => {
@@ -962,7 +909,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.mark_all_dirty();
                 self.update_publish_status(should_upload).await
             }
-            Some(Err(_)) => Err(ReactorError::ShuttingDown),
+            Some(Err(e)) => Err(e),
             None => {
                 debug!(nickname=%self.imm.nickname, "no IPTs available, ceasing uploads");
                 self.update_publish_status(PublishStatus::AwaitingIpts)
@@ -976,7 +923,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn update_publish_status_unless_waiting(
         &mut self,
         new_state: PublishStatus,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         // Only update the state if we're not waiting for intro points.
         if self.status() != PublishStatus::AwaitingIpts {
             self.update_publish_status(new_state).await?;
@@ -986,10 +933,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Update the `PublishStatus` of the reactor with `new_state`.
-    async fn update_publish_status(
-        &mut self,
-        new_state: PublishStatus,
-    ) -> Result<(), ReactorError> {
+    async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), FatalError> {
         trace!(
             "publisher reactor status change: {:?} -> {:?}",
             self.status(),
@@ -1005,7 +949,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Use the new keys.
-    async fn handle_new_keys(&self) -> Result<(), ReactorError> {
+    async fn handle_new_keys(&self) -> Result<(), FatalError> {
         todo!()
     }
 
@@ -1013,7 +957,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn handle_svc_config_change(
         &mut self,
         config: Arc<OnionServiceConfig>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         if self.replace_config_if_changed(config) {
             self.mark_all_dirty();
 
@@ -1046,7 +990,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// well as in what cases this will return an error).
     //
     // TODO HSS: what is N?
-    async fn upload_all(&mut self) -> Result<(), ReactorError> {
+    async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
         let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
@@ -1133,14 +1077,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         );
                     }
                 })
-                .map_err(|e| ReactorError::from_spawn("upload_for_time_period task", e))?;
+                .map_err(|e| FatalError::from_spawn("upload_for_time_period task", e))?;
         }
 
         Ok(())
     }
 
     /// Tell the "upload reminder" task to remind us to retry an upload that failed or was rate-limited.
-    async fn schedule_pending_upload(&mut self, delay: Duration) -> Result<(), ReactorError> {
+    async fn schedule_pending_upload(&mut self, delay: Duration) -> Result<(), FatalError> {
         if let Err(e) = self
             .reattempt_upload_tx
             .as_mut()
@@ -1169,7 +1113,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
-    ) -> Result<(), ReactorError> {
+    ) -> Result<(), FatalError> {
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
         let hsdir_count = hs_dirs.len();
@@ -1180,35 +1124,37 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
 
+                let ed_id = relay_ids
+                    .rsa_identity()
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "unknown".into());
+                let rsa_id = relay_ids
+                    .rsa_identity()
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "unknown".into());
+
                 async move {
                     let run_upload = |desc| async {
                         let Some(hsdir) = netdir.by_ids(&relay_ids) else {
-                            // This should never happen (all of our relay_ids are from the stored netdir).
-                            return Err::<(), ReactorError>(
-                                internal!(
-                                    "tried to upload descriptor to relay not found in consensus?"
-                                )
-                                .into(),
+                            // This should never happen (all of our relay_ids are from the stored
+                            // netdir).
+                            warn!(
+                                nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                                "tried to upload descriptor to relay not found in consensus?!"
                             );
+                            return UploadStatus::Failure;
                         };
 
                         Self::upload_descriptor_with_retries(
                             desc,
                             &netdir,
                             &hsdir,
+                            &ed_id,
+                            &rsa_id,
                             Arc::clone(&imm),
                         )
                         .await
                     };
-
-                    let ed_id = relay_ids
-                        .rsa_identity()
-                        .map(|id| id.to_string())
-                        .unwrap_or_else(|| "unknown".into());
-                    let rsa_id = relay_ids
-                        .rsa_identity()
-                        .map(|id| id.to_string())
-                        .unwrap_or_else(|| "unknown".into());
 
                     // How long until we're supposed to time out?
                     let worst_case_end = imm.runtime.now() + UPLOAD_TIMEOUT;
@@ -1238,7 +1184,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // Ideally, this shouldn't happen very often (if at all).
                         let Some(ipts) = ipt_set.ipts.as_mut() else {
                             // TODO HSS: maybe it's worth defining an separate error type for this.
-                            return Err(ReactorError::Bug(internal!("no introduction points; skipping upload")));
+                            return Err(FatalError::Bug(internal!(
+                                "no introduction points; skipping upload"
+                            )));
                         };
 
                         let hsdesc = {
@@ -1251,7 +1199,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             // We're about to generate a new version of the descriptor,
                             // so let's generate a new revision counter.
                             let now = imm.runtime.wallclock();
-                            let revision_counter = imm.generate_revision_counter(time_period, now)?;
+                            let revision_counter =
+                                imm.generate_revision_counter(time_period, now)?;
 
                             build_sign(
                                 &imm.keymgr,
@@ -1264,21 +1213,24 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             )?
                         };
 
-                        if let Err(e) = ipt_set.note_publication_attempt(
-                            &imm.runtime,
-                            worst_case_end,
-                        ) {
+                        if let Err(e) =
+                            ipt_set.note_publication_attempt(&imm.runtime, worst_case_end)
+                        {
                             let wait = e.log_retry_max(&imm.nickname)?;
                             // TODO HSS retry instead of this
                             return Err(internal!(
                                 "ought to retry after {wait:?}, crashing instead"
-                            ).into());
+                            )
+                            .into());
                         }
 
                         hsdesc
                     };
 
-                    let VersionedDescriptor { desc, revision_counter } = hsdesc;
+                    let VersionedDescriptor {
+                        desc,
+                        revision_counter,
+                    } = hsdesc;
 
                     trace!(
                         nickname=%imm.nickname, time_period=?time_period,
@@ -1286,31 +1238,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         "generated new descriptor for time period",
                     );
 
-
-                    let upload_res = match imm.runtime.timeout(
-                        UPLOAD_TIMEOUT, run_upload(desc.clone())
-                    ).await {
-                        Ok(res) => {
-                            match res {
-                                Ok(()) => {
-                                    debug!(
-                                        nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
-                                        "successfully uploaded descriptor to HSDir",
-                                    );
-
-                                    UploadStatus::Success
-                                },
-                                Err(e) => {
-                                    warn_report!(
-                                        e,
-                                        "failed to upload descriptor for service {} (hsdir_id={}, hsdir_rsa_id={})",
-                                        imm.nickname, ed_id, rsa_id
-                                    );
-
-                                    UploadStatus::Failure
-                                }
-                            }
-                        },
+                    let upload_res = match imm
+                        .runtime
+                        .timeout(UPLOAD_TIMEOUT, run_upload(desc.clone()))
+                        .await
+                    {
+                        Ok(res) => res,
                         Err(_e) => {
                             warn!(
                                 nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
@@ -1321,6 +1254,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         }
                     };
 
+                    // TODO HSS: add a mechanism for rescheduling uploads that have
+                    // UploadStatus::Failure.
+                    //
+                    // Note: UploadStatus::Failure is only returned when
+                    // upload_descriptor_with_retries fails, i.e. if all our retry
+                    // attempts have failed
                     Ok(HsDirUploadStatus {
                         relay_ids,
                         upload_res,
@@ -1414,10 +1353,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hsdesc: String,
         netdir: &Arc<NetDir>,
         hsdir: &Relay<'_>,
+        ed_id: &str,
+        rsa_id: &str,
         imm: Arc<Immutable<R, M>>,
-    ) -> Result<(), ReactorError> {
-        use BackoffError as BE;
-
+    ) -> UploadStatus {
         /// The base delay to use for the backoff schedule.
         const BASE_DELAY_MSEC: u32 = 1000;
 
@@ -1437,22 +1376,26 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await
         };
 
-        let res = runner.run(fallible_op).await;
+        match runner.run(fallible_op).await {
+            Ok(res) => {
+                debug!(
+                    nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
+                    "successfully uploaded descriptor to HSDir",
+                );
 
-        let err = match res {
-            Ok(res) => return Ok(res),
-            Err(e) => e,
-        };
+                UploadStatus::Success
+            }
+            Err(e) => {
+                warn_report!(
+                    e,
+                    "failed to upload descriptor for service {} (hsdir_id={}, hsdir_rsa_id={})",
+                    imm.nickname,
+                    ed_id,
+                    rsa_id
+                );
 
-        match err {
-            BE::FatalError(e)
-            | BE::MaxRetryCountExceeded(e)
-            | BE::Timeout(e)
-            | BE::ExplicitStop(e) => Err(ReactorError::PublishFailure(e)),
-            BE::Spawn { .. } | BE::Bug(_) => Err(into_internal!(
-                "internal error while attempting to publish descriptor"
-            )(err)
-            .into()),
+                UploadStatus::Failure
+            }
         }
     }
 }
@@ -1467,11 +1410,11 @@ pub(super) fn read_blind_id_keypair(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
     period: TimePeriod,
-) -> Result<Option<HsBlindIdKeypair>, ReactorError> {
+) -> Result<Option<HsBlindIdKeypair>, FatalError> {
     let svc_key_spec = HsIdKeypairSpecifier::new(nickname.clone());
     let hsid_kp = keymgr
         .get::<HsIdKeypair>(&svc_key_spec)?
-        .ok_or_else(|| ReactorError::MissingHsIdKeypair(nickname.clone()))?;
+        .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
 
     let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname.clone(), period);
 
@@ -1564,6 +1507,8 @@ struct HsDirUploadStatus {
 }
 
 /// The outcome of uploading a descriptor.
+//
+// TODO: consider making this a type alias for Result<(), ()>
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum UploadStatus {
     /// The descriptor upload succeeded.
