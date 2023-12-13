@@ -603,6 +603,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
+            // TODO HSS: Stop waiting for the shutdown signal
+            // (instead, let the sender of the ipt_watcher being dropped
+            // be our shutdown signal)
+            //
+            // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1812#note_2976757
             shutdown = self.shutdown_rx.next().fuse() => {
                 info!(
                     nickname=%self.imm.nickname,
