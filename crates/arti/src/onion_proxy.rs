@@ -1,7 +1,7 @@
 //! Configure and implement onion service reverse-proxy feature.
 
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{btree_map::Entry, BTreeMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -65,14 +65,14 @@ impl OnionServiceProxyConfigBuilder {
 
 impl_standard_builder! { OnionServiceProxyConfig: !Default }
 
-/// Alias for a `HashMap` of `OnionServiceProxyConfig`; used to make derive_builder
+/// Alias for a `BTreeMap` of `OnionServiceProxyConfig`; used to make derive_builder
 /// happy.
 #[cfg(feature = "onion-service-service")]
-pub(crate) type OnionServiceProxyConfigMap = HashMap<HsNickname, OnionServiceProxyConfig>;
+pub(crate) type OnionServiceProxyConfigMap = BTreeMap<HsNickname, OnionServiceProxyConfig>;
 
 /// The serialized format of an OnionServiceProxyConfigListBuilder:
 /// a map from nickname to `OnionServiceConfigBuilder`
-type ProxyBuilderMap = HashMap<HsNickname, OnionServiceProxyConfigBuilder>;
+type ProxyBuilderMap = BTreeMap<HsNickname, OnionServiceProxyConfigBuilder>;
 
 // TODO: Someday we might want to have an API for a MapBuilder that is distinct
 // from that of a ListBuilder.  It would have to enforce that everything has a
@@ -92,7 +92,7 @@ define_list_builder_helper! {
 fn build_list(
     services: Vec<OnionServiceProxyConfig>,
 ) -> Result<OnionServiceProxyConfigMap, ConfigBuildError> {
-    let mut map = HashMap::new();
+    let mut map = BTreeMap::new();
     for service in services {
         if let Some(previous_value) = map.insert(service.svc_cfg.nickname().clone(), service) {
             return Err(ConfigBuildError::Inconsistent {
@@ -138,7 +138,7 @@ impl From<OnionServiceProxyConfigMapBuilder> for ProxyBuilderMap {
     /// can't represent partially-built services without a nickname, or
     /// a collection of services with duplicate nicknames.
     fn from(value: OnionServiceProxyConfigMapBuilder) -> Self {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         for cfg in value.services.into_iter().flatten() {
             let nickname = cfg.0 .0.peek_nickname().cloned().unwrap_or_else(|| {
                 "Unnamed"
@@ -236,7 +236,7 @@ pub(crate) struct ProxySet<R: Runtime> {
     /// The arti_client that we use to launch proxies.
     client: arti_client::TorClient<R>,
     /// The proxies themselves, indexed by nickname.
-    proxies: Mutex<HashMap<HsNickname, Proxy>>,
+    proxies: Mutex<BTreeMap<HsNickname, Proxy>>,
 }
 
 impl<R: Runtime> ProxySet<R> {
@@ -245,10 +245,10 @@ impl<R: Runtime> ProxySet<R> {
         client: &arti_client::TorClient<R>,
         config_list: OnionServiceProxyConfigMap,
     ) -> anyhow::Result<Self> {
-        let proxies: HashMap<_, _> = config_list
+        let proxies: BTreeMap<_, _> = config_list
             .into_iter()
             .map(|(nickname, cfg)| Ok((nickname, Proxy::launch_new(client, cfg)?)))
-            .collect::<anyhow::Result<HashMap<_, _>>>()?;
+            .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
 
         Ok(Self {
             client: client.clone(),
