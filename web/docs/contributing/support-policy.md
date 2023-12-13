@@ -88,13 +88,12 @@ We define our "minimum supported rust version" (MSRV) as the oldest version of R
 
 We have automated tools to make sure that Arti builds and passes tests with our MSRV and our minimal (`Cargo.toml`) dependencies. Production dependencies (`Cargo.lock`) are not tested with our MSRV, and may or may not work.
 
-Our current MSRV is 1.56.  We may update our MSRV to a newer version in the future: when we do, we'll only require a version released at least six months in the past, and we won't update our requirements for no reason.
-
+Our [current MSRV and MSRV policy](https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version) are listed in our top-level README.
 Rust versions older than our MSRV are **unsupported**.
 
 ## Supported versions of Arti
 
-For now (pre 1.0.0), only the most recent version of Arti is supported at all.
+For now (as of December 2023), only the most recent version of Arti is supported at all.
 
 In more detail:
 
@@ -112,6 +111,5 @@ Although we aim to provide a forward-compatible API for some of our high-level c
 
 We will classify security issues as Research, Critical, High, Medium and Low-severity, as per [tor's security policy](https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/SecurityPolicy).
 
-For now (pre 1.0.0) we will issue advisories for High and Critical security vulnerabilities only.
-
-Also (pre 1.0.0) we will not typically issue advisories for older Arti releases: we assume that all developers are upgrading regularly.
+For now (as of December 2023), we will issue advisories for High and Critical security vulnerabilities only.
+Also we will not typically issue advisories for older Arti releases: we assume that all developers are upgrading regularly.
