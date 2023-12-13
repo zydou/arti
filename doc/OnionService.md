@@ -21,13 +21,8 @@ features, as in:
 
 ```
 cargo build -p arti --release \
-    --features=onion-service-service,experimental
+    --features=onion-service-service
 ```
-
-> BUG:
-> "experimental" shouldn't be necessary here, but we don't actually
-> get all the keymgr stuff in arti-client unless it's present,
-> I think.
 
 ## Configuring your onion service(s)
 
@@ -84,15 +79,13 @@ where arti stores your keys, as follows:
 
 ```
 [storage.keystore]
-enabled = true
 path = "~/arti_hax/path-to-my/keystore"
 ```
 
 > NOTE: This defaults to something relative to ARTI_LOCAL_DIR,
 > and not to something relative to state_dir.
 > There's a TODO about that, which can be somewhat surprising.
-
-> NOTE 2: "enabled" needs to be set. Maybe it should default to true?
+> Also see [#1162](https://gitlab.torproject.org/tpo/core/arti/-/issues/1162).
 
 ## Starting your onion service
 

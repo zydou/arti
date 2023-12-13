@@ -26,7 +26,7 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 pub use tor_guardmgr::bridge::BridgeParseError;
 
 use tor_guardmgr::bridge::BridgeConfig;
-use tor_keymgr::config::arti::ArtiNativeKeystoreConfig;
+use tor_keymgr::config::arti::{ArtiNativeKeystoreConfig, ArtiNativeKeystoreConfigBuilder};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -197,11 +197,8 @@ pub struct StorageConfig {
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
     /// Location on disk for the Arti keystore.
-    //
-    // TODO HSS: try to use #[serde(into / try_from)] instead (and also move the deserialization
-    // code to tor-keymgr).
-    #[cfg(feature = "experimental-api")] // TODO HSS: make this unconditional
-    #[builder(default)]
+    #[cfg(feature = "keymgr")]
+    #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     keystore: ArtiNativeKeystoreConfig,
     /// Filesystem state to
@@ -247,14 +244,12 @@ impl StorageConfig {
     /// Return the keystore config
     #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn keystore(&self) -> ArtiNativeKeystoreConfig {
-        #[cfg(feature = "experimental-api")]
-        {
-            self.keystore.clone()
-        }
-
-        #[cfg(not(feature = "experimental-api"))]
-        {
-            Default::default()
+        cfg_if::cfg_if! {
+            if #[cfg(feature="keymgr")] {
+                self.keystore.clone()
+            } else {
+                Default::default()
+            }
         }
     }
     /// Return the FS permissions to use for state and cache directories.
@@ -732,18 +727,11 @@ impl TorClientConfigBuilder {
         // Note this will involve writing a custom deserializer for StorageConfig (if
         // `storage.keystore.path` is missing from the config, it will need to be initialized using
         // the value we deserialized for `storage.state_dir` rather than a static default value).
-        #[cfg(feature = "experimental-api")]
+        #[cfg(feature = "keymgr")]
         {
-            use tor_keymgr::config::arti::ArtiNativeKeystoreConfigBuilder;
-
-            let mut sub_builder = ArtiNativeKeystoreConfigBuilder::default();
+            let sub_builder = builder.storage().keystore();
             let keystore_dir = state_dir.as_ref().join("keystore");
             sub_builder.path(CfgPath::new_literal(keystore_dir));
-            // This shouldn't fail, but if it does, we use the ArtiNativeKeystoreConfig
-            // defaults.
-            let keystore = sub_builder.build().unwrap_or_default();
-
-            builder.storage().keystore(keystore);
         };
 
         builder
@@ -1027,7 +1015,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "experimental-api")]
+    #[cfg(feature = "keymgr")]
     fn from_directories_keystore_dir() {
         let builder =
             TorClientConfigBuilder::from_directories("/home/bob/state", "/home/bob/cache");
