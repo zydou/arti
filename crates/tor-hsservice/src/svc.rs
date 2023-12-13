@@ -386,15 +386,15 @@ fn maybe_generate_hsid(
             })?
             .is_some();
 
-        let kp = keymgr
-            .get::<HsIdKeypair>(&hsid_spec)
+        let pk = keymgr
+            .get::<HsIdKey>(&pub_hsid_spec)
             .map_err(|cause| StartupError::Keystore {
                 action: "read",
                 cause,
             })?
             .ok_or(StartupError::KeystoreCorrupted)?;
 
-        let hsid: HsId = HsIdKey::from(&kp).into();
+        let hsid: HsId = pk.id();
         if generated {
             info!(
                 "Generated a new identity for service {nickname}: {}",
