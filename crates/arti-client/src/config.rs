@@ -26,7 +26,7 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 pub use tor_guardmgr::bridge::BridgeParseError;
 
 use tor_guardmgr::bridge::BridgeConfig;
-use tor_keymgr::config::arti::ArtiNativeKeystoreConfig;
+use tor_keymgr::config::arti::{ArtiNativeKeystoreConfig, ArtiNativeKeystoreConfigBuilder};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -201,7 +201,7 @@ pub struct StorageConfig {
     // TODO HSS: try to use #[serde(into / try_from)] instead (and also move the deserialization
     // code to tor-keymgr).
     #[cfg(any(feature = "keymgr", feature = "experimental-api"))] // TODO HSS: make this unconditional
-    #[builder(default)]
+    #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     keystore: ArtiNativeKeystoreConfig,
     /// Filesystem state to
@@ -732,16 +732,9 @@ impl TorClientConfigBuilder {
         // the value we deserialized for `storage.state_dir` rather than a static default value).
         #[cfg(any(feature = "keymgr", feature = "experimental-api"))]
         {
-            use tor_keymgr::config::arti::ArtiNativeKeystoreConfigBuilder;
-
-            let mut sub_builder = ArtiNativeKeystoreConfigBuilder::default();
+            let sub_builder = builder.storage().keystore();
             let keystore_dir = state_dir.as_ref().join("keystore");
             sub_builder.path(CfgPath::new_literal(keystore_dir));
-            // This shouldn't fail, but if it does, we use the ArtiNativeKeystoreConfig
-            // defaults.
-            let keystore = sub_builder.build().unwrap_or_default();
-
-            builder.storage().keystore(keystore);
         };
 
         builder

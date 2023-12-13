@@ -16,10 +16,12 @@ use tor_config::{impl_standard_builder, BoolOrAuto};
 #[builder_struct_attr(non_exhaustive)]
 pub struct ArtiNativeKeystoreConfig {
     /// Whether keystore use is enabled.
+    #[builder_field_attr(serde(default))]
     #[builder(default)]
     enabled: BoolOrAuto,
 
     /// Location on disk for the Arti keystore.
+    #[builder_field_attr(serde(default))]
     #[builder(setter(into), default = "default_keystore_dir()")]
     path: CfgPath,
 }
