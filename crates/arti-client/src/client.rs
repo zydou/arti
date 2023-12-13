@@ -138,7 +138,12 @@ pub struct TorClient<R: Runtime> {
     /// Location on disk where we store persistent data (raw directory).
     #[cfg(feature = "onion-service-service")]
     state_dir: PathBuf,
-    /// Location on disk where we store persistent data (raw directory).
+    /// Permissions `Mistrust` configuration for all our on-disk storage
+    ///
+    /// This applies to `state_dir`, but it comes from `[storage]` in our config,
+    /// so this configuration is the same one as used for eg the netdir cache.
+    /// (It's mostly copied during `TorClient` creation, and ends up within
+    /// the subsystems in fields like `dirmgr`, `keymgr` and `statemgr`.)
     #[cfg(feature = "onion-service-service")]
     storage_mistrust: fs_mistrust::Mistrust,
     /// Location on disk where we store persistent data (cooked state manager).
