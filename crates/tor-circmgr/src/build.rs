@@ -15,12 +15,13 @@ use tor_async_utils::oneshot;
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_error::warn_report;
 use tor_guardmgr::GuardStatus;
-use tor_linkspec::{ChanTarget, CircTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
+use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
-use tor_protover::ProtoKind;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
+#[cfg(feature = "ntor_v3")]
+use {tor_linkspec::CircTarget, tor_protover::ProtoKind};
 mod guardstatus;
 
 pub(crate) use guardstatus::GuardStatusHandle;
