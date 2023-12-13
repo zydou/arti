@@ -90,7 +90,7 @@ $ cargo ndk -t arm64-v8a -o ./jniLibs build
 
 Note: You can also use Kotlin. The syntax is slightly different, but the following instructions should work either way.
 
-After setting up your [Rust project](#configuring-a-rust-project), you'll need to create an Android project. You can do this by running the following command to copy your native library inside the Android project (or use a symlink).
+After setting up your [Rust project](#configuring-a-rust-project), you'll need to create an Android project. Once you have done this, run the following command to copy your native library inside the Android project (or use a symlink).
 
 ```sh
 $ cp -r path/to/rust/project/jniLibs path/to/android/project/app/src/main
@@ -119,9 +119,7 @@ You can now build your application, and test it in an emulator or on your device
 
 ## Tips and caveats
 
-You can find a sample project to build a very basic app using Arti [here](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/). It does not respect most good practices ("don't run long tasks on the UI thread" for instance), but should otherwise be a good starting point. It's also implementing most of the tips below.
-
-The sample project [arti-mobile-example](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/) is a simple app that serves as a solid foundation for compiling Android apps with Arti. Additionally, it incorporates the majority of the provided tips below.
+The sample project [arti-mobile-example](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/) is a simple app that serves as a demo for compiling Android apps with Arti. Additionally, it incorporates the majority of the provided tips below.
 
 ### Platform support
 By default, Arti runs only on Android 7.0 and above. Versions under Android 7.0 will get a runtime exception due to a missing symbol. If you want to support Android 5.0 and above, it is possible to implement `lockf` yourself, as it is a rather simple `libc` function.
