@@ -320,6 +320,8 @@ impl Default for Mistrust {
 
 /// An object used to perform a single check.
 ///
+/// Obtained from [`Mistrust::verifier()`].
+///
 /// A `Verifier` is used when [`Mistrust::check_directory`] and
 /// [`Mistrust::make_directory`] are not sufficient for your needs.
 #[derive(Clone, Debug)]

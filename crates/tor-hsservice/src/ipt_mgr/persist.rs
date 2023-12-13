@@ -168,6 +168,13 @@ impl IptRecord {
                 action: "load IPT key(s)",
                 cause,
             },
+            CreateIptError::OpenReplayLog { file, error } => {
+                StartupError::StateDirectoryInaccessible(fs_mistrust::Error::Io {
+                    action: "opening intro req replay log",
+                    filename: file,
+                    err: error,
+                })
+            }
         })?;
 
         // We don't record whether this IPT was published, so we should assume it was.

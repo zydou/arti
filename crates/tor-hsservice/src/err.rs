@@ -9,6 +9,7 @@ use thiserror::Error;
 
 use tor_error::error_report;
 use tor_error::{Bug, ErrorKind, HasKind};
+use tor_persist::FsMistrustErrorExt as _;
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
 use crate::{HsNickname, NetdirProviderShutdown};
@@ -41,6 +42,13 @@ pub enum StartupError {
     // Not #[from] as that might allow call sites that were *storing* during startup
     // to accidentally use this variant.  (Such call sites probably shouldn't exist.)
     LoadState(#[source] tor_persist::Error),
+
+    /// Unable to access on-disk state
+    // We use fs_mistrust::Error since (1) we use mstrust to make the directory,
+    // so we might have one of those anyway and (2) it has a nice variant for our
+    // own io::Errorr.
+    #[error("Unable to access on-disk state")]
+    StateDirectoryInaccessible(#[source] fs_mistrust::Error),
 
     /// Failed to lock the on-disk state
     #[error("HS service state locked (concurrent HS service processes are not supported")]
@@ -88,6 +96,7 @@ impl HasKind for StartupError {
             // TODO HSS AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
             E::StateLocked => EK::Other,
             E::LoadState(e) => e.kind(),
+            E::StateDirectoryInaccessible(e) => e.state_error_kind(),
             E::Fatal(e) => e.kind(),
         }
     }

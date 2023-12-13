@@ -8,6 +8,7 @@ use fs_mistrust::anon_home::PathExt as _;
 use futures::task::SpawnError;
 use thiserror::Error;
 use tor_error::{ErrorKind, HasKind};
+use tor_persist::FsMistrustErrorExt as _;
 
 /// An error originated by the directory manager code
 #[derive(Error, Debug, Clone)]
@@ -329,13 +330,7 @@ impl HasKind for Error {
             E::Unwanted(_) => EK::TorProtocolViolation,
             E::NoDownloadSupport => EK::NotImplemented,
             E::CacheCorruption(_) => EK::CacheCorrupted,
-            E::CachePermissions(e) => {
-                if e.is_bad_permission() {
-                    EK::FsPermissions
-                } else {
-                    EK::CacheAccessFailed
-                }
-            }
+            E::CachePermissions(e) => e.cache_error_kind(),
             E::SqliteError(e) => sqlite_error_kind(e),
             E::UnrecognizedSchema { .. } => EK::CacheCorrupted,
             E::DirectoryNotPresent => EK::DirectoryExpired,

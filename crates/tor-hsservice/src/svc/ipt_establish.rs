@@ -199,6 +199,8 @@ pub(crate) struct IptParameters {
     #[educe(Debug(ignore))]
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
     pub(crate) lid: IptLocalId,
+    #[educe(Debug(ignore))]
+    pub(crate) replay_log: ReplayLog,
     // TODO HSS: Should this and the following elements be part of some
     // configuration object?
     pub(crate) target: RelayIds,
@@ -239,6 +241,7 @@ impl IptEstablisher {
             k_sid,
             k_ntor,
             accepting_requests,
+            replay_log,
         } = params;
         let config = Arc::clone(&config_rx.borrow());
         let nickname = config.nickname().clone();
@@ -284,6 +287,7 @@ impl IptEstablisher {
             },
             state: state.clone(),
             request_context,
+            replay_log: Arc::new(replay_log.into()),
         };
 
         let (status_tx, status_rx) = postage::watch::channel_with(IptStatus::new());
@@ -633,6 +637,15 @@ struct Reactor<R: Runtime> {
 
     /// Context information that we'll need to answer rendezvous requests.
     request_context: Arc<RendRequestContext>,
+
+    /// Introduction request replay log
+    ///
+    /// Shared between multiple IPT circuit control message handlers -
+    /// [`IptMsgHandler`] contains the lock guard.
+    ///
+    /// Has to be an async mutex since it's locked for a long time,
+    /// so we mustn't block the async executor thread on it.
+    replay_log: Arc<futures::lock::Mutex<ReplayLog>>,
 }
 
 /// An open session with a single introduction point.
@@ -783,10 +796,15 @@ impl<R: Runtime> Reactor<R> {
 
         let (established_tx, established_rx) = oneshot::channel();
 
-        // TODO HSS: This should actually be persistent!  We want to use a
-        // separate file for each (KP_hss_ntor) key, and use the same file
-        // for every KP_hss_ntor key.
-        let replay_log = ReplayLog::new_ephemeral();
+        // In theory there ought to be only one IptMsgHandler in existence at any one time,
+        // for any one IptLocalId (ie for any one ReplayLog).  However, the teardown
+        // arrangements are (i) complicated (so might have bugs) and (ii) asynchronous
+        // (so we need to synchronise).  Therefore:
+        //
+        // Make sure we don't start writing to the replay log until any previous
+        // IptMsgHandler has been torn down.  (Using an async mutex means we
+        // don't risk blocking the whole executor even if we have teardown bugs.)
+        let replay_log = self.replay_log.clone().lock_owned().await;
 
         let handler = IptMsgHandler {
             established_tx: Some(established_tx),
@@ -819,9 +837,18 @@ impl<R: Runtime> Reactor<R> {
         if established.iter_extensions().next().is_some() {
             // We do not support any extensions from the introduction point; if it
             // sent us any, that's a protocol violation.
+            //
+            // TODO HSS this check needs to happen in IptMsgHandler::handle_msg,
+            // because otherwise handle_msg might go on to handle messages despite
+            // us wanting to crash, here.  (Providing reliable teardown of the
+            // IptMsgHandler wouldn't be sufficient, since there would be a race.)
             return Err(IptError::BadEstablished);
         }
 
+        // TODO HSS arrange for the IptMsgHandler to be torn down if the
+        // Establisher (and this IntroPtSession) is - or if this function returns
+        // early somehow.  Otherwise we might leak the IptMsgHandler and the whole
+        // circuit?  Given the design of the circuit msg interface this seems nontrivial.
         Ok(IntroPtSession {
             intro_circ: circuit,
         })
@@ -860,11 +887,7 @@ struct IptMsgHandler {
     lid: IptLocalId,
 
     /// A replay log used to detect replayed introduction requests.
-    ///
-    /// TODO HSS: Right now we construct this ephemerally, but really we need to
-    /// use the persistent version. See discussion above when we construct
-    /// IptMsgHandler.
-    replay_log: ReplayLog,
+    replay_log: futures::lock::OwnedMutexGuard<ReplayLog>,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {

@@ -49,6 +49,7 @@ use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
 use futures::StreamExt as _;
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
@@ -134,7 +135,18 @@ pub struct TorClient<R: Runtime> {
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
-    /// Location on disk where we store persistent data.
+    /// Location on disk where we store persistent data (raw directory).
+    #[cfg(feature = "onion-service-service")]
+    state_dir: PathBuf,
+    /// Permissions `Mistrust` configuration for all our on-disk storage
+    ///
+    /// This applies to `state_dir`, but it comes from `[storage]` in our config,
+    /// so this configuration is the same one as used for eg the netdir cache.
+    /// (It's mostly copied during `TorClient` creation, and ends up within
+    /// the subsystems in fields like `dirmgr`, `keymgr` and `statemgr`.)
+    #[cfg(feature = "onion-service-service")]
+    storage_mistrust: fs_mistrust::Mistrust,
+    /// Location on disk where we store persistent data (cooked state manager).
     statemgr: FsStateMgr,
     /// Client address configuration
     addrcfg: Arc<MutCfg<ClientAddrConfig>>,
@@ -529,17 +541,16 @@ impl<R: Runtime> TorClient<R> {
             .into());
         }
 
+        let state_dir = config.storage.expand_state_dir()?;
+
         let dormant = DormantMode::Normal;
         let dir_cfg = {
             let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config()?;
             c.extensions = dirmgr_extensions;
             c
         };
-        let statemgr = FsStateMgr::from_path_and_mistrust(
-            config.storage.expand_state_dir()?,
-            config.storage.permissions(),
-        )
-        .map_err(ErrorDetail::StateMgrSetup)?;
+        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, config.storage.permissions())
+            .map_err(ErrorDetail::StateMgrSetup)?;
         // Try to take state ownership early, so we'll know if we have it.
         // (At this point we don't yet care if we have it.)
         let _ignore_status = statemgr.try_lock().map_err(ErrorDetail::StateMgrSetup)?;
@@ -561,8 +572,7 @@ impl<R: Runtime> TorClient<R> {
 
         #[cfg(feature = "pt-client")]
         let pt_mgr = {
-            let mut pt_state_dir = config.storage.expand_state_dir()?;
-            pt_state_dir.push("pt_state");
+            let pt_state_dir = state_dir.as_path().join("pt_state");
             config.storage.permissions().make_directory(&pt_state_dir)?;
 
             let mgr = Arc::new(tor_ptmgr::PtMgr::new(
@@ -715,6 +725,10 @@ impl<R: Runtime> TorClient<R> {
             bootstrap_in_progress: Arc::new(AsyncMutex::new(())),
             should_bootstrap: autobootstrap,
             dormant: Arc::new(Mutex::new(dormant_send)),
+            #[cfg(feature = "onion-service-service")]
+            state_dir,
+            #[cfg(feature = "onion-service-service")]
+            storage_mistrust: config.storage.permissions().clone(),
         })
     }
 
@@ -1375,6 +1389,9 @@ impl<R: Runtime> TorClient<R> {
             keymgr,
             // TODO HSS: Allow override of StateMgr for "ephemeral" operation?
             self.statemgr.clone(),
+            // TODO HSS: Allow override of state_dir for "ephemeral" operation?
+            &self.state_dir,
+            &self.storage_mistrust,
         )
         .map_err(ErrorDetail::LaunchOnionService)?;
         let stream = service.launch().map_err(ErrorDetail::LaunchOnionService)?;

@@ -43,6 +43,7 @@
 mod err;
 #[cfg(not(target_arch = "wasm32"))]
 mod fs;
+mod fs_mistrust_error_ext;
 mod handle;
 #[cfg(feature = "testing")]
 mod testing;
@@ -56,6 +57,7 @@ type Result<T> = std::result::Result<T, crate::Error>;
 pub use err::{Error, ErrorSource};
 #[cfg(not(target_arch = "wasm32"))]
 pub use fs::FsStateMgr;
+pub use fs_mistrust_error_ext::FsMistrustErrorExt;
 pub use handle::{DynStorageHandle, StorageHandle};
 pub use serde_json::Value as JsonValue;
 #[cfg(feature = "testing")]

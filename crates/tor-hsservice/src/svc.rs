@@ -2,6 +2,7 @@
 #![allow(dead_code, unused_variables)] // TODO hss remove.
 pub(crate) mod netdir;
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
@@ -152,6 +153,7 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
+    #[allow(clippy::too_many_arguments)] // TODO HSS should there be a builder?
     pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
@@ -159,6 +161,8 @@ impl OnionService {
         circ_pool: Arc<HsCircPool<R>>,
         keymgr: Arc<KeyMgr>,
         statemgr: S,
+        state_dir: &Path,
+        state_mistrust: &fs_mistrust::Mistrust,
     ) -> Result<Arc<Self>, StartupError>
     where
         R: Runtime,
@@ -199,6 +203,8 @@ impl OnionService {
                 circ_pool: circ_pool.clone(),
             },
             keymgr.clone(),
+            state_dir,
+            state_mistrust,
         )?;
 
         // TODO HSS: add a config option for specifying whether to expect the KS_hsid to be stored
@@ -441,6 +447,8 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    use std::fmt::Display;
+
     use fs_mistrust::Mistrust;
 
     use tor_basic_utils::test_rng::testing_rng;
@@ -473,11 +481,12 @@ pub(crate) mod test {
 
     pub(crate) fn create_storage_handles(
     ) -> (tor_persist::TestingStateMgr, Arc<IptSetStorageHandle>) {
-        create_storage_handles_from_state_mgr(tor_persist::TestingStateMgr::new())
+        create_storage_handles_from_state_mgr(tor_persist::TestingStateMgr::new(), &"dummy")
     }
 
     pub(crate) fn create_storage_handles_from_state_mgr<S>(
         state_mgr: S,
+        nick: &dyn Display,
     ) -> (S, Arc<IptSetStorageHandle>)
     where
         S: tor_persist::StateMgr + Send + Sync + 'static,
@@ -486,7 +495,7 @@ pub(crate) mod test {
             Ok(tor_persist::LockStatus::NewlyAcquired) => {}
             other => panic!("{:?}", other),
         }
-        let iptpub_state_handle = state_mgr.clone().create_handle("hs_iptpub_dummy");
+        let iptpub_state_handle = state_mgr.clone().create_handle(format!("hs_iptpub_{nick}"));
         (state_mgr, iptpub_state_handle)
     }
 

@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::FsMistrustErrorExt as _;
 use fs_mistrust::anon_home::PathExt as _;
 use tor_error::ErrorKind;
 
@@ -123,11 +124,7 @@ impl tor_error::HasKind for Error {
         use tor_error::ErrorKind as K;
         match &self.source {
             E::IoError(..)     => K::PersistentStateAccessFailed,
-            E::Permissions(e)  => if e.is_bad_permission() {
-                K::FsPermissions
-            } else {
-                K::PersistentStateAccessFailed
-            }
+            E::Permissions(e)  => e.state_error_kind(),
             E::NoLock          => K::BadApiUsage,
             E::Serde(..) if self.action == Action::Storing  => K::Internal,
             E::Serde(..) => K::PersistentStateCorrupted,

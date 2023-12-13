@@ -98,6 +98,7 @@ tor-guardmgr = { path = "../tor-guardmgr", version = "0.12.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.0" }
 tor-netdir = { path = "../tor-netdir", version = "0.10.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.10.0" }
+tor-persist = { path = "../tor-persist", version = "0.8.0" }
 tor-proto = { path = "../tor-proto", version = "0.14.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6" }
 tracing = "0.1.36"

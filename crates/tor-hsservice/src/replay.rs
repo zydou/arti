@@ -14,6 +14,7 @@
 
 #![allow(dead_code)] // TODO HSS Remove once something uses ReplayLog.
 
+use fslock::LockFile;
 use hash::{hash, H, HASH_LEN};
 use std::{
     fs::{File, OpenOptions},
@@ -39,11 +40,20 @@ pub(crate) struct ReplayLog {
     seen: data::Filter,
     /// A file logging fingerprints of the messages we have seen.  If there is no such file, this RelayLog is ephemeral.
     log: Option<BufWriter<File>>,
+    /// Filesystem lock which must not be released until after we finish writing
+    ///
+    /// Must come last so that the drop order is correct
+    //
+    // Maybe this and `log` should be in the same `Option`, eliminating the erroneous
+    // state where we only have one?  But that would be tiresome, since it would
+    // involve another struct (and we never actually use `lock`).
+    #[allow(dead_code)] // Held just so we unlock on drop
+    lock: Option<Arc<LockFile>>,
 }
 
 /// A magic string that we put at the start of each log file, to make sure that
 /// we don't confuse this file format with others.
-const MAGIC: &[u8; 16] = b"<onion replay>  ";
+const MAGIC: &[u8; 32] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
 
 impl ReplayLog {
     /// Create a new ReplayLog not backed by any data storage.
@@ -51,6 +61,7 @@ impl ReplayLog {
         Self {
             seen: data::Filter::new(),
             log: None,
+            lock: None,
         }
     }
     /// Create a ReplayLog backed by the file at a given path.
@@ -58,19 +69,24 @@ impl ReplayLog {
     /// If the file already exists, load its contents and append any new
     /// contents to it; otherwise, create the file.
     ///
+    /// **`lock` must already have been locked** and this
+    /// *cannot be assured by the type system*.
+    ///
     /// # Limitations
     ///
     /// It is the caller's responsibility to make sure that there are never two
     /// `ReplayLogs` open at once for the same path, or for two paths that
     /// resolve to the same file.
-    pub(crate) fn new_logged(path: impl AsRef<Path>) -> io::Result<Self> {
+    pub(crate) fn new_logged(path: impl AsRef<Path>, lock: Arc<LockFile>) -> io::Result<Self> {
         let mut file = {
-            #[cfg(target_family = "unix")]
-            use std::os::unix::fs::OpenOptionsExt as _;
             let mut options = OpenOptions::new();
             options.read(true).write(true).create(true);
+
             #[cfg(target_family = "unix")]
-            options.mode(0o600);
+            {
+                use std::os::unix::fs::OpenOptionsExt as _;
+                options.mode(0o600);
+            }
 
             options.open(path)?
         };
@@ -119,6 +135,7 @@ impl ReplayLog {
         Ok(Self {
             seen,
             log: Some(BufWriter::new(file)),
+            lock: Some(lock),
         })
     }
 
@@ -154,6 +171,10 @@ impl ReplayLog {
     fn check_inner(&mut self, h: &H) -> Result<(), ReplayError> {
         self.seen.test_and_add(h)?;
         if let Some(f) = self.log.as_mut() {
+            // TODO HSS if write_all fails, it might have written part of the data;
+            // in that case, we must truncate the file to resynchronise.
+            // We should probably set a note to truncate just before we call write_all
+            // and clear it again afterwards.
             f.write_all(&h.0[..])
                 .map_err(|e| ReplayError::Log(Arc::new(e)))?;
         }
@@ -284,6 +305,8 @@ mod test {
     use std::path::PathBuf;
 
     use super::*;
+    use crate::test_temp_dir;
+    use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use rand::Rng;
 
     fn rand_h<R: Rng>(rng: &mut R) -> H {
@@ -321,6 +344,20 @@ mod test {
         }
     }
 
+    const TEST_TEMP_SUBDIR: &str = "replaylog";
+
+    fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<ReplayLog> {
+        dir.used_by(TEST_TEMP_SUBDIR, |dir| {
+            let lock = LockFile::open(&dir.join("lock")).unwrap();
+            // Really ReplayLog::new should take a lock file type that guarantees the
+            // returned value has actually been locked.  But it doesn't.  Because
+            // the LockFile API is defective and doesn't provide such a type.
+            // So, we can skip actually locking, in these tests...
+            let p: PathBuf = dir.join("logfile");
+            ReplayLog::new_logged(p, Arc::new(lock)).unwrap()
+        })
+    }
+
     /// Basic tests on an persistent ReplayLog.
     #[test]
     fn logging_basics() {
@@ -328,15 +365,14 @@ mod test {
         let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
         let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
 
-        let dir = tempfile::TempDir::new().unwrap();
-        let p: PathBuf = dir.path().to_path_buf().join("logfile");
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let dir = test_temp_dir!();
+        let mut log = create_logged(&dir);
         // Add everything in group 1, then close and reload.
         for h in &group_1 {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         // Make sure everything in group 1 is still there.
         for h in &group_1 {
             assert!(log.check_inner(h).is_err());
@@ -346,7 +382,7 @@ mod test {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
         for h in group_1.iter().chain(group_2.iter()) {
             assert!(log.check_inner(h).is_err());
@@ -360,24 +396,26 @@ mod test {
         let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
         let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
 
-        let dir = tempfile::TempDir::new().unwrap();
-        let p: PathBuf = dir.path().to_path_buf().join("logfile");
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let dir = test_temp_dir!();
+        let mut log = create_logged(&dir);
         for h in &group_1 {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
         // Truncate the file by 7 bytes.
-        {
-            let file = OpenOptions::new().write(true).open(&p).unwrap();
+        dir.used_by(TEST_TEMP_SUBDIR, |dir| {
+            let file = OpenOptions::new()
+                .write(true)
+                .open(dir.join("logfile"))
+                .unwrap();
             // Make sure that the file has the length we expect.
             let expected_len = MAGIC.len() + HASH_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
             file.set_len((expected_len - 7) as u64).unwrap();
-        }
+        });
         // Now, reload the log. We should be able to recover every non-truncated
         // item...
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         for h in &group_1[..group_1.len() - 1] {
             assert!(log.check_inner(h).is_err());
         }
@@ -391,7 +429,7 @@ mod test {
             assert!(log.check_inner(h).is_ok(), "False positive");
         }
         drop(log);
-        let mut log = ReplayLog::new_logged(&p).unwrap();
+        let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
         for h in group_1.iter().chain(group_2.iter()) {
             assert!(log.check_inner(h).is_err());
