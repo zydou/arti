@@ -104,13 +104,9 @@ When you start arti, look for a log message like this:
 > We intend to add a CLI for this.
 > But for now, that is the workaround.
 
-Note that this is only logged on the first startup!
-
-> NOTE: It might be a good idea to have a
-> "starting onion service with existing ID {}"
-> message for now.
-> (We have one now, but it is at `trace`;
-> `info` would be cleverer until we have the CLI sorted.)
+If it says "[scrubbed]" instead of an `.onion address,
+you forgot to disable safe logs;
+see "Disabling safe logs" above.
 
 ## Limitations
 

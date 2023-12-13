@@ -23,7 +23,7 @@ use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::pk::ed25519;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
-use tracing::{info, trace, warn};
+use tracing::{info, warn};
 
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
@@ -395,7 +395,7 @@ fn maybe_generate_hsid(
 
         // NOTE: KeyMgr::generate will generate a new hsid keypair and corresponding public
         // key.
-        if keymgr
+        let generated = keymgr
             .generate_with_derived::<HsIdKeypair, ed25519::PublicKey>(
                 &hsid_spec,
                 &pub_hsid_spec,
@@ -408,23 +408,29 @@ fn maybe_generate_hsid(
                 action: "generate key",
                 cause,
             })?
-            .is_some()
-        {
-            let kp = keymgr
-                .get::<HsIdKeypair>(&hsid_spec)
-                .map_err(|cause| StartupError::Keystore {
-                    action: "read",
-                    cause,
-                })?
-                .ok_or(StartupError::KeystoreCorrupted)?;
+            .is_some();
 
-            let hsid: HsId = HsIdKey::from(&kp).into();
+        let pk = keymgr
+            .get::<HsIdKey>(&pub_hsid_spec)
+            .map_err(|cause| StartupError::Keystore {
+                action: "read",
+                cause,
+            })?
+            .ok_or(StartupError::KeystoreCorrupted)?;
+
+        let hsid: HsId = pk.id();
+        if generated {
             info!(
                 "Generated a new identity for service {nickname}: {}",
                 sensitive(hsid)
             );
         } else {
-            trace!("Using existing identity for service {nickname}");
+            // TODO: We may want to downgrade this to trace once we have a CLI
+            // for extracting it.
+            info!(
+                "Using existing identity for service {nickname}: {}",
+                sensitive(hsid)
+            );
         }
     }
 
