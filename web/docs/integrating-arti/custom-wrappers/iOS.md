@@ -81,7 +81,7 @@ You can add `--release` to each of this commands to build release `libs` that ar
 
 ## The Swift part
 
-After setting up your [Rust project](#configuring-a-rust-project), you'll need to create an Swift project. To do this, adjust your project's `build` settings and configure the Objective-C bridging header to point to the path of your C header file. This will add the native library and its header into your project.
+After setting up your [Rust project](#configuring-a-rust-project), you'll need to create a Swift project. Adjust your project's `build` settings and configure the Objective-C bridging header to point to the path of your C header file. This will add the native library and its header into your project. 
 
 Close Xcode, then open your `project.pbxproj` file in a text editor. Navigate to the `LD_RUNPATH_SEARCH_PATHS` entry, which should appear twice, once under the "Debug" section and again under the "Release" section.
 
@@ -114,7 +114,7 @@ You can now build your application, and test it in an emulator or on your device
 
 ## Tips and caveats
 
-The sample project [arti-mobile-example](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/) is a simple app that serves as a solid foundation for compiling Android apps with Arti. Additionally, it incorporates the majority of the provided tips below.
+The sample project [arti-mobile-example](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/) is a simple app that serves as a demo for compiling iOS apps with Arti. Additionally, it incorporates the majority of the provided tips below.
 
 ## Generating C headers from Rust code
 
