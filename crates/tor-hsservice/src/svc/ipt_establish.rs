@@ -639,6 +639,12 @@ struct Reactor<R: Runtime> {
     request_context: Arc<RendRequestContext>,
 
     /// Introduction request replay log
+    ///
+    /// Shared between multiple IPT circuit control message handlers -
+    /// [`IptMsgHandler`] contains the lock guard.
+    ///
+    /// Has to be an async mutex since it's locked for a long time,
+    /// so we mustn't block the async executor thread on it.
     replay_log: Arc<futures::lock::Mutex<ReplayLog>>,
 }
 
