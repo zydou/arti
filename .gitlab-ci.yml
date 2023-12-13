@@ -126,7 +126,11 @@ rust-latest-arti-extra-features:
     # Note: `-p arti` is *not* already implied by `--bin arti`. If we omit it,
     # we'll get the union of all features needed by anything in the workspace,
     # including examples.
-    - cargo build --verbose --target x86_64-unknown-linux-gnu -p arti -p tor-circmgr --bin arti --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3
+    - cargo build --verbose
+      --target x86_64-unknown-linux-gnu
+      -p arti -p tor-circmgr
+      --bin arti
+      --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.

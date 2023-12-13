@@ -5,7 +5,7 @@ charset = utf-8
 insert_final_newline = true
 end_of_line = lf
 
-[tests/shadow/shadow.data.template/hosts/**/*{key,cert}*]
+[tests/shadow/shadow.data.template/hosts/**/*{key,cert,KS_hs,KP_hs}*]
 charset = unset
 end_of_line = unset
 insert_final_newline = unset
