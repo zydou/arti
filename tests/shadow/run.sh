@@ -37,7 +37,7 @@ for HOST in articlient articlient-extra articlient-bridge; do
   fi
 done
 
-for HOST in articlient-onion articlient-onion-auth articlient-onion-artiserver; do
+for HOST in articlient-onion articlient-onion-auth articlient-onion-artiserver torclient-onion-artiserver; do
   successes="$(grep -c stream-success shadow.data/hosts/$HOST/tgen.*.stdout || true)"
   # NOTE: For the HS client tests we only require half of the streams to succeed
   # to work around the issue described in https://github.com/shadow/shadow/issues/2544
