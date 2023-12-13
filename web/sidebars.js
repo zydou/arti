@@ -64,9 +64,9 @@ const sidebars = {
       ]
     },
     {
-      type: 'doc',
+      type: 'link',
       label: 'Changelog',
-      id: 'changelog'
+      href: 'https://gitlab.torproject.org/tpo/core/arti/-/blob/main/CHANGELOG.md'
     },
     {
       type: 'link',
@@ -76,7 +76,18 @@ const sidebars = {
     {
       type: 'category',
       label: 'Resources',
-      items: ['resources/glossary', 'resources/tor-specifications']
+      items: [
+        {
+          type: 'link',
+          label: 'Glossary',
+          href: 'https://spec.torproject.org/glossary.html'
+        },
+        {
+          type: 'link',
+          label: 'Tor Specifications',
+          href: 'https://spec.torproject.org'
+        } 
+      ]
     }
   ]
 };
