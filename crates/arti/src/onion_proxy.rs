@@ -92,6 +92,13 @@ define_list_builder_helper! {
 fn build_list(
     services: Vec<OnionServiceProxyConfig>,
 ) -> Result<OnionServiceProxyConfigMap, ConfigBuildError> {
+    // TODO: Add a test for this function.
+    //
+    // It *is* reachable from OnionServiceProxyCOnfigMapBuilder::build(), since
+    // that builder's API uses push() to add OnionServiceProxyConfigBuilders to
+    // an internal _list_.  Alternatively, we might want to have a distinct
+    // MapBuilder type.
+
     let mut map = BTreeMap::new();
     for service in services {
         if let Some(previous_value) = map.insert(service.svc_cfg.nickname().clone(), service) {
