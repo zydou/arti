@@ -332,6 +332,11 @@ impl IptsPublisherView {
     ///  * `Some(Ok(())` if the IPT set was (or may have been) updated
     ///  * `None` if the manager is shutting down and the publisher should shut down too
     ///  * `Some(Err(..))` if a fatal error occurred
+    //
+    // TODO: make this return Result<ShutdownStatus, FatalError> instead
+    // (this is what we do in other places, e.g. in ipt_mgr, publisher).
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1812#note_2976758
     pub(crate) async fn await_update(&mut self) -> Option<Result<(), crate::FatalError>> {
         // Cancellation safety:
         //
