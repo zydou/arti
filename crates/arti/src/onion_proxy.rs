@@ -94,16 +94,15 @@ fn build_list(
 ) -> Result<OnionServiceProxyConfigMap, ConfigBuildError> {
     let mut map = HashMap::new();
     for service in services {
-        if map.contains_key(service.svc_cfg.nickname()) {
+        if let Some(previous_value) = map.insert(service.svc_cfg.nickname().clone(), service) {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["nickname".into()],
                 problem: format!(
                     "Multiple onion services with the nickname {}",
-                    service.svc_cfg.nickname()
+                    previous_value.svc_cfg.nickname()
                 ),
             });
-        }
-        map.insert(service.svc_cfg.nickname().clone(), service);
+        };
     }
     Ok(map)
 }
