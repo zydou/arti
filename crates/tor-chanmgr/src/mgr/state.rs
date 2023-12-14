@@ -203,24 +203,20 @@ impl<C: AbstractChannel> ChannelState<C> {
     /// Update `expire_after` if a smaller duration than
     /// the given value is required to expire this channel.
     fn ready_to_expire(&self, expire_after: &mut Duration) -> bool {
-        if let ChannelState::Open(ent) = self {
-            let unused_duration = ent.channel.duration_unused();
-            if let Some(unused_duration) = unused_duration {
-                let max_unused_duration = ent.max_unused_duration;
-
-                if let Some(remaining) = max_unused_duration.checked_sub(unused_duration) {
-                    *expire_after = std::cmp::min(*expire_after, remaining);
-                    false
-                } else {
-                    true
-                }
-            } else {
-                // still in use
-                false
-            }
-        } else {
-            false
-        }
+        let ChannelState::Open(ent) = self else {
+            return false;
+        };
+        let Some(unused_duration) = ent.channel.duration_unused() else {
+            // still in use
+            return false;
+        };
+        let max_unused_duration = ent.max_unused_duration;
+        let Some(remaining) = max_unused_duration.checked_sub(unused_duration) else {
+            // no time remaining; drop now.
+            return true;
+        };
+        *expire_after = std::cmp::min(*expire_after, remaining);
+        false
     }
 }
 
