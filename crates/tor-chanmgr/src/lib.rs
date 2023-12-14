@@ -396,7 +396,7 @@ impl<R: Runtime> ChanMgr<R> {
             };
             let delay = cm.expire_channels();
             // This will sometimes be an underestimate, but it's no big deal; we just sleep some more.
-            sched.fire_in(Duration::from_secs(delay.as_secs()));
+            sched.fire_in(delay);
         }
     }
 }
