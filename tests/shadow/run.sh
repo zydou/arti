@@ -15,7 +15,6 @@ chmod 700 shadow.data.template/hosts/fileserver-onion-auth/hs
 
 # Run the simulation
 shadow \
-  --model-unblocked-syscall-latency=true \
   --log-level=debug \
   --strace-logging-mode=standard \
   --template-directory=./shadow.data.template \
