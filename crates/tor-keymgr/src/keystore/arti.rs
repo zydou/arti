@@ -33,8 +33,8 @@ use super::SshKeyData;
 /// `<something@subdomain.torproject.org>` format.
 ///
 /// We have assigned the following custom algorithm names:
-///   * `x25519@torproject.org`, for x25519 keys
-///   * `ed25519-expanded@torproject.org`, for expanded ed25519 keys
+///   * `x25519@spec.torproject.org`, for x25519 keys
+///   * `ed25519-expanded@spec.torproject.org`, for expanded ed25519 keys
 ///
 /// See [SSH protocol extensions] for more details.
 ///
