@@ -14,7 +14,7 @@ pub use {paste, tor_bytes};
 ///
 /// The restricted message type is an enum, and is declared with a syntax as follows:
 /// ```
-/// use tor_cell::{restrict::restricted_msg, relaycell::RelayCell};
+/// use tor_cell::{restrict::restricted_msg, relaycell::RelayMsgOuter};
 ///
 /// restricted_msg! {
 ///     enum OpenStreamMsg : RelayMsg {
@@ -25,7 +25,7 @@ pub use {paste, tor_bytes};
 ///    }
 /// }
 ///
-/// type OpenStreamCell = RelayCell<OpenStreamMsg>;
+/// type OpenStreamMsgOuter = RelayMsgOuter<OpenStreamMsg>;
 /// ```
 ///
 /// Instead of `RelayMsg`, you can say `ChanMsg` to get a restricted channel
