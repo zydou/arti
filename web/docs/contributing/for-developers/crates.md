@@ -4,11 +4,11 @@ title: Adding Crates
 
 # Adding new crates
 
-When adding new crates to Arti, it is important to ensure consistency, compatibility, and maintainability. To add a new crate to the project:
+To add a new crate to the project:
 
 ### Create crate directory
 
-After cloning the Arti project, create a new directory in the `crates/{NAME}` format. Replace `{NAME}` with your crate's actual name, and make sure the [crate naming convention](https://www.notion.so/adding-new-crates-05cee9e69c0b4a33a5aeed86432f3b0b?pvs=21) is followed.
+After cloning the Arti project, create a new directory in the `crates/{NAME}` format. Replace `{NAME}` with your crate's actual name, and make sure the [crate naming convention](/contributing/for-developers/architecture) is followed.
 
 ### Add necessary files
 
@@ -23,6 +23,7 @@ Ensure that the directory contains the following:
     name = "your_crate_name"
     version = "0.1.0"
     edition = "2023"
+    license = "MIT OR Apache-2.0"
     
     [lib]
     path = "src/lib.rs"
@@ -35,34 +36,16 @@ Ensure that the directory contains the following:
 - **`src` directory:** This directory will contain your source code.
 - **At least one source file:** Create either `src/lib.rs` for a library crate or `src/main.rs` for an executable crate.
 - **`README.md` file:** Provide documentation about your crate, including usage, examples, and any other relevant information.
+- **A conforming license:** Include a license in your `Cargo.toml` file, ideally `"MIT OR APACHE-2.0"`.
 
 ### Maintain Arti’s standards
 
-Check that your source code complies with the project’s standards and [contribution guidelines](https://www.notion.so/adding-new-crates-05cee9e69c0b4a33a5aeed86432f3b0b?pvs=21):
+- Check that your source code complies with the project’s standards and [contribution guidelines](/contributing/).
 
-- **Use a conforming license:** Include a license in your `Cargo.toml` file, ideally `"MIT OR APACHE-2.0"`.
-    
-    ```toml
-    # Example Cargo.toml with license
-    
-    [package]
-    name = "your_crate_name"
-    version = "0.1.0"
-    edition = "2021"
-    license = "MIT OR Apache-2.0"
-    
-    [lib]
-    path = "src/lib.rs"
-    
-    [dependencies]
-    # Add dependencies if needed
-    
-    ```
-    
-- **Use the same boilerplate in `lib.rs`:** Maintain consistency with other `lib.rs` files in the project.
+- **Use the same boilerplate in `lib.rs`:**
+  Throughout our codebase, we apply a consistent set of warning and lint parameters. Our standard lint block can be copied into your `lib.rs` when you create a new crate; a copy can be found at [`crates/tor-error/src/lib.rs`](https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/tor-error). 
 
-> To ensure consistency with our coding standards, check out the [tor-error](https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/tor-error) crate.
-> 
+  We also suggest that you copy the `docsrs` attribute from [`tor-error`](https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/tor-error) to your crate. This attribute ensures that your crate’s documentation is available on [docs.rs](https://docs.rs/).
 
 ### Add crate to top-level `Cargo.toml`
 
