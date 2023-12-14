@@ -390,12 +390,11 @@ impl<R: Runtime> ChanMgr<R> {
     /// This is a daemon task that runs indefinitely in the background
     async fn continually_expire_channels(mut sched: TaskSchedule<R>, chanmgr: Weak<Self>) {
         while sched.next().await.is_some() {
-            let delay = if let Some(cm) = Weak::upgrade(&chanmgr) {
-                cm.expire_channels()
-            } else {
+            let Some(cm) = Weak::upgrade(&chanmgr) else {
                 // channel manager is closed.
                 return;
             };
+            let delay = cm.expire_channels();
             // This will sometimes be an underestimate, but it's no big deal; we just sleep some more.
             sched.fire_in(Duration::from_secs(delay.as_secs()));
         }
