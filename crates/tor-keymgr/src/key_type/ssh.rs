@@ -19,77 +19,12 @@ use super::UnknownKeyTypeError;
 
 /// The algorithm string for x25519 SSH keys.
 ///
-// TODO HSS: start a protocol name registry in the torspec repo and document the usage and purpose
-// of this "protocol" name:
-//
-// ### Assigned Additional Algorithm Names
-//
-// #### Registration Procedure(s)
-//
-// TODO
-//
-// #### NOTE
-//
-// The algorithm names MUST meet the criteria for additional algorithm names described in [RFC4251
-// § 6].
-//
-// We reserve the following custom OpenSSH key types:
-//
-//  +----------------------------------+--------------------+---------------------+------------------------+
-//  | Public Key Algorithm Name        | Public Key Format  | Private Key Format  | Purpose                |
-//  |----------------------------------|--------------------|---------------------|------------------------|
-//  | x25519@torproject.org            | [TODO link to spec | [TODO link to spec  | Arti keystore storage  |
-//  |                                  | describing the key | describing the key  | format                 |
-//  |                                  | format]            | format]             |                        |
-//  |----------------------------------|--------------------|---------------------|------------------------|
-//  | ed25519-expanded@torproject.org  | [TODO link to spec | [TODO link to spec  | Arti keystore storage  |
-//  |                                  | describing the key | describing the key  | format                 |
-//  |                                  | format]            | format]             |                        |
-//  |                                  |                    |                     |                        |
-//  +----------------------------------+--------------------+---------------------+------------------------+
-//
-// [RFC4251 § 6]: https://www.rfc-editor.org/rfc/rfc4251.html#section-6
-//
-// <The following will go in the document that describes the custom SSH key formats we use in Arti>
-//
-// # Arti Custom OpenSSH Keys
-//
-// ## x25519@torproject.org
-//
-// X25519 keys do not have a predefined SSH key algorithm name in [IANA's Secure Shell(SSH)
-// Protocol Parameters], so in order to be able to store this type of key in OpenSSH format,
-// we need to define a custom OpenSSH key type.
-//
-// ### Key Format
-//
-// An x25519@torproject.org public key file is encoded in the format specified in
-// [RFC4716 § 3.4].
-//
-// Private keys use the format specified in [PROTOCOL.key].
-//
-// TODO: flesh out the RFC and write down a concrete example for clarity.
-//
-// ## ed25519-expanded@torproject.org
-//
-// Expanded Ed25519 keys do not have a predefined SSH key algorithm name in [IANA's Secure Shell(SSH)
-// Protocol Parameters], so in order to be able to store this type of key in OpenSSH format,
-// we need to define a custom OpenSSH key type.
-//
-// ### Key Format
-//
-// An ed25519-expanded@torproject.org public key file is encoded in the format specified in
-// [RFC4716 § 3.4].
-//
-// Private keys use the format specified in [PROTOCOL.key].
-//
-// TODO: flesh out the RFC and write down a concrete example for clarity.
-
-// [IANA's Secure Shell(SSH) Protocol Parameters]: https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-19
-// [RFC4716 § 3.4]: https://datatracker.ietf.org/doc/html/rfc4716#section-3.4
-// [PROTOCOL.key]: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.key?annotate=HEAD
+/// See https://spec.torproject.org/ssh-protocols.html
 pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@spec.torproject.org";
 
 /// The algorithm string for expanded ed25519 SSH keys.
+///
+/// See https://spec.torproject.org/ssh-protocols.html
 pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@spec.torproject.org";
 
 /// An unparsed OpenSSH key.
