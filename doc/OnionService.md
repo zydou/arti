@@ -101,12 +101,15 @@ When you start arti, look for a log message like this:
 2023-12-12T17:25:42Z  INFO tor_hsservice::svc: Generated a new identity for service allium-cepa: s6kocstkk2spuifmh6bdajma3veek2r6ecgszgdgxgbvjtlmjohth3id.onion
 ```
 
-> We intend to add a CLI for this.
-> But for now, that is the workaround.
-
 If it says "[scrubbed]" instead of an `.onion address,
 you forgot to disable safe logs;
 see "Disabling safe logs" above.
+
+You can also find your onion .address using the `arti hss` CLI
+(replace `<NICKNAME>` with the nickname of your service):
+```
+./target/release/arti hss --nickname <NICKNAME> onion-name
+```
 
 ## Limitations
 

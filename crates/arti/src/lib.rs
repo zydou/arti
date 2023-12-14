@@ -571,7 +571,7 @@ where
                         if let Some(onion) = state_mgr.onion_name(&nickname) {
                             println!("{onion}");
                         } else {
-                            println!("Service {nickname} does not exit, or does not have an K_hsid yet");
+                            println!("Service {nickname} does not exist, or does not have an K_hsid yet");
                         }
 
                         return Ok(());
