@@ -44,6 +44,9 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
     ///
     /// By convention, this should only return fatal errors; any such error
     /// should cause the program to exit.  For other cases, we should just warn.
+    //
+    // TODO: This should probably take "how: Reconfigure" as an argument, and
+    // pass it down as appropriate. See issue #1156.
     fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()>;
 }
 
@@ -200,6 +203,8 @@ impl Application {
 }
 
 impl ReconfigurableModule for Application {
+    // TODO: This should probably take "how: Reconfigure" as an argument, and
+    // pass it down as appropriate. See issue #1156.
     #[allow(clippy::cognitive_complexity)]
     fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
         let original = &self.original_config;
@@ -229,6 +234,9 @@ impl ReconfigurableModule for Application {
 /// reconfigure the client as much as we can.
 ///
 /// Return true if we should be watching for configuration changes.
+//
+// TODO: This should probably take "how: Reconfigure" as an argument, and
+// pass it down as appropriate. See issue #1156.
 fn reconfigure(
     found_files: FoundConfigFiles<'_>,
     reconfigurable: &[Arc<dyn ReconfigurableModule>],

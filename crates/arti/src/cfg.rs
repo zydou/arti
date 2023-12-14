@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "onion-service-service")]
 use crate::onion_proxy::{
-    OnionServiceProxyConfigBuilder, OnionServiceProxyConfigList, OnionServiceProxyConfigListBuilder,
+    OnionServiceProxyConfigBuilder, OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder,
 };
 use arti_client::TorClientConfig;
 #[cfg(feature = "rpc")]
@@ -240,7 +240,7 @@ pub struct ArtiConfig {
     #[builder(sub_builder, setter(custom))]
     #[builder_field_attr(serde(default))]
     #[cfg(feature = "onion-service-service")]
-    pub(crate) onion_services: OnionServiceProxyConfigList,
+    pub(crate) onion_services: OnionServiceProxyConfigMap,
 }
 
 impl_standard_builder! { ArtiConfig }
@@ -548,9 +548,10 @@ mod test {
             ],
         );
 
+        // These are commented-out by default, and tested with test::onion_services().
         declare_exceptions(
             None,
-            None, // TODO HSS actually test the example config using semi-ad-hoc approach
+            None,
             FeatureDependent,
             &[
                 // onion-service only settings.
@@ -1063,8 +1064,40 @@ example config file {which:?}, uncommented={uncommented:?}
             let cfg = result.unwrap();
             let services = cfg.1.onion_services;
             assert_eq!(services.len(), 1);
-            let _svc = &services[0];
-            // TODO HSS: Actually test that this is as expected, somehow.
+            let svc = services.values().next().unwrap();
+            let svc_expected = {
+                use tor_hsrproxy::config::*;
+                let mut b = OnionServiceProxyConfigBuilder::default();
+                b.service().nickname("allium-cepa".parse().unwrap());
+                b.proxy().proxy_ports().push(ProxyRule::new(
+                    ProxyPattern::one_port(80).unwrap(),
+                    ProxyAction::Forward(
+                        Encapsulation::Simple,
+                        TargetAddr::Inet("127.0.0.1:10080".parse().unwrap()),
+                    ),
+                ));
+                b.proxy().proxy_ports().push(ProxyRule::new(
+                    ProxyPattern::one_port(22).unwrap(),
+                    ProxyAction::DestroyCircuit,
+                ));
+                b.proxy().proxy_ports().push(ProxyRule::new(
+                    ProxyPattern::one_port(265).unwrap(),
+                    ProxyAction::IgnoreStream,
+                ));
+                b.proxy().proxy_ports().push(ProxyRule::new(
+                    ProxyPattern::port_range(1, 1024).unwrap(),
+                    ProxyAction::Forward(
+                        Encapsulation::Simple,
+                        TargetAddr::Unix("/var/run/allium-cepa/socket".into()),
+                    ),
+                ));
+                b.proxy().proxy_ports().push(ProxyRule::new(
+                    ProxyPattern::all_ports(),
+                    ProxyAction::DestroyCircuit,
+                ));
+                b.build().unwrap()
+            };
+            assert_eq!(svc, &svc_expected);
         }
         #[cfg(not(feature = "onion-service-service"))]
         {

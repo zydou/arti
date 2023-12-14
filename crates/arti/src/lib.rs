@@ -47,31 +47,42 @@
 pub mod cfg;
 pub mod logging;
 
-// TODO HSS: conditionally expose this?
-#[cfg(feature = "onion-service-service")]
-mod onion_proxy;
+/// Helper:
+/// Declare a series of modules as public if experimental_api is set,
+/// and as non-public otherwise.
+//
+// TODO: We'd like to use visibility::make(pub) here, but it doesn't
+// work on modules.
+macro_rules! semipublic_mod {
+    {
+        $(
+            $( #[$meta:meta] )*
+            mod $name:ident ;
+        )*
+    }  => {
+        $(
+            $( #[$meta])*
+            cfg_if::cfg_if! {
+                if #[cfg(feature="experimental-api")] {
+                   pub mod $name;
+                } else {
+                   mod $name;
+                }
+            }
+         )*
+    }
+}
 
-#[cfg(all(feature = "experimental-api", feature = "dns-proxy"))]
-pub mod dns;
-#[cfg(feature = "experimental-api")]
-pub mod exit;
-#[cfg(feature = "experimental-api")]
-pub mod process;
-#[cfg(feature = "experimental-api")]
-pub mod reload_cfg;
-#[cfg(feature = "experimental-api")]
-pub mod socks;
-
-#[cfg(all(not(feature = "experimental-api"), feature = "dns-proxy"))]
-mod dns;
-#[cfg(not(feature = "experimental-api"))]
-mod exit;
-#[cfg(not(feature = "experimental-api"))]
-mod process;
-#[cfg(not(feature = "experimental-api"))]
-mod reload_cfg;
-#[cfg(not(feature = "experimental-api"))]
-mod socks;
+semipublic_mod! {
+    #[cfg(feature = "dns-proxy")]
+    mod dns;
+    mod exit;
+    #[cfg(feature="onion-service-service")]
+    mod onion_proxy;
+    mod process;
+    mod reload_cfg;
+    mod socks;
+}
 
 #[cfg(feature = "rpc")]
 mod rpc;
@@ -199,7 +210,6 @@ async fn run<R: Runtime>(
         reconfigurable_modules.push(Arc::new(onion_services));
     }
 
-    // TODO HSS: We need to feed changes to onion services as well.
     reload_cfg::watch_for_config_changes(
         config_sources,
         &arti_config,

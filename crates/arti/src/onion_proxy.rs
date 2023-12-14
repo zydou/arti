@@ -1,7 +1,7 @@
 //! Configure and implement onion service reverse-proxy feature.
 
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{btree_map::Entry, BTreeMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -65,30 +65,60 @@ impl OnionServiceProxyConfigBuilder {
 
 impl_standard_builder! { OnionServiceProxyConfig: !Default }
 
-/// Alias for a `Vec` of `OnionServiceProxyConfig`; used to make derive_builder
+/// Alias for a `BTreeMap` of `OnionServiceProxyConfig`; used to make derive_builder
 /// happy.
 #[cfg(feature = "onion-service-service")]
-pub(crate) type OnionServiceProxyConfigList = Vec<OnionServiceProxyConfig>;
+pub(crate) type OnionServiceProxyConfigMap = BTreeMap<HsNickname, OnionServiceProxyConfig>;
 
 /// The serialized format of an OnionServiceProxyConfigListBuilder:
 /// a map from nickname to `OnionServiceConfigBuilder`
-type NamedProxyMap = HashMap<HsNickname, OnionServiceProxyConfigBuilder>;
+type ProxyBuilderMap = BTreeMap<HsNickname, OnionServiceProxyConfigBuilder>;
 
+// TODO: Someday we might want to have an API for a MapBuilder that is distinct
+// from that of a ListBuilder.  It would have to enforce that everything has a
+// key, and that keys are distinct.
 #[cfg(feature = "onion-service-service")]
 define_list_builder_helper! {
-    pub struct OnionServiceProxyConfigListBuilder {
+    pub struct OnionServiceProxyConfigMapBuilder {
         services: [OnionServiceProxyConfigBuilder],
     }
-    built: OnionServiceProxyConfigList = services;
+    built: OnionServiceProxyConfigMap = build_list(services)?;
     default = vec![];
-    #[serde(try_from="NamedProxyMap", into="NamedProxyMap")]
+    #[serde(try_from="ProxyBuilderMap", into="ProxyBuilderMap")]
 }
 
-impl TryFrom<NamedProxyMap> for OnionServiceProxyConfigListBuilder {
+/// Construct a OnionServiceProxyConfigList from a vec of OnionServiceProxyConfig;
+/// enforce that nicknames are unique.
+fn build_list(
+    services: Vec<OnionServiceProxyConfig>,
+) -> Result<OnionServiceProxyConfigMap, ConfigBuildError> {
+    // TODO: Add a test for this function.
+    //
+    // It *is* reachable from OnionServiceProxyConfigMapBuilder::build(), since
+    // that builder's API uses push() to add OnionServiceProxyConfigBuilders to
+    // an internal _list_.  Alternatively, we might want to have a distinct
+    // MapBuilder type.
+
+    let mut map = BTreeMap::new();
+    for service in services {
+        if let Some(previous_value) = map.insert(service.svc_cfg.nickname().clone(), service) {
+            return Err(ConfigBuildError::Inconsistent {
+                fields: vec!["nickname".into()],
+                problem: format!(
+                    "Multiple onion services with the nickname {}",
+                    previous_value.svc_cfg.nickname()
+                ),
+            });
+        };
+    }
+    Ok(map)
+}
+
+impl TryFrom<ProxyBuilderMap> for OnionServiceProxyConfigMapBuilder {
     type Error = ConfigBuildError;
 
-    fn try_from(value: NamedProxyMap) -> Result<Self, Self::Error> {
-        let mut list_builder = OnionServiceProxyConfigListBuilder::default();
+    fn try_from(value: ProxyBuilderMap) -> Result<Self, Self::Error> {
+        let mut list_builder = OnionServiceProxyConfigMapBuilder::default();
         for (nickname, mut cfg) in value {
             match cfg.0 .0.peek_nickname() {
                 Some(n) if n == &nickname => (),
@@ -107,11 +137,16 @@ impl TryFrom<NamedProxyMap> for OnionServiceProxyConfigListBuilder {
     }
 }
 
-impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
-    fn from(value: OnionServiceProxyConfigListBuilder) -> Self {
-        let mut map = HashMap::new();
+impl From<OnionServiceProxyConfigMapBuilder> for ProxyBuilderMap {
+    /// Convert our Builder representation of a set of onion services into the
+    /// format that serde will serialize.
+    ///
+    /// Note: This is a potentially lossy conversion, since the serialized format
+    /// can't represent partially-built services without a nickname, or
+    /// a collection of services with duplicate nicknames.
+    fn from(value: OnionServiceProxyConfigMapBuilder) -> Self {
+        let mut map = BTreeMap::new();
         for cfg in value.services.into_iter().flatten() {
-            // TODO HSS: Validate that nicknames are unique, somehow.
             let nickname = cfg.0 .0.peek_nickname().cloned().unwrap_or_else(|| {
                 "Unnamed"
                     .to_string()
@@ -128,7 +163,6 @@ impl From<OnionServiceProxyConfigListBuilder> for NamedProxyMap {
 ///
 /// This is what a user configures when they add an onion service to their
 /// configuration.
-#[allow(dead_code)] //TODO HSS remove once reconfigure is written.
 #[must_use = "a hidden service Proxy object will terminate the service when dropped"]
 struct Proxy {
     /// The onion service.
@@ -209,24 +243,19 @@ pub(crate) struct ProxySet<R: Runtime> {
     /// The arti_client that we use to launch proxies.
     client: arti_client::TorClient<R>,
     /// The proxies themselves, indexed by nickname.
-    proxies: Mutex<HashMap<HsNickname, Proxy>>,
+    proxies: Mutex<BTreeMap<HsNickname, Proxy>>,
 }
 
 impl<R: Runtime> ProxySet<R> {
     /// Create and launch a set of onion service proxies.
     pub(crate) fn launch_new(
         client: &arti_client::TorClient<R>,
-        config_list: OnionServiceProxyConfigList,
+        config_list: OnionServiceProxyConfigMap,
     ) -> anyhow::Result<Self> {
-        // TODO HSS: Perhaps OnionServiceProxyConfigList needs to enforce no
-        // duplicate nicknames?
-        let proxies: HashMap<_, _> = config_list
+        let proxies: BTreeMap<_, _> = config_list
             .into_iter()
-            .map(|cfg| {
-                let nickname = cfg.svc_cfg.nickname().clone();
-                Ok((nickname, Proxy::launch_new(client, cfg)?))
-            })
-            .collect::<anyhow::Result<HashMap<_, _>>>()?;
+            .map(|(nickname, cfg)| Ok((nickname, Proxy::launch_new(client, cfg)?)))
+            .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
 
         Ok(Self {
             client: client.clone(),
@@ -241,15 +270,16 @@ impl<R: Runtime> ProxySet<R> {
     /// connections.
     pub(crate) fn reconfigure(
         &self,
-        new_config: OnionServiceProxyConfigList,
-        // TODO HSS this should probably take `how: Reconfigure` and implement an all-or-nothing mode
+        new_config: OnionServiceProxyConfigMap,
+        // TODO: this should probably take `how: Reconfigure` and implement an all-or-nothing mode.
+        // See #1156.
     ) -> Result<(), anyhow::Error> {
         let mut proxy_map = self.proxies.lock().expect("lock poisoned");
 
         // Set of the nicknames of defunct proxies.
         let mut defunct_nicknames: HashSet<_> = proxy_map.keys().map(Clone::clone).collect();
 
-        for cfg in new_config.into_iter() {
+        for cfg in new_config.into_values() {
             let nickname = cfg.svc_cfg.nickname().clone();
             // This proxy is still configured, so remove it from the list of
             // defunct proxies.
