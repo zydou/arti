@@ -87,10 +87,10 @@ use super::UnknownKeyTypeError;
 // [IANA's Secure Shell(SSH) Protocol Parameters]: https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-19
 // [RFC4716 § 3.4]: https://datatracker.ietf.org/doc/html/rfc4716#section-3.4
 // [PROTOCOL.key]: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.key?annotate=HEAD
-pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@torproject.org";
+pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@spec.torproject.org";
 
 /// The algorithm string for expanded ed25519 SSH keys.
-pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@torproject.org";
+pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@spec.torproject.org";
 
 /// An unparsed OpenSSH key.
 ///
