@@ -1,4 +1,4 @@
-//! [`KeySpecifier`] implementations for hidden service keys.
+//! [`KeySpecifier`](tor_keymgr::KeySpecifier) implementations for hidden service keys.
 //!
 //! Some of these `KeySpecifier`s represent time-bound keys (that are only valid
 //! as long as their time period is relevant). Time-bound keys are expired (removed)
