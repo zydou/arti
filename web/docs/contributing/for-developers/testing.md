@@ -10,7 +10,7 @@ Here "generally reasonable" means that we aren't making a huge number of connect
 
 The primary purpose of simulating failures is to verify that Arti behaves appropriately in scenarios where the network is down or misconfigured, or when the localhost setup is confusing. This includes avoiding excessive network connections, bandwidth consumption, CPU usage, and preventing log overflow at levels `info` or higher.
 
-It iss an extra benefit if we can ensure that our bootstrap reporting mechanisms give us accurate feedback in these cases, and diagnose the problem accurately.
+It is an extra benefit if we can ensure that our bootstrap reporting mechanisms give us accurate feedback in these cases, and diagnose the problem accurately.
 
 Most of the examples here will use the [`arti-testing`](https://tpo.pages.torproject.net/core/doc/rust/arti_testing/index.html) tool.  Some will also use a small Chutney network. In either case, you'll need an explicit client configuration, since `arti-testing` does not want you to use the default; we'll assume you've put it in `${ARTI_CONF}`.
 
