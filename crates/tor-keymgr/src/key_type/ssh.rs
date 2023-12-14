@@ -233,7 +233,7 @@ fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519
 
 /// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to an [`ed25519::PublicKey`].
 ///
-/// This function always returns an error because the custom `ed25519-expanded@torproject.org` SSH
+/// This function always returns an error because the custom `ed25519-expanded@spec.torproject.org` SSH
 /// algorithm should not be used for ed25519 public keys (only for expanded ed25519 key _pairs_).
 /// This function is needed for the [`parse_openssh!`] macro.
 fn convert_expanded_ed25519_pk(
