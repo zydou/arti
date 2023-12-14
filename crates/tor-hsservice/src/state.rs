@@ -10,6 +10,9 @@ use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 use crate::{HsIdPublicKeySpecifier, HsNickname};
 
 /// A helper for managing the persistent state of hidden services.
+//
+// TODO HSS decide what API we want here and implement it
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1837#note_2977513
 pub struct StateMgr {
     /// The key manager
     keymgr: KeyMgr,
