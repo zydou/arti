@@ -242,7 +242,8 @@ impl UnparsedRelayCell {
     }
 }
 
-/// A decoded and parsed relay cell of unrestricted type.
+/// A decoded and parsed relay message of unrestricted type,
+/// with an accompanying optional Stream ID.
 pub type AnyRelayMsgOuter = RelayMsgOuter<msg::AnyRelayMsg>;
 
 /// Trait implemented by anything that can serve as a relay message.
@@ -260,11 +261,14 @@ pub trait RelayMsg {
         Self: Sized;
 }
 
-/// A decoded and parsed relay cell.
+/// A decoded and parsed relay message, along with an optional Stream ID.
 ///
-/// Each relay cell represents a message that can be sent along a
+/// This type represents a message that can be sent along a
 /// circuit, along with the ID for an associated stream that the
 /// message is meant for.
+///
+/// NOTE: This name is a placeholder; we intend to replace it once we have
+/// standardized our vocabulary in this area.
 #[derive(Debug)]
 pub struct RelayMsgOuter<M> {
     /// The stream ID for the stream that this cell corresponds to.
