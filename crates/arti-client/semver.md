@@ -1,0 +1,1 @@
+ADDED: `TorClientConfig::keystore()`
