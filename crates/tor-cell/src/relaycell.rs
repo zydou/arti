@@ -237,13 +237,13 @@ impl UnparsedRelayCell {
         ))
     }
     /// Decode this unparsed cell into a given cell type.
-    pub fn decode<M: RelayMsg>(self) -> Result<RelayCell<M>> {
-        RelayCell::decode(self.body)
+    pub fn decode<M: RelayMsg>(self) -> Result<RelayMsgOuter<M>> {
+        RelayMsgOuter::decode(self.body)
     }
 }
 
 /// A decoded and parsed relay cell of unrestricted type.
-pub type AnyRelayCell = RelayCell<msg::AnyRelayMsg>;
+pub type AnyRelayMsgOuter = RelayMsgOuter<msg::AnyRelayMsg>;
 
 /// Trait implemented by anything that can serve as a relay message.
 ///
@@ -266,17 +266,17 @@ pub trait RelayMsg {
 /// circuit, along with the ID for an associated stream that the
 /// message is meant for.
 #[derive(Debug)]
-pub struct RelayCell<M> {
+pub struct RelayMsgOuter<M> {
     /// The stream ID for the stream that this cell corresponds to.
     streamid: Option<StreamId>,
     /// The relay message for this cell.
     msg: M,
 }
 
-impl<M: RelayMsg> RelayCell<M> {
+impl<M: RelayMsg> RelayMsgOuter<M> {
     /// Construct a new relay cell.
     pub fn new(streamid: Option<StreamId>, msg: M) -> Self {
-        RelayCell { streamid, msg }
+        RelayMsgOuter { streamid, msg }
     }
     /// Consume this cell and return its components.
     pub fn into_streamid_and_msg(self) -> (Option<StreamId>, M) {
