@@ -94,7 +94,7 @@ fn build_list(
 ) -> Result<OnionServiceProxyConfigMap, ConfigBuildError> {
     // TODO: Add a test for this function.
     //
-    // It *is* reachable from OnionServiceProxyCOnfigMapBuilder::build(), since
+    // It *is* reachable from OnionServiceProxyConfigMapBuilder::build(), since
     // that builder's API uses push() to add OnionServiceProxyConfigBuilders to
     // an internal _list_.  Alternatively, we might want to have a distinct
     // MapBuilder type.
