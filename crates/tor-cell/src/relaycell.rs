@@ -196,13 +196,8 @@ impl StreamId {
 /// A relay cell that has not yet been fully parsed, but where we have access to
 /// the command and stream ID, for dispatching purposes.
 //
-// TODO prop340: Settle on some names here. I would prefer "UnparsedRelayMsg" here so
-// it can eventually be compatible with proposal 340.  But that would make our
-// RelayCell and RelayMsg types below kind of illogical.  Perhaps we should rename...
-//     this -> UnparsedRelayMsg
-//     RelayCell -> ParsedRelayMsg
-//     RelayMsg -> RelayMsgBody?
-// Ideas appreciated -NM
+// TODO prop340: Further discussion is necessary about standarizing names for
+// all of the pieces of our cells.
 #[derive(Clone, Debug)]
 pub struct UnparsedRelayCell {
     /// The body of the cell.
@@ -374,7 +369,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         Ok((body.0, written))
     }
 
-    /// Parse a RELAY or RELAY_EARLY cell body into a RelayCell.
+    /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter.
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
@@ -383,7 +378,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         let mut reader = Reader::from_slice(body.as_ref());
         Self::decode_from_reader(&mut reader)
     }
-    /// Parse a RELAY or RELAY_EARLY cell body into a RelayCell from a reader.
+    /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter from a reader.
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
