@@ -241,6 +241,10 @@ impl UnparsedRelayCell {
 /// with an accompanying optional Stream ID.
 pub type AnyRelayMsgOuter = RelayMsgOuter<msg::AnyRelayMsg>;
 
+/// A deprecated name for AnyRelayMsgOuter.
+#[deprecated(note = "Use AnyRelayMsgOuter instead.")]
+pub type AnyRelayCell = AnyRelayMsgOuter;
+
 /// Trait implemented by anything that can serve as a relay message.
 ///
 /// Typically, this will be [`RelayMsg`] (to represent an unrestricted relay
@@ -271,6 +275,10 @@ pub struct RelayMsgOuter<M> {
     /// The relay message for this cell.
     msg: M,
 }
+
+/// A deprecated name for RelayMsgOuter.
+#[deprecated(note = "Use RelayMsgOuter instead.")]
+pub type RelayCell<M> = RelayMsgOuter<M>;
 
 impl<M: RelayMsg> RelayMsgOuter<M> {
     /// Construct a new relay cell.
