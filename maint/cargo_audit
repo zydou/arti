@@ -19,14 +19,6 @@ IGNORE=(
     # This is being discussed by those crates' contributors here:
     #     https://github.com/rust-cli/env_logger/pull/246
     --ignore RUSTSEC-2021-0145
-    # This is an API vulnerability in ed25519-dalek v1.x.x, to the
-    # extent that it does not force you to store private and public
-    # keys as a single keypair.
-    #
-    # We have desigend our APIs to work around this, and believe we
-    # are not affected.  We should eventually upgrade to
-    # ed25519-dalek >= 2, however.
-    --ignore RUSTSEC-2022-0093
     # As of 28 Nov 2023, all versions of the rsa crate have a variable
     # timing attack that can leak private keys.
     #
@@ -108,5 +100,39 @@ OBSOLETE_IGNORE=(
     #
     # Eventual resolution: we migrated to use time 0.3 instead of chrono.
     --ignore RUSTSEC-2020-0159
+
+    # The `users` crate (which `fs-mistrust` depended on) is unmaintained.
+    #
+    # Eventual resolution: we replaced `users` with `pwd-grp`.
+    --ignore RUSTSEC-2023-0040
+
+    # This is a DOS vulnerability against some versions of rustls-webpki
+    # and webpki, where some cert chains can cause
+    # ridiculous CPU usage.
+    #
+    # We upgraded our rustls-webpki usage, but webpki (which is
+    # unmaintained) is still used by tls-api, which we use from
+    # arti-hyper.
+    #
+    # I opened https://github.com/stepancheg/rust-tls-api/issues/45
+    # for this issue, but I'm not sure whether `tls-api` is maintained.
+    #
+    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/1016
+    #
+    # Eventual resolution: a new version of `webpki` was eventually
+    # released, and we upgraded to it. Versions >= 0.22.2 are
+    # unaffected.
+    --ignore RUSTSEC-2023-0052
+
+    # This is an API vulnerability in ed25519-dalek v1.x.x, to the
+    # extent that it does not force you to store private and public
+    # keys as a single keypair.
+    #
+    # We have desigend our APIs to work around this, and believe we
+    # are not affected.  We should eventually upgrade to
+    # ed25519-dalek >= 2, however.
+    #
+    # Eventual resolution: We migrated to ed25519-dalek v2.x.x.
+    --ignore RUSTSEC-2022-0093
 )
 _="${OBSOLETE_IGNORE[0]}"
