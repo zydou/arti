@@ -196,13 +196,8 @@ impl StreamId {
 /// A relay cell that has not yet been fully parsed, but where we have access to
 /// the command and stream ID, for dispatching purposes.
 //
-// TODO prop340: Settle on some names here. I would prefer "UnparsedRelayMsg" here so
-// it can eventually be compatible with proposal 340.  But that would make our
-// RelayCell and RelayMsg types below kind of illogical.  Perhaps we should rename...
-//     this -> UnparsedRelayMsg
-//     RelayCell -> ParsedRelayMsg
-//     RelayMsg -> RelayMsgBody?
-// Ideas appreciated -NM
+// TODO prop340: Further discussion is necessary about standarizing names for
+// all of the pieces of our cells.
 #[derive(Clone, Debug)]
 pub struct UnparsedRelayCell {
     /// The body of the cell.
@@ -237,13 +232,18 @@ impl UnparsedRelayCell {
         ))
     }
     /// Decode this unparsed cell into a given cell type.
-    pub fn decode<M: RelayMsg>(self) -> Result<RelayCell<M>> {
-        RelayCell::decode(self.body)
+    pub fn decode<M: RelayMsg>(self) -> Result<RelayMsgOuter<M>> {
+        RelayMsgOuter::decode(self.body)
     }
 }
 
-/// A decoded and parsed relay cell of unrestricted type.
-pub type AnyRelayCell = RelayCell<msg::AnyRelayMsg>;
+/// A decoded and parsed relay message of unrestricted type,
+/// with an accompanying optional Stream ID.
+pub type AnyRelayMsgOuter = RelayMsgOuter<msg::AnyRelayMsg>;
+
+/// A deprecated name for AnyRelayMsgOuter.
+#[deprecated(note = "Use AnyRelayMsgOuter instead.")]
+pub type AnyRelayCell = AnyRelayMsgOuter;
 
 /// Trait implemented by anything that can serve as a relay message.
 ///
@@ -260,23 +260,30 @@ pub trait RelayMsg {
         Self: Sized;
 }
 
-/// A decoded and parsed relay cell.
+/// A decoded and parsed relay message, along with an optional Stream ID.
 ///
-/// Each relay cell represents a message that can be sent along a
+/// This type represents a message that can be sent along a
 /// circuit, along with the ID for an associated stream that the
 /// message is meant for.
+///
+/// NOTE: This name is a placeholder; we intend to replace it once we have
+/// standardized our vocabulary in this area.
 #[derive(Debug)]
-pub struct RelayCell<M> {
+pub struct RelayMsgOuter<M> {
     /// The stream ID for the stream that this cell corresponds to.
     streamid: Option<StreamId>,
     /// The relay message for this cell.
     msg: M,
 }
 
-impl<M: RelayMsg> RelayCell<M> {
+/// A deprecated name for RelayMsgOuter.
+#[deprecated(note = "Use RelayMsgOuter instead.")]
+pub type RelayCell<M> = RelayMsgOuter<M>;
+
+impl<M: RelayMsg> RelayMsgOuter<M> {
     /// Construct a new relay cell.
     pub fn new(streamid: Option<StreamId>, msg: M) -> Self {
-        RelayCell { streamid, msg }
+        RelayMsgOuter { streamid, msg }
     }
     /// Consume this cell and return its components.
     pub fn into_streamid_and_msg(self) -> (Option<StreamId>, M) {
@@ -370,7 +377,7 @@ impl<M: RelayMsg> RelayCell<M> {
         Ok((body.0, written))
     }
 
-    /// Parse a RELAY or RELAY_EARLY cell body into a RelayCell.
+    /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter.
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
@@ -379,7 +386,7 @@ impl<M: RelayMsg> RelayCell<M> {
         let mut reader = Reader::from_slice(body.as_ref());
         Self::decode_from_reader(&mut reader)
     }
-    /// Parse a RELAY or RELAY_EARLY cell body into a RelayCell from a reader.
+    /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter from a reader.
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed

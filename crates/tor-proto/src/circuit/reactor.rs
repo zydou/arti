@@ -39,7 +39,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
-use tor_cell::relaycell::{AnyRelayCell, RelayCmd, StreamId, UnparsedRelayCell};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd, StreamId, UnparsedRelayCell};
 #[cfg(feature = "hs-service")]
 use {
     crate::stream::{DataCmdChecker, IncomingStreamRequest},
@@ -259,7 +259,7 @@ pub(super) enum CtrlMsg {
     #[cfg(feature = "send-control-msg")]
     SendMsgAndInstallHandler {
         /// The message to send, if any
-        msg: Option<AnyRelayCell>,
+        msg: Option<AnyRelayMsgOuter>,
         /// A message handler to install.
         ///
         /// If this is `None`, there must already be a message handler installed
@@ -297,7 +297,7 @@ pub(super) enum CtrlMsg {
     SendRelayCell {
         hop: HopNum,
         early: bool,
-        cell: AnyRelayCell,
+        cell: AnyRelayMsgOuter,
     },
 }
 /// Represents the reactor's view of a single hop.
@@ -323,7 +323,7 @@ pub(super) struct CircHop {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    outbound: VecDeque<(bool, AnyRelayCell)>,
+    outbound: VecDeque<(bool, AnyRelayMsgOuter)>,
 }
 
 /// An indicator on what we should do when we receive a cell for a circuit.
@@ -487,7 +487,7 @@ where
             );
 
             let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
-            let cell = AnyRelayCell::new(None, extend_msg.into());
+            let cell = AnyRelayMsgOuter::new(None, extend_msg.into());
 
             // Send the message to the last hop...
             reactor.send_relay_cell(
@@ -929,8 +929,10 @@ impl Reactor {
                                 if send_window.window() > 0 && hop.sendwindow.window() > 0 {
                                     match Pin::new(rx).poll_next(cx) {
                                         Poll::Ready(Some(m)) => {
-                                            stream_relaycells
-                                                .push((hop_num, AnyRelayCell::new(Some(*id), m)));
+                                            stream_relaycells.push((
+                                                hop_num,
+                                                AnyRelayMsgOuter::new(Some(*id), m),
+                                            ));
                                         }
                                         Poll::Ready(None) => {
                                             // Stream receiver was dropped; close the stream.
@@ -1451,7 +1453,7 @@ impl Reactor {
         cx: &mut Context<'_>,
         hop: HopNum,
         early: bool,
-        cell: AnyRelayCell,
+        cell: AnyRelayMsgOuter,
     ) -> Result<()> {
         let c_t_w = sendme::cmd_counts_towards_windows(cell.cmd());
         let stream_id = cell.stream_id();
@@ -1660,7 +1662,7 @@ impl Reactor {
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
-                let cell = AnyRelayCell::new(Some(stream_id), sendme.into());
+                let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
                 self.send_relay_cell(cx, hop_num, false, cell)?;
             }
             #[cfg(feature = "send-control-msg")]
@@ -1669,7 +1671,7 @@ impl Reactor {
                 msg,
                 sender,
             } => {
-                let cell = AnyRelayCell::new(None, msg);
+                let cell = AnyRelayMsgOuter::new(None, msg);
                 let outcome = self.send_relay_cell(cx, hop_num, false, cell);
                 let _ = sender.send(outcome.clone()); // don't care if receiver goes away.
                 outcome?;
@@ -1738,7 +1740,7 @@ impl Reactor {
             .ok_or_else(|| Error::from(internal!("No such hop {}", hopnum.display())))?;
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
         let r = hop.map.add_ent(sender, rx, send_window, cmd_checker)?;
-        let cell = AnyRelayCell::new(Some(r), message);
+        let cell = AnyRelayMsgOuter::new(Some(r), message);
         self.send_relay_cell(cx, hopnum, false, cell)?;
         Ok(r)
     }
@@ -1777,7 +1779,7 @@ impl Reactor {
         if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
             (should_send_end, message)
         {
-            let end_cell = AnyRelayCell::new(Some(id), end_message.into());
+            let end_cell = AnyRelayMsgOuter::new(Some(id), end_message.into());
             self.send_relay_cell(cx, hopnum, false, end_cell)?;
         }
         Ok(())
@@ -1845,7 +1847,7 @@ impl Reactor {
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
             let sendme = Sendme::new_tag(tag);
-            let cell = AnyRelayCell::new(None, sendme.into());
+            let cell = AnyRelayMsgOuter::new(None, sendme.into());
             self.send_relay_cell(cx, hopnum, false, cell)?;
             self.hop_mut(hopnum)
                 .ok_or_else(|| {
@@ -2079,7 +2081,7 @@ impl ConversationInHandler<'_, '_, '_> {
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
     pub fn send_message(&mut self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
-        let msg = tor_cell::relaycell::AnyRelayCell::new(None, msg);
+        let msg = tor_cell::relaycell::AnyRelayMsgOuter::new(None, msg);
 
         self.reactor
             .send_relay_cell(self.cx, self.hop_num, false, msg)

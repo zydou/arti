@@ -779,7 +779,7 @@ impl<R: Runtime> Reactor<R> {
                 .map_err(IptError::CreateEstablishIntro)?;
 
             // TODO HSS: This is ugly, but it is the sensible way to munge the above
-            // body into a format that AnyRelayCell will accept without doing a
+            // body into a format that AnyRelayMsgOuter will accept without doing a
             // redundant parse step.
             //
             // One alternative would be allowing start_conversation to take an `impl

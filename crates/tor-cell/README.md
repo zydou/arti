@@ -43,20 +43,4 @@ This crate is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 implement [Tor](https://www.torproject.org/) in Rust.
 
-## Futureproofing note
-
-There are two pending proposals to remove the one-to-one
-correspondence between relay cells and relay messages.
-
-[Proposal 319](https://gitlab.torproject.org/tpo/core/torspec/-/blob/master/proposals/319-wide-everything.md)
-would add a "RELAY_FRAGMENT" command that would allow larger relay
-messages to span multiple RELAY cells.
-
-[Proposal 325](https://gitlab.torproject.org/tpo/core/torspec/-/blob/master/proposals/325-packed-relay-cells.md),
-on the other hand, would allow multiple relay messages to be
-packed into a single RELAY cell.
-
-The distinction between RelayCell and RelayMsg is meant in part
-to future-proof arti against these proposals if they are adopted.
-
 License: MIT OR Apache-2.0

@@ -188,7 +188,7 @@ mod test {
 
     use tor_cell::relaycell::{
         msg::{Begin, BeginDir, Data, Resolve},
-        AnyRelayCell,
+        AnyRelayMsgOuter,
     };
 
     use super::*;
@@ -197,7 +197,7 @@ mod test {
     fn incoming_cmd_checker() {
         // Convert an AnyRelayMsg to an UnparsedRelayCell.
         let u = |msg| {
-            let body = AnyRelayCell::new(None, msg)
+            let body = AnyRelayMsgOuter::new(None, msg)
                 .encode(&mut rand::thread_rng())
                 .unwrap();
             UnparsedRelayCell::from_body(body)

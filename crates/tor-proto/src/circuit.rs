@@ -963,7 +963,7 @@ impl Conversation<'_> {
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
         handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
     ) -> Result<()> {
-        let msg = msg.map(|msg| tor_cell::relaycell::AnyRelayCell::new(None, msg));
+        let msg = msg.map(|msg| tor_cell::relaycell::AnyRelayMsgOuter::new(None, msg));
         let (sender, receiver) = oneshot::channel();
 
         let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
@@ -1303,13 +1303,13 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
     use tor_cell::relaycell::extend::NtorV3Extension;
-    use tor_cell::relaycell::{msg as relaymsg, AnyRelayCell, StreamId};
+    use tor_cell::relaycell::{msg as relaymsg, AnyRelayMsgOuter, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
     fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg {
-        let body: BoxedCellBody = AnyRelayCell::new(id, msg)
+        let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
             .encode(&mut testing_rng())
             .unwrap();
         let chanmsg = chanmsg::Relay::from(body);
@@ -1604,7 +1604,7 @@ mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
             let (circ, _send) = newcirc(&rt, chan).await;
-            let begindir = AnyRelayCell::new(None, AnyRelayMsg::BeginDir(Default::default()));
+            let begindir = AnyRelayMsgOuter::new(None, AnyRelayMsg::BeginDir(Default::default()));
             circ.control
                 .unbounded_send(CtrlMsg::SendRelayCell {
                     hop: 2.into(),
@@ -1618,7 +1618,7 @@ mod test {
             let rcvd = rx.next().await.unwrap();
             assert_eq!(rcvd.circid(), CircId::new(128));
             let m = match rcvd.into_circid_and_msg().1 {
-                AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
             assert!(matches!(m.msg(), AnyRelayMsg::BeginDir(_)));
@@ -1714,7 +1714,7 @@ mod test {
             let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             assert_eq!(id, CircId::new(128));
             let rmsg = match chmsg {
-                AnyChanMsg::RelayEarly(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::RelayEarly(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
             let e2 = match rmsg.msg() {
@@ -1905,7 +1905,7 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, CircId::new(128)); // hardcoded circid.
                 let rmsg = match chmsg {
-                    AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
@@ -1919,7 +1919,7 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, CircId::new(128));
                 let rmsg = match chmsg {
-                    AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid_2, rmsg) = rmsg.into_streamid_and_msg();
@@ -1985,7 +1985,7 @@ mod test {
             // Read the begindir cell.
             let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             let rmsg = match chmsg {
-                AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
             };
             let (streamid, rmsg) = rmsg.into_streamid_and_msg();
@@ -2002,7 +2002,7 @@ mod test {
                 assert_eq!(id, CircId::new(128));
 
                 let rmsg = match chmsg {
-                    AnyChanMsg::Relay(r) => AnyRelayCell::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
                     _ => panic!(),
                 };
                 let (streamid2, rmsg) = rmsg.into_streamid_and_msg();
@@ -2219,7 +2219,7 @@ mod test {
             let simulate_client = async move {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
-                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
+                    AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(&mut testing_rng())
                         .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
@@ -2238,7 +2238,7 @@ mod test {
                 // Now send some data along the newly established circuit..
                 let data = relaymsg::Data::new(TEST_DATA).unwrap();
                 let body: BoxedCellBody =
-                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Data(data))
+                    AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Data(data))
                         .encode(&mut testing_rng())
                         .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
@@ -2313,7 +2313,7 @@ mod test {
             let simulate_client = async move {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
-                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
+                    AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(&mut testing_rng())
                         .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
@@ -2332,7 +2332,7 @@ mod test {
                 // Now send some data along the newly established circuit..
                 let data = relaymsg::Data::new(TEST_DATA).unwrap();
                 let body: BoxedCellBody =
-                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Data(data))
+                    AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Data(data))
                         .encode(&mut testing_rng())
                         .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
@@ -2373,7 +2373,7 @@ mod test {
             let simulate_client = async move {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
-                    AnyRelayCell::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
+                    AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(&mut testing_rng())
                         .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);

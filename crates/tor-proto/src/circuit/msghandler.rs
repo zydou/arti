@@ -5,7 +5,7 @@
 //! them separate. Conceivably they should be unified at some point down the
 //! road?
 use tor_cell::relaycell::msg::AnyRelayMsg;
-use tor_cell::relaycell::{AnyRelayCell, RelayMsg, UnparsedRelayCell};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayMsg, UnparsedRelayCell};
 
 use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
@@ -74,7 +74,7 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
         msg: UnparsedRelayCell,
         reactor: &mut super::reactor::Reactor,
     ) -> Result<MetaCellDisposition> {
-        let cell: AnyRelayCell = msg.decode().map_err(|err| Error::BytesErr {
+        let cell: AnyRelayMsgOuter = msg.decode().map_err(|err| Error::BytesErr {
             object: "cell for message handler",
             err,
         })?;
