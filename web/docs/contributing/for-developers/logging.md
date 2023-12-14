@@ -52,8 +52,8 @@ This information is often sensitive, and should only be logged at `info` or high
 - Any single relay. (Traffic-analysis helper)
 - The local username. (User identity)
 - Configuration settings that affect network-visible behavior. (Traffic-analysis helper)
-- Any path on the file system. (User identity)
-- Specific versions of software and dependencies that the user is running. (User identity, traffic-analysis helper)
+- Any path on the file system. (User identity)  ❇
+- Specific versions of software and dependencies that the user is running. (User identity, traffic-analysis helper)  ❇
 
 Items marked above may be also be logged *at startup*, or *at the head of a rotated log* file, to assist with diagnosis.
 
