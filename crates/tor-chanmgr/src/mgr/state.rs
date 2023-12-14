@@ -215,6 +215,11 @@ impl<C: AbstractChannel> ChannelState<C> {
             // no time remaining; drop now.
             return true;
         };
+        if remaining.is_zero() {
+            // Ignoring this edge case would result in a fairly benign race
+            // condition outside of Shadow, but deadlock in Shadow.
+            return true;
+        }
         *expire_after = std::cmp::min(*expire_after, remaining);
         false
     }
