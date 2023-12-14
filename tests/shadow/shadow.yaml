@@ -46,15 +46,6 @@ hosts:
   fileserver-onion-arti:
     network_node_id: 0
     processes:
-    # Workaround for
-    # https://gitlab.torproject.org/tpo/core/arti/-/issues/1170
-    #
-    # arti currently doesn't register its hidden service until it's used as a socks proxy.
-    - path: tgen
-      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
-      environment: { OPENBLAS_NUM_THREADS: "1" }
-      args: ../../../conf/tgen.toronionclient.graphml.xml
-      start_time: 20m
     # tgen server process
     - path: tgen
       # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
