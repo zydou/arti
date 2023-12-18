@@ -65,6 +65,7 @@ where
     SpawnR: Spawn,
 {
     #[inline]
+    #[track_caller]
     fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
         self.inner.spawn.spawn_obj(future)
     }
@@ -79,6 +80,7 @@ where
     UdpR: Clone + Send + Sync + 'static,
 {
     #[inline]
+    #[track_caller]
     fn block_on<F: futures::Future>(&self, future: F) -> F::Output {
         self.inner.spawn.block_on(future)
     }
