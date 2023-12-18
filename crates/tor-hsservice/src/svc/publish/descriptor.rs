@@ -100,13 +100,11 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
     // work; see #1028
     /*
-    let auth_clients: Vec<curve25519::PublicKey> = match config.encrypt_descriptor {
-        Some(auth_clients) => build_auth_clients(&auth_clients),
-        None => vec![],
-    };
+    let auth_clients: Option<Vec<curve25519::PublicKey>> = config.encrypt_descriptor
+        .map(|auth_clients| build_auth_clients(&auth_clients));
     */
 
-    let auth_clients = vec![];
+    let auth_clients: Option<Vec<curve25519::PublicKey>> = None;
 
     let desc_signing_key_cert = create_desc_sign_key_cert(
         &hs_desc_sign.as_ref().verifying_key(),
@@ -130,7 +128,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
         .lifetime(((ipt_set.lifetime.as_secs() / 60) as u16).into())
         .revision_counter(revision_counter)
         .subcredential(subcredential)
-        .auth_clients(&auth_clients)
+        .auth_clients(auth_clients.as_deref())
         .build_sign(rng)
         .map_err(|e| into_internal!("failed to build descriptor")(e))?;
 
