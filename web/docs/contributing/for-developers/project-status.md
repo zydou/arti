@@ -2,7 +2,10 @@
 title: Overview
 ---
 
-# Project status
+# Project status as of 1.0.0
+
+> This section was written in September 2022, to describe our status at the time.
+> We intend to revise it with our next major feature release.
 
 Arti reached version 1.0.0, a significant milestone in the development of this Tor implementation. With this release, we consider Arti suitable for real-world use to ensure the privacy and anonymity of connections.
 It can now successfully connect to the Tor network, bootstrap a view of the Tor directory, and establish anonymized connections over the network.
