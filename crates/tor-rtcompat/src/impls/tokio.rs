@@ -238,12 +238,14 @@ impl From<async_executors::TokioTp> for TokioRuntimeHandle {
 }
 
 impl BlockOn for TokioRuntimeHandle {
+    #[track_caller]
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         self.handle.block_on(f)
     }
 }
 
 impl futures::task::Spawn for TokioRuntimeHandle {
+    #[track_caller]
     fn spawn_obj(
         &self,
         future: futures::task::FutureObj<'static, ()>,
