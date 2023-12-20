@@ -69,4 +69,4 @@ members = [
 
 ### Ensure tests pass
 
-Before committing your changes, ensure that all tests in the project pass. Fix any issues that arise during testing to maintain a stable and reliable project.
+Our standard practive is to have tests for all our nontrivial functionality. Before committing your changes, ensure that all tests in the project pass, and fix any issues that may arise during testing to maintain a stable and reliable project. Learn more about [testing in Arti](/contributing/for-developers/testing).
