@@ -6,7 +6,9 @@ title: Exposing APIs
 
 In Rust, each crate defines a distinct set of APIs accessible to other crates. Notably, certain key crates in Arti, such as `arti` and `arti-client`, purposefully define APIs intended for regular developers seeking stable and straightforward interactions with Arti. 
 
-On the other hand, crates identified by names beginning with `tor-*` are crafted for developers requiring the capability to make unconventional and unforeseen adjustments to the Arti framework or the Tor network. This guide will navigate you through the intricacies of these APIs, offering insights into their intended use and the unique functionalities they bring to the Arti ecosystem.
+On the other hand, crates identified by names beginning with `tor-*` are designed for developers requiring the capability to make unconventional and unforeseen adjustments to the Arti framework or the Tor network. 
+
+`arti-client` (as well as `arti-hyper`) is designed for those who simply want to use the Tor network, while the `tor-*` crates are more suitable for tasks such as measuring, interacting with the network in unconventional ways, or developing innovative utilities.
 
 To design new APIs that adhere to Arti's architecture and strike a balance between general use and experimental features:
 
