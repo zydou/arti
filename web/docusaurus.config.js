@@ -39,8 +39,9 @@ const config = {
       ({
         docs: {
           routeBasePath: '/',
-
-          sidebarPath: require.resolve('./sidebars.js')
+          sidebarPath: require.resolve('./sidebars.js'),
+          breadcrumbs: true,
+          showLastUpdateTime: true,
         },
         blog:false, // Remove this to use the blog.
         theme: {
