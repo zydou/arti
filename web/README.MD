@@ -20,7 +20,7 @@ Once you have Node.js installed, you can clone this repository and run the follo
 ```
 cd arti-doc-project-2023
 npm install
-npm run start
+npm start
 ```
 
 This will start a local development server and open up a browser window. Most changes are reflected live without having to restart the server.
