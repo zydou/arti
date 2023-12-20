@@ -30,7 +30,7 @@ const sidebars = {
       items: ['guides/guides','guides/compiling-arti', 'guides/safer-build-options', 'guides/starting-arti', 'guides/configuring-arti', 'guides/connecting-to-onion', 'guides/troubleshooting', 'guides/compatibility', 'guides/capability-limitations', 'guides/cli-reference', 
     {
       "type": "link",
-      "label": "Configuration manual",
+      "label": "Configuration Reference",
       "href": "https://tpo.pages.torproject.net/core/doc/rust/arti/index.html#configuration"
     }]
     },
