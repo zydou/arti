@@ -919,9 +919,10 @@ impl Certs {
 
     /// Return the body of the certificate tagged with 'tp', if any.
     pub fn cert_body(&self, tp: tor_cert::CertType) -> Option<&[u8]> {
+        let tp: u8 = tp.into();
         self.certs
             .iter()
-            .find(|c| c.certtype == tp.into())
+            .find(|c| c.certtype == tp)
             .map(|c| &c.cert[..])
     }
 
