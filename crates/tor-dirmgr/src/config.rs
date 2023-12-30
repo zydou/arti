@@ -195,8 +195,8 @@ impl DirTolerance {
 /// If the directory manager gains new configurabilities, this structure will gain additional
 /// supertraits, as an API break.
 ///
-/// Prefer to use `TorClientConfig`, which will always be convertible to this struct
-/// via `TryInto`.
+/// Prefer to use `TorClientConfig`, which can be converted to this struct via
+/// the `dir_mgr_config` method.
 //
 // We do not use a builder here.  Instead, additions or changes here are API breaks.
 //
