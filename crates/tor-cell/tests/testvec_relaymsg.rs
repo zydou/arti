@@ -670,8 +670,7 @@ fn test_establish_intro() {
     let extension_dos =
         DosParams::new(Some(1_i32), Some(2_i32)).expect("invalid EST_INTRO_DOS_EXT parameter(s)");
     let handshake_auth = [1; 32];
-    let sig = [0x15; 64]
-        .into();
+    let sig = [0x15; 64].into();
     assert_eq!(Into::<u8>::into(cmd), 32);
 
     // Establish intro with one recognised extension

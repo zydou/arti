@@ -360,18 +360,12 @@ pub(crate) mod tor1 {
             let binding_key = take_seed(CIRC_BINDING_LEN);
 
             let fwd = CryptState {
-                cipher: SC::new(
-                    kf.into(),
-                    &Default::default(),
-                ),
+                cipher: SC::new(kf.into(), &Default::default()),
                 digest: D::new().chain_update(df),
                 last_digest_val: GenericArray::default(),
             };
             let back = CryptState {
-                cipher: SC::new(
-                    kb.into(),
-                    &Default::default(),
-                ),
+                cipher: SC::new(kb.into(), &Default::default()),
                 digest: D::new().chain_update(db),
                 last_digest_val: GenericArray::default(),
             };

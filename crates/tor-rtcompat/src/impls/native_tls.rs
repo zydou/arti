@@ -5,9 +5,7 @@ use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use native_tls_crate as native_tls;
-use std::{
-    io::{Error as IoError, Result as IoResult},
-};
+use std::io::{Error as IoError, Result as IoResult};
 
 /// A [`TlsProvider`] that uses `native_tls`.
 ///
