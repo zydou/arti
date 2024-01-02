@@ -278,7 +278,7 @@ pub trait KeySpecifier {
 /// validation rules. An `ArtiPathComponent` is not always a valid `KeySpecifierComponent`
 /// instance.
 ///
-/// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifierDefault) for a
+/// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier) for a
 /// struct, all of its fields must implement this trait.
 ///
 /// If you are implementing [`KeySpecifier`] and [`KeyInfoExtractor`] manually rather than by
@@ -467,7 +467,7 @@ define_derive_adhoc! {
     ///    (Can be even used before a denotator component,
     ///    to add a final fixed path component.)
     ///
-    pub KeySpecifierDefault =
+    pub KeySpecifier =
 
     // A condition that evaluates to `true` for path fields.
     ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
@@ -968,7 +968,7 @@ mod test {
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
         #[adhoc(summary = "test key")]
@@ -1003,7 +1003,7 @@ mod test {
     #[test]
     fn define_key_specifier_no_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
         #[adhoc(summary = "test key")]
@@ -1024,7 +1024,7 @@ mod test {
     #[test]
     fn define_key_specifier_with_denotator() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
         #[adhoc(summary = "test key")]
@@ -1048,7 +1048,7 @@ mod test {
     #[test]
     fn define_key_specifier_with_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
         #[adhoc(summary = "test key")]
@@ -1082,7 +1082,7 @@ mod test {
     #[test]
     fn define_key_specifier_with_multiple_denotators() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
         #[adhoc(summary = "test key")]
@@ -1124,7 +1124,7 @@ mod test {
     #[test]
     fn define_key_specifier_role_field() {
         #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "prefix")]
         #[adhoc(summary = "test key")]
         struct TestSpecifier {
@@ -1148,7 +1148,7 @@ mod test {
     #[test]
     fn define_key_specifier_ctor_path() {
         #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "p")]
         #[adhoc(role = "r")]
         #[adhoc(ctor_path = "Self::ctp")]
@@ -1175,7 +1175,7 @@ mod test {
     #[test]
     fn define_key_specifier_fixed_path_component() {
         #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "prefix")]
         #[adhoc(role = "role")]
         #[adhoc(summary = "test key")]
