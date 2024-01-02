@@ -174,6 +174,11 @@ macro_rules! parse_openssh {
 }
 
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
+// TODO remove this allow?
+// clippy wants this whole function to be infallible because
+// nowadays ed25519::Keypair can be made infallibly from bytes,
+// but is that really right?
+#[allow(clippy::unnecessary_fallible_conversions)]
 fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
     Ok(ed25519::Keypair::try_from(&key.private.to_bytes())
         .map_err(|_| ArtiNativeKeystoreError::InvalidSshKeyData("bad ed25519 keypair".into()))?)
