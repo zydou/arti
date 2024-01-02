@@ -19,12 +19,12 @@ use super::UnknownKeyTypeError;
 
 /// The algorithm string for x25519 SSH keys.
 ///
-/// See https://spec.torproject.org/ssh-protocols.html
+/// See <https://spec.torproject.org/ssh-protocols.html>
 pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@spec.torproject.org";
 
 /// The algorithm string for expanded ed25519 SSH keys.
 ///
-/// See https://spec.torproject.org/ssh-protocols.html
+/// See <https://spec.torproject.org/ssh-protocols.html>
 pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@spec.torproject.org";
 
 /// An unparsed OpenSSH key.
