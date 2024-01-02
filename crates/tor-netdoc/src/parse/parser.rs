@@ -53,7 +53,7 @@ impl<'a, K: Keyword> TokVal<'a, K> {
     }
     /// Return the first Item for this value, or None if there wasn't one.
     fn first(&self) -> Option<&Item<'a, K>> {
-        self.0.get(0)
+        self.0.first()
     }
     /// Return the Item for this value, if there is exactly one.
     fn singleton(&self) -> Option<&Item<'a, K>> {

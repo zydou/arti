@@ -19,12 +19,12 @@ use super::UnknownKeyTypeError;
 
 /// The algorithm string for x25519 SSH keys.
 ///
-/// See https://spec.torproject.org/ssh-protocols.html
+/// See <https://spec.torproject.org/ssh-protocols.html>
 pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@spec.torproject.org";
 
 /// The algorithm string for expanded ed25519 SSH keys.
 ///
-/// See https://spec.torproject.org/ssh-protocols.html
+/// See <https://spec.torproject.org/ssh-protocols.html>
 pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@spec.torproject.org";
 
 /// An unparsed OpenSSH key.
@@ -174,6 +174,11 @@ macro_rules! parse_openssh {
 }
 
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
+// TODO remove this allow?
+// clippy wants this whole function to be infallible because
+// nowadays ed25519::Keypair can be made infallibly from bytes,
+// but is that really right?
+#[allow(clippy::unnecessary_fallible_conversions)]
 fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
     Ok(ed25519::Keypair::try_from(&key.private.to_bytes())
         .map_err(|_| ArtiNativeKeystoreError::InvalidSshKeyData("bad ed25519 keypair".into()))?)

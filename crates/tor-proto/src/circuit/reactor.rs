@@ -458,6 +458,7 @@ where
     /// link specifiers to include in the EXTEND cell to tell the
     /// current last hop which relay to connect to.
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::blocks_in_conditions)]
     fn begin(
         cx: &mut Context<'_>,
         peer_id: OwnedChanTarget,

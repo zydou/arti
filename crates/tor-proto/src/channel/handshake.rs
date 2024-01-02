@@ -591,7 +591,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Verif
             .target_method
             .as_ref()
             .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.get(0))
+            .and_then(|addrs| addrs.first())
             .map(SocketAddr::ip);
         let netinfo = msg::Netinfo::from_client(peer_ip);
         self.tls

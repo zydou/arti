@@ -5,10 +5,7 @@ use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use native_tls_crate as native_tls;
-use std::{
-    convert::TryInto,
-    io::{Error as IoError, Result as IoResult},
-};
+use std::io::{Error as IoError, Result as IoResult};
 
 /// A [`TlsProvider`] that uses `native_tls`.
 ///
@@ -83,7 +80,7 @@ where
             .danger_accept_invalid_certs(true)
             .danger_accept_invalid_hostnames(true);
 
-        let connector = builder.try_into().expect("Couldn't build a TLS connector!");
+        let connector = builder.into();
 
         NativeTlsConnector {
             connector,

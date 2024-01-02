@@ -523,11 +523,13 @@ impl DirBootstrapStatus {
     }
 
     /// Return the contained `DirStatus`es, in order: `current`, then `next`
+    #[allow(clippy::implied_bounds_in_impls)]
     fn statuses(&self) -> impl Iterator<Item = &DirStatus> + DoubleEndedIterator {
         chain!(self.current(), self.next(),)
     }
 
     /// Return the contained `StatusEntry`s mutably, in order: `current`, then `next`
+    #[allow(clippy::implied_bounds_in_impls)]
     fn entries_mut(&mut self) -> impl Iterator<Item = &mut StatusEntry> + DoubleEndedIterator {
         let (current, next) = match &mut self.0 {
             StatusEnum::NoActivity => (None, None),

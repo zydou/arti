@@ -15,15 +15,15 @@ pub mod ct;
 pub fn x509_extract_rsa_subject_kludge(der: &[u8]) -> Option<crate::pk::rsa::PublicKey> {
     //use ASN1Block::*;
     let blocks = simple_asn1::from_der(der).ok()?;
-    let block = Asn1(blocks.get(0)?);
+    let block = Asn1(blocks.first()?);
     // TBSCertificate
-    let tbs_cert: Asn1<'_> = block.into_seq()?.get(0)?.into();
+    let tbs_cert: Asn1<'_> = block.into_seq()?.first()?.into();
     // SubjectPublicKeyInfo
     let spki: Asn1<'_> = tbs_cert.into_seq()?.get(6)?.into();
     let spki_members = spki.into_seq()?;
     // Is it an RSA key?
-    let algid: Asn1<'_> = spki_members.get(0)?.into();
-    let oid: Asn1<'_> = algid.into_seq()?.get(0)?.into();
+    let algid: Asn1<'_> = spki_members.first()?.into();
+    let oid: Asn1<'_> = algid.into_seq()?.first()?.into();
     oid.must_be_rsa_oid()?;
 
     // try to get the RSA key.

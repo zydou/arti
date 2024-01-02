@@ -565,7 +565,7 @@ mod test {
             pv_poll_await_update(pv).await,
             Ready(Some(Ok(())))
         ));
-        assert!(matches!(pv_poll_await_update(pv).await, Pending));
+        assert!(pv_poll_await_update(pv).await.is_pending());
     }
 
     fn pv_note_publication_attempt(
@@ -594,7 +594,7 @@ mod test {
 
             let (_state_mgr, iptpub_state_handle) = create_storage_handles();
             let (mut mv, mut pv) = ipts_channel(&runtime, iptpub_state_handle).unwrap();
-            assert!(matches!(pv_poll_await_update(&mut pv).await, Pending));
+            assert!(pv_poll_await_update(&mut pv).await.is_pending());
 
             // borrowing publisher view for publish doesn't cause an update
 

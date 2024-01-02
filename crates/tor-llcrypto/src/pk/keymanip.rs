@@ -270,11 +270,7 @@ pub fn blind_keypair(
         h.update(RH_BLIND_STRING);
         h.update(keypair.secret.hash_prefix);
         let mut d = Zeroizing::new([0_u8; 64]);
-        h.finalize_into(
-            d.as_mut()
-                .try_into()
-                .expect("64-byte array not 64 bytes long!?"),
-        );
+        h.finalize_into(d.as_mut().into());
         d[0..32].try_into().expect("slice cast failed")
     };
 
