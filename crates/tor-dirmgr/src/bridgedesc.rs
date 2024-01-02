@@ -825,6 +825,7 @@ impl State {
     /// Restores liveness invariant *Running*.
     ///
     /// Idempotent.  Forms part of `process`.
+    #[allow(clippy::blocks_in_conditions)]
     fn consider_launching<R: Runtime, M: Mockable<R>>(&mut self, mgr: &Arc<Manager<R, M>>) {
         let mut to_remove = vec![];
 

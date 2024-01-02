@@ -659,6 +659,7 @@ pub(crate) struct IntroPtSession {
 
 impl<R: Runtime> Reactor<R> {
     /// Run forever, keeping an introduction point established.
+    #[allow(clippy::blocks_in_conditions)]
     async fn keep_intro_established(
         &self,
         mut status_tx: DropNotifyWatchSender<IptStatus>,
