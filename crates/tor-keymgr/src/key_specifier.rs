@@ -467,7 +467,7 @@ define_derive_adhoc! {
     ///    (Can be even used before a denotator component,
     ///    to add a final fixed path component.)
     ///
-    pub KeySpecifier =
+    pub KeySpecifier for struct =
 
     // A condition that evaluates to `true` for path fields.
     ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
