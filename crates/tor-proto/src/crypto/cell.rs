@@ -361,8 +361,7 @@ pub(crate) mod tor1 {
 
             let fwd = CryptState {
                 cipher: SC::new(
-                    kf.try_into()
-                        .or(Err(crate::Error::InvalidKDFOutputLength))?,
+                    kf.into(),
                     &Default::default(),
                 ),
                 digest: D::new().chain_update(df),
@@ -370,8 +369,7 @@ pub(crate) mod tor1 {
             };
             let back = CryptState {
                 cipher: SC::new(
-                    kb.try_into()
-                        .or(Err(crate::Error::InvalidKDFOutputLength))?,
+                    kb.into(),
                     &Default::default(),
                 ),
                 digest: D::new().chain_update(db),
