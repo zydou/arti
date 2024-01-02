@@ -601,6 +601,9 @@ mod test {
     }
 
     #[test]
+    // TODO remove when this upstream bug is fixed
+    ///  https://github.com/rust-lang/rust-clippy/issues/11764
+    #[allow(clippy::map_identity)]
     fn all_parameters() {
         use std::time::Duration;
         let mut p = NetParameters::default();
