@@ -31,7 +31,7 @@ impl<S> CertifiedConn for async_rustls::client::TlsStream<S> {
         let (_, session) = self.get_ref();
         Ok(session
             .peer_certificates()
-            .and_then(|certs| certs.get(0).map(|c| Vec::from(c.as_ref()))))
+            .and_then(|certs| certs.first().map(|c| Vec::from(c.as_ref()))))
     }
 }
 

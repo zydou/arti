@@ -112,7 +112,7 @@ impl Path {
 
     /// Return an OwnedChanTarget representing the first hop of this path.
     pub(super) fn first_hop(&self) -> Option<HopDetail> {
-        self.hops.get(0).map(|ent| ent.inner.clone())
+        self.hops.first().map(|ent| ent.inner.clone())
     }
 
     /// Return a copy of all the hops in this path.

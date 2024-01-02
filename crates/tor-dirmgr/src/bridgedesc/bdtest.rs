@@ -101,7 +101,7 @@ impl mockable::MockableAPI<R> for Mock {
         eprintln!("#{} {:?}", mstate.download_calls, bridge);
         let addr = bridge
             .addrs()
-            .get(0)
+            .first()
             .ok_or(TE("bridge has no error", RT::Never))?;
         let doc = mstate
             .docs
