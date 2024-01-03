@@ -14,10 +14,11 @@ use std::iter;
 use derive_adhoc::define_derive_adhoc;
 use itertools::{izip, EitherOrBoth, Itertools};
 
-use tor_error::{internal, into_internal, Bug};
-
 use super::*;
 use crate::DENOTATOR_SEP;
+
+pub use crate::KeyPathInfoBuilder;
+pub use tor_error::{internal, into_internal, Bug};
 
 /// Trait for (only) formatting as a [`KeySpecifierComponent`]
 ///
@@ -449,7 +450,7 @@ define_derive_adhoc! {
     impl<$tgens> $crate::KeySpecifierPattern for $<$tname Pattern><$tdefgens>
     where $twheres
     {
-        fn arti_pattern(&self) -> std::result::Result<$crate::KeyPathPattern, tor_error::Bug> {
+        fn arti_pattern(&self) -> std::result::Result<$crate::KeyPathPattern, $crate::key_specifier_derive::Bug> {
             use $crate::key_specifier_derive::*;
 
             arti_pattern_from_components(
@@ -474,9 +475,7 @@ define_derive_adhoc! {
                 &self,
                 path: &$crate::KeyPath,
             ) -> std::result::Result<$crate::KeyPathInfo, $crate::KeyPathError> {
-                // TODO: re-export into_internal! from tor-keymgr and
-                // use $crate::into_internal! here.
-                use tor_error::into_internal;
+                use $crate::key_specifier_derive::*;
 
                 // Check if this is a valid path
                 let _ = $tname::try_from(path)?;
@@ -484,7 +483,7 @@ define_derive_adhoc! {
                 // TODO: have users specify a `spec_name` for the key specifier.
                 Ok(
                     // TODO: Add extra info the to the Keyinfo
-                    $crate::KeyPathInfoBuilder::default()
+                    KeyPathInfoBuilder::default()
                         .summary(${tmeta(summary) as str}.to_string())
                         .build()
                         .map_err(into_internal!("failed to build KeyPathInfo"))?
@@ -499,7 +498,6 @@ define_derive_adhoc! {
 
         fn try_from(path: &$crate::KeyPath) -> std::result::Result<$tname, Self::Error> {
             use $crate::key_specifier_derive::*;
-            use tor_error::internal; // XXXX should be re-exported here
 
             static FIELD_KEYS: &[&str] = &[
                 ${define DO_LITERAL {}}
