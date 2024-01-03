@@ -750,6 +750,22 @@ mod test {
             &key_spec,
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6+18519_1440_3600",
         );
+
+        let info = TestSpecifierInfoExtractor
+            .describe(&KeyPath::Arti(key_spec.arti_path().unwrap()))
+            .unwrap();
+
+        // XXXX the extra_info is wrong, it should contain some information!
+        assert_eq!(
+            format!("{info:#?}"),
+            r##"
+KeyPathInfo {
+    summary: "test key",
+    extra_info: {},
+}
+            "##
+            .trim()
+        );
     }
 
     #[test]
