@@ -383,7 +383,7 @@ define_derive_adhoc! {
                             // If the pattern doesn't match at all, it
                             // means the path didn't come from a
                             // KeySpecifier of this type.
-                            return Err(E::PatternNotMatched(pat));
+                            return Err(E::PatternNotMatched);
                         };
 
                         let mut c = captures.into_iter();

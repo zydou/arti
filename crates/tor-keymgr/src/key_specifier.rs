@@ -118,8 +118,8 @@ pub trait KeySpecifierPattern {
 #[non_exhaustive]
 pub enum KeyPathError {
     /// The path did not match the expected pattern.
-    #[error("Path does not match pattern: {0:?}")]
-    PatternNotMatched(KeyPathPattern),
+    #[error("Path does not match expected pattern")]
+    PatternNotMatched,
 
     /// The path is not recognized.
     ///
