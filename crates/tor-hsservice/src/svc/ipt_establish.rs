@@ -42,9 +42,9 @@ use tor_rtcompat::{Runtime, SleepProviderExt as _};
 use tracing::debug;
 use void::{ResultVoidErrExt as _, Void};
 
+use crate::keys::BlindIdKeypairSpecifierPattern;
 use crate::replay::ReplayError;
 use crate::replay::ReplayLog;
-use crate::keys::BlindIdKeypairSpecifierPattern;
 use crate::HsIdPublicKeySpecifier;
 use crate::OnionServiceConfig;
 use crate::{
