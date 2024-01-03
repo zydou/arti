@@ -275,47 +275,6 @@ define_derive_adhoc! {
                 $( $fname , )
             }
         }
-
-        /// A helper for generating the prefix shared by all `ArtiPath`s
-        /// of the keys associated with this specifier.
-        ///
-        /// Returns the `ArtiPath`, minus the denotators.
-        //
-        // TODO HSS this function is a rather unprincipled addition to Self's API
-        fn arti_path_prefix(
-            $(${when F_IS_ROLE} $fname: Option<&$ftype> , )
-            $(${when F_IS_PATH} $fname: Option<&$ftype> , )
-        ) -> Result<String, tor_error::Bug> {
-            // TODO this has a lot of needless allocations
-            ${define F_COMP_STRING {
-                match $fname {
-                    Some(s) => $crate::KeySpecifierComponent::to_component(s)?.to_string(),
-                    None => "*".to_string(),
-                },
-            }}
-            Ok(vec![
-                ${tmeta(prefix) as str}.to_string(),
-                $(
-                  ${if fmeta(fixed_path_component) {
-                        ${fmeta(fixed_path_component) as str} .to_owned(),
-                  }}
-                  ${if F_IS_PATH { $F_COMP_STRING }}
-                )
-                ${for fields {
-                  ${if F_IS_ROLE { $F_COMP_STRING }}
-                }}
-                ${if tmeta(role) { ${tmeta(role) as str}.to_string() , }}
-            ].join("/"))
-        }
-
-        /// A convenience wrapper around `Self::arti_path_prefix`.
-        #[allow(dead_code)] // XXXX this function is going away
-        fn prefix(&self) -> Result<String, tor_error::Bug> {
-            Self::arti_path_prefix(
-                $(${when F_IS_ROLE} Some(&self.$fname),)
-                $(${when F_IS_PATH} Some(&self.$fname),)
-            )
-        }
     }
 
     impl<$tgens> $crate::KeySpecifier for $ttype

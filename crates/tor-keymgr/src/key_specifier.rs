@@ -733,11 +733,6 @@ mod test {
             &key_spec,
             "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6+18519_1440_3600",
         );
-
-        assert_eq!(
-            key_spec.prefix().unwrap(),
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane"
-        );
     }
 
     #[test]
@@ -757,8 +752,6 @@ mod test {
             TestSpecifierPattern {}.arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane".into())
         );
-
-        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
     #[test]
@@ -781,8 +774,6 @@ mod test {
             TestSpecifierPattern { count: None }.arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane+*".into())
         );
-
-        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
     #[test]
@@ -816,11 +807,6 @@ mod test {
         );
 
         assert_eq!(key_spec.ctor_path(), None);
-
-        assert_eq!(
-            key_spec.prefix().unwrap(),
-            "encabulator/logarithmic/spurving/fan"
-        );
     }
 
     #[test]
