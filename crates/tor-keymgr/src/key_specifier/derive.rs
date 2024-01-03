@@ -254,6 +254,28 @@ pub fn parse_key_path(
     Ok(())
 }
 
+/// Build a `KeyPathInfo` given the information about a key specifier
+///
+/// Calling pattern, to minimise macro-generated machine code,
+/// is similar `arti_path_from_components`.
+///
+/// The macro-generated code parses the path into its KeySpecifier impl
+/// (as an owned value) and then feeds references to the various fields
+/// to `describe_via_components`.
+#[allow(unused_variables)] // XXXX
+pub fn describe_via_components(
+    summary: &&str,
+    role: &dyn RawKeySpecifierComponent,
+    extra_keys: &&[&str],
+    extra_info: &[&dyn KeySpecifierComponent],
+) -> Result<KeyPathInfo, KeyPathError> {
+    let mut info = KeyPathInfoBuilder::default();
+    info.summary(summary.to_string());
+    Ok(info
+        .build()
+        .map_err(into_internal!("failed to build KeyPathInfo"))?)
+}
+
 define_derive_adhoc! {
     /// A helper for implementing [`KeySpecifier`]s.
     ///
@@ -382,6 +404,10 @@ define_derive_adhoc! {
     // something like `${fmeta(...) as str}`, which will in turn expand to
     // a string literal.
     //
+    // For use sites which want to distinguish the role from other fields:
+    // DO_ROLE_FIELD and DO_ROLE_LITERAL are used for the role.
+    // They default to expanding $DO_FIELD and $DO_LITERAL respectively.
+    //
     // This is the *only* places that knows how ArtiPaths are constructed,
     // when the path syntax is defined using the KeySpecifier d-a macro.
     //
@@ -406,11 +432,11 @@ define_derive_adhoc! {
         ${if tmeta(role) {
             // #[adhoc(role = ...)] on the toplevel
             ${define LIT { ${tmeta(role) as str} }}
-            $DO_LITERAL
+            $DO_ROLE_LITERAL
         }}
         ${for fields {
             // #[adhoc(role)] on a field
-            ${if F_IS_ROLE { $DO_FIELD }}
+            ${if F_IS_ROLE { $DO_ROLE_FIELD }}
         }}
         ${for fields {
             // #[adhoc(denotator)]
@@ -420,6 +446,8 @@ define_derive_adhoc! {
 
     ${define DO_FIELD { &self.$fname, }}
     ${define DO_LITERAL { &$LIT, }}
+    ${define DO_ROLE_FIELD { $DO_FIELD }}
+    ${define DO_ROLE_LITERAL { $DO_LITERAL }}
 
     impl<$tgens> $crate::KeySpecifier for $ttype
     where $twheres
@@ -472,28 +500,52 @@ define_derive_adhoc! {
 
     struct $< $tname InfoExtractor >;
 
-        impl<$tgens> $crate::KeyInfoExtractor for $< $tname InfoExtractor >
-        where $twheres
-        {
-            fn describe(
-                &self,
-                path: &$crate::KeyPath,
-            ) -> std::result::Result<$crate::KeyPathInfo, $crate::KeyPathError> {
-                use $crate::key_specifier_derive::*;
+    impl<$tgens> $crate::KeyInfoExtractor for $< $tname InfoExtractor >
+    where $twheres
+    {
+        fn describe(
+            &self,
+            path: &$crate::KeyPath,
+        ) -> std::result::Result<$crate::KeyPathInfo, $crate::KeyPathError> {
+            use $crate::key_specifier_derive::*;
 
-                // Check if this is a valid path
-                let _ = $tname::try_from(path)?;
+            // Parse this path
+            #[allow(unused_variables)] // Unused if no fields
+            let spec = $ttype::try_from(path)?;
 
-                // TODO: have users specify a `spec_name` for the key specifier.
-                Ok(
-                    // TODO: Add extra info the to the Keyinfo
-                    KeyPathInfoBuilder::default()
-                        .summary(${tmeta(summary) as str}.to_string())
-                        .build()
-                        .map_err(into_internal!("failed to build KeyPathInfo"))?
-                )
-            }
+            // none of this cares about non-role literals
+            // all the others three be explicitly defined each time
+            ${define DO_LITERAL {}}
+
+            static NON_ROLE_FIELD_KEYS: &[&str] = &[
+                ${define DO_FIELD { stringify!($fname), }}
+                ${define DO_ROLE_FIELD {}}
+                ${define DO_ROLE_LITERAL {}}
+                $ARTI_PATH_COMPONENTS
+                $ARTI_LEAF_COMPONENTS
+            ];
+
+            describe_via_components(
+                &${tmeta(summary) as str},
+
+                // role
+                ${define DO_FIELD {}}
+                ${define DO_ROLE_FIELD { &spec.$fname, }}
+                ${define DO_ROLE_LITERAL { &$LIT, }}
+                $ARTI_LEAF_COMPONENTS
+
+                &NON_ROLE_FIELD_KEYS,
+
+                &[
+                    ${define DO_FIELD { &spec.$fname, }}
+                    ${define DO_ROLE_FIELD {}}
+                    ${define DO_ROLE_LITERAL {}}
+                    $ARTI_PATH_COMPONENTS
+                    $ARTI_LEAF_COMPONENTS
+                ],
+            )
         }
+    }
 
     impl<$tgens> TryFrom<&$crate::KeyPath> for $tname
     where $twheres

@@ -436,7 +436,6 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
 }
 
 /// Wrapper for `KeySpecifierComponent` that `Displays` via `fmt_pretty`
-#[allow(dead_code)] // XXXX currently just used in tests
 struct KeySpecifierComponentPrettyHelper<'c>(&'c dyn KeySpecifierComponent);
 
 impl Display for KeySpecifierComponentPrettyHelper<'_> {
