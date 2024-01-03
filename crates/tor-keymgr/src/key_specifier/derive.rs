@@ -159,8 +159,6 @@ define_derive_adhoc! {
     ///  * `impl TryFrom<`[`KeyPath`]> for SomeKeySpec`
     ///  * Registration of an impl of [`KeyInfoExtractor`]
     ///    (on a private unit struct `SomeKeySpecInfoExtractor`)
-    //
-    // XXXX currently we also generate a `fn new`.
     ///
     /// ### Custom attributes
     ///
@@ -280,18 +278,6 @@ define_derive_adhoc! {
 
     ${define DO_FIELD { &self.$fname, }}
     ${define DO_LITERAL { &$LIT, }}
-
-    impl<$tgens> $ttype
-    where $twheres
-    {
-        #[doc = concat!("Create a new`", stringify!($ttype), "`")]
-        #[allow(dead_code)] // caller might just construct Self with a struct literal
-        pub(crate) fn new( $( $fname: $ftype , ) ) -> Self {
-            Self {
-                $( $fname , )
-            }
-        }
-    }
 
     impl<$tgens> $crate::KeySpecifier for $ttype
     where $twheres
@@ -446,7 +432,7 @@ define_derive_adhoc! {
                             return Err(internal!("too many captures?!").into());
                         }
 
-                        Ok($tname::new( $($fname, ) ))
+                        Ok($tname { $($fname, ) })
                     }
                     _ => {
                         // TODO HSS: support ctor stores

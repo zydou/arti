@@ -8,6 +8,7 @@
 //! to expire the key when its time-period is no longer relevant.
 
 use derive_adhoc::Adhoc;
+use derive_more::Constructor;
 
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
@@ -17,7 +18,7 @@ use tor_keymgr::{derive_adhoc_template_KeySpecifier};
 use crate::HsNickname;
 use crate::IptLocalId;
 
-#[derive(Adhoc, PartialEq, Debug)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_id")]
@@ -28,7 +29,7 @@ pub struct HsIdPublicKeySpecifier {
     nickname: HsNickname,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_id")]
@@ -39,7 +40,7 @@ pub struct HsIdKeypairSpecifier {
     pub(crate) nickname: HsNickname,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_blind_id")]
@@ -53,7 +54,7 @@ pub struct BlindIdKeypairSpecifier {
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_blind_id")]
@@ -67,7 +68,7 @@ pub struct BlindIdPublicKeySpecifier {
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_desc_sign")]
