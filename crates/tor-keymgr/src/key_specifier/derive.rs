@@ -12,9 +12,9 @@
 use std::iter;
 
 use derive_adhoc::define_derive_adhoc;
-use itertools::izip;
+use itertools::{izip, EitherOrBoth, Itertools};
 
-use tor_error::{into_internal, Bug};
+use tor_error::{internal, into_internal, Bug};
 
 use super::*;
 use crate::DENOTATOR_SEP;
@@ -109,6 +109,148 @@ pub fn arti_pattern_from_components(
     Ok(KeyPathPattern::Arti(arti_path_string_from_components(
         path_comps, leaf_comps,
     )?))
+}
+
+/// Error return from [`RawKeySpecifierComponentParser::parse`]
+#[derive(Debug)]
+#[allow(clippy::exhaustive_enums)] // Not part of public API
+pub enum RawComponentParseResult {
+    /// This was a field
+    ///
+    /// The `Option` has been filled with the actual value.
+    /// It has an entry in the `keys` argument to [`parse_key_path`].
+    ParsedField,
+    /// This was a literal, and it matched
+    MatchedLiteral,
+    /// Becomes [`KeyPathError::PatternNotMatched`]
+    PatternNotMatched,
+    /// `InvalidKeyPathComponentValue`
+    Invalid(InvalidKeyPathComponentValue),
+}
+
+use RawComponentParseResult as RCPR;
+
+/// Trait for parsing a path component, used by [`parse_key_path`]
+///
+/// Implemented for `Option<impl KeySpecifierComponent>`,
+/// and guarantees to fill in the Option if it succeeds.
+///
+/// Also implemented for `&str`: just checks that the string is right,
+/// (and, doesn't modify `*self`).
+pub trait RawKeySpecifierComponentParser {
+    /// Check that `comp` is as expected, and store any results in `self`.
+    fn parse(&mut self, comp: &ArtiPathComponent) -> RawComponentParseResult;
+}
+
+impl<T: KeySpecifierComponent> RawKeySpecifierComponentParser for Option<T> {
+    fn parse(&mut self, comp: &ArtiPathComponent) -> RawComponentParseResult {
+        let v = match T::from_component(comp) {
+            Ok(v) => v,
+            Err(e) => return RCPR::Invalid(e),
+        };
+        *self = Some(v);
+        RCPR::ParsedField
+    }
+}
+impl<'s> RawKeySpecifierComponentParser for &'s str {
+    fn parse(&mut self, comp: &ArtiPathComponent) -> RawComponentParseResult {
+        if comp.as_str() == *self {
+            RCPR::MatchedLiteral
+        } else {
+            RCPR::PatternNotMatched
+        }
+    }
+}
+
+/// List of parsers for fields
+type Parsers<'p> = [&'p mut dyn RawKeySpecifierComponentParser];
+
+/// Parse a `KeyPath` as an `ArtiPath` like pc/pc/pc/lc_lc_lc
+///
+/// `keys` is the field names for each of the path_parsers and leaf_parsers,
+/// *but* only the ones which will return `RCPR::ParsedField` (or `::Invalid`).
+///
+/// As with `arti_path_string_components` etc., we try to minimise
+/// the amount of macro-generated machine code.
+///
+/// The macro-generated impl again assembles two vectors,
+/// one for the path components and one for the leaf components.
+///
+/// For a field, the vector entry is a pointer to `&mut Option<...>`
+/// for the field, along with a `RawKeySpecifierComponentParser` vtable entry.
+/// (The macro-generated impl must unwrap each of these Options,
+/// to assemble the final struct.  In principle this could be avoided with
+/// use of `MaybeUninit` and unsafe.)
+///
+/// For a fixed string component, the vector entry data pointer points to its `&str`.
+/// "Parsing" consists of checking that the string is as expected.
+///
+/// We also need the key names for error reporting.
+/// We pass this as a *single* array, and a double-reference to the slice,
+/// since that resolves to one pointer to a static structure.
+pub fn parse_key_path(
+    path: &KeyPath,
+    keys: &&[&str],
+    path_parsers: &mut Parsers,
+    leaf_parsers: &mut Parsers,
+) -> Result<(), KeyPathError> {
+    let path = match path {
+        KeyPath::Arti(path) => path.as_str(),
+        KeyPath::CTor(_path) => {
+            // TODO HSS: support ctor stores
+            return Err(internal!("not implemented").into());
+        }
+    };
+
+    let (path, leaf) = match path.rsplit_once('/') {
+        Some((path, leaf)) => (Some(path), leaf),
+        None => (None, path),
+    };
+
+    let mut keys: &[&str] = keys;
+
+    /// Split a string into components and parse each one
+    fn extract(
+        input: Option<&str>,
+        delim: char,
+        parsers: &mut Parsers,
+        keys: &mut &[&str],
+    ) -> Result<(), KeyPathError> {
+        for ent in Itertools::zip_longest(
+            input.map(|input| input.split(delim)).into_iter().flatten(),
+            parsers,
+        ) {
+            let EitherOrBoth::Both(comp, parser) = ent else {
+                // wrong number of components
+                return Err(KeyPathError::PatternNotMatched);
+            };
+
+            // TODO would be nice to avoid allocating again here,
+            // but I think that needs an `ArtiPathComponentRef`.
+            let comp = ArtiPathComponent::new(comp.to_owned())?;
+
+            let missing_keys = || internal!("keys list too short, bad args to parse_key_path");
+
+            match parser.parse(&comp) {
+                RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched),
+                RCPR::Invalid(error) => Err(KeyPathError::InvalidKeyPathComponentValue {
+                    error,
+                    key: keys.first().ok_or_else(missing_keys)?.to_string(),
+                    value: comp,
+                }),
+                RCPR::ParsedField => {
+                    *keys = keys.split_first().ok_or_else(missing_keys)?.1;
+                    Ok(())
+                }
+                RCPR::MatchedLiteral => Ok(()),
+            }?;
+        }
+        Ok(())
+    }
+
+    extract(path, '/', path_parsers, &mut keys)?;
+    extract(Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
+    Ok(())
 }
 
 define_derive_adhoc! {
@@ -241,7 +383,6 @@ define_derive_adhoc! {
     //
     // This is the *only* places that knows how ArtiPaths are constructed,
     // when the path syntax is defined using the KeySpecifier d-a macro.
-    // XXXX currently this isn't true!  But it will be.
     //
     // The actual code here is necessarily rather abstract.
     ${define ARTI_PATH_COMPONENTS {
@@ -352,95 +493,44 @@ define_derive_adhoc! {
             }
         }
 
-        impl<$tgens> TryFrom<&$crate::KeyPath> for $tname
-        where $twheres
-        {
-            type Error = $crate::KeyPathError;
+    impl<$tgens> TryFrom<&$crate::KeyPath> for $tname
+    where $twheres
+    {
+        type Error = $crate::KeyPathError;
 
-            fn try_from(path: &$crate::KeyPath) -> std::result::Result<$tname, Self::Error> {
-                //   1. Match the variable components using arti_pattern()
-                //   2. If the path doesn't match, return an error
-                //   3. If the path matches, check if variable components and denotators can be
-                //   validated with KeySpecifierComponent::from_component
-                //   respectively
+        fn try_from(path: &$crate::KeyPath) -> std::result::Result<$tname, Self::Error> {
+            use $crate::key_specifier_derive::*;
+            use tor_error::internal; // XXXX should be re-exported here
 
-                #[allow(unused_imports)] // KeySpecifierComponent is unused if there are no fields
-                use $crate::KeySpecifierComponent;
-                use $crate::KeyPathError as E;
-                // TODO: re-export internal! from tor-keymgr and
-                // use $crate::internal! here.
-                use tor_error::internal;
+            static FIELD_KEYS: &[&str] = &[
+                ${define DO_LITERAL {}}
+                ${define DO_FIELD { stringify!($fname), }}
+                $ARTI_PATH_COMPONENTS
+                $ARTI_LEAF_COMPONENTS
+            ];
 
-                match path {
-                    #[allow(unused)] // arti_path is unused if there are no fields
-                    $crate::KeyPath::Arti(arti_path) => {
-                        // Create an arti pattern that matches all ArtiPaths
-                        // associated with this specifier: each variable
-                        // component (i.e. field) is matched using a '*' glob.
-                        let pat = $< $tname Pattern >::<$tgens>::new_any().arti_pattern()?;
+            #[allow(unused_mut)] // not needed if there are no fields
+            #[allow(unused_variables)] // not needed if there are no fields
+            let mut builder = $<$tname Pattern>::<$tgens>::new_any();
 
-                        let Some(captures) = path.matches(&pat.clone().into()) else {
-                            // If the pattern doesn't match at all, it
-                            // means the path didn't come from a
-                            // KeySpecifier of this type.
-                            return Err(E::PatternNotMatched);
-                        };
+            ${define DO_FIELD { &mut builder.$fname, }}
+            ${define DO_LITERAL { &mut $LIT, }}
 
-                        let mut c = captures.into_iter();
+            parse_key_path(
+                path,
+                &FIELD_KEYS,
+                &mut [ $ARTI_PATH_COMPONENTS ],
+                &mut [ $ARTI_LEAF_COMPONENTS ],
+            )?;
 
-                        // Try to match each capture with our fields/denotators,
-                        // in order. Conceptually this is like zipping the
-                        // capture iterators with an iterator over fields and
-                        // denotators, if there was such a thing.
-                        let mut component = || {
-                            let Some(capture) = c.next() else {
-                                return Err(internal!("more fields than captures?!").into());
-                            };
+            #[allow(unused_variables)] // not needed if there are no fields
+            let handle_none = || internal!("bad RawKeySpecifierComponentParser impl");
 
-                            let Some(component) = arti_path.substring(&capture) else {
-                                return Err(internal!("capture not within bounds?!").into());
-                            };
-
-                                let component = $crate::ArtiPathComponent::new(
-                                    component.to_owned()
-                                )?;
-
-                            Ok::<_, Self::Error>(component)
-                        };
-
-                        let error_handler = |fname: &'static str, value| {
-                            move |error| $crate::KeyPathError::InvalidKeyPathComponentValue {
-                                error,
-                                key: fname.to_owned(),
-                                value,
-                            }
-                        };
-
-                        ${define F_EXTRACT {
-                            // This use of $ftype is why we must store owned
-                            // types in the struct the macro is applied to.
-                            let comp = component()?;
-                            let $fname = $ftype::from_component(&comp)
-                                .map_err(error_handler(stringify!($fname), comp))?;
-                        }}
-
-                        ${for fields { ${when         F_IS_PATH             } $F_EXTRACT }}
-                        ${for fields { ${when                    F_IS_ROLE  } $F_EXTRACT }}
-                        ${for fields { ${when not(any(F_IS_PATH, F_IS_ROLE))} $F_EXTRACT }}
-
-                        if c.next().is_some() {
-                            return Err(internal!("too many captures?!").into());
-                        }
-
-                        Ok($tname { $($fname, ) })
-                    }
-                    _ => {
-                        // TODO HSS: support ctor stores
-                        Err(internal!("not implemented").into())
-                    },
-                }
-            }
+            Ok($tname { $(
+                $fname: builder.$fname.ok_or_else(handle_none)?,
+            ) })
         }
+    }
 
         // Register the info extractor with `KeyMgr`.
         $crate::inventory::submit!(&[< $tname InfoExtractor >] as &dyn $crate::KeyInfoExtractor);
