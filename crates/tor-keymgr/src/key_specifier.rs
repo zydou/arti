@@ -3,7 +3,7 @@
                                       // `define_derive_adhoc!` below
 
 use std::collections::BTreeMap;
-use std::fmt::Display;
+use std::fmt::{self, Display};
 use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;
@@ -293,6 +293,10 @@ pub trait KeySpecifierComponent {
     fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized;
+    /// Display the value in a human-meaningful representation
+    ///
+    /// The output should be a single line (without trailing full stop).
+    fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
 /// An error returned by a [`KeySpecifier`].
@@ -380,6 +384,19 @@ impl KeySpecifierComponent for TimePeriod {
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
+
+    fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO HSS should this be the Display impl for TimePeriod?
+        write!(f, "#{} ", self.interval_num())?;
+        match self.range() {
+            Ok(r) => {
+                use humantime::format_rfc3339_seconds as f3339;
+                let mins = self.length().as_minutes();
+                write!(f, "{}..+{}:{:02}", f3339(r.start), mins / 60, mins % 60)
+            }
+            Err(_) => write!(f, "overfloq! {self:?}"),
+        }
+    }
 }
 
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
@@ -395,6 +412,9 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
         Self: Sized,
     {
         s.parse().map_err(|_| InvalidKeyPathComponentValue::new())
+    }
+    fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
     }
 }
 
