@@ -117,7 +117,7 @@ define_derive_adhoc! {
     /// Applies to a struct that has some static components (`prefix`, `role`),
     /// and a number of variable components represented by its fields.
     ///
-    /// Implements `KeySpecifier` and some helper methods.
+    /// Implements `KeySpecifier` etc.
     ///
     /// Each field is either a path field (which becomes a component in the `ArtiPath`),
     /// or a denotator (which becomes *part* of the final component in the `ArtiPath`).
@@ -145,6 +145,22 @@ define_derive_adhoc! {
     ///
     /// A key specifier of this form, with denotators that encode to "d1" and "d2",
     /// would look like this: `"foo/<field1_str>/<field2_str>/../bar+d1+d2"`.
+    ///
+    /// ### Results of applying this macro
+    ///
+    /// `#[derive(Adhoc)] #[derive_adhoc(KeySpecifier)] struct SomeKeySpec ...`
+    /// generates:
+    ///
+    ///  * `impl `[`KeySpecifier`]` for SomeKeySpec`
+    ///  * `struct SomeKeySpecPattern`,
+    ///    a derived struct which contains an `Option` for each field.
+    ///    `None` in the pattern means "any".
+    ///  * `impl `[`KeySpecifierPattern`]` for SomeKeySpecPattern`
+    ///  * `impl TryFrom<`[`KeyPath`]> for SomeKeySpec`
+    ///  * Registration of an impl of [`KeyInfoExtractor`]
+    ///    (on a private unit struct `SomeKeySpecInfoExtractor`)
+    //
+    // XXXX currently we also generate a `fn new`.
     ///
     /// ### Custom attributes
     ///
