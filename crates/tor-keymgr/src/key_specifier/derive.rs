@@ -465,10 +465,9 @@ define_derive_adhoc! {
         }
     }
 
-    $crate::paste::paste! {
-        struct [< $tname InfoExtractor >];
+    struct $< $tname InfoExtractor >;
 
-        impl<$tgens> $crate::KeyInfoExtractor for [< $tname InfoExtractor >]
+        impl<$tgens> $crate::KeyInfoExtractor for $< $tname InfoExtractor >
         where $twheres
         {
             fn describe(
@@ -532,7 +531,6 @@ define_derive_adhoc! {
         }
     }
 
-        // Register the info extractor with `KeyMgr`.
-        $crate::inventory::submit!(&[< $tname InfoExtractor >] as &dyn $crate::KeyInfoExtractor);
-    }
+    // Register the info extractor with `KeyMgr`.
+    $crate::inventory::submit!(&$< $tname InfoExtractor > as &dyn $crate::KeyInfoExtractor);
 }
