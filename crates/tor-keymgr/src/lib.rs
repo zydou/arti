@@ -78,6 +78,9 @@ pub use {
     ssh_key,
 };
 
+#[doc(hidden)]
+pub use key_specifier::derive as key_specifier_derive;
+
 #[cfg(not(feature = "keymgr"))]
 #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
 pub use dummy::*;
