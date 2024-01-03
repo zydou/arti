@@ -254,6 +254,15 @@ pub fn parse_key_path(
     Ok(())
 }
 
+/// Wrapper for `KeySpecifierComponent` that `Displays` via `fmt_pretty`
+struct KeySpecifierComponentPrettyHelper<'c>(&'c dyn KeySpecifierComponent);
+
+impl Display for KeySpecifierComponentPrettyHelper<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        KeySpecifierComponent::fmt_pretty(self.0, f)
+    }
+}
+
 /// Build a `KeyPathInfo` given the information about a key specifier
 ///
 /// Calling pattern, to minimise macro-generated machine code,
@@ -271,6 +280,10 @@ pub fn describe_via_components(
 ) -> Result<KeyPathInfo, KeyPathError> {
     let mut info = KeyPathInfoBuilder::default();
     info.summary(summary.to_string());
+    for (key, value) in izip!(*extra_keys, extra_info) {
+        let value = KeySpecifierComponentPrettyHelper(*value).to_string();
+        info.extra_info(*key, value);
+    }
     Ok(info
         .build()
         .map_err(into_internal!("failed to build KeyPathInfo"))?)

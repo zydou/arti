@@ -754,13 +754,18 @@ mod test {
             .describe(&KeyPath::Arti(key_spec.arti_path().unwrap()))
             .unwrap();
 
-        // XXXX the extra_info is wrong, it should contain some information!
         assert_eq!(
             format!("{info:#?}"),
             r##"
 KeyPathInfo {
     summary: "test key",
-    extra_info: {},
+    extra_info: {
+        "base": "waneshaft",
+        "casing": "logarithmic",
+        "count": "6",
+        "kind": "hydrocoptic",
+        "tp": "#18519 2020-09-14T01:00:00Z..+24:00",
+    },
 }
             "##
             .trim()
