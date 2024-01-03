@@ -424,7 +424,9 @@ define_derive_adhoc! {
     impl<$tgens> $crate::KeySpecifier for $ttype
     where $twheres
     {
-        fn arti_path(&self) -> std::result::Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
+        fn arti_path(
+            &self,
+        ) -> std::result::Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
             use $crate::key_specifier_derive::*;
 
             arti_path_from_components(
@@ -450,7 +452,9 @@ define_derive_adhoc! {
     impl<$tgens> $crate::KeySpecifierPattern for $<$tname Pattern><$tdefgens>
     where $twheres
     {
-        fn arti_pattern(&self) -> std::result::Result<$crate::KeyPathPattern, $crate::key_specifier_derive::Bug> {
+        fn arti_pattern(
+            &self,
+        ) -> std::result::Result<$crate::KeyPathPattern, $crate::key_specifier_derive::Bug> {
             use $crate::key_specifier_derive::*;
 
             arti_pattern_from_components(
