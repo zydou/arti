@@ -418,6 +418,16 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
     }
 }
 
+/// Wrapper for `KeySpecifierComponent` that `Displays` via `fmt_pretty`
+#[allow(dead_code)] // XXXX currently just used in tests
+struct KeySpecifierComponentPrettyHelper<'c>(&'c dyn KeySpecifierComponent);
+
+impl Display for KeySpecifierComponentPrettyHelper<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        KeySpecifierComponent::fmt_pretty(self.0, f)
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -437,9 +447,11 @@ mod test {
     use crate::arti_path::PATH_SEP;
     use crate::test_utils::check_key_specifier;
     use derive_adhoc::Adhoc;
+    use humantime::parse_rfc3339;
     use itertools::{chain, Itertools};
     use serde::{Deserialize, Serialize};
     use std::fmt::Debug;
+    use std::time::Duration;
 
     // TODO I think this could be a function?
     macro_rules! assert_err {
@@ -478,6 +490,24 @@ mod test {
     impl KeySpecifierComponentViaDisplayFromStr for bool {}
 
     // TODO many of these tests should be in arti_path.rs
+
+    fn test_time_period() -> TimePeriod {
+        TimePeriod::new(
+            Duration::from_secs(86400),
+            parse_rfc3339("2020-09-15T00:00:00Z").unwrap(),
+            Duration::from_secs(3600),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn pretty_time_period() {
+        let tp = test_time_period();
+        assert_eq!(
+            KeySpecifierComponentPrettyHelper(&tp).to_string(),
+            "#18519 2020-09-14T01:00:00Z..+24:00",
+        );
+    }
 
     #[test]
     #[allow(clippy::cognitive_complexity)]
@@ -673,6 +703,8 @@ mod test {
 
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
+        let tp = test_time_period();
+
         #[derive(Adhoc, Debug, PartialEq)]
         #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
@@ -684,8 +716,9 @@ mod test {
             base: String,
             casing: String,
             #[adhoc(denotator)]
-            /// The denotator.
             count: usize,
+            #[adhoc(denotator)]
+            tp: TimePeriod,
         }
 
         let key_spec = TestSpecifier {
@@ -693,11 +726,12 @@ mod test {
             base: "waneshaft".into(),
             casing: "logarithmic".into(),
             count: 6,
+            tp,
         };
 
         check_key_specifier(
             &key_spec,
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6",
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6+18519_1440_3600",
         );
 
         assert_eq!(
