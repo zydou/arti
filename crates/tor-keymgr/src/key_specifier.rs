@@ -88,6 +88,23 @@ impl KeyPath {
     }
 }
 
+/// A pattern specifying some or all of a kind of key
+///
+/// Generally implemented on `SomeKeySpecifierPattern` by
+/// applying
+/// [`#[derive_adhoc(KeySpecifier)`](crate::derive_adhoc_template_KeySpecifier)
+/// to `SomeKeySpecifier`.
+pub trait KeySpecifierPattern {
+    /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
+    /// of some or all the keys of this type.
+    fn new_any() -> Self
+    where
+        Self: Sized;
+
+    /// Obtain a pattern template that matches all keys of this type.
+    fn arti_pattern(&self) -> Result<KeyPathPattern, Bug>;
+}
+
 /// An error while attempting to extract information about a key given its path
 ///
 /// For example, from a [`KeyInfoExtractor`].

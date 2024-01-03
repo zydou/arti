@@ -32,6 +32,7 @@ use tor_hscrypto::{
 use tor_keymgr::ArtiPathComponent;
 use tor_keymgr::KeyPath;
 use tor_keymgr::KeySpecifierComponent;
+use tor_keymgr::KeySpecifierPattern as _;
 use tor_keymgr::{KeyMgr, KeyPathRange};
 use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};

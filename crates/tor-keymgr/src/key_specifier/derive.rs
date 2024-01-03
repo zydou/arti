@@ -303,15 +303,10 @@ define_derive_adhoc! {
         }
     }
 
-    impl<$tgens> $<$tname Pattern><$tdefgens>
+    impl<$tgens> $crate::KeySpecifierPattern for $<$tname Pattern><$tdefgens>
     where $twheres
     {
-        /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
-        /// of some or all the keys of this type.
-        ///
-        // TODO HSS consider abolishing or modifying this depending on call site experiences
-        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
-        $tvis fn arti_pattern(&self) -> Result<$crate::KeyPathPattern, tor_error::Bug> {
+        fn arti_pattern(&self) -> Result<$crate::KeyPathPattern, tor_error::Bug> {
             use $crate::key_specifier_derive::*;
 
             arti_pattern_from_components(
@@ -320,9 +315,7 @@ define_derive_adhoc! {
             )
         }
 
-        /// Obtain a pattern template that matches all keys of this type.
-        #[allow(dead_code)] // Not everyone will want this
-        $tvis fn new_any() -> Self {
+        fn new_any() -> Self {
             $< $tname Pattern > {
                 $( $fname: None, )
             }
