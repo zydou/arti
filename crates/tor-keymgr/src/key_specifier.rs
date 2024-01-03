@@ -187,6 +187,12 @@ pub struct KeyPathInfo {
     ///
     /// This should *not* recapitulate information in the `extra_info`.
     summary: String,
+    /// The key role, ie its official name in the Tor Protocols.
+    ///
+    /// This should usually start with `KS_`.
+    //
+    // TODO HSS see the comment for #[adhoc(role)] in derive.rs
+    role: String,
     /// Additional information, in the form of key-value pairs.
     ///
     /// This will contain human-readable information that describes the invidivdual
@@ -759,6 +765,7 @@ mod test {
             r##"
 KeyPathInfo {
     summary: "test key",
+    role: "marzlevane",
     extra_info: {
         "base": "waneshaft",
         "casing": "logarithmic",
@@ -991,6 +998,7 @@ KeyPathInfo {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .set_all_extra_info(extra_info.clone().into_iter())
             .build()
             .unwrap();
@@ -999,6 +1007,7 @@ KeyPathInfo {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .set_all_extra_info(extra_info.clone().into_iter())
             .extra_info("type", "service")
             .extra_info("time period", "100")
@@ -1016,6 +1025,7 @@ KeyPathInfo {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .extra_info("type", "service")
             .extra_info("time period", "100")
             .set_all_extra_info(extra_info.clone().into_iter())
@@ -1026,6 +1036,7 @@ KeyPathInfo {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .extra_info("type", "service")
             .extra_info("time period", "100")
             .build()

@@ -271,7 +271,6 @@ impl Display for KeySpecifierComponentPrettyHelper<'_> {
 /// The macro-generated code parses the path into its KeySpecifier impl
 /// (as an owned value) and then feeds references to the various fields
 /// to `describe_via_components`.
-#[allow(unused_variables)] // XXXX
 pub fn describe_via_components(
     summary: &&str,
     role: &dyn RawKeySpecifierComponent,
@@ -280,6 +279,11 @@ pub fn describe_via_components(
 ) -> Result<KeyPathInfo, KeyPathError> {
     let mut info = KeyPathInfoBuilder::default();
     info.summary(summary.to_string());
+    info.role({
+        let mut s = String::new();
+        role.append_to(&mut s)?;
+        s
+    });
     for (key, value) in izip!(*extra_keys, extra_info) {
         let value = KeySpecifierComponentPrettyHelper(*value).to_string();
         info.extra_info(*key, value);
@@ -302,7 +306,9 @@ define_derive_adhoc! {
     ///
     /// The `prefix` is the first component of the [`ArtiPath`] of the [`KeySpecifier`].
     ///
-    /// The `role` is the _prefix of the last component_ of the [`ArtiPath`] of the specifier.
+    /// The role should be the name of the key in the Tor Specifications.
+    /// The `role` is used as the _prefix of the last component_
+    /// of the [`ArtiPath`] of the specifier.
     /// The `role` is followed by the denotators of the key.
     ///
     /// The denotator fields, if there are any,
@@ -346,6 +352,14 @@ define_derive_adhoc! {
     ///
     ///  * **`#[adhoc(role = "...")]`** (toplevel):
     ///    Specifies the role - the initial portion of the leafname.
+    ///    This should be the name of the key in the Tor Specifications.
+    //     TODO HSS casing/syntax anomalies for key role:
+    //        Some keys in tor-hsservice have roles like k_..., and some KP_... or KS_...
+    //        Maybe we should use `KS_...` in #[adhoc(role)], but lowercase in ArtiPaths.
+    //        It'll have to become the responsibility of code here to convert.
+    //        (We should include the S or P in KS_ or KP, because we might in the future
+    //        want to store public keys too; actually we even do store KP_hs_id right now,
+    //        but that is wrong according to the design docs.)
     ///    Must be a literal string.
     ///    This or the field-level `#[adhoc(role)]` must be specified.
     ///
