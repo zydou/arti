@@ -9,7 +9,89 @@
 //! `KeySpecifier` ends up in the crate toplevel,
 //! so that *does* form part of our public API.)
 
+use std::iter;
+
 use derive_adhoc::define_derive_adhoc;
+use itertools::izip;
+
+use tor_error::{into_internal, Bug};
+
+use super::*;
+use crate::DENOTATOR_SEP;
+
+/// Trait for (only) formatting as a [`KeySpecifierComponent`]
+///
+/// Like the fomratting part of `KeySpecifierComponent`
+/// but implemented for Option and &str too.
+// XXXX the impl for Option will come in a moment
+pub trait RawKeySpecifierComponent {
+    /// Append `self`s `KeySpecifierComponent` string representation to `s`
+    //
+    // This is not quite like `KeySpecifierComponent::to_component`,
+    // since that *returns* a String (effectively) and we *append*.
+    // At some future point we may change KeySpecifierComponent,
+    // although the current API has the nice feature that
+    // the syntax of the appended string is checked before we receive it here.
+    fn append_to(&self, s: &mut String) -> Result<(), Bug>;
+}
+impl<T: KeySpecifierComponent> RawKeySpecifierComponent for T {
+    fn append_to(&self, s: &mut String) -> Result<(), Bug> {
+        self.to_component()?.as_str().append_to(s)
+    }
+}
+impl<'s> RawKeySpecifierComponent for &'s str {
+    fn append_to(&self, s: &mut String) -> Result<(), Bug> {
+        s.push_str(self);
+        Ok(())
+    }
+}
+
+/// Make an a string like `pc/pc/pc/lc_lc_lc`
+fn arti_path_string_from_components(
+    path_comps: &[&dyn RawKeySpecifierComponent],
+    leaf_comps: &[&dyn RawKeySpecifierComponent],
+) -> Result<String, Bug> {
+    let mut path = String::new();
+
+    for comp in path_comps {
+        comp.append_to(&mut path)?;
+        path.push('/');
+    }
+    for (delim, comp) in izip!(
+        iter::once(None).chain(iter::repeat(Some(DENOTATOR_SEP))),
+        leaf_comps,
+    ) {
+        if let Some(delim) = delim {
+            path.push(delim);
+        }
+        comp.append_to(&mut path)?;
+    }
+
+    Ok(path)
+}
+
+/// Make an `ArtiPath` like `pc/pc/pc/lc_lc_lc`
+///
+/// This is the engine for the `KeySpecifier` macro's `arti_path()` impls.
+///
+/// The macro-generated code sets up couple of vectors.
+/// Each vector entry is a pointer to the field in the original struct,
+/// plus a vtable pointer saying what to do with it.
+///
+/// For fixed elements in the path,
+/// the vtable entry's data pointer is a pointer to a constant &str.
+///
+/// In the macro, this is done by the user-defined expansion `ARTI_FROM_COMPONENTS_ARGS`.
+///
+/// Doing it this way minimises the amount of macro-generated machine code.
+pub fn arti_path_from_components(
+    path_comps: &[&dyn RawKeySpecifierComponent],
+    leaf_comps: &[&dyn RawKeySpecifierComponent],
+) -> Result<ArtiPath, ArtiPathUnavailableError> {
+    Ok(arti_path_string_from_components(path_comps, leaf_comps)?
+        .try_into()
+        .map_err(into_internal!("bad ArtiPath from good components"))?)
+}
 
 define_derive_adhoc! {
     /// A helper for implementing [`KeySpecifier`]s.
@@ -89,6 +171,71 @@ define_derive_adhoc! {
     ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
     ${defcond F_IS_ROLE all(fmeta(role), not(tmeta(role)))}
 
+    // ** MAIN KNOWLEDGE OF HOW THE PATH IS CONSTRUCTED **
+    //
+    // These two user-defined expansions,
+    //   $ARTI_PATH_COMPONENTS
+    //   $ARTI_LEAF_COMPONENTS
+    // expand to code for handling each path and leaf component,
+    // in the order in which they appear in the ArtiPath.
+    //
+    // The "code for handling", by default, is:
+    //   - for a field, take a reference to the field in `self`
+    //   - for a fixed component, take a reference to a &'static str
+    // in each case with a comma appended.
+    // So this is suitable for including in a &[&dyn ...].
+    //
+    // The call site can override the behaviour by locally redefining,
+    // the two user-defined expansions DO_FIELD and DO_LITERAL.
+    //
+    // DO_FIELD should expand to the code necessary to handle a field.
+    // It probably wants to refer to $fname.
+    //
+    // DO_LITERAL should expand to the code necessary to handle a literal value.
+    // When DO_LITERAL is called the user-defined expansion LIT will expand to
+    // something like `${fmeta(...) as str}`, which will in turn expand to
+    // a string literal.
+    //
+    // This is the *only* places that knows how ArtiPaths are constructed,
+    // when the path syntax is defined using the KeySpecifier d-a macro.
+    // XXXX currently this isn't true!  But it will be.
+    //
+    // The actual code here is necessarily rather abstract.
+    ${define ARTI_PATH_COMPONENTS {
+        // #[adhoc(prefix = ...)]
+        ${define LIT ${tmeta(prefix) as str}}
+        $DO_LITERAL
+
+        ${for fields {
+            // #[adhoc(fixed_path_component = ...)]
+            ${if fmeta(fixed_path_component) {
+                // IWVNI d-a allowed arguments to use-defined expansions, but this will do
+                ${define LIT ${fmeta(fixed_path_component) as str}}
+                $DO_LITERAL
+            }}
+            // Path fields
+            ${if F_IS_PATH { $DO_FIELD }}
+        }}
+    }}
+    ${define ARTI_LEAF_COMPONENTS {
+        ${if tmeta(role) {
+            // #[adhoc(role = ...)] on the toplevel
+            ${define LIT { ${tmeta(role) as str} }}
+            $DO_LITERAL
+        }}
+        ${for fields {
+            // #[adhoc(role)] on a field
+            ${if F_IS_ROLE { $DO_FIELD }}
+        }}
+        ${for fields {
+            // #[adhoc(denotator)]
+            ${if fmeta(denotator) { $DO_FIELD }}
+        }}
+    }}
+
+    ${define DO_FIELD { &self.$fname, }}
+    ${define DO_LITERAL { &$LIT, }}
+
     impl<$tgens> $ttype
     where $twheres
     {
@@ -141,6 +288,7 @@ define_derive_adhoc! {
         //
         // TODO HSS consider abolishing or modifying this depending on call site experiences
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
+        // XXXX this function is going away
           $tvis fn arti_pattern(
               $(${when F_IS_ROLE} $fname: Option<&$ftype>,)
               $(${when F_IS_PATH} $fname: Option<&$ftype>,)
@@ -161,6 +309,7 @@ define_derive_adhoc! {
         }
 
         /// A convenience wrapper around `Self::arti_path_prefix`.
+        #[allow(dead_code)] // XXXX this function is going away
         fn prefix(&self) -> Result<String, tor_error::Bug> {
             Self::arti_path_prefix(
                 $(${when F_IS_ROLE} Some(&self.$fname),)
@@ -173,19 +322,12 @@ define_derive_adhoc! {
     where $twheres
     {
         fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
-            #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut path = self.prefix()?;
+            use $crate::key_specifier_derive::*;
 
-            $(
-                // We only care about the fields that are denotators
-                ${ when fmeta(denotator) }
-
-                let denotator = $crate::KeySpecifierComponent::to_component(&self.$fname)?;
-                path.push($crate::DENOTATOR_SEP);
-                path.push_str(&denotator.to_string());
+            arti_path_from_components(
+                &[ $ARTI_PATH_COMPONENTS ],
+                &[ $ARTI_LEAF_COMPONENTS ],
             )
-
-            return Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?);
         }
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
