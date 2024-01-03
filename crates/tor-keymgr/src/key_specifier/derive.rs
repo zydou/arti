@@ -23,7 +23,6 @@ use crate::DENOTATOR_SEP;
 ///
 /// Like the fomratting part of `KeySpecifierComponent`
 /// but implemented for Option and &str too.
-// XXXX the impl for Option will come in a moment
 pub trait RawKeySpecifierComponent {
     /// Append `self`s `KeySpecifierComponent` string representation to `s`
     //
@@ -37,6 +36,15 @@ pub trait RawKeySpecifierComponent {
 impl<T: KeySpecifierComponent> RawKeySpecifierComponent for T {
     fn append_to(&self, s: &mut String) -> Result<(), Bug> {
         self.to_component()?.as_str().append_to(s)
+    }
+}
+impl<T: KeySpecifierComponent> RawKeySpecifierComponent for Option<T> {
+    fn append_to(&self, s: &mut String) -> Result<(), Bug> {
+        let v: &dyn RawKeySpecifierComponent = match self.as_ref() {
+            Some(v) => v,
+            None => &"*",
+        };
+        v.append_to(s)
     }
 }
 impl<'s> RawKeySpecifierComponent for &'s str {
@@ -91,6 +99,16 @@ pub fn arti_path_from_components(
     Ok(arti_path_string_from_components(path_comps, leaf_comps)?
         .try_into()
         .map_err(into_internal!("bad ArtiPath from good components"))?)
+}
+
+/// Make a `KeyPathPattern::Arti` like `pc/pc/pc/lc_lc_lc`
+pub fn arti_pattern_from_components(
+    path_comps: &[&dyn RawKeySpecifierComponent],
+    leaf_comps: &[&dyn RawKeySpecifierComponent],
+) -> Result<KeyPathPattern, Bug> {
+    Ok(KeyPathPattern::Arti(arti_path_string_from_components(
+        path_comps, leaf_comps,
+    )?))
 }
 
 define_derive_adhoc! {
@@ -170,6 +188,17 @@ define_derive_adhoc! {
     // A condition that evaluates to `true` for path fields.
     ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
     ${defcond F_IS_ROLE all(fmeta(role), not(tmeta(role)))}
+
+    #[doc = concat!("Pattern matching some or all [`", stringify!($tname), "`]")]
+    #[allow(dead_code)] // Not everyone will need the pattern feature
+    $tvis struct $<$tname Pattern><$tdefgens>
+    where $twheres
+    ${vdefbody $vname $(
+        ${fattrs doc}
+        ///
+        /// `None` to match keys with any value for this field.
+        $fvis $fname: Option<$ftype>,
+    ) }
 
     // ** MAIN KNOWLEDGE OF HOW THE PATH IS CONSTRUCTED **
     //
@@ -279,35 +308,6 @@ define_derive_adhoc! {
             ].join("/"))
         }
 
-        /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
-        /// of all the keys of this type.
-        ///
-        /// This builds a pattern by joining the `prefix` of this specifier
-        /// with the specified field values, its `role`, and a pattern
-        /// that contains a wildcard (`*`) in place of each denotator.
-        //
-        // TODO HSS consider abolishing or modifying this depending on call site experiences
-        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
-        // XXXX this function is going away
-          $tvis fn arti_pattern(
-              $(${when F_IS_ROLE} $fname: Option<&$ftype>,)
-              $(${when F_IS_PATH} $fname: Option<&$ftype>,)
-          ) -> Result<$crate::KeyPathPattern, tor_error::Bug> {
-            #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-              let mut pat = Self::arti_path_prefix(
-                  $(${when fmeta(role)} $fname,)
-                  $(${when F_IS_PATH} $fname,)
-              )?;
-
-            ${for fields {
-                ${when fmeta(denotator)}
-
-                pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
-            }}
-
-            Ok(KeyPathPattern::Arti(pat))
-        }
-
         /// A convenience wrapper around `Self::arti_path_prefix`.
         #[allow(dead_code)] // XXXX this function is going away
         fn prefix(&self) -> Result<String, tor_error::Bug> {
@@ -341,6 +341,32 @@ define_derive_adhoc! {
             } else {
                 None
             }}
+        }
+    }
+
+    impl<$tgens> $<$tname Pattern><$tdefgens>
+    where $twheres
+    {
+        /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
+        /// of some or all the keys of this type.
+        ///
+        // TODO HSS consider abolishing or modifying this depending on call site experiences
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
+        $tvis fn arti_pattern(&self) -> Result<$crate::KeyPathPattern, tor_error::Bug> {
+            use $crate::key_specifier_derive::*;
+
+            arti_pattern_from_components(
+                &[ $ARTI_PATH_COMPONENTS ],
+                &[ $ARTI_LEAF_COMPONENTS ],
+            )
+        }
+
+        /// Obtain a pattern template that matches all keys of this type.
+        #[allow(dead_code)] // Not everyone will want this
+        $tvis fn new_any() -> Self {
+            $< $tname Pattern > {
+                $( $fname: None, )
+            }
         }
     }
 
@@ -397,10 +423,7 @@ define_derive_adhoc! {
                         // Create an arti pattern that matches all ArtiPaths
                         // associated with this specifier: each variable
                         // component (i.e. field) is matched using a '*' glob.
-                        let pat = $tname::arti_pattern(
-                            ${for fields { ${when F_IS_ROLE} None, }}
-                            ${for fields { ${when F_IS_PATH} None, }}
-                        )?;
+                        let pat = $< $tname Pattern >::<$tgens>::new_any().arti_pattern()?;
 
                         let Some(captures) = path.matches(&pat.clone().into()) else {
                             // If the pattern doesn't match at all, it

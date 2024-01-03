@@ -11,7 +11,7 @@ use derive_adhoc::Adhoc;
 
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
-use tor_keymgr::{derive_adhoc_template_KeySpecifier, KeyPathPattern};
+use tor_keymgr::{derive_adhoc_template_KeySpecifier};
 
 use crate::HsNickname;
 use crate::IptLocalId;

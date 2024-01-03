@@ -754,7 +754,7 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/marzlevane");
 
         assert_eq!(
-            TestSpecifier::arti_pattern().unwrap(),
+            TestSpecifierPattern {}.arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane".into())
         );
 
@@ -778,7 +778,7 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/marzlevane+6");
 
         assert_eq!(
-            TestSpecifier::arti_pattern().unwrap(),
+            TestSpecifierPattern { count: None }.arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane+*".into())
         );
 
@@ -806,8 +806,12 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/logarithmic/spurving/fan");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into()))
-                .unwrap(),
+            TestSpecifierPattern {
+                casing: Some("logarithmic".into()),
+                bearings: Some("prefabulating".into()),
+            }
+            .arti_pattern()
+            .unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
@@ -855,8 +859,13 @@ mod test {
         );
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into()))
-                .unwrap(),
+            TestSpecifierPattern {
+                casing: Some("logarithmic".into()),
+                bearings: Some("prefabulating".into()),
+                ..TestSpecifierPattern::new_any()
+            }
+            .arti_pattern()
+            .unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
     }

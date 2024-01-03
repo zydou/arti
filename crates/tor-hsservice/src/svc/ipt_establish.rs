@@ -43,7 +43,7 @@ use void::{ResultVoidErrExt as _, Void};
 
 use crate::replay::ReplayError;
 use crate::replay::ReplayLog;
-use crate::BlindIdKeypairSpecifier;
+use crate::keys::BlindIdKeypairSpecifierPattern;
 use crate::HsIdPublicKeySpecifier;
 use crate::OnionServiceConfig;
 use crate::{
@@ -341,7 +341,11 @@ fn compute_subcredentials(
         .get::<HsIdKey>(&hsid_key_spec)?
         .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
 
-    let pattern = BlindIdKeypairSpecifier::arti_pattern(Some(nickname))?;
+    let pattern = BlindIdKeypairSpecifierPattern {
+        nickname: Some(nickname.clone()),
+        period: None,
+    }
+    .arti_pattern()?;
 
     let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = keymgr
         .list_matching(&pattern)?
