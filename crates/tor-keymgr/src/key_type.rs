@@ -123,7 +123,7 @@ declare_key_type! {
     // TODO HSS: rewrite this enum as
     // ```
     // pub enum KeyType {
-    //     Private(Alogrithm),
+    //     Private(Algorithm),
     //     Public(Algorithm),
     // }
     // ```

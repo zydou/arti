@@ -3,7 +3,7 @@
 //! [`Runner::run`] retries the specified operation according to the [`BackoffSchedule`] of the
 //! [`Runner`]. Users can customize the backoff behavior by implementing [`BackoffSchedule`].
 
-// TODO: this is a (somewhat) general-purpose utiliy, so it should probably be factored out of
+// TODO: this is a (somewhat) general-purpose utility, so it should probably be factored out of
 // tor-hsservice
 
 use std::error::Error as StdError;
@@ -76,7 +76,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
             select_biased! {
                 res = timeout => {
                     // The timeout has elapsed, so stop retrying and return the errors
-                    // accummulated so far.
+                    // accumulated so far.
                     return Err(BackoffError::Timeout(errors))
                 }
                 res = fallible_fn().fuse() => {
@@ -318,7 +318,7 @@ mod tests {
                     }
                 });
 
-            // The expected retry count may be unknow (for example, if we set a timeout but no
+            // The expected retry count may be unknown (for example, if we set a timeout but no
             // upper limit for the number of retries, it's impossible to tell exactly how many
             // times the operation will be retried)
             for i in 1..=expected_run_count {

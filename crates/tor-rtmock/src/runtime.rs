@@ -256,7 +256,7 @@ impl MockRuntime {
         .await
     }
 
-    /// Advance time, firing events and other tasks - internal implementaton
+    /// Advance time, firing events and other tasks - internal implementation
     ///
     /// Common code for `advance_*`.
     ///

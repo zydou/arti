@@ -807,7 +807,7 @@ impl PaddingNegotiate {
         }
     }
 
-    /// Construct from the three fields: command, low_ms, high_ms, as a tupe
+    /// Construct from the three fields: command, low_ms, high_ms, as a tuple
     ///
     /// For testing only
     #[cfg(feature = "testing")]

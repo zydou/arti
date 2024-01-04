@@ -77,7 +77,7 @@ benefit, and `/updates` won't give the right updates to you.
 
 ### Design Notes
 
-The current design does leave something to be desired, as the usage disclamer
+The current design does leave something to be desired, as the usage disclaimer
 section indicates. Here are some alternative design patterns/thoughts for this program
 that can be explored in the future:
 

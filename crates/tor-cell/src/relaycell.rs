@@ -196,7 +196,7 @@ impl StreamId {
 /// A relay cell that has not yet been fully parsed, but where we have access to
 /// the command and stream ID, for dispatching purposes.
 //
-// TODO prop340: Further discussion is necessary about standarizing names for
+// TODO prop340: Further discussion is necessary about standardizing names for
 // all of the pieces of our cells.
 #[derive(Clone, Debug)]
 pub struct UnparsedRelayCell {

@@ -46,7 +46,7 @@ pub enum StartupError {
     /// Unable to access on-disk state
     // We use fs_mistrust::Error since (1) we use mstrust to make the directory,
     // so we might have one of those anyway and (2) it has a nice variant for our
-    // own io::Errorr.
+    // own io::Error.
     #[error("Unable to access on-disk state")]
     StateDirectoryInaccessible(#[source] fs_mistrust::Error),
 

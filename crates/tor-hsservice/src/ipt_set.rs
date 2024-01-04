@@ -310,7 +310,7 @@ impl<R: SleepProvider> Drop for NotifyingBorrow<'_, R> {
             // by other code paths.
         });
 
-        // Now the fields will be dropped, includeing `guard`.
+        // Now the fields will be dropped, including `guard`.
         // I.e. the mutex gets unlocked.  This means we notify the publisher
         // (which might make it wake up on another thread) just *before*
         // we release the lock, rather than just after.

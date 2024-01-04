@@ -39,12 +39,12 @@ is_non_anonymous = false
 
 ####
 # These options are about setting limits on concurrency and
-# introdution rate.
+# introduction rate.
 ####
 
 # This option is a (rate,burst) tuple that we should send to
 # the introduction point to configure how many introduction
-# requests it accepts.  I'm open to a bettter way to
+# requests it accepts.  I'm open to a better way to
 # specify these.
 rate_limit_at_intro = [ 100, 500 ]
 
@@ -256,7 +256,7 @@ impl OnionSvcProxy {
 
 For some purposes we'd like to have an "ephemeral" onion service: this
 amounts to one where we don't store anything on disk and instead
-the caller takes reponsibility for key management and persistence.
+the caller takes responsibility for key management and persistence.
 
 Would this be as simple as providing an alternative API like this?
 
