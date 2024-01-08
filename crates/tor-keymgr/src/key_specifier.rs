@@ -100,7 +100,7 @@ pub trait KeySpecifierPattern {
     where
         Self: Sized;
 
-    /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
+    /// Get a [`KeyPathPattern`] that can match the [`ArtiPath`]s
     /// of some or all the keys of this type.
     fn arti_pattern(&self) -> Result<KeyPathPattern, Bug>;
 }
