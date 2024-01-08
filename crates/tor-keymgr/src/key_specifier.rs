@@ -95,13 +95,13 @@ impl KeyPath {
 /// [`#[derive_adhoc(KeySpecifier)`](crate::derive_adhoc_template_KeySpecifier)
 /// to `SomeKeySpecifier`.
 pub trait KeySpecifierPattern {
-    /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
-    /// of some or all the keys of this type.
+    /// Obtain a pattern template that matches all keys of this type.
     fn new_any() -> Self
     where
         Self: Sized;
 
-    /// Obtain a pattern template that matches all keys of this type.
+    /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
+    /// of some or all the keys of this type.
     fn arti_pattern(&self) -> Result<KeyPathPattern, Bug>;
 }
 
