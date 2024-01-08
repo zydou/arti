@@ -1,19 +1,22 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
 use std::collections::BTreeMap;
-use std::fmt::Display;
+use std::fmt::{self, Display};
 use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use arrayvec::ArrayVec;
-use derive_adhoc::define_derive_adhoc;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use thiserror::Error;
 use tor_error::{into_internal, Bug};
 use tor_hscrypto::time::TimePeriod;
 
 use crate::{ArtiPath, ArtiPathComponent, ArtiPathSyntaxError};
+
+// #[doc(hidden)] applied at crate toplevel
+#[macro_use]
+pub mod derive;
 
 /// The identifier of a key.
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, From, Display)]
@@ -83,6 +86,23 @@ impl KeyPath {
     }
 }
 
+/// A pattern specifying some or all of a kind of key
+///
+/// Generally implemented on `SomeKeySpecifierPattern` by
+/// applying
+/// [`#[derive_adhoc(KeySpecifier)`](crate::derive_adhoc_template_KeySpecifier)
+/// to `SomeKeySpecifier`.
+pub trait KeySpecifierPattern {
+    /// Obtain a pattern template that matches all keys of this type.
+    fn new_any() -> Self
+    where
+        Self: Sized;
+
+    /// Get a [`KeyPathPattern`] that can match the [`ArtiPath`]s
+    /// of some or all the keys of this type.
+    fn arti_pattern(&self) -> Result<KeyPathPattern, Bug>;
+}
+
 /// An error while attempting to extract information about a key given its path
 ///
 /// For example, from a [`KeyInfoExtractor`].
@@ -96,8 +116,8 @@ impl KeyPath {
 #[non_exhaustive]
 pub enum KeyPathError {
     /// The path did not match the expected pattern.
-    #[error("Path does not match pattern: {0:?}")]
-    PatternNotMatched(KeyPathPattern),
+    #[error("Path does not match expected pattern")]
+    PatternNotMatched,
 
     /// The path is not recognized.
     ///
@@ -165,6 +185,12 @@ pub struct KeyPathInfo {
     ///
     /// This should *not* recapitulate information in the `extra_info`.
     summary: String,
+    /// The key role, ie its official name in the Tor Protocols.
+    ///
+    /// This should usually start with `KS_`.
+    //
+    // TODO HSS see the comment for #[adhoc(role)] in derive.rs
+    role: String,
     /// Additional information, in the form of key-value pairs.
     ///
     /// This will contain human-readable information that describes the invidivdual
@@ -276,7 +302,7 @@ pub trait KeySpecifier {
 /// validation rules. An `ArtiPathComponent` is not always a valid `KeySpecifierComponent`
 /// instance.
 ///
-/// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifierDefault) for a
+/// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier) for a
 /// struct, all of its fields must implement this trait.
 ///
 /// If you are implementing [`KeySpecifier`] and [`KeyInfoExtractor`] manually rather than by
@@ -288,6 +314,10 @@ pub trait KeySpecifierComponent {
     fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized;
+    /// Display the value in a human-meaningful representation
+    ///
+    /// The output should be a single line (without trailing full stop).
+    fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
 /// An error returned by a [`KeySpecifier`].
@@ -375,6 +405,19 @@ impl KeySpecifierComponent for TimePeriod {
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
+
+    fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO HSS should this be the Display impl for TimePeriod?
+        write!(f, "#{} ", self.interval_num())?;
+        match self.range() {
+            Ok(r) => {
+                use humantime::format_rfc3339_seconds as f3339;
+                let mins = self.length().as_minutes();
+                write!(f, "{}..+{}:{:02}", f3339(r.start), mins / 60, mins % 60)
+            }
+            Err(_) => write!(f, "overflow! {self:?}"),
+        }
+    }
 }
 
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
@@ -391,322 +434,17 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
     {
         s.parse().map_err(|_| InvalidKeyPathComponentValue::new())
     }
+    fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
 }
 
-define_derive_adhoc! {
-    /// A helper for implementing [`KeySpecifier`]s.
-    ///
-    /// Applies to a struct that has some static components (`prefix`, `role`),
-    /// and a number of variable components represented by its fields.
-    ///
-    /// Implements `KeySpecifier` and some helper methods.
-    ///
-    /// Each field is either a path field (which becomes a component in the `ArtiPath`),
-    /// or a denotator (which becomes *part* of the final component in the `ArtiPath`).
-    ///
-    /// The `prefix` is the first component of the [`ArtiPath`] of the [`KeySpecifier`].
-    ///
-    /// The `role` is the _prefix of the last component_ of the [`ArtiPath`] of the specifier.
-    /// The `role` is followed by the denotators of the key.
-    ///
-    /// The denotator fields, if there are any,
-    /// should be anotated with `#[denotator]`.
-    ///
-    /// The declaration order of the fields is important.
-    /// The inner components of the [`ArtiPath`] of the specifier are built
-    /// from the string representation of its path fields, taken in declaration order,
-    /// followed by the encoding of its denotators, also taken in the order they were declared.
-    /// As such, all path fields, must implement [`KeySpecifierComponent`].
-    /// and all denotators must implement [`KeySpecifierComponent`].
-    /// The denotators are separated from the rest of the path, and from each other,
-    /// by `+` characters.
-    ///
-    /// For example, a key specifier with `prefix` `"foo"` and `role` `"bar"`
-    /// will have an [`ArtiPath`] of the form
-    /// `"foo/<field1_str>/<field2_str>/../bar[+<denotators>]"`.
-    ///
-    /// A key specifier of this form, with denotators that encode to "d1" and "d2",
-    /// would look like this: `"foo/<field1_str>/<field2_str>/../bar+d1+d2"`.
-    ///
-    /// ### Custom attributes
-    ///
-    ///  * **`#[adhoc(prefix)]`** (toplevel):
-    ///    Specifies the fixed prefix (the first path component).
-    ///    Must be a literal string.
-    ///
-    ///  * **`#[adhoc(role = "...")]`** (toplevel):
-    ///    Specifies the role - the initial portion of the leafname.
-    ///    Must be a literal string.
-    ///    This or the field-level `#[adhoc(role)]` must be specified.
-    ///
-    ///  * **`[adhoc(role)]` (field):
-    ///    Specifies that the role is determined at runtime.
-    ///    The field type must implement [`KeyDenotator`].
-    ///
-    ///  * **`#[adhoc(summary = "...")]`** (summary, mandatory):
-    ///    Specifies the summary; ends up as the `summary` field in [`KeyPathInfo`].
-    ///    (See [`KeyPathInfoBuilder::summary()`].)
-    ///    Must be a literal string.
-    ///
-    ///  * **`#[adhoc(denotator)]`** (field):
-    ///    Designates a field that should be represented
-    ///    in the key file leafname, after the role.
-    ///
-    ///  * **`#[adhoc(ctor_path = "expression")]`** (toplevel):
-    ///    Specifies that this kind of key has a representation in C Tor keystores,
-    ///    and provides an expression for computing the path.
-    ///    The expression should have type `impl Fn(&Self) -> CTorPath`.
-    ///
-    ///    If not specified, the generated [`KeySpecifier::ctor_path`]
-    ///    implementation will always return `None`.
-    ///
-    ///  * **`#[adhoc(fixed_path_component = "component")]`** (field):
-    ///    Before this field insert a fixed path component `component`.
-    ///    (Can be even used before a denotator component,
-    ///    to add a final fixed path component.)
-    ///
-    pub KeySpecifierDefault =
+/// Wrapper for `KeySpecifierComponent` that `Displays` via `fmt_pretty`
+struct KeySpecifierComponentPrettyHelper<'c>(&'c dyn KeySpecifierComponent);
 
-    // A condition that evaluates to `true` for path fields.
-    ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
-    ${defcond F_IS_ROLE all(fmeta(role), not(tmeta(role)))}
-
-    impl<$tgens> $ttype
-    where $twheres
-    {
-        #[doc = concat!("Create a new`", stringify!($ttype), "`")]
-        #[allow(dead_code)] // caller might just construct Self with a struct literal
-        pub(crate) fn new( $( $fname: $ftype , ) ) -> Self {
-            Self {
-                $( $fname , )
-            }
-        }
-
-        /// A helper for generating the prefix shared by all `ArtiPath`s
-        /// of the keys associated with this specifier.
-        ///
-        /// Returns the `ArtiPath`, minus the denotators.
-        //
-        // TODO HSS this function is a rather unprincipled addition to Self's API
-        fn arti_path_prefix(
-            $(${when F_IS_ROLE} $fname: Option<&$ftype> , )
-            $(${when F_IS_PATH} $fname: Option<&$ftype> , )
-        ) -> Result<String, tor_error::Bug> {
-            // TODO this has a lot of needless allocations
-            ${define F_COMP_STRING {
-                match $fname {
-                    Some(s) => $crate::KeySpecifierComponent::to_component(s)?.to_string(),
-                    None => "*".to_string(),
-                },
-            }}
-            Ok(vec![
-                ${tmeta(prefix) as str}.to_string(),
-                $(
-                  ${if fmeta(fixed_path_component) {
-                        ${fmeta(fixed_path_component) as str} .to_owned(),
-                  }}
-                  ${if F_IS_PATH { $F_COMP_STRING }}
-                )
-                ${for fields {
-                  ${if F_IS_ROLE { $F_COMP_STRING }}
-                }}
-                ${if tmeta(role) { ${tmeta(role) as str}.to_string() , }}
-            ].join("/"))
-        }
-
-        /// Get an [`KeyPathPattern`] that can match the [`ArtiPath`]s
-        /// of all the keys of this type.
-        ///
-        /// This builds a pattern by joining the `prefix` of this specifier
-        /// with the specified field values, its `role`, and a pattern
-        /// that contains a wildcard (`*`) in place of each denotator.
-        //
-        // TODO HSS consider abolishing or modifying this depending on call site experiences
-        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1733#note_2966402
-          $tvis fn arti_pattern(
-              $(${when F_IS_ROLE} $fname: Option<&$ftype>,)
-              $(${when F_IS_PATH} $fname: Option<&$ftype>,)
-          ) -> Result<$crate::KeyPathPattern, tor_error::Bug> {
-            #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-              let mut pat = Self::arti_path_prefix(
-                  $(${when fmeta(role)} $fname,)
-                  $(${when F_IS_PATH} $fname,)
-              )?;
-
-            ${for fields {
-                ${when fmeta(denotator)}
-
-                pat.push_str(&format!("{}*", $crate::DENOTATOR_SEP));
-            }}
-
-            Ok(KeyPathPattern::Arti(pat))
-        }
-
-        /// A convenience wrapper around `Self::arti_path_prefix`.
-        fn prefix(&self) -> Result<String, tor_error::Bug> {
-            Self::arti_path_prefix(
-                $(${when F_IS_ROLE} Some(&self.$fname),)
-                $(${when F_IS_PATH} Some(&self.$fname),)
-            )
-        }
-    }
-
-    impl<$tgens> $crate::KeySpecifier for $ttype
-    where $twheres
-    {
-        fn arti_path(&self) -> Result<$crate::ArtiPath, $crate::ArtiPathUnavailableError> {
-            #[allow(unused_mut)] // mut is only needed for specifiers that have denotators
-            let mut path = self.prefix()?;
-
-            $(
-                // We only care about the fields that are denotators
-                ${ when fmeta(denotator) }
-
-                let denotator = $crate::KeySpecifierComponent::to_component(&self.$fname)?;
-                path.push($crate::DENOTATOR_SEP);
-                path.push_str(&denotator.to_string());
-            )
-
-            return Ok($crate::ArtiPath::new(path).map_err(|e| tor_error::internal!("{e}"))?);
-        }
-
-        fn ctor_path(&self) -> Option<$crate::CTorPath> {
-            ${if tmeta(ctor_path) {
-                // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the
-                // directories used by C tor. The resulting CTorPath will be prefixed with the
-                // appropriate C tor directory, based on the HsSvcKeyRole.
-                //
-                // Ie, provide the #[adhoc(ctor_path)] attribute
-                Some( ${tmeta(ctor_path) as tokens} (self) )
-            } else {
-                None
-            }}
-        }
-    }
-
-    $crate::paste::paste! {
-        struct [< $tname InfoExtractor >];
-
-        impl<$tgens> $crate::KeyInfoExtractor for [< $tname InfoExtractor >]
-        where $twheres
-        {
-            fn describe(
-                &self,
-                path: &$crate::KeyPath,
-            ) -> std::result::Result<$crate::KeyPathInfo, $crate::KeyPathError> {
-                // TODO: re-export into_internal! from tor-keymgr and
-                // use $crate::into_internal! here.
-                use tor_error::into_internal;
-
-                // Check if this is a valid path
-                let _ = $tname::try_from(path)?;
-
-                // TODO: have users specify a `spec_name` for the key specifier.
-                Ok(
-                    // TODO: Add extra info the to the Keyinfo
-                    $crate::KeyPathInfoBuilder::default()
-                        .summary(${tmeta(summary) as str}.to_string())
-                        .build()
-                        .map_err(into_internal!("failed to build KeyPathInfo"))?
-                )
-            }
-        }
-
-        impl<$tgens> TryFrom<&$crate::KeyPath> for $tname
-        where $twheres
-        {
-            type Error = $crate::KeyPathError;
-
-            fn try_from(path: &$crate::KeyPath) -> std::result::Result<$tname, Self::Error> {
-                //   1. Match the variable components using arti_pattern()
-                //   2. If the path doesn't match, return an error
-                //   3. If the path matches, check if variable components and denotators can be
-                //   validated with KeySpecifierComponent::from_component
-                //   respectively
-
-                #[allow(unused_imports)] // KeySpecifierComponent is unused if there are no fields
-                use $crate::KeySpecifierComponent;
-                use $crate::KeyPathError as E;
-                // TODO: re-export internal! from tor-keymgr and
-                // use $crate::internal! here.
-                use tor_error::internal;
-
-                match path {
-                    #[allow(unused)] // arti_path is unused if there are no fields
-                    $crate::KeyPath::Arti(arti_path) => {
-                        // Create an arti pattern that matches all ArtiPaths
-                        // associated with this specifier: each variable
-                        // component (i.e. field) is matched using a '*' glob.
-                        let pat = $tname::arti_pattern(
-                            ${for fields { ${when F_IS_ROLE} None, }}
-                            ${for fields { ${when F_IS_PATH} None, }}
-                        )?;
-
-                        let Some(captures) = path.matches(&pat.clone().into()) else {
-                            // If the pattern doesn't match at all, it
-                            // means the path didn't come from a
-                            // KeySpecifier of this type.
-                            return Err(E::PatternNotMatched(pat));
-                        };
-
-                        let mut c = captures.into_iter();
-
-                        // Try to match each capture with our fields/denotators,
-                        // in order. Conceptually this is like zipping the
-                        // capture iterators with an iterator over fields and
-                        // denotators, if there was such a thing.
-                        let mut component = || {
-                            let Some(capture) = c.next() else {
-                                return Err(internal!("more fields than captures?!").into());
-                            };
-
-                            let Some(component) = arti_path.substring(&capture) else {
-                                return Err(internal!("capture not within bounds?!").into());
-                            };
-
-                                let component = $crate::ArtiPathComponent::new(
-                                    component.to_owned()
-                                )?;
-
-                            Ok::<_, Self::Error>(component)
-                        };
-
-                        let error_handler = |fname: &'static str, value| {
-                            move |error| $crate::KeyPathError::InvalidKeyPathComponentValue {
-                                error,
-                                key: fname.to_owned(),
-                                value,
-                            }
-                        };
-
-                        ${define F_EXTRACT {
-                            // This use of $ftype is why we must store owned
-                            // types in the struct the macro is applied to.
-                            let comp = component()?;
-                            let $fname = $ftype::from_component(&comp)
-                                .map_err(error_handler(stringify!($fname), comp))?;
-                        }}
-
-                        ${for fields { ${when         F_IS_PATH             } $F_EXTRACT }}
-                        ${for fields { ${when                    F_IS_ROLE  } $F_EXTRACT }}
-                        ${for fields { ${when not(any(F_IS_PATH, F_IS_ROLE))} $F_EXTRACT }}
-
-                        if c.next().is_some() {
-                            return Err(internal!("too many captures?!").into());
-                        }
-
-                        Ok($tname::new( $($fname, ) ))
-                    }
-                    _ => {
-                        // TODO HSS: support ctor stores
-                        Err(internal!("not implemented").into())
-                    },
-                }
-            }
-        }
-
-        // Register the info extractor with `KeyMgr`.
-        $crate::inventory::submit!(&[< $tname InfoExtractor >] as &dyn $crate::KeyInfoExtractor);
+impl Display for KeySpecifierComponentPrettyHelper<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        KeySpecifierComponent::fmt_pretty(self.0, f)
     }
 }
 
@@ -729,9 +467,11 @@ mod test {
     use crate::arti_path::PATH_SEP;
     use crate::test_utils::check_key_specifier;
     use derive_adhoc::Adhoc;
+    use humantime::parse_rfc3339;
     use itertools::{chain, Itertools};
     use serde::{Deserialize, Serialize};
     use std::fmt::Debug;
+    use std::time::Duration;
 
     // TODO I think this could be a function?
     macro_rules! assert_err {
@@ -770,6 +510,24 @@ mod test {
     impl KeySpecifierComponentViaDisplayFromStr for bool {}
 
     // TODO many of these tests should be in arti_path.rs
+
+    fn test_time_period() -> TimePeriod {
+        TimePeriod::new(
+            Duration::from_secs(86400),
+            parse_rfc3339("2020-09-15T00:00:00Z").unwrap(),
+            Duration::from_secs(3600),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn pretty_time_period() {
+        let tp = test_time_period();
+        assert_eq!(
+            KeySpecifierComponentPrettyHelper(&tp).to_string(),
+            "#18519 2020-09-14T01:00:00Z..+24:00",
+        );
+    }
 
     #[test]
     #[allow(clippy::cognitive_complexity)]
@@ -965,8 +723,10 @@ mod test {
 
     #[test]
     fn define_key_specifier_with_fields_and_denotator() {
+        let tp = test_time_period();
+
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
         #[adhoc(summary = "test key")]
@@ -976,8 +736,9 @@ mod test {
             base: String,
             casing: String,
             #[adhoc(denotator)]
-            /// The denotator.
             count: usize,
+            #[adhoc(denotator)]
+            tp: TimePeriod,
         }
 
         let key_spec = TestSpecifier {
@@ -985,23 +746,41 @@ mod test {
             base: "waneshaft".into(),
             casing: "logarithmic".into(),
             count: 6,
+            tp,
         };
 
         check_key_specifier(
             &key_spec,
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6",
+            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane+6+18519_1440_3600",
         );
 
+        let info = TestSpecifierInfoExtractor
+            .describe(&KeyPath::Arti(key_spec.arti_path().unwrap()))
+            .unwrap();
+
         assert_eq!(
-            key_spec.prefix().unwrap(),
-            "encabulator/hydrocoptic/waneshaft/logarithmic/marzlevane"
+            format!("{info:#?}"),
+            r##"
+KeyPathInfo {
+    summary: "test key",
+    role: "marzlevane",
+    extra_info: {
+        "base": "waneshaft",
+        "casing": "logarithmic",
+        "count": "6",
+        "kind": "hydrocoptic",
+        "tp": "#18519 2020-09-14T01:00:00Z..+24:00",
+    },
+}
+            "##
+            .trim()
         );
     }
 
     #[test]
     fn define_key_specifier_no_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
         #[adhoc(summary = "test key")]
@@ -1012,17 +791,15 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/marzlevane");
 
         assert_eq!(
-            TestSpecifier::arti_pattern().unwrap(),
+            TestSpecifierPattern {}.arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane".into())
         );
-
-        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
     #[test]
     fn define_key_specifier_with_denotator() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "marzlevane")]
         #[adhoc(summary = "test key")]
@@ -1036,17 +813,15 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/marzlevane+6");
 
         assert_eq!(
-            TestSpecifier::arti_pattern().unwrap(),
+            TestSpecifierPattern { count: None }.arti_pattern().unwrap(),
             KeyPathPattern::Arti("encabulator/marzlevane+*".into())
         );
-
-        assert_eq!(key_spec.prefix().unwrap(), "encabulator/marzlevane");
     }
 
     #[test]
     fn define_key_specifier_with_fields() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
         #[adhoc(summary = "test key")]
@@ -1064,23 +839,22 @@ mod test {
         check_key_specifier(&key_spec, "encabulator/logarithmic/spurving/fan");
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into()))
-                .unwrap(),
+            TestSpecifierPattern {
+                casing: Some("logarithmic".into()),
+                bearings: Some("prefabulating".into()),
+            }
+            .arti_pattern()
+            .unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
         assert_eq!(key_spec.ctor_path(), None);
-
-        assert_eq!(
-            key_spec.prefix().unwrap(),
-            "encabulator/logarithmic/spurving/fan"
-        );
     }
 
     #[test]
     fn define_key_specifier_with_multiple_denotators() {
         #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "encabulator")]
         #[adhoc(role = "fan")]
         #[adhoc(summary = "test key")]
@@ -1113,8 +887,13 @@ mod test {
         );
 
         assert_eq!(
-            TestSpecifier::arti_pattern(Some(&"logarithmic".into()), Some(&"prefabulating".into()))
-                .unwrap(),
+            TestSpecifierPattern {
+                casing: Some("logarithmic".into()),
+                bearings: Some("prefabulating".into()),
+                ..TestSpecifierPattern::new_any()
+            }
+            .arti_pattern()
+            .unwrap(),
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan+*+*+*".into())
         );
     }
@@ -1122,7 +901,7 @@ mod test {
     #[test]
     fn define_key_specifier_role_field() {
         #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "prefix")]
         #[adhoc(summary = "test key")]
         struct TestSpecifier {
@@ -1146,7 +925,7 @@ mod test {
     #[test]
     fn define_key_specifier_ctor_path() {
         #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "p")]
         #[adhoc(role = "r")]
         #[adhoc(ctor_path = "Self::ctp")]
@@ -1173,7 +952,7 @@ mod test {
     #[test]
     fn define_key_specifier_fixed_path_component() {
         #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifierDefault)]
+        #[derive_adhoc(KeySpecifier)]
         #[adhoc(prefix = "prefix")]
         #[adhoc(role = "role")]
         #[adhoc(summary = "test key")]
@@ -1217,6 +996,7 @@ mod test {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .set_all_extra_info(extra_info.clone().into_iter())
             .build()
             .unwrap();
@@ -1225,6 +1005,7 @@ mod test {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .set_all_extra_info(extra_info.clone().into_iter())
             .extra_info("type", "service")
             .extra_info("time period", "100")
@@ -1242,6 +1023,7 @@ mod test {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .extra_info("type", "service")
             .extra_info("time period", "100")
             .set_all_extra_info(extra_info.clone().into_iter())
@@ -1252,6 +1034,7 @@ mod test {
 
         let key_info = KeyPathInfo::builder()
             .summary("test summary".into())
+            .role("KS_vote".to_string())
             .extra_info("type", "service")
             .extra_info("time period", "100")
             .build()

@@ -33,6 +33,7 @@ downcast-rs = "1.2.0"
 dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.5", features = ["serde", "walkdir"] }
 glob-match = "0.2.1"
+humantime = "2"
 inventory = "0.3.13"
 itertools = "0.12.0"
 paste = "1"

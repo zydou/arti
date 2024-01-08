@@ -65,7 +65,7 @@ pub use err::{ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError
 pub use key_specifier::{
     ArtiPathUnavailableError, CTorPath, KeyInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
     KeyPathInfoBuilder, KeyPathPattern, KeyPathRange, KeySpecifier, KeySpecifierComponent,
-    KeySpecifierComponentViaDisplayFromStr,
+    KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
 
 #[cfg(feature = "keymgr")]
@@ -78,6 +78,9 @@ pub use {
     ssh_key,
 };
 
+#[doc(hidden)]
+pub use key_specifier::derive as key_specifier_derive;
+
 #[cfg(not(feature = "keymgr"))]
 #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
 pub use dummy::*;
@@ -86,7 +89,7 @@ pub use dummy::*;
 pub(crate) type BoxedKeystore = Box<dyn Keystore>;
 
 #[doc(hidden)]
-pub use {derive_adhoc, inventory, paste};
+pub use {derive_adhoc, inventory};
 
 use derive_more::{AsRef, Display};
 use serde::{Deserialize, Serialize};

@@ -8,17 +8,18 @@
 //! to expire the key when its time-period is no longer relevant.
 
 use derive_adhoc::Adhoc;
+use derive_more::Constructor;
 
-use tor_error::into_internal;
 use tor_hscrypto::time::TimePeriod;
+use tor_keymgr::derive_adhoc_template_KeySpecifier;
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
-use tor_keymgr::{derive_adhoc_template_KeySpecifierDefault, KeyPathPattern};
+use tor_keymgr::KeySpecifierPattern as _;
 
 use crate::HsNickname;
 use crate::IptLocalId;
 
-#[derive(Adhoc, PartialEq, Debug)]
-#[derive_adhoc(KeySpecifierDefault)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
+#[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_id")]
 #[adhoc(summary = "Public part of the identity key")]
@@ -28,8 +29,8 @@ pub struct HsIdPublicKeySpecifier {
     nickname: HsNickname,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
-#[derive_adhoc(KeySpecifierDefault)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
+#[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_id")]
 #[adhoc(summary = "Long-term identity keypair")]
@@ -39,8 +40,8 @@ pub struct HsIdKeypairSpecifier {
     pub(crate) nickname: HsNickname,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
-#[derive_adhoc(KeySpecifierDefault)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
+#[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_blind_id")]
 #[adhoc(summary = "Blinded signing keypair")]
@@ -53,8 +54,8 @@ pub struct BlindIdKeypairSpecifier {
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
-#[derive_adhoc(KeySpecifierDefault)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
+#[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_blind_id")]
 #[adhoc(summary = "Blinded public key")]
@@ -67,8 +68,8 @@ pub struct BlindIdPublicKeySpecifier {
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc, PartialEq, Debug)]
-#[derive_adhoc(KeySpecifierDefault)]
+#[derive(Adhoc, PartialEq, Debug, Constructor)]
+#[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_desc_sign")]
 #[adhoc(summary = "Descriptor signing key")]
@@ -95,7 +96,7 @@ impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 
 /// Specifies an intro point key
 #[derive(Debug, Adhoc, Eq, PartialEq)]
-#[derive_adhoc(KeySpecifierDefault)]
+#[derive_adhoc(KeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(summary = "introduction point key")]
 pub(crate) struct IptKeySpecifier {
