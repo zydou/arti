@@ -34,7 +34,7 @@ full = [
     "tor-linkspec/full",
     "tor-netdoc/full",
     "tor-units/full",
-    "tor-persist/full", "tor-protover/full",
+    "tor-persist/full", "tor-protover/full", "fs-mistrust/full",
 ]
 
 [dependencies]

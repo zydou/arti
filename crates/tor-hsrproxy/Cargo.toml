@@ -21,7 +21,7 @@ full = [
     "tor-hsservice/full",
     "tor-proto/full",
     "tor-rtcompat/full",
-    "tor-async-utils/full",
+    "tor-async-utils/full", "tor-log-ratelim/full",
 ]
 
 [dependencies]

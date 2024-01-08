@@ -22,6 +22,8 @@ keymgr = ["__is_experimental", "tor-error/experimental", "tor-config/experimenta
 __is_experimental = []
 full = ["fs-mistrust/full", "tor-error/full", "tor-hscrypto/full", "tor-llcrypto/full", "tor-config/full"]
 experimental = ["keymgr"]
+
+# XXXX Mark as full, experimental, or non-additive!
 testing = []
 
 [dependencies]
