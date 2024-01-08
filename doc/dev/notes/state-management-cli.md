@@ -952,7 +952,8 @@ SYNOPSIS
 DESCRIPTION
       A command for managing the authorized clients of an Arti hidden service.
 
-      TODO: document how these commands are supposed to work
+      TODO: document how these commands are supposed to work after we reach a
+      conclusion in #1028
 
 SUBCOMMANDS
        help                  Print this message or the help of the given subcommand(s)
