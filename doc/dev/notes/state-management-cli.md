@@ -630,6 +630,9 @@ EXAMPLES
       Stdout:
 
          descriptor:x25519:dz4q5xqlb4ldnbs72iarrml4ephk3du4i7o2cgiva5lwr6wkquja
+
+      TODO: update this section and document the arti --pub-format after we
+      reach a conclusion in #1028
 ```
 
 ### `arti-hsc-remove-key`
