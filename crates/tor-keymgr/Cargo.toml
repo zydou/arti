@@ -21,10 +21,9 @@ default = []
 keymgr = ["__is_experimental", "tor-error/experimental", "tor-config/experimental"]
 __is_experimental = []
 full = ["fs-mistrust/full", "tor-error/full", "tor-hscrypto/full", "tor-llcrypto/full", "tor-config/full"]
-experimental = ["keymgr"]
+experimental = ["keymgr", "testing"]
 
-# XXXX Mark as full, experimental, or non-additive!
-testing = []
+testing = ["__is_experimental"]
 
 [dependencies]
 arrayvec = "0.7.3"
