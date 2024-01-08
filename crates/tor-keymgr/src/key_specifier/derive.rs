@@ -55,7 +55,7 @@ impl<'s> RawKeySpecifierComponent for &'s str {
     }
 }
 
-/// Make an a string like `pc/pc/pc/lc_lc_lc`
+/// Make a string like `pc/pc/pc/lc_lc_lc`
 fn arti_path_string_from_components(
     path_comps: &[&dyn RawKeySpecifierComponent],
     leaf_comps: &[&dyn RawKeySpecifierComponent],
@@ -112,7 +112,7 @@ pub fn arti_pattern_from_components(
     )?))
 }
 
-/// Error return from [`RawKeySpecifierComponentParser::parse`]
+/// Error returned from [`RawKeySpecifierComponentParser::parse`]
 #[derive(Debug)]
 #[allow(clippy::exhaustive_enums)] // Not part of public API
 pub enum RawComponentParseResult {
@@ -435,7 +435,7 @@ define_derive_adhoc! {
     // DO_ROLE_FIELD and DO_ROLE_LITERAL are used for the role.
     // They default to expanding $DO_FIELD and $DO_LITERAL respectively.
     //
-    // This is the *only* places that knows how ArtiPaths are constructed,
+    // This is the *only* place that knows how ArtiPaths are constructed,
     // when the path syntax is defined using the KeySpecifier d-a macro.
     //
     // The actual code here is necessarily rather abstract.

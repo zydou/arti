@@ -417,7 +417,7 @@ impl KeySpecifierComponent for TimePeriod {
                 let mins = self.length().as_minutes();
                 write!(f, "{}..+{}:{:02}", f3339(r.start), mins / 60, mins % 60)
             }
-            Err(_) => write!(f, "overfloq! {self:?}"),
+            Err(_) => write!(f, "overflow! {self:?}"),
         }
     }
 }
