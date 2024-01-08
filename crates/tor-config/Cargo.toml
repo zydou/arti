@@ -28,7 +28,7 @@ __is_experimental = []
 
 [dependencies]
 config = { version = "0.13.4", default-features = false, features = ["toml"] }
-derive-adhoc = "0.7.3"
+derive-adhoc = "0.8"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 directories = { version = "5", optional = true }
 educe = "0.4.6"

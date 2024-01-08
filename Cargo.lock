@@ -1323,7 +1323,17 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5283ac2881753c76c0892406705553f0d9ab30649f81e18964d3408f4501edb8"
 dependencies = [
- "derive-adhoc-macros",
+ "derive-adhoc-macros 0.7.3",
+ "heck",
+]
+
+[[package]]
+name = "derive-adhoc"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19da7a4aba471c49daa2f6c516251fbd1f636f5bb9bd0b51ffa771be2b8f37d5"
+dependencies = [
+ "derive-adhoc-macros 0.8.0",
  "heck",
 ]
 
@@ -1341,6 +1351,23 @@ dependencies = [
  "sha3",
  "strum",
  "syn 1.0.109",
+ "void",
+]
+
+[[package]]
+name = "derive-adhoc-macros"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0a751909db5fa2406132548089a7c33ffedf56abde88faa7133882e285f03d6"
+dependencies = [
+ "heck",
+ "itertools 0.12.0",
+ "proc-macro-crate 2.0.0",
+ "proc-macro2",
+ "quote",
+ "sha3",
+ "strum",
+ "syn 2.0.39",
  "void",
 ]
 
@@ -3433,7 +3460,7 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6955c41fd7e4283bdf6ff3e7218b7e3f8ef24c4236b31d22be050f4cfd5e2a2c"
 dependencies = [
- "derive-adhoc",
+ "derive-adhoc 0.7.3",
  "libc",
  "paste",
  "thiserror",
@@ -4911,7 +4938,7 @@ name = "tor-config"
 version = "0.9.7"
 dependencies = [
  "config",
- "derive-adhoc",
+ "derive-adhoc 0.8.0",
  "derive_builder_fork_arti",
  "directories",
  "dirs",
@@ -5218,7 +5245,7 @@ dependencies = [
 name = "tor-hsrproxy"
 version = "0.3.0"
 dependencies = [
- "derive-adhoc",
+ "derive-adhoc 0.8.0",
  "derive_builder_fork_arti",
  "futures",
  "rangemap",
@@ -5247,7 +5274,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64ct",
- "derive-adhoc",
+ "derive-adhoc 0.8.0",
  "derive_builder_fork_arti",
  "derive_more",
  "digest",
@@ -5305,7 +5332,7 @@ name = "tor-keymgr"
 version = "0.5.0"
 dependencies = [
  "arrayvec",
- "derive-adhoc",
+ "derive-adhoc 0.8.0",
  "derive_builder_fork_arti",
  "derive_more",
  "downcast-rs",
@@ -5642,7 +5669,7 @@ dependencies = [
  "amplify",
  "async-trait",
  "backtrace",
- "derive-adhoc",
+ "derive-adhoc 0.8.0",
  "derive_more",
  "educe",
  "futures",

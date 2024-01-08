@@ -1,6 +1,4 @@
 //! The [`KeySpecifier`] trait and its implementations.
-#![allow(clippy::crate_in_macro_def)] // TODO: clippy thinks we are not using `$crate` in the
-                                      // `define_derive_adhoc!` below
 
 use std::collections::BTreeMap;
 use std::fmt::Display;
