@@ -670,7 +670,7 @@ impl tor_guardmgr::GuardMgrConfig for TorClientConfig {
 impl TorClientConfig {
     /// Try to create a DirMgrConfig corresponding to this object.
     #[rustfmt::skip]
-    pub(crate) fn dir_mgr_config(&self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
+    pub fn dir_mgr_config(&self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
         Ok(dir::DirMgrConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
