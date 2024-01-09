@@ -1101,6 +1101,30 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
         let hsdir_count = hs_dirs.len();
+
+        /// An error returned from an upload future.
+        //
+        // Exhaustive, because this is a private type.
+        #[derive(Clone, Debug, thiserror::Error)]
+        enum MaybeFatalError {
+            /// The upload was aborted because there are no IPTs.
+            ///
+            /// This happens because of an inevitable TOCTOU race, where after being notified by
+            /// the IPT manager that the IPTs have changed (via `self.ipt_watcher.await_update`),
+            /// we find out there actually are no IPTs, so we can't build the descriptor.
+            ///
+            /// This is a special kind of error that interrupts the current upload task, and is
+            /// logged at `debug!` level rather than `warn!` or `error!`.
+            ///
+            /// Ideally, this shouldn't happen very often (if at all).
+            #[error("No IPTs")]
+            NoIpts,
+
+            /// An fatal error.
+            #[error("{0}")]
+            Fatal(#[from] FatalError),
+        }
+
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
@@ -1167,10 +1191,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         //
                         // Ideally, this shouldn't happen very often (if at all).
                         let Some(ipts) = ipt_set.ipts.as_mut() else {
-                            // TODO HSS: maybe it's worth defining an separate error type for this.
-                            return Err(FatalError::Bug(internal!(
-                                "no introduction points; skipping upload"
-                            )));
+                            return Err(MaybeFatalError::NoIpts);
                         };
 
                         let hsdesc = {
@@ -1202,9 +1223,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         {
                             let wait = e.log_retry_max(&imm.nickname)?;
                             // TODO HSS retry instead of this
-                            return Err(internal!(
+                            return Err(FatalError::Bug(internal!(
                                 "ought to retry after {wait:?}, crashing instead"
-                            )
+                            ))
                             .into());
                         }
 
@@ -1255,7 +1276,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .boxed()
             .buffer_unordered(MAX_CONCURRENT_UPLOADS)
             .try_collect::<Vec<_>>()
-            .await?;
+            .await;
+
+        let upload_results = match upload_results {
+            Ok(v) => v,
+            Err(MaybeFatalError::Fatal(e)) => return Err(e),
+            Err(MaybeFatalError::NoIpts) => {
+                debug!(
+                    nickname=%imm.nickname, time_period=?time_period,
+                     "no introduction points; skipping upload"
+                );
+
+                return Ok(());
+            }
+        };
 
         let (succeeded, _failed): (Vec<_>, Vec<_>) = upload_results
             .iter()
