@@ -1,6 +1,6 @@
 [package]
 name = "tor-hscrypto"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -39,8 +39,8 @@ signature = "2"
 subtle = "2"
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-bytes = { version = "0.8.0", path = "../tor-bytes" }
-tor-error = { version = "0.5.5", path = "../tor-error" }
+tor-bytes = { version = "0.9.0", path = "../tor-bytes" }
+tor-error = { version = "0.6.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.6.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
 tor-units = { path = "../tor-units", version = "0.6.1" }
 zeroize = { version = "1", optional = true }

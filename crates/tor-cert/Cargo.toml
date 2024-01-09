@@ -24,7 +24,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti", opt
 derive_more = "0.99.3"
 digest = "0.10.0"
 thiserror = "1"
-tor-bytes = { path = "../tor-bytes", version = "0.8.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.9.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.6.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.0" }
 
