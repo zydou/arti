@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.12 — 9 January 2024
 
-Arti 1.1.11 continues work on support for running onion services.
+Arti 1.1.12 continues work on support for running onion services.
 You can now launch an onion service and expect it to run,
 though the user experience leaves a lot to be desired.
 Don't rely on this onion service implementation for security yet;
