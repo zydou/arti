@@ -60,7 +60,7 @@ tor-dirclient = { path = "../tor-dirclient", version = "0.12.0", default-feature
 tor-error = { path = "../tor-error", version = "0.6.0", features = ["tracing"] }
 tor-hscrypto = { version = "0.5.0", path = "../tor-hscrypto" }
 tor-keymgr = { version = "0.6.0", path = "../tor-keymgr", default-features = false }
-tor-linkspec = { version = "0.9.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
+tor-linkspec = { version = "0.10.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
 tor-llcrypto = { version = "0.6.1", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.11.0", path = "../tor-netdir", features = ["hs-client"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.11.0", features = ["hs-client"] }

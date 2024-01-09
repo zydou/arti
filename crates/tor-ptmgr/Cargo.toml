@@ -40,7 +40,7 @@ tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-chanmgr = { version = "0.13.0", path = "../tor-chanmgr", features = ["pt-client"] }
 tor-config = { version = "0.10.0", path = "../tor-config" }
 tor-error = { version = "0.6.0", path = "../tor-error", features = ["tracing"] }
-tor-linkspec = { version = "0.9.0", path = "../tor-linkspec", features = ["pt-client"] }
+tor-linkspec = { version = "0.10.0", path = "../tor-linkspec", features = ["pt-client"] }
 tor-rtcompat = { version = "0.9.7", path = "../tor-rtcompat" }
 tor-socksproto = { version = "0.9.0", path = "../tor-socksproto" }
 tracing = "0.1.36"
