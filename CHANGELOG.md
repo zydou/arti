@@ -73,6 +73,9 @@ for actual use.
   replay attacks. ([!1824])
 - Add a CLI for learning the `.onion` address for a given onion service.
   ([#1071], [!1837])
+- Refactor the `KeySpecifier` macro and its implementations to improve
+  usability and reduce the API surface. ([#1151], [#1147], [#1126],
+  [!1851])
 
 ### Other major features
 
@@ -178,6 +181,10 @@ for funding the development of Arti!
 [#1155]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1155
 [#1157]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1157
 [#1175]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1175
+[!1851]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1851
+[#1126]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1126
+[#1147]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1147
+[#1151]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1151
 [00903e22bb978295]: https://gitlab.torproject.org/tpo/core/arti/-/commit/00903e22bb9782958135a7061dcfb523e4ebc91f
 [1990bbdffd87abaa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1990bbdffd87abaa6fa70fc29a9b2d191e35575a
 [1ac515c183bf8c1d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1ac515c183bf8c1d7e07bccd0fdbd3644041b250
