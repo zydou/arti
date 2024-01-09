@@ -106,7 +106,7 @@ pub enum SshKeyData {
 }
 
 impl SshKeyData {
-    /// Returns the [`KeyData`], if this is a public key. Otheriwse returns `Err(self)`.
+    /// Returns the [`KeyData`], if this is a public key. Otherwise returns `Err(self)`.
     pub fn into_public(self) -> StdResult<KeyData, Self> {
         match self {
             SshKeyData::Public(key_data) => Ok(key_data),
@@ -114,7 +114,7 @@ impl SshKeyData {
         }
     }
 
-    /// Returns the [`KeypairData`], if this is a private key. Otheriwse returns `Err(self)`.
+    /// Returns the [`KeypairData`], if this is a private key. Otherwise returns `Err(self)`.
     pub fn into_private(self) -> StdResult<KeypairData, Self> {
         match self {
             SshKeyData::Public(_) => Err(self),

@@ -1897,7 +1897,7 @@ mod test {
                 .borrow_mut()
                 .status = IptStatusStatus::Good(good.clone());
 
-            // TODO HSS test that we havne't called  start_accepting
+            // TODO HSS test that we haven't called start_accepting
 
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms

@@ -275,7 +275,7 @@ enum LogContentError {
     UnrecognizedFormat,
 }
 
-/// An error occured while checking whether we've seen an element before.
+/// An error occurred while checking whether we've seen an element before.
 #[derive(thiserror::Error, Clone, Debug)]
 pub(crate) enum ReplayError {
     /// We have already seen this item.

@@ -25,7 +25,7 @@ use itertools::Itertools;
 use crate::err::RequestError;
 use crate::AnonymizedRequest;
 
-/// Declare an inaccessable public type.
+/// Declare an inaccessible public type.
 pub(crate) mod sealed {
     use super::{AnonymizedRequest, ClientCirc, Result};
     /// Sealed trait to help implement [`Requestable`](super::Requestable): not

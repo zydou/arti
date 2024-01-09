@@ -476,7 +476,7 @@ struct FieldExtractor;
 /// Existence of this error is a *success*.
 /// Unexpected behaviour by the type's serde implementation causes panics, not errors.
 #[derive(Error, Debug)]
-#[error("Flattenable macro test gave error, so test passed successfuly")]
+#[error("Flattenable macro test gave error, so test passed successfully")]
 struct FieldExtractorSuccess(FieldList);
 
 /// Extract fields of a struct, as viewed by `serde`

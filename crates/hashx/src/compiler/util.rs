@@ -61,7 +61,7 @@ impl<R: Relocation, const S: usize> Assembler<R, S> {
     /// `mprotect` will show runtime errors at this point.
     ///
     /// Performance note: Semantically it makes more sense to consume the
-    /// `Assember` instance here, passing it by value. This can result in a
+    /// `Assembler` instance here, passing it by value. This can result in a
     /// memcpy that doesn't optimize out, which is a dramatic increase to
     /// the memory bandwidth required in compilation. We avoid that extra
     /// copy by only passing a reference.

@@ -43,7 +43,7 @@ Add a block like this to your arti configuration:
 proxy_ports = [
      # Forward port 80 on the service to localhost:10080.
      ["80", "127.0.0.1:10080"],
-     # Tear down the circuit on attempts to conenct to port 22.
+     # Tear down the circuit on attempts to connect to port 22.
      ["22", "destroy"],
      # Ignore attempts to connect to port 265.
      # ("ignore" is not generally a good idea for an anonymous service;

@@ -186,7 +186,7 @@ pub struct StorageConfig {
     //
     // When files in this directory are to be used by a component, the cache_dir
     // value should be passed through to the component as-is, and the component is
-    // then responsibile for constructing an appropriate sub-path (for example,
+    // then responsible for constructing an appropriate sub-path (for example,
     // tor-dirmgr receives cache_dir, and appends components such as "dir_blobs".
     //
     // (This consistency rule is not current always followed by every component.)

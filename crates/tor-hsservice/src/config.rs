@@ -148,7 +148,7 @@ impl OnionServiceConfig {
 }
 
 impl OnionServiceConfigBuilder {
-    /// Builder helper: check wither the options in this builder are consistent.
+    /// Builder helper: check whether the options in this builder are consistent.
     fn validate(&self) -> Result<(), ConfigBuildError> {
         /// Largest supported number of introduction points
         //

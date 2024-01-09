@@ -52,6 +52,6 @@ Eg. an example usage of this program could be:
 in order to connect to the server we initialized previously.
 
 By default, to use this proxy, route all connections through `socks5://127.0.0.1:9050`.
-If you wish to use a different port for the lcoal SOCKS5 server, pass an additional argument to the above command, like this:
+If you wish to use a different port for the local SOCKS5 server, pass an additional argument to the above command, like this:
 
 `cargo r -- lyrebird client <custom-socks5-proxy-port> 12.34.56.78 5555 "cert=pAAsEKxisM4YDO0Qn1UqoN1hv+jA/7uTp2ZfAB152loVTGQy9oaGAqTTO+GtkRqKeL0bVg;iat-mode=0"``

@@ -86,7 +86,7 @@ impl Drop for IptEstablisher {
         // requests will be accepted" requirement, we could do away with this
         // code and the corresponding check for `RequestDisposition::Shutdown` in
         // `IptMsgHandler::handle_msg`.)
-        self.state.lock().expect("posioned lock").accepting_requests = RequestDisposition::Shutdown;
+        self.state.lock().expect("poisoned lock").accepting_requests = RequestDisposition::Shutdown;
 
         // Tell the reactor to shut down... by doing nothing.
         //
@@ -630,7 +630,7 @@ struct Reactor<R: Runtime> {
     k_sid: Arc<HsIntroPtSessionIdKeypair>,
     /// The extensions to use when establishing the introduction point.
     ///
-    /// TODO HSS: This should be able to change over time as we re-restablish
+    /// TODO HSS: This should be able to change over time as we re-establish
     /// the intro point.
     extensions: EstIntroExtensionSet,
 
