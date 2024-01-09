@@ -26,7 +26,7 @@ full = [
 
 [dependencies]
 anyhow = "1.0.23"
-arti = { package = "arti", path = "../arti", version = "1.1.11" }
+arti = { package = "arti", path = "../arti", version = "1.1.12" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.13.0", features = ["dirfilter"] }
 async-trait = "0.1.54"
 cfg-if = "1.0.0"
@@ -46,7 +46,7 @@ tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.11.0
     "experimental-api",
     "dangerous-expose-struct-fields",
 ] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7" }
 tracing = "0.1.36"
 tracing-appender = "0.2.0"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }

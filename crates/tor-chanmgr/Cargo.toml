@@ -53,10 +53,10 @@ tor-cell = { path = "../tor-cell", version = "0.15.0" }
 tor-config = { path = "../tor-config", version = "0.10.0" }
 tor-error = { path = "../tor-error", version = "0.6.0", features = ["tracing"] }
 tor-linkspec = { path = "../tor-linkspec", version = "0.9.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.1" }
 tor-netdir = { path = "../tor-netdir", version = "0.11.0" }
 tor-proto = { path = "../tor-proto", version = "0.15.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7" }
 tor-socksproto = { path = "../tor-socksproto", version = "0.9.0", default-features = false, features = [
     "client-handshake",
 ] }
@@ -72,7 +72,7 @@ itertools = "0.12.0"
 tor-cell = { path = "../tor-cell", version = "0.15.0", features = ["testing"] }
 tor-netdir = { path = "../tor-netdir", version = "0.11.0", features = ["testing"] }
 tor-proto = { path = "../tor-proto", version = "0.15.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.12.0" }
 [package.metadata.docs.rs]
 all-features = true

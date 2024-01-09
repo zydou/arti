@@ -21,7 +21,7 @@ __is_experimental = []
 humantime = "2"
 signature = "1"
 thiserror = "1"
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.1" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

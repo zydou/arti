@@ -23,7 +23,7 @@ __is_experimental = []
 
 [dependencies]
 derive_more = "0.99.3"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.5", features = ["walkdir"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.6", features = ["walkdir"] }
 paste = "1"
 sanitize-filename = "0.5.0"
 serde = { version = "1.0.103", features = ["derive"] }

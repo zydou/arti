@@ -40,9 +40,9 @@ tiny-keccak = { version = "2", features = ["kmac"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-bytes = { path = "../tor-bytes", version = "0.9.0" }
 tor-error = { path = "../tor-error", version = "0.6.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.1" }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.2.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7" }
 tracing = "0.1.36"
 typetag = "0.2.7"
 weak-table = "0.3.0"
