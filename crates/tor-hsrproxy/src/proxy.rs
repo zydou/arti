@@ -199,7 +199,7 @@ async fn run_action<R: Runtime>(
                 forward_connection(rt_clone, request, runtime.connect(&a), nickname, addr).await?;
             }
             (Encapsulation::Simple, TargetAddr::Unix(_)) => {
-                // TODO HSS: We need to implement unix connections.
+                // TODO: We need to implement unix connections.
             }
         },
         ProxyAction::RejectStream => {
@@ -269,7 +269,7 @@ where
 {
     let local_stream = target_stream_future.await.map_err(Arc::new);
 
-    // TODO HSS change this to "log_ratelim!(nickname=%nickname, ..." when log_ratelim can do that
+    // TODO: change this to "log_ratelim!(nickname=%nickname, ..." when log_ratelim can do that
     // (we should search for HSS log messages and make them all be in the same form)
     log_ratelim!(
         "Connecting to {} for onion service {}", sv(addr), nickname;
