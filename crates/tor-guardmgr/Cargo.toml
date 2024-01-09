@@ -1,6 +1,6 @@
 [package]
 name = "tor-guardmgr"
-version = "0.12.0"
+version = "0.13.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -66,16 +66,16 @@ strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-config = { path = "../tor-config", version = "0.9.7" }
-tor-error = { path = "../tor-error", version = "0.5.5" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.9.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.10.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.10.0" }                               # for address pattern
-tor-persist = { path = "../tor-persist", version = "0.8.0" }
-tor-proto = { path = "../tor-proto", version = "0.14.0" }
+tor-config = { path = "../tor-config", version = "0.10.0" }
+tor-error = { path = "../tor-error", version = "0.6.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.10.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.1" }
+tor-netdir = { path = "../tor-netdir", version = "0.11.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.11.0" }                               # for address pattern
+tor-persist = { path = "../tor-persist", version = "0.9.0" }
+tor-proto = { path = "../tor-proto", version = "0.15.0" }
 tor-protover = { path = "../tor-protover", version = "0.5.1", optional = true }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7" }
 tor-units = { path = "../tor-units", version = "0.6.1" }
 tracing = "0.1.36"
 
@@ -83,10 +83,10 @@ tracing = "0.1.36"
 float_eq = "1.0.0"
 serde_json = "1.0.50"
 toml = "0.8.8"
-tor-netdir = { path = "../tor-netdir", version = "0.10.0", features = ["testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.10.0" }
-tor-persist = { path = "../tor-persist", version = "0.8.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6", features = ["tokio", "native-tls"] }
+tor-netdir = { path = "../tor-netdir", version = "0.11.0", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.11.0" }
+tor-persist = { path = "../tor-persist", version = "0.9.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7", features = ["tokio", "native-tls"] }
 
 [package.metadata.docs.rs]
 all-features = true

@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsclient"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -51,21 +51,21 @@ strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.8.0" }
-tor-cell = { path = "../tor-cell", version = "0.14.0", features = ["hs"] }
-tor-checkable = { path = "../tor-checkable", version = "0.6.0" }
-tor-circmgr = { version = "0.13.0", path = "../tor-circmgr", features = ["hs-client"] }
-tor-config = { path = "../tor-config", version = "0.9.7" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.11.0", default-features = false, features = ["hs-client"] }
-tor-error = { path = "../tor-error", version = "0.5.5", features = ["tracing"] }
-tor-hscrypto = { version = "0.4.0", path = "../tor-hscrypto" }
-tor-keymgr = { version = "0.5.0", path = "../tor-keymgr", default-features = false }
-tor-linkspec = { version = "0.9.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
-tor-llcrypto = { version = "0.6.0", path = "../tor-llcrypto" }
-tor-netdir = { version = "0.10.0", path = "../tor-netdir", features = ["hs-client"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.10.0", features = ["hs-client"] }
-tor-proto = { version = "0.14.0", path = "../tor-proto", features = ["hs-client", "send-control-msg"] }
-tor-rtcompat = { version = "0.9.6", path = "../tor-rtcompat" }
+tor-bytes = { path = "../tor-bytes", version = "0.9.0" }
+tor-cell = { path = "../tor-cell", version = "0.15.0", features = ["hs"] }
+tor-checkable = { path = "../tor-checkable", version = "0.6.1" }
+tor-circmgr = { version = "0.14.0", path = "../tor-circmgr", features = ["hs-client"] }
+tor-config = { path = "../tor-config", version = "0.10.0" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.12.0", default-features = false, features = ["hs-client"] }
+tor-error = { path = "../tor-error", version = "0.6.0", features = ["tracing"] }
+tor-hscrypto = { version = "0.5.0", path = "../tor-hscrypto" }
+tor-keymgr = { version = "0.6.0", path = "../tor-keymgr", default-features = false }
+tor-linkspec = { version = "0.10.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
+tor-llcrypto = { version = "0.6.1", path = "../tor-llcrypto" }
+tor-netdir = { version = "0.11.0", path = "../tor-netdir", features = ["hs-client"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.11.0", features = ["hs-client"] }
+tor-proto = { version = "0.15.0", path = "../tor-proto", features = ["hs-client", "send-control-msg"] }
+tor-rtcompat = { version = "0.9.7", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 
 [dev-dependencies]
@@ -73,12 +73,12 @@ humantime = "2"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.12.0" }
-tor-circmgr = { version = "0.13.0", path = "../tor-circmgr", features = ["hs-client", "testing"] }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.12.0", features = ["testing"] }
-tor-netdir = { path = "../tor-netdir", version = "0.10.0", features = ["testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.10.0", features = ["testing"] }
-tor-persist = { path = "../tor-persist", version = "0.8.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.11.1" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.13.0" }
+tor-circmgr = { version = "0.14.0", path = "../tor-circmgr", features = ["hs-client", "testing"] }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.13.0", features = ["testing"] }
+tor-netdir = { path = "../tor-netdir", version = "0.11.0", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.11.0", features = ["testing"] }
+tor-persist = { path = "../tor-persist", version = "0.9.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.12.0" }
 tracing-test = "0.2"

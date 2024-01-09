@@ -1,6 +1,6 @@
 [package]
 name = "tor-rtmock"
-version = "0.11.1"
+version = "0.12.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -27,8 +27,8 @@ slotmap = "1.0.6"
 strum = { version = "0.25", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
-tor-error = { version = "0.5.5", path = "../tor-error", features = ["tracing"] }
-tor-rtcompat = { version = "0.9.6", path = "../tor-rtcompat" }
+tor-error = { version = "0.6.0", path = "../tor-error", features = ["tracing"] }
+tor-rtcompat = { version = "0.9.7", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 tracing-test = "0.2"
 void = "1"
@@ -37,7 +37,7 @@ void = "1"
 futures-await-test = "0.3.0"
 rand = "0.8"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.6", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7", features = ["tokio", "native-tls"] }
 
 [features]
 full = ["tor-rtcompat/full", "tor-error/full", "tor-async-utils/full"]
