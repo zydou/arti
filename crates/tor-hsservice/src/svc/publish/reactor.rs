@@ -1079,8 +1079,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .send(Some(self.imm.runtime.now() + delay))
             .await
         {
-            // TODO HSS: return an error
-            debug!(nickname=%self.imm.nickname, "failed to schedule upload reattempt");
+            return Err(into_internal!("failed to schedule upload reattempt")(e).into());
         }
 
         Ok(())
