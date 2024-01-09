@@ -67,7 +67,7 @@ for actual use.
   so that default option values can be omitted. ([4d7aeeab57577c98])
 - Various improvements to descriptor publisher error
   handling. ([#1129], [!1812], [!1821])
-- Record a reply-log of incoming `INTRODUCE2` requests, to prevent
+- Record a replay-log of incoming `INTRODUCE2` requests, to prevent
   replay attacks. ([!1824])
 - Add a CLI for learning the `.onion` address for a given onion service.
   ([#1071], [!1837])
