@@ -1383,11 +1383,11 @@ impl<R: Runtime> TorClient<R> {
             config,
             self.dirmgr.clone().upcast_arc(),
             self.hs_circ_pool.clone(),
-            // TODO HSS: Allow override of KeyMgr for "ephemeral" operation?
+            // TODO #1186: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
-            // TODO HSS: Allow override of StateMgr for "ephemeral" operation?
+            // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
             self.statemgr.clone(),
-            // TODO HSS: Allow override of state_dir for "ephemeral" operation?
+            // TODO #1186: Allow override of state_dir for "ephemeral" operation?
             &self.state_dir,
             &self.storage_mistrust,
         )
