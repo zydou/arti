@@ -4885,7 +4885,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "humantime 2.1.0",
  "signature 1.6.4",
@@ -4985,7 +4985,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "digest",
  "hex",

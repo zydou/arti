@@ -38,7 +38,7 @@ rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 tokio = { version = "1.7", features = ["signal", "macros"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.6.0", features = ["experimental-api"] }
+tor-checkable = { path = "../tor-checkable", version = "0.6.1", features = ["experimental-api"] }
 tor-config = { path = "../tor-config", version = "0.10.0" }
 tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.14.0", features = ["dirfilter"] }
 tor-error = { path = "../tor-error", version = "0.6.0" }
