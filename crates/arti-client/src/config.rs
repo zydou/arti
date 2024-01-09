@@ -726,7 +726,7 @@ impl TorClientConfigBuilder {
 
         // Derive the keystore path from `state_dir`
         //
-        // TODO HSS: perhaps the default `keystore_dir` should more generally be derived from
+        // TODO #1185: perhaps the default `keystore_dir` should more generally be derived from
         // `state_dir`.
         //
         // Note this will involve writing a custom deserializer for StorageConfig (if
