@@ -3,6 +3,192 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.12 — 9 January 2024
+
+Arti 1.1.11 continues work on support for running onion services.
+You can now launch an onion service and expect it to run,
+though the user experience leaves a lot to be desired.
+Don't rely on this onion service implementation for security yet;
+there are a number of [missing security features]
+we will need to develop before we can recommend them
+for actual use.
+
+### Breaking changes
+
+### Breaking changes in lower-level crates
+
+- In `tor_dirmgr`, rename the `cache_path` parameter to `cache_dir`
+  for consistency. ([!1789])
+- In `tor-error`, the `ErrorReport` trait is now sealed.
+  ([00903e22bb978295])
+- Change the domain name used to tag our extended SSH key types.
+  This will break any keys created using earlier releases,
+  though it is unlikely that anybody actually managed to do so.
+  ([#1108], [!1838])
+- In `tor-netdoc`, `HsDescBuilder::auth_clients` now takes an
+  `Option`, to distinguish the case where no clients are allowed from
+  the case where all clients are allowed. ([#1019], [!1840])
+
+### Onion service development
+
+- Fix a set of bugs bug that caused onion services to upload far too
+  many descriptors. ([#1130], [#1142], [!1787], [!1806])
+- Improve reporting of descriptor upload failures. ([#1132],
+  [f26b00b3179a7e13], [1990bbdffd87abaa], [!1799])
+- Ensure that the list of published introduction points is
+  recorded correctly.  ([#1097], [!1805])
+- Implement persistence for introduction point information,
+  so that onion services can restart with the same introduction points
+  and behave correctly. ([#967], [!1782])
+- Refactor key manager code to prevent the creation of invalid
+  `KeySpecifier`s, and extend the `KeySpecifier` macro to also
+   generate `KeyInfoExtractor` implementations for extracting 
+   information out of `&KeyPath`s ([#1127], [f7772f127e895d96]).
+- Add lower-level support for deleting expired keys and associated information.
+  ([#1043], [!1784], [!1796])
+- Onion services can now be stopped, started, or reconfigured while
+  arti is running. ([#1089], [!1798])
+- Implement an API for onion services to report their
+  status. ([#1083], [!1797], [!1808])
+- Produce useful, rate-limited log messages on certain kinds of
+  onion service failures. ([!1809])
+- Warn on some onion service configurations that are unlikely to be
+  intentional. ([!1822])
+- Add documentation for how to run an onion service, in
+  [`doc/OnionService.md`].  This documentation also records areas where
+  the implementation is lacking, and notes areas where the current
+  process has bad usability. ([!1825], [!1826], [!1841])
+- Fix a bug that would occur when trying to create an onion service
+  descriptor for a time period that had not yet begun. ([#1155],
+  [!1828])
+- Always log the onion sevice's `.onion` address, when starting with
+  `log_sensitive_information` enabled. ([!1830])
+- Ensure that no extra features beyond `onion-service-service` are
+  needed in `arti` to enable onion service support. ([49ece08bafc115ce])
+- Use our regular sub-builder pattern for key-manager configuration,
+  so that default option values can be omitted. ([4d7aeeab57577c98])
+- Various improvements to descriptor publisher error
+  handling. ([#1129], [!1812], [!1821])
+- Record a replay-log of incoming `INTRODUCE2` requests, to prevent
+  replay attacks. ([!1824])
+- Add a CLI for learning the `.onion` address for a given onion service.
+  ([#1071], [!1837])
+
+### Other major features
+
+- Arti now supports the [`ntor_v3`] circuit extension handshake, which
+  enables clients to send circuit paramaters to the relays on their paths.
+  ([#1084], [!1766])
+
+### Documentation
+
+- Improve documentation of state and cache directories. ([!1789])
+- Improve internal documentation about how we implement the onion
+  service specifications. ([!1795], [!1813])
+
+### Testing
+
+- Fix an (unreached) bug in test_tmp_dir code. ([!1792])
+- Include an onion service in our [Shadow] CI tests. ([!1827])
+
+
+### Cleanups, minor features, and bugfixes
+
+- Various cleanups enabled by our transition to requiring
+  Rust 1.70.  ([!1785])
+- Refactor high-level reconfiguration code so that it sends its
+  configuration to each of a set of modules, rather than hardcoding a
+  list of functions to call. ([1ac515c183bf8c1d])
+- The `traits` module is now unconditionally present in
+  the `tor-llcrypto` crate. ([!1815])
+- In `tor-error`, the `ErrorReport` is now implemented for `dyn StdError`,
+  which allows us to use it with `anyhow::Error`. ([#1157], [!1818])
+- Fix a busy-loop that would occur if a channel was due to expire in
+  less than a second, and another race condition when expiring
+  channels. ([!1834])
+- In `tor-cell`, `{Any}RelayCell` has been renamed to `{Any}RelayMsgOuter`,
+  in order to prepare for work on [proposal 340]. This name is a placeholder;
+  eventually, there will be a followup renaming. ([#775], [!1839], [!1840])
+- Improve the output of `tokio`'s tracing feature when used with our
+  `tor-rtcompat` wrappers. ([!1843])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Emil Engler, and Jim Newsome.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+[!1766]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1766
+[!1782]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1782
+[!1784]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1784
+[!1785]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1785
+[!1787]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1787
+[!1789]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1789
+[!1792]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1792
+[!1795]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1795
+[!1796]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1796
+[!1797]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1797
+[!1798]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1798
+[!1799]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1799
+[!1805]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1805
+[!1806]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1806
+[!1808]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1808
+[!1809]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1809
+[!1812]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1812
+[!1813]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1813
+[!1815]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1815
+[!1818]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1818
+[!1821]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1821
+[!1822]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1822
+[!1824]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1824
+[!1825]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1825
+[!1826]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1826
+[!1827]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1827
+[!1828]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1828
+[!1830]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1830
+[!1834]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1834
+[!1837]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1837
+[!1838]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1838
+[!1839]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1839
+[!1840]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1840
+[!1841]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1841
+[!1843]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1843
+[#775]: https://gitlab.torproject.org/tpo/core/arti/-/issues/775
+[#967]: https://gitlab.torproject.org/tpo/core/arti/-/issues/967
+[#1019]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1019
+[#1043]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1043
+[#1071]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1071
+[#1083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1083
+[#1084]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1084
+[#1089]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1089
+[#1097]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1097
+[#1108]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1108
+[#1127]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1127
+[#1129]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1129
+[#1130]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1130
+[#1132]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1132
+[#1142]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1142
+[#1155]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1155
+[#1157]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1157
+[00903e22bb978295]: https://gitlab.torproject.org/tpo/core/arti/-/commit/00903e22bb9782958135a7061dcfb523e4ebc91f
+[1990bbdffd87abaa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1990bbdffd87abaa6fa70fc29a9b2d191e35575a
+[1ac515c183bf8c1d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1ac515c183bf8c1d7e07bccd0fdbd3644041b250
+[49ece08bafc115ce]: https://gitlab.torproject.org/tpo/core/arti/-/commit/49ece08bafc115ce99ced38f659ac7f72bab947b
+[4d7aeeab57577c98]: https://gitlab.torproject.org/tpo/core/arti/-/commit/4d7aeeab57577c98a15aa78ef5cd5de7652f39e8
+[f26b00b3179a7e13]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f26b00b3179a7e135960972e8c922d824a62ee0e
+[f7772f127e895d96]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f7772f127e895d9655346cf69fd2134ac8e225de
+[Shadow]: https://shadow.github.io
+[Zcash Community Grants]:  https://zcashcommunitygrants.org/
+[`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md?ref_type=heads
+[`ntor_v3`]: https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3
+[missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
+[other sponsors]:  https://www.torproject.org/about/sponsors/
+[proposal 340]: https://spec.torproject.org/proposals/340-packed-and-fragmented.html
+
+
+
 # Arti 1.1.11 — 4 December 2023
 
 Arti 1.1.11 continues work on support for running onion services.
