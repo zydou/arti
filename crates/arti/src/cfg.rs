@@ -1101,7 +1101,7 @@ example config file {which:?}, uncommented={uncommented:?}
         }
         #[cfg(not(feature = "onion-service-service"))]
         {
-            // TODO HSS: Make us get an error when we configure onion services
+            // TODO #1184: Make us get an error when we configure onion services
             // without onion service support.
             let _ = result;
         }
