@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 downcast-rs = "1.2.0"
-erased-serde = "0.3.25"
+erased-serde = "0.4.2"
 futures = "0.3.14"
 futures-await-test = "0.3.0"
 inventory = "0.3.5"

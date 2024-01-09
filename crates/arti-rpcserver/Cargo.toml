@@ -28,7 +28,7 @@ asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
 derive_more = "0.99.3"
-erased-serde = "0.3.25"
+erased-serde = "0.4.2"
 futures = "0.3.14"
 generational-arena = "0.2.9"
 pin-project = "1"
