@@ -41,7 +41,9 @@ for actual use.
   so that onion services can restart with the same introduction points
   and behave correctly. ([#967], [!1782])
 - Refactor key manager code to prevent the creation of invalid
-  `KeySpecifier`s ([#1127], [f7772f127e895d96]).
+  `KeySpecifier`s, and extend the `KeySpecifier` macro to also
+   generate `KeyInfoExtractor` implementations for extracting 
+   information out of `&KeyPath`s ([#1127], [f7772f127e895d96]).
 - Add lower-level support for deleting expired keys and associated information.
   ([#1043], [!1784], [!1796])
 - Onion services can now be stopped, started, or reconfigured while
