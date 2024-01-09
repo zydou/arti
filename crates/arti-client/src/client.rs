@@ -1362,8 +1362,6 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// If you want to forward all the requests from an onion service to a set
     /// of local ports, you may want to use the `tor-hsrproxy` crate.
-    ///
-    /// TODO HSS: This feature does not yet work.
     #[cfg(feature = "onion-service-service")]
     pub fn launch_onion_service(
         &self,
