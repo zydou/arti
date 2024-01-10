@@ -10,6 +10,7 @@ use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use thiserror::Error;
 use tor_error::{into_internal, Bug};
+use tor_hscrypto::pk::HsId;
 use tor_hscrypto::time::TimePeriod;
 
 use crate::{ArtiPath, ArtiPathComponent, ArtiPathSyntaxError};
@@ -438,6 +439,8 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
         Display::fmt(self, f)
     }
 }
+
+impl KeySpecifierComponentViaDisplayFromStr for HsId {}
 
 /// Wrapper for `KeySpecifierComponent` that `Displays` via `fmt_pretty`
 struct KeySpecifierComponentPrettyHelper<'c>(&'c dyn KeySpecifierComponent);
