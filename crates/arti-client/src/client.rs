@@ -1368,10 +1368,9 @@ impl<R: Runtime> TorClient<R> {
         let keymgr = self
             .keymgr
             .as_ref()
-            // TODO HSS: Use a real error.  But which error is appropriate in
-            // this case?
-            .ok_or_else(|| internal!("Tried to launch onion service with no key storage enabled"))
-            .map_err(ErrorDetail::from)?
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "launch onion service",
+            })?
             .clone();
         let service = tor_hsservice::OnionService::new(
             self.runtime.clone(),
