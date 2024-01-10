@@ -558,6 +558,8 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
+        let allowed_hop_num = hop_num;
+
         let circ = Arc::clone(self);
         Ok(incoming_receiver.map(move |req_ctx| {
             let IncomingStreamRequestContext {
@@ -567,6 +569,12 @@ impl ClientCirc {
                 receiver,
                 msg_tx,
             } = req_ctx;
+
+            // We already enforce this in handle_incoming_stream_request; this
+            // assertion is just here to make sure that we don't ever
+            // accidentally remove or fail to enforce that check, since it is
+            // security-critical.
+            assert_eq!(allowed_hop_num, hop_num);
 
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
