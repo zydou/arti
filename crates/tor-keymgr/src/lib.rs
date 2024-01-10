@@ -40,7 +40,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-// TODO HSS: write more comprehensive documentation when the API is a bit more
+// TODO (#1115): write more comprehensive documentation when the API is a bit more
 // stable
 
 mod arti_path;
@@ -100,7 +100,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// An identifier for a particular [`Keystore`] instance.
 //
-// TODO HSS: maybe restrict the charset of this ID
+// TODO (#1193): restrict the charset of this ID
 #[derive(
     Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Display, AsRef,
 )]

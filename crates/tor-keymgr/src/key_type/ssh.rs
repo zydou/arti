@@ -280,7 +280,7 @@ impl KeyType {
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
     pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
-        // TODO HSS: perhaps this needs to be a method on EncodableKey instead?
+        // TODO: perhaps this needs to be a method on EncodableKey instead?
 
         match &self {
             KeyType::Ed25519Keypair

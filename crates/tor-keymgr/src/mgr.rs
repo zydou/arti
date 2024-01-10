@@ -160,7 +160,7 @@ impl KeyMgr {
                     .get_from_store(key_spec, &key_type, self.all_stores())?
                     .ok_or_else(|| internal!("key is missing but we've just inserted it?!"))?;
 
-                // TODO HSS: assert the key was retrieved from the keystore we put it in?
+                // TODO: assert the key was retrieved from the keystore we put it in?
 
                 Ok(key)
             }
@@ -202,7 +202,7 @@ impl KeyMgr {
     /// outcome of [`KeyMgr::generate`] depends on whether the selected key store
     /// [`contains`][crate::Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
     //
-    // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
+    // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
     pub fn generate<K>(
         &self,
@@ -250,7 +250,7 @@ impl KeyMgr {
     /// [`contains`][crate::Keystore::contains] the specified keypair, and thus suffers from a
     /// TOCTOU race.
     //
-    // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
+    // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
     pub fn generate_with_derived<SK, PK>(
         &self,
@@ -266,7 +266,7 @@ impl KeyMgr {
         SK::Key: Keygen,
         PK: EncodableKey + PartialEq,
     {
-        // TODO HSS: at some point we may want to support putting the keypair and public key in
+        // TODO (#1194): at some point we may want to support putting the keypair and public key in
         // different keystores.
         let store = self.select_keystore(&selector)?;
         let keypair = store.get(keypair_key_spec, &SK::Key::key_type())?;
@@ -304,11 +304,11 @@ impl KeyMgr {
 
                 // Check that the existing public key matches the keypair
                 //
-                // TODO HSS: I'm not sure this validation belongs here.
+                // TODO: I'm not sure this validation belongs here.
                 let expected_public = derive_pub(&keypair);
 
                 if expected_public != public {
-                    // TODO HSS: internal! is not right, create an error type for KeyMgr errors and
+                    // TODO (#1194): internal! is not right, create an error type for KeyMgr errors and
                     // add context
                     return Err(internal!(
                         "keystore corruption: public key does not match keypair"
@@ -350,7 +350,7 @@ impl KeyMgr {
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
     ///
-    // TODO HSS: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
+    // TODO (#1115): would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
     pub fn insert<K: ToEncodableKey>(
         &self,
         key: K,
@@ -461,7 +461,7 @@ impl KeyMgr {
                 }
                 Ok(Some(k)) => k,
                 Err(e) => {
-                    // TODO HSS: we immediately return if one of the keystores is inaccessible.
+                    // TODO (#1115): we immediately return if one of the keystores is inaccessible.
                     // Perhaps we should ignore any errors and simply poll the next store in the
                     // list?
                     return Err(e);
@@ -905,7 +905,7 @@ mod tests {
 
         // The public part of the key was overwritten too
         //
-        // TODO HSS: instead of making the keys Strings, we should create a real test key type.
+        // TODO: instead of making the keys Strings, we should create a real test key type.
         // This will enable us to test that the public key is indeed derived from the keypair using
         // its From impl (as this assertion shows, the retrieved public key,
         // keystore1_generated_test_key, looks the same as the keyapir, because it's using the

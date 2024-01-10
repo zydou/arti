@@ -162,7 +162,7 @@ impl Keystore for ArtiNativeKeystore {
         }
 
         let key = key.as_ssh_key_data()?;
-        // TODO HSS: decide what information, if any, to put in the comment
+        // TODO (#1095): decide what information, if any, to put in the comment
         let comment = "";
 
         let openssh_key = match key {
@@ -231,7 +231,7 @@ impl Keystore for ArtiNativeKeystore {
 
                 // Skip over directories as they won't be valid arti-paths
                 //
-                // TODO HSS: provide a mechanism for warning about unrecognized keys?
+                // TODO (#1118): provide a mechanism for warning about unrecognized keys?
                 if entry.file_type().is_dir() {
                     return Ok(None);
                 }

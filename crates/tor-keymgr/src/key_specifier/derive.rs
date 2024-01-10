@@ -198,7 +198,7 @@ pub fn parse_key_path(
     let path = match path {
         KeyPath::Arti(path) => path.as_str(),
         KeyPath::CTor(_path) => {
-            // TODO HSS: support ctor stores
+            // TODO (#858): support ctor stores
             return Err(internal!("not implemented").into());
         }
     };
@@ -353,7 +353,7 @@ define_derive_adhoc! {
     ///  * **`#[adhoc(role = "...")]`** (toplevel):
     ///    Specifies the role - the initial portion of the leafname.
     ///    This should be the name of the key in the Tor Specifications.
-    //     TODO HSS casing/syntax anomalies for key role:
+    //     TODO (#1195): casing/syntax anomalies for key role:
     //        Some keys in tor-hsservice have roles like k_..., and some KP_... or KS_...
     //        Maybe we should use `KS_...` in #[adhoc(role)], but lowercase in ArtiPaths.
     //        It'll have to become the responsibility of code here to convert.
@@ -492,7 +492,7 @@ define_derive_adhoc! {
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
             ${if tmeta(ctor_path) {
-                // TODO HSS: the HsSvcKeySpecifier will need to be configured with all the
+                // TODO (#858): the HsSvcKeySpecifier will need to be configured with all the
                 // directories used by C tor. The resulting CTorPath will be prefixed with the
                 // appropriate C tor directory, based on the HsSvcKeyRole.
                 //

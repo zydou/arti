@@ -111,7 +111,7 @@ pub trait KeySpecifierPattern {
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
 //
-// TODO HSS places where this error is embedded should include the actual filename,
+// TODO (#1115): places where this error is embedded should include the actual filename,
 // for reporting purposes.  (Or abn ArtiPath if they don't have filesystem filenames.)
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
@@ -178,8 +178,9 @@ impl InvalidKeyPathComponentValue {
 /// The information is extracted from the [`KeyPath`] itself
 /// (_not_ from the key data) by a [`KeyInfoExtractor`].
 //
-// TODO This should have getters or something; currently you can build it but not inspect it
-// TODO HSS maybe the getters should be combined with the builder, or something?
+// TODO (#1115): This should have getters or something; currently you can build it but not inspect
+// it
+// TODO  maybe the getters should be combined with the builder, or something?
 #[derive(Debug, Clone, PartialEq, derive_builder::Builder)]
 pub struct KeyPathInfo {
     /// A human-readable summary string describing what the [`KeyPath`] is for.
@@ -190,7 +191,7 @@ pub struct KeyPathInfo {
     ///
     /// This should usually start with `KS_`.
     //
-    // TODO HSS see the comment for #[adhoc(role)] in derive.rs
+    // TODO (#1195): see the comment for #[adhoc(role)] in derive.rs
     role: String,
     /// Additional information, in the form of key-value pairs.
     ///
@@ -408,7 +409,7 @@ impl KeySpecifierComponent for TimePeriod {
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO HSS should this be the Display impl for TimePeriod?
+        // TODO should this be the Display impl for TimePeriod?
         write!(f, "#{} ", self.interval_num())?;
         match self.range() {
             Ok(r) => {
@@ -688,7 +689,7 @@ mod test {
 
     #[test]
     fn serde() {
-        // TODO HSS clone-and-hack with tor_hsservice::::nickname::test::serde
+        // TODO: clone-and-hack with tor_hsservice::::nickname::test::serde
         // perhaps there should be some utility in tor-basic-utils for testing
         // validated string newtypes, or something
         #[derive(Serialize, Deserialize, Debug)]
@@ -939,7 +940,7 @@ KeyPathInfo {
 
         impl TestSpecifier {
             fn ctp(&self) -> CTorPath {
-                // TODO HSS this ought to use CTorPath's public constructor
+                // TODO #1115 this ought to use CTorPath's public constructor
                 // but it doesn't have one
                 CTorPath(self.i.to_string())
             }
