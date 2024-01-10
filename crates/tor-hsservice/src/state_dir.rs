@@ -166,6 +166,24 @@ pub trait InstanceIdentity {
     fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
 }
 
+/// For a facility to be expired using [`expire_instances`](StateDirectory::expire_instances)
+///
+/// See [`expire_instances`](StateDirectory::expire_instances) for full documentation.
+pub trait ExpirableInstance: InstanceIdentity {
+    /// Can we tell by its name that this instance is still live ?
+    fn name_filter(identity: &InstanceIdString) -> Result<Liveness>;
+
+    /// Decide whether to keep this instance
+    ///
+    /// When it has made its decision, `dispose` should
+    /// either call [`delete`](InstanceStateHandle::delete),
+    /// or simply drop `handle`.
+    ///
+    /// Called only after `name_filter` returned [`Liveness::Unused`]
+    /// and only if the instance has not been acquired or modified recently.
+    fn dispose(identity: &InstanceIdString, handle: InstanceStateHandle) -> Result<()>;
+}
+
 /// String identifying an instance, within its kind
 ///
 /// Instance identities are from a restricted character set.
@@ -207,8 +225,9 @@ pub trait Slug: ToString {}
 
 /// Is an instance still relevant?
 ///
-/// Returned by the `filter` callback to
-/// [`expire_instances`](StateDirectory::expire_instances).
+/// Returned by [`ExpirableInstance::name_filter`].
+///
+/// See [`StateDirectory::expire_instances`] for details of the semantics.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(clippy::exhaustive_enums)] // this is a boolean
 pub enum Liveness {
@@ -261,14 +280,16 @@ impl StateDirectory {
     ///
     /// Each instance is considered in two stages.
     ///
-    /// Firstly, it is passed to `filter`.
+    /// Firstly, it is passed to [`name_filter`](ExpirableInstance::name_filter).
     /// If `filter` returns `Live`,
     /// further consideration is skipped and the instance is retained.
     ///
     /// Secondly, the instance is Acquired
     /// (that is, its lock is taken)
-    /// and the resulting `InstanceStateHandle` passed to `dispose`.
-    /// `dispose` may choose to call `instance.delete()`.
+    /// and the resulting `InstanceStateHandle` passed to
+    /// [`dispose`](ExpirableInstance::dispose).
+    /// `dispose` may choose to call `handle.delete()`,
+    /// or simply drop the handle.
     ///
     /// Concurrency:
     /// In the presence of multiple concurrent calls to `acquire_instance` and `delete`:
@@ -280,13 +301,13 @@ impl StateDirectory {
     /// Instances which have been acquired
     /// or modified more recently than `retain_unused_for`
     /// will not be offered to `dispose`.
-    fn expire_instances<I: InstanceIdentity>(
+    ///
+    /// The expiry time is reset by calls to `acquire_instance`,
+    /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
+    /// it *may* be reset by calls to `StorageHandle::delete`.
+    fn expire_instances<I: ExpirableInstance>(
         &self,
-        // counting from last time make_instance was called,
-        // or storage_handle.store, or raw_subdir
         retain_unused_for: Duration,
-        filter: &mut dyn FnMut(String) -> Result<Liveness>,
-        dispose: &mut dyn FnMut(InstanceStateHandle) -> Result<()>,
     ) -> Result<()> {
         todo!()
     }
