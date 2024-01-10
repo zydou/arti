@@ -130,7 +130,6 @@ pub struct TorClient<R: Runtime> {
     /// no-op key manager implementation instead.
     ///
     /// See the [`KeyMgr`] documentation for more details.
-    #[allow(dead_code)] // TODO HS remove
     keymgr: Option<Arc<KeyMgr>>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
