@@ -180,10 +180,11 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
                 let key: ed25519::Keypair = self
                     .keymgr
                     .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
-                    // TODO HSS(#1129): internal! is not the right type for this error (we need an
+                    // TODO: internal! is not the right type for this error (we need an
                     // error type for the case where a hidden service running in offline mode has
                     // run out of its pre-previsioned keys). This is somewhat related to #1083
-                    // This will be addressed as part of #1129
+                    //
+                    // This will be addressed when we add support for offline hs_id mode
                     .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
                     .into();
                 key.to_bytes()
@@ -1079,8 +1080,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .send(Some(self.imm.runtime.now() + delay))
             .await
         {
-            // TODO HSS: return an error
-            debug!(nickname=%self.imm.nickname, "failed to schedule upload reattempt");
+            return Err(into_internal!("failed to schedule upload reattempt")(e).into());
         }
 
         Ok(())
@@ -1102,6 +1102,30 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
         let hsdir_count = hs_dirs.len();
+
+        /// An error returned from an upload future.
+        //
+        // Exhaustive, because this is a private type.
+        #[derive(Clone, Debug, thiserror::Error)]
+        enum PublishError {
+            /// The upload was aborted because there are no IPTs.
+            ///
+            /// This happens because of an inevitable TOCTOU race, where after being notified by
+            /// the IPT manager that the IPTs have changed (via `self.ipt_watcher.await_update`),
+            /// we find out there actually are no IPTs, so we can't build the descriptor.
+            ///
+            /// This is a special kind of error that interrupts the current upload task, and is
+            /// logged at `debug!` level rather than `warn!` or `error!`.
+            ///
+            /// Ideally, this shouldn't happen very often (if at all).
+            #[error("No IPTs")]
+            NoIpts,
+
+            /// An fatal error.
+            #[error("{0}")]
+            Fatal(#[from] FatalError),
+        }
+
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
@@ -1168,10 +1192,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         //
                         // Ideally, this shouldn't happen very often (if at all).
                         let Some(ipts) = ipt_set.ipts.as_mut() else {
-                            // TODO HSS: maybe it's worth defining an separate error type for this.
-                            return Err(FatalError::Bug(internal!(
-                                "no introduction points; skipping upload"
-                            )));
+                            return Err(PublishError::NoIpts);
                         };
 
                         let hsdesc = {
@@ -1203,9 +1224,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         {
                             let wait = e.log_retry_max(&imm.nickname)?;
                             // TODO HSS retry instead of this
-                            return Err(internal!(
+                            return Err(FatalError::Bug(internal!(
                                 "ought to retry after {wait:?}, crashing instead"
-                            )
+                            ))
                             .into());
                         }
 
@@ -1256,7 +1277,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .boxed()
             .buffer_unordered(MAX_CONCURRENT_UPLOADS)
             .try_collect::<Vec<_>>()
-            .await?;
+            .await;
+
+        let upload_results = match upload_results {
+            Ok(v) => v,
+            Err(PublishError::Fatal(e)) => return Err(e),
+            Err(PublishError::NoIpts) => {
+                debug!(
+                    nickname=%imm.nickname, time_period=?time_period,
+                     "no introduction points; skipping upload"
+                );
+
+                return Ok(());
+            }
+        };
 
         let (succeeded, _failed): (Vec<_>, Vec<_>) = upload_results
             .iter()
