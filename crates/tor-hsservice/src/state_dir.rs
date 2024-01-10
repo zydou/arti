@@ -79,7 +79,7 @@
 #![allow(unreachable_pub)] // TODO this module will hopefully move to tor-persist and be pub
 
 use std::cell::Cell;
-use std::fmt::Display;
+use std::fmt;
 use std::iter;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -91,6 +91,7 @@ use thiserror::Error;
 use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
+use tor_error::Bug;
 
 /// TODO HSS remove
 type Todo = Void;
@@ -131,18 +132,44 @@ pub struct StateDirectory {
     mistrust: Todo,
 }
 
-/// The identity of an instance, within its kind
+/// An instance of a facility that wants to save persistent state (caller-provided impl)
 ///
-/// Instance identities are from a restricted character set,
-/// since they are reified in the filesystem.
-/// This applies to kinds and slugs, too.
+/// Each value of a type implementing `InstanceIdentity`
+/// designates a specific instance of a specific facility.
 ///
-/// When kind and instance identities, and slugs,
-/// are passed into the methods in this module,
-/// they are taken as a `Display`, for convenience,
-/// and the syntax will be checked before use.
+/// For example, `HsNickname` implements `state_dir::InstanceIdentity`.
 ///
-/// TODO HSS define the character set.
+/// The kind and identity are strings from a restricted character set:
+/// Only lowercase ASCII alphanumerics, `_` , and `+`, are permitted,
+/// and the first character must be an ASCII alphanumeric.
+///
+/// (The output from `write_identity` will be converted to an [`InstanceIdString`].)
+pub trait InstanceIdentity {
+    /// Return the kind.  For example `hss` for a Tor Hidden Service.
+    ///
+    /// This must return a fixed string,
+    /// since usually all instances represented the same Rust type
+    /// are also the same kind.
+    //
+    // This precludes dynamically chosen instance kind identifiers.
+    // If we ever want that, we'd need an InstanceKind trait that is implemented
+    // not for actual instances, but for values representing a kind.
+    fn kind() -> &'static str;
+
+    /// Obtain identity
+    ///
+    /// The instance identity distinguishes different instances of the same kind.
+    ///
+    /// For example, for a Tor Hidden Service the identity is the nickname.
+    //
+    // Throws Bug rather than fmt::Error so that in case of problems we can dump a stack trace.
+    fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
+}
+
+/// String identifying an instance, within its kind
+///
+/// Instance identities are from a restricted character set.
+/// See [`InstanceIdentity`].
 #[derive(Into)]
 pub struct InstanceIdString(String);
 
@@ -203,10 +230,9 @@ impl StateDirectory {
     ///
     /// `kind` and `identity` have syntactic restrictions -
     /// see [`InstanceIdString`].
-    fn acquire_instance(
+    fn acquire_instance<I: InstanceIdentity>(
         &self,
-        kind: &dyn Display,
-        identity: &dyn Display,
+        identity: &I,
     ) -> Result<InstanceStateHandle> {
         todo!()
     }
@@ -224,7 +250,9 @@ impl StateDirectory {
     /// on different instances,
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
-    fn list_instances(&self, kind: &dyn Display) -> impl Iterator<Item = Result<InstanceIdString>> {
+    fn list_instances<I: InstanceIdentity>(
+        &self
+    ) -> impl Iterator<Item = Result<InstanceIdString>> {
         let _: &Void = &self.path;
         iter::empty()
     }
@@ -252,9 +280,8 @@ impl StateDirectory {
     /// Instances which have been acquired
     /// or modified more recently than `retain_unused_for`
     /// will not be offered to `dispose`.
-    fn expire_instances(
+    fn expire_instances<I: InstanceIdentity>(
         &self,
-        kind: &str,
         // counting from last time make_instance was called,
         // or storage_handle.store, or raw_subdir
         retain_unused_for: Duration,
@@ -273,10 +300,9 @@ impl StateDirectory {
     /// So the operation is atomic, but there is no further synchronisation.
     //
     // Not sure if we need this, but it's logically permissible
-    fn instance_peek_storage<T>(
+    fn instance_peek_storage<I: InstanceIdentity, T>(
         &self,
-        kind: &dyn Display,
-        identity: &dyn Display,
+        identity: &I,
         slug: &impl Slug,
     ) -> Result<Option<T>> {
         todo!()
