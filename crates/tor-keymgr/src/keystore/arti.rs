@@ -231,7 +231,7 @@ impl Keystore for ArtiNativeKeystore {
 
                 // Skip over directories as they won't be valid arti-paths
                 //
-                // TODO HSS: provide a mechanism for warning about unrecognized keys?
+                // TODO (#1118): provide a mechanism for warning about unrecognized keys?
                 if entry.file_type().is_dir() {
                     return Ok(None);
                 }
