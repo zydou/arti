@@ -1991,12 +1991,12 @@ impl Reactor {
 
         let message_closes_stream = handler.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
-        // TODO HSS: we've already looked up the `hop` in handle_relay_cell, so we shouldn't
+        // TODO: we've already looked up the `hop` in handle_relay_cell, so we shouldn't
         // have to look it up again! However, we can't pass the `&mut hop` reference from
         // `handle_relay_cell` to this function, because that makes Rust angry (we'd be
         // borrowing self as mutable more than once).
         //
-        // TODO HSS: we _could_ use self.hops.get_mut(..) instead self.hop_mut(..) inside
+        // TODO: we _could_ use self.hops.get_mut(..) instead self.hop_mut(..) inside
         // handle_relay_cell to work around the problem described above
         let hop = self
             .hops
