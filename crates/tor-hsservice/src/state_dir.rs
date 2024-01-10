@@ -146,6 +146,38 @@ pub struct StateDirectory {
 #[derive(Into)]
 pub struct InstanceIdString(String);
 
+/// Types which can be used as a `slug`
+///
+/// "Slugs" are used to distinguish different pieces of state within an instance.
+/// Typically, each call site that needs to provide an `impl Slug`
+/// will provide a fixed `&'static str`.
+///
+/// Slugs have the same character set restrictions as kinds and instance identities;
+/// see [`InstanceIdentity`].
+/// (This is checked at runtime by the `state_dir` implementation.)
+///
+/// Slugs may not be the same as the reserved device filenames on Windows,
+/// (eg, `con`, `lpr`).
+/// (This is not checked by the `state_dir` implementation,
+/// but violation of this rule will result in code that doesn't work at all on Windows.)
+///
+/// It is important that slugs are distinct within an instance.
+/// Specifically,
+/// each slug provided to a method on the same [`InstanceStateHandle`]
+/// (or a clone of it)
+/// must be different.
+/// Violating this rule does not result in memory-unsafety,
+/// but might result in incorrect operation due to concurrent filesystem access,
+/// including possible data loss and corruption.
+/// (Typically, the slug is fixed, and the [`StorageHandle`]s are usually
+/// obtained during instance construction, so ensuring this is straightforward.)
+// We could implement a runtime check for this by retaining a table of in-use slugs,
+// possibly only with `cfg(debug_assertions)`.  However I think this isn't worth the code:
+// it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
+// and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
+// unless it returned a Drop newtype around CheckedDir).
+pub trait Slug: ToString {}
+
 /// Is an instance still relevant?
 ///
 /// Returned by the `filter` callback to
@@ -245,7 +277,7 @@ impl StateDirectory {
         &self,
         kind: &dyn Display,
         identity: &dyn Display,
-        slug: &dyn Display,
+        slug: &impl Slug,
     ) -> Result<Option<T>> {
         todo!()
     }
@@ -259,13 +291,10 @@ impl StateDirectory {
 /// for the same instance.
 ///
 /// But this type is `Clone` and the exclusive access is shared across all clones.
-///
 /// Users of the `InstanceStateHandle` must ensure that functions like
 /// `storage_handle` and `raw_directory` are only called once with each `slug`.
 /// (Typically, the slug is fixed, so this is straightforward.)
-/// Violating this rule does not result in memory-unsafety,
-/// but might result in incorrect operation due to concurrent filesystem access,
-/// including possible data loss and corruption.
+/// See [`Slug`] for more details.
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 pub struct InstanceStateHandle {
     lock: Todo,
@@ -275,7 +304,7 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    fn storage_handle<T>(slug: &dyn Display) -> StorageHandle<T> { todo!() }
+    fn storage_handle<T>(slug: &impl Slug) -> StorageHandle<T> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -285,7 +314,7 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    fn raw_subdir(slug: &dyn Display) -> CheckedDir { todo!() }
+    fn raw_subdir(slug: &impl Slug) -> CheckedDir { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
