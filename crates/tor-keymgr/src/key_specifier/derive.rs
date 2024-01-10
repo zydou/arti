@@ -591,7 +591,8 @@ define_derive_adhoc! {
 
             #[allow(unused_mut)] // not needed if there are no fields
             #[allow(unused_variables)] // not needed if there are no fields
-            let mut builder = $<$tname Pattern>::<$tgens>::new_any();
+            let mut builder =
+                <$<$tname Pattern>::<$tgens> as $crate::KeySpecifierPattern>::new_any();
 
             ${define DO_FIELD { &mut builder.$fname, }}
             ${define DO_LITERAL { &mut $LIT, }}
