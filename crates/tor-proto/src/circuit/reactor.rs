@@ -1650,8 +1650,8 @@ impl Reactor {
                 hop_num,
                 done,
             } => {
-                // TODO HSS: add a CtrlMsg for de-registering the handler.
-                // TODO HSS: ensure the handler is deregistered when the IncomingStream is dropped.
+                // TODO (#1188): add a CtrlMsg for de-registering the handler.
+                // TODO (#1188): ensure the handler is deregistered when the IncomingStream is dropped.
                 let handler = IncomingStreamRequestHandler {
                     incoming_sender,
                     cmd_checker,
@@ -2045,7 +2045,7 @@ impl Reactor {
                     .into(),
                 ));
             } else {
-                // TODO HSS: handle the case where the sender goes away more gracefully
+                // TODO (#1188): handle the case where the sender goes away more gracefully
                 return Err(Error::from(internal!(
                     "Incoming stream request receiver dropped"
                 )));
