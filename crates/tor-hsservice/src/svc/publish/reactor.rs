@@ -1107,7 +1107,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         //
         // Exhaustive, because this is a private type.
         #[derive(Clone, Debug, thiserror::Error)]
-        enum MaybeFatalError {
+        enum PublishError {
             /// The upload was aborted because there are no IPTs.
             ///
             /// This happens because of an inevitable TOCTOU race, where after being notified by
@@ -1192,7 +1192,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         //
                         // Ideally, this shouldn't happen very often (if at all).
                         let Some(ipts) = ipt_set.ipts.as_mut() else {
-                            return Err(MaybeFatalError::NoIpts);
+                            return Err(PublishError::NoIpts);
                         };
 
                         let hsdesc = {
@@ -1281,8 +1281,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let upload_results = match upload_results {
             Ok(v) => v,
-            Err(MaybeFatalError::Fatal(e)) => return Err(e),
-            Err(MaybeFatalError::NoIpts) => {
+            Err(PublishError::Fatal(e)) => return Err(e),
+            Err(PublishError::NoIpts) => {
                 debug!(
                     nickname=%imm.nickname, time_period=?time_period,
                      "no introduction points; skipping upload"
