@@ -528,7 +528,7 @@ impl ClientCirc {
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     //
-    // TODO HSS: this function should return an error if allow_stream_requests()
+    // TODO (#1190): this function should return an error if allow_stream_requests()
     // was already called on this circuit.
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
@@ -2158,7 +2158,7 @@ mod test {
     }
 
     #[test]
-    // TODO HSS: allow_stream_requests() should return an error if
+    // TODO (#1190): allow_stream_requests() should return an error if
     // the circuit already has an IncomingStream.
     #[ignore]
     #[cfg(feature = "hs-service")]
