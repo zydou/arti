@@ -2266,7 +2266,7 @@ mod test {
         use tor_cell::relaycell::msg::BeginFlags;
         use tor_cell::relaycell::msg::EndReason;
 
-        // TODO HSS: this sometimes triggers an interleaving where the rejected IncomingStream is
+        // TODO (#1191): this sometimes triggers an interleaving where the rejected IncomingStream is
         // dropped before the reactor has a chance to handle the END message sent by reject(),
         // which causes it to actually send 2 END cells for the same stream.
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
