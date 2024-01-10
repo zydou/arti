@@ -179,7 +179,7 @@ pub trait ExpirableInstance: InstanceIdentity {
     /// either call [`delete`](InstanceStateHandle::delete),
     /// or simply drop `handle`.
     ///
-    /// Called only after `name_filter` returned [`Liveness::Unused`]
+    /// Called only after `name_filter` returned [`Liveness::PossiblyUnused`]
     /// and only if the instance has not been acquired or modified recently.
     fn dispose(identity: &InstanceIdString, handle: InstanceStateHandle) -> Result<()>;
 }
@@ -231,8 +231,10 @@ pub trait Slug: ToString {}
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(clippy::exhaustive_enums)] // this is a boolean
 pub enum Liveness {
-    /// This instance is not interesting and could be expired, if it's been long enough
-    Unused,
+    /// This instance is not known to be interesting
+    ///
+    /// It could be perhaps expired, if it's been long enough
+    PossiblyUnused,
     /// This instance is still wanted
     Live,
 }
