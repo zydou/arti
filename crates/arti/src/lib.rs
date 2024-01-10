@@ -560,9 +560,9 @@ where
                     if let Some(_onion_name_matches) = hss_matches.subcommand_matches("onion-name") {
                         // TODO: this ignores the enabled flag in the keystore config. Should we print
                         // an error if the keystore is disabled instead of reading from it anyway?
-                        let keystore_dir = client_config.keystore().expand_keystore_dir()?;
+                        let keystore_config = client_config.keystore();
                         let state_mgr =
-                            tor_hsservice::StateMgr::new(keystore_dir, client_config.fs_mistrust())?;
+                            tor_hsservice::StateMgr::new(keystore_config.path(), client_config.fs_mistrust())?;
 
                         let nickname = tor_hsservice::HsNickname::try_from(nickname.clone())?;
 

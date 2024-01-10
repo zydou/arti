@@ -1027,8 +1027,8 @@ mod test {
         let client_cfg = builder.build().unwrap();
 
         assert_eq!(
-            client_cfg.storage.keystore.expand_keystore_dir().unwrap(),
-            PathBuf::from("/home/bob/state/keystore")
+            client_cfg.storage.keystore.path(),
+            Path::new("/home/bob/state/keystore")
         );
     }
 }

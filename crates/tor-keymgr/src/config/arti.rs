@@ -1,6 +1,6 @@
 //! Configuration options for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore)
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
 
@@ -22,13 +22,24 @@ pub struct ArtiNativeKeystoreConfig {
 
     /// Location on disk for the Arti keystore.
     #[builder_field_attr(serde(default))]
-    #[builder(setter(into), default = "default_keystore_dir()")]
-    path: CfgPath,
+    #[builder(
+        setter(custom),
+        field(
+            type = "Option<CfgPath>",
+            build = "resolve_default_and_expand_the_path(self.path.as_ref())?"
+        )
+    )]
+    path: PathBuf,
 }
 
 impl_standard_builder! { ArtiNativeKeystoreConfig }
 
 impl ArtiNativeKeystoreConfigBuilder {
+    /// Set the keystore directory.
+    pub fn path(&mut self, path: CfgPath) {
+        self.path = Some(path);
+    }
+
     /// Check that the keystore configuration is valid
     #[cfg(not(feature = "keymgr"))]
     #[allow(clippy::unnecessary_wraps)]
@@ -55,13 +66,9 @@ impl ArtiNativeKeystoreConfigBuilder {
 }
 
 impl ArtiNativeKeystoreConfig {
-    /// Try to expand `path` to be a path buffer.
-    #[allow(clippy::unnecessary_wraps)] // needed because of the experimental-api branch
-    pub fn expand_keystore_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.path.path().map_err(|e| ConfigBuildError::Invalid {
-            field: "path".to_owned(),
-            problem: e.to_string(),
-        })
+    /// The path of the Arti keystore.
+    pub fn path(&self) -> &Path {
+        self.path.as_ref()
     }
 
     /// Whether the keystore is enabled.
@@ -70,6 +77,20 @@ impl ArtiNativeKeystoreConfig {
 
         self.enabled.as_bool().unwrap_or(default)
     }
+}
+
+/// Build the resolve the specified [`CfgPath`] to a [`PathBuf`].
+///
+/// If the specified path is `None`, this resolves to the default keystore path.
+fn resolve_default_and_expand_the_path(
+    path: Option<&CfgPath>,
+) -> Result<PathBuf, ConfigBuildError> {
+    path.map(|p| p.path())
+        .unwrap_or_else(|| default_keystore_dir().path())
+        .map_err(|e| ConfigBuildError::Invalid {
+            field: "path".to_owned(),
+            problem: e.to_string(),
+        })
 }
 
 /// Return the default keystore directory.

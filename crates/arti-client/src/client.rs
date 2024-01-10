@@ -650,13 +650,11 @@ impl<R: Runtime> TorClient<R> {
 
         let keystore = config.storage.keystore();
         let keymgr = if keystore.is_enabled() {
-            // TODO HSS: `expand_keystore_dir` shouldn't be escaping into a crate API boundary.
-            // The keystore_dir should probably be expanded at `build()` time.
-            let key_store_dir = keystore.expand_keystore_dir()?;
+            let key_store_dir = keystore.path();
             let permissions = config.storage.permissions();
 
             let arti_store =
-                ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
+                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
             info!("Using keystore from {key_store_dir:?}");
 
             // TODO HSS: make the default store configurable
