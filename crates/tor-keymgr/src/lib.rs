@@ -100,7 +100,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// An identifier for a particular [`Keystore`] instance.
 //
-// TODO HSS: maybe restrict the charset of this ID
+// TODO (#1193): restrict the charset of this ID
 #[derive(
     Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Display, AsRef,
 )]
