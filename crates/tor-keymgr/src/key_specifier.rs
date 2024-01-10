@@ -191,7 +191,7 @@ pub struct KeyPathInfo {
     ///
     /// This should usually start with `KS_`.
     //
-    // TODO HSS see the comment for #[adhoc(role)] in derive.rs
+    // TODO (#1195): see the comment for #[adhoc(role)] in derive.rs
     role: String,
     /// Additional information, in the form of key-value pairs.
     ///

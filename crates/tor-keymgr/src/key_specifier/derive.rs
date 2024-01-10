@@ -353,7 +353,7 @@ define_derive_adhoc! {
     ///  * **`#[adhoc(role = "...")]`** (toplevel):
     ///    Specifies the role - the initial portion of the leafname.
     ///    This should be the name of the key in the Tor Specifications.
-    //     TODO HSS casing/syntax anomalies for key role:
+    //     TODO (#1195): casing/syntax anomalies for key role:
     //        Some keys in tor-hsservice have roles like k_..., and some KP_... or KS_...
     //        Maybe we should use `KS_...` in #[adhoc(role)], but lowercase in ArtiPaths.
     //        It'll have to become the responsibility of code here to convert.
