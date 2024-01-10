@@ -202,7 +202,7 @@ impl KeyMgr {
     /// outcome of [`KeyMgr::generate`] depends on whether the selected key store
     /// [`contains`][crate::Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
     //
-    // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
+    // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
     pub fn generate<K>(
         &self,
@@ -250,7 +250,7 @@ impl KeyMgr {
     /// [`contains`][crate::Keystore::contains] the specified keypair, and thus suffers from a
     /// TOCTOU race.
     //
-    // TODO HSS: can we make this less racy without a lock? Perhaps we should say we'll always
+    // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
     pub fn generate_with_derived<SK, PK>(
         &self,
