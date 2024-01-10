@@ -408,7 +408,7 @@ impl KeySpecifierComponent for TimePeriod {
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO HSS should this be the Display impl for TimePeriod?
+        // TODO should this be the Display impl for TimePeriod?
         write!(f, "#{} ", self.interval_num())?;
         match self.range() {
             Ok(r) => {
@@ -688,7 +688,7 @@ mod test {
 
     #[test]
     fn serde() {
-        // TODO HSS clone-and-hack with tor_hsservice::::nickname::test::serde
+        // TODO: clone-and-hack with tor_hsservice::::nickname::test::serde
         // perhaps there should be some utility in tor-basic-utils for testing
         // validated string newtypes, or something
         #[derive(Serialize, Deserialize, Debug)]

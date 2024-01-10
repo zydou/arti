@@ -160,7 +160,7 @@ impl KeyMgr {
                     .get_from_store(key_spec, &key_type, self.all_stores())?
                     .ok_or_else(|| internal!("key is missing but we've just inserted it?!"))?;
 
-                // TODO HSS: assert the key was retrieved from the keystore we put it in?
+                // TODO: assert the key was retrieved from the keystore we put it in?
 
                 Ok(key)
             }
@@ -266,7 +266,7 @@ impl KeyMgr {
         SK::Key: Keygen,
         PK: EncodableKey + PartialEq,
     {
-        // TODO HSS: at some point we may want to support putting the keypair and public key in
+        // TODO: at some point we may want to support putting the keypair and public key in
         // different keystores.
         let store = self.select_keystore(&selector)?;
         let keypair = store.get(keypair_key_spec, &SK::Key::key_type())?;
@@ -304,7 +304,7 @@ impl KeyMgr {
 
                 // Check that the existing public key matches the keypair
                 //
-                // TODO HSS: I'm not sure this validation belongs here.
+                // TODO: I'm not sure this validation belongs here.
                 let expected_public = derive_pub(&keypair);
 
                 if expected_public != public {
@@ -905,7 +905,7 @@ mod tests {
 
         // The public part of the key was overwritten too
         //
-        // TODO HSS: instead of making the keys Strings, we should create a real test key type.
+        // TODO: instead of making the keys Strings, we should create a real test key type.
         // This will enable us to test that the public key is indeed derived from the keypair using
         // its From impl (as this assertion shows, the retrieved public key,
         // keystore1_generated_test_key, looks the same as the keyapir, because it's using the
