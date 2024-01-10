@@ -25,7 +25,7 @@ serde = { version = "1.0.103", optional = true, features = ["derive"] }
 thiserror = "1"
 
 [dev-dependencies]
-serial_test = "2.0.0"
+serial_test = "3.0.0"
 static_assertions = "1"
 [package.metadata.docs.rs]
 all-features = true

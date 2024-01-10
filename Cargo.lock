@@ -355,7 +355,7 @@ dependencies = [
  "base64ct",
  "bytes",
  "derive_more",
- "erased-serde 0.3.31",
+ "erased-serde",
  "futures",
  "futures-await-test",
  "generational-arena",
@@ -1679,15 +1679,6 @@ dependencies = [
  "permutohedron",
  "thiserror",
  "visibility",
-]
-
-[[package]]
-name = "erased-serde"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c138974f9d5e7fe373eb04df7cae98833802ae4b11c24ac7039a21d5af4b26c"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -4077,9 +4068,9 @@ dependencies = [
 
 [[package]]
 name = "serial_test"
-version = "2.0.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e56dd856803e253c8f298af3f4d7eb0ae5e23a737252cd90bb4f3b435033b2d"
+checksum = "953ad9342b3aaca7cb43c45c097dd008d4907070394bd0751a0aa8817e5a018d"
 dependencies = [
  "dashmap",
  "futures",
@@ -4091,9 +4082,9 @@ dependencies = [
 
 [[package]]
 name = "serial_test_derive"
-version = "2.0.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91d129178576168c589c9ec973feedf7d3126c01ac2bf08795109aa35b69fb8f"
+checksum = "b93fb4adc70021ac1b47f7d45e8cc4169baaa7ea58483bc5b721d19a26202212"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5634,7 +5625,7 @@ version = "0.2.0"
 dependencies = [
  "assert-impl",
  "downcast-rs",
- "erased-serde 0.3.31",
+ "erased-serde",
  "futures",
  "futures-await-test",
  "inventory",
@@ -5881,7 +5872,7 @@ version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c43148481c7b66502c48f35b8eef38b6ccdc7a9f04bd4cc294226d901ccc9bc7"
 dependencies = [
- "erased-serde 0.4.2",
+ "erased-serde",
  "inventory",
  "once_cell",
  "serde",
