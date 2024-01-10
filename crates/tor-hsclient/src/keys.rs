@@ -13,12 +13,12 @@ use std::sync::Arc;
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
 use tor_keymgr::{
-    ArtiPathComponent, ArtiPathSyntaxError,
-    derive_adhoc_template_KeySpecifier, KeySpecifierComponentViaDisplayFromStr
+    derive_adhoc_template_KeySpecifier, ArtiPathComponent, ArtiPathSyntaxError,
+    KeySpecifierComponentViaDisplayFromStr,
 };
 
-use derive_more::Constructor;
 use derive_adhoc::Adhoc;
+use derive_more::Constructor;
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -151,7 +151,15 @@ impl HsClientSecretKeysBuilder {
 ///
 /// Distinguishes different "clients" or "users" of this Arti instance,
 /// so that they can have different sets of HS client authentication keys.
-#[derive(Clone, Debug, PartialEq, derive_more::Display, derive_more::Into, derive_more::AsRef, derive_more::FromStr)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    derive_more::Display,
+    derive_more::Into,
+    derive_more::AsRef,
+    derive_more::FromStr,
+)]
 pub struct HsClientSpecifier(ArtiPathComponent);
 
 impl KeySpecifierComponentViaDisplayFromStr for HsClientSpecifier {}

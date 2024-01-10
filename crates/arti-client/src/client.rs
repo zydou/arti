@@ -1085,10 +1085,8 @@ impl<R: Runtime> TorClient<R> {
                     // TODO hs: use a real client id (loaded from the config)
                     let client_id = HsClientSpecifier::new("default".into())
                         .map_err(ErrorDetail::BadClientSpecifier)?;
-                    let desc_enc_key_spec = HsClientDescEncKeypairSpecifier::new(
-                        client_id.clone(),
-                        hsid,
-                    );
+                    let desc_enc_key_spec =
+                        HsClientDescEncKeypairSpecifier::new(client_id.clone(), hsid);
 
                     // TODO hs: refactor to reduce code duplication.
                     //
