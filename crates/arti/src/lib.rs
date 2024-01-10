@@ -550,7 +550,7 @@ where
     } else {
         cfg_if::cfg_if! {
             if #[cfg(feature = "onion-service-service")] {
-                // TODO HSS: this will soon grow more complex, so all of the code for handling the
+                // TODO: this will soon grow more complex, so all of the code for handling the
                 // hss subcommand should probably be extracted in a separate module
                 if let Some(hss_matches) = matches.subcommand_matches("hss") {
                     let nickname = hss_matches
@@ -566,7 +566,7 @@ where
 
                         let nickname = tor_hsservice::HsNickname::try_from(nickname.clone())?;
 
-                        // TODO HSS: instead of the printlns here, we should have a formatter type that
+                        // TODO: instead of the printlns here, we should have a formatter type that
                         // decides how to display the output
                         if let Some(onion) = state_mgr.onion_name(&nickname) {
                             println!("{onion}");

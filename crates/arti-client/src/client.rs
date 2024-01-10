@@ -1362,8 +1362,6 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// If you want to forward all the requests from an onion service to a set
     /// of local ports, you may want to use the `tor-hsrproxy` crate.
-    ///
-    /// TODO HSS: This feature does not yet work.
     #[cfg(feature = "onion-service-service")]
     pub fn launch_onion_service(
         &self,
@@ -1385,11 +1383,11 @@ impl<R: Runtime> TorClient<R> {
             config,
             self.dirmgr.clone().upcast_arc(),
             self.hs_circ_pool.clone(),
-            // TODO HSS: Allow override of KeyMgr for "ephemeral" operation?
+            // TODO #1186: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
-            // TODO HSS: Allow override of StateMgr for "ephemeral" operation?
+            // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
             self.statemgr.clone(),
-            // TODO HSS: Allow override of state_dir for "ephemeral" operation?
+            // TODO #1186: Allow override of state_dir for "ephemeral" operation?
             &self.state_dir,
             &self.storage_mistrust,
         )
