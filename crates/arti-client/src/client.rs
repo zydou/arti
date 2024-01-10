@@ -657,7 +657,7 @@ impl<R: Runtime> TorClient<R> {
                 ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
             info!("Using keystore from {key_store_dir:?}");
 
-            // TODO HSS: make the default store configurable
+            // TODO #1106: make the default store configurable
             let default_store = arti_store;
 
             let keymgr = KeyMgrBuilder::default()
