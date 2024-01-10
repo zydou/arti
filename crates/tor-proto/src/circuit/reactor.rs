@@ -2033,7 +2033,7 @@ impl Reactor {
                 receiver,
             })
         {
-            // TODO HSS: we should not be dropping BEGIN requests. Consider using an
+            // TODO (#1189): we should not be dropping BEGIN requests. Consider using an
             // unbounded channel instead.
             if e.is_full() {
                 return Err(Error::CircProto(

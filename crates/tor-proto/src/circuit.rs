@@ -539,7 +539,8 @@ impl ClientCirc {
         use futures::stream::StreamExt;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
-        // TODO HSS: decide what capacity this channel should have.
+        // TODO (#1189): decide what capacity this channel should have, and how
+        // to handle a full channel.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
