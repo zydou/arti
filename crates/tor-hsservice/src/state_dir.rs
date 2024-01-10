@@ -144,7 +144,7 @@ pub struct StateDirectory {
 ///
 /// TODO HSS define the character set.
 #[derive(Into)]
-pub struct InstanceIdentity(String);
+pub struct InstanceIdString(String);
 
 /// Is an instance still relevant?
 ///
@@ -170,7 +170,7 @@ impl StateDirectory {
     /// and locks it for exclusive access.
     ///
     /// `kind` and `identity` have syntactic restrictions -
-    /// see [`InstanceIdentity`].
+    /// see [`InstanceIdString`].
     fn acquire_instance(
         &self,
         kind: &dyn Display,
@@ -192,7 +192,7 @@ impl StateDirectory {
     /// on different instances,
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
-    fn list_instances(&self, kind: &dyn Display) -> impl Iterator<Item = Result<InstanceIdentity>> {
+    fn list_instances(&self, kind: &dyn Display) -> impl Iterator<Item = Result<InstanceIdString>> {
         let _: &Void = &self.path;
         iter::empty()
     }
@@ -274,7 +274,7 @@ pub struct InstanceStateHandle {
 impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
-    /// `slug` has syntactic restrictions - see [`InstanceIdentity`].
+    /// `slug` has syntactic restrictions - see [`InstanceIdString`].
     fn storage_handle<T>(slug: &dyn Display) -> StorageHandle<T> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
@@ -284,7 +284,7 @@ impl InstanceStateHandle {
     /// where we're happy to not to support such platforms (eg WASM without WASI)
     /// without substantial further work.
     ///
-    /// `slug` has syntactic restrictions - see [`InstanceIdentity`].
+    /// `slug` has syntactic restrictions - see [`InstanceIdString`].
     fn raw_subdir(slug: &dyn Display) -> CheckedDir { todo!() }
 
     /// Unconditionally delete this instance directory
