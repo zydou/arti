@@ -350,7 +350,7 @@ impl KeyMgr {
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
     ///
-    // TODO HSS: would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
+    // TODO (#1115): would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
     pub fn insert<K: ToEncodableKey>(
         &self,
         key: K,
@@ -461,7 +461,7 @@ impl KeyMgr {
                 }
                 Ok(Some(k)) => k,
                 Err(e) => {
-                    // TODO HSS: we immediately return if one of the keystores is inaccessible.
+                    // TODO (#1115): we immediately return if one of the keystores is inaccessible.
                     // Perhaps we should ignore any errors and simply poll the next store in the
                     // list?
                     return Err(e);

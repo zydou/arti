@@ -32,7 +32,7 @@ impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
 
 /// A generic key store.
 //
-// TODO HSS: eventually this will be able to store items that aren't keys (such as certificates and
+// TODO (#1115): eventually this will be able to store items that aren't keys (such as certificates and
 // perhaps other types of sensitive data). We should consider renaming this (and other Key* types)
 // to something more generic (such as `SecretStore` or `Vault`).
 pub trait Keystore: Send + Sync + 'static {
@@ -53,7 +53,7 @@ pub trait Keystore: Send + Sync + 'static {
 
     /// Write `key` to the key store.
     //
-    // TODO HSS: the key_type argument here might seem redundant: `key` implements `EncodableKey`,
+    // TODO (#1115): the key_type argument here might seem redundant: `key` implements `EncodableKey`,
     // which has a `key_type` function. However:
     //   * `key_type` is an associated function on `EncodableKey`, not a method, which means we
     //   can't call it on `key: &dyn EncodableKey` (you can't call an associated function of trait

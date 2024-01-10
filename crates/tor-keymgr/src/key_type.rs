@@ -78,7 +78,7 @@ macro_rules! declare_key_type {
         impl KeyType {
             /// The file extension for a key of this type.
             //
-            // TODO HSS: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
+            // TODO (#1115): this is subject to change (i.e. we might also need a `KeySpecifier` argument here
             // to decide the file extension should be).
             pub fn arti_extension(&self) -> String {
                 use KeyType::*;
@@ -120,7 +120,7 @@ macro_rules! declare_key_type {
 declare_key_type! {
     /// A type of key stored in the key store.
     //
-    // TODO HSS: rewrite this enum as
+    // TODO (#1115): rewrite this enum as
     // ```
     // pub enum KeyType {
     //     Private(Algorithm),
