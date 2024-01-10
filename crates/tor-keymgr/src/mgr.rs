@@ -266,7 +266,7 @@ impl KeyMgr {
         SK::Key: Keygen,
         PK: EncodableKey + PartialEq,
     {
-        // TODO: at some point we may want to support putting the keypair and public key in
+        // TODO (#1194): at some point we may want to support putting the keypair and public key in
         // different keystores.
         let store = self.select_keystore(&selector)?;
         let keypair = store.get(keypair_key_spec, &SK::Key::key_type())?;
@@ -308,7 +308,7 @@ impl KeyMgr {
                 let expected_public = derive_pub(&keypair);
 
                 if expected_public != public {
-                    // TODO HSS: internal! is not right, create an error type for KeyMgr errors and
+                    // TODO (#1194): internal! is not right, create an error type for KeyMgr errors and
                     // add context
                     return Err(internal!(
                         "keystore corruption: public key does not match keypair"
