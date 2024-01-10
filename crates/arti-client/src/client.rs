@@ -665,7 +665,7 @@ impl<R: Runtime> TorClient<R> {
                 .build()
                 .map_err(|_| internal!("failed to build keymgr"))?;
 
-            // TODO hs: add support for the C Tor key store
+            // TODO #858: add support for the C Tor key store
             Some(Arc::new(keymgr))
         } else {
             info!("Running without a keystore");
