@@ -35,7 +35,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use {
     tor_config::BoolOrAuto,
     tor_hsclient::{
-        HsClientConnector, HsClientKeyRole, HsClientSecretKeySpecifier, HsClientSecretKeysBuilder,
+        HsClientConnector, HsClientDescEncKeypairSpecifier, HsClientSecretKeysBuilder,
         HsClientSpecifier,
     },
     tor_hscrypto::pk::HsClientDescEncKeypair,
@@ -1085,10 +1085,9 @@ impl<R: Runtime> TorClient<R> {
                     // TODO hs: use a real client id (loaded from the config)
                     let client_id = HsClientSpecifier::new("default".into())
                         .map_err(ErrorDetail::BadClientSpecifier)?;
-                    let desc_enc_key_spec = HsClientSecretKeySpecifier::new(
+                    let desc_enc_key_spec = HsClientDescEncKeypairSpecifier::new(
                         client_id.clone(),
                         hsid,
-                        HsClientKeyRole::DescEnc,
                     );
 
                     // TODO hs: refactor to reduce code duplication.

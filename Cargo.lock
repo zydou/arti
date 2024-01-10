@@ -5157,6 +5157,7 @@ name = "tor-hsclient"
 version = "0.8.0"
 dependencies = [
  "async-trait",
+ "derive-adhoc 0.8.1",
  "derive_more",
  "educe",
  "either",
