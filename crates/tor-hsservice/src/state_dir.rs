@@ -11,7 +11,7 @@
 //!    For example, multiple hidden services,
 //!    each with their own state, and own lock.
 //!
-//!  * Locking is mandatory, rather than optional -
+//!  * Locking (via filesystem locks) is mandatory, rather than optional -
 //!    there is no "shared" mode.
 //!    
 //!  * Locked state is represented in the Rust type system.
@@ -83,6 +83,7 @@ use std::fmt;
 use std::iter;
 use std::marker::PhantomData;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use derive_more::Into;
@@ -113,6 +114,10 @@ pub type Result<T> = StdResult<T, Error>;
 /// so ideally it would be created once per process for performance reasons.
 ///
 /// Existence of a `StateDirectory` also does not imply exclusive access.
+///
+/// This type is passed to each facility's constructor;
+/// the facility implements [`InstanceIdentity`]
+/// and calls [`acquire_instance`](StateDirectory::acquire_instance).
 ///
 /// ### Use for caches
 ///
@@ -346,7 +351,7 @@ impl StateDirectory {
 /// See [`Slug`] for more details.
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 pub struct InstanceStateHandle {
-    lock: Todo,
+    flock_guard: Arc<Todo>,
 }
 
 impl InstanceStateHandle {
@@ -389,7 +394,7 @@ pub struct StorageHandle<T> {
     /// We're not sync, and we can load and store a `T`
     marker: PhantomData<Cell<T>>,
     /// Clone of the InstanceStateHandle's lock
-    lock: Todo,
+    flock_guard: Arc<Todo>,
 }
 
 // Like tor_persist, but writing needs `&mut`
