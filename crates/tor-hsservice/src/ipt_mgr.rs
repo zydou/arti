@@ -6,7 +6,7 @@
 //! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::io;
@@ -1616,44 +1616,6 @@ impl<R: Runtime> Mockable<R> for Real<R> {
     }
 }
 
-/// Joins two iterators, by keys, one of which is a subset of the other
-///
-/// `bigger` and `smaller` are iterators yielding `BI` and `SI`.
-///
-/// The key `K`, which can be extracted from each element of either iterator,
-/// is `PartialEq` and says whether a `BI` is "the same as" an `SI`.
-///
-/// `call` is called for each `K` which appears in both lists, in that same order.
-/// Nothing is done about elements which are only in `bigger`.
-///
-/// (The behaviour with duplicate entries is unspecified.)
-///
-/// The algorithm has complexity `O(N_bigger)`,
-/// and also a working set of `O(N_bigger)`.
-#[allow(dead_code)] // TODO HSS remove
-fn merge_join_subset_by<'out, K, BI, SI>(
-    bigger: impl IntoIterator<Item = BI> + 'out,
-    bigger_keyf: impl Fn(&BI) -> K + 'out,
-    smaller: impl IntoIterator<Item = SI> + 'out,
-    smaller_keyf: impl Fn(&SI) -> K + 'out,
-) -> impl Iterator<Item = (K, BI, SI)> + 'out
-where
-    K: Eq + Hash + Clone + 'out,
-    BI: 'out,
-    SI: 'out,
-{
-    let mut smaller: HashMap<K, SI> = smaller
-        .into_iter()
-        .map(|si| (smaller_keyf(&si), si))
-        .collect();
-
-    bigger.into_iter().filter_map(move |bi| {
-        let k = bigger_keyf(&bi);
-        let si = smaller.remove(&k)?;
-        Some((k, bi, si))
-    })
-}
-
 // TODO HSS add unit tests for IptManager
 // Especially, we want to exercise all code paths in idempotently_progress_things_now
 
@@ -1945,33 +1907,5 @@ mod test {
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
         });
-    }
-
-    #[test]
-    fn test_merge_join_subset_by() {
-        fn chk(bigger: &str, smaller: &str, output: &str) {
-            let keyf = |c: &char| *c;
-
-            assert_eq!(
-                merge_join_subset_by(bigger.chars(), keyf, smaller.chars(), keyf)
-                    .map(|(k, b, s)| {
-                        assert_eq!(k, b);
-                        assert_eq!(k, s);
-                        k
-                    })
-                    .collect::<String>(),
-                output,
-            );
-        }
-
-        chk("abc", "abc", "abc");
-        chk("abc", "a", "a");
-        chk("abc", "b", "b");
-        chk("abc", "c", "c");
-        chk("abc", "x", ""); // wrong input, but test it anyway
-        chk("b", "abc", "b"); // wrong input, but test it anyway
-
-        chk("abc", "", "");
-        chk("", "abc", ""); // wrong input, but test it anyway
     }
 }
