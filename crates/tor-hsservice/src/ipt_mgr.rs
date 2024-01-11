@@ -404,7 +404,7 @@ impl Ipt {
             //     And we could recover by creating fresh keys, although maybe some clients
             //     would find the previous keys in old descriptors.
             //     So if the keys are missing, make and store new ones, logging an error msg.
-            // TODO HSS See #1074: The current keymgr API doesn't make this easy
+            // TODO #1074: The current keymgr API doesn't make this easy
             // Tidy this code up when the API is better.
             let k: Option<$Keypair> = imm.keymgr.get(&spec)?;
             let arti_path = || {
@@ -427,7 +427,7 @@ impl Ipt {
                 }
             }
             let k = k.map(Ok).unwrap_or_else(|| {
-                // TODO HSS get_or_generate is strictly speaking a bit wrong here, see above
+                // TODO #1074 get_or_generate is strictly speaking a bit wrong here, see above
                 imm.keymgr.get_or_generate(
                     &spec,
                     tor_keymgr::KeystoreSelector::Default,
