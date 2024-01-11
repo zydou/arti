@@ -528,7 +528,7 @@ impl ClientCirc {
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     //
-    // TODO HSS: this function should return an error if allow_stream_requests()
+    // TODO (#1190): this function should return an error if allow_stream_requests()
     // was already called on this circuit.
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
@@ -539,7 +539,8 @@ impl ClientCirc {
         use futures::stream::StreamExt;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
-        // TODO HSS: decide what capacity this channel should have.
+        // TODO (#1189): decide what capacity this channel should have, and how
+        // to handle a full channel.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
@@ -558,6 +559,8 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
+        let allowed_hop_num = hop_num;
+
         let circ = Arc::clone(self);
         Ok(incoming_receiver.map(move |req_ctx| {
             let IncomingStreamRequestContext {
@@ -567,6 +570,12 @@ impl ClientCirc {
                 receiver,
                 msg_tx,
             } = req_ctx;
+
+            // We already enforce this in handle_incoming_stream_request; this
+            // assertion is just here to make sure that we don't ever
+            // accidentally remove or fail to enforce that check, since it is
+            // security-critical.
+            assert_eq!(allowed_hop_num, hop_num);
 
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
@@ -2149,7 +2158,7 @@ mod test {
     }
 
     #[test]
-    // TODO HSS: allow_stream_requests() should return an error if
+    // TODO (#1190): allow_stream_requests() should return an error if
     // the circuit already has an IncomingStream.
     #[ignore]
     #[cfg(feature = "hs-service")]
@@ -2257,7 +2266,7 @@ mod test {
         use tor_cell::relaycell::msg::BeginFlags;
         use tor_cell::relaycell::msg::EndReason;
 
-        // TODO HSS: this sometimes triggers an interleaving where the rejected IncomingStream is
+        // TODO (#1191): this sometimes triggers an interleaving where the rejected IncomingStream is
         // dropped before the reactor has a chance to handle the END message sent by reject(),
         // which causes it to actually send 2 END cells for the same stream.
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {

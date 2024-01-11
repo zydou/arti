@@ -729,12 +729,11 @@ pub(super) struct IncomingStreamRequestContext {
     pub(super) stream_id: StreamId,
     /// The [`HopNum`].
     //
-    // Note from @nickm (TODO HSS):
-    // "This needs to be an Option<> if we are going to eventually support non-onion-services.  For
-    // outbound messages (towards relays), there is only one hop that can send them: the client.
+    // TODO: When we add support for exit relays, we need to turn this into an Option<HopNum>.
+    // (For outbound messages (towards relays), there is only one hop that can send them: the client.)
     //
-    // For onion services, we might be able to enforce the HopNum earlier: we would never accept an
-    // incoming stream request from two separate hops.  (There is only one that's valid.)"
+    // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
+    // incoming stream request from two separate hops.  (There is only one that's valid.)
     pub(super) hop_num: HopNum,
     /// A channel for receiving messages from this stream.
     pub(super) receiver: mpsc::Receiver<UnparsedRelayCell>,
@@ -1650,8 +1649,8 @@ impl Reactor {
                 hop_num,
                 done,
             } => {
-                // TODO HSS: add a CtrlMsg for de-registering the handler.
-                // TODO HSS: ensure the handler is deregistered when the IncomingStream is dropped.
+                // TODO (#1188): add a CtrlMsg for de-registering the handler.
+                // TODO (#1188): ensure the handler is deregistered when the IncomingStream is dropped.
                 let handler = IncomingStreamRequestHandler {
                     incoming_sender,
                     cmd_checker,
@@ -1991,12 +1990,12 @@ impl Reactor {
 
         let message_closes_stream = handler.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
-        // TODO HSS: we've already looked up the `hop` in handle_relay_cell, so we shouldn't
+        // TODO: we've already looked up the `hop` in handle_relay_cell, so we shouldn't
         // have to look it up again! However, we can't pass the `&mut hop` reference from
         // `handle_relay_cell` to this function, because that makes Rust angry (we'd be
         // borrowing self as mutable more than once).
         //
-        // TODO HSS: we _could_ use self.hops.get_mut(..) instead self.hop_mut(..) inside
+        // TODO: we _could_ use self.hops.get_mut(..) instead self.hop_mut(..) inside
         // handle_relay_cell to work around the problem described above
         let hop = self
             .hops
@@ -2034,7 +2033,7 @@ impl Reactor {
                 receiver,
             })
         {
-            // TODO HSS: we should not be dropping BEGIN requests. Consider using an
+            // TODO (#1189): we should not be dropping BEGIN requests. Consider using an
             // unbounded channel instead.
             if e.is_full() {
                 return Err(Error::CircProto(
@@ -2045,7 +2044,7 @@ impl Reactor {
                     .into(),
                 ));
             } else {
-                // TODO HSS: handle the case where the sender goes away more gracefully
+                // TODO (#1188): handle the case where the sender goes away more gracefully
                 return Err(Error::from(internal!(
                     "Incoming stream request receiver dropped"
                 )));
