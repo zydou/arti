@@ -348,6 +348,11 @@ impl TryFrom<String> for InstanceIdString {
 // TODO #1192 for now we are using the name Slug here.
 // When we implement this we may wish to unify parts of the implementation
 // with any general facility that arises from #1192.
+//
+// This is a trait implemented by `str` for convenience of call sites.
+// The implementing Functions here that take slugs will do a runtime syntax check.
+// Doing it this way avoids error handling and newtype boilerplate at call sites,
+// which I think is overkill for an error case that's not at all likely to happen.
 pub trait Slug: ToString {}
 
 impl<T: ToString + ?Sized> Slug for T {}
