@@ -1181,12 +1181,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 })
                 .min()?;
 
-            // TODO HSS is this the right guess for IPT establishment?
+            // TODO #1210 is this the right guess for IPT establishment?
             // we could use circuit timings etc., but arguably the actual time to establish
             // our fastest IPT is a better estimator here (and we want an optimistic,
             // rather than pessimistic estimate).
             //
-            // TODO HSS fastest_good_establish_time factor 1 should be tuneable
+            // TODO #1210 fastest_good_establish_time factor 1 should be tuneable
             let wait_more = fastest_good_establish_time;
             let very_recently = fastest_good_establish_time.checked_add(wait_more)?;
 
@@ -1533,8 +1533,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Maximum number of concurrent intro point relays
     pub(crate) fn max_n_intro_relays(&self) -> usize {
-        // TODO HSS max_n_intro_relays should be configurable
-        // TODO HSS consider default, in context of intro point forcing attacks
+        // TODO #1210 max_n_intro_relays should be configurable
+        // TODO #1210 consider default, in context of intro point forcing attacks
         self.target_n_intro_points() * 2
     }
 }
