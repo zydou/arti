@@ -121,7 +121,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ///
     /// This field is initialized in [`Reactor::run`].
     ///
-    // TODO HSS: decide if this is the right approach for implementing rate-limiting
+    // TODO: decide if this is the right approach for implementing rate-limiting
     reattempt_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
     ///

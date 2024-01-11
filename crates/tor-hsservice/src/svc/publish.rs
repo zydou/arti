@@ -305,7 +305,7 @@ mod test {
         async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error> {
             Ok(MockDataStream {
                 publish_count: Arc::clone(&self.publish_count),
-                // TODO HSS: this will need to change when we start reusing circuits (currently,
+                // TODO: this will need to change when we start reusing circuits (currently,
                 // we only ever create one data stream per circuit).
                 poll_read_responses: Arc::clone(&self.poll_read_responses),
             })
