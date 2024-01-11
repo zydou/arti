@@ -831,7 +831,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
     }
 }
 
-// TODO HSS: Combine this block with the other impl IptManager<R, M>
+// TODO #1212: Combine this block with the other impl IptManager<R, M>
 // We probably want to make sure this whole file is in a sensible order.
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Make some progress, if possible, and say when to wake up again
