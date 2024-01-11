@@ -84,9 +84,9 @@ use std::iter;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
-use derive_more::Into;
+use derive_more::{AsRef, Into};
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
 use void::Void;
@@ -196,7 +196,25 @@ pub trait InstancePurgeHandler {
     ///
     /// Called only after `name_filter` returned [`Liveness::PossiblyUnused`]
     /// and only if the instance has not been acquired or modified recently.
-    fn dispose(identity: &InstanceIdString, handle: InstanceStateHandle) -> Result<()>;
+    ///
+    /// `info` includes the instance name and other useful information
+    /// such as the last modification time.
+    fn dispose(&mut self, info: &InstancePurgeInfo, handle: InstanceStateHandle) -> Result<()>;
+}
+
+/// Information about an instance, passed to [`InstancePurgeHandler::dispose`]
+#[derive(amplify::Getters)]
+#[derive(AsRef)]
+pub struct InstancePurgeInfo<'i> {
+    /// The instance's identity string
+    #[as_ref]
+    identity: &'i InstanceIdString,
+
+    /// When the instance state was last updated, according to the filesystem timestamps
+    ///
+    /// See `[InstanceStateHandle::purge_instances]`
+    /// for details of what kinds of events count as modifications.
+    last_modified: SystemTime,
 }
 
 /// String identifying an instance, within its kind
