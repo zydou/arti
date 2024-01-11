@@ -446,7 +446,7 @@ impl Ipt {
             started: imm.runtime.now(),
         };
 
-        // TODO HSS: Support ephemeral services (without persistent replay log)
+        // TODO #1186 Support ephemeral services (without persistent replay log)
         let replay_log = {
             let replay_log = imm.replay_log_dir.as_path().join(format!("{lid}.bin"));
 
