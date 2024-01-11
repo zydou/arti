@@ -13,9 +13,9 @@
 //!
 //!  * Locking (via filesystem locks) is mandatory, rather than optional -
 //!    there is no "shared" mode.
-//!    
+//!
 //!  * Locked state is represented in the Rust type system.
-//!    
+//!
 //!  * We don't use traits to support multiple implementations.
 //!    Platform support would be done in the future with `#[cfg]`.
 //!    Testing is done by temporary directories (as currently with `tor_persist`).
