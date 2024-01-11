@@ -565,7 +565,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         let storage = storage.create_handle(format!("hs_ipts_{nick}"));
 
         let (replay_log_dir, replay_log_lock) = {
-            // TODO HSS something should expire these! (and our keys too, obviously)
+            // TODO #1198 something should expire these! (and our keys too, obviously)
+            // (see also #1067 re expiring a whole service)
             let dir = state_dir.join(format!("hss_iptreplay/{nick}"));
             let dir = state_mistrust
                 .verifier()
