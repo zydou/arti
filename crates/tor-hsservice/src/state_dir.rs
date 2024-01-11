@@ -396,7 +396,7 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn storage_handle<T>(slug: &impl Slug) -> StorageHandle<T> { todo!() }
+    pub fn storage_handle<T>(&self, slug: &impl Slug) -> StorageHandle<T> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -406,7 +406,7 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn raw_subdir(slug: &impl Slug) -> CheckedDir { todo!() }
+    pub fn raw_subdir(&self, slug: &impl Slug) -> CheckedDir { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
