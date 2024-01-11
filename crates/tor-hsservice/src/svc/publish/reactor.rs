@@ -713,8 +713,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     *status = DescriptorStatus::Clean;
                 }
             }
-
-            // TODO HSS: maybe the failed uploads should be rescheduled at some point.
         }
     }
 
@@ -1241,9 +1239,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         }
                     };
 
-                    // TODO HSS: add a mechanism for rescheduling uploads that have
-                    // UploadStatus::Failure.
-                    //
                     // Note: UploadStatus::Failure is only returned when
                     // upload_descriptor_with_retries fails, i.e. if all our retry
                     // attempts have failed
