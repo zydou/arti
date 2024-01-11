@@ -54,12 +54,12 @@ use crate::{
 /// need it. If not, it schedules the upload to happen `UPLOAD_RATE_LIM_THRESHOLD` seconds from the
 /// current time.
 //
-// TODO HSS: this value is probably not right.
+// TODO (#1121): this value is probably not right.
 const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 
 /// The maximum number of concurrent upload tasks per time period.
 //
-// TODO HSS: this value was arbitrarily chosen and may not be optimal.
+// TODO (#1121): this value was arbitrarily chosen and may not be optimal.
 //
 // The uploads for all TPs happen in parallel.  As a result, the actual limit for the maximum
 // number of concurrent upload tasks is multiplied by a number which depends on the TP parameters
@@ -70,7 +70,7 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 
 /// The maximum time allowed for uploading a descriptor to an HSDirs.
 //
-// TODO HSS: this value is probably not right.
+// TODO (#1121): this value is probably not right.
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
@@ -975,7 +975,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
     /// well as in what cases this will return an error).
     //
-    // TODO HSS: what is N?
+    // TODO (#1121): what is N?
     async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
@@ -1487,7 +1487,7 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
     }
 
     fn timeout(&self) -> Option<Duration> {
-        // TODO HSS: pick a less arbitrary timeout
+        // TODO (#1121): pick a less arbitrary timeout
         Some(Duration::from_secs(30))
     }
 
