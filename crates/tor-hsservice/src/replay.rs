@@ -12,8 +12,6 @@
 //! make sure that our replay logs are already persistent.  We do this by using
 //! a file on disk.
 
-#![allow(dead_code)] // TODO HSS Remove once something uses ReplayLog.
-
 use fslock::LockFile;
 use hash::{hash, H, HASH_LEN};
 use std::{
@@ -57,6 +55,7 @@ const MAGIC: &[u8; 32] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
 
 impl ReplayLog {
     /// Create a new ReplayLog not backed by any data storage.
+    #[allow(dead_code)] // TODO #1186 Remove once something uses ReplayLog.
     pub(crate) fn new_ephemeral() -> Self {
         Self {
             seen: data::Filter::new(),
@@ -171,7 +170,7 @@ impl ReplayLog {
     fn check_inner(&mut self, h: &H) -> Result<(), ReplayError> {
         self.seen.test_and_add(h)?;
         if let Some(f) = self.log.as_mut() {
-            // TODO HSS if write_all fails, it might have written part of the data;
+            // TODO #1207 if write_all fails, it might have written part of the data;
             // in that case, we must truncate the file to resynchronise.
             // We should probably set a note to truncate just before we call write_all
             // and clear it again afterwards.
@@ -182,6 +181,7 @@ impl ReplayLog {
     }
 
     /// Flush any buffered data to disk.
+    #[allow(dead_code)] // TODO #1208
     pub(crate) fn flush(&mut self) -> Result<(), io::Error> {
         if let Some(f) = self.log.as_mut() {
             f.flush()?;
