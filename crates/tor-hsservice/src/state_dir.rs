@@ -156,7 +156,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use derive_more::{AsRef, Into};
+use derive_more::{AsRef, Deref, Into};
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
 use void::Void;
@@ -502,7 +502,7 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> Result<CheckedDir> { todo!() }
+    pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
@@ -543,6 +543,21 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
     pub fn load(&self) -> Result<Option<T>> {
         todo!()
     }
+}
+
+/// Subdirectory within an instance's state, for raw filesystem operations
+///
+/// Dereferences to `fs_mistrust::CheckedDir` and can be used mostly like one.
+/// Obtained from [`InstanceStateHandle::raw_subdir`].
+///
+/// Existence of this value implies exclusive access to the instance.
+#[derive(Deref, Clone)]
+pub struct InstanceRawSubdir {
+    /// The actual directory, as a [`fs_mistrust::CheckedDir`]
+    #[deref]
+    dir: CheckedDir,
+    /// Clone of the InstanceStateHandle's lock
+    flock_guard: Arc<Todo>,
 }
 
 /// Error accessing persistent state
