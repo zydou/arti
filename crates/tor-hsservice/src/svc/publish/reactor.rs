@@ -162,7 +162,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
     /// Returns an error if the service is running in offline mode and the descriptor signing
     /// keypair of the specified `period` is not available.
     //
-    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
+    // TODO (#1194): we don't support "offline" mode (yet), so this always returns an AesOpeKey
     // built from the blinded id key
     fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, FatalError> {
         let ope_key = match read_blind_id_keypair(&self.keymgr, &self.nickname, period)? {
@@ -173,7 +173,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
                     .expect("Wrong length on slice")
             }
             None => {
-                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
+                // TODO (#1194): we don't support externally provisioned keys (yet), so this branch
                 // is unreachable (for now).
                 let desc_sign_key_spec =
                     DescSigningKeypairSpecifier::new(self.nickname.clone(), period);
@@ -1423,7 +1423,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 ///
 /// Returns `None` if the service is running in "offline" mode.
 ///
-// TODO HSS: we don't currently have support for "offline" mode so this can never return
+// TODO (#1194): we don't currently have support for "offline" mode so this can never return
 // `Ok(None)`.
 pub(super) fn read_blind_id_keypair(
     keymgr: &Arc<KeyMgr>,
