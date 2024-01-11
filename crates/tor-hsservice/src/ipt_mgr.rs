@@ -1615,7 +1615,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
     }
 }
 
-// TODO HSS add unit tests for IptManager
+// TODO #1213 add unit tests for IptManager
 // Especially, we want to exercise all code paths in idempotently_progress_things_now
 
 #[cfg(test)]
@@ -1856,7 +1856,7 @@ mod test {
                 .borrow_mut()
                 .status = IptStatusStatus::Good(good.clone());
 
-            // TODO HSS test that we haven't called start_accepting
+            // TODO #1213 test that we haven't called start_accepting
 
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms
@@ -1872,7 +1872,7 @@ mod test {
                 }
             };
 
-            // TODO HSS test that we have called start_accepting on the right IPTs
+            // TODO #1213 test that we have called start_accepting on the right IPTs
 
             // Set the other IPTs to be Good too
             for e in m.estabs.lock().unwrap().values_mut().skip(1) {
@@ -1886,7 +1886,7 @@ mod test {
                 }
             };
 
-            // TODO HSS test that we have called start_accepting on the right IPTs
+            // TODO #1213 test that we have called start_accepting on the right IPTs
 
             let estabs_inventory = m.estabs_inventory();
 
@@ -1901,7 +1901,7 @@ mod test {
 
             assert_eq!(estabs_inventory, m.estabs_inventory());
 
-            // TODO HSS test that we have called start_accepting on all the old IPTs
+            // TODO #1213 test that we have called start_accepting on all the old IPTs
 
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
