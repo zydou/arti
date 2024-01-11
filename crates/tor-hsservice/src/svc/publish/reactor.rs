@@ -1,6 +1,6 @@
 //! The onion service publisher reactor.
 //!
-//! TODO HSS: write the docs
+//! TODO (#1216): write the docs
 
 use std::fmt::Debug;
 use std::iter;
@@ -718,7 +718,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 if update_last_successful {
                     period.last_successful = Some(upload_res.revision_counter);
-                    // TODO HSS: Is it possible that this won't update the statuses promptly
+                    // TODO (#1098): Is it possible that this won't update the statuses promptly
                     // enough. For example, it's possible for the reactor to see a Dirty descriptor
                     // and start an upload task for a descriptor has already been uploaded (or is
                     // being uploaded) in another task, but whose upload results have not yet been
@@ -972,8 +972,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
     /// to happen N minutes from now.
     ///
-    /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
-    /// well as in what cases this will return an error).
+    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
+    /// implement it, as well as in what cases this will return an error).
     //
     // TODO (#1121): what is N?
     async fn upload_all(&mut self) -> Result<(), FatalError> {
@@ -1088,8 +1088,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Upload the descriptor for the specified time period.
     ///
-    /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
-    /// well as in what cases this will return an error).
+    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
+    /// implement it, as well as in what cases this will return an error).
     async fn upload_for_time_period(
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
@@ -1367,7 +1367,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Upload a descriptor to the specified HSDir, retrying if appropriate.
     ///
-    /// TODO HSS: document the retry logic when we implement it.
+    /// TODO (#1216): document the retry logic when we implement it.
     async fn upload_descriptor_with_retries(
         hsdesc: String,
         netdir: &Arc<NetDir>,
