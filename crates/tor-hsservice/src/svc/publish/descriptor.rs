@@ -85,7 +85,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
         rng,
     )?;
 
-    // TODO HSS: support introduction-layer authentication.
+    // TODO #1028: support introduction-layer authentication.
     let auth_required = None;
 
     let is_single_onion_service =
