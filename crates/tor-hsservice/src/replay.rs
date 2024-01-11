@@ -57,6 +57,7 @@ const MAGIC: &[u8; 32] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
 
 impl ReplayLog {
     /// Create a new ReplayLog not backed by any data storage.
+    #[allow(dead_code)] // TODO #1186 Remove once something uses ReplayLog.
     pub(crate) fn new_ephemeral() -> Self {
         Self {
             seen: data::Filter::new(),
