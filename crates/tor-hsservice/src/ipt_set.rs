@@ -228,7 +228,6 @@ pub(crate) fn ipts_channel(
     runtime: &impl SleepProvider,
     storage: Arc<IptSetStorageHandle>,
 ) -> Result<(IptsManagerView, IptsPublisherView), StartupError> {
-    // TODO HSS-IPT-PERSIST load this from a file instead
     let initial_state = PublishIptSet::load(storage, runtime)?;
     let shared = Arc::new(Mutex::new(initial_state));
     // Zero buffer is right.  Docs for `mpsc::channel` say:
