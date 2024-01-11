@@ -140,9 +140,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     pub(crate) fn status(&self) -> PublisherStatus {
         todo!()
     }
-
-    // TODO HSS: We may also need to update descriptors based on configuration
-    // or authentication changes.
 }
 
 /// Current status of our attempts to publish an onion service descriptor.
