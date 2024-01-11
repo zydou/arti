@@ -186,7 +186,7 @@ pub trait InstancePurgeHandler {
     /// Many implementations won't need to use `identity`.
     /// To pass every possibly-unused instance
     /// through to `dispose`, return `Duration::ZERO`.
-    fn retain_unused_for(&mut self, identity: &InstanceIdString) -> Duration;
+    fn retain_unused_for(&mut self, identity: &InstanceIdString) -> Result<Duration>;
 
     /// Decide whether to keep this instance
     ///
@@ -398,7 +398,7 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn storage_handle<T>(&self, slug: &(impl Slug + ?Sized)) -> StorageHandle<T> { todo!() }
+    pub fn storage_handle<T>(&self, slug: &(impl Slug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -408,7 +408,7 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> CheckedDir { todo!() }
+    pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> Result<CheckedDir> { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
