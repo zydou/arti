@@ -55,5 +55,5 @@ impl Sealed for fs_mistrust::Error {}
 accesses! {
     cache, "a cache directory";
     [Persistent] state, "a persistent state directory";
-    keystore, "a keystore"; // TODO HSS probably tor-keymgr should be using this
+    keystore, "a keystore"; // TODO #1215 probably tor-keymgr should be using this
 }
