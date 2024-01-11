@@ -275,7 +275,7 @@ pub enum Liveness {
 impl StateDirectory {
     /// Create a new `StateDirectory` from a directory and mistrust configuration
     #[allow(clippy::needless_pass_by_value)] // TODO HSS remove
-    fn new(state_dir: impl AsRef<Path>, mistrust: Mistrust) -> Result<Self> { todo!() }
+    pub fn new(state_dir: impl AsRef<Path>, mistrust: Mistrust) -> Result<Self> { todo!() }
 
     /// Acquires (creates and locks) a storage for an instance
     ///
@@ -284,7 +284,7 @@ impl StateDirectory {
     ///
     /// `kind` and `identity` have syntactic restrictions -
     /// see [`InstanceIdString`].
-    fn acquire_instance<I: InstanceIdentity>(
+    pub fn acquire_instance<I: InstanceIdentity>(
         &self,
         identity: &I,
     ) -> Result<InstanceStateHandle> {
@@ -305,7 +305,7 @@ impl StateDirectory {
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
     #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
-    fn list_instances<I: InstanceIdentity>(
+    pub fn list_instances<I: InstanceIdentity>(
         &self
     ) -> impl Iterator<Item = Result<InstanceIdString>> {
         let _: &Void = &self.path;
@@ -350,7 +350,7 @@ impl StateDirectory {
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
-    fn purge_instances<I: InstancePurgeHandler>(
+    pub fn purge_instances<I: InstancePurgeHandler>(
         &self,
         filter: &mut I,
     ) -> Result<()> {
@@ -366,7 +366,7 @@ impl StateDirectory {
     /// So the operation is atomic, but there is no further synchronisation.
     //
     // Not sure if we need this, but it's logically permissible
-    fn instance_peek_storage<I: InstanceIdentity, T>(
+    pub fn instance_peek_storage<I: InstanceIdentity, T>(
         &self,
         identity: &I,
         slug: &impl Slug,
@@ -396,7 +396,7 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    fn storage_handle<T>(slug: &impl Slug) -> StorageHandle<T> { todo!() }
+    pub fn storage_handle<T>(slug: &impl Slug) -> StorageHandle<T> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -406,7 +406,7 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    fn raw_subdir(slug: &impl Slug) -> CheckedDir { todo!() }
+    pub fn raw_subdir(slug: &impl Slug) -> CheckedDir { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
@@ -414,7 +414,7 @@ impl InstanceStateHandle {
     /// and then call this in the `dispose` method.
     ///
     /// Will return a `BadAPIUsage` if other clones of this `InstanceStateHandle` exist.
-    fn delete(self) -> Result<()> {
+    pub fn delete(self) -> Result<()> {
         // use Arc::into_inner on the lock object,
         // to make sure we're actually the only surviving InstanceStateHandle
         todo!()
