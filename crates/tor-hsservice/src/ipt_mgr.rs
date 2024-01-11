@@ -133,7 +133,7 @@ pub(crate) struct Immutable<R> {
 pub(crate) struct State<R, M> {
     /// Source of configuration updates
     //
-    // TODO HSS reject reconfigurations we can't cope with
+    // TODO #1209 reject reconfigurations we can't cope with
     // for example, state dir changes will go quite wrong
     new_configs: watch::Receiver<Arc<OnionServiceConfig>>,
 
