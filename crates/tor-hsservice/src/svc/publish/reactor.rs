@@ -610,7 +610,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // Hopefully a netdir will appear in the future.
                         // in the meantime, suspend operations.
                         //
-                        // TODO HSS there is a bug here: we stop reading on our inputs
+                        // TODO (#1218): there is a bug here: we stop reading on our inputs
                         // including eg publish_status_rx, but it is our job to log some of
                         // these things.  While we are waiting for a netdir, all those messages
                         // are "stuck"; they'll appear later, with misleading timestamps.
