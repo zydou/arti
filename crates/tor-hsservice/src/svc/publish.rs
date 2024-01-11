@@ -5,11 +5,10 @@ mod descriptor;
 mod reactor;
 
 use futures::task::SpawnExt;
-use postage::{broadcast, watch};
+use postage::watch;
 use std::sync::Arc;
 use tor_keymgr::KeyMgr;
 use tracing::warn;
-use void::Void;
 
 use tor_error::warn_report;
 use tor_netdir::NetDirProvider;
@@ -46,8 +45,6 @@ pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-    /// A channel for receiving the signal to shut down.
-    shutdown_rx: broadcast::Receiver<Void>,
     /// The key manager.
     keymgr: Arc<KeyMgr>,
 }
@@ -67,7 +64,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         mockable: impl Into<M>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        shutdown_rx: broadcast::Receiver<Void>,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         let config = config_rx.borrow().clone();
@@ -79,7 +75,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             keymgr,
         }
     }
@@ -94,7 +89,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             keymgr,
         } = self;
 
@@ -106,7 +100,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             keymgr,
         );
 
@@ -467,7 +460,6 @@ mod test {
         keymgr: Arc<KeyMgr>,
         pv: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        shutdown_rx: broadcast::Receiver<Void>,
         netdir: NetDir,
         reactor_event: impl FnOnce(),
         poll_read_responses: I,
@@ -490,7 +482,6 @@ mod test {
                 circpool,
                 pv,
                 config_rx,
-                shutdown_rx,
                 keymgr,
             );
 
@@ -558,7 +549,6 @@ mod test {
         // If any of the uploads fail, they will be retried. Note that the upload failure will
         // affect _each_ hsdir, so the expected number of uploads is a multiple of hsdir_count.
         let expected_upload_count = hsdir_count * multiplier;
-        let (_shutdown_tx, shutdown_rx) = broadcast::channel(0);
 
         run_test(
             runtime.clone(),
@@ -567,7 +557,6 @@ mod test {
             keymgr,
             pv,
             config_rx,
-            shutdown_rx,
             netdir,
             update_ipts,
             poll_read_responses,

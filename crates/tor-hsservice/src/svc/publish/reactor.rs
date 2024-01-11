@@ -13,13 +13,13 @@ use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::task::SpawnExt;
 use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
-use postage::{broadcast, watch};
+use postage::watch;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::ed25519;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
@@ -34,7 +34,6 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use void::Void;
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
@@ -89,8 +88,6 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-    /// A channel for receiving the signal to shut down.
-    shutdown_rx: broadcast::Receiver<Void>,
     /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
     /// The main loop of the reactor watches for updates on this channel.
@@ -473,7 +470,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        shutdown_rx: broadcast::Receiver<Void>,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
@@ -508,7 +504,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             publish_status_rx,
             publish_status_tx,
             reattempt_upload_tx: None,
@@ -599,20 +594,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
-            // TODO HSS: Stop waiting for the shutdown signal
-            // (instead, let the sender of the ipt_watcher being dropped
-            // be our shutdown signal)
-            //
-            // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1812#note_2976757
-            shutdown = self.shutdown_rx.next().fuse() => {
-                info!(
-                    nickname=%self.imm.nickname,
-                    "descriptor publisher terminating due to shutdown signal"
-                );
-
-                assert!(shutdown.is_none());
-                return Ok(ShutdownStatus::Terminate);
-            },
             res = self.upload_task_complete_rx.next().fuse() => {
                 let Some(upload_res) = res else {
                     return Ok(ShutdownStatus::Terminate);
