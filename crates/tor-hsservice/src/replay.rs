@@ -183,6 +183,7 @@ impl ReplayLog {
     }
 
     /// Flush any buffered data to disk.
+    #[allow(dead_code)] // TODO #1208
     pub(crate) fn flush(&mut self) -> Result<(), io::Error> {
         if let Some(f) = self.log.as_mut() {
             f.flush()?;
