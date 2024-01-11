@@ -344,6 +344,10 @@ impl TryFrom<String> for InstanceIdString {
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
 // unless it returned a Drop newtype around CheckedDir).
+//
+// TODO #1192 for now we are using the name Slug here.
+// When we implement this we may wish to unify parts of the implementation
+// with any general facility that arises from #1192.
 pub trait Slug: ToString {}
 
 impl<T: ToString + ?Sized> Slug for T {}
