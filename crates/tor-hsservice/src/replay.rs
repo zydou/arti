@@ -12,8 +12,6 @@
 //! make sure that our replay logs are already persistent.  We do this by using
 //! a file on disk.
 
-#![allow(dead_code)] // TODO HSS Remove once something uses ReplayLog.
-
 use fslock::LockFile;
 use hash::{hash, H, HASH_LEN};
 use std::{
