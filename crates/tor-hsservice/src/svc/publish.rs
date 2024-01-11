@@ -120,7 +120,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
 
     /// Inform this publisher that its set of keys has changed.
     ///
-    /// TODO HSS: Either this needs to take new keys as an argument, or there
+    /// TODO (#1217): Either this needs to take new keys as an argument, or there
     /// needs to be a source of keys (including public keys) in Publisher.
     pub(crate) fn new_hs_keys(&self, keys: ()) {
         todo!()
