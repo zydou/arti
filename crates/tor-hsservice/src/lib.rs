@@ -90,6 +90,10 @@ pub mod timeout_track_for_doctests_unstable_no_semver_guarantees {
     pub use crate::timeout_track::*;
 }
 #[doc(hidden)]
+pub mod state_dir_for_doctests_unstable_no_semver_guarantees {
+    pub use crate::state_dir::*;
+}
+#[doc(hidden)]
 pub mod time_store_for_doctests_unstable_no_semver_guarantees {
     pub use crate::time_store::*;
 }

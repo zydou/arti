@@ -304,6 +304,7 @@ impl StateDirectory {
     /// on different instances,
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
+    #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
     fn list_instances<I: InstanceIdentity>(
         &self
     ) -> impl Iterator<Item = Result<InstanceIdString>> {
@@ -435,7 +436,7 @@ pub struct StorageHandle<T> {
 }
 
 // Like tor_persist, but writing needs `&mut`
-#[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
+#[allow(missing_docs)] // TODO HSS remove
 impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
     pub fn delete(&mut self) -> Result<()> {
         todo!()
@@ -450,6 +451,7 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
 
 /// Error accessing persistent state
 #[derive(Error, Clone, Debug)]
+#[non_exhaustive]
 pub enum Error {
     // will gain variants for:
     //  mistrust error
