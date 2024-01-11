@@ -1,0 +1,23 @@
+[package]
+name = "hyper-http-hs-example"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Ramid Khan <ramidzkh@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Example of a HTTP server written with hyper, running as a hidden service through Tor"
+publish = false
+
+[dependencies]
+anyhow = "1.0.75"
+arti-client = { path = "../../../crates/arti-client", features = ["onion-service-service"] }
+futures = "0.3.14"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1.1", features = ["tokio"] }
+safelog = { path = "../../../crates/safelog" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+tokio-util = "0.7.10"
+tor-async-utils = { path = "../../../crates/tor-async-utils" }
+tor-cell = { path = "../../../crates/tor-cell" }
+tor-hsservice = { path = "../../../crates/tor-hsservice" }
+tor-proto = { path = "../../../crates/tor-proto" }
+tracing-subscriber = "0.3.0"

@@ -1,0 +1,18 @@
+[package]
+name = "hyper-http-client-example"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Ramid Khan <ramidzkh@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Example of a HTTP client written with hyper, connecting through Tor"
+publish = false
+
+[dependencies]
+anyhow = "1.0.75"
+arti-client = { path = "../../../crates/arti-client" }
+http-body-util = "0.1.0"
+hyper = { version = "1", features = ["http1", "client"] }
+hyper-util = { version = "0.1.1", features = ["tokio"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio-native-tls = "0.3.1"
+tracing-subscriber = "0.3.0"

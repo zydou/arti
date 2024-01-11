@@ -62,6 +62,8 @@ members = [
     "examples/gsoc2023/download-manager",
     "examples/gsoc2023/obfs4-checker",
     "examples/gsoc2023/pt-proxy",
+    "examples/hyper/hyper-http-client-example",
+    "examples/hyper/hyper-http-hs-example",
 ]
 
 resolver = "2"
