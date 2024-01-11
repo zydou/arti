@@ -33,19 +33,19 @@
 //!
 //! ```text
 //! STATE_DIR/
-//! STATE_DIR/KIND_INSTANCE/
-//! STATE_DIR/KIND_INSTANCE/lock
-//! STATE_DIR/KIND_INSTANCE/SLUG.json
-//! STATE_DIR/KIND_INSTANCE/SLUG.new
-//! STATE_DIR/KIND_INSTANCE/SLUG/
+//! STATE_DIR/KIND/INSTANCE/
+//! STATE_DIR/KIND/INSTANCE/lock
+//! STATE_DIR/KIND/INSTANCE/SLUG.json
+//! STATE_DIR/KIND/INSTANCE/SLUG.new
+//! STATE_DIR/KIND/INSTANCE/SLUG/
 //!
 //! eg
 //!
-//! STATE_DIR/hss_allium-cepa.lock
-//! STATE_DIR/hss_allium-cepa/ipts.json
-//! STATE_DIR/hss_allium-cepa/iptpub.json
-//! STATE_DIR/hss_allium-cepa/iptreplay/
-//! STATE_DIR/hss_allium-cepa/iptreplay/9aa9517e6901c280a550911d3a3c679630403db1c622eedefbdf1715297f795f.bin
+//! STATE_DIR/hss/allium-cepa.lock
+//! STATE_DIR/hss/allium-cepa/ipts.json
+//! STATE_DIR/hss/allium-cepa/iptpub.json
+//! STATE_DIR/hss/allium-cepa/iptreplay/
+//! STATE_DIR/hss/allium-cepa/iptreplay/9aa9517e6901c280a550911d3a3c679630403db1c622eedefbdf1715297f795f.bin
 //! ```
 //!
 //! (The lockfile is outside the instance directory to facilitate
