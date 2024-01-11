@@ -149,7 +149,7 @@ pub(crate) type Ipt = tor_netdoc::doc::hsdesc::IntroPointDesc;
 ///
 ///   - Clock skew
 //
-// TODO HSS IPT_PUBLISH_EXPIRY_SLOP configure?
+// TODO #1210 IPT_PUBLISH_EXPIRY_SLOP configure?
 pub(crate) const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); // 5 minutes
 
 /// Shared view of introduction points - IPT manager's view
@@ -228,7 +228,6 @@ pub(crate) fn ipts_channel(
     runtime: &impl SleepProvider,
     storage: Arc<IptSetStorageHandle>,
 ) -> Result<(IptsManagerView, IptsPublisherView), StartupError> {
-    // TODO HSS-IPT-PERSIST load this from a file instead
     let initial_state = PublishIptSet::load(storage, runtime)?;
     let shared = Arc::new(Mutex::new(initial_state));
     // Zero buffer is right.  Docs for `mpsc::channel` say:
