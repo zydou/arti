@@ -565,7 +565,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
                 if let Err(e) = schedule_upload_tx.send(()).await {
-                    // TODO HSS: update publisher state
+                    // TODO (#1083): update publisher state
                     debug!(nickname=%nickname, "failed to notify reactor to reattempt upload");
                 }
             }
@@ -584,7 +584,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         self.imm.nickname
                     );
 
-                    // TODO HSS: Set status to Shutdown.
+                    // TODO (#1083): Set status to Shutdown.
                     return Err(e);
                 }
             }

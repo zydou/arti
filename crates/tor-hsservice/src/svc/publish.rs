@@ -135,7 +135,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
 
     /// Return our current status.
     //
-    // TODO HSS: There should also be a postage::Watcher -based stream of status
+    // TODO (#1083): There should also be a postage::Watcher -based stream of status
     // change events.
     pub(crate) fn status(&self) -> PublisherStatus {
         todo!()
@@ -148,7 +148,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
 /// Current status of our attempts to publish an onion service descriptor.
 #[derive(Debug, Clone)]
 pub(crate) struct PublisherStatus {
-    // TODO HSS add fields
+    // TODO (#1083) add fields
 }
 
 //
