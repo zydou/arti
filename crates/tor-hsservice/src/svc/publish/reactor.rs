@@ -790,7 +790,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), *period);
 
-                // TODO HSS: make this configurable
+                // TODO (#1106): make this configurable
                 let keystore_selector = Default::default();
                 let blind_id_kp = self
                     .imm
