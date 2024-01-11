@@ -171,12 +171,22 @@ pub trait InstanceIdentity {
     fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
 }
 
-/// For a facility to be expired using [`purge_instances`](StateDirectory::purge_instances)
+/// For a facility to be expired using [`purge_instances`](StateDirectory::purge_instances) (caller-provided impl)
+///
+/// A filter which decides which instances to delete,
+/// and deletes them if appropriate.
 ///
 /// See [`purge_instances`](StateDirectory::purge_instances) for full documentation.
-pub trait PurgableInstance: InstanceIdentity {
+pub trait InstancePurgeHandler {
     /// Can we tell by its name that this instance is still live ?
-    fn name_filter(identity: &InstanceIdString) -> Result<Liveness>;
+    fn name_filter(&mut self, identity: &InstanceIdString) -> Result<Liveness>;
+
+    /// How long should we retain an unused instance for ?
+    ///
+    /// Many implementations won't need to use `identity`.
+    /// To pass every possibly-unused instance
+    /// through to `dispose`, return `Duration::ZERO`.
+    fn retain_unused_for(&mut self, identity: &InstanceIdString) -> Duration;
 
     /// Decide whether to keep this instance
     ///
@@ -230,7 +240,7 @@ pub trait Slug: ToString {}
 
 /// Is an instance still relevant?
 ///
-/// Returned by [`PurgableInstance::name_filter`].
+/// Returned by [`InstancePurgeHandler::name_filter`].
 ///
 /// See [`StateDirectory::purge_instances`] for details of the semantics.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -285,16 +295,25 @@ impl StateDirectory {
 
     /// Delete instances according to selections made by the caller
     ///
-    /// Each instance is considered in two stages.
+    /// Each instance is considered in three stages.
     ///
-    /// Firstly, it is passed to [`name_filter`](PurgableInstance::name_filter).
-    /// If `filter` returns `Live`,
+    /// Firstly, it is passed to [`name_filter`](InstancePurgeHandler::name_filter).
+    /// If `name_filter` returns `Live`,
     /// further consideration is skipped and the instance is retained.
     ///
-    /// Secondly, the instance is Acquired
-    /// (that is, its lock is taken)
-    /// and the resulting `InstanceStateHandle` passed to
-    /// [`dispose`](PurgableInstance::dispose).
+    /// Secondly, the last time the instance was written to is calculated,
+    // This must be done with the lock held, for correctness
+    // but the lock must be acquired in a way that doesn't itself update the modification time.
+    // On Unix this is straightforward because opening for write doesn't update the mtime.
+    // If this is hard on another platform, we'll need a separate stamp file updated
+    // by an explicit Acquire operation.
+    // We should have a test to check that this all works as expected.
+    /// and compared to the return value from
+    /// [`retain_unused_for`](InstancePurgeHandler::retain_unused_for).
+    /// Again, this might mean ensure the instance is retained.
+    ///
+    /// Thirdly, the resulting `InstanceStateHandle` is passed to
+    /// [`dispose`](InstancePurgeHandler::dispose).
     /// `dispose` may choose to call `handle.delete()`,
     /// or simply drop the handle.
     ///
@@ -312,9 +331,9 @@ impl StateDirectory {
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
-    fn purge_instances<I: PurgableInstance>(
+    fn purge_instances<I: InstancePurgeHandler>(
         &self,
-        retain_unused_for: Duration,
+        filter: &mut I,
     ) -> Result<()> {
         todo!()
     }
