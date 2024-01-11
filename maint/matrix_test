@@ -12,6 +12,7 @@ os.chdir(TOPDIR)
 CRATEDIRS = [
     os.path.join(TOPDIR, 'crates'),
     os.path.join(TOPDIR, 'examples/gsoc2023'),
+    os.path.join(TOPDIR, 'examples/hyper'),
 ]
 
 # some tests don't compile on every combination 😐
