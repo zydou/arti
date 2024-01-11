@@ -221,8 +221,28 @@ pub struct InstancePurgeInfo<'i> {
 ///
 /// Instance identities are from a restricted character set.
 /// See [`InstanceIdentity`].
-#[derive(Into)]
+#[derive(Into, derive_more::Display)]
 pub struct InstanceIdString(String);
+
+impl InstanceIdString {
+    /// Obtain this `InstanceIdString` as a `&str`
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+}
+impl AsRef<str> for InstanceIdString {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for InstanceIdString {
+    // TODO this should probably be a general InvalidSlug from a lower-level Slug type
+    type Error = Bug;
+    fn try_from(s: String) -> StdResult<Self, Self::Error> {
+        todo!()
+    }
+}
 
 /// Types which can be used as a `slug`
 ///
