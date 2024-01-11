@@ -5416,6 +5416,7 @@ dependencies = [
  "tor-keymgr",
  "tor-linkspec",
  "tor-llcrypto",
+ "tor-log-ratelim",
  "tor-netdir",
  "tor-netdoc",
  "tor-persist",

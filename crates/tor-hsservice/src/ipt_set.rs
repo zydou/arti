@@ -18,7 +18,8 @@ use crate::time_store;
 use crate::IptLocalId;
 use crate::{IptStoreError, StartupError};
 
-use tor_error::{internal, warn_report};
+use tor_error::internal;
+use tor_log_ratelim::log_ratelim;
 use tor_rtcompat::SleepProvider;
 
 /// Handle for a suitable persistent storage manager
@@ -292,10 +293,9 @@ impl<R: SleepProvider> Drop for NotifyingBorrow<'_, R> {
         // If our HS is shutting down, the manager will be shut down by other means.
         let _: Result<(), mpsc::TrySendError<_>> = self.notify.try_send(());
 
-        () = self.guard.save(&self.runtime).unwrap_or_else(|err| {
-            // TODO HSS should this be a log_ratelim ?
-            warn_report!(err, "failed to possibly delete expiry times for old IPTs");
-            // That message is a true description for the following reasons:
+        let save_outcome = self.guard.save(&self.runtime);
+        log_ratelim!(
+            // This message is a true description for the following reasons:
             //
             // "until" times can only be extended by the *publisher*.
             // The manager won't ever shorten them either, but if they are in the past,
@@ -303,12 +303,17 @@ impl<R: SleepProvider> Drop for NotifyingBorrow<'_, R> {
             // Leaving them undeleted is not ideal from a privacy pov,
             // but it doesn't prevent us continuing to operate correctly.
             //
-            // It is therefore OK to acting on the error here.
+            // It is therefore OK to just log the error here.
             //
             // In practice, we're likely to try to save as a result of the publisher's
             // operation, too.  That's going to be more of a problem, but it's handled
             // by other code paths.
-        });
+            //
+            // We *don't* include the HS nickname in the activity
+            // because this is probably not HS instance specific.
+            "possibly deleting expiry times for old HSS IPTs";
+            save_outcome;
+        );
 
         // Now the fields will be dropped, including `guard`.
         // I.e. the mutex gets unlocked.  This means we notify the publisher
