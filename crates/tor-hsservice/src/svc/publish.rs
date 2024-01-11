@@ -611,15 +611,15 @@ mod test {
         }
     }
 
-    // TODO HSS: test that the descriptor is republished when the config changes
+    // TODO (#1120): test that the descriptor is republished when the config changes
 
-    // TODO HSS: test that the descriptor is reuploaded only to the HSDirs that need it (i.e. the
+    // TODO (#1120): test that the descriptor is reuploaded only to the HSDirs that need it (i.e. the
     // ones for which it's dirty)
 
-    // TODO HSS: test that rate-limiting works correctly
+    // TODO (#1120): test that rate-limiting works correctly
 
-    // TODO HSS: test that the uploaded descriptor contains the expected values
+    // TODO (#1120): test that the uploaded descriptor contains the expected values
 
-    // TODO HSS: test that the publisher stops publishing if the IPT manager sets the IPTs to
+    // TODO (#1120): test that the publisher stops publishing if the IPT manager sets the IPTs to
     // `None`.
 }
