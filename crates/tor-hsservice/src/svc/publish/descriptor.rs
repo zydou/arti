@@ -91,7 +91,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     let is_single_onion_service =
         matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
 
-    // TODO HSS: perhaps the certificates should be read from the keystore, rather than created
+    // TODO (#955): perhaps the certificates should be read from the keystore, rather than created
     // when building the descriptor. See #1048
     let intro_auth_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
     let intro_enc_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
