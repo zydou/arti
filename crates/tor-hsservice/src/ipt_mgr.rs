@@ -58,10 +58,10 @@ mod persist;
 use persist::IptStorageHandle;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
-// TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
+// TODO #1210 IPT_PUBLISH_UNCERTAIN configure? get from netdir?
 const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(30 * 60); // 30 mins
 /// Expiry time to put on a final descriptor (IPT publication set Certain
-// TODO HSS IPT_PUBLISH_CERTAIN configure? get from netdir?
+// TODO #1210 IPT_PUBLISH_CERTAIN configure? get from netdir?
 const IPT_PUBLISH_CERTAIN: Duration = Duration::from_secs(12 * 3600); // 12 hours
 
 /// IPT Manager (for one hidden service)
