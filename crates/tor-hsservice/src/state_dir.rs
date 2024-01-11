@@ -171,10 +171,10 @@ pub trait InstanceIdentity {
     fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
 }
 
-/// For a facility to be expired using [`expire_instances`](StateDirectory::expire_instances)
+/// For a facility to be expired using [`purge_instances`](StateDirectory::purge_instances)
 ///
-/// See [`expire_instances`](StateDirectory::expire_instances) for full documentation.
-pub trait ExpirableInstance: InstanceIdentity {
+/// See [`purge_instances`](StateDirectory::purge_instances) for full documentation.
+pub trait PurgableInstance: InstanceIdentity {
     /// Can we tell by its name that this instance is still live ?
     fn name_filter(identity: &InstanceIdString) -> Result<Liveness>;
 
@@ -230,9 +230,9 @@ pub trait Slug: ToString {}
 
 /// Is an instance still relevant?
 ///
-/// Returned by [`ExpirableInstance::name_filter`].
+/// Returned by [`PurgableInstance::name_filter`].
 ///
-/// See [`StateDirectory::expire_instances`] for details of the semantics.
+/// See [`StateDirectory::purge_instances`] for details of the semantics.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(clippy::exhaustive_enums)] // this is a boolean
 pub enum Liveness {
@@ -287,14 +287,14 @@ impl StateDirectory {
     ///
     /// Each instance is considered in two stages.
     ///
-    /// Firstly, it is passed to [`name_filter`](ExpirableInstance::name_filter).
+    /// Firstly, it is passed to [`name_filter`](PurgableInstance::name_filter).
     /// If `filter` returns `Live`,
     /// further consideration is skipped and the instance is retained.
     ///
     /// Secondly, the instance is Acquired
     /// (that is, its lock is taken)
     /// and the resulting `InstanceStateHandle` passed to
-    /// [`dispose`](ExpirableInstance::dispose).
+    /// [`dispose`](PurgableInstance::dispose).
     /// `dispose` may choose to call `handle.delete()`,
     /// or simply drop the handle.
     ///
@@ -312,7 +312,7 @@ impl StateDirectory {
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
-    fn expire_instances<I: ExpirableInstance>(
+    fn purge_instances<I: PurgableInstance>(
         &self,
         retain_unused_for: Duration,
     ) -> Result<()> {
@@ -372,7 +372,7 @@ impl InstanceStateHandle {
 
     /// Unconditionally delete this instance directory
     ///
-    /// For expiry, use `StateDirectory::expire`,
+    /// For expiry, use `StateDirectory::purge_instances`,
     /// and then call this in the `dispose` method.
     ///
     /// Will return a `BadAPIUsage` if other clones of this `InstanceStateHandle` exist.
