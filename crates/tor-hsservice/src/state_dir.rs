@@ -51,6 +51,76 @@
 //! (The lockfile is outside the instance directory to facilitate
 //! concurrency-correct deletion.)
 //!
+//! ### Comprehensive example
+//!
+//! ```
+//! use std::{collections::HashSet, fmt, time::Duration};
+//! use tor_error::{into_internal, Bug};
+//! # use tor_hsservice::state_dir_for_doctests_unstable_no_semver_guarantees as state_dir;
+//! # #[cfg(all)] // works like #[cfg(FALSE)].  Instead, we have this workaround ^.
+//! use crate::state_dir;
+//! use state_dir::{InstanceIdString, InstanceIdentity, InstancePurgeHandler};
+//! use state_dir::{InstancePurgeInfo, InstanceStateHandle, StateDirectory, StorageHandle};
+//! #
+//! # // fake up some things; we do this rather than using real ones
+//! # // since this example will move, with the module, to a lower level crate.
+//! # struct OnionService { }
+//! # #[derive(derive_more::Display)] struct HsNickname(String);
+//! # type Error = anyhow::Error;
+//! # mod ipt_mgr { pub mod persist {
+//! #     #[derive(serde::Serialize, serde::Deserialize)] pub struct StateRecord {}
+//! # } }
+//!
+//! impl InstanceIdentity for HsNickname {
+//!     fn kind() -> &'static str { "hss" }
+//!     fn write_identity(&self, f: &mut fmt::Formatter) -> Result<(), Bug> {
+//!         write!(f, "{self}").map_err(into_internal!("failed to write HS nickname"))
+//!     }
+//! }
+//!
+//! impl OnionService {
+//!     fn new(
+//!         nick: HsNickname,
+//!         state_dir: &StateDirectory,
+//!     ) -> Result<Self, Error> {
+//!         let instance_state = state_dir.acquire_instance(&nick)?;
+//!         let replay_log_dir = instance_state.raw_subdir("ipt_replay")?;
+//!         let ipts_storage: StorageHandle<ipt_mgr::persist::StateRecord> =
+//!             instance_state.storage_handle("ipts")?;
+//!         // ..
+//! #       Ok(OnionService { })
+//!     }
+//! }
+//!
+//! struct PurgeHandler<'h>(&'h HashSet<&'h str>, Duration);
+//! impl InstancePurgeHandler for PurgeHandler<'_> {
+//!     fn name_filter(&mut self, id: &InstanceIdString)
+//!                    -> state_dir::Result<state_dir::Liveness> {
+//!         Ok(if self.0.contains(id.as_str()) {
+//!             state_dir::Liveness::Live
+//!         } else {
+//!             state_dir::Liveness::PossiblyUnused
+//!         })
+//!     }
+//!     fn retain_unused_for(&mut self, id: &InstanceIdString) -> state_dir::Result<Duration> {
+//!         Ok(self.1)
+//!     }
+//!     fn dispose(&mut self, _info: &InstancePurgeInfo, handle: InstanceStateHandle)
+//!                -> state_dir::Result<()> {
+//!         // here might be a good place to delete keys too
+//!         handle.delete()
+//!     }
+//! }
+//! pub fn expire_hidden_services(
+//!     state_dir: &StateDirectory,
+//!     currently_configured_nicks: &HashSet<&str>,
+//!     retain_for: Duration,
+//! ) -> Result<(), Error> {
+//!     state_dir.purge_instances(&mut PurgeHandler(currently_configured_nicks, retain_for))?;
+//!     Ok(())
+//! }
+//! ```
+//!
 //! ### Platforms without a filesystem
 //!
 //! The implementation and (in places) the documentation
