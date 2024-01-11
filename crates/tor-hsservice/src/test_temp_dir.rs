@@ -297,7 +297,6 @@ impl<'d, T> TestTempDirGuard<'d, T> {
     ///
     /// It is up to you to ensure that `T` doesn't outlive
     /// the temp directory used to create it.
-    #[allow(dead_code)] // TODO HSS remove (this will in fact be used by ipt_mgr tests)
     pub fn into_untracked(self) -> T {
         self.thing
     }
