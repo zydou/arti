@@ -854,7 +854,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // `DescriptorConfigView` as described in
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603#note_2944902
 
-        // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
+        // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
         // work; see #1028
         /*
         if old_config.anonymity == new_config.anonymity

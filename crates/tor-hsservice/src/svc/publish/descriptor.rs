@@ -97,7 +97,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     let intro_enc_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
     let hs_desc_sign_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
 
-    // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
+    // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
     // work; see #1028
     /*
     let auth_clients: Option<Vec<curve25519::PublicKey>> = config.encrypt_descriptor
@@ -156,7 +156,7 @@ fn decode_curve25519_str(key: &str) -> Result<curve25519::PublicKey, AuthorizedC
 fn read_key_dir(
     dir: &std::path::Path,
 ) -> Result<Vec<curve25519::PublicKey>, AuthorizedClientConfigError> {
-    // TODO HSS: We will eventually need to validate the key file names and
+    // TODO (#1206): We will eventually need to validate the key file names and
     // extensions.
     std::fs::read_dir(dir)
         .map_err(|e| AuthorizedClientConfigError::KeyDir {
