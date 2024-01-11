@@ -6,7 +6,7 @@
 //! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::io;
@@ -58,10 +58,10 @@ mod persist;
 use persist::IptStorageHandle;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
-// TODO HSS IPT_PUBLISH_UNCERTAIN configure? get from netdir?
+// TODO #1210 IPT_PUBLISH_UNCERTAIN configure? get from netdir?
 const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(30 * 60); // 30 mins
 /// Expiry time to put on a final descriptor (IPT publication set Certain
-// TODO HSS IPT_PUBLISH_CERTAIN configure? get from netdir?
+// TODO #1210 IPT_PUBLISH_CERTAIN configure? get from netdir?
 const IPT_PUBLISH_CERTAIN: Duration = Duration::from_secs(12 * 3600); // 12 hours
 
 /// IPT Manager (for one hidden service)
@@ -133,7 +133,7 @@ pub(crate) struct Immutable<R> {
 pub(crate) struct State<R, M> {
     /// Source of configuration updates
     //
-    // TODO HSS reject reconfigurations we can't cope with
+    // TODO #1209 reject reconfigurations we can't cope with
     // for example, state dir changes will go quite wrong
     new_configs: watch::Receiver<Arc<OnionServiceConfig>>,
 
@@ -404,7 +404,7 @@ impl Ipt {
             //     And we could recover by creating fresh keys, although maybe some clients
             //     would find the previous keys in old descriptors.
             //     So if the keys are missing, make and store new ones, logging an error msg.
-            // TODO HSS See #1074: The current keymgr API doesn't make this easy
+            // TODO #1074: The current keymgr API doesn't make this easy
             // Tidy this code up when the API is better.
             let k: Option<$Keypair> = imm.keymgr.get(&spec)?;
             let arti_path = || {
@@ -427,7 +427,7 @@ impl Ipt {
                 }
             }
             let k = k.map(Ok).unwrap_or_else(|| {
-                // TODO HSS get_or_generate is strictly speaking a bit wrong here, see above
+                // TODO #1074 get_or_generate is strictly speaking a bit wrong here, see above
                 imm.keymgr.get_or_generate(
                     &spec,
                     tor_keymgr::KeystoreSelector::Default,
@@ -446,7 +446,7 @@ impl Ipt {
             started: imm.runtime.now(),
         };
 
-        // TODO HSS: Support ephemeral services (without persistent replay log)
+        // TODO #1186 Support ephemeral services (without persistent replay log)
         let replay_log = {
             let replay_log = imm.replay_log_dir.as_path().join(format!("{lid}.bin"));
 
@@ -542,8 +542,7 @@ impl Ipt {
 
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Create a new IptManager
-    #[allow(clippy::unnecessary_wraps)] // TODO HSS remove
-    #[allow(clippy::too_many_arguments)] // TODO HSS
+    #[allow(clippy::too_many_arguments)] // this is an internal function with 1 call site
     pub(crate) fn new(
         runtime: R,
         dirprovider: Arc<dyn NetDirProvider>,
@@ -566,7 +565,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         let storage = storage.create_handle(format!("hs_ipts_{nick}"));
 
         let (replay_log_dir, replay_log_lock) = {
-            // TODO HSS something should expire these! (and our keys too, obviously)
+            // TODO #1198 something should expire these! (and our keys too, obviously)
+            // (see also #1067 re expiring a whole service)
             let dir = state_dir.join(format!("hss_iptreplay/{nick}"));
             let dir = state_mistrust
                 .verifier()
@@ -745,7 +745,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             .pick_relay(
                 &mut rng,
                 tor_netdir::WeightRole::HsIntro,
-                // TODO HSS should we apply any other conditions to the selected IPT?
+                // TODO #1211 should we apply any other conditions to the selected IPT?
                 |new| {
                     new.is_hs_intro_point()
                         && !self
@@ -831,7 +831,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
     }
 }
 
-// TODO HSS: Combine this block with the other impl IptManager<R, M>
+// TODO #1212: Combine this block with the other impl IptManager<R, M>
 // We probably want to make sure this whole file is in a sensible order.
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Make some progress, if possible, and say when to wake up again
@@ -1043,8 +1043,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // `ipt_mgr::State` (specifically, `Ipt`) which is modified only here,
         // and `ipt_set::PublishIptSet` which is shared with the publisher.
         // See the comments in PublishIptSet.)
-        //
-        // TODO HSS-IPT-PERSIST well, actually we don't save anything at all, but we will do.
 
         let all_ours = irelays.iter_mut().flat_map(|ir| ir.ipts.iter_mut());
 
@@ -1162,7 +1160,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(clippy::unnecessary_wraps)] // for regularity
-    #[allow(clippy::cognitive_complexity)] // TODO HSS consider whether to split this up somehow
+    #[allow(clippy::cognitive_complexity)] // this function is in fact largely linear
     fn compute_iptsetstatus_publish(
         &mut self,
         now: &TrackingNow,
@@ -1183,12 +1181,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 })
                 .min()?;
 
-            // TODO HSS is this the right guess for IPT establishment?
+            // TODO #1210 is this the right guess for IPT establishment?
             // we could use circuit timings etc., but arguably the actual time to establish
             // our fastest IPT is a better estimator here (and we want an optimistic,
             // rather than pessimistic estimate).
             //
-            // TODO HSS fastest_good_establish_time factor 1 should be tuneable
+            // TODO #1210 fastest_good_establish_time factor 1 should be tuneable
             let wait_more = fastest_good_establish_time;
             let very_recently = fastest_good_establish_time.checked_add(wait_more)?;
 
@@ -1438,7 +1436,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 }
             };
 
-            // TODO HSS: Maybe something at level Error or Info, for example
+            // TODO #1214 Maybe something at level Error or Info, for example
             // Log an error if everything is terrilbe
             //   - we have >=N Faulty IPTs ?
             //    we have only Faulty IPTs and can't select another due to 2N limit ?
@@ -1525,7 +1523,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 Ok(ShutdownStatus::Terminate) => break,
             }
         }
-        // TODO HSS: Set status to Shutdown.
+        // TODO #1063 Set status to Shutdown.
     }
 
     /// Target number of intro points
@@ -1535,8 +1533,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Maximum number of concurrent intro point relays
     pub(crate) fn max_n_intro_relays(&self) -> usize {
-        // TODO HSS max_n_intro_relays should be configurable
-        // TODO HSS consider default, in context of intro point forcing attacks
+        // TODO #1210 max_n_intro_relays should be configurable
+        // TODO #1210 consider default, in context of intro point forcing attacks
         self.target_n_intro_points() * 2
     }
 }
@@ -1618,45 +1616,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
     }
 }
 
-/// Joins two iterators, by keys, one of which is a subset of the other
-///
-/// `bigger` and `smaller` are iterators yielding `BI` and `SI`.
-///
-/// The key `K`, which can be extracted from each element of either iterator,
-/// is `PartialEq` and says whether a `BI` is "the same as" an `SI`.
-///
-/// `call` is called for each `K` which appears in both lists, in that same order.
-/// Nothing is done about elements which are only in `bigger`.
-///
-/// (The behaviour with duplicate entries is unspecified.)
-///
-/// The algorithm has complexity `O(N_bigger)`,
-/// and also a working set of `O(N_bigger)`.
-#[allow(dead_code)] // TODO HSS remove
-fn merge_join_subset_by<'out, K, BI, SI>(
-    bigger: impl IntoIterator<Item = BI> + 'out,
-    bigger_keyf: impl Fn(&BI) -> K + 'out,
-    smaller: impl IntoIterator<Item = SI> + 'out,
-    smaller_keyf: impl Fn(&SI) -> K + 'out,
-) -> impl Iterator<Item = (K, BI, SI)> + 'out
-where
-    K: Eq + Hash + Clone + 'out,
-    BI: 'out,
-    SI: 'out,
-{
-    let mut smaller: HashMap<K, SI> = smaller
-        .into_iter()
-        .map(|si| (smaller_keyf(&si), si))
-        .collect();
-
-    bigger.into_iter().filter_map(move |bi| {
-        let k = bigger_keyf(&bi);
-        let si = smaller.remove(&k)?;
-        Some((k, bi, si))
-    })
-}
-
-// TODO HSS add unit tests for IptManager
+// TODO #1213 add unit tests for IptManager
 // Especially, we want to exercise all code paths in idempotently_progress_things_now
 
 #[cfg(test)]
@@ -1897,7 +1857,7 @@ mod test {
                 .borrow_mut()
                 .status = IptStatusStatus::Good(good.clone());
 
-            // TODO HSS test that we haven't called start_accepting
+            // TODO #1213 test that we haven't called start_accepting
 
             // It won't publish until a further fastest establish time
             // Ie, until a further 500ms = 1000ms
@@ -1913,7 +1873,7 @@ mod test {
                 }
             };
 
-            // TODO HSS test that we have called start_accepting on the right IPTs
+            // TODO #1213 test that we have called start_accepting on the right IPTs
 
             // Set the other IPTs to be Good too
             for e in m.estabs.lock().unwrap().values_mut().skip(1) {
@@ -1927,7 +1887,7 @@ mod test {
                 }
             };
 
-            // TODO HSS test that we have called start_accepting on the right IPTs
+            // TODO #1213 test that we have called start_accepting on the right IPTs
 
             let estabs_inventory = m.estabs_inventory();
 
@@ -1942,38 +1902,10 @@ mod test {
 
             assert_eq!(estabs_inventory, m.estabs_inventory());
 
-            // TODO HSS test that we have called start_accepting on all the old IPTs
+            // TODO #1213 test that we have called start_accepting on all the old IPTs
 
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
         });
-    }
-
-    #[test]
-    fn test_merge_join_subset_by() {
-        fn chk(bigger: &str, smaller: &str, output: &str) {
-            let keyf = |c: &char| *c;
-
-            assert_eq!(
-                merge_join_subset_by(bigger.chars(), keyf, smaller.chars(), keyf)
-                    .map(|(k, b, s)| {
-                        assert_eq!(k, b);
-                        assert_eq!(k, s);
-                        k
-                    })
-                    .collect::<String>(),
-                output,
-            );
-        }
-
-        chk("abc", "abc", "abc");
-        chk("abc", "a", "a");
-        chk("abc", "b", "b");
-        chk("abc", "c", "c");
-        chk("abc", "x", ""); // wrong input, but test it anyway
-        chk("b", "abc", "b"); // wrong input, but test it anyway
-
-        chk("abc", "", "");
-        chk("", "abc", ""); // wrong input, but test it anyway
     }
 }
