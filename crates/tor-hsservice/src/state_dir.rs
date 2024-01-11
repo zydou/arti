@@ -256,6 +256,8 @@ pub struct InstanceIdString(String);
 // unless it returned a Drop newtype around CheckedDir).
 pub trait Slug: ToString {}
 
+impl<T: ToString + ?Sized> Slug for T {}
+
 /// Is an instance still relevant?
 ///
 /// Returned by [`InstancePurgeHandler::name_filter`].
@@ -369,7 +371,7 @@ impl StateDirectory {
     pub fn instance_peek_storage<I: InstanceIdentity, T>(
         &self,
         identity: &I,
-        slug: &impl Slug,
+        slug: &(impl Slug + ?Sized),
     ) -> Result<Option<T>> {
         todo!()
     }
@@ -396,7 +398,7 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn storage_handle<T>(&self, slug: &impl Slug) -> StorageHandle<T> { todo!() }
+    pub fn storage_handle<T>(&self, slug: &(impl Slug + ?Sized)) -> StorageHandle<T> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -406,7 +408,7 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn raw_subdir(&self, slug: &impl Slug) -> CheckedDir { todo!() }
+    pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> CheckedDir { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
