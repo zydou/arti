@@ -11,7 +11,7 @@ use crate::{HsIdPublicKeySpecifier, HsNickname};
 
 /// A helper for managing the persistent state of hidden services.
 //
-// TODO HSS decide what API we want here and implement it
+// TODO (#1220) decide what API we want here and implement it
 // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1837#note_2977513
 pub struct StateMgr {
     /// The key manager
@@ -23,7 +23,7 @@ impl StateMgr {
     pub fn new(keystore_dir: impl AsRef<Path>, permissions: &Mistrust) -> tor_keymgr::Result<Self> {
         let arti_store = ArtiNativeKeystore::from_path_and_mistrust(&keystore_dir, permissions)?;
 
-        // TODO HSS: make the default store configurable
+        // TODO (#1106): make the default store configurable
         let default_store = arti_store;
 
         let keymgr = KeyMgrBuilder::default()
