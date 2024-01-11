@@ -542,7 +542,7 @@ impl Ipt {
 
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Create a new IptManager
-    #[allow(clippy::too_many_arguments)] // TODO HSS
+    #[allow(clippy::too_many_arguments)] // this is an internal function with 1 call site
     pub(crate) fn new(
         runtime: R,
         dirprovider: Arc<dyn NetDirProvider>,
@@ -1159,7 +1159,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// This function is at worst O(N) where N is the number of IPTs.
     /// See the performance note on [`run_once()`](Self::run_once).
     #[allow(clippy::unnecessary_wraps)] // for regularity
-    #[allow(clippy::cognitive_complexity)] // TODO HSS consider whether to split this up somehow
+    #[allow(clippy::cognitive_complexity)] // this function is in fact largely linear
     fn compute_iptsetstatus_publish(
         &mut self,
         now: &TrackingNow,
