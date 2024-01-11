@@ -34,7 +34,7 @@ use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
 /// This object is constructed via [`HsDescBuilder`], and then turned into a
 /// signed document using [`HsDescBuilder::build_sign()`].
 ///
-/// TODO HSS: Add an example for using this API.
+/// TODO: Add an example for using this API.
 #[derive(Builder)]
 #[builder(public, derive(Debug, Clone), pattern = "owned", build_fn(vis = ""))]
 struct HsDesc<'a> {

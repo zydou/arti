@@ -133,7 +133,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             // "The key is a base64 encoded curve25519 public key used to encrypt the introduction
             // request to service. (`KP_hss_ntor`)"
             //
-            // TODO hss: The spec allows for multiple enc-key lines, but we currently only ever encode
+            // TODO: The spec allows for multiple enc-key lines, but we currently only ever encode
             // a single one.
             encoder
                 .item(ENC_KEY)
