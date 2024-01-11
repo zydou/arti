@@ -1043,8 +1043,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // `ipt_mgr::State` (specifically, `Ipt`) which is modified only here,
         // and `ipt_set::PublishIptSet` which is shared with the publisher.
         // See the comments in PublishIptSet.)
-        //
-        // TODO HSS-IPT-PERSIST well, actually we don't save anything at all, but we will do.
 
         let all_ours = irelays.iter_mut().flat_map(|ir| ir.ipts.iter_mut());
 
