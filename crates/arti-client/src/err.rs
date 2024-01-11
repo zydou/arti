@@ -283,6 +283,14 @@ enum ErrorDetail {
     #[error("Error while trying to access a key store")]
     Keystore(#[from] tor_keymgr::Error),
 
+    /// Attempted to use a `TorClient` for something that
+    /// requires the keystore to be enabled in the configuration.
+    #[error("Cannot {action} without enabling storage.keystore")]
+    KeystoreRequired {
+        /// What we were trying to do that required the keystore to be enabled.
+        action: &'static str
+    },
+
     /// Encountered a malformed client specifier.
     #[error("Bad client specifier")]
     BadClientSpecifier(#[from] tor_keymgr::ArtiPathSyntaxError),
@@ -396,6 +404,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
             E::Keystore(e) => e.kind(),
+            E::KeystoreRequired { .. } => EK::InvalidConfig,
             E::BadClientSpecifier(_) => EK::InvalidConfig,
             E::FsMistrust(_) => EK::FsPermissions,
             E::Bug(e) => e.kind(),

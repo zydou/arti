@@ -130,7 +130,6 @@ pub struct TorClient<R: Runtime> {
     /// no-op key manager implementation instead.
     ///
     /// See the [`KeyMgr`] documentation for more details.
-    #[allow(dead_code)] // TODO HS remove
     keymgr: Option<Arc<KeyMgr>>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
@@ -657,7 +656,7 @@ impl<R: Runtime> TorClient<R> {
                 ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
             info!("Using keystore from {key_store_dir:?}");
 
-            // TODO HSS: make the default store configurable
+            // TODO #1106: make the default store configurable
             let default_store = arti_store;
 
             let keymgr = KeyMgrBuilder::default()
@@ -665,7 +664,7 @@ impl<R: Runtime> TorClient<R> {
                 .build()
                 .map_err(|_| internal!("failed to build keymgr"))?;
 
-            // TODO hs: add support for the C Tor key store
+            // TODO #858: add support for the C Tor key store
             Some(Arc::new(keymgr))
         } else {
             info!("Running without a keystore");
@@ -1368,10 +1367,9 @@ impl<R: Runtime> TorClient<R> {
         let keymgr = self
             .keymgr
             .as_ref()
-            // TODO HSS: Use a real error.  But which error is appropriate in
-            // this case?
-            .ok_or_else(|| internal!("Tried to launch onion service with no key storage enabled"))
-            .map_err(ErrorDetail::from)?
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "launch onion service",
+            })?
             .clone();
         let service = tor_hsservice::OnionService::new(
             self.runtime.clone(),
