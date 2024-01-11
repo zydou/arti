@@ -542,7 +542,6 @@ impl Ipt {
 
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Create a new IptManager
-    #[allow(clippy::unnecessary_wraps)] // TODO HSS remove
     #[allow(clippy::too_many_arguments)] // TODO HSS
     pub(crate) fn new(
         runtime: R,
