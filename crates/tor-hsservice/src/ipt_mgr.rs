@@ -745,7 +745,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             .pick_relay(
                 &mut rng,
                 tor_netdir::WeightRole::HsIntro,
-                // TODO HSS should we apply any other conditions to the selected IPT?
+                // TODO #1211 should we apply any other conditions to the selected IPT?
                 |new| {
                     new.is_hs_intro_point()
                         && !self
