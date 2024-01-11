@@ -149,7 +149,7 @@ pub(crate) type Ipt = tor_netdoc::doc::hsdesc::IntroPointDesc;
 ///
 ///   - Clock skew
 //
-// TODO HSS IPT_PUBLISH_EXPIRY_SLOP configure?
+// TODO #1210 IPT_PUBLISH_EXPIRY_SLOP configure?
 pub(crate) const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); // 5 minutes
 
 /// Shared view of introduction points - IPT manager's view
