@@ -1436,7 +1436,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 }
             };
 
-            // TODO HSS: Maybe something at level Error or Info, for example
+            // TODO #1214 Maybe something at level Error or Info, for example
             // Log an error if everything is terrilbe
             //   - we have >=N Faulty IPTs ?
             //    we have only Faulty IPTs and can't select another due to 2N limit ?
