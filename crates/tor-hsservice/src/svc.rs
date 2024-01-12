@@ -76,7 +76,7 @@ struct SvcInner {
 
     /// Handles that we'll take ownership of when launching the service.
     ///
-    /// (TODO HSS: Having to consume this may indicate a design problem.)
+    /// (TODO: Having to consume this may indicate a design problem.)
     unlaunched: Option<(
         mpsc::Receiver<RendRequest>,
         Box<dyn Launchable + Send + Sync>,
