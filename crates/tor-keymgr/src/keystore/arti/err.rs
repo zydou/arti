@@ -121,11 +121,12 @@ impl KeystoreError for ArtiNativeKeystoreError {}
 
 impl HasKind for ArtiNativeKeystoreError {
     fn kind(&self) -> ErrorKind {
+        use tor_persist::FsMistrustErrorExt as _;
         use ArtiNativeKeystoreError as KE;
 
         match self {
             KE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
-            KE::FsMistrust { .. } => ErrorKind::FsPermissions,
+            KE::FsMistrust { err, .. } => err.keystore_error_kind(),
             KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
             KE::UnknownKeyType(_) => ErrorKind::KeystoreAccessFailed,
             KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } => {
