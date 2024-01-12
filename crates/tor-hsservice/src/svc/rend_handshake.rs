@@ -255,7 +255,7 @@ impl IntroRequest {
         // Try to construct a CircTarget for rendezvous point based on the
         // intro_payload.
         let rend_point = {
-            // TODO HSS: We might have checked for a recognized onion key type earlier.
+            // TODO: We might have checked for a recognized onion key type earlier.
             let ntor_onion_key = match self.intro_payload.onion_key() {
                 OnionKey::NtorOnionKey(ntor_key) => ntor_key,
                 _ => return Err(E::UnsupportedOnionKey),
