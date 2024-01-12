@@ -24,7 +24,9 @@ pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.
     pub(crate) nickname: HsNickname,
 
-    // TODO HSS: Perhaps this belongs at a higher level.
+    // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
+    // at all.
+    //
     // enabled: bool,
     /// Whether we want this to be a non-anonymous "single onion service".
     /// We could skip this in v1.  We should make sure that our state
