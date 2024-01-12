@@ -1,5 +1,4 @@
 //! Principal types for onion services.
-#![allow(dead_code, unused_variables)] // TODO hss remove.
 pub(crate) mod netdir;
 
 use std::path::Path;
@@ -67,6 +66,7 @@ struct SvcInner {
     config_tx: postage::watch::Sender<Arc<OnionServiceConfig>>,
 
     /// A oneshot that will be dropped when this object is dropped.
+    #[allow(dead_code)] // TODO (#1231)
     shutdown_tx: postage::broadcast::Sender<void::Void>,
 
     /// Postage sender, used to tell subscribers about changes in the status of
@@ -601,7 +601,6 @@ pub(crate) mod test {
     fn generate_hsid_missing_keypair() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
         let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         let keymgr = create_keymgr(&temp_dir);

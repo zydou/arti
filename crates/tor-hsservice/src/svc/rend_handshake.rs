@@ -107,7 +107,7 @@ impl HasKind for EstablishSessionError {
             E::NetdirUnavailable(e) => e.kind(),
             E::UnsupportedOnionKey => EK::RemoteProtocolViolation,
             // TODO (#1225) Not quite right.
-            EstablishSessionError::RendCirc(e) => EK::RemoteNetworkTimeout,
+            EstablishSessionError::RendCirc(_e) => EK::RemoteNetworkTimeout,
             EstablishSessionError::VirtualHop(e) => e.kind(),
             EstablishSessionError::AcceptBegins(e) => e.kind(),
             EstablishSessionError::SendRendezvous(e) => e.kind(),

@@ -60,6 +60,7 @@ use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShut
 pub(crate) struct IptEstablisher {
     /// A oneshot sender that notifies the running task that it's time to shut
     /// down.
+    #[allow(dead_code)] // TODO HSS: Make sure this is okay.
     terminate_tx: oneshot::Sender<Void>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
@@ -100,6 +101,7 @@ impl Drop for IptEstablisher {
 pub(crate) enum IptError {
     /// We couldn't get a network directory to use when building circuits.
     #[error("No network directory available")]
+    #[allow(dead_code)] // TODO HSS emit this error, or verify that it isn't needed
     NoNetdir(#[source] tor_netdir::Error),
 
     /// The network directory provider is shutting down without giving us the
@@ -820,7 +822,7 @@ impl<R: Runtime> Reactor<R> {
             request_context: self.request_context.clone(),
             replay_log,
         };
-        let conversation = circuit
+        let _conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
             .await
             .map_err(IptError::SendEstablishIntro)?;
@@ -899,7 +901,7 @@ struct IptMsgHandler {
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
     fn handle_msg(
         &mut self,
-        conversation: ConversationInHandler<'_, '_, '_>,
+        _conversation: ConversationInHandler<'_, '_, '_>,
         any_msg: AnyRelayMsg,
     ) -> tor_proto::Result<MetaCellDisposition> {
         // TODO HSS: Implement rate-limiting.
