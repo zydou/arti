@@ -5,11 +5,10 @@ mod descriptor;
 mod reactor;
 
 use futures::task::SpawnExt;
-use postage::{broadcast, watch};
+use postage::watch;
 use std::sync::Arc;
 use tor_keymgr::KeyMgr;
 use tracing::warn;
-use void::Void;
 
 use tor_error::warn_report;
 use tor_netdir::NetDirProvider;
@@ -46,8 +45,6 @@ pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-    /// A channel for receiving the signal to shut down.
-    shutdown_rx: broadcast::Receiver<Void>,
     /// The key manager.
     keymgr: Arc<KeyMgr>,
 }
@@ -67,7 +64,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         mockable: impl Into<M>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        shutdown_rx: broadcast::Receiver<Void>,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         let config = config_rx.borrow().clone();
@@ -79,7 +75,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             keymgr,
         }
     }
@@ -94,7 +89,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             keymgr,
         } = self;
 
@@ -106,7 +100,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             keymgr,
         );
 
@@ -127,7 +120,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
 
     /// Inform this publisher that its set of keys has changed.
     ///
-    /// TODO HSS: Either this needs to take new keys as an argument, or there
+    /// TODO (#1217): Either this needs to take new keys as an argument, or there
     /// needs to be a source of keys (including public keys) in Publisher.
     pub(crate) fn new_hs_keys(&self, keys: ()) {
         todo!()
@@ -135,20 +128,17 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
 
     /// Return our current status.
     //
-    // TODO HSS: There should also be a postage::Watcher -based stream of status
+    // TODO (#1083): There should also be a postage::Watcher -based stream of status
     // change events.
     pub(crate) fn status(&self) -> PublisherStatus {
         todo!()
     }
-
-    // TODO HSS: We may also need to update descriptors based on configuration
-    // or authentication changes.
 }
 
 /// Current status of our attempts to publish an onion service descriptor.
 #[derive(Debug, Clone)]
 pub(crate) struct PublisherStatus {
-    // TODO HSS add fields
+    // TODO (#1083) add fields
 }
 
 //
@@ -315,7 +305,7 @@ mod test {
         async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error> {
             Ok(MockDataStream {
                 publish_count: Arc::clone(&self.publish_count),
-                // TODO HSS: this will need to change when we start reusing circuits (currently,
+                // TODO: this will need to change when we start reusing circuits (currently,
                 // we only ever create one data stream per circuit).
                 poll_read_responses: Arc::clone(&self.poll_read_responses),
             })
@@ -470,7 +460,6 @@ mod test {
         keymgr: Arc<KeyMgr>,
         pv: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        shutdown_rx: broadcast::Receiver<Void>,
         netdir: NetDir,
         reactor_event: impl FnOnce(),
         poll_read_responses: I,
@@ -493,7 +482,6 @@ mod test {
                 circpool,
                 pv,
                 config_rx,
-                shutdown_rx,
                 keymgr,
             );
 
@@ -561,7 +549,6 @@ mod test {
         // If any of the uploads fail, they will be retried. Note that the upload failure will
         // affect _each_ hsdir, so the expected number of uploads is a multiple of hsdir_count.
         let expected_upload_count = hsdir_count * multiplier;
-        let (_shutdown_tx, shutdown_rx) = broadcast::channel(0);
 
         run_test(
             runtime.clone(),
@@ -570,7 +557,6 @@ mod test {
             keymgr,
             pv,
             config_rx,
-            shutdown_rx,
             netdir,
             update_ipts,
             poll_read_responses,
@@ -611,15 +597,15 @@ mod test {
         }
     }
 
-    // TODO HSS: test that the descriptor is republished when the config changes
+    // TODO (#1120): test that the descriptor is republished when the config changes
 
-    // TODO HSS: test that the descriptor is reuploaded only to the HSDirs that need it (i.e. the
+    // TODO (#1120): test that the descriptor is reuploaded only to the HSDirs that need it (i.e. the
     // ones for which it's dirty)
 
-    // TODO HSS: test that rate-limiting works correctly
+    // TODO (#1120): test that rate-limiting works correctly
 
-    // TODO HSS: test that the uploaded descriptor contains the expected values
+    // TODO (#1120): test that the uploaded descriptor contains the expected values
 
-    // TODO HSS: test that the publisher stops publishing if the IPT manager sets the IPTs to
+    // TODO (#1120): test that the publisher stops publishing if the IPT manager sets the IPTs to
     // `None`.
 }

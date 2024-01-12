@@ -391,5 +391,5 @@ mod tests {
         );
     }
 
-    // TODO HSS: needs tests for the remaining corner cases
+    // TODO (#1120): needs tests for the remaining corner cases
 }

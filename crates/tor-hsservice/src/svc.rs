@@ -221,7 +221,6 @@ impl OnionService {
             circ_pool,
             publisher_view,
             config_rx,
-            shutdown_rx.clone(),
             Arc::clone(&keymgr),
         );
 

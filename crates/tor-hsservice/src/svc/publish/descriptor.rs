@@ -85,19 +85,19 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
         rng,
     )?;
 
-    // TODO HSS: support introduction-layer authentication.
+    // TODO #1028: support introduction-layer authentication.
     let auth_required = None;
 
     let is_single_onion_service =
         matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
 
-    // TODO HSS: perhaps the certificates should be read from the keystore, rather than created
+    // TODO (#955): perhaps the certificates should be read from the keystore, rather than created
     // when building the descriptor. See #1048
     let intro_auth_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
     let intro_enc_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
     let hs_desc_sign_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
 
-    // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
+    // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
     // work; see #1028
     /*
     let auth_clients: Option<Vec<curve25519::PublicKey>> = config.encrypt_descriptor
@@ -156,7 +156,7 @@ fn decode_curve25519_str(key: &str) -> Result<curve25519::PublicKey, AuthorizedC
 fn read_key_dir(
     dir: &std::path::Path,
 ) -> Result<Vec<curve25519::PublicKey>, AuthorizedClientConfigError> {
-    // TODO HSS: We will eventually need to validate the key file names and
+    // TODO (#1206): We will eventually need to validate the key file names and
     // extensions.
     std::fs::read_dir(dir)
         .map_err(|e| AuthorizedClientConfigError::KeyDir {

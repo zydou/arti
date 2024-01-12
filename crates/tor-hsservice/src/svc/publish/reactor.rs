@@ -1,6 +1,6 @@
 //! The onion service publisher reactor.
 //!
-//! TODO HSS: write the docs
+//! TODO (#1216): write the docs
 
 use std::fmt::Debug;
 use std::iter;
@@ -13,13 +13,13 @@ use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::task::SpawnExt;
 use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
-use postage::{broadcast, watch};
+use postage::watch;
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::KeyMgr;
 use tor_llcrypto::pk::ed25519;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
@@ -34,7 +34,6 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use void::Void;
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
@@ -54,12 +53,12 @@ use crate::{
 /// need it. If not, it schedules the upload to happen `UPLOAD_RATE_LIM_THRESHOLD` seconds from the
 /// current time.
 //
-// TODO HSS: this value is probably not right.
+// TODO (#1121): this value is probably not right.
 const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 
 /// The maximum number of concurrent upload tasks per time period.
 //
-// TODO HSS: this value was arbitrarily chosen and may not be optimal.
+// TODO (#1121): this value was arbitrarily chosen and may not be optimal.
 //
 // The uploads for all TPs happen in parallel.  As a result, the actual limit for the maximum
 // number of concurrent upload tasks is multiplied by a number which depends on the TP parameters
@@ -70,7 +69,7 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 
 /// The maximum time allowed for uploading a descriptor to an HSDirs.
 //
-// TODO HSS: this value is probably not right.
+// TODO (#1121): this value is probably not right.
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
@@ -89,8 +88,6 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-    /// A channel for receiving the signal to shut down.
-    shutdown_rx: broadcast::Receiver<Void>,
     /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
     /// The main loop of the reactor watches for updates on this channel.
@@ -124,7 +121,7 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ///
     /// This field is initialized in [`Reactor::run`].
     ///
-    // TODO HSS: decide if this is the right approach for implementing rate-limiting
+    // TODO: decide if this is the right approach for implementing rate-limiting
     reattempt_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
     ///
@@ -162,7 +159,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
     /// Returns an error if the service is running in offline mode and the descriptor signing
     /// keypair of the specified `period` is not available.
     //
-    // TODO HSS: we don't support "offline" mode (yet), so this always returns an AesOpeKey
+    // TODO (#1194): we don't support "offline" mode (yet), so this always returns an AesOpeKey
     // built from the blinded id key
     fn create_ope_key(&self, period: TimePeriod) -> Result<AesOpeKey, FatalError> {
         let ope_key = match read_blind_id_keypair(&self.keymgr, &self.nickname, period)? {
@@ -173,7 +170,7 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
                     .expect("Wrong length on slice")
             }
             None => {
-                // TODO HSS: we don't support externally provisioned keys (yet), so this branch
+                // TODO (#1194): we don't support externally provisioned keys (yet), so this branch
                 // is unreachable (for now).
                 let desc_sign_key_spec =
                     DescSigningKeypairSpecifier::new(self.nickname.clone(), period);
@@ -473,7 +470,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        shutdown_rx: broadcast::Receiver<Void>,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
@@ -508,7 +504,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
-            shutdown_rx,
             publish_status_rx,
             publish_status_tx,
             reattempt_upload_tx: None,
@@ -565,7 +560,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
                 if let Err(e) = schedule_upload_tx.send(()).await {
-                    // TODO HSS: update publisher state
+                    // TODO (#1083): update publisher state
                     debug!(nickname=%nickname, "failed to notify reactor to reattempt upload");
                 }
             }
@@ -584,7 +579,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         self.imm.nickname
                     );
 
-                    // TODO HSS: Set status to Shutdown.
+                    // TODO (#1083): Set status to Shutdown.
                     return Err(e);
                 }
             }
@@ -599,20 +594,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let mut netdir_events = self.dir_provider.events();
 
         select_biased! {
-            // TODO HSS: Stop waiting for the shutdown signal
-            // (instead, let the sender of the ipt_watcher being dropped
-            // be our shutdown signal)
-            //
-            // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1812#note_2976757
-            shutdown = self.shutdown_rx.next().fuse() => {
-                info!(
-                    nickname=%self.imm.nickname,
-                    "descriptor publisher terminating due to shutdown signal"
-                );
-
-                assert!(shutdown.is_none());
-                return Ok(ShutdownStatus::Terminate);
-            },
             res = self.upload_task_complete_rx.next().fuse() => {
                 let Some(upload_res) = res else {
                     return Ok(ShutdownStatus::Terminate);
@@ -629,7 +610,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         // Hopefully a netdir will appear in the future.
                         // in the meantime, suspend operations.
                         //
-                        // TODO HSS there is a bug here: we stop reading on our inputs
+                        // TODO (#1218): there is a bug here: we stop reading on our inputs
                         // including eg publish_status_rx, but it is our job to log some of
                         // these things.  While we are waiting for a netdir, all those messages
                         // are "stuck"; they'll appear later, with misleading timestamps.
@@ -718,7 +699,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 if update_last_successful {
                     period.last_successful = Some(upload_res.revision_counter);
-                    // TODO HSS: Is it possible that this won't update the statuses promptly
+                    // TODO (#1098): Is it possible that this won't update the statuses promptly
                     // enough. For example, it's possible for the reactor to see a Dirty descriptor
                     // and start an upload task for a descriptor has already been uploaded (or is
                     // being uploaded) in another task, but whose upload results have not yet been
@@ -732,8 +713,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     *status = DescriptorStatus::Clean;
                 }
             }
-
-            // TODO HSS: maybe the failed uploads should be rescheduled at some point.
         }
     }
 
@@ -790,7 +769,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), *period);
 
-                // TODO HSS: make this configurable
+                // TODO (#1106): make this configurable
                 let keystore_selector = Default::default();
                 let blind_id_kp = self
                     .imm
@@ -854,7 +833,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // `DescriptorConfigView` as described in
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603#note_2944902
 
-        // TODO HSS: Temporarily disabled while we figure out how we want the client auth config to
+        // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
         // work; see #1028
         /*
         if old_config.anonymity == new_config.anonymity
@@ -972,10 +951,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
     /// to happen N minutes from now.
     ///
-    /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
-    /// well as in what cases this will return an error).
+    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
+    /// implement it, as well as in what cases this will return an error).
     //
-    // TODO HSS: what is N?
+    // TODO (#1121): what is N?
     async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
@@ -1088,8 +1067,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Upload the descriptor for the specified time period.
     ///
-    /// Any failed uploads are retried (TODO HSS: document the retry logic when we implement it, as
-    /// well as in what cases this will return an error).
+    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
+    /// implement it, as well as in what cases this will return an error).
     async fn upload_for_time_period(
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
@@ -1223,7 +1202,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             ipt_set.note_publication_attempt(&imm.runtime, worst_case_end)
                         {
                             let wait = e.log_retry_max(&imm.nickname)?;
-                            // TODO HSS retry instead of this
+                            // TODO (#1219): retry instead of this
                             return Err(FatalError::Bug(internal!(
                                 "ought to retry after {wait:?}, crashing instead"
                             ))
@@ -1260,9 +1239,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         }
                     };
 
-                    // TODO HSS: add a mechanism for rescheduling uploads that have
-                    // UploadStatus::Failure.
-                    //
                     // Note: UploadStatus::Failure is only returned when
                     // upload_descriptor_with_retries fails, i.e. if all our retry
                     // attempts have failed
@@ -1367,7 +1343,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Upload a descriptor to the specified HSDir, retrying if appropriate.
     ///
-    /// TODO HSS: document the retry logic when we implement it.
+    /// TODO (#1216): document the retry logic when we implement it.
     async fn upload_descriptor_with_retries(
         hsdesc: String,
         netdir: &Arc<NetDir>,
@@ -1423,7 +1399,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 ///
 /// Returns `None` if the service is running in "offline" mode.
 ///
-// TODO HSS: we don't currently have support for "offline" mode so this can never return
+// TODO (#1194): we don't currently have support for "offline" mode so this can never return
 // `Ok(None)`.
 pub(super) fn read_blind_id_keypair(
     keymgr: &Arc<KeyMgr>,
@@ -1487,7 +1463,7 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
     }
 
     fn timeout(&self) -> Option<Duration> {
-        // TODO HSS: pick a less arbitrary timeout
+        // TODO (#1121): pick a less arbitrary timeout
         Some(Duration::from_secs(30))
     }
 
