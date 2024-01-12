@@ -75,11 +75,11 @@ pub struct OnionServiceConfig {
     // /// When this is enabled, we encrypt our list of introduction point and keys
     // /// so that only clients holding one of the listed keys can decrypt it.
     //
-    // TODO HSS: we'd like this to be an Option, but that doesn't work well with
+    // TODO (#1206): we'd like this to be an Option, but that doesn't work well with
     // sub_builder.  We need to figure out what to do there.
     //
-    // TODO HSS: Temporarily disabled while we figure out how we want it to work;
-    // see #1028
+    // TODO (#1206): Temporarily disabled while we figure out how we want it to work;
+    // see also #1028
     //
     // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
     //
@@ -230,7 +230,7 @@ pub struct DescEncryptionConfig {
     ///
     /// Note that if this list is empty, no clients can connect.  
     //
-    // TODO HSS: It might be good to replace this with a trait or something, so that
+    // TODO (#1206): It might be good to replace this with a trait or something, so that
     // we can let callers give us a ClientKeyProvider or some plug-in that reads
     // keys from somewhere else. On the other hand, we might have this configure
     // our default ClientKeyProvider, and only allow programmatic ClientKeyProviders
