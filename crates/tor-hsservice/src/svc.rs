@@ -367,7 +367,7 @@ fn maybe_generate_hsid(
 
     // If KS_hs_id is missing (and not stored offline), generate a new keypair.
     //
-    // TODO HSS: if the hsid is missing but the service key directory exists, should we remove
+    // TODO (#1230): if the hsid is missing but the service key directory exists, should we remove
     // any preexisting keys from it?
     if !offline_hsid {
         if !has_hsid_kp && has_hsid_pub {
