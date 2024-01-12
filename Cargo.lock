@@ -5373,6 +5373,7 @@ dependencies = [
 name = "tor-hsservice"
 version = "0.6.0"
 dependencies = [
+ "amplify",
  "anyhow",
  "async-trait",
  "base64ct",

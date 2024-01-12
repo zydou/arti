@@ -38,6 +38,7 @@ full = [
 ]
 
 [dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 base64ct = "1.5.1"
 derive-adhoc = "0.8"
