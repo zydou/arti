@@ -46,7 +46,9 @@ pub(crate) mod rend_handshake;
 pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;
 
 /// Convenient type alias for an ntor public key
-// TODO HSS maybe this should be `tor_proto::crypto::handshake::ntor::NtorPublicKey`?
+// TODO (#1022) maybe this should be
+// `tor_proto::crypto::handshake::ntor::NtorPublicKey`,
+// or a unified OnionKey type.
 type NtorPublicKey = curve25519::PublicKey;
 
 /// A handle to an instance of an onion service.
