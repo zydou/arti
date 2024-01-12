@@ -13,7 +13,6 @@ use safelog::sensitive;
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::{Reconfigure, ReconfigureError};
-use tor_error::Bug;
 use tor_hscrypto::pk::HsId;
 use tor_hscrypto::pk::HsIdKey;
 use tor_hscrypto::pk::HsIdKeypair;
@@ -277,10 +276,12 @@ impl OnionService {
         // connections, but existing ones.
     }
 
+    /*
     /// Tell this onion service about some new short-term keys it can use.
     pub fn add_keys(&self, keys: ()) -> Result<(), Bug> {
-        todo!() // TODO hss
+        todo!() // TODO #1194
     }
+    */
 
     /// Return the current status of this onion service.
     pub fn status(&self) -> OnionServiceStatus {
@@ -320,12 +321,10 @@ impl OnionService {
             }
         }
 
-        // TODO HSS:  This needs to launch at least the following tasks:
+        // This needs to launch at least the following tasks:
         //
-        // - If we decide to use separate disk-based key provisioning, a task to
-        //   monitor our keys directory.
-        // - If we own our identity key, a task to generate per-period sub-keys as
-        //   needed.
+        // TODO (#1194) If we decide to use separate disk-based key
+        // provisioning, we need a task to monitor our keys directory.
 
         Ok(rend_req_rx)
     }
