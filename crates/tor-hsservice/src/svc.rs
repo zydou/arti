@@ -156,7 +156,7 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
-    #[allow(clippy::too_many_arguments)] // TODO HSS should there be a builder?
+    #[allow(clippy::too_many_arguments)] // TODO (#1229) should there be a builder?
     pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
