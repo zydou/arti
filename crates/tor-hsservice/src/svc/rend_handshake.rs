@@ -34,7 +34,7 @@ use crate::req::RendRequestContext;
 /// An error produced while trying to process an introduction request we have
 /// received from a client via an introduction point.
 #[derive(Debug, Clone, thiserror::Error)]
-#[allow(clippy::enum_variant_names)] // TODO HSS
+#[allow(clippy::enum_variant_names)]
 #[non_exhaustive]
 pub enum IntroRequestError {
     /// The handshake (e.g. hs_ntor) in the Introduce2 message was invalid and
