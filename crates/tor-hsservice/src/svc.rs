@@ -229,7 +229,7 @@ impl OnionService {
         // rend_req_rx.  The latter may need to be refactored to actually work
         // with svc::rend_handshake, if it doesn't already.
 
-        // TODO HSS: We should pass a copy of this to the publisher and/or the
+        // TODO (#1083): We should pass a copy of this to the publisher and/or the
         // IptMgr, and they should adjust it as needed.
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
@@ -311,7 +311,7 @@ impl OnionService {
                 .ok_or(StartupError::AlreadyLaunched)?
         };
 
-        // TODO HSS: Set status to Bootstrapping.
+        // TODO (#1083): Set status to Bootstrapping.
         match launch.launch() {
             Ok(()) => {}
             Err(e) => {
