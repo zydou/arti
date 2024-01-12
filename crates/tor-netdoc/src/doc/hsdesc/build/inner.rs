@@ -133,7 +133,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             // "The key is a base64 encoded curve25519 public key used to encrypt the introduction
             // request to service. (`KP_hss_ntor`)"
             //
-            // TODO hss: The spec allows for multiple enc-key lines, but we currently only ever encode
+            // TODO: The spec allows for multiple enc-key lines, but we currently only ever encode
             // a single one.
             encoder
                 .item(ENC_KEY)
@@ -145,7 +145,8 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             // The subject key is the the ed25519 equivalent of the svc_ntor_key curve25519 public
             // encryption key.
 
-            // TODO hss: should the sign bit be 0 or 1?
+            // TODO (#1221): this is wrong. The sign bit should be computed according to appendix A
+            // from propo 228.
             let signbit = 0;
             let ed_svc_ntor_key =
                 convert_curve25519_to_ed25519_public(&intro_point.svc_ntor_key, signbit)
