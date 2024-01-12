@@ -85,7 +85,7 @@ pub struct OnionServiceConfig {
     //
     // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
     //
-    // TODO HSS: Do we want a "descriptor_lifetime" setting? C tor doesn't have
+    // TODO (#1210): Do we want a "descriptor_lifetime" setting? C tor doesn't have
     // one. See TODOS on IPT_PUBLISH_{,UN}CERTAIN.
 }
 
@@ -142,7 +142,7 @@ impl OnionServiceConfig {
 
     /// Time for which we'll use an IPT relay before selecting a new relay to be our IPT
     pub(crate) fn ipt_relay_rotation_time(&self) -> RangeInclusive<Duration> {
-        // TODO HSS ipt_relay_rotation_time should be tuneable.  And, is default correct?
+        // TODO (#1210) ipt_relay_rotation_time should be tuneable.  And, is default correct?
         /// gosh this is clumsy
         const DAY: u64 = 86400;
         Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
@@ -154,7 +154,7 @@ impl OnionServiceConfigBuilder {
     fn validate(&self) -> Result<(), ConfigBuildError> {
         /// Largest supported number of introduction points
         //
-        // TODO HSS Is this a consensus parameter or anything?  What does C tor do?
+        // TODO (#1210) Is this a consensus parameter or anything?  What does C tor do?
         const MAX_INTRO_POINTS: u8 = 20;
 
         // Make sure MAX_INTRO_POINTS is in range.
