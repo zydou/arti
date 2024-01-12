@@ -904,8 +904,6 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
         _conversation: ConversationInHandler<'_, '_, '_>,
         any_msg: AnyRelayMsg,
     ) -> tor_proto::Result<MetaCellDisposition> {
-        // TODO HSS: Implement rate-limiting.
-        //
         // TODO HSS: Is CircProto right or should this be a new error type?
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             tor_proto::Error::CircProto(format!("Invalid message type {}", m.cmd()))
