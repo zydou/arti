@@ -110,7 +110,7 @@ mod test {
 
     #[test]
     fn serde() {
-        // TODO HSS clone-and-hack with tor_keymgr::::key_specifier::test::serde
+        // TODO: clone-and-hack with tor_keymgr::::key_specifier::test::serde
         #[derive(Serialize, Deserialize, Debug)]
         struct T {
             n: HsNickname,
