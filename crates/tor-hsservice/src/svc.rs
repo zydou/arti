@@ -210,7 +210,7 @@ impl OnionService {
             state_mistrust,
         )?;
 
-        // TODO HSS: add a config option for specifying whether to expect the KS_hsid to be stored
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
         // offline
         //let offline_hsid = config.offline_hsid;
         let offline_hsid = false;
