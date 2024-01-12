@@ -19,8 +19,8 @@ pub struct OnionServiceStatus {
 
     /// The current high-level state for the descriptor publisher.
     publisher_state: State,
-    // TODO HSS: Add key expiration
-    // TODO HSS: Add latest-error.
+    // TODO (#1083): Add key expiration
+    // TODO (#1083): Add latest-error.
     //
     // NOTE: Do _not_ add general metrics (like failure/success rates , number
     // of intro points, etc) here.
@@ -94,14 +94,14 @@ impl OnionServiceStatus {
 
     /// Return the most severe current problem
     //
-    // TODO HSS: We need an error type that can encompass StartupError _and_
+    // TODO (#1083): We need an error type that can encompass StartupError _and_
     // intermittent problems encountered after we've launched for the first
     // time.
     // Perhaps the solution is to rename StartupError?  Or to make a new Problem
     // enum?
     // Please feel free to take whatever approach works best.
     pub fn current_problem(&self) -> Option<&crate::StartupError> {
-        // TODO HSS: We can't put a StartupError here until the type implements
+        // TODO (#1083): We can't put a StartupError here until the type implements
         // Eq, since postage::Watch requires that its type is Eq.
         None
     }
@@ -112,7 +112,7 @@ impl OnionServiceStatus {
     /// Returns `None` if the onion service is able to generate and sign new
     /// keys as needed.
     pub fn provisioned_key_expiration(&self) -> Option<SystemTime> {
-        None // TODO HSS: Implement
+        None // TODO (#1083): Implement
     }
 }
 
