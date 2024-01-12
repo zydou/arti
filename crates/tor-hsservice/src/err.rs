@@ -93,7 +93,7 @@ impl HasKind for StartupError {
             E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
-            // TODO HSS AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
+            // TODO (#1225) AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
             E::StateLocked => EK::Other,
             E::LoadState(e) => e.kind(),
             E::StateDirectoryInaccessible(e) => e.state_error_kind(),
@@ -254,7 +254,7 @@ impl HasKind for FatalError {
         match self {
             FE::Spawn { cause, .. } => cause.kind(),
             FE::Keystore(e) => e.kind(),
-            FE::MissingHsIdKeypair(_) => EK::Internal, // TODO HSS this is wrong
+            FE::MissingHsIdKeypair(_) => EK::Internal, // TODO (#1225) this is wrong
             FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::NetdirProviderShutdown(e) => e.kind(),
             FE::Bug(e) => e.kind(),

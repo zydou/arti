@@ -151,13 +151,13 @@ impl tor_error::HasKind for IptError {
         use tor_error::ErrorKind as EK;
         use IptError as E;
         match self {
-            E::NoNetdir(_) => EK::BootstrapRequired, // TODO HSS maybe not right.
+            E::NoNetdir(_) => EK::BootstrapRequired, // TODO (#1225) maybe not right.
             E::NetdirProviderShutdown(e) => e.kind(),
-            E::IntroPointNotListed => EK::TorDirectoryError, // TODO HSS Not correct kind.
+            E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1225) Not correct kind.
             E::BuildCircuit(e) => e.kind(),
-            E::EstablishTimeout => EK::TorNetworkTimeout, // TODO HSS right?
+            E::EstablishTimeout => EK::TorNetworkTimeout, // TODO (#1225) right?
             E::SendEstablishIntro(e) => e.kind(),
-            E::ReceiveAck => EK::RemoteProtocolViolation, // TODO HSS not always right.
+            E::ReceiveAck => EK::RemoteProtocolViolation, // TODO (#1225) not always right.
             E::BadEstablished => EK::RemoteProtocolViolation,
             E::CreateEstablishIntro(_) => EK::Internal,
             E::Bug(e) => e.kind(),

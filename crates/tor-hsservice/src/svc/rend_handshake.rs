@@ -106,7 +106,7 @@ impl HasKind for EstablishSessionError {
         match self {
             E::NetdirUnavailable(e) => e.kind(),
             E::UnsupportedOnionKey => EK::RemoteProtocolViolation,
-            // TODO HSS Not quite right.
+            // TODO (#1225) Not quite right.
             EstablishSessionError::RendCirc(e) => EK::RemoteNetworkTimeout,
             EstablishSessionError::VirtualHop(e) => e.kind(),
             EstablishSessionError::AcceptBegins(e) => e.kind(),
