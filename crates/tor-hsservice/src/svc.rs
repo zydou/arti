@@ -316,7 +316,7 @@ impl OnionService {
         match launch.launch() {
             Ok(()) => {}
             Err(e) => {
-                // TODO HSS: Set status to Shutdown, record error.
+                // TODO (#1083): Set status to Shutdown, record error.
                 return Err(e);
             }
         }
