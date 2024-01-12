@@ -224,7 +224,7 @@ impl OnionService {
         let keystore_sweeper =
             KeystoreSweeper::new(runtime, nickname, keymgr, netdir_provider, shutdown_rx);
 
-        // TODO HSS: we need to actually do something with shutdown_tx
+        // TODO (#1231): we need to actually do something with shutdown_tx
 
         // TODO (#1083): We should pass a copy of this to the publisher and/or the
         // IptMgr, and they should adjust it as needed.
@@ -334,7 +334,7 @@ impl OnionService {
     /// You can also shut down an onion service completely by dropping the last
     /// Clone of it.
     pub fn stop(&self) {
-        todo!() // TODO hss
+        todo!() // TODO (#1231)
     }
 }
 
