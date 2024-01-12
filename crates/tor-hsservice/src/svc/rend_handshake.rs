@@ -263,7 +263,7 @@ impl IntroRequest {
             let mut bld = OwnedCircTarget::builder();
             *bld.chan_target() = self.chan_target;
 
-            // TODO HSS: This block is very similar to circtarget_from_pieces in
+            // TODO (#1223): This block is very similar to circtarget_from_pieces in
             // relay_info.rs.
             // Is there a clean way to refactor this?
             let protocols = {

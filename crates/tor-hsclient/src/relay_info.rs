@@ -19,6 +19,9 @@ use tor_netdoc::doc::hsdesc::IntroPointDesc;
 /// extending to an introduction point).  Later, it can also be used to build a
 /// CircTarget from an `Introduce2` message (for extending to a rendezvous
 /// point).
+//
+// TODO (#1223): This function is very similar to a block of code in
+// `tor-hsservice`.  Can/should we unify them?
 fn circtarget_from_pieces(
     linkspecs: &[EncodedLinkSpec],
     ntor_onion_key: &curve25519::PublicKey,
