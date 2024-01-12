@@ -141,7 +141,7 @@ impl futures::Stream for OnionServiceStatusStream {
 
 /// A shared handle to a postage::watch::Sender that we can use to update an OnionServiceStatus.
 //
-// TODO HSS: Possibly, we don't need this to be Clone: as we implement the code
+// TODO: Possibly, we don't need this to be Clone: as we implement the code
 // that adjusts the status, we might find that only a single location needs to
 // hold the Sender.  If that turns out to be the case, we should remove the
 // `Arc<Mutex<.>>` here.  If not, we should remove this comment.
