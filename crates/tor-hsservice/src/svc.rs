@@ -67,11 +67,6 @@ struct SvcInner {
     /// Configuration information about this service.
     config_tx: postage::watch::Sender<Arc<OnionServiceConfig>>,
 
-    /// A keymgr used to look up our keys and store new medium-term keys.
-    //
-    // TODO HSS: Do we actually need this in this structure?
-    keymgr: Arc<KeyMgr>,
-
     /// A oneshot that will be dropped when this object is dropped.
     shutdown_tx: postage::broadcast::Sender<void::Void>,
 
@@ -227,13 +222,8 @@ impl OnionService {
             Arc::clone(&keymgr),
         );
 
-        let keystore_sweeper = KeystoreSweeper::new(
-            runtime,
-            nickname,
-            Arc::clone(&keymgr),
-            netdir_provider,
-            shutdown_rx,
-        );
+        let keystore_sweeper =
+            KeystoreSweeper::new(runtime, nickname, keymgr, netdir_provider, shutdown_rx);
 
         // TODO HSS: we need to actually do something with: shutdown_tx,
         // rend_req_rx.  The latter may need to be refactored to actually work
@@ -248,7 +238,6 @@ impl OnionService {
                 config_tx,
                 shutdown_tx,
                 status_tx,
-                keymgr,
                 unlaunched: Some((
                     rend_req_rx,
                     Box::new(ForLaunch {
