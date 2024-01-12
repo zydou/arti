@@ -194,8 +194,8 @@ impl IptStoreError {
 /// These errors only occur during operation, and only for catastrophic reasons
 /// (such as the async reactor shutting down).
 //
-// TODO HSS where is FatalError emitted from this crate into the wider program ?
-// Perhaps there will be some kind of monitoring handle that can produce one of these.
+// TODO where is FatalError emitted from this crate into the wider program ?
+// Perhaps there will be some kind of monitoring handle (TODO (#1083)) that can produce one of these.
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub enum FatalError {
