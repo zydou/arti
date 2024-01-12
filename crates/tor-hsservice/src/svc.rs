@@ -53,7 +53,7 @@ type NtorPublicKey = curve25519::PublicKey;
 
 /// A handle to an instance of an onion service.
 //
-// TODO HSS: Write more.
+// TODO (#1228): Write more.
 //
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
@@ -150,8 +150,9 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 
 impl OnionService {
     /// Create (but do not launch) a new onion service.
+    // TODO (#1228): document.
     //
-    // TODO HSS: How do we handle the case where somebody tries to launch two
+    // TODO (#1228): Document how we handle the case where somebody tries to launch two
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
