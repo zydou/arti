@@ -958,7 +958,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     Err(ReplayError::Log(_)) => {
                         // Uh-oh! We failed to write the data persistently!
                         //
-                        // TODO HSS: We need to decide what to do here.  Right
+                        // TODO (#1226): We need to decide what to do here.  Right
                         // now we close the circuit, which is wrong.
                         return Ok(MetaCellDisposition::CloseCirc);
                     }
