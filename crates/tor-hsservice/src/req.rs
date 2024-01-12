@@ -56,20 +56,6 @@ pub struct RendRequest {
     expanded: once_cell::unsync::OnceCell<rend_handshake::IntroRequest>,
 }
 
-/// Information about a proof of work received from a client's introduction
-/// point.
-///  
-// Todo: use Beth's API instead.
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-enum ProofOfWork {
-    /// TODO HSS document or replace.
-    EquixV1 {
-        /// TODO HSS document or replace
-        effort_level: usize,
-    },
-}
-
 /// A request from a client to open a new stream to an onion service.
 ///
 /// We can only receive these _after_ we have already permitted the client to
