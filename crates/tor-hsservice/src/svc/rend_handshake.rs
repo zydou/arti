@@ -156,7 +156,7 @@ pub(crate) struct OpenSession {
     pub(crate) stream_requests: BoxStream<'static, IncomingStream>,
 
     /// Our circuit with the client in question
-    // TODO HSS: If we drop this handle, nothing will keep the circuit alive.
+    // TODO (#1224): If we drop this handle, nothing will keep the circuit alive.
     // But we need to make sure we drop this handle when the other side destroys
     // the circuit.
     pub(crate) circuit: Arc<ClientCirc>,
