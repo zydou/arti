@@ -158,7 +158,7 @@ impl RendRequest {
         Ok(())
     }
 
-    // TODO HSS: also add various accessors
+    // TODO: also add various accessors, as needed.
 }
 
 impl StreamRequest {
@@ -200,5 +200,5 @@ impl StreamRequest {
         Ok(())
     }
 
-    // TODO HSS various accessors, including for circuit.
+    // TODO various accessors, including for circuit.
 }
