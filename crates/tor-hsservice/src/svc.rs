@@ -224,9 +224,7 @@ impl OnionService {
         let keystore_sweeper =
             KeystoreSweeper::new(runtime, nickname, keymgr, netdir_provider, shutdown_rx);
 
-        // TODO HSS: we need to actually do something with: shutdown_tx,
-        // rend_req_rx.  The latter may need to be refactored to actually work
-        // with svc::rend_handshake, if it doesn't already.
+        // TODO HSS: we need to actually do something with shutdown_tx
 
         // TODO (#1083): We should pass a copy of this to the publisher and/or the
         // IptMgr, and they should adjust it as needed.
