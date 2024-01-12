@@ -943,10 +943,16 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                         // This is probably a replay, but maybe an accident. We
                         // just drop the request.
 
-                        // TODO HSS: Log that this has occurred, with a rate
+                        // TODO (#1233): Log that this has occurred, with a rate
                         // limit.  Possibly, we should allow it to fail once or
                         // twice per circuit before we log, since we expect
                         // a nonzero false-positive rate.
+                        //
+                        // Note that we should NOT close the circuit in this
+                        // case: the repeated message could come from a hostile
+                        // introduction point trying to do traffic analysis, but
+                        // it could also come from a user trying to make it look
+                        // like the intro point is doing traffic analysis.
                         return Ok(MetaCellDisposition::Consumed);
                     }
                     Err(ReplayError::Log(_)) => {
