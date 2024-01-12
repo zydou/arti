@@ -177,7 +177,7 @@ impl IptStoreError {
     ///
     /// If the operation shouldn't be retried, the problem was a fatal error,
     /// which is simply returned.
-    // TODO HSS should this be a HasRetryTime impl instead?  But that has different semantics.
+    // TODO: should this be a HasRetryTime impl instead?  But that has different semantics.
     pub(crate) fn log_retry_max(self, nick: &HsNickname) -> Result<Duration, FatalError> {
         use IptStoreError as ISE;
         let wait = match self {
