@@ -143,7 +143,11 @@ impl HasKind for ClientError {
 }
 
 /// Latest time to retry a failed IPT store (eg, disk full)
-// TODO HSS configure?
+//
+// TODO (#1226): should we make this configurable? Probably not; it's not clear why a
+// user would want disk failure errors to be retried on any particular interval.
+// Instead it might make more sense to consider a unified strategy for handling
+// state errors.
 const IPT_STORE_RETRY_MAX: Duration = Duration::from_secs(60);
 
 /// An error arising when trying to store introduction points
