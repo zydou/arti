@@ -804,7 +804,7 @@ impl<R: Runtime> Reactor<R> {
                 .sign_and_encode((*self.k_sid).as_ref(), circuit_binding_key.hs_mac())
                 .map_err(IptError::CreateEstablishIntro)?;
 
-            // TODO HSS: This is ugly, but it is the sensible way to munge the above
+            // TODO: This is ugly, but it is the sensible way to munge the above
             // body into a format that AnyRelayMsgOuter will accept without doing a
             // redundant parse step.
             //
