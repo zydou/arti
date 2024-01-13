@@ -861,7 +861,7 @@ impl<R: Runtime> Reactor<R> {
             // We do not support any extensions from the introduction point; if it
             // sent us any, that's a protocol violation.
             //
-            // TODO HSS this check needs to happen in IptMsgHandler::handle_msg,
+            // TODO (#1238): this check needs to happen in IptMsgHandler::handle_msg,
             // because otherwise handle_msg might go on to handle messages despite
             // us wanting to crash, here.  (Providing reliable teardown of the
             // IptMsgHandler wouldn't be sufficient, since there would be a race.)
