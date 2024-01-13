@@ -556,7 +556,6 @@ pub(crate) struct IptStatus {
 
 impl IptStatus {
     /// Record that we have successfully connected to an introduction point.
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn note_open(&mut self, ipt_details: GoodIptDetails) {
         self.status = IptStatusStatus::Good(ipt_details);
     }
