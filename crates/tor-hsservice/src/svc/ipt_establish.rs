@@ -549,12 +549,6 @@ pub(crate) struct IptStatus {
     /// TODO HSS Make that file unneeded.
     pub(crate) status: IptStatusStatus,
 
-    /// How many times have we transitioned into a Faulty state?
-    ///
-    /// (This is not the same as the total number of failed attempts, since it
-    /// does not count times we retry from a Faulty state.)
-    pub(crate) n_faults: u32,
-
     /// The current status of whether this introduction point circuit wants to be
     /// retired based on having processed too many requests.
     pub(crate) wants_to_retire: Result<(), IptWantsToRetire>,
@@ -580,8 +574,6 @@ impl IptStatus {
     fn note_error(&mut self, err: &IptError) {
         use IptStatusStatus::*;
         if err.is_ipt_failure() {
-            // TODO HSS remove n_faults (nothing reads it)
-            self.n_faults += 1;
             self.status = Faulty;
         }
     }
@@ -591,7 +583,6 @@ impl IptStatus {
     fn new() -> Self {
         Self {
             status: IptStatusStatus::Establishing,
-            n_faults: 0,
             wants_to_retire: Ok(()),
         }
     }
@@ -600,7 +591,6 @@ impl IptStatus {
     fn new_terminated() -> Self {
         IptStatus {
             status: IptStatusStatus::Faulty,
-            n_faults: u32::MAX,
             // If we're broken, we simply tell the manager that that is the case.
             // It will decide for itself whether it wants to replace us.
             wants_to_retire: Ok(()),

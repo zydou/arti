@@ -791,7 +791,6 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
         let IptStatus {
             status: update,
             wants_to_retire,
-            n_faults: _,
         } = update;
 
         #[allow(clippy::single_match)] // want to be explicit about the Ok type
