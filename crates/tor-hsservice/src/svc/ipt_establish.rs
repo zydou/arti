@@ -315,7 +315,7 @@ impl IptEstablisher {
             netdir_provider,
             lid,
             target,
-            k_sid, // TODO HSS this is now redundant.
+            k_sid,
             introduce_tx,
             extensions: EstIntroExtensionSet {
                 dos_params: config.dos_extension()?,
