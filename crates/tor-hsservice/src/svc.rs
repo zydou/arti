@@ -1,5 +1,4 @@
 //! Principal types for onion services.
-#![allow(dead_code, unused_variables)] // TODO hss remove.
 pub(crate) mod netdir;
 
 use std::path::Path;
@@ -13,7 +12,6 @@ use safelog::sensitive;
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_config::{Reconfigure, ReconfigureError};
-use tor_error::Bug;
 use tor_hscrypto::pk::HsId;
 use tor_hscrypto::pk::HsIdKey;
 use tor_hscrypto::pk::HsIdKeypair;
@@ -46,12 +44,14 @@ pub(crate) mod rend_handshake;
 pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;
 
 /// Convenient type alias for an ntor public key
-// TODO HSS maybe this should be `tor_proto::crypto::handshake::ntor::NtorPublicKey`?
+// TODO (#1022) maybe this should be
+// `tor_proto::crypto::handshake::ntor::NtorPublicKey`,
+// or a unified OnionKey type.
 type NtorPublicKey = curve25519::PublicKey;
 
 /// A handle to an instance of an onion service.
 //
-// TODO HSS: Write more.
+// TODO (#1228): Write more.
 //
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
@@ -65,12 +65,8 @@ struct SvcInner {
     /// Configuration information about this service.
     config_tx: postage::watch::Sender<Arc<OnionServiceConfig>>,
 
-    /// A keymgr used to look up our keys and store new medium-term keys.
-    //
-    // TODO HSS: Do we actually need this in this structure?
-    keymgr: Arc<KeyMgr>,
-
     /// A oneshot that will be dropped when this object is dropped.
+    #[allow(dead_code)] // TODO (#1231)
     shutdown_tx: postage::broadcast::Sender<void::Void>,
 
     /// Postage sender, used to tell subscribers about changes in the status of
@@ -79,7 +75,7 @@ struct SvcInner {
 
     /// Handles that we'll take ownership of when launching the service.
     ///
-    /// (TODO HSS: Having to consume this may indicate a design problem.)
+    /// (TODO (#1227): Having to consume this may indicate a design problem.)
     unlaunched: Option<(
         mpsc::Receiver<RendRequest>,
         Box<dyn Launchable + Send + Sync>,
@@ -148,12 +144,13 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 
 impl OnionService {
     /// Create (but do not launch) a new onion service.
+    // TODO (#1228): document.
     //
-    // TODO HSS: How do we handle the case where somebody tries to launch two
+    // TODO (#1228): Document how we handle the case where somebody tries to launch two
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
-    #[allow(clippy::too_many_arguments)] // TODO HSS should there be a builder?
+    #[allow(clippy::too_many_arguments)] // TODO (#1227, #1229) should there be a builder?
     pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
@@ -207,7 +204,7 @@ impl OnionService {
             state_mistrust,
         )?;
 
-        // TODO HSS: add a config option for specifying whether to expect the KS_hsid to be stored
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
         // offline
         //let offline_hsid = config.offline_hsid;
         let offline_hsid = false;
@@ -224,19 +221,12 @@ impl OnionService {
             Arc::clone(&keymgr),
         );
 
-        let keystore_sweeper = KeystoreSweeper::new(
-            runtime,
-            nickname,
-            Arc::clone(&keymgr),
-            netdir_provider,
-            shutdown_rx,
-        );
+        let keystore_sweeper =
+            KeystoreSweeper::new(runtime, nickname, keymgr, netdir_provider, shutdown_rx);
 
-        // TODO HSS: we need to actually do something with: shutdown_tx,
-        // rend_req_rx.  The latter may need to be refactored to actually work
-        // with svc::rend_handshake, if it doesn't already.
+        // TODO (#1231): we need to actually do something with shutdown_tx
 
-        // TODO HSS: We should pass a copy of this to the publisher and/or the
+        // TODO (#1083): We should pass a copy of this to the publisher and/or the
         // IptMgr, and they should adjust it as needed.
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
@@ -245,7 +235,6 @@ impl OnionService {
                 config_tx,
                 shutdown_tx,
                 status_tx,
-                keymgr,
                 unlaunched: Some((
                     rend_req_rx,
                     Box::new(ForLaunch {
@@ -280,15 +269,17 @@ impl OnionService {
             })
         })
 
-        // TODO HSS: We need to make sure that the various tasks listening on
+        // TODO (#1153, #1209): We need to make sure that the various tasks listening on
         // config_rx actually enforce the configuration, not only on new
         // connections, but existing ones.
     }
 
+    /*
     /// Tell this onion service about some new short-term keys it can use.
     pub fn add_keys(&self, keys: ()) -> Result<(), Bug> {
-        todo!() // TODO hss
+        todo!() // TODO #1194
     }
+    */
 
     /// Return the current status of this onion service.
     pub fn status(&self) -> OnionServiceStatus {
@@ -319,21 +310,19 @@ impl OnionService {
                 .ok_or(StartupError::AlreadyLaunched)?
         };
 
-        // TODO HSS: Set status to Bootstrapping.
+        // TODO (#1083): Set status to Bootstrapping.
         match launch.launch() {
             Ok(()) => {}
             Err(e) => {
-                // TODO HSS: Set status to Shutdown, record error.
+                // TODO (#1083): Set status to Shutdown, record error.
                 return Err(e);
             }
         }
 
-        // TODO HSS:  This needs to launch at least the following tasks:
+        // This needs to launch at least the following tasks:
         //
-        // - If we decide to use separate disk-based key provisioning, a task to
-        //   monitor our keys directory.
-        // - If we own our identity key, a task to generate per-period sub-keys as
-        //   needed.
+        // TODO (#1194) If we decide to use separate disk-based key
+        // provisioning, we need a task to monitor our keys directory.
 
         Ok(rend_req_rx)
     }
@@ -345,7 +334,7 @@ impl OnionService {
     /// You can also shut down an onion service completely by dropping the last
     /// Clone of it.
     pub fn stop(&self) {
-        todo!() // TODO hss
+        todo!() // TODO (#1231)
     }
 }
 
@@ -376,7 +365,7 @@ fn maybe_generate_hsid(
 
     // If KS_hs_id is missing (and not stored offline), generate a new keypair.
     //
-    // TODO HSS: if the hsid is missing but the service key directory exists, should we remove
+    // TODO (#1230): if the hsid is missing but the service key directory exists, should we remove
     // any preexisting keys from it?
     if !offline_hsid {
         if !has_hsid_kp && has_hsid_pub {
@@ -612,7 +601,6 @@ pub(crate) mod test {
     fn generate_hsid_missing_keypair() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
         let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
         let keymgr = create_keymgr(&temp_dir);

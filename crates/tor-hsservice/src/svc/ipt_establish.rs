@@ -60,6 +60,7 @@ use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShut
 pub(crate) struct IptEstablisher {
     /// A oneshot sender that notifies the running task that it's time to shut
     /// down.
+    #[allow(dead_code)] // TODO HSS: Make sure this is okay.
     terminate_tx: oneshot::Sender<Void>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
@@ -82,7 +83,7 @@ impl Drop for IptEstablisher {
     fn drop(&mut self) {
         // Make sure no more requests are accepted once this returns.
         //
-        // TODO HSS: Note that if we didn't care about the "no more rendezvous
+        // (Note that if we didn't care about the "no more rendezvous
         // requests will be accepted" requirement, we could do away with this
         // code and the corresponding check for `RequestDisposition::Shutdown` in
         // `IptMsgHandler::handle_msg`.)
@@ -100,6 +101,7 @@ impl Drop for IptEstablisher {
 pub(crate) enum IptError {
     /// We couldn't get a network directory to use when building circuits.
     #[error("No network directory available")]
+    #[allow(dead_code)] // TODO HSS emit this error, or verify that it isn't needed
     NoNetdir(#[source] tor_netdir::Error),
 
     /// The network directory provider is shutting down without giving us the
@@ -151,13 +153,13 @@ impl tor_error::HasKind for IptError {
         use tor_error::ErrorKind as EK;
         use IptError as E;
         match self {
-            E::NoNetdir(_) => EK::BootstrapRequired, // TODO HSS maybe not right.
+            E::NoNetdir(_) => EK::BootstrapRequired, // TODO (#1225) maybe not right.
             E::NetdirProviderShutdown(e) => e.kind(),
-            E::IntroPointNotListed => EK::TorDirectoryError, // TODO HSS Not correct kind.
+            E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1225) Not correct kind.
             E::BuildCircuit(e) => e.kind(),
-            E::EstablishTimeout => EK::TorNetworkTimeout, // TODO HSS right?
+            E::EstablishTimeout => EK::TorNetworkTimeout, // TODO (#1225) right?
             E::SendEstablishIntro(e) => e.kind(),
-            E::ReceiveAck => EK::RemoteProtocolViolation, // TODO HSS not always right.
+            E::ReceiveAck => EK::RemoteProtocolViolation, // TODO (#1225) not always right.
             E::BadEstablished => EK::RemoteProtocolViolation,
             E::CreateEstablishIntro(_) => EK::Internal,
             E::Bug(e) => e.kind(),
@@ -820,7 +822,7 @@ impl<R: Runtime> Reactor<R> {
             request_context: self.request_context.clone(),
             replay_log,
         };
-        let conversation = circuit
+        let _conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
             .await
             .map_err(IptError::SendEstablishIntro)?;
@@ -899,11 +901,9 @@ struct IptMsgHandler {
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
     fn handle_msg(
         &mut self,
-        conversation: ConversationInHandler<'_, '_, '_>,
+        _conversation: ConversationInHandler<'_, '_, '_>,
         any_msg: AnyRelayMsg,
     ) -> tor_proto::Result<MetaCellDisposition> {
-        // TODO HSS: Implement rate-limiting.
-        //
         // TODO HSS: Is CircProto right or should this be a new error type?
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             tor_proto::Error::CircProto(format!("Invalid message type {}", m.cmd()))
@@ -941,16 +941,22 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                         // This is probably a replay, but maybe an accident. We
                         // just drop the request.
 
-                        // TODO HSS: Log that this has occurred, with a rate
+                        // TODO (#1233): Log that this has occurred, with a rate
                         // limit.  Possibly, we should allow it to fail once or
                         // twice per circuit before we log, since we expect
                         // a nonzero false-positive rate.
+                        //
+                        // Note that we should NOT close the circuit in this
+                        // case: the repeated message could come from a hostile
+                        // introduction point trying to do traffic analysis, but
+                        // it could also come from a user trying to make it look
+                        // like the intro point is doing traffic analysis.
                         return Ok(MetaCellDisposition::Consumed);
                     }
                     Err(ReplayError::Log(_)) => {
                         // Uh-oh! We failed to write the data persistently!
                         //
-                        // TODO HSS: We need to decide what to do here.  Right
+                        // TODO (#1226): We need to decide what to do here.  Right
                         // now we close the circuit, which is wrong.
                         return Ok(MetaCellDisposition::CloseCirc);
                     }

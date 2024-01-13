@@ -34,7 +34,7 @@ use crate::req::RendRequestContext;
 /// An error produced while trying to process an introduction request we have
 /// received from a client via an introduction point.
 #[derive(Debug, Clone, thiserror::Error)]
-#[allow(clippy::enum_variant_names)] // TODO HSS
+#[allow(clippy::enum_variant_names)]
 #[non_exhaustive]
 pub enum IntroRequestError {
     /// The handshake (e.g. hs_ntor) in the Introduce2 message was invalid and
@@ -106,8 +106,8 @@ impl HasKind for EstablishSessionError {
         match self {
             E::NetdirUnavailable(e) => e.kind(),
             E::UnsupportedOnionKey => EK::RemoteProtocolViolation,
-            // TODO HSS Not quite right.
-            EstablishSessionError::RendCirc(e) => EK::RemoteNetworkTimeout,
+            // TODO (#1225) Not quite right.
+            EstablishSessionError::RendCirc(_e) => EK::RemoteNetworkTimeout,
             EstablishSessionError::VirtualHop(e) => e.kind(),
             EstablishSessionError::AcceptBegins(e) => e.kind(),
             EstablishSessionError::SendRendezvous(e) => e.kind(),
@@ -156,7 +156,7 @@ pub(crate) struct OpenSession {
     pub(crate) stream_requests: BoxStream<'static, IncomingStream>,
 
     /// Our circuit with the client in question
-    // TODO HSS: If we drop this handle, nothing will keep the circuit alive.
+    // TODO (#1224): If we drop this handle, nothing will keep the circuit alive.
     // But we need to make sure we drop this handle when the other side destroys
     // the circuit.
     pub(crate) circuit: Arc<ClientCirc>,
@@ -255,7 +255,7 @@ impl IntroRequest {
         // Try to construct a CircTarget for rendezvous point based on the
         // intro_payload.
         let rend_point = {
-            // TODO HSS: We might have checked for a recognized onion key type earlier.
+            // TODO: We might have checked for a recognized onion key type earlier.
             let ntor_onion_key = match self.intro_payload.onion_key() {
                 OnionKey::NtorOnionKey(ntor_key) => ntor_key,
                 _ => return Err(E::UnsupportedOnionKey),
@@ -263,7 +263,7 @@ impl IntroRequest {
             let mut bld = OwnedCircTarget::builder();
             *bld.chan_target() = self.chan_target;
 
-            // TODO HSS: This block is very similar to circtarget_from_pieces in
+            // TODO (#1223): This block is very similar to circtarget_from_pieces in
             // relay_info.rs.
             // Is there a clean way to refactor this?
             let protocols = {

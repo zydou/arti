@@ -24,7 +24,9 @@ pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.
     pub(crate) nickname: HsNickname,
 
-    // TODO HSS: Perhaps this belongs at a higher level.
+    // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
+    // at all.
+    //
     // enabled: bool,
     /// Whether we want this to be a non-anonymous "single onion service".
     /// We could skip this in v1.  We should make sure that our state
@@ -75,15 +77,15 @@ pub struct OnionServiceConfig {
     // /// When this is enabled, we encrypt our list of introduction point and keys
     // /// so that only clients holding one of the listed keys can decrypt it.
     //
-    // TODO HSS: we'd like this to be an Option, but that doesn't work well with
+    // TODO (#1206): we'd like this to be an Option, but that doesn't work well with
     // sub_builder.  We need to figure out what to do there.
     //
-    // TODO HSS: Temporarily disabled while we figure out how we want it to work;
-    // see #1028
+    // TODO (#1206): Temporarily disabled while we figure out how we want it to work;
+    // see also #1028
     //
     // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
     //
-    // TODO HSS: Do we want a "descriptor_lifetime" setting? C tor doesn't have
+    // TODO (#1210): Do we want a "descriptor_lifetime" setting? C tor doesn't have
     // one. See TODOS on IPT_PUBLISH_{,UN}CERTAIN.
 }
 
@@ -140,7 +142,7 @@ impl OnionServiceConfig {
 
     /// Time for which we'll use an IPT relay before selecting a new relay to be our IPT
     pub(crate) fn ipt_relay_rotation_time(&self) -> RangeInclusive<Duration> {
-        // TODO HSS ipt_relay_rotation_time should be tuneable.  And, is default correct?
+        // TODO (#1210) ipt_relay_rotation_time should be tuneable.  And, is default correct?
         /// gosh this is clumsy
         const DAY: u64 = 86400;
         Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
@@ -152,7 +154,7 @@ impl OnionServiceConfigBuilder {
     fn validate(&self) -> Result<(), ConfigBuildError> {
         /// Largest supported number of introduction points
         //
-        // TODO HSS Is this a consensus parameter or anything?  What does C tor do?
+        // TODO (#1210) Is this a consensus parameter or anything?  What does C tor do?
         const MAX_INTRO_POINTS: u8 = 20;
 
         // Make sure MAX_INTRO_POINTS is in range.
@@ -230,7 +232,7 @@ pub struct DescEncryptionConfig {
     ///
     /// Note that if this list is empty, no clients can connect.  
     //
-    // TODO HSS: It might be good to replace this with a trait or something, so that
+    // TODO (#1206): It might be good to replace this with a trait or something, so that
     // we can let callers give us a ClientKeyProvider or some plug-in that reads
     // keys from somewhere else. On the other hand, we might have this configure
     // our default ClientKeyProvider, and only allow programmatic ClientKeyProviders

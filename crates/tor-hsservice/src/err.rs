@@ -93,7 +93,7 @@ impl HasKind for StartupError {
             E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
-            // TODO HSS AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
+            // TODO (#1225) AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
             E::StateLocked => EK::Other,
             E::LoadState(e) => e.kind(),
             E::StateDirectoryInaccessible(e) => e.state_error_kind(),
@@ -143,7 +143,11 @@ impl HasKind for ClientError {
 }
 
 /// Latest time to retry a failed IPT store (eg, disk full)
-// TODO HSS configure?
+//
+// TODO (#1226): should we make this configurable? Probably not; it's not clear why a
+// user would want disk failure errors to be retried on any particular interval.
+// Instead it might make more sense to consider a unified strategy for handling
+// state errors.
 const IPT_STORE_RETRY_MAX: Duration = Duration::from_secs(60);
 
 /// An error arising when trying to store introduction points
@@ -177,7 +181,7 @@ impl IptStoreError {
     ///
     /// If the operation shouldn't be retried, the problem was a fatal error,
     /// which is simply returned.
-    // TODO HSS should this be a HasRetryTime impl instead?  But that has different semantics.
+    // TODO: should this be a HasRetryTime impl instead?  But that has different semantics.
     pub(crate) fn log_retry_max(self, nick: &HsNickname) -> Result<Duration, FatalError> {
         use IptStoreError as ISE;
         let wait = match self {
@@ -194,8 +198,8 @@ impl IptStoreError {
 /// These errors only occur during operation, and only for catastrophic reasons
 /// (such as the async reactor shutting down).
 //
-// TODO HSS where is FatalError emitted from this crate into the wider program ?
-// Perhaps there will be some kind of monitoring handle that can produce one of these.
+// TODO where is FatalError emitted from this crate into the wider program ?
+// Perhaps there will be some kind of monitoring handle (TODO (#1083)) that can produce one of these.
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub enum FatalError {
@@ -254,7 +258,7 @@ impl HasKind for FatalError {
         match self {
             FE::Spawn { cause, .. } => cause.kind(),
             FE::Keystore(e) => e.kind(),
-            FE::MissingHsIdKeypair(_) => EK::Internal, // TODO HSS this is wrong
+            FE::MissingHsIdKeypair(_) => EK::Internal, // TODO (#1225) this is wrong
             FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::NetdirProviderShutdown(e) => e.kind(),
             FE::Bug(e) => e.kind(),
