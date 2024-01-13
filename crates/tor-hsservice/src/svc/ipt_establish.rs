@@ -700,7 +700,7 @@ impl<R: Runtime> Reactor<R> {
                 Ok((session, GoodIptDetails::try_from_circ_target(&relay)?))
             }) {
                 Ok((session, good_ipt_details)) => {
-                    // TODO HSS we need to monitor the netdir for changes to this relay
+                    // TODO (#1239): we need to monitor the netdir for changes to this relay
                     // Eg,
                     //   - if it becomes unlisted, we should declare the IPT faulty
                     //     (until it perhaps reappears)
