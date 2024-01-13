@@ -299,8 +299,6 @@ impl IptEstablisher {
         let subcredentials = compute_subcredentials(&nickname, keymgr)?;
 
         let request_context = Arc::new(RendRequestContext {
-            // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
-            // clone.  We should either make it Clone, or hold it in an Arc.
             kp_hss_ntor: Arc::clone(&k_ntor),
             kp_hs_ipt_sid: k_sid.as_ref().as_ref().verifying_key().into(),
             subcredentials,
