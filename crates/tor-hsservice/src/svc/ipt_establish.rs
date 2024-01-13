@@ -186,8 +186,12 @@ impl IptError {
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
 #[derive(Educe)]
 #[educe(Debug)]
-#[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
 pub(crate) struct IptParameters {
+    /// A receiver that we can use to tell us about updates in our configuration.
+    ///
+    /// Configuration changes may tell us to change our introduction points or build new
+    /// circuits to them.
+    //
     // TODO HSS:
     //
     // We want to make a new introduction circuit if our dos parameters change,
@@ -196,20 +200,48 @@ pub(crate) struct IptParameters {
     // on startup.
     #[educe(Debug(ignore))]
     pub(crate) config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-    // TODO HSS: maybe this should be a bunch of refs.
+    /// A `NetDirProvider` that we'll use to find changes in the network
+    /// parameters, and to look up oinformation about routers.
     #[educe(Debug(ignore))]
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
+    /// A shared sender that we'll use to report incoming INTRODUCE2 requests
+    /// for rendezvous circuits.
     #[educe(Debug(ignore))]
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
+    /// Opaque local ID for this introduction point.
+    ///
+    /// This ID does not change within the lifetime of an [`IptEstablisher`].
+    /// See [`IptLocalId`] for information about what changes would require a
+    /// new ID (and hence a new `IptEstablisher`).
     pub(crate) lid: IptLocalId,
+    /// Persistent log for INTRODUCE2 requests.
+    ///
+    /// We use this to record the requests that we see, and to prevent replays.
     #[educe(Debug(ignore))]
     pub(crate) replay_log: ReplayLog,
-    // TODO HSS: Should this and the following elements be part of some
-    // configuration object?
+    /// A set of identifiers for the Relay that we intend to use as the
+    /// introduction point.
+    ///
+    /// We use this to identify the relay within a `NetDir`, ant to make sure
+    /// we're connecting to the right introduction point.
     pub(crate) target: RelayIds,
-    /// `K_hs_ipt_sid`
+    /// Keypair used to authenticate and identify ourselves to this introduction
+    /// point.
+    ///
+    /// Later, we publish the public component of this keypair in our HsDesc,
+    /// and clients use it to tell the introduction point which introduction circuit
+    /// should receive their requests.
+    ///
+    /// This is the `K_hs_ipt_sid` keypair.
     pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
+    /// Whether this `IptEstablisher` should begin by accepting requests, or
+    /// wait to be told that requests are okay.
     pub(crate) accepting_requests: RequestDisposition,
+    /// Keypair used to decrypt INTRODUCE2 requests from clients.
+    ///
+    /// This is the `K_hss_ntor` keypair, used with the "HS_NTOR" handshake to
+    /// form a shared key set of keys with the client, and decrypt information
+    /// about the client's chosen rendezvous point and extensions.
     pub(crate) k_ntor: Arc<HsSvcNtorKeypair>,
 }
 
