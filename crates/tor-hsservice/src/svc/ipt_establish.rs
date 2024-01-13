@@ -258,8 +258,7 @@ impl IptEstablisher {
     ///
     /// The returned `watch::Receiver` will yield `Faulty` if the IPT
     /// establisher is shut down (or crashes).
-    // TODO HSS rename to "launch" since it starts the task?
-    pub(crate) fn new<R: Runtime>(
+    pub(crate) fn launch<R: Runtime>(
         runtime: &R,
         params: IptParameters,
         pool: Arc<HsCircPool<R>>,
