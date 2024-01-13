@@ -60,7 +60,7 @@ use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShut
 pub(crate) struct IptEstablisher {
     /// A oneshot sender that notifies the running task that it's time to shut
     /// down.
-    #[allow(dead_code)] // TODO HSS: Make sure this is okay.
+    #[allow(dead_code)] // TODO (#1236): Make sure this is okay.
     terminate_tx: oneshot::Sender<Void>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
@@ -871,7 +871,7 @@ impl<R: Runtime> Reactor<R> {
             return Err(IptError::BadEstablished);
         }
 
-        // TODO HSS arrange for the IptMsgHandler to be torn down if the
+        // TODO (#1236) arrange for the IptMsgHandler to be torn down if the
         // Establisher (and this IntroPtSession) is - or if this function returns
         // early somehow.  Otherwise we might leak the IptMsgHandler and the whole
         // circuit?  Given the design of the circuit msg interface this seems nontrivial.
