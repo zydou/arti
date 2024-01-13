@@ -192,7 +192,7 @@ pub(crate) struct IptParameters {
     /// Configuration changes may tell us to change our introduction points or build new
     /// circuits to them.
     //
-    // TODO HSS:
+    // TODO (#1209):
     //
     // We want to make a new introduction circuit if our dos parameters change,
     // which means that we should possibly be watching for changes in our
@@ -650,7 +650,7 @@ struct Reactor<R: Runtime> {
     k_sid: Arc<HsIntroPtSessionIdKeypair>,
     /// The extensions to use when establishing the introduction point.
     ///
-    /// TODO HSS: This should be able to change over time as we re-establish
+    /// TODO (#1209): This should be able to change over time as we re-establish
     /// the intro point.
     extensions: EstIntroExtensionSet,
 
