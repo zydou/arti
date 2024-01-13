@@ -170,7 +170,7 @@ impl tor_error::HasKind for IptError {
 impl IptError {
     /// Return true if this error appears to be the introduction point's fault.
     fn is_ipt_failure(&self) -> bool {
-        // TODO HSS: actually test something here.
+        // TODO (#1234): actually test something here.
         true
     }
 }
