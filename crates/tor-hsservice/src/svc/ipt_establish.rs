@@ -640,9 +640,6 @@ struct Reactor<R: Runtime> {
     /// A provider used to select the other relays in the circuit.
     netdir_provider: Arc<dyn NetDirProvider>,
     /// Identifier for the intro point.
-    ///
-    /// TODO HSS: I am assuming that this type will be a unique identifier, and
-    /// will change whenever RelayIds and/or HsIntroPtSessionIdKeypair changes.
     lid: IptLocalId,
     /// The target introduction point.
     target: RelayIds,
