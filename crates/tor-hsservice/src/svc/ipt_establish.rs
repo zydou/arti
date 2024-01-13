@@ -101,7 +101,7 @@ impl Drop for IptEstablisher {
 pub(crate) enum IptError {
     /// We couldn't get a network directory to use when building circuits.
     #[error("No network directory available")]
-    #[allow(dead_code)] // TODO HSS emit this error, or verify that it isn't needed
+    #[allow(dead_code)] // TODO (#1237) emit this error, or verify that it isn't needed
     NoNetdir(#[source] tor_netdir::Error),
 
     /// The network directory provider is shutting down without giving us the
@@ -134,7 +134,7 @@ pub(crate) enum IptError {
 
     /// We did not receive an INTRO_ESTABLISHED message like we wanted.
     #[error("Did not receive INTRO_ESTABLISHED message")]
-    // TODO HSS: I'd like to receive more information here.  What happened
+    // TODO (#1237): I'd like to receive more information here.  What happened
     // instead?  But the information might be in the MsgHandler, might be in the
     // Circuit,...
     ReceiveAck,
@@ -335,7 +335,7 @@ impl IptEstablisher {
                         let oneshot::Canceled = terminated.void_unwrap_err();
                     }
                     outcome = reactor.keep_intro_established(status_tx).fuse() =>  {
-                        // TODO HSS: probably we should report this outcome.
+                        // TODO (#1237): probably we should report this outcome.
                         let _ = outcome;
                     }
                 );
@@ -735,7 +735,7 @@ impl<R: Runtime> Reactor<R> {
                     // The network directory didn't include this relay.  Wait
                     // until it does.
                     //
-                    // TODO HSS: Perhaps we should distinguish possible error cases
+                    // TODO (#1237): Perhaps we should distinguish possible error cases
                     // here?  See notes in `wait_for_netdir_to_list`.
                     status_tx.borrow_mut().note_error(&e);
                     wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
@@ -920,7 +920,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
         _conversation: ConversationInHandler<'_, '_, '_>,
         any_msg: AnyRelayMsg,
     ) -> tor_proto::Result<MetaCellDisposition> {
-        // TODO HSS: Is CircProto right or should this be a new error type?
+        // TODO (#1237): Is CircProto right or should this be a new error type?
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             tor_proto::Error::CircProto(format!("Invalid message type {}", m.cmd()))
         })?;
@@ -995,7 +995,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                             // See discussion at
                             // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
                             //
-                            // TODO HSS: record when this happens.
+                            // TODO (#1237): record when this happens.
                             Ok(())
                         }
                     }
