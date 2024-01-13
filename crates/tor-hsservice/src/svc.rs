@@ -75,7 +75,7 @@ struct SvcInner {
 
     /// Handles that we'll take ownership of when launching the service.
     ///
-    /// (TODO: Having to consume this may indicate a design problem.)
+    /// (TODO (#1227): Having to consume this may indicate a design problem.)
     unlaunched: Option<(
         mpsc::Receiver<RendRequest>,
         Box<dyn Launchable + Send + Sync>,
@@ -150,7 +150,7 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
-    #[allow(clippy::too_many_arguments)] // TODO (#1229) should there be a builder?
+    #[allow(clippy::too_many_arguments)] // TODO (#1227, #1229) should there be a builder?
     pub fn new<R, S>(
         runtime: R,
         config: OnionServiceConfig,
