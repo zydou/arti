@@ -2,7 +2,7 @@
 //!
 //! Responsible for maintaining and establishing one introduction point.
 //!
-//! TODO HSS: move docs from `hssvc-ipt-algorithm.md`
+//! TODO (#1235): move docs from `hssvc-ipt-algorithm.md`
 //!
 //! See the docs for
 //! [`IptManager::idempotently_progress_things_now`](crate::ipt_mgr::IptManager::idempotently_progress_things_now)
@@ -449,7 +449,7 @@ fn parse_time_period(
 /// The current status of an introduction point, as defined in
 /// `hssvc-ipt-algorithms.md`.
 ///
-/// TODO HSS Make that file unneeded.
+/// TODO (#1235) Make that file unneeded.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum IptStatusStatus {
     /// We are (re)establishing our connection to the IPT
@@ -546,7 +546,7 @@ pub(crate) struct IptStatus {
     /// The current state of this introduction point as defined by
     /// `hssvc-ipt-algorithms.md`.
     ///
-    /// TODO HSS Make that file unneeded.
+    /// TODO (#1235): Make that file unneeded.
     pub(crate) status: IptStatusStatus,
 
     /// The current status of whether this introduction point circuit wants to be
