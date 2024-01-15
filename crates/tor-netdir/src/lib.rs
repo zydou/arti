@@ -1683,12 +1683,16 @@ impl NetDir {
             .try_into()
             .expect("BoundedInt did not enforce bounds!");
 
-        // TODO HSS: I may be wrong here but I suspect that this function may
+        // TODO: I may be wrong here but I suspect that this function may
         // need refactoring so that it does not look at _all_ of the HsDirRings,
         // but only at the ones that corresponds to time periods for which
         // HsBlindId is valid.  Or I could be mistaken, in which case we should
         // have a comment to explain why I am, since the logic is subtle.
         // (For clients, there is only one ring.) -nickm
+        //
+        // (Actually, there is no need to follow through with the above TODO,
+        // since this function is deprecated, and not used anywhere but the
+        // tests.)
 
         let mut hs_dirs = self
             .hsdir_rings
