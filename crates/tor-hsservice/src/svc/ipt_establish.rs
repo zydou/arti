@@ -2,7 +2,7 @@
 //!
 //! Responsible for maintaining and establishing one introduction point.
 //!
-//! TODO HSS: move docs from `hssvc-ipt-algorithm.md`
+//! TODO (#1235): move docs from `hssvc-ipt-algorithm.md`
 //!
 //! See the docs for
 //! [`IptManager::idempotently_progress_things_now`](crate::ipt_mgr::IptManager::idempotently_progress_things_now)
@@ -60,7 +60,7 @@ use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShut
 pub(crate) struct IptEstablisher {
     /// A oneshot sender that notifies the running task that it's time to shut
     /// down.
-    #[allow(dead_code)] // TODO HSS: Make sure this is okay.
+    #[allow(dead_code)] // TODO (#1236): Make sure this is okay.
     terminate_tx: oneshot::Sender<Void>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
@@ -101,7 +101,7 @@ impl Drop for IptEstablisher {
 pub(crate) enum IptError {
     /// We couldn't get a network directory to use when building circuits.
     #[error("No network directory available")]
-    #[allow(dead_code)] // TODO HSS emit this error, or verify that it isn't needed
+    #[allow(dead_code)] // TODO (#1237) emit this error, or verify that it isn't needed
     NoNetdir(#[source] tor_netdir::Error),
 
     /// The network directory provider is shutting down without giving us the
@@ -134,7 +134,7 @@ pub(crate) enum IptError {
 
     /// We did not receive an INTRO_ESTABLISHED message like we wanted.
     #[error("Did not receive INTRO_ESTABLISHED message")]
-    // TODO HSS: I'd like to receive more information here.  What happened
+    // TODO (#1237): I'd like to receive more information here.  What happened
     // instead?  But the information might be in the MsgHandler, might be in the
     // Circuit,...
     ReceiveAck,
@@ -170,7 +170,7 @@ impl tor_error::HasKind for IptError {
 impl IptError {
     /// Return true if this error appears to be the introduction point's fault.
     fn is_ipt_failure(&self) -> bool {
-        // TODO HSS: actually test something here.
+        // TODO (#1234): actually test something here.
         true
     }
 }
@@ -186,9 +186,13 @@ impl IptError {
 ///    struct during mock execution, where we don't call `IptEstablisher::new`).
 #[derive(Educe)]
 #[educe(Debug)]
-#[allow(clippy::missing_docs_in_private_items)] // TODO HSS document these and remove
 pub(crate) struct IptParameters {
-    // TODO HSS:
+    /// A receiver that we can use to tell us about updates in our configuration.
+    ///
+    /// Configuration changes may tell us to change our introduction points or build new
+    /// circuits to them.
+    //
+    // TODO (#1209):
     //
     // We want to make a new introduction circuit if our dos parameters change,
     // which means that we should possibly be watching for changes in our
@@ -196,20 +200,48 @@ pub(crate) struct IptParameters {
     // on startup.
     #[educe(Debug(ignore))]
     pub(crate) config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-    // TODO HSS: maybe this should be a bunch of refs.
+    /// A `NetDirProvider` that we'll use to find changes in the network
+    /// parameters, and to look up information about routers.
     #[educe(Debug(ignore))]
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
+    /// A shared sender that we'll use to report incoming INTRODUCE2 requests
+    /// for rendezvous circuits.
     #[educe(Debug(ignore))]
     pub(crate) introduce_tx: mpsc::Sender<RendRequest>,
+    /// Opaque local ID for this introduction point.
+    ///
+    /// This ID does not change within the lifetime of an [`IptEstablisher`].
+    /// See [`IptLocalId`] for information about what changes would require a
+    /// new ID (and hence a new `IptEstablisher`).
     pub(crate) lid: IptLocalId,
+    /// Persistent log for INTRODUCE2 requests.
+    ///
+    /// We use this to record the requests that we see, and to prevent replays.
     #[educe(Debug(ignore))]
     pub(crate) replay_log: ReplayLog,
-    // TODO HSS: Should this and the following elements be part of some
-    // configuration object?
+    /// A set of identifiers for the Relay that we intend to use as the
+    /// introduction point.
+    ///
+    /// We use this to identify the relay within a `NetDir`, and to make sure
+    /// we're connecting to the right introduction point.
     pub(crate) target: RelayIds,
-    /// `K_hs_ipt_sid`
+    /// Keypair used to authenticate and identify ourselves to this introduction
+    /// point.
+    ///
+    /// Later, we publish the public component of this keypair in our HsDesc,
+    /// and clients use it to tell the introduction point which introduction circuit
+    /// should receive their requests.
+    ///
+    /// This is the `K_hs_ipt_sid` keypair.
     pub(crate) k_sid: Arc<HsIntroPtSessionIdKeypair>,
+    /// Whether this `IptEstablisher` should begin by accepting requests, or
+    /// wait to be told that requests are okay.
     pub(crate) accepting_requests: RequestDisposition,
+    /// Keypair used to decrypt INTRODUCE2 requests from clients.
+    ///
+    /// This is the `K_hss_ntor` keypair, used with the "HS_NTOR" handshake to
+    /// form a shared key set of keys with the client, and decrypt information
+    /// about the client's chosen rendezvous point and extensions.
     pub(crate) k_ntor: Arc<HsSvcNtorKeypair>,
 }
 
@@ -226,8 +258,7 @@ impl IptEstablisher {
     ///
     /// The returned `watch::Receiver` will yield `Faulty` if the IPT
     /// establisher is shut down (or crashes).
-    // TODO HSS rename to "launch" since it starts the task?
-    pub(crate) fn new<R: Runtime>(
+    pub(crate) fn launch<R: Runtime>(
         runtime: &R,
         params: IptParameters,
         pool: Arc<HsCircPool<R>>,
@@ -267,8 +298,6 @@ impl IptEstablisher {
         let subcredentials = compute_subcredentials(&nickname, keymgr)?;
 
         let request_context = Arc::new(RendRequestContext {
-            // TODO HSS: This is a workaround because HsSvcNtorSecretKey is not
-            // clone.  We should either make it Clone, or hold it in an Arc.
             kp_hss_ntor: Arc::clone(&k_ntor),
             kp_hs_ipt_sid: k_sid.as_ref().as_ref().verifying_key().into(),
             subcredentials,
@@ -283,7 +312,7 @@ impl IptEstablisher {
             netdir_provider,
             lid,
             target,
-            k_sid, // TODO HSS this is now redundant.
+            k_sid,
             introduce_tx,
             extensions: EstIntroExtensionSet {
                 dos_params: config.dos_extension()?,
@@ -305,7 +334,7 @@ impl IptEstablisher {
                         let oneshot::Canceled = terminated.void_unwrap_err();
                     }
                     outcome = reactor.keep_intro_established(status_tx).fuse() =>  {
-                        // TODO HSS: probably we should report this outcome.
+                        // TODO (#1237): probably we should report this outcome.
                         let _ = outcome;
                     }
                 );
@@ -417,7 +446,7 @@ fn parse_time_period(
 /// The current status of an introduction point, as defined in
 /// `hssvc-ipt-algorithms.md`.
 ///
-/// TODO HSS Make that file unneeded.
+/// TODO (#1235) Make that file unneeded.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum IptStatusStatus {
     /// We are (re)establishing our connection to the IPT
@@ -514,14 +543,8 @@ pub(crate) struct IptStatus {
     /// The current state of this introduction point as defined by
     /// `hssvc-ipt-algorithms.md`.
     ///
-    /// TODO HSS Make that file unneeded.
+    /// TODO (#1235): Make that file unneeded.
     pub(crate) status: IptStatusStatus,
-
-    /// How many times have we transitioned into a Faulty state?
-    ///
-    /// (This is not the same as the total number of failed attempts, since it
-    /// does not count times we retry from a Faulty state.)
-    pub(crate) n_faults: u32,
 
     /// The current status of whether this introduction point circuit wants to be
     /// retired based on having processed too many requests.
@@ -530,7 +553,6 @@ pub(crate) struct IptStatus {
 
 impl IptStatus {
     /// Record that we have successfully connected to an introduction point.
-    #[allow(unreachable_code, clippy::diverging_sub_expression)] // TODO HSS remove
     fn note_open(&mut self, ipt_details: GoodIptDetails) {
         self.status = IptStatusStatus::Good(ipt_details);
     }
@@ -548,8 +570,6 @@ impl IptStatus {
     fn note_error(&mut self, err: &IptError) {
         use IptStatusStatus::*;
         if err.is_ipt_failure() {
-            // TODO HSS remove n_faults (nothing reads it)
-            self.n_faults += 1;
             self.status = Faulty;
         }
     }
@@ -559,7 +579,6 @@ impl IptStatus {
     fn new() -> Self {
         Self {
             status: IptStatusStatus::Establishing,
-            n_faults: 0,
             wants_to_retire: Ok(()),
         }
     }
@@ -568,7 +587,6 @@ impl IptStatus {
     fn new_terminated() -> Self {
         IptStatus {
             status: IptStatusStatus::Faulty,
-            n_faults: u32::MAX,
             // If we're broken, we simply tell the manager that that is the case.
             // It will decide for itself whether it wants to replace us.
             wants_to_retire: Ok(()),
@@ -619,9 +637,6 @@ struct Reactor<R: Runtime> {
     /// A provider used to select the other relays in the circuit.
     netdir_provider: Arc<dyn NetDirProvider>,
     /// Identifier for the intro point.
-    ///
-    /// TODO HSS: I am assuming that this type will be a unique identifier, and
-    /// will change whenever RelayIds and/or HsIntroPtSessionIdKeypair changes.
     lid: IptLocalId,
     /// The target introduction point.
     target: RelayIds,
@@ -632,7 +647,7 @@ struct Reactor<R: Runtime> {
     k_sid: Arc<HsIntroPtSessionIdKeypair>,
     /// The extensions to use when establishing the introduction point.
     ///
-    /// TODO HSS: This should be able to change over time as we re-establish
+    /// TODO (#1209): This should be able to change over time as we re-establish
     /// the intro point.
     extensions: EstIntroExtensionSet,
 
@@ -685,7 +700,7 @@ impl<R: Runtime> Reactor<R> {
                 Ok((session, GoodIptDetails::try_from_circ_target(&relay)?))
             }) {
                 Ok((session, good_ipt_details)) => {
-                    // TODO HSS we need to monitor the netdir for changes to this relay
+                    // TODO (#1239): we need to monitor the netdir for changes to this relay
                     // Eg,
                     //   - if it becomes unlisted, we should declare the IPT faulty
                     //     (until it perhaps reappears)
@@ -719,7 +734,7 @@ impl<R: Runtime> Reactor<R> {
                     // The network directory didn't include this relay.  Wait
                     // until it does.
                     //
-                    // TODO HSS: Perhaps we should distinguish possible error cases
+                    // TODO (#1237): Perhaps we should distinguish possible error cases
                     // here?  See notes in `wait_for_netdir_to_list`.
                     status_tx.borrow_mut().note_error(&e);
                     wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
@@ -786,7 +801,7 @@ impl<R: Runtime> Reactor<R> {
                 .sign_and_encode((*self.k_sid).as_ref(), circuit_binding_key.hs_mac())
                 .map_err(IptError::CreateEstablishIntro)?;
 
-            // TODO HSS: This is ugly, but it is the sensible way to munge the above
+            // TODO: This is ugly, but it is the sensible way to munge the above
             // body into a format that AnyRelayMsgOuter will accept without doing a
             // redundant parse step.
             //
@@ -846,14 +861,14 @@ impl<R: Runtime> Reactor<R> {
             // We do not support any extensions from the introduction point; if it
             // sent us any, that's a protocol violation.
             //
-            // TODO HSS this check needs to happen in IptMsgHandler::handle_msg,
+            // TODO (#1238): this check needs to happen in IptMsgHandler::handle_msg,
             // because otherwise handle_msg might go on to handle messages despite
             // us wanting to crash, here.  (Providing reliable teardown of the
             // IptMsgHandler wouldn't be sufficient, since there would be a race.)
             return Err(IptError::BadEstablished);
         }
 
-        // TODO HSS arrange for the IptMsgHandler to be torn down if the
+        // TODO (#1236) arrange for the IptMsgHandler to be torn down if the
         // Establisher (and this IntroPtSession) is - or if this function returns
         // early somehow.  Otherwise we might leak the IptMsgHandler and the whole
         // circuit?  Given the design of the circuit msg interface this seems nontrivial.
@@ -904,7 +919,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
         _conversation: ConversationInHandler<'_, '_, '_>,
         any_msg: AnyRelayMsg,
     ) -> tor_proto::Result<MetaCellDisposition> {
-        // TODO HSS: Is CircProto right or should this be a new error type?
+        // TODO (#1237): Is CircProto right or should this be a new error type?
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             tor_proto::Error::CircProto(format!("Invalid message type {}", m.cmd()))
         })?;
@@ -979,7 +994,7 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                             // See discussion at
                             // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
                             //
-                            // TODO HSS: record when this happens.
+                            // TODO (#1237): record when this happens.
                             Ok(())
                         }
                     }

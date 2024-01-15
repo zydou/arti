@@ -791,7 +791,6 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
         let IptStatus {
             status: update,
             wants_to_retire,
-            n_faults: _,
         } = update;
 
         #[allow(clippy::single_match)] // want to be explicit about the Ok type
@@ -1606,7 +1605,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
         imm: &Immutable<R>,
         params: IptParameters,
     ) -> Result<(Self::IptEstablisher, watch::Receiver<IptStatus>), FatalError> {
-        IptEstablisher::new(&imm.runtime, params, self.circ_pool.clone(), &imm.keymgr)
+        IptEstablisher::launch(&imm.runtime, params, self.circ_pool.clone(), &imm.keymgr)
     }
 
     fn start_accepting(&self, establisher: &ErasedIptEstablisher) {
