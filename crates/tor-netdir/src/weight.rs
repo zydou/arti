@@ -98,9 +98,13 @@ pub enum WeightRole {
     BeginDir,
     /// Selecting a relay with no additional weight beyond its bandwidth.
     Unweighted,
-    // TODO HSS add HsRend here too, and use it in tor-hsclient
     /// Selecting a relay for use as a hidden service introduction point
     HsIntro,
+    // Note: There is no `HsRend` role, since in practice when we want to pick a
+    // rendezvous point we use a pre-built circuit from our circuit-pool, the
+    // last hop of which was selected with the `Middle` weight.  Fortunately,
+    // the weighting rules for picking rendezvous points are the same as for
+    // picking middle relays.
 }
 
 /// Description for how to weight a single kind of relay for each WeightRole.
