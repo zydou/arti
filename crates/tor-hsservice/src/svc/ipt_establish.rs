@@ -201,7 +201,7 @@ pub(crate) struct IptParameters {
     #[educe(Debug(ignore))]
     pub(crate) config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
     /// A `NetDirProvider` that we'll use to find changes in the network
-    /// parameters, and to look up oinformation about routers.
+    /// parameters, and to look up information about routers.
     #[educe(Debug(ignore))]
     pub(crate) netdir_provider: Arc<dyn NetDirProvider>,
     /// A shared sender that we'll use to report incoming INTRODUCE2 requests
@@ -222,7 +222,7 @@ pub(crate) struct IptParameters {
     /// A set of identifiers for the Relay that we intend to use as the
     /// introduction point.
     ///
-    /// We use this to identify the relay within a `NetDir`, ant to make sure
+    /// We use this to identify the relay within a `NetDir`, and to make sure
     /// we're connecting to the right introduction point.
     pub(crate) target: RelayIds,
     /// Keypair used to authenticate and identify ourselves to this introduction
