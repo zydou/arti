@@ -266,7 +266,7 @@ impl From<u64> for RelayWeight {
 
 /// An operation for which we might be requesting a hidden service directory.
 #[derive(Copy, Clone, Debug, PartialEq)]
-// TODO HSS: make this pub(crate) once NetDir::hs_dirs is removed
+// TODO: make this pub(crate) once NetDir::hs_dirs is removed
 #[non_exhaustive]
 pub enum HsDirOp {
     /// Uploading an onion service descriptor.
@@ -394,14 +394,14 @@ pub(crate) struct HsDirs<D> {
     /// secondary rings will be active at a time.  We have two here in order
     /// to conform with a more flexible regime in proposal 342.
     //
-    // TODO hss: hs clients never need this; so I've made it not-present for thm.
+    // TODO: hs clients never need this; so I've made it not-present for thm.
     // But does that risk too much with respect to side channels?
     //
-    // TODO hss: Perhaps we should refactor this so that it is clear that these
+    // TODO: Perhaps we should refactor this so that it is clear that these
     // are immutable?  On the other hand, the documentation for this type
     // declares that it is immutable, so we are likely okay.
     //
-    // TODO hss: this `Vec` is only ever 0,1,2 elements.
+    // TODO: this `Vec` is only ever 0,1,2 elements.
     // Maybe it should be an ArrayVec or something.
     #[cfg(feature = "hs-service")]
     secondary: Vec<D>,
@@ -1519,8 +1519,6 @@ impl NetDir {
     /// [`.hs_time_period`](NetDir::hs_time_period))
     /// plus additional time periods that we publish descriptors for when we are
     /// acting as a hidden service.
-    //
-    // TODO HSS do we need this function?
     #[cfg(feature = "hs-service")]
     pub fn hs_all_time_periods(&self) -> Vec<TimePeriod> {
         self.hsdir_rings
@@ -1644,7 +1642,7 @@ impl NetDir {
     /// Return an error if the time period is not one returned by
     /// `onion_service_time_period` or `onion_service_secondary_time_periods`.
     //
-    // TODO HSS: make HsDirOp pub(crate) once this is removed
+    // TODO: make HsDirOp pub(crate) once this is removed
     #[cfg(feature = "hs-common")]
     #[deprecated(note = "Use hs_dirs_upload or hs_dirs_download instead")]
     pub fn hs_dirs<'r, R>(&'r self, hsid: &HsBlindId, op: HsDirOp, rng: &mut R) -> Vec<Relay<'r>>
