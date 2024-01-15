@@ -120,6 +120,12 @@ impl<R: Runtime> HsCircPool<R> {
         netdir: &'a NetDir,
     ) -> Result<(Arc<ClientCirc>, Relay<'a>)> {
         // For rendezvous points, clients use 3-hop circuits.
+        // Note that we aren't using any special rules for the last hop here; we
+        // are relying on the fact that:
+        //   * all suitable middle relays that we use in these stub circuits are
+        //     suitable renedezvous points, and
+        //   * the weighting rules for selecting rendezvous points are the same
+        //     as those for selecting an arbitrary middle relay.
         let circ = self
             .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None)
             .await?;
