@@ -16,7 +16,7 @@ pub struct OnionServiceStatus {
 
     /// The current high-level state for the descriptor publisher.
     publisher_state: State,
-    // TODO (#1083): Add key expiration
+    // TODO (#1194): Add key expiration
     // TODO (#1083): Add latest-error.
     //
     // NOTE: Do _not_ add general metrics (like failure/success rates , number
@@ -108,7 +108,7 @@ impl OnionServiceStatus {
     /// Returns `None` if the onion service is able to generate and sign new
     /// keys as needed.
     pub fn provisioned_key_expiration(&self) -> Option<SystemTime> {
-        None // TODO (#1083): Implement
+        None // TODO (#1194): Implement
     }
 }
 
