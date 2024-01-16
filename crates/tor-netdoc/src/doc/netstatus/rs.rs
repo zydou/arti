@@ -159,6 +159,14 @@ macro_rules! implement_accessors {
             pub fn is_flagged_hsdir(&self) -> bool {
                 self.rs.flags.contains(RelayFlags::HSDIR)
             }
+            /// Return true if this routerstatus is listed with the Stable flag.
+            pub fn is_flagged_stable(&self) -> bool {
+                self.rs.flags.contains(RelayFlags::STABLE)
+            }
+            /// Return true if this routerstatus is listed with the Fast flag.
+            pub fn is_flagged_fast(&self) -> bool {
+                self.rs.flags.contains(RelayFlags::FAST)
+            }
             /// Return true if this routerstatus is listed with the MiddleOnly flag.
             ///
             /// Note that this flag is only used by authorities as part of
