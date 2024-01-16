@@ -1393,6 +1393,64 @@ impl<R: Runtime> TorClient<R> {
         Ok((service, stream))
     }
 
+    /// Create (but do not launch) a new
+    /// [`OnionService`](tor_hsservice::OnionService)
+    /// using the given configuration.
+    ///
+    /// The returned `OnionService` can be launched using
+    /// [`OnionService::launch()`](tor_hsservice::OnionService::launch).
+    //
+    // TODO: this duplicates code from launch_onion_service and TorClient::create_inner.
+    #[cfg(feature = "onion-service-service")]
+    pub fn create_onion_service(
+        config: &TorClientConfig,
+        svc_config: tor_hsservice::OnionServiceConfig,
+    ) -> crate::Result<tor_hsservice::OnionService<FsStateMgr>> {
+        let keystore = config.storage.keystore();
+        let keymgr = if keystore.is_enabled() {
+            let key_store_dir = keystore.path();
+            let permissions = config.storage.permissions();
+
+            let arti_store =
+                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
+            info!("Using keystore from {key_store_dir:?}");
+
+            // TODO #1106: make the default store configurable
+            let default_store = arti_store;
+
+            let keymgr = KeyMgrBuilder::default()
+                .default_store(Box::new(default_store))
+                .build()
+                .map_err(|_| ErrorDetail::Bug(internal!("failed to build keymgr")))?;
+
+            // TODO #858: add support for the C Tor key store
+            Arc::new(keymgr)
+        } else {
+            return Err(ErrorDetail::KeystoreRequired {
+                action: "launch onion service",
+            }
+            .into());
+        };
+
+        let state_dir = config
+            .storage
+            .expand_state_dir()
+            .map_err(ErrorDetail::Configuration)?;
+        let storage_mistrust = config.storage.permissions();
+        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, storage_mistrust)
+            .map_err(ErrorDetail::StateMgrSetup)?;
+
+        Ok(tor_hsservice::OnionService::new(
+            svc_config,
+            keymgr,
+            statemgr.clone(),
+            &state_dir,
+            storage_mistrust,
+        )
+        // TODO: do we need an ErrorDetail::CreateOnionService?
+        .map_err(ErrorDetail::LaunchOnionService)?)
+    }
+
     /// Return a current [`status::BootstrapStatus`] describing how close this client
     /// is to being ready for user traffic.
     pub fn bootstrap_status(&self) -> status::BootstrapStatus {
