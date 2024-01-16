@@ -544,6 +544,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let nickname = self.imm.nickname.clone();
         let rt = self.imm.runtime.clone();
+        let status_tx = self.imm.status_tx.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
@@ -565,8 +566,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
                 if let Err(e) = schedule_upload_tx.send(()).await {
-                    // TODO (#1083): update publisher state
                     debug!(nickname=%nickname, "failed to notify reactor to reattempt upload");
+                    status_tx.note_shutdown();
+                    // This can only happen if the reactor exited (or crashed), so it's safe to
+                    // stop looping at this point (we will break on the next iteration anyway,
+                    // because `reattempt_upload_tx` is also dropped when the reactor is dropped).
+                    break;
                 }
             }
 
@@ -578,6 +583,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 Ok(ShutdownStatus::Continue) => continue,
                 Ok(ShutdownStatus::Terminate) => {
                     debug!(nickname=%self.imm.nickname, "descriptor publisher is shutting down!");
+
+                    self.imm.status_tx.note_shutdown();
                     return Ok(());
                 }
                 Err(e) => {
@@ -587,7 +594,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         self.imm.nickname
                     );
 
-                    // TODO (#1083): Set status to Shutdown.
+                    self.imm.status_tx.note_broken(e.clone());
+
                     return Err(e);
                 }
             }
