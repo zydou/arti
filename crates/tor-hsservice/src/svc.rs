@@ -293,6 +293,18 @@ impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
         let stream = svc.launch()?;
         Ok((svc, stream))
     }
+
+    /// Return the onion address of this service.
+    ///
+    /// Returns `None` if the HsId of the service could not be found in any of the configured
+    /// keystores.
+    pub fn onion_name(&self) -> Option<HsId> {
+        let hsid_spec = HsIdPublicKeySpecifier::new(self.config.nickname.clone());
+        self.keymgr
+            .get::<HsIdKey>(&hsid_spec)
+            .ok()?
+            .map(|hsid| hsid.id())
+    }
 }
 
 impl RunningOnionService {
