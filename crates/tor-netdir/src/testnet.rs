@@ -187,7 +187,11 @@ pub fn construct_custom_network<F>(
 where
     F: FnMut(usize, &mut NodeBuilders),
 {
-    let f = RelayFlags::RUNNING | RelayFlags::VALID | RelayFlags::V2DIR;
+    let f = RelayFlags::RUNNING
+        | RelayFlags::VALID
+        | RelayFlags::V2DIR
+        | RelayFlags::FAST
+        | RelayFlags::STABLE;
     // define 4 groups of flags
     let flags = [
         f | RelayFlags::HSDIR,
