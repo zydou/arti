@@ -169,9 +169,42 @@ impl tor_error::HasKind for IptError {
 
 impl IptError {
     /// Return true if this error appears to be the introduction point's fault.
+    ///
+    /// This corresponds to [`IptStatusStatus::Faulty`]`: when we return true,
+    /// it means that we should try another relay as an introduction point,
+    /// though we don't necessarily need to give up on this one.
+    ///
+    /// Note that the intro point may be to blame even if we return `false`;
+    /// we only return `true` when we are certain that the intro point is
+    /// unlisted, unusable, or misbehaving.
     fn is_ipt_failure(&self) -> bool {
-        // TODO (#1234): actually test something here.
-        true
+        use IptError as IE;
+        match self {
+            // If we don't have a netdir, then no intro point is better than any other.
+            IE::NoNetdir(_) | IE::NetdirProviderShutdown(_) => false,
+            // Not strictly "faulty", but unlisted in the directory means we
+            // can't use the introduction point.
+            IE::IntroPointNotListed => true,
+            // This _might_ be the introduction point's fault, but it might not.
+            // We can't be certain.
+            //
+            // TODO (#1248): Make sure that we attempt to use another intro
+            // point eventually even if the introduction point is not to blame.
+            IE::BuildCircuit(_) => false,
+            IE::EstablishTimeout => false,
+            IE::ReceiveAck => false, // TODO(#1237)
+
+            // This is definitely the introduction point's fault: it sent us
+            // an authenticated message, but the contents of that message were
+            // definitely wrong.
+            IE::BadEstablished => true,
+
+            // These are, most likely, not the introduction point's fault,
+            // though they might or might not be survivable.
+            IE::CreateEstablishIntro(_) => false,
+            IE::SendEstablishIntro(_) => false,
+            IE::Bug(_) => false,
+        }
     }
 }
 
