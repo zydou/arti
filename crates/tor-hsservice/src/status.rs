@@ -15,10 +15,10 @@ use crate::{DescUploadError, FatalError};
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OnionServiceStatus {
     /// The current high-level state for the IPT manager.
-    ipt_mgr_state: ComponentStatus,
+    ipt_mgr: ComponentStatus,
 
     /// The current high-level state for the descriptor publisher.
-    publisher_state: ComponentStatus,
+    publisher: ComponentStatus,
     // TODO (#1194): Add key expiration
     // TODO (#1083): Add latest-error.
     //
@@ -123,8 +123,8 @@ impl OnionServiceStatus {
     /// Create a new OnionServiceStatus for a service that has not been bootstrapped.
     pub(crate) fn new_shutdown() -> Self {
         Self {
-            ipt_mgr_state: ComponentStatus::new_shutdown(),
-            publisher_state: ComponentStatus::new_shutdown(),
+            ipt_mgr: ComponentStatus::new_shutdown(),
+            publisher: ComponentStatus::new_shutdown(),
         }
     }
 
@@ -135,7 +135,7 @@ impl OnionServiceStatus {
     pub fn state(&self) -> State {
         use State::*;
 
-        match (self.ipt_mgr_state.state, self.publisher_state.state) {
+        match (self.ipt_mgr.state, self.publisher.state) {
             (Shutdown, _) | (_, Shutdown) => Shutdown,
             (Bootstrapping, _) | (_, Bootstrapping) => Bootstrapping,
             (Running, Running) => Running,
@@ -215,7 +215,7 @@ impl StatusSender {
     pub(crate) fn maybe_update_ipt_mgr(&self, state: State) {
         let mut tx = self.0.lock().expect("Poisoned lock");
         let mut svc_status = tx.borrow().clone();
-        svc_status.ipt_mgr_state.state = state;
+        svc_status.ipt_mgr.state = state;
         tx.maybe_send(|_| svc_status);
     }
 
@@ -226,7 +226,7 @@ impl StatusSender {
     pub(crate) fn maybe_update_publisher(&self, state: State) {
         let mut tx = self.0.lock().expect("Poisoned lock");
         let mut svc_status = tx.borrow().clone();
-        svc_status.publisher_state.state = state;
+        svc_status.publisher.state = state;
         tx.maybe_send(|_| svc_status);
     }
 
