@@ -30,7 +30,7 @@ impl OnionServiceProxyConfigMapBuilder {
                 // This is within the context of the `onion_services` field, so
                 // we just say "*" here.
                 field: "*".to_string(),
-                problem: "no support for running onion services".to_string(),
+                problem: "no support for running onion services; hint: recompile arti with onion-service-service".to_string(),
             })
         } else {
             Ok(OnionServiceProxyConfigMap {})
