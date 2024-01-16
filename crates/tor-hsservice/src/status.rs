@@ -146,7 +146,15 @@ impl OnionServiceStatus {
 
     /// Return the most severe current problem
     pub fn current_problem(&self) -> Option<&Problem> {
-        None
+        match (&self.ipt_mgr.latest_error, &self.publisher.latest_error) {
+            (None, None) => None,
+            (Some(e), Some(_)) => {
+                // For now, assume IPT manager errors are always more severe
+                // TODO: decide which error is the more severe (or return both)
+                Some(e)
+            }
+            (_, Some(e)) | (Some(e), _) => Some(e),
+        }
     }
 
     /// Return a time before which the user must re-provision this onion service
