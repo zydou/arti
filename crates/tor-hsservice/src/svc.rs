@@ -333,7 +333,7 @@ impl OnionService {
     ///
     /// You can also shut down an onion service completely by dropping the last
     /// Clone of it.
-    pub fn stop(&self) {
+    pub fn pause(&self) {
         todo!() // TODO (#1231)
     }
 }
