@@ -68,7 +68,6 @@ mod keys;
 mod nickname;
 mod replay;
 mod req;
-mod state;
 pub mod status;
 mod svc;
 mod timeout_track;
@@ -107,7 +106,6 @@ pub use keys::{
 };
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{RendRequest, StreamRequest};
-pub use state::StateMgr;
 pub use svc::netdir::NetdirProviderShutdown;
 pub use svc::{OnionService, RunningOnionService};
 
