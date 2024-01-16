@@ -3,7 +3,7 @@
 use derive_adhoc::Adhoc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, ops::RangeInclusive, path::PathBuf, str::FromStr};
+use std::{net::SocketAddr, ops::RangeInclusive, str::FromStr};
 use tracing::warn;
 //use tor_config::derive_adhoc_template_Flattenable;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
@@ -253,8 +253,10 @@ pub enum ProxyAction {
 pub enum TargetAddr {
     /// An address that we can reach over the internet.
     Inet(SocketAddr),
+    /* TODO (#1246): Put this back.
     /// An address of a local unix socket.
     Unix(PathBuf),
+    */
 }
 
 impl TargetAddr {
@@ -264,7 +266,8 @@ impl TargetAddr {
     fn is_sufficiently_private(&self) -> bool {
         use std::net::IpAddr;
         match self {
-            TargetAddr::Unix(_) => true,
+            /* TODO(#1246) */
+            // TargetAddr::Unix(_) => true,
 
             // NOTE: We may want to relax these rules in the future!
             // NOTE: Contrast this with is_local in arti_client::address,
@@ -292,9 +295,12 @@ impl FromStr for TargetAddr {
                     .map(|rhs| rhs.starts_with(|c: char| c.is_ascii_hexdigit() || c == ':'))
                     .unwrap_or(false)
         }
+        /* TODO (#1246): Put this back
         if let Some(path) = s.strip_prefix("unix:") {
             Ok(Self::Unix(PathBuf::from(path)))
-        } else if let Some(addr) = s.strip_prefix("inet:") {
+        } else
+        */
+        if let Some(addr) = s.strip_prefix("inet:") {
             Ok(Self::Inet(addr.parse().map_err(PCE::InvalidTargetAddr)?))
         } else if looks_like_attempted_addr(s) {
             // We check 'looks_like_attempted_addr' before parsing this.
@@ -309,7 +315,8 @@ impl std::fmt::Display for TargetAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TargetAddr::Inet(a) => write!(f, "inet:{}", a),
-            TargetAddr::Unix(p) => write!(f, "unix:{}", p.display()),
+            // TODO (#1246): Put this back.
+            // TargetAddr::Unix(p) => write!(f, "unix:{}", p.display()),
         }
     }
 }
@@ -446,10 +453,12 @@ mod test {
         assert!(
             matches!(T::from_str("inet:[::1]:999"), Ok(T::Forward(Simple, A::Inet(a))) if a == sa)
         );
+        /* TODO (#1246)
         let pb = PathBuf::from("/var/run/hs/socket");
         assert!(
             matches!(T::from_str("unix:/var/run/hs/socket"), Ok(T::Forward(Simple, A::Unix(p))) if p == pb)
         );
+        */
     }
 
     #[test]
@@ -469,10 +478,12 @@ mod test {
             T::Forward(Simple, A::Inet("[::1]:999".parse().unwrap())).to_string(),
             "simple:inet:[::1]:999"
         );
+        /* TODO (#1246)
         assert_eq!(
             T::Forward(Simple, A::Unix("/var/run/hs/socket".into())).to_string(),
             "simple:unix:/var/run/hs/socket"
         );
+        */
     }
 
     #[test]
@@ -582,13 +593,13 @@ proxy_ports = [
     [ 80, "127.0.0.1:10080"],
     ["22", "destroy"],
     ["265", "ignore"],
-    ["1-1024", "unix:/var/run/allium-cepa/socket"],
+    # ["1-1024", "unix:/var/run/allium-cepa/socket"], # TODO (#1246))
 ]
 "#,
         )
         .unwrap();
         let c = b.build().unwrap();
-        assert_eq!(c.proxy_ports.len(), 4);
+        assert_eq!(c.proxy_ports.len(), 3);
         assert_eq!(
             c.proxy_ports[0],
             ProxyRule::new(
@@ -613,6 +624,7 @@ proxy_ports = [
                 ProxyAction::IgnoreStream
             )
         );
+        /* TODO (#1246)
         assert_eq!(
             c.proxy_ports[3],
             ProxyRule::new(
@@ -623,5 +635,6 @@ proxy_ports = [
                 )
             )
         );
+        */
     }
 }

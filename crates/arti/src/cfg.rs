@@ -1084,6 +1084,7 @@ example config file {which:?}, uncommented={uncommented:?}
                     ProxyPattern::one_port(265).unwrap(),
                     ProxyAction::IgnoreStream,
                 ));
+                /* TODO (#1246)
                 b.proxy().proxy_ports().push(ProxyRule::new(
                     ProxyPattern::port_range(1, 1024).unwrap(),
                     ProxyAction::Forward(
@@ -1091,6 +1092,7 @@ example config file {which:?}, uncommented={uncommented:?}
                         TargetAddr::Unix("/var/run/allium-cepa/socket".into()),
                     ),
                 ));
+                */
                 b.proxy().proxy_ports().push(ProxyRule::new(
                     ProxyPattern::all_ports(),
                     ProxyAction::DestroyCircuit,
