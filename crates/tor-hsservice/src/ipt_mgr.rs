@@ -742,18 +742,13 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
         let mut rng = self.mockable.thread_rng();
 
         let relay = netdir
-            .pick_relay(
-                &mut rng,
-                tor_netdir::WeightRole::HsIntro,
-                // TODO #1211 should we apply any other conditions to the selected IPT?
-                |new| {
-                    new.is_hs_intro_point()
-                        && !self
-                            .irelays
-                            .iter()
-                            .any(|existing| new.has_any_relay_id_from(&existing.relay))
-                },
-            )
+            .pick_relay(&mut rng, tor_netdir::WeightRole::HsIntro, |new| {
+                new.is_hs_intro_point()
+                    && !self
+                        .irelays
+                        .iter()
+                        .any(|existing| new.has_any_relay_id_from(&existing.relay))
+            })
             .ok_or(ChooseIptError::TooFewUsableRelays)?;
 
         let retirement = rng
