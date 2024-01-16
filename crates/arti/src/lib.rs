@@ -46,6 +46,8 @@
 
 pub mod cfg;
 pub mod logging;
+#[cfg(not(feature = "onion-service-service"))]
+mod onion_proxy_disabled;
 
 /// Helper:
 /// Declare a series of modules as public if experimental_api is set,

@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use crate::onion_proxy::{
     OnionServiceProxyConfigBuilder, OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder,
 };
+#[cfg(not(feature = "onion-service-service"))]
+use crate::onion_proxy_disabled::{OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder};
 use arti_client::TorClientConfig;
 #[cfg(feature = "rpc")]
 use tor_config::CfgPath;
@@ -237,9 +239,15 @@ pub struct ArtiConfig {
     pub(crate) system: SystemConfig,
 
     /// Configured list of proxied onion services.
+    ///
+    /// Note that this field is present unconditionally, but when onion service
+    /// support is disabled, it is replaced with a stub type from
+    /// `onion_proxy_disabled`, and its setter functions are not implemented.
+    /// The purpose of this stub type is to give an error if somebody tries to
+    /// configure onion services when the `onion-service-service` feature is
+    /// disabled.
     #[builder(sub_builder, setter(custom))]
     #[builder_field_attr(serde(default))]
-    #[cfg(feature = "onion-service-service")]
     pub(crate) onion_services: OnionServiceProxyConfigMap,
 }
 
@@ -1101,9 +1109,7 @@ example config file {which:?}, uncommented={uncommented:?}
         }
         #[cfg(not(feature = "onion-service-service"))]
         {
-            // TODO #1184: Make us get an error when we configure onion services
-            // without onion service support.
-            let _ = result;
+            expect_err_contains(result.unwrap_err(), "no support for running onion services");
         }
     }
 
