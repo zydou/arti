@@ -20,7 +20,6 @@ pub struct OnionServiceStatus {
     /// The current high-level state for the descriptor publisher.
     publisher: ComponentStatus,
     // TODO (#1194): Add key expiration
-    // TODO (#1083): Add latest-error.
     //
     // NOTE: Do _not_ add general metrics (like failure/success rates , number
     // of intro points, etc) here.
@@ -209,33 +208,65 @@ pub(crate) struct IptMgrStatusSender(StatusSender);
 #[derive(Clone, derive_more::From)]
 pub(crate) struct PublisherStatusSender(StatusSender);
 
+/// A helper for implementing [`PublisherStatusSender`] and [`IptMgrStatusSender`].
+///
+/// TODO: this macro is a bit repetitive, it would be nice if we could reduce duplication even
+/// furhter (and auto-generate a `note_<state>` function for every `State` variant).
+macro_rules! impl_status_sender {
+    ($sender:ident, $field:ident) => {
+        impl $sender {
+            /// Update `latest_error` and set the underlying state to `Broken`.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_broken(&self, err: impl Into<Problem>) {
+                self.note_status(State::Broken, Some(err.into()));
+            }
+
+            /// Update `latest_error` and set the underlying state to `Recovering`.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_recovering(&self, err: impl Into<Problem>) {
+                self.note_status(State::Recovering, Some(err.into()));
+            }
+
+            /// Set `latest_error` to `None` and the underlying state to `Shutdown`.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_shutdown(&self) {
+                self.note_status(State::Shutdown, None);
+            }
+
+            /// Update the underlying state and latest_error.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_status(&self, state: State, err: Option<Problem>) {
+                let sender = &self.0;
+                let mut tx = sender.0.lock().expect("Poisoned lock");
+                let mut svc_status = tx.borrow().clone();
+                svc_status.$field.state = state;
+                svc_status.$field.latest_error = err;
+                tx.maybe_send(|_| svc_status);
+            }
+        }
+    };
+}
+
+impl_status_sender!(IptMgrStatusSender, ipt_mgr);
+impl_status_sender!(PublisherStatusSender, publisher);
+
 impl StatusSender {
     /// Create a new StatusSender with a given initial status.
     pub(crate) fn new(initial_status: OnionServiceStatus) -> Self {
         let (tx, _) = postage::watch::channel_with(initial_status);
         StatusSender(Arc::new(Mutex::new(tx)))
-    }
-
-    /// Update the current IPT manager state.
-    ///
-    /// If the new state is different, update the current status and notify all listeners.
-    #[allow(dead_code)]
-    pub(crate) fn maybe_update_ipt_mgr(&self, state: State) {
-        let mut tx = self.0.lock().expect("Poisoned lock");
-        let mut svc_status = tx.borrow().clone();
-        svc_status.ipt_mgr.state = state;
-        tx.maybe_send(|_| svc_status);
-    }
-
-    /// Update the current publisher state.
-    ///
-    /// If the new state is different, update the current status and notify all listeners.
-    #[allow(dead_code)]
-    pub(crate) fn maybe_update_publisher(&self, state: State) {
-        let mut tx = self.0.lock().expect("Poisoned lock");
-        let mut svc_status = tx.borrow().clone();
-        svc_status.publisher.state = state;
-        tx.maybe_send(|_| svc_status);
     }
 
     /// Return a copy of the current status.
