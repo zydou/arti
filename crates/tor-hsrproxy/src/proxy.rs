@@ -197,10 +197,11 @@ async fn run_action<R: Runtime>(
             (Encapsulation::Simple, ref addr @ TargetAddr::Inet(a)) => {
                 let rt_clone = runtime.clone();
                 forward_connection(rt_clone, request, runtime.connect(&a), nickname, addr).await?;
-            }
-            (Encapsulation::Simple, TargetAddr::Unix(_)) => {
-                // TODO: We need to implement unix connections.
-            }
+            } /* TODO (#1246)
+                (Encapsulation::Simple, TargetAddr::Unix(_)) => {
+                    // TODO: We need to implement unix connections.
+                }
+              */
         },
         ProxyAction::RejectStream => {
             // C tor sends DONE in this case, so we do too.
