@@ -1828,10 +1828,8 @@ impl<'a> Relay<'a> {
         self.rs.is_flagged_guard()
     }
     /// Return true if this relay is a potential HS introduction point
-    #[cfg(feature = "hs-service")] // TODO (#1240) maybe expose this unconditionally?
     pub fn is_hs_intro_point(&self) -> bool {
-        true // TODO (#1240) / TODO SPEC is every relay really a potential intro point?
-             // TODO (#1240) check the stable flag?
+        self.rs.is_flagged_stable()
     }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
