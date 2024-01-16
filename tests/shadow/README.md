@@ -19,8 +19,26 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
 * Ensure [`tor`](https://gitlab.torproject.org/tpo/core/tor) is on your PATH.
   Typically you can install it using your host system's package manager.
 
-* Build the `arti` client for target `x86_64-unknown-linux-gnu`, so that the
-  binary is at: `../../target/x86_64-unknown-linux-gnu/debug/arti`.
+* Build an `arti` client with some extra features enabled such that the binary
+  ends up at `../../target/x86_64-unknown-linux-gnu/debug/arti-extra`. In the CI
+  this done in job `rust-latest-arti-extra-features` with the invocation:
+
+  ```shell
+  $ cargo build --verbose \
+      --target x86_64-unknown-linux-gnu \
+      -p arti -p tor-circmgr \
+      --bin arti \
+      --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service
+  $ mv target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/debug/arti-extra
+  ```
+
+* Build a "vanilla" `arti` client so that the binary is at:
+  `../../target/x86_64-unknown-linux-gnu/debug/arti`. In the CI this is done in
+  job `rust-latest` with the invocation:
+
+  ```shell
+  $ cargo build --locked --verbose --target x86_64-unknown-linux-gnu
+  ```
 
 Once those are installed, you can invoke the [`run.sh`](./run.sh) script from
 this directory. 
