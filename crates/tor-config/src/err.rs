@@ -83,7 +83,7 @@ impl ConfigBuildError {
                 fields: fields.iter().map(|f| addprefix(f)).collect(),
                 problem: problem.clone(),
             },
-            NoCompileTimeSupport { field, problem } => Invalid {
+            NoCompileTimeSupport { field, problem } => NoCompileTimeSupport {
                 field: addprefix(field),
                 problem: problem.clone(),
             },
