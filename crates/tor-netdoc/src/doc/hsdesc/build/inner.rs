@@ -142,11 +142,14 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
                     &intro_point.svc_ntor_key.as_bytes()[..],
                 ));
 
-            // The subject key is the the ed25519 equivalent of the svc_ntor_key curve25519 public
-            // encryption key.
-
-            // TODO (#1221): this is wrong. The sign bit should be computed according to appendix A
-            // from propo 228.
+            // The subject key is the the ed25519 equivalent of the svc_ntor_key
+            // curve25519 public encryption key, with its sign bit set to 0.
+            //
+            // (Setting the sign bit to zero has a 50% chance of making the
+            // ed25519 public key useless for checking signatures, but that's
+            // okay: since this cert is generated with its signing/subject keys
+            // reversed (for compatibility reasons), we never actually generate
+            // or check any signatures using this key.)
             let signbit = 0;
             let ed_svc_ntor_key =
                 convert_curve25519_to_ed25519_public(&intro_point.svc_ntor_key, signbit)
