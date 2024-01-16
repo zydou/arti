@@ -1,9 +1,10 @@
 //! Principal types for onion services.
 pub(crate) mod netdir;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use fs_mistrust::Mistrust;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::Stream;
@@ -49,13 +50,13 @@ pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;
 // or a unified OnionKey type.
 type NtorPublicKey = curve25519::PublicKey;
 
-/// A handle to an instance of an onion service.
+/// A handle to a running instance of an onion service.
 //
 // TODO (#1228): Write more.
 //
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
-pub struct OnionService {
+pub struct RunningOnionService {
     /// The mutable implementation details of this onion service.
     inner: Mutex<SvcInner>,
 }
@@ -142,7 +143,24 @@ impl From<oneshot::Canceled> for ShutdownStatus {
     }
 }
 
-impl OnionService {
+/// A handle to an instance of an onion service.
+//
+// TODO (#1228): Write more.
+//
+pub struct OnionService<S: tor_persist::StateMgr + Send + Sync + 'static> {
+    /// The current configuration.
+    config: OnionServiceConfig,
+    /// The key manager, used for accessing the underlying key stores.
+    keymgr: Arc<KeyMgr>,
+    /// The persistent state manager.
+    statemgr: S,
+    /// The location on disk where the persistent data is stored.
+    state_dir: PathBuf,
+    /// The [`Mistrust`] configuration used with `state_dir`.
+    state_mistrust: Mistrust,
+}
+
+impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
     /// Create (but do not launch) a new onion service.
     // TODO (#1228): document.
     //
@@ -150,21 +168,53 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
-    #[allow(clippy::too_many_arguments)] // TODO (#1227, #1229) should there be a builder?
-    pub fn new<R, S>(
-        runtime: R,
+    // TODO (#1227, #1229) should there be a builder?
+    pub fn new(
         config: OnionServiceConfig,
-        netdir_provider: Arc<dyn NetDirProvider>,
-        circ_pool: Arc<HsCircPool<R>>,
         keymgr: Arc<KeyMgr>,
         statemgr: S,
         state_dir: &Path,
-        state_mistrust: &fs_mistrust::Mistrust,
-    ) -> Result<Arc<Self>, StartupError>
+        state_mistrust: &Mistrust,
+    ) -> Result<Self, StartupError> {
+        let nickname = config.nickname.clone();
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
+        // offline
+        //let offline_hsid = config.offline_hsid;
+        let offline_hsid = false;
+
+        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
+
+        Ok(OnionService {
+            keymgr,
+            config,
+            statemgr,
+            state_dir: state_dir.into(),
+            state_mistrust: state_mistrust.clone(),
+        })
+    }
+
+    /// Tell this onion service to begin running, and return a
+    /// [`RunningOnionService`] and its stream of rendezvous requests.
+    ///
+    /// You can turn the resulting stream into a stream of [`StreamRequest`](crate::StreamRequest)
+    /// using the [`handle_rend_requests`](crate::handle_rend_requests) helper function
+    pub fn launch<R>(
+        self,
+        runtime: R,
+        netdir_provider: Arc<dyn NetDirProvider>,
+        circ_pool: Arc<HsCircPool<R>>,
+    ) -> Result<(Arc<RunningOnionService>, impl Stream<Item = RendRequest>), StartupError>
     where
         R: Runtime,
-        S: tor_persist::StateMgr + Send + Sync + 'static,
     {
+        let OnionService {
+            config,
+            keymgr,
+            statemgr,
+            state_dir,
+            state_mistrust,
+        } = self;
+
         let nickname = config.nickname.clone();
 
         {
@@ -200,16 +250,9 @@ impl OnionService {
                 circ_pool: circ_pool.clone(),
             },
             keymgr.clone(),
-            state_dir,
-            state_mistrust,
+            &state_dir,
+            &state_mistrust,
         )?;
-
-        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
-        // offline
-        //let offline_hsid = config.offline_hsid;
-        let offline_hsid = false;
-
-        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime.clone(),
@@ -230,7 +273,7 @@ impl OnionService {
         // IptMgr, and they should adjust it as needed.
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
-        Ok(Arc::new(OnionService {
+        let svc = Arc::new(RunningOnionService {
             inner: Mutex::new(SvcInner {
                 config_tx,
                 shutdown_tx,
@@ -245,9 +288,14 @@ impl OnionService {
                     }),
                 )),
             }),
-        }))
-    }
+        });
 
+        let stream = svc.launch()?;
+        Ok((svc, stream))
+    }
+}
+
+impl RunningOnionService {
     /// Change the configuration of this onion service.
     ///
     /// (Not everything can be changed here. At the very least we'll need to say
@@ -301,7 +349,7 @@ impl OnionService {
     ///
     /// You can turn the resulting stream into a stream of [`StreamRequest`](crate::StreamRequest)
     /// using the [`handle_rend_requests`](crate::handle_rend_requests) helper function
-    pub fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest>, StartupError> {
+    fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest>, StartupError> {
         let (rend_req_rx, launch) = {
             let mut inner = self.inner.lock().expect("poisoned lock");
             inner

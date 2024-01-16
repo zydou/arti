@@ -13,7 +13,7 @@ use tor_config::{
 };
 use tor_error::warn_report;
 use tor_hsrproxy::{config::ProxyConfigBuilder, OnionServiceReverseProxy, ProxyConfig};
-use tor_hsservice::{HsNickname, OnionService};
+use tor_hsservice::{HsNickname, RunningOnionService};
 use tor_rtcompat::Runtime;
 use tracing::debug;
 
@@ -168,7 +168,7 @@ struct Proxy {
     /// The onion service.
     ///
     /// This is launched and running.
-    svc: Arc<OnionService>,
+    svc: Arc<RunningOnionService>,
     /// The reverse proxy that accepts connections from the onion service.
     ///
     /// This is also launched and running.

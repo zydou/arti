@@ -1361,7 +1361,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<(
-        Arc<tor_hsservice::OnionService>,
+        Arc<tor_hsservice::RunningOnionService>,
         impl futures::Stream<Item = tor_hsservice::RendRequest>,
     )> {
         let keymgr = self
@@ -1372,10 +1372,7 @@ impl<R: Runtime> TorClient<R> {
             })?
             .clone();
         let service = tor_hsservice::OnionService::new(
-            self.runtime.clone(),
             config,
-            self.dirmgr.clone().upcast_arc(),
-            self.hs_circ_pool.clone(),
             // TODO #1186: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
             // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
@@ -1385,7 +1382,13 @@ impl<R: Runtime> TorClient<R> {
             &self.storage_mistrust,
         )
         .map_err(ErrorDetail::LaunchOnionService)?;
-        let stream = service.launch().map_err(ErrorDetail::LaunchOnionService)?;
+        let (service, stream) = service
+            .launch(
+                self.runtime.clone(),
+                self.dirmgr.clone().upcast_arc(),
+                self.hs_circ_pool.clone(),
+            )
+            .map_err(ErrorDetail::LaunchOnionService)?;
 
         Ok((service, stream))
     }

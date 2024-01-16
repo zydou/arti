@@ -109,7 +109,7 @@ pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{RendRequest, StreamRequest};
 pub use state::StateMgr;
 pub use svc::netdir::NetdirProviderShutdown;
-pub use svc::OnionService;
+pub use svc::{OnionService, RunningOnionService};
 
 use err::IptStoreError;
 
