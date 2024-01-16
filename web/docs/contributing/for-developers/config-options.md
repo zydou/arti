@@ -6,13 +6,15 @@ title: Creating configuration options
 
 ## Configuration File Location
 
-The location of Arti's configuration file is platform-dependent.
+The default location of Arti's configuration file is platform-dependent.
 
 | OS | Header 2 |
 |----------|----------|
-| Unix | ~/.config/arti/arti.toml |
-| macOS | ~/Library/Application Support/org.torproject.arti/arti.toml |
-| Windows | \Users\<USERNAME>\AppData\Roaming\arti\arti.toml |
+| Unix | `~/.config/arti/arti.toml` |
+| macOS | `~/Library/Application Support/org.torproject.arti/arti.toml` |
+| Windows | `\Users\<USERNAME>\AppData\Roaming\arti\arti.toml` |
+
+You can change these default from the command line, using the `--config` option.
 
 
 ## Configuration File Format and Example
@@ -98,7 +100,7 @@ The segment titled `[logging]` lets you specify how logging should be handled, i
 
 ### Storage Paths `[storage]`:
 
-With `[storage]``, you can define locations for storing cache and state data on disk, with support for using environment variables and user home directories in path definitions.
+With `[storage]`, you can define locations for storing cache and state data on disk, with support for using environment variables and user home directories in path definitions.
 
 Under the `[storage]` section, you can nest a `[storage.keystore]` section for keystore configuration, in addition to a `[storage.permissions]` sub-section for filesystem permission rules.
 
@@ -134,7 +136,7 @@ This subsection configures how Arti enforces filesystem permissions when accessi
 
 -   `trust_user`:
     -   **Purpose:** Specifies which user is trusted to own files and directories.
-    -   **Behavior:** The value `":current" means trusting the current user.
+    -   **Behavior:** The value `":current"` means trusting the current user.
 
 -   `trust_group`:
     -   **Purpose:** Indicates which group is trusted to have read/write access to files and directories.
@@ -205,7 +207,7 @@ This section is important for managing how and when Arti downloads various direc
 
 Configures the timing and retry strategies for downloading various types of directory information.
 
-Options
+#### Options
 
 -   `retry_bootstrap`:
     -   **Purpose:** Configures how Arti retries the initial bootstrapping process when trying to start up and connect to the Tor network.
@@ -286,13 +288,13 @@ These settings play a critical role in how Arti selects relays for its circuits,
 
 ### Address Filters `[address_filter]`:
 
-With the `[address_filter]` section, you can specify rules for what network addresses Arti is allowed or forbidden to connect to. This is important for various reasons, including compliance with network policies, avoiding specific traffic, or enhancing privacy and security.
+With the `[address_filter]` section, you can specify rules for what network addresses Arti is allowed or forbidden to connect to **over the Tor network**. This is important for various reasons, including compliance with network policies, avoiding specific traffic, or enhancing privacy and security.
 
 #### Options
 
 -   `allow_local_addrs`: 
-    -   **Purpose:** Determines whether Arti can connect to local (LAN) addresses.
-    -   **Behavior:** When set to `true`, Arti can connect to addresses considered local to the machine's network, such as private IP ranges (e.g., 192.168.x.x, 10.x.x.x).
+    -   **Purpose:** Determines whether Arti can try to make anonymous connections to network-local addresses.
+    -   **Behavior:** When set to `true`, Arti can connect to addresses considered local to the machine's network, such as private IP ranges (e.g., 192.168.x.x, 10.x.x.x).  Exit relays typically refuse these addresses.
     -   **Note:** Allowing connections to local addresses can be helpful in specific network configurations but may pose security risks or reveal information about the local network. In most cases, especially for privacy-focused usage, this is set to `false` to prevent such connections.
 
 -   `allow_onion_addrs`: 
@@ -340,7 +342,7 @@ As for `[system]`, it involves optimizing Arti's performance and ensuring that i
 
 The `[onion_services]` configuration section deals with managing the settings for onion services, also known as hidden services. These services allow you to host websites and other services within the Tor network, making them accessible only through the Tor network for enhanced privacy and security.
 
-Options
+#### Options
 
 -   `proxy_ports`: 
     -   **Purpose:** Specifies rules for what to do with incoming connections to different ports of the onion service.
@@ -350,7 +352,7 @@ Options
 -   `anonymity`: 
     -   **Purpose:** Determines whether the onion service should be anonymous or non-anonymous (also known as a "single onion service").
     -   **Behavior:** Setting this to `"anonymous"` provides stronger anonymity, while `"non_anonymous"` offers improved performance. If you omit this setting, Arti will default to `"anonymous"`.
-    -   **Note:** This setting affects the privacy level of the onion service. A non-anonymous service is less private but might be suitable for specific use cases where anonymity is not the primary concern.
+    -   **Note:** This setting affects the privacy level of the onion service. A non-anonymous service provides _no privacy at all_, and is only suitable in cases where you want Tor's non-privacy-related properties, like availability or censorship circumvention.
 
 -   `num_intro_points`: 
     -   **Purpose:** Sets the number of introduction points to establish and advertise the onion service.
