@@ -27,10 +27,10 @@ use tracing::debug;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OnionServiceProxyConfig {
     /// Configuration for the onion service itself.
-    svc_cfg: OnionServiceConfig,
+    pub(crate) svc_cfg: OnionServiceConfig,
     /// Configuration for the reverse proxy that handles incoming connections
     /// from the onion service.
-    proxy_cfg: ProxyConfig,
+    pub(crate) proxy_cfg: ProxyConfig,
 }
 
 /// Builder object to construct an [`OnionServiceProxyConfig`].
