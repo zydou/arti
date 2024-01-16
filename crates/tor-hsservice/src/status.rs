@@ -15,16 +15,57 @@ use crate::{DescUploadError, FatalError};
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OnionServiceStatus {
     /// The current high-level state for the IPT manager.
-    ipt_mgr_state: State,
+    ipt_mgr_state: ComponentStatus,
 
     /// The current high-level state for the descriptor publisher.
-    publisher_state: State,
+    publisher_state: ComponentStatus,
     // TODO (#1194): Add key expiration
     // TODO (#1083): Add latest-error.
     //
     // NOTE: Do _not_ add general metrics (like failure/success rates , number
     // of intro points, etc) here.
 }
+
+/// The current reported status of an onion service subsystem.
+#[derive(Debug, Clone)]
+struct ComponentStatus {
+    /// The current high-level state.
+    state: State,
+
+    /// The last error we have seen.
+    latest_error: Option<Problem>,
+}
+
+impl ComponentStatus {
+    /// Create a new ComponentStatus for a component that has not been bootstrapped.
+    fn new_shutdown() -> Self {
+        Self {
+            state: State::Shutdown,
+            latest_error: None,
+        }
+    }
+}
+
+impl PartialEq for ComponentStatus {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            state,
+            latest_error,
+        } = self;
+        let Self {
+            state: state_other,
+            latest_error: lastest_error_other,
+        } = other;
+
+        // NOTE: Errors are never equal. We _could_ add half-baked PartialEq implementations for
+        // all of our error types, but it doesn't seem worth it. If there is a state change, or if
+        // we've encountered an error (even if it's the same as the previous one), we'll notify the
+        // watchers.
+        state == state_other && latest_error.is_none() && lastest_error_other.is_none()
+    }
+}
+
+impl Eq for ComponentStatus {}
 
 /// The high-level state of an onion service.
 ///
@@ -82,8 +123,8 @@ impl OnionServiceStatus {
     /// Create a new OnionServiceStatus for a service that has not been bootstrapped.
     pub(crate) fn new_shutdown() -> Self {
         Self {
-            ipt_mgr_state: State::Shutdown,
-            publisher_state: State::Shutdown,
+            ipt_mgr_state: ComponentStatus::new_shutdown(),
+            publisher_state: ComponentStatus::new_shutdown(),
         }
     }
 
@@ -94,7 +135,7 @@ impl OnionServiceStatus {
     pub fn state(&self) -> State {
         use State::*;
 
-        match (self.ipt_mgr_state, self.publisher_state) {
+        match (self.ipt_mgr_state.state, self.publisher_state.state) {
             (Shutdown, _) | (_, Shutdown) => Shutdown,
             (Bootstrapping, _) | (_, Bootstrapping) => Bootstrapping,
             (Running, Running) => Running,
@@ -176,7 +217,7 @@ impl StatusSender {
     pub(crate) fn maybe_update_ipt_mgr(&self, state: State) {
         let mut tx = self.0.lock().expect("Poisoned lock");
         let mut svc_status = tx.borrow().clone();
-        svc_status.ipt_mgr_state = state;
+        svc_status.ipt_mgr_state.state = state;
         tx.maybe_send(|_| svc_status);
     }
 
@@ -187,7 +228,7 @@ impl StatusSender {
     pub(crate) fn maybe_update_publisher(&self, state: State) {
         let mut tx = self.0.lock().expect("Poisoned lock");
         let mut svc_status = tx.borrow().clone();
-        svc_status.publisher_state = state;
+        svc_status.publisher_state.state = state;
         tx.maybe_send(|_| svc_status);
     }
 
