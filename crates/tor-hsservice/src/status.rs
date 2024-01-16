@@ -211,8 +211,6 @@ impl StatusSender {
     /// Update the current IPT manager state.
     ///
     /// If the new state is different, update the current status and notify all listeners.
-    //
-    // TODO: should we have separate state enums for the IPT mgr and publisher states?
     #[allow(dead_code)]
     pub(crate) fn maybe_update_ipt_mgr(&self, state: State) {
         let mut tx = self.0.lock().expect("Poisoned lock");
