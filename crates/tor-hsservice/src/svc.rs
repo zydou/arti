@@ -75,8 +75,6 @@ struct SvcInner {
     status_tx: StatusSender,
 
     /// Handles that we'll take ownership of when launching the service.
-    ///
-    /// (TODO (#1227): Having to consume this may indicate a design problem.)
     unlaunched: Option<(
         mpsc::Receiver<RendRequest>,
         Box<dyn Launchable + Send + Sync>,
@@ -168,7 +166,6 @@ impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
-    // TODO (#1227, #1229) should there be a builder?
     pub fn new(
         config: OnionServiceConfig,
         keymgr: Arc<KeyMgr>,
