@@ -1649,16 +1649,16 @@ impl Reactor {
                 hop_num,
                 done,
             } => {
-                // TODO (#1188): add a CtrlMsg for de-registering the handler.
-                // TODO (#1188): ensure the handler is deregistered when the IncomingStream is dropped.
+                // TODO: At some point we might want to add a CtrlMsg for
+                // de-registering the handler.  See comments on `allow_stream_requests`.
                 let handler = IncomingStreamRequestHandler {
                     incoming_sender,
                     cmd_checker,
                     hop_num,
                 };
 
-                let ret = self.set_incoming_stream_req_handler(handler)?;
-                let _ = done.send(Ok(ret)); // don't care if sender goes away
+                let ret = self.set_incoming_stream_req_handler(handler);
+                let _ = done.send(ret); // don't care if the corresponding receiver goes away.
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
@@ -1937,7 +1937,7 @@ impl Reactor {
                 // message, just remove the old stream from the map and stop waiting for a
                 // response
                 hop.map.ending_msg_received(streamid)?;
-                self.handle_incoming_stream_request(msg, streamid, hopnum)?;
+                self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
             }
             Some(StreamEnt::EndSent { half_stream, .. }) => {
                 // We sent an end but maybe the other side hasn't heard.
@@ -1953,7 +1953,7 @@ impl Reactor {
                 RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
             ) =>
             {
-                self.handle_incoming_stream_request(msg, streamid, hopnum)?;
+                self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
             }
             _ => {
                 // No stream wants this message, or ever did.
@@ -1969,10 +1969,15 @@ impl Reactor {
     #[cfg(feature = "hs-service")]
     fn handle_incoming_stream_request(
         &mut self,
+        cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
         stream_id: StreamId,
         hop_num: HopNum,
     ) -> Result<()> {
+        use tor_cell::relaycell::msg::EndReason;
+        use tor_error::into_internal;
+        use tor_log_ratelim::log_ratelim;
+
         let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
                 "Cannot handle BEGIN cells on this circuit".into(),
@@ -2023,7 +2028,7 @@ impl Reactor {
         hop.map
             .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;
 
-        if let Err(e) = handler
+        let outcome = handler
             .incoming_sender
             .try_send(IncomingStreamRequestContext {
                 req,
@@ -2032,22 +2037,45 @@ impl Reactor {
                 msg_tx,
                 receiver,
             })
-        {
-            // TODO (#1189): we should not be dropping BEGIN requests. Consider using an
-            // unbounded channel instead.
+            .map_err(|e| e.into_send_error());
+
+        log_ratelim!("Delivering message to incoming stream handler"; outcome);
+
+        if let Err(e) = outcome {
             if e.is_full() {
-                return Err(Error::CircProto(
-                    concat!(
-                        "Sending incoming stream request would block: ",
-                        "we are receiving too many BEGIN cells on this channel"
-                    )
-                    .into(),
-                ));
+                // The IncomingStreamRequestHandler's stream is full; it isn't
+                // handling requests fast enough. So instead, we reply with an
+                // END cell.
+                let end_msg = AnyRelayMsgOuter::new(
+                    Some(stream_id),
+                    End::new_with_reason(EndReason::RESOURCELIMIT).into(),
+                );
+                self.send_relay_cell(cx, hop_num, false, end_msg)?;
+            } else if e.is_disconnected() {
+                // The IncomingStreamRequestHandler's stream has been dropped.
+                // In the Tor protocol as it stands, this always means that the
+                // circuit itself is out-of-use and should be closed. (See notes
+                // on `allow_stream_requests.`)
+                //
+                // Note that we will _not_ reach this point immediately after
+                // the IncomingStreamRequestHandler is dropped; we won't hit it
+                // until we next get an incoming request.  Thus, if we do later
+                // want to add early detection for a dropped
+                // IncomingStreamRequestHandler, we need to do it elsewhere, in
+                // a different way.
+                debug!(
+                    "{}: Incoming stream request receiver dropped",
+                    self.unique_id
+                );
+                // This will _cause_ the circuit to get closed.
+                return Err(Error::CircuitClosed);
             } else {
-                // TODO (#1188): handle the case where the sender goes away more gracefully
-                return Err(Error::from(internal!(
-                    "Incoming stream request receiver dropped"
-                )));
+                // There are no errors like this with the current design of
+                // futures::mpsc, but we shouldn't just ignore the possibility
+                // that they'll be added later.
+                return Err(Error::from((into_internal!(
+                    "try_send failed unexpectedly"
+                ))(e)));
             }
         }
 

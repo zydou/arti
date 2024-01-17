@@ -521,15 +521,19 @@ impl ClientCirc {
     ///
     /// Ordinarily, these requests are rejected.
     ///
-    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit
-    /// at a time. If a such a [`Stream`](futures::Stream) already exists, this method will return
+    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit.
+    /// If a such a [`Stream`](futures::Stream) already exists, this method will return
     /// an error.
+    ///
+    /// After this method has been called on a circuit, the circuit is expected
+    /// to receive requests of this type indefinitely, until it is finally closed.
+    /// If the `Stream` is dropped, the next request on this circuit will cause it to close.
     ///
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     //
-    // TODO (#1190): this function should return an error if allow_stream_requests()
-    // was already called on this circuit.
+    // TODO: Someday, we might want to allow a stream request handler to be
+    // un-registered.  However, nothing in the Tor protocol requires it.
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
@@ -539,8 +543,6 @@ impl ClientCirc {
         use futures::stream::StreamExt;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
-        // TODO (#1189): decide what capacity this channel should have, and how
-        // to handle a full channel.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
@@ -2158,9 +2160,6 @@ mod test {
     }
 
     #[test]
-    // TODO (#1190): allow_stream_requests() should return an error if
-    // the circuit already has an IncomingStream.
-    #[ignore]
     #[cfg(feature = "hs-service")]
     fn allow_stream_requests_twice() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
