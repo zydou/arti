@@ -647,29 +647,7 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), hs_circ_pool.clone(), config, housekeeping)?
         };
 
-        let keystore = config.storage.keystore();
-        let keymgr = if keystore.is_enabled() {
-            let key_store_dir = keystore.path();
-            let permissions = config.storage.permissions();
-
-            let arti_store =
-                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
-            info!("Using keystore from {key_store_dir:?}");
-
-            // TODO #1106: make the default store configurable
-            let default_store = arti_store;
-
-            let keymgr = KeyMgrBuilder::default()
-                .default_store(Box::new(default_store))
-                .build()
-                .map_err(|_| internal!("failed to build keymgr"))?;
-
-            // TODO #858: add support for the C Tor key store
-            Some(Arc::new(keymgr))
-        } else {
-            info!("Running without a keystore");
-            None
-        };
+        let keymgr = Self::create_keymgr(config)?;
 
         runtime
             .spawn(tasks_monitor_dormant(
@@ -1400,37 +1378,15 @@ impl<R: Runtime> TorClient<R> {
     /// The returned `OnionService` can be launched using
     /// [`OnionService::launch()`](tor_hsservice::OnionService::launch).
     //
-    // TODO: this duplicates code from launch_onion_service and TorClient::create_inner.
+    // TODO: this duplicates code from launch_onion_service and create_inner.
     #[cfg(feature = "onion-service-service")]
     pub fn create_onion_service(
         config: &TorClientConfig,
         svc_config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<tor_hsservice::OnionService> {
-        let keystore = config.storage.keystore();
-        let keymgr = if keystore.is_enabled() {
-            let key_store_dir = keystore.path();
-            let permissions = config.storage.permissions();
-
-            let arti_store =
-                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
-            info!("Using keystore from {key_store_dir:?}");
-
-            // TODO #1106: make the default store configurable
-            let default_store = arti_store;
-
-            let keymgr = KeyMgrBuilder::default()
-                .default_store(Box::new(default_store))
-                .build()
-                .map_err(|_| ErrorDetail::Bug(internal!("failed to build keymgr")))?;
-
-            // TODO #858: add support for the C Tor key store
-            Arc::new(keymgr)
-        } else {
-            return Err(ErrorDetail::KeystoreRequired {
-                action: "launch onion service",
-            }
-            .into());
-        };
+        let keymgr = Self::create_keymgr(config)?.ok_or(ErrorDetail::KeystoreRequired {
+            action: "create onion service",
+        })?;
 
         let state_dir = config
             .storage
@@ -1475,6 +1431,35 @@ impl<R: Runtime> TorClient<R> {
             .lock()
             .expect("dormant lock poisoned")
             .borrow_mut() = Some(mode);
+    }
+
+    /// Create a [`KeyMgr`] using the specified configuration.
+    ///
+    /// Returns `Ok(None)` if keystore use is disabled.
+    fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
+        let keystore = config.storage.keystore();
+        if keystore.is_enabled() {
+            let key_store_dir = keystore.path();
+            let permissions = config.storage.permissions();
+
+            let arti_store =
+                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
+            info!("Using keystore from {key_store_dir:?}");
+
+            // TODO #1106: make the default store configurable
+            let default_store = arti_store;
+
+            let keymgr = KeyMgrBuilder::default()
+                .default_store(Box::new(default_store))
+                .build()
+                .map_err(|_| internal!("failed to build keymgr"))?;
+
+            // TODO #858: add support for the C Tor key store
+            Ok(Some(Arc::new(keymgr)))
+        } else {
+            info!("Running without a keystore");
+            Ok(None)
+        }
     }
 }
 
