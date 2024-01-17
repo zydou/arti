@@ -897,7 +897,10 @@ impl<R: Runtime> Reactor<R> {
             // TODO (#1238): this check needs to happen in IptMsgHandler::handle_msg,
             // because otherwise handle_msg might go on to handle messages despite
             // us wanting to crash, here.  (Providing reliable teardown of the
-            // IptMsgHandler wouldn't be sufficient, since there would be a race.)
+            // IptMsgHandler wouldn't be sufficient, since there would be a
+            // race.)
+            //
+            // TODO (torspec#249) Confirm that this _is_ a protocol violation.
             return Err(IptError::BadEstablished);
         }
 
