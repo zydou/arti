@@ -543,6 +543,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
 
+    use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::IptSetStorageHandle;
     use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
@@ -733,5 +734,35 @@ pub(crate) mod test {
             .unwrap();
 
         assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).is_err());
+    }
+
+    #[test]
+    fn onion_name() {
+        let temp_dir = test_temp_dir!();
+        let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let keymgr = create_keymgr(&temp_dir);
+
+        let (hsid_keypair, hsid_public) = create_hsid();
+
+        // Insert the hsid into the keystore
+        keymgr
+            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default)
+            .unwrap();
+
+        let config = OnionServiceConfigBuilder::default()
+            .nickname(nickname)
+            .build()
+            .unwrap();
+
+        let service = OnionService::new(
+            config,
+            Arc::clone(&*keymgr),
+            temp_dir.as_path_untracked(),
+            &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+        ).unwrap();
+
+        let hsid = HsId::from(hsid_public);
+        assert_eq!(service.onion_name().unwrap(), hsid);
     }
 }
