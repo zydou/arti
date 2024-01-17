@@ -1649,8 +1649,8 @@ impl Reactor {
                 hop_num,
                 done,
             } => {
-                // TODO (#1188): add a CtrlMsg for de-registering the handler.
-                // TODO (#1188): ensure the handler is deregistered when the IncomingStream is dropped.
+                // TODO: At some point we might want to add a CtrlMsg for
+                // de-registering the handler.  See comments on `allow_stream_requests`.
                 let handler = IncomingStreamRequestHandler {
                     incoming_sender,
                     cmd_checker,
@@ -1975,6 +1975,7 @@ impl Reactor {
         hop_num: HopNum,
     ) -> Result<()> {
         use tor_cell::relaycell::msg::EndReason;
+        use tor_error::into_internal;
 
         let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
@@ -2046,11 +2047,31 @@ impl Reactor {
                 );
                 // TODO: log a rate-limited message when this happens.
                 self.send_relay_cell(cx, hop_num, false, end_msg)?;
+            } else if e.is_disconnected() {
+                // The IncomingStreamRequestHandler's stream has been dropped.
+                // In the Tor protocol as it stands, this always means that the
+                // circuit itself is out-of-use and should be closed. (See notes
+                // on `allow_stream_requests.`)
+                //
+                // Note that we will _not_ reach this point immediately after
+                // the IncomingStreamRequestHandler is dropped; we won't hit it
+                // until we next get an incoming request.  Thus, if we do later
+                // want to add early detection for a dropped
+                // IncomingStreamRequestHandler, we need to do it elsewhere, in
+                // a different way.
+                debug!(
+                    "{}: Incoming stream request receiver dropped",
+                    self.unique_id
+                );
+                // This will _cause_ the circuit to get closed.
+                return Err(Error::CircuitClosed);
             } else {
-                // TODO (#1188): handle the case where the sender goes away more gracefully
-                return Err(Error::from(internal!(
-                    "Incoming stream request receiver dropped"
-                )));
+                // There are no errors like this with the current design of
+                // futures::mpsc, but we shouldn't just ignore the possibility
+                // that they'll be added later.
+                return Err(Error::from((into_internal!(
+                    "try_send failed unexpectedly"
+                ))(e)));
             }
         }
 

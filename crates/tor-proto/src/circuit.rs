@@ -521,15 +521,22 @@ impl ClientCirc {
     ///
     /// Ordinarily, these requests are rejected.
     ///
-    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit
-    /// at a time. If a such a [`Stream`](futures::Stream) already exists, this method will return
+    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit.
+    /// If a such a [`Stream`](futures::Stream) already exists, this method will return
     /// an error.
+    ///
+    /// After this method has been called on a circuit, the circuit is expected
+    /// to receive requests of this type indefinitely, until it is finally closed.
+    /// If the `Stream` is dropped, the next request on this circuit will cause it to close.
     ///
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     //
     // TODO (#1190): this function should return an error if allow_stream_requests()
     // was already called on this circuit.
+    //
+    // TODO: Someday, we might want to allow a stream request handler to be
+    // un-registered.  However, nothing in the Tor protocol requires it.
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
