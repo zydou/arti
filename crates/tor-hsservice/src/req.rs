@@ -145,7 +145,8 @@ impl RendRequest {
         // Note that we move circuit (which is an Arc<ClientCirc>) into this
         // closure, which lives for as long as the stream of StreamRequest, and
         // for as long as each individual StreamRequest.  This is how we keep
-        // the rendezvous circuit alive.
+        // the rendezvous circuit alive, and ensure that it gets closed when
+        // the Stream we return is dropped.
         Ok(stream_requests.map(move |stream| StreamRequest {
             stream,
             on_circuit: circuit.clone(),
