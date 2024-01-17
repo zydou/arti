@@ -1353,6 +1353,8 @@ impl<R: Runtime> TorClient<R> {
             config,
             // TODO #1186: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
+            // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
+            self.statemgr.clone(),
             // TODO #1186: Allow override of state_dir for "ephemeral" operation?
             &self.state_dir,
             &self.storage_mistrust,
@@ -1363,8 +1365,6 @@ impl<R: Runtime> TorClient<R> {
                 self.runtime.clone(),
                 self.dirmgr.clone().upcast_arc(),
                 self.hs_circ_pool.clone(),
-                // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
-                self.statemgr.clone(),
             )
             .map_err(ErrorDetail::LaunchOnionService)?;
 
@@ -1387,9 +1387,11 @@ impl<R: Runtime> TorClient<R> {
         })?;
 
         let (state_dir, mistrust) = Self::state_dir(config)?;
+        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, mistrust)
+            .map_err(ErrorDetail::StateMgrSetup)?;
 
         Ok(
-            tor_hsservice::OnionService::new(svc_config, keymgr, &state_dir, mistrust)
+            tor_hsservice::OnionService::new(svc_config, keymgr, statemgr, &state_dir, mistrust)
                 // TODO: do we need an ErrorDetail::CreateOnionService?
                 .map_err(ErrorDetail::LaunchOnionService)?,
         )

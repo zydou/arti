@@ -45,7 +45,7 @@ use tor_rtcompat::Runtime;
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier};
 use crate::replay::ReplayLog;
-use crate::svc::{ipt_establish, ShutdownStatus};
+use crate::svc::{ipt_establish, OnionServiceStateMgr, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
 use crate::{HsNickname, IptLocalId, OnionServiceConfig, RendRequest};
@@ -55,7 +55,7 @@ use IptStatusStatus as ISS;
 use TrackedStatus as TS;
 
 mod persist;
-use persist::IptStorageHandle;
+pub(crate) use persist::IptStorageHandle;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 // TODO #1210 IPT_PUBLISH_UNCERTAIN configure? get from netdir?
@@ -550,7 +550,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         config: watch::Receiver<Arc<OnionServiceConfig>>,
         output_rend_reqs: mpsc::Sender<RendRequest>,
         shutdown: broadcast::Receiver<Void>,
-        storage: impl tor_persist::StateMgr + Send + Sync + 'static,
+        storage: &dyn OnionServiceStateMgr,
         mockable: M,
         keymgr: Arc<KeyMgr>,
         state_dir: &Path,
@@ -562,7 +562,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // are reading watches.
         let (status_send, status_recv) = mpsc::channel(0);
 
-        let storage = storage.create_handle(format!("hs_ipts_{nick}"));
+        let storage = storage.ipt_storage_handle(&nick);
 
         let (replay_log_dir, replay_log_lock) = {
             // TODO #1198 something should expire these! (and our keys too, obviously)
@@ -1767,7 +1767,7 @@ mod test {
                 cfg_rx,
                 rend_tx,
                 shut_rx,
-                state_mgr,
+                &state_mgr,
                 mocks,
                 keymgr,
                 &state_dir,
