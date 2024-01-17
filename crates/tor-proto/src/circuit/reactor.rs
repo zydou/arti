@@ -1976,6 +1976,7 @@ impl Reactor {
     ) -> Result<()> {
         use tor_cell::relaycell::msg::EndReason;
         use tor_error::into_internal;
+        use tor_log_ratelim::log_ratelim;
 
         let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
@@ -2027,7 +2028,7 @@ impl Reactor {
         hop.map
             .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;
 
-        if let Err(e) = handler
+        let outcome = handler
             .incoming_sender
             .try_send(IncomingStreamRequestContext {
                 req,
@@ -2036,7 +2037,11 @@ impl Reactor {
                 msg_tx,
                 receiver,
             })
-        {
+            .map_err(|e| e.into_send_error());
+
+        log_ratelim!("Delivering message to incoming stream handler"; outcome);
+
+        if let Err(e) = outcome {
             if e.is_full() {
                 // The IncomingStreamRequestHandler's stream is full; it isn't
                 // handling requests fast enough. So instead, we reply with an
@@ -2045,7 +2050,6 @@ impl Reactor {
                     Some(stream_id),
                     End::new_with_reason(EndReason::RESOURCELIMIT).into(),
                 );
-                // TODO: log a rate-limited message when this happens.
                 self.send_relay_cell(cx, hop_num, false, end_msg)?;
             } else if e.is_disconnected() {
                 // The IncomingStreamRequestHandler's stream has been dropped.

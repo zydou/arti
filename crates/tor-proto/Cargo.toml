@@ -83,6 +83,7 @@ tor-error = { path = "../tor-error", version = "0.6.0" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.5.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.10.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.6.1" }
+tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.2.0" }
 tor-protover = { path = "../tor-protover", version = "0.5.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.12.0" }
