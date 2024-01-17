@@ -1,6 +1,7 @@
 //! Principal types for onion services.
 pub(crate) mod netdir;
 
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -58,12 +59,10 @@ type NtorPublicKey = curve25519::PublicKey;
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
 pub struct RunningOnionService {
-    /// The key manager, used for accessing the underlying key stores.
-    keymgr: Arc<KeyMgr>,
-    /// the nickname of this onion service.
-    nickname: HsNickname,
     /// The mutable implementation details of this onion service.
     inner: Mutex<SvcInner>,
+    /// The current state.
+    state: OnionServiceState,
 }
 
 /// Implementation details for an onion service.
@@ -154,12 +153,41 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 pub struct OnionService {
     /// The current configuration.
     config: OnionServiceConfig,
+    /// The current state.
+    state: OnionServiceState,
+}
+
+/// The state of an instance of an onion service.
+//
+// TODO (#1228): Write more.
+// TODO (#1247): Choose a better name for this struct
+pub struct OnionServiceState {
+    /// The nickname of this service.
+    nickname: HsNickname,
     /// The key manager, used for accessing the underlying key stores.
     keymgr: Arc<KeyMgr>,
     /// The location on disk where the persistent data is stored.
     state_dir: PathBuf,
     /// The [`Mistrust`] configuration used with `state_dir`.
     state_mistrust: Mistrust,
+}
+
+impl OnionServiceState {
+    /// Return the onion address of this service.
+    ///
+    /// Returns `None` if the HsId of the service could not be found in any of the configured
+    /// keystores.
+    //
+    // TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
+    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
+    // ArtiHss.
+    pub fn onion_name(&self) -> Option<HsId> {
+        let hsid_spec = HsIdPublicKeySpecifier::new(self.nickname.clone());
+        self.keymgr
+            .get::<HsIdKey>(&hsid_spec)
+            .ok()?
+            .map(|hsid| hsid.id())
+    }
 }
 
 impl OnionService {
@@ -185,10 +213,13 @@ impl OnionService {
         maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
 
         Ok(OnionService {
-            keymgr,
             config,
-            state_dir: state_dir.into(),
-            state_mistrust: state_mistrust.clone(),
+            state: OnionServiceState {
+                nickname,
+                keymgr,
+                state_dir: state_dir.into(),
+                state_mistrust: state_mistrust.clone(),
+            },
         })
     }
 
@@ -207,14 +238,9 @@ impl OnionService {
     where
         R: Runtime,
     {
-        let OnionService {
-            config,
-            keymgr,
-            state_dir,
-            state_mistrust,
-        } = self;
+        let OnionService { config, state } = self;
 
-        let nickname = config.nickname.clone();
+        let nickname = state.nickname.clone();
 
         {
             use tor_persist::LockStatus as LS;
@@ -248,9 +274,9 @@ impl OnionService {
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
             },
-            keymgr.clone(),
-            &state_dir,
-            &state_mistrust,
+            state.keymgr.clone(),
+            &state.state_dir,
+            &state.state_mistrust,
         )?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
@@ -260,13 +286,13 @@ impl OnionService {
             circ_pool,
             publisher_view,
             config_rx,
-            Arc::clone(&keymgr),
+            Arc::clone(&state.keymgr),
         );
 
         let keystore_sweeper = KeystoreSweeper::new(
             runtime,
             nickname.clone(),
-            Arc::clone(&keymgr),
+            Arc::clone(&state.keymgr),
             netdir_provider,
             shutdown_rx,
         );
@@ -278,8 +304,7 @@ impl OnionService {
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         let svc = Arc::new(RunningOnionService {
-            keymgr,
-            nickname,
+            state,
             inner: Mutex::new(SvcInner {
                 config_tx,
                 shutdown_tx,
@@ -298,18 +323,6 @@ impl OnionService {
 
         let stream = svc.launch()?;
         Ok((svc, stream))
-    }
-
-    /// Return the onion address of this service.
-    ///
-    /// Returns `None` if the HsId of the service could not be found in any of the configured
-    /// keystores.
-    //
-    // TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
-    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
-    // ArtiHss.
-    pub fn onion_name(&self) -> Option<HsId> {
-        onion_name(&self.keymgr, self.config.nickname.clone())
     }
 }
 
@@ -402,17 +415,21 @@ impl RunningOnionService {
     pub fn pause(&self) {
         todo!() // TODO (#1231)
     }
+}
 
-    /// Return the onion address of this service.
-    ///
-    /// Returns `None` if the HsId of the service could not be found in any of the configured
-    /// keystores.
-    ///
-    // TODO: instead of duplicating OnionService::onion_name, maybe we should make this a
-    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
-    // ArtiHss.
-    pub fn onion_name(&self) -> Option<HsId> {
-        onion_name(&self.keymgr, self.nickname.clone())
+impl Deref for OnionService {
+    type Target = OnionServiceState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl Deref for RunningOnionService {
+    type Target = OnionServiceState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
     }
 }
 
@@ -501,18 +518,6 @@ fn maybe_generate_hsid(
     }
 
     Ok(())
-}
-
-/// Get the onion address of the hidden service with the specified nickname.
-///
-/// Returns `None` if the HsId of the service could not be found in any of the configured
-/// keystores.
-fn onion_name(keymgr: &Arc<KeyMgr>, nickname: HsNickname) -> Option<HsId> {
-    let hsid_spec = HsIdPublicKeySpecifier::new(nickname);
-    keymgr
-        .get::<HsIdKey>(&hsid_spec)
-        .ok()?
-        .map(|hsid| hsid.id())
 }
 
 #[cfg(test)]
