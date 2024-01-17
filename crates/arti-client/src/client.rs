@@ -540,7 +540,7 @@ impl<R: Runtime> TorClient<R> {
             .into());
         }
 
-        let state_dir = config.storage.expand_state_dir()?;
+        let (state_dir, mistrust) = Self::state_dir(config)?;
 
         let dormant = DormantMode::Normal;
         let dir_cfg = {
@@ -548,7 +548,7 @@ impl<R: Runtime> TorClient<R> {
             c.extensions = dirmgr_extensions;
             c
         };
-        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, config.storage.permissions())
+        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, mistrust)
             .map_err(ErrorDetail::StateMgrSetup)?;
         // Try to take state ownership early, so we'll know if we have it.
         // (At this point we don't yet care if we have it.)
@@ -703,7 +703,7 @@ impl<R: Runtime> TorClient<R> {
             #[cfg(feature = "onion-service-service")]
             state_dir,
             #[cfg(feature = "onion-service-service")]
-            storage_mistrust: config.storage.permissions().clone(),
+            storage_mistrust: mistrust.clone(),
         })
     }
 
@@ -1377,8 +1377,6 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// The returned `OnionService` can be launched using
     /// [`OnionService::launch()`](tor_hsservice::OnionService::launch).
-    //
-    // TODO: this duplicates code from launch_onion_service and create_inner.
     #[cfg(feature = "onion-service-service")]
     pub fn create_onion_service(
         config: &TorClientConfig,
@@ -1388,14 +1386,10 @@ impl<R: Runtime> TorClient<R> {
             action: "create onion service",
         })?;
 
-        let state_dir = config
-            .storage
-            .expand_state_dir()
-            .map_err(ErrorDetail::Configuration)?;
-        let storage_mistrust = config.storage.permissions();
+        let (state_dir, mistrust) = Self::state_dir(config)?;
 
         Ok(
-            tor_hsservice::OnionService::new(svc_config, keymgr, &state_dir, storage_mistrust)
+            tor_hsservice::OnionService::new(svc_config, keymgr, &state_dir, mistrust)
                 // TODO: do we need an ErrorDetail::CreateOnionService?
                 .map_err(ErrorDetail::LaunchOnionService)?,
         )
@@ -1460,6 +1454,20 @@ impl<R: Runtime> TorClient<R> {
             info!("Running without a keystore");
             Ok(None)
         }
+    }
+
+    /// Get the state directory and its corresponding
+    /// [`Mistrust`](fs_mistrust::Mistrust) configuration.
+    fn state_dir(
+        config: &TorClientConfig,
+    ) -> StdResult<(PathBuf, &fs_mistrust::Mistrust), ErrorDetail> {
+        let state_dir = config
+            .storage
+            .expand_state_dir()
+            .map_err(ErrorDetail::Configuration)?;
+        let mistrust = config.storage.permissions();
+
+        Ok((state_dir, mistrust))
     }
 }
 
