@@ -151,14 +151,17 @@ pub(crate) struct IntroRequest {
 }
 
 /// An open session with a single client.
+///
+/// (We consume this type and take ownership of its members later in
+/// [`RendRequest::accept()`](crate::req::RendRequest::accept).)
 pub(crate) struct OpenSession {
     /// A stream of incoming BEGIN requests.
     pub(crate) stream_requests: BoxStream<'static, IncomingStream>,
 
-    /// Our circuit with the client in question
-    // TODO (#1224): If we drop this handle, nothing will keep the circuit alive.
-    // But we need to make sure we drop this handle when the other side destroys
-    // the circuit.
+    /// Our circuit with the client in question.
+    ///
+    /// See `RendRequest::accept()` for more information on the life cycle of
+    /// this circuit.
     pub(crate) circuit: Arc<ClientCirc>,
 }
 
