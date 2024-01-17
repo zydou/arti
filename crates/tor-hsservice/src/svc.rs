@@ -58,6 +58,10 @@ type NtorPublicKey = curve25519::PublicKey;
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
 pub struct RunningOnionService {
+    /// The key manager, used for accessing the underlying key stores.
+    keymgr: Arc<KeyMgr>,
+    /// the nickname of this onion service.
+    nickname: HsNickname,
     /// The mutable implementation details of this onion service.
     inner: Mutex<SvcInner>,
 }
@@ -259,8 +263,13 @@ impl OnionService {
             Arc::clone(&keymgr),
         );
 
-        let keystore_sweeper =
-            KeystoreSweeper::new(runtime, nickname, keymgr, netdir_provider, shutdown_rx);
+        let keystore_sweeper = KeystoreSweeper::new(
+            runtime,
+            nickname.clone(),
+            Arc::clone(&keymgr),
+            netdir_provider,
+            shutdown_rx,
+        );
 
         // TODO (#1231): we need to actually do something with shutdown_tx
 
@@ -269,6 +278,8 @@ impl OnionService {
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         let svc = Arc::new(RunningOnionService {
+            keymgr,
+            nickname,
             inner: Mutex::new(SvcInner {
                 config_tx,
                 shutdown_tx,
@@ -293,12 +304,12 @@ impl OnionService {
     ///
     /// Returns `None` if the HsId of the service could not be found in any of the configured
     /// keystores.
+    //
+    // TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
+    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
+    // ArtiHss.
     pub fn onion_name(&self) -> Option<HsId> {
-        let hsid_spec = HsIdPublicKeySpecifier::new(self.config.nickname.clone());
-        self.keymgr
-            .get::<HsIdKey>(&hsid_spec)
-            .ok()?
-            .map(|hsid| hsid.id())
+        onion_name(&self.keymgr, self.config.nickname.clone())
     }
 }
 
@@ -391,6 +402,18 @@ impl RunningOnionService {
     pub fn pause(&self) {
         todo!() // TODO (#1231)
     }
+
+    /// Return the onion address of this service.
+    ///
+    /// Returns `None` if the HsId of the service could not be found in any of the configured
+    /// keystores.
+    ///
+    // TODO: instead of duplicating OnionService::onion_name, maybe we should make this a
+    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
+    // ArtiHss.
+    pub fn onion_name(&self) -> Option<HsId> {
+        onion_name(&self.keymgr, self.nickname.clone())
+    }
 }
 
 /// Generate the identity key of the service, unless it already exists or `offline_hsid` is `true`.
@@ -478,6 +501,18 @@ fn maybe_generate_hsid(
     }
 
     Ok(())
+}
+
+/// Get the onion address of the hidden service with the specified nickname.
+///
+/// Returns `None` if the HsId of the service could not be found in any of the configured
+/// keystores.
+fn onion_name(keymgr: &Arc<KeyMgr>, nickname: HsNickname) -> Option<HsId> {
+    let hsid_spec = HsIdPublicKeySpecifier::new(nickname);
+    keymgr
+        .get::<HsIdKey>(&hsid_spec)
+        .ok()?
+        .map(|hsid| hsid.id())
 }
 
 #[cfg(test)]
