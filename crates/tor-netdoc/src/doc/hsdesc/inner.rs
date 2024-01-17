@@ -361,10 +361,15 @@ impl HsDescInner {
                 expirations.push(expiry);
                 signatures.push(signature);
 
+                // Yes, the sign bit is always zero here. This would have a 50%
+                // chance of making  the key unusable for verification. But since
+                // the certificate is backwards (see above) we don't actually have
+                // to check any signatures with it.
+                let sign_bit = 0;
                 let expected_ed_key =
                     tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public(
                         &svc_ntor_key,
-                        0,
+                        sign_bit,
                     );
                 if expected_ed_key != Some(subject_key) {
                     return Err(EK::BadObjectVal
