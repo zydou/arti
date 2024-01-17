@@ -532,9 +532,6 @@ impl ClientCirc {
     /// Only onion services (and eventually) exit relays should call this
     /// method.
     //
-    // TODO (#1190): this function should return an error if allow_stream_requests()
-    // was already called on this circuit.
-    //
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
     #[cfg(feature = "hs-service")]
@@ -2163,9 +2160,6 @@ mod test {
     }
 
     #[test]
-    // TODO (#1190): allow_stream_requests() should return an error if
-    // the circuit already has an IncomingStream.
-    #[ignore]
     #[cfg(feature = "hs-service")]
     fn allow_stream_requests_twice() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {

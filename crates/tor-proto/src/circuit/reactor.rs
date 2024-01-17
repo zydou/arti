@@ -1657,8 +1657,8 @@ impl Reactor {
                     hop_num,
                 };
 
-                let ret = self.set_incoming_stream_req_handler(handler)?;
-                let _ = done.send(Ok(ret)); // don't care if sender goes away
+                let ret = self.set_incoming_stream_req_handler(handler);
+                let _ = done.send(ret); // don't care if the corresponding receiver goes away.
             }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
