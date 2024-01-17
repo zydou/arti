@@ -1937,7 +1937,7 @@ impl Reactor {
                 // message, just remove the old stream from the map and stop waiting for a
                 // response
                 hop.map.ending_msg_received(streamid)?;
-                self.handle_incoming_stream_request(msg, streamid, hopnum)?;
+                self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
             }
             Some(StreamEnt::EndSent { half_stream, .. }) => {
                 // We sent an end but maybe the other side hasn't heard.
@@ -1953,7 +1953,7 @@ impl Reactor {
                 RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
             ) =>
             {
-                self.handle_incoming_stream_request(msg, streamid, hopnum)?;
+                self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
             }
             _ => {
                 // No stream wants this message, or ever did.
@@ -1969,10 +1969,13 @@ impl Reactor {
     #[cfg(feature = "hs-service")]
     fn handle_incoming_stream_request(
         &mut self,
+        cx: &mut Context<'_>,
         msg: UnparsedRelayCell,
         stream_id: StreamId,
         hop_num: HopNum,
     ) -> Result<()> {
+        use tor_cell::relaycell::msg::EndReason;
+
         let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
                 "Cannot handle BEGIN cells on this circuit".into(),
@@ -2033,16 +2036,16 @@ impl Reactor {
                 receiver,
             })
         {
-            // TODO (#1189): we should not be dropping BEGIN requests. Consider using an
-            // unbounded channel instead.
             if e.is_full() {
-                return Err(Error::CircProto(
-                    concat!(
-                        "Sending incoming stream request would block: ",
-                        "we are receiving too many BEGIN cells on this channel"
-                    )
-                    .into(),
-                ));
+                // The IncomingStreamRequestHandler's stream is full; it isn't
+                // handling requests fast enough. So instead, we reply with an
+                // END cell.
+                let end_msg = AnyRelayMsgOuter::new(
+                    Some(stream_id),
+                    End::new_with_reason(EndReason::RESOURCELIMIT).into(),
+                );
+                // TODO: log a rate-limited message when this happens.
+                self.send_relay_cell(cx, hop_num, false, end_msg)?;
             } else {
                 // TODO (#1188): handle the case where the sender goes away more gracefully
                 return Err(Error::from(internal!(
