@@ -145,20 +145,18 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 //
 // TODO (#1228): Write more.
 //
-pub struct OnionService<S: tor_persist::StateMgr + Send + Sync + 'static> {
+pub struct OnionService {
     /// The current configuration.
     config: OnionServiceConfig,
     /// The key manager, used for accessing the underlying key stores.
     keymgr: Arc<KeyMgr>,
-    /// The persistent state manager.
-    statemgr: S,
     /// The location on disk where the persistent data is stored.
     state_dir: PathBuf,
     /// The [`Mistrust`] configuration used with `state_dir`.
     state_mistrust: Mistrust,
 }
 
-impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
+impl OnionService {
     /// Create (but do not launch) a new onion service.
     // TODO (#1228): document.
     //
@@ -169,7 +167,6 @@ impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
     pub fn new(
         config: OnionServiceConfig,
         keymgr: Arc<KeyMgr>,
-        statemgr: S,
         state_dir: &Path,
         state_mistrust: &Mistrust,
     ) -> Result<Self, StartupError> {
@@ -184,7 +181,6 @@ impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
         Ok(OnionService {
             keymgr,
             config,
-            statemgr,
             state_dir: state_dir.into(),
             state_mistrust: state_mistrust.clone(),
         })
@@ -200,6 +196,7 @@ impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
         runtime: R,
         netdir_provider: Arc<dyn NetDirProvider>,
         circ_pool: Arc<HsCircPool<R>>,
+        statemgr: impl tor_persist::StateMgr + Send + Sync + 'static,
     ) -> Result<(Arc<RunningOnionService>, impl Stream<Item = RendRequest>), StartupError>
     where
         R: Runtime,
@@ -207,7 +204,6 @@ impl<S: tor_persist::StateMgr + Send + Sync + 'static> OnionService<S> {
         let OnionService {
             config,
             keymgr,
-            statemgr,
             state_dir,
             state_mistrust,
         } = self;

@@ -1375,8 +1375,6 @@ impl<R: Runtime> TorClient<R> {
             config,
             // TODO #1186: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
-            // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
-            self.statemgr.clone(),
             // TODO #1186: Allow override of state_dir for "ephemeral" operation?
             &self.state_dir,
             &self.storage_mistrust,
@@ -1387,6 +1385,8 @@ impl<R: Runtime> TorClient<R> {
                 self.runtime.clone(),
                 self.dirmgr.clone().upcast_arc(),
                 self.hs_circ_pool.clone(),
+                // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
+                self.statemgr.clone(),
             )
             .map_err(ErrorDetail::LaunchOnionService)?;
 
@@ -1405,7 +1405,7 @@ impl<R: Runtime> TorClient<R> {
     pub fn create_onion_service(
         config: &TorClientConfig,
         svc_config: tor_hsservice::OnionServiceConfig,
-    ) -> crate::Result<tor_hsservice::OnionService<FsStateMgr>> {
+    ) -> crate::Result<tor_hsservice::OnionService> {
         let keystore = config.storage.keystore();
         let keymgr = if keystore.is_enabled() {
             let key_store_dir = keystore.path();
@@ -1437,18 +1437,12 @@ impl<R: Runtime> TorClient<R> {
             .expand_state_dir()
             .map_err(ErrorDetail::Configuration)?;
         let storage_mistrust = config.storage.permissions();
-        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, storage_mistrust)
-            .map_err(ErrorDetail::StateMgrSetup)?;
 
-        Ok(tor_hsservice::OnionService::new(
-            svc_config,
-            keymgr,
-            statemgr.clone(),
-            &state_dir,
-            storage_mistrust,
+        Ok(
+            tor_hsservice::OnionService::new(svc_config, keymgr, &state_dir, storage_mistrust)
+                // TODO: do we need an ErrorDetail::CreateOnionService?
+                .map_err(ErrorDetail::LaunchOnionService)?,
         )
-        // TODO: do we need an ErrorDetail::CreateOnionService?
-        .map_err(ErrorDetail::LaunchOnionService)?)
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
