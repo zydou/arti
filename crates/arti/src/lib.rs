@@ -405,6 +405,7 @@ where
             );
 
     cfg_if::cfg_if! {
+        // TODO (#1250): test the CLI.
         if #[cfg(feature = "onion-service-service")] {
             let clap_app = clap_app.subcommand(
                 Command::new("hss")
