@@ -134,6 +134,7 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
 ///
 /// Used by the publisher reactor and by the [`IptManager`].
 #[derive(PartialEq)]
+#[must_use]
 pub(crate) enum ShutdownStatus {
     /// We should continue to operate this component
     Continue,
