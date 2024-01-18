@@ -204,6 +204,8 @@ The actual parameters available for override depend on the Arti version and the 
 
 This section is important for managing how and when Arti downloads various directory information from the Tor network. This directory information is essential for understanding the state of the network, such as available relays and services.
 
+Configures the timing and retry strategies for downloading various types of directory information.
+
 #### Options
 
 -   `retry_bootstrap`:
@@ -291,7 +293,7 @@ With the `[address_filter]` section, you can specify rules for what network addr
 
 -   `allow_local_addrs`: 
     -   **Purpose:** Determines whether Arti can try to make anonymous connections to network-local addresses.
-    -   **Behavior:** When set to `true`, Arti can connect to addresses considered local to the machine's network, such as private IP ranges (e.g., 192.168.x.x, 10.x.x.x). Exit relays typically refuse these addresses.
+    -   **Behavior:** When set to `true`, Arti can connect to addresses considered local to the machine's network, such as private IP ranges (e.g., 192.168.x.x, 10.x.x.x).  Exit relays typically refuse these addresses.
     -   **Note:** Allowing connections to local addresses can be helpful in specific network configurations but may pose security risks or reveal information about the local network. In most cases, especially for privacy-focused usage, this is set to `false` to prevent such connections.
 
 -   `allow_onion_addrs`: 
