@@ -1202,7 +1202,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             ipt_set.note_publication_attempt(&imm.runtime, worst_case_end)
                         {
                             let wait = e.log_retry_max(&imm.nickname)?;
-                            // TODO (#1219): retry instead of this
+                            // TODO (#1226): retry instead of this
                             return Err(FatalError::Bug(internal!(
                                 "ought to retry after {wait:?}, crashing instead"
                             ))
