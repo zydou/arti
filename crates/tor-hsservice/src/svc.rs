@@ -72,8 +72,7 @@ struct SvcInner {
     config_tx: postage::watch::Sender<Arc<OnionServiceConfig>>,
 
     /// A oneshot that will be dropped when this object is dropped.
-    #[allow(dead_code)] // TODO (#1231)
-    shutdown_tx: postage::broadcast::Sender<void::Void>,
+    _shutdown_tx: postage::broadcast::Sender<void::Void>,
 
     /// Postage sender, used to tell subscribers about changes in the status of
     /// this onion service.
@@ -269,7 +268,11 @@ impl OnionService {
     /// [`RunningOnionService`] and its stream of rendezvous requests.
     ///
     /// You can turn the resulting stream into a stream of [`StreamRequest`](crate::StreamRequest)
-    /// using the [`handle_rend_requests`](crate::handle_rend_requests) helper function
+    /// using the [`handle_rend_requests`](crate::handle_rend_requests) helper function.
+    ///
+    /// Once the `RunningOnionService` is dropped, the onion service will stop
+    /// publishing, and stop accepting new introduction requests.  Existing
+    /// streams and rendezvous circuits will remain open.
     pub fn launch<R>(
         self,
         runtime: R,
@@ -330,8 +333,6 @@ impl OnionService {
             shutdown_rx,
         );
 
-        // TODO (#1231): we need to actually do something with shutdown_tx
-
         // TODO (#1083): We should pass a copy of this to the publisher and/or the
         // IptMgr, and they should adjust it as needed.
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
@@ -340,7 +341,7 @@ impl OnionService {
             state,
             inner: Mutex::new(SvcInner {
                 config_tx,
-                shutdown_tx,
+                _shutdown_tx: shutdown_tx,
                 status_tx,
                 unlaunched: Some((
                     rend_req_rx,
