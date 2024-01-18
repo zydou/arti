@@ -440,6 +440,7 @@ impl RunningOnionService {
         Ok(rend_req_rx)
     }
 
+    /*
     /// Tell this onion service to stop running.
     ///
     /// It can be restarted with launch().
@@ -449,6 +450,7 @@ impl RunningOnionService {
     pub fn pause(&self) {
         todo!() // TODO (#1231)
     }
+    */
 }
 
 impl Deref for OnionService {
