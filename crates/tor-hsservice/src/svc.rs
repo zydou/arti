@@ -133,6 +133,7 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
 /// Return value from one call to the main loop iteration
 ///
 /// Used by the publisher reactor and by the [`IptManager`].
+#[derive(PartialEq)]
 pub(crate) enum ShutdownStatus {
     /// We should continue to operate this component
     Continue,

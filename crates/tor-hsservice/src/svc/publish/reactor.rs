@@ -571,7 +571,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         loop {
             match self.run_once(&mut schedule_upload_rx).await {
                 Ok(ShutdownStatus::Continue) => continue,
-                Ok(ShutdownStatus::Terminate) => return Ok(()),
+                Ok(ShutdownStatus::Terminate) => {
+                    debug!(nickname=%self.imm.nickname, "descriptor publisher is shutting down!");
+                    return Ok(());
+                }
                 Err(e) => {
                     error_report!(
                         e,
@@ -624,7 +627,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 self.handle_consensus_change(netdir).await?;
             }
             update = self.ipt_watcher.await_update().fuse() => {
-                self.handle_ipt_change(update).await?;
+                if self.handle_ipt_change(update).await? == ShutdownStatus::Terminate {
+                    return Ok(ShutdownStatus::Terminate);
+                }
             },
             config = self.config_rx.next().fuse() => {
                 let Some(config) = config else {
@@ -864,7 +869,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn handle_ipt_change(
         &mut self,
         update: Option<Result<(), crate::FatalError>>,
-    ) -> Result<(), FatalError> {
+    ) -> Result<ShutdownStatus, FatalError> {
         trace!(nickname=%self.imm.nickname, "received IPT change notification from IPT manager");
         match update {
             Some(Ok(())) => {
@@ -872,13 +877,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 debug!(nickname=%self.imm.nickname, "the introduction points have changed");
 
                 self.mark_all_dirty();
-                self.update_publish_status(should_upload).await
+                self.update_publish_status(should_upload).await?;
+                Ok(ShutdownStatus::Continue)
             }
             Some(Err(e)) => Err(e),
             None => {
-                debug!(nickname=%self.imm.nickname, "no IPTs available, ceasing uploads");
-                self.update_publish_status(PublishStatus::AwaitingIpts)
-                    .await
+                debug!(nickname=%self.imm.nickname, "received shut down signal from IPT manager");
+                Ok(ShutdownStatus::Terminate)
             }
         }
     }
