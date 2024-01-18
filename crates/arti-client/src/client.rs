@@ -540,7 +540,7 @@ impl<R: Runtime> TorClient<R> {
             .into());
         }
 
-        let state_dir = config.storage.expand_state_dir()?;
+        let (state_dir, mistrust) = Self::state_dir(config)?;
 
         let dormant = DormantMode::Normal;
         let dir_cfg = {
@@ -548,7 +548,7 @@ impl<R: Runtime> TorClient<R> {
             c.extensions = dirmgr_extensions;
             c
         };
-        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, config.storage.permissions())
+        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, mistrust)
             .map_err(ErrorDetail::StateMgrSetup)?;
         // Try to take state ownership early, so we'll know if we have it.
         // (At this point we don't yet care if we have it.)
@@ -647,29 +647,7 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), hs_circ_pool.clone(), config, housekeeping)?
         };
 
-        let keystore = config.storage.keystore();
-        let keymgr = if keystore.is_enabled() {
-            let key_store_dir = keystore.path();
-            let permissions = config.storage.permissions();
-
-            let arti_store =
-                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
-            info!("Using keystore from {key_store_dir:?}");
-
-            // TODO #1106: make the default store configurable
-            let default_store = arti_store;
-
-            let keymgr = KeyMgrBuilder::default()
-                .default_store(Box::new(default_store))
-                .build()
-                .map_err(|_| internal!("failed to build keymgr"))?;
-
-            // TODO #858: add support for the C Tor key store
-            Some(Arc::new(keymgr))
-        } else {
-            info!("Running without a keystore");
-            None
-        };
+        let keymgr = Self::create_keymgr(config)?;
 
         runtime
             .spawn(tasks_monitor_dormant(
@@ -725,7 +703,7 @@ impl<R: Runtime> TorClient<R> {
             #[cfg(feature = "onion-service-service")]
             state_dir,
             #[cfg(feature = "onion-service-service")]
-            storage_mistrust: config.storage.permissions().clone(),
+            storage_mistrust: mistrust.clone(),
         })
     }
 
@@ -1361,7 +1339,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<(
-        Arc<tor_hsservice::OnionService>,
+        Arc<tor_hsservice::RunningOnionService>,
         impl futures::Stream<Item = tor_hsservice::RendRequest>,
     )> {
         let keymgr = self
@@ -1372,10 +1350,7 @@ impl<R: Runtime> TorClient<R> {
             })?
             .clone();
         let service = tor_hsservice::OnionService::new(
-            self.runtime.clone(),
             config,
-            self.dirmgr.clone().upcast_arc(),
-            self.hs_circ_pool.clone(),
             // TODO #1186: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
             // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
@@ -1385,9 +1360,41 @@ impl<R: Runtime> TorClient<R> {
             &self.storage_mistrust,
         )
         .map_err(ErrorDetail::LaunchOnionService)?;
-        let stream = service.launch().map_err(ErrorDetail::LaunchOnionService)?;
+        let (service, stream) = service
+            .launch(
+                self.runtime.clone(),
+                self.dirmgr.clone().upcast_arc(),
+                self.hs_circ_pool.clone(),
+            )
+            .map_err(ErrorDetail::LaunchOnionService)?;
 
         Ok((service, stream))
+    }
+
+    /// Create (but do not launch) a new
+    /// [`OnionService`](tor_hsservice::OnionService)
+    /// using the given configuration.
+    ///
+    /// The returned `OnionService` can be launched using
+    /// [`OnionService::launch()`](tor_hsservice::OnionService::launch).
+    #[cfg(feature = "onion-service-service")]
+    pub fn create_onion_service(
+        config: &TorClientConfig,
+        svc_config: tor_hsservice::OnionServiceConfig,
+    ) -> crate::Result<tor_hsservice::OnionService> {
+        let keymgr = Self::create_keymgr(config)?.ok_or(ErrorDetail::KeystoreRequired {
+            action: "create onion service",
+        })?;
+
+        let (state_dir, mistrust) = Self::state_dir(config)?;
+        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, mistrust)
+            .map_err(ErrorDetail::StateMgrSetup)?;
+
+        Ok(
+            tor_hsservice::OnionService::new(svc_config, keymgr, statemgr, &state_dir, mistrust)
+                // TODO: do we need an ErrorDetail::CreateOnionService?
+                .map_err(ErrorDetail::LaunchOnionService)?,
+        )
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
@@ -1420,6 +1427,49 @@ impl<R: Runtime> TorClient<R> {
             .lock()
             .expect("dormant lock poisoned")
             .borrow_mut() = Some(mode);
+    }
+
+    /// Create a [`KeyMgr`] using the specified configuration.
+    ///
+    /// Returns `Ok(None)` if keystore use is disabled.
+    fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
+        let keystore = config.storage.keystore();
+        if keystore.is_enabled() {
+            let key_store_dir = keystore.path();
+            let permissions = config.storage.permissions();
+
+            let arti_store =
+                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
+            info!("Using keystore from {key_store_dir:?}");
+
+            // TODO #1106: make the default store configurable
+            let default_store = arti_store;
+
+            let keymgr = KeyMgrBuilder::default()
+                .default_store(Box::new(default_store))
+                .build()
+                .map_err(|_| internal!("failed to build keymgr"))?;
+
+            // TODO #858: add support for the C Tor key store
+            Ok(Some(Arc::new(keymgr)))
+        } else {
+            info!("Running without a keystore");
+            Ok(None)
+        }
+    }
+
+    /// Get the state directory and its corresponding
+    /// [`Mistrust`](fs_mistrust::Mistrust) configuration.
+    fn state_dir(
+        config: &TorClientConfig,
+    ) -> StdResult<(PathBuf, &fs_mistrust::Mistrust), ErrorDetail> {
+        let state_dir = config
+            .storage
+            .expand_state_dir()
+            .map_err(ErrorDetail::Configuration)?;
+        let mistrust = config.storage.permissions();
+
+        Ok((state_dir, mistrust))
     }
 }
 

@@ -1,9 +1,11 @@
 //! Principal types for onion services.
 pub(crate) mod netdir;
 
-use std::path::Path;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use fs_mistrust::Mistrust;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::Stream;
@@ -20,11 +22,12 @@ use tor_keymgr::KeystoreSelector;
 use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::pk::ed25519;
 use tor_netdir::NetDirProvider;
+use tor_persist::StateMgr;
 use tor_rtcompat::Runtime;
 use tracing::{info, warn};
 
-use crate::ipt_mgr::IptManager;
-use crate::ipt_set::IptsManagerView;
+use crate::ipt_mgr::{IptManager, IptStorageHandle};
+use crate::ipt_set::{IptSetStorageHandle, IptsManagerView};
 use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
 use crate::svc::keystore_sweeper::KeystoreSweeper;
 use crate::svc::publish::Publisher;
@@ -49,15 +52,18 @@ pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;
 // or a unified OnionKey type.
 type NtorPublicKey = curve25519::PublicKey;
 
-/// A handle to an instance of an onion service.
+/// A handle to a running instance of an onion service.
 //
 // TODO (#1228): Write more.
+// TODO (#1247): Choose a better name for this struct
 //
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
-pub struct OnionService {
+pub struct RunningOnionService {
     /// The mutable implementation details of this onion service.
     inner: Mutex<SvcInner>,
+    /// The current state.
+    state: OnionServiceState,
 }
 
 /// Implementation details for an onion service.
@@ -74,8 +80,6 @@ struct SvcInner {
     status_tx: StatusSender,
 
     /// Handles that we'll take ownership of when launching the service.
-    ///
-    /// (TODO (#1227): Having to consume this may indicate a design problem.)
     unlaunched: Option<(
         mpsc::Receiver<RendRequest>,
         Box<dyn Launchable + Send + Sync>,
@@ -142,6 +146,89 @@ impl From<oneshot::Canceled> for ShutdownStatus {
     }
 }
 
+/// A handle to an instance of an onion service.
+//
+// TODO (#1228): Write more.
+// TODO (#1247): Choose a better name for this struct
+//
+pub struct OnionService {
+    /// The current configuration.
+    config: OnionServiceConfig,
+    /// The current state.
+    state: OnionServiceState,
+}
+
+/// The state of an instance of an onion service.
+//
+// TODO (#1228): Write more.
+// TODO (#1247): Choose a better name for this struct
+pub struct OnionServiceState {
+    /// The nickname of this service.
+    nickname: HsNickname,
+    /// The key manager, used for accessing the underlying key stores.
+    keymgr: Arc<KeyMgr>,
+    /// The location on disk where the persistent data is stored.
+    state_dir: PathBuf,
+    /// The [`Mistrust`] configuration used with `state_dir`.
+    state_mistrust: Mistrust,
+    /// The state manager.
+    state_mgr: Box<dyn OnionServiceStateMgr>,
+}
+
+impl OnionServiceState {
+    /// Return the onion address of this service.
+    ///
+    /// Returns `None` if the HsId of the service could not be found in any of the configured
+    /// keystores.
+    //
+    // TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
+    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
+    // ArtiHss.
+    pub fn onion_name(&self) -> Option<HsId> {
+        let hsid_spec = HsIdPublicKeySpecifier::new(self.nickname.clone());
+        self.keymgr
+            .get::<HsIdKey>(&hsid_spec)
+            .ok()?
+            .map(|hsid| hsid.id())
+    }
+}
+
+impl<S: StateMgr + Send + Sync + 'static> OnionServiceStateMgr for S {
+    fn try_lock(&self) -> Result<(), StartupError> {
+        use tor_persist::LockStatus as LS;
+        match self.try_lock().map_err(StartupError::LoadState)? {
+            LS::NoLock => Err(StartupError::StateLocked),
+            LS::AlreadyHeld => Ok(()),
+            LS::NewlyAcquired => Ok(()),
+        }
+    }
+
+    fn ipt_storage_handle(&self, nickname: &HsNickname) -> Arc<IptStorageHandle> {
+        self.clone().create_handle(format!("hs_ipts_{}", nickname))
+    }
+
+    fn ipt_set_storage_handle(&self, nickname: &HsNickname) -> Arc<IptSetStorageHandle> {
+        self.clone()
+            .create_handle(format!("hs_iptpub_{}", nickname))
+    }
+}
+
+/// Private trait used to type-erase `OnionServiceState<S>`, so that we don't need to
+/// parameterize OnionService and RunningOnionService on `<S>`.
+pub(crate) trait OnionServiceStateMgr: Send + Sync {
+    /// Try to become a read-write state manager if possible, without
+    /// blocking.
+    ///
+    /// Returns an `Err` if the lock cannot be acquired.
+    fn try_lock(&self) -> Result<(), StartupError>;
+
+    /// Make a new [`StorageHandle`](tor_persist::StorageHandle) for IPT `RelayRecord` storage.
+    fn ipt_storage_handle(&self, nickname: &HsNickname) -> Arc<IptStorageHandle>;
+
+    /// Make a new [`StorageHandle`](tor_persist::StorageHandle) for `IptRecord` storage.
+    fn ipt_set_storage_handle(&self, nickname: &HsNickname) -> Arc<IptSetStorageHandle>;
+}
+
 impl OnionService {
     /// Create (but do not launch) a new onion service.
     // TODO (#1228): document.
@@ -150,36 +237,56 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
-    #[allow(clippy::too_many_arguments)] // TODO (#1227, #1229) should there be a builder?
-    pub fn new<R, S>(
-        runtime: R,
+    pub fn new<S: StateMgr + Send + Sync + 'static>(
         config: OnionServiceConfig,
+        keymgr: Arc<KeyMgr>,
+        state_mgr: S,
+        state_dir: &Path,
+        state_mistrust: &Mistrust,
+    ) -> Result<Self, StartupError> {
+        let nickname = config.nickname.clone();
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
+        // offline
+        //let offline_hsid = config.offline_hsid;
+        let offline_hsid = false;
+
+        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
+
+        Ok(OnionService {
+            config,
+            state: OnionServiceState {
+                nickname,
+                keymgr,
+                state_mgr: Box::new(state_mgr),
+                state_dir: state_dir.into(),
+                state_mistrust: state_mistrust.clone(),
+            },
+        })
+    }
+
+    /// Tell this onion service to begin running, and return a
+    /// [`RunningOnionService`] and its stream of rendezvous requests.
+    ///
+    /// You can turn the resulting stream into a stream of [`StreamRequest`](crate::StreamRequest)
+    /// using the [`handle_rend_requests`](crate::handle_rend_requests) helper function
+    pub fn launch<R>(
+        self,
+        runtime: R,
         netdir_provider: Arc<dyn NetDirProvider>,
         circ_pool: Arc<HsCircPool<R>>,
-        keymgr: Arc<KeyMgr>,
-        statemgr: S,
-        state_dir: &Path,
-        state_mistrust: &fs_mistrust::Mistrust,
-    ) -> Result<Arc<Self>, StartupError>
+    ) -> Result<(Arc<RunningOnionService>, impl Stream<Item = RendRequest>), StartupError>
     where
         R: Runtime,
-        S: tor_persist::StateMgr + Send + Sync + 'static,
     {
-        let nickname = config.nickname.clone();
+        let OnionService { config, state } = self;
 
-        {
-            use tor_persist::LockStatus as LS;
-            match statemgr.try_lock().map_err(StartupError::LoadState)? {
-                LS::NoLock => return Err(StartupError::StateLocked),
-                LS::AlreadyHeld => {}
-                LS::NewlyAcquired => {}
-            }
-        }
+        let nickname = state.nickname.clone();
+
+        state.state_mgr.try_lock()?;
+
         // We pass the "cooked" handle, with the storage key embedded, to ipt_set,
         // since the ipt_set code doesn't otherwise have access to the HS nickname.
-        let iptpub_storage_handle = statemgr
-            .clone()
-            .create_handle(format!("hs_iptpub_{nickname}"));
+        let iptpub_storage_handle = state.state_mgr.ipt_set_storage_handle(&state.nickname);
 
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
@@ -195,21 +302,14 @@ impl OnionService {
             config_rx.clone(),
             rend_req_tx,
             shutdown_rx.clone(),
-            statemgr,
+            &*state.state_mgr,
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
             },
-            keymgr.clone(),
-            state_dir,
-            state_mistrust,
+            state.keymgr.clone(),
+            &state.state_dir,
+            &state.state_mistrust,
         )?;
-
-        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
-        // offline
-        //let offline_hsid = config.offline_hsid;
-        let offline_hsid = false;
-
-        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime.clone(),
@@ -218,11 +318,16 @@ impl OnionService {
             circ_pool,
             publisher_view,
             config_rx,
-            Arc::clone(&keymgr),
+            Arc::clone(&state.keymgr),
         );
 
-        let keystore_sweeper =
-            KeystoreSweeper::new(runtime, nickname, keymgr, netdir_provider, shutdown_rx);
+        let keystore_sweeper = KeystoreSweeper::new(
+            runtime,
+            nickname.clone(),
+            Arc::clone(&state.keymgr),
+            netdir_provider,
+            shutdown_rx,
+        );
 
         // TODO (#1231): we need to actually do something with shutdown_tx
 
@@ -230,7 +335,8 @@ impl OnionService {
         // IptMgr, and they should adjust it as needed.
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
-        Ok(Arc::new(OnionService {
+        let svc = Arc::new(RunningOnionService {
+            state,
             inner: Mutex::new(SvcInner {
                 config_tx,
                 shutdown_tx,
@@ -245,9 +351,14 @@ impl OnionService {
                     }),
                 )),
             }),
-        }))
-    }
+        });
 
+        let stream = svc.launch()?;
+        Ok((svc, stream))
+    }
+}
+
+impl RunningOnionService {
     /// Change the configuration of this onion service.
     ///
     /// (Not everything can be changed here. At the very least we'll need to say
@@ -301,7 +412,7 @@ impl OnionService {
     ///
     /// You can turn the resulting stream into a stream of [`StreamRequest`](crate::StreamRequest)
     /// using the [`handle_rend_requests`](crate::handle_rend_requests) helper function
-    pub fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest>, StartupError> {
+    fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest>, StartupError> {
         let (rend_req_rx, launch) = {
             let mut inner = self.inner.lock().expect("poisoned lock");
             inner
@@ -333,8 +444,24 @@ impl OnionService {
     ///
     /// You can also shut down an onion service completely by dropping the last
     /// Clone of it.
-    pub fn stop(&self) {
+    pub fn pause(&self) {
         todo!() // TODO (#1231)
+    }
+}
+
+impl Deref for OnionService {
+    type Target = OnionServiceState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl Deref for RunningOnionService {
+    type Target = OnionServiceState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
     }
 }
 
@@ -448,6 +575,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
 
+    use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::IptSetStorageHandle;
     use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
@@ -638,5 +766,37 @@ pub(crate) mod test {
             .unwrap();
 
         assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).is_err());
+    }
+
+    #[test]
+    fn onion_name() {
+        let temp_dir = test_temp_dir!();
+        let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let keymgr = create_keymgr(&temp_dir);
+
+        let (hsid_keypair, hsid_public) = create_hsid();
+
+        // Insert the hsid into the keystore
+        keymgr
+            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default)
+            .unwrap();
+
+        let config = OnionServiceConfigBuilder::default()
+            .nickname(nickname)
+            .build()
+            .unwrap();
+
+        let service = OnionService::new(
+            config,
+            Arc::clone(&*keymgr),
+            tor_persist::TestingStateMgr::new(),
+            temp_dir.as_path_untracked(),
+            &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+        )
+        .unwrap();
+
+        let hsid = HsId::from(hsid_public);
+        assert_eq!(service.onion_name().unwrap(), hsid);
     }
 }

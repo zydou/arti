@@ -13,7 +13,7 @@ use tor_config::{
 };
 use tor_error::warn_report;
 use tor_hsrproxy::{config::ProxyConfigBuilder, OnionServiceReverseProxy, ProxyConfig};
-use tor_hsservice::{HsNickname, OnionService};
+use tor_hsservice::{HsNickname, RunningOnionService};
 use tor_rtcompat::Runtime;
 use tracing::debug;
 
@@ -27,10 +27,10 @@ use tracing::debug;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OnionServiceProxyConfig {
     /// Configuration for the onion service itself.
-    svc_cfg: OnionServiceConfig,
+    pub(crate) svc_cfg: OnionServiceConfig,
     /// Configuration for the reverse proxy that handles incoming connections
     /// from the onion service.
-    proxy_cfg: ProxyConfig,
+    pub(crate) proxy_cfg: ProxyConfig,
 }
 
 /// Builder object to construct an [`OnionServiceProxyConfig`].
@@ -168,7 +168,7 @@ struct Proxy {
     /// The onion service.
     ///
     /// This is launched and running.
-    svc: Arc<OnionService>,
+    svc: Arc<RunningOnionService>,
     /// The reverse proxy that accepts connections from the onion service.
     ///
     /// This is also launched and running.
