@@ -64,6 +64,8 @@ impl<R: Runtime> KeystoreSweeper<R> {
         let match_all_arti_pat = tor_keymgr::KeyPathPattern::Arti("*".into());
         let mut netdir_events = netdir_provider.events();
 
+        // This task will exit when the RunningOnionService is dropped, causing
+        // `shutdown` to become ready.
         let () = runtime
             .spawn(async move {
                 loop {

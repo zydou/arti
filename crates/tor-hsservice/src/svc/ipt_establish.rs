@@ -58,10 +58,9 @@ use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShut
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {
-    /// A oneshot sender that notifies the running task that it's time to shut
+    /// A oneshot sender which, when dropped, notifies the running task that it's time to shut
     /// down.
-    #[allow(dead_code)] // TODO (#1236): Make sure this is okay.
-    terminate_tx: oneshot::Sender<Void>,
+    _terminate_tx: oneshot::Sender<Void>,
 
     /// Mutable state shared with the Establisher, Reactor, and MsgHandler.
     state: Arc<Mutex<EstablisherState>>,
@@ -294,6 +293,9 @@ impl IptEstablisher {
     ///
     /// The returned `watch::Receiver` will yield `Faulty` if the IPT
     /// establisher is shut down (or crashes).
+    ///
+    /// When the resulting `IptEstablisher` is dropped, it will cancel all tasks
+    /// and close all circuits used to establish this introduction point.
     pub(crate) fn launch<R: Runtime>(
         runtime: &R,
         params: IptParameters,
@@ -362,6 +364,8 @@ impl IptEstablisher {
         let (terminate_tx, mut terminate_rx) = oneshot::channel::<Void>();
         let status_tx = DropNotifyWatchSender::new(status_tx);
 
+        // Spawn a task to keep the intro established.  The task will shut down
+        // when terminate_tx is dropped.
         runtime
             .spawn(async move {
                 futures::select_biased!(
@@ -380,7 +384,7 @@ impl IptEstablisher {
                 cause: Arc::new(e),
             })?;
         let establisher = IptEstablisher {
-            terminate_tx,
+            _terminate_tx: terminate_tx,
             state,
         };
         Ok((establisher, status_rx))
@@ -893,10 +897,9 @@ impl<R: Runtime> Reactor<R> {
             .map_err(|_| IptError::EstablishTimeout)?
             .map_err(|_| IptError::ReceiveAck)?;
 
-        // TODO (#1236) arrange for the IptMsgHandler to be torn down if the
-        // Establisher (and this IntroPtSession) is - or if this function returns
-        // early somehow.  Otherwise we might leak the IptMsgHandler and the whole
-        // circuit?  Given the design of the circuit msg interface this seems nontrivial.
+        // This session will be owned by keep_intro_established(), and dropped
+        // when the circuit closes, or when the keep_intro_established() future
+        // is dropped.
         Ok(IntroPtSession {
             intro_circ: circuit,
         })

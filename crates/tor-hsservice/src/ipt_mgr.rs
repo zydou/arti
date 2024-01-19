@@ -471,6 +471,8 @@ impl Ipt {
         };
         let (establisher, mut watch_rx) = mockable.make_new_ipt(imm, params)?;
 
+        // This task will shut down when self.establisher is dropped, causing
+        // watch_tx to close.
         imm.runtime
             .spawn({
                 let mut status_send = imm.status_send.clone();
@@ -641,6 +643,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         )?;
 
         let runtime = self.imm.runtime.clone();
+        // This task will shut down when the RunningOnionService is dropped, causing
+        // self.state.shutdown to become ready.
         runtime
             .spawn(self.main_loop_task(publisher))
             .map_err(|cause| StartupError::Spawn {
