@@ -29,7 +29,7 @@ use tor_proto::{
 };
 use tor_rtcompat::Runtime;
 
-use crate::req::RendRequestContext;
+use crate::{req::RendRequestContext, svc::ipt_establish::compute_subcredentials};
 
 /// An error produced while trying to process an introduction request we have
 /// received from a client via an introduction point.
@@ -205,11 +205,17 @@ impl IntroRequest {
         use IntroRequestError as E;
         let mut rng = rand::thread_rng();
 
+        // We need the subcredential for the *current time period* in order to do the hs_ntor
+        // handshake. But that can change over time.  We will instead use KeyMgr::get_matching to
+        // find all current subcredentials.
+        let subcredentials = compute_subcredentials(&context.nickname, &context.keymgr)
+            .map_err(IntroRequestError::Subcredentials)?;
+
         let (key_gen, rend1_body, msg_body) = hs_ntor::server_receive_intro(
             &mut rng,
             &context.kp_hss_ntor,
             &context.kp_hs_ipt_sid,
-            &context.subcredentials[..],
+            &subcredentials[..],
             req.encoded_header(),
             req.encrypted_body(),
         )

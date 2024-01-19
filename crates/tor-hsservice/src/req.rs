@@ -7,10 +7,8 @@ use educe::Educe;
 use futures::{Stream, StreamExt};
 use std::sync::Arc;
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
-use tor_hscrypto::{
-    pk::{HsIntroPtSessionIdKey, HsSvcNtorKeypair},
-    Subcredential,
-};
+use tor_hscrypto::pk::{HsIntroPtSessionIdKey, HsSvcNtorKeypair};
+use tor_keymgr::KeyMgr;
 
 use tor_error::Bug;
 use tor_proto::{
@@ -20,7 +18,7 @@ use tor_proto::{
 
 use crate::{
     svc::rend_handshake::{self, RendCircConnector},
-    ClientError, IptLocalId,
+    ClientError, HsNickname, IptLocalId,
 };
 
 /// Request to complete an introduction/rendezvous handshake.
@@ -75,16 +73,18 @@ pub struct StreamRequest {
 
 /// Keys and objects needed to answer a RendRequest.
 pub(crate) struct RendRequestContext {
+    /// The nickname of the service receiving the request.
+    pub(crate) nickname: HsNickname,
+
+    /// The key manager, used for looking up subcredentials.
+    pub(crate) keymgr: Arc<KeyMgr>,
+
     /// Key we'll use to decrypt the rendezvous request.
     pub(crate) kp_hss_ntor: Arc<HsSvcNtorKeypair>,
 
     /// We use this key to identify our session with this introduction point,
     /// and prevent replays across sessions.
     pub(crate) kp_hs_ipt_sid: HsIntroPtSessionIdKey,
-
-    /// A set of subcredentials that we accept as identifying ourself on this
-    /// introduction point.
-    pub(crate) subcredentials: Vec<Subcredential>,
 
     /// Provider we'll use to find a directory so that we can build a rendezvous
     /// circuit.

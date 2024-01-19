@@ -327,18 +327,11 @@ impl IptEstablisher {
 
         let state = Arc::new(Mutex::new(EstablisherState { accepting_requests }));
 
-        // We need the subcredential for the *current time period* in order to do the hs_ntor
-        // handshake. But that can change over time.  We will instead use KeyMgr::get_matching to
-        // find all current subcredentials.
-        //
-        // TODO HSS: perhaps the subcredentials should be retrieved in
-        // server_receive_intro_no_keygen instead? See also the TODO in HsNtorServiceInput
-        let subcredentials = compute_subcredentials(&nickname, keymgr)?;
-
         let request_context = Arc::new(RendRequestContext {
+            nickname: nickname.clone(),
+            keymgr: Arc::clone(keymgr),
             kp_hss_ntor: Arc::clone(&k_ntor),
             kp_hs_ipt_sid: k_sid.as_ref().as_ref().verifying_key().into(),
-            subcredentials,
             netdir_provider: netdir_provider.clone(),
             circ_pool: pool.clone(),
         });
@@ -403,7 +396,9 @@ impl IptEstablisher {
 
 /// Obtain the all current `Subcredential`s of `nickname`
 /// from the `K_hs_blind_id` read from the keystore.
-fn compute_subcredentials(
+///
+// TODO: make this a method of RendRequestContext
+pub(crate) fn compute_subcredentials(
     nickname: &HsNickname,
     keymgr: &Arc<KeyMgr>,
 ) -> Result<Vec<Subcredential>, FatalError> {
