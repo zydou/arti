@@ -141,6 +141,9 @@ pub(crate) enum IptError {
 
     /// We received an invalid INTRO_ESTABLISHED message.
     #[error("Got an invalid INTRO_ESTABLISHED message")]
+    // Eventually, once we expect intro_established extensions, we will make
+    // sure that they are well-formed.
+    #[allow(dead_code)]
     BadEstablished,
 
     /// We encountered a programming error.
@@ -883,26 +886,12 @@ impl<R: Runtime> Reactor<R> {
             .estimate_timeout(&tor_circmgr::timeouts::Action::RoundTrip {
                 length: circuit.n_hops(),
             });
-        let established = self
+        let _established = self
             .runtime
             .timeout(ack_timeout, established_rx)
             .await
             .map_err(|_| IptError::EstablishTimeout)?
             .map_err(|_| IptError::ReceiveAck)?;
-
-        if established.iter_extensions().next().is_some() {
-            // We do not support any extensions from the introduction point; if it
-            // sent us any, that's a protocol violation.
-            //
-            // TODO (#1238): this check needs to happen in IptMsgHandler::handle_msg,
-            // because otherwise handle_msg might go on to handle messages despite
-            // us wanting to crash, here.  (Providing reliable teardown of the
-            // IptMsgHandler wouldn't be sufficient, since there would be a
-            // race.)
-            //
-            // TODO (torspec#249) Confirm that this _is_ a protocol violation.
-            return Err(IptError::BadEstablished);
-        }
 
         // TODO (#1236) arrange for the IptMsgHandler to be torn down if the
         // Establisher (and this IntroPtSession) is - or if this function returns
@@ -930,7 +919,7 @@ struct IptMsgHandler {
     ///
     /// If this is None, then we already sent an IntroEstablished and we shouldn't
     /// send any more.
-    established_tx: Option<oneshot::Sender<IntroEstablished>>,
+    established_tx: Option<oneshot::Sender<Result<IntroEstablished, IptError>>>,
 
     /// A channel used to report Introduce2 messages.
     introduce_tx: mpsc::Sender<RendRequest>,
@@ -962,7 +951,13 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
 
         if match msg {
             IptMsg::IntroEstablished(established) => match self.established_tx.take() {
-                Some(tx) => tx.send(established).map_err(|_| ()),
+                Some(tx) => {
+                    // TODO: Once we want to enforce any properties on the
+                    // intro_established message (like checking for correct
+                    // extensions) we should do it here.
+                    let established = Ok(established);
+                    tx.send(established).map_err(|_| ())
+                }
                 None => {
                     return Err(tor_proto::Error::CircProto(
                         "Received a redundant INTRO_ESTABLISHED".into(),
