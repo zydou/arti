@@ -413,11 +413,9 @@ impl RunningOnionService {
                 .ok_or(StartupError::AlreadyLaunched)?
         };
 
-        // TODO (#1083): Set status to Bootstrapping.
         match launch.launch() {
             Ok(()) => {}
             Err(e) => {
-                // TODO (#1083): Set status to Shutdown, record error.
                 return Err(e);
             }
         }
