@@ -292,6 +292,8 @@ impl OnionService {
         let (ipt_mgr_view, publisher_view) =
             crate::ipt_set::ipts_channel(&runtime, iptpub_storage_handle)?;
 
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
+
         let ipt_mgr = IptManager::new(
             runtime.clone(),
             netdir_provider.clone(),
@@ -306,6 +308,7 @@ impl OnionService {
             state.keymgr.clone(),
             &state.state_dir,
             &state.state_mistrust,
+            status_tx.clone().into(),
         )?;
 
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
