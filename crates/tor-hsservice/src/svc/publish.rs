@@ -20,6 +20,7 @@ use crate::{HsNickname, OnionServiceConfig};
 
 use reactor::Reactor;
 
+pub use reactor::UploadError;
 pub(crate) use reactor::{Mockable, Real};
 
 /// A handle for the Hsdir Publisher for an onion service.

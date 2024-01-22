@@ -443,7 +443,7 @@ pub(crate) enum AuthorizedClientConfigError {
 /// An error that occurs while trying to upload a descriptor.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub(crate) enum UploadError {
+pub enum UploadError {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
     #[error("descriptor upload request failed")]
     Request(#[from] RequestFailedError),
