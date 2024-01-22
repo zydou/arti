@@ -2,6 +2,7 @@
 slug: /
 title: Getting started with Arti
 id: getting-started
+lastUpdatedAt: 'January 22, 2024'
 ---
 
 # Introduction

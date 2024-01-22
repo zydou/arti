@@ -12,7 +12,7 @@ Arti is also the name of the software produced by this project.
 As of November 2023: Arti is ready for experimental use by developers interested in embedding Tor support in their projects. Arti can run as a simple Tor client and send anonymized traffic over the network. It supports Tor's client-side anticensorship features, and it supports using onion services as a client. However, it currently does not completely support running onion services or acting as a relay.
 
 Before Arti is ready for production use, there are a few more security features that we need to implement, especially in relation to onion services. We also need to complete our integration with other applications, and stabilize our interfaces.
-You can track our progress in the [project's CHANGELOG](/changelog.md) for our monthly releases.
+You can track our progress in the [project's CHANGELOG](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/CHANGELOG.md) for our monthly releases.
 
 ## Should I use Arti?
 
