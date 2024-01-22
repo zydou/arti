@@ -87,16 +87,10 @@ const config = {
       },
       footer: {
         style: 'light',
-        copyright: `
-          <a href="https://www.torproject.org/about/trademark/">Copyright</a> © ${new Date().getFullYear()} Arti, TorProject.org.
-          <!--
-            Author: Charles Muzonzini
-            Email: charlie-doc-writer@webgems.co.zw
-            Date: January 2024
-          -->  
-        `,
-
-      }, 
+        copyright: `Copyright © ${new Date().getFullYear()} Arti, TorProject.org.`,
+        //copyright: 'Trademark, copyright notices, and rules for use by third parties can be found in our https://www.torproject.org/about/trademark/.'
+      },
+ 
       
       prism: {
         theme: lightTheme,
