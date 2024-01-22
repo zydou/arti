@@ -49,6 +49,10 @@ pub enum IntroRequestError {
     /// We weren't able to build a ChanTarget from the Introduce2 message.
     #[error("Invalid link specifiers in INTRODUCE2 payload")]
     InvalidLinkSpecs(#[source] tor_linkspec::decode::ChanTargetDecodeError),
+
+    /// We weren't able to obtain the subcredentials for decrypting the Introduce2 message.
+    #[error("Could not obtain subcredebtials")]
+    Subcredentials(#[source] crate::FatalError),
 }
 
 impl HasKind for IntroRequestError {
@@ -59,6 +63,7 @@ impl HasKind for IntroRequestError {
             E::InvalidHandshake(e) => e.kind(),
             E::InvalidPayload(_) => EK::RemoteProtocolViolation,
             E::InvalidLinkSpecs(_) => EK::RemoteProtocolViolation,
+            E::Subcredentials(e) => e.kind(),
         }
     }
 }
