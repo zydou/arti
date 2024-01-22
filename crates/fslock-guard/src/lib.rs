@@ -46,6 +46,21 @@ use std::path::Path;
 ///
 /// So long as this object exists, we hold the lock on this file.
 /// When it is dropped, we will release the lock.
+///
+/// # Semantics
+///
+///  * Only one `LockFileGuard` can exist at one time
+///    for any particular `path`.
+///  * This applies across all tasks and threads in all programs;
+///    other acquisitions of the lock in the same process are prevented.
+///  * This applies across even separate machines, if `path` is on a shared filesystem.
+///
+/// # Restrictions
+///
+///  * **`path` must only be deleted (or renamed) via the APIs in this module**
+///  * This restriction applies to all programs on the computer,
+///    so for example automatic file cleaning with `find` and `rm` is forbidden.
+///  * Cross-filesystem locking is broken on Linux before 2.6.12.
 #[derive(Debug)]
 pub struct LockFileGuard {
     /// A locked [`fslock::LockFile`].
