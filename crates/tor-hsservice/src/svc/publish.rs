@@ -133,20 +133,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     pub(crate) fn new_hs_keys(&self, keys: ()) {
         todo!()
     }
-
-    /// Return our current status.
-    //
-    // TODO (#1083): There should also be a postage::Watcher -based stream of status
-    // change events.
-    pub(crate) fn status(&self) -> PublisherStatus {
-        todo!()
-    }
-}
-
-/// Current status of our attempts to publish an onion service descriptor.
-#[derive(Debug, Clone)]
-pub(crate) struct PublisherStatus {
-    // TODO (#1083) add fields
 }
 
 //
