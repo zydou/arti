@@ -107,10 +107,9 @@ impl LockFileGuard {
     }
 }
 
-/*
-
-   TODO: This requires AsFd and AsHandle implementations for `LockFile`.
-   See https://github.com/brunoczim/fslock/pull/15
+// Note: This requires AsFd and AsHandle implementations for `LockFile`.
+//  See https://github.com/brunoczim/fslock/pull/15
+// This is why we are using fslock-arti-fork in place of fslock.
 
 /// Platform module for locking protocol on Unix.
 ///
@@ -180,7 +179,7 @@ impl LockFileGuard {
 /// and then see that they have a stale file.
 #[cfg(unix)]
 mod os {
-    use std::{path::Path, os::unix::fs::MetadataExt as _, os::fd::AsFd, fs::File};
+    use std::{fs::File, os::fd::AsFd, os::unix::fs::MetadataExt as _, path::Path};
 
     /// Return true if `lf` currently exists with the given `path`, and false otherwise.
     pub(crate) fn lockfile_has_path(lf: &fslock::LockFile, path: &Path) -> std::io::Result<bool> {
@@ -196,7 +195,7 @@ mod os {
 /// Platform module for locking protocol on Windows.
 #[cfg(windows)]
 mod os {
-    use std::{path::Path, fs::Metadata, os::windows::fs::MetadataExt as _, std::os::windows::io::AsHandle, fs::File};
+    use std::{fs::File, os::windows::fs::MetadataExt as _, os::windows::io::AsHandle, path::Path};
 
     /// Return true if `lf` currently exists with the given `path`, and false otherwise.
     ///
@@ -212,18 +211,6 @@ mod os {
         let f_dup = File::from(lf.as_handle().try_clone_to_owned()?);
         let m2 = f_dup.metadata()?;
 
-       Ok(m1.creation_time() == m2.creation_time())
-    }
-}
-*/
-
-/// Helper module for defective metadata implementation
-mod os {
-    use std::path::Path;
-
-    /// TODO: Remove this; it does nothing good.
-    #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn lockfile_has_path(_lf: &fslock::LockFile, _path: &Path) -> std::io::Result<bool> {
-        Ok(true)
+        Ok(m1.creation_time() == m2.creation_time())
     }
 }

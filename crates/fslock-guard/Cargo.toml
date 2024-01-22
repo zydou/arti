@@ -16,7 +16,7 @@ default = []
 full = []
 
 [dependencies]
-fslock = "0.2.1"
+fslock = { version = "0.2.0", package = "fslock-arti-fork" }
 
 [package.metadata.docs.rs]
 all-features = true
