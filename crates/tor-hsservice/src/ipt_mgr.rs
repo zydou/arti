@@ -1524,13 +1524,18 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             {
                 Err(crash) => {
                     error!("HS service {} crashed! {}", &self.imm.nick, crash);
+
+                    self.imm.status_tx.note_broken(crash);
                     break;
                 }
                 Ok(ShutdownStatus::Continue) => continue,
-                Ok(ShutdownStatus::Terminate) => break,
+                Ok(ShutdownStatus::Terminate) => {
+                    self.imm.status_tx.note_shutdown();
+
+                    break;
+                }
             }
         }
-        // TODO #1063 Set status to Shutdown.
     }
 
     /// Target number of intro points
