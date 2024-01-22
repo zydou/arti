@@ -160,6 +160,17 @@ pub(super) enum BackoffError<E> {
     ExplicitStop(RetryError<E>),
 }
 
+impl<E> From<BackoffError<E>> for RetryError<E> {
+    fn from(e: BackoffError<E>) -> Self {
+        match e {
+            BackoffError::FatalError(e)
+            | BackoffError::MaxRetryCountExceeded(e)
+            | BackoffError::Timeout(e)
+            | BackoffError::ExplicitStop(e) => e,
+        }
+    }
+}
+
 /// A trait for representing retriable errors.
 pub(super) trait RetriableError: StdError + Clone {
     /// Whether this error is transient.
