@@ -181,9 +181,9 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
                 let key: ed25519::Keypair = self
                     .keymgr
                     .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
-                    // TODO: internal! is not the right type for this error (we need an
+                    // TODO (#1194): internal! is not the right type for this error (we need an
                     // error type for the case where a hidden service running in offline mode has
-                    // run out of its pre-previsioned keys). This is somewhat related to #1083
+                    // run out of its pre-previsioned keys).
                     //
                     // This will be addressed when we add support for offline hs_id mode
                     .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
