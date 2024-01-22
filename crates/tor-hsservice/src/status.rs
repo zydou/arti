@@ -6,7 +6,10 @@ use std::{
 };
 
 use futures::StreamExt as _;
+use retry_error::RetryError;
 use tor_async_utils::PostageWatchSenderExt;
+
+use crate::{DescUploadError, FatalError};
 
 /// The current reported status of an onion service.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -63,6 +66,18 @@ pub enum State {
     Broken,
 }
 
+/// A problem encountered by an onion service.
+#[derive(Clone, Debug, derive_more::From)]
+#[non_exhaustive]
+pub enum Problem {
+    /// A fatal error occurred.
+    Runtime(FatalError),
+
+    /// We failed to upload a descriptor.
+    DescriptorUpload(RetryError<DescUploadError>),
+    // TODO: add variants for other transient errors?
+}
+
 impl OnionServiceStatus {
     /// Create a new OnionServiceStatus for a service that has not been bootstrapped.
     pub(crate) fn new_shutdown() -> Self {
@@ -89,16 +104,7 @@ impl OnionServiceStatus {
     }
 
     /// Return the most severe current problem
-    //
-    // TODO (#1083): We need an error type that can encompass StartupError _and_
-    // intermittent problems encountered after we've launched for the first
-    // time.
-    // Perhaps the solution is to rename StartupError?  Or to make a new Problem
-    // enum?
-    // Please feel free to take whatever approach works best.
-    pub fn current_problem(&self) -> Option<&crate::StartupError> {
-        // TODO (#1083): We can't put a StartupError here until the type implements
-        // Eq, since postage::Watch requires that its type is Eq.
+    pub fn current_problem(&self) -> Option<&Problem> {
         None
     }
 
