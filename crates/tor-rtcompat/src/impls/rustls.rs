@@ -4,8 +4,10 @@ use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use rustls::{Certificate, CertificateError, Error as TLSError, ServerName};
-use rustls_crate as rustls;
+use futures_rustls::rustls;
+use rustls::client::danger;
+use rustls::{CertificateError, Error as TLSError};
+use rustls_pki_types::{CertificateDer as Certificate, ServerName};
 
 use std::{
     io::{self, Error as IoError, Result as IoResult},
@@ -23,10 +25,10 @@ use std::{
 #[non_exhaustive]
 pub struct RustlsProvider {
     /// Inner `ClientConfig` logic used to create connectors.
-    config: Arc<async_rustls::rustls::ClientConfig>,
+    config: Arc<futures_rustls::rustls::ClientConfig>,
 }
 
-impl<S> CertifiedConn for async_rustls::client::TlsStream<S> {
+impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
         let (_, session) = self.get_ref();
         Ok(session
@@ -38,7 +40,7 @@ impl<S> CertifiedConn for async_rustls::client::TlsStream<S> {
 /// An implementation of [`TlsConnector`] built with `rustls`.
 pub struct RustlsConnector<S> {
     /// The inner connector object.
-    connector: async_rustls::TlsConnector,
+    connector: futures_rustls::TlsConnector,
     /// Phantom data to ensure proper variance.
     _phantom: std::marker::PhantomData<fn(S) -> S>,
 }
@@ -48,13 +50,13 @@ impl<S> TlsConnector<S> for RustlsConnector<S>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    type Conn = async_rustls::client::TlsStream<S>;
+    type Conn = futures_rustls::client::TlsStream<S>;
 
     async fn negotiate_unvalidated(&self, stream: S, sni_hostname: &str) -> IoResult<Self::Conn> {
-        let name = sni_hostname
+        let name: ServerName<'_> = sni_hostname
             .try_into()
             .map_err(|e| IoError::new(io::ErrorKind::InvalidInput, e))?;
-        self.connector.connect(name, stream).await
+        self.connector.connect(name.to_owned(), stream).await
     }
 }
 
@@ -64,10 +66,10 @@ where
 {
     type Connector = RustlsConnector<S>;
 
-    type TlsStream = async_rustls::client::TlsStream<S>;
+    type TlsStream = futures_rustls::client::TlsStream<S>;
 
     fn tls_connector(&self) -> Self::Connector {
-        let connector = async_rustls::TlsConnector::from(Arc::clone(&self.config));
+        let connector = futures_rustls::TlsConnector::from(Arc::clone(&self.config));
         RustlsConnector {
             connector,
             _phantom: std::marker::PhantomData,
@@ -86,8 +88,8 @@ impl RustlsProvider {
         // misnamed: it overrides not only how certificates are verified, but
         // also how certificates are used to check the signatures in a TLS
         // handshake.
-        let config = async_rustls::rustls::ClientConfig::builder()
-            .with_safe_defaults()
+        let config = futures_rustls::rustls::client::ClientConfig::builder()
+            .dangerous()
             .with_custom_certificate_verifier(std::sync::Arc::new(Verifier {}))
             .with_no_client_auth();
 
@@ -118,16 +120,15 @@ impl Default for RustlsProvider {
 #[derive(Clone, Debug)]
 struct Verifier {}
 
-impl rustls_crate::client::ServerCertVerifier for Verifier {
+impl danger::ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
         end_entity: &Certificate,
-        _intermediates: &[Certificate],
+        _roots: &[Certificate],
         _server_name: &ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
         _ocsp_response: &[u8],
-        _now: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, TLSError> {
+        _now: rustls_pki_types::UnixTime,
+    ) -> Result<danger::ServerCertVerified, TLSError> {
         // We don't check anything about the certificate at this point other
         // than making sure it is well-formed.
         //
@@ -147,15 +148,15 @@ impl rustls_crate::client::ServerCertVerifier for Verifier {
         // that authenticate this one, when we process the relay's CERTS cell in
         // `tor_proto::channel::handshake`.
 
-        Ok(rustls::client::ServerCertVerified::assertion())
+        Ok(danger::ServerCertVerified::assertion())
     }
 
     fn verify_tls12_signature(
         &self,
         message: &[u8],
-        cert: &rustls::Certificate,
+        cert: &Certificate,
         dss: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::HandshakeSignatureValid, TLSError> {
+    ) -> Result<danger::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
         let scheme = convert_scheme(dss.scheme)?;
 
@@ -169,27 +170,33 @@ impl rustls_crate::client::ServerCertVerifier for Verifier {
         // OpenSSL will happily use PSS with TLS 1.2.  At least, it seems to do
         // so when invoked via native_tls in the test code for this crate.
         cert.check_signature(scheme, message, dss.signature())
-            .map(|_| rustls::client::HandshakeSignatureValid::assertion())
+            .map(|_| danger::HandshakeSignatureValid::assertion())
             .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
     }
 
     fn verify_tls13_signature(
         &self,
         message: &[u8],
-        cert: &rustls::Certificate,
+        cert: &Certificate,
         dss: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::HandshakeSignatureValid, TLSError> {
+    ) -> Result<danger::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
         let scheme = convert_scheme(dss.scheme)?;
 
         cert.check_tls13_signature(scheme, message, dss.signature())
-            .map(|_| rustls::client::HandshakeSignatureValid::assertion())
+            .map(|_| danger::HandshakeSignatureValid::assertion())
             .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
 /// Parse a `rustls::Certificate` as an `x509_signature::X509Certificate`, if possible.
-fn get_cert(c: &rustls::Certificate) -> Result<x509_signature::X509Certificate, TLSError> {
+fn get_cert<'a>(c: &'a Certificate<'a>) -> Result<x509_signature::X509Certificate<'a>, TLSError> {
     x509_signature::parse_certificate(c.as_ref())
         .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
 }
