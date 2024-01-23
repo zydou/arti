@@ -199,25 +199,21 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
     /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
     fn generate_revision_counter(
         &self,
-        period: TimePeriod,
+        params: &HsDirParams,
         now: SystemTime,
     ) -> Result<RevisionCounter, FatalError> {
         // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
         // to each time we generate a new descriptor), for performance reasons.
-        let ope_key = self.create_ope_key(period)?;
-        let offset = period
-            .offset_within_period(now)
-            .ok_or_else(|| match period.range() {
-                Ok(std::ops::Range { start, .. }) => {
-                    internal!(
-                        "current wallclock time not within TP?! (now={:?}, TP_start={:?})",
-                        now,
-                        start
-                    )
-                }
-                Err(e) => into_internal!("failed to get TimePeriod::range()")(e),
-            })?;
-        let rev = ope_key.encrypt(offset);
+        let ope_key = self.create_ope_key(params.time_period())?;
+
+        // TODO: perhaps this should be moved to a new HsDirParams::offset_within_sr() function
+        let srv_start = params.start_of_shard_rand_period();
+        let offset = now.duration_since(srv_start).map_err(into_internal!(
+            "current wallclock time not within SRV range?! (now={:?}, SRV_start={:?})",
+            now,
+            srv_start
+        ))?;
+        let rev = ope_key.encrypt(offset.as_secs() as u32);
 
         Ok(RevisionCounter::from(rev))
     }
@@ -1034,6 +1030,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 "spawning upload task"
             );
 
+            let params = period_ctx.params.clone();
             let _handle: () = self
                 .imm
                 .runtime
@@ -1042,7 +1039,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         hs_dirs,
                         &netdir,
                         config,
-                        time_period,
+                        params,
                         Arc::clone(&imm),
                         ipt_upload_view.clone(),
                         upload_task_complete_tx,
@@ -1088,11 +1085,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
         config: Arc<OnionServiceConfig>,
-        time_period: TimePeriod,
+        params: HsDirParams,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), FatalError> {
+        let time_period = params.time_period();
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
         let hsdir_count = hs_dirs.len();
@@ -1126,6 +1124,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let config = Arc::clone(&config);
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
+                let params = params.clone();
 
                 let ed_id = relay_ids
                     .rsa_identity()
@@ -1200,7 +1199,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             // so let's generate a new revision counter.
                             let now = imm.runtime.wallclock();
                             let revision_counter =
-                                imm.generate_revision_counter(time_period, now)?;
+                                imm.generate_revision_counter(&params, now)?;
 
                             build_sign(
                                 &imm.keymgr,

@@ -25,8 +25,6 @@ use digest::Digest as _;
 use tor_llcrypto::{cipher::aes::Aes256Ctr, d::Sha3_256};
 use zeroize::Zeroizing;
 
-use crate::time::TimePeriodOffset;
-
 /// Key for a simple order-preserving encryption on [`TimePeriodOffset`].
 ///
 /// The algorithm here is chosen to be the same as used in the C tor
@@ -67,9 +65,9 @@ impl AesOpeKey {
     /// This algorithm is also not very efficient in its implementation.
     /// We expect that the result will become unacceptable if the time period is
     /// ever larger than a few days.
-    pub fn encrypt(&self, offset: TimePeriodOffset) -> u64 {
+    pub fn encrypt(&self, offset: u32) -> u64 {
         // We add "1" here per the spec, since the encryption of 0 is 0.
-        self.encrypt_inner(offset.0.saturating_add(1))
+        self.encrypt_inner(offset.saturating_add(1))
     }
 
     /// Implementation for the order-preserving encryption algorithm:
