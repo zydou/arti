@@ -266,7 +266,6 @@ impl OnionService {
     /// Once the `RunningOnionService` is dropped, the onion service will stop
     /// publishing, and stop accepting new introduction requests.  Existing
     /// streams and rendezvous circuits will remain open.
-    #[allow(clippy::needless_pass_by_value)] // XXXX
     pub fn launch<R>(
         self,
         runtime: R,
@@ -310,9 +309,9 @@ impl OnionService {
         )?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
-            runtime.clone(),
+            runtime,
             nickname.clone(),
-            Arc::clone(&netdir_provider),
+            netdir_provider,
             circ_pool,
             publisher_view,
             config_rx,
