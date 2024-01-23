@@ -284,23 +284,6 @@ integration-shadow:
     # We're going to install binaries to $HOME/.local/bin
     - 'export PATH=$HOME/.local/bin:$PATH'
 
-    # Add bullseye sources, needed for tgen.
-    # See https://github.com/shadow/tgen/issues/44
-    - |
-      cat <<EOF > /etc/apt/sources.list.d/bullseye.sources
-      Types: deb
-      URIs: http://deb.debian.org/debian
-      Suites: bullseye bullseye-updates
-      Components: main
-      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
-
-      Types: deb
-      URIs: http://deb.debian.org/debian-security
-      Suites: bullseye-security
-      Components: main
-      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
-      EOF
-
     - apt-get update
     - apt-get install -y git tor stow
     - mkdir -p ~/src
@@ -340,7 +323,7 @@ integration-shadow:
         git clone --shallow-since=2022-01-01 -b $JOB_TGEN_BRANCH $JOB_TGEN_REPO ~/src/tgen
         pushd ~/src/tgen
         git checkout $JOB_TGEN_COMMIT
-        apt-get install -y cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev/bullseye make
+        apt-get install -y cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev make
         mkdir build
         cd build
         cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/tgen
@@ -348,7 +331,7 @@ integration-shadow:
         make install
         popd
       fi
-    - apt-get install -y libigraph1/bullseye libglib2.0-0
+    - apt-get install -y libigraph3 libglib2.0-0
     - stow -d opt -t $HOME/.local tgen
 
     # Ensure newly installed executables can be found
