@@ -263,9 +263,7 @@ integration-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # First commit where shadow CI scripts are fixed on bookworm.
-    # TODO: update to next release once there is one.
-    JOB_SHADOW_COMMIT: "193924aae0dab30ffda0abe29467f552949849fa"
+    JOB_SHADOW_COMMIT: "v3.1.0"
 
     JOB_TGEN_REPO: "https://github.com/shadow/tgen.git"
     JOB_TGEN_BRANCH: "main"
