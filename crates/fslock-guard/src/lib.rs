@@ -158,7 +158,6 @@ struct MismatchedPathError {}
 /// In our Rust implementation we don't support sharing the held lock
 /// with subprocesses or different process images (ie across exec);
 /// we use `O_CLOEXEC`.
-// XXXX ^ check that we actually *do* use `O_CLOEXEC`.
 ///
 /// #### Locking algorithm
 ///
