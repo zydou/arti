@@ -113,6 +113,71 @@ impl LockFileGuard {
    See https://github.com/brunoczim/fslock/pull/15
 
 /// Platform module for locking protocol on Unix.
+///
+/// ### Locking protocol on Unix
+///
+/// The lock is held by an open-file iff:
+///
+///  * that open-file holds an `flock` `LOCK_EX` lock; and
+///  * the directory entry for `path` refers to the same file as the open-file
+///
+/// `path` may only refer to a plain file, or `ENOENT`.
+/// If `path` refers to a file,
+/// only the lockholder may cause it to no longer refer to that file.
+///
+/// In principle the open-file might be shared with subprocesses.
+/// Even a naive program can safely and correctly inherit and hold the lock,
+/// since the lockholder only needs to not close an fd.
+/// However uncontrolled leaking of the fd into other processes is undesirable,
+/// as it might cause delays or even deadlocks, if those processes' inheritors live too long.
+/// In our Rust implementation we don't support sharing the held lock
+/// with subprocesses or different process images (ie across exec);
+/// we use `O_CLOEXEC`.
+// XXXX ^ check that we actually *do* use `O_CLOEXEC`.
+///
+/// #### Locking algorithm
+///
+///  1. open the file with `O_CREAT|O_RDWR`
+///  2. `flock LOCK_EX`
+///  3. `fstat` the open-file and `lstat` the path
+///  4. If the inode and device numbers don't match,
+///     close the fd and go back to the start.
+///  5. Now we hold the lock.
+///
+/// Proof sketch:
+///
+/// If we get to point 5, we see that at point 3, we had the lock.
+/// No-one else could cause the conditions to become false
+/// in the meantime:
+/// no-one else ~~can~~ may make `path` refer to a different file
+/// since they don't hold the lock.
+/// And, no-one else can `flock` it since the kernel prevents
+/// a conflicting lock.
+/// So at step 5 we must still hold the lock.
+///
+/// #### Unlocking algorithm
+///
+///  1. Close the fd.
+///  2. Now we no longer hold the lock and others can acquire it.
+///
+/// This drops the open-file and
+/// leaves the lock available for another caller.
+///
+/// #### Deletion algorithm
+///
+///  0. The lock must already be held
+///  1. `unlink` the file
+///  2. close the fd
+///  3. Now we no longer hold the lock and others can acquire it.
+///
+/// Step 1 atomically falsifies the lock-holding condition.
+/// We are allowed to perform it because we hold the lock.
+///
+/// Concurrent lockers might open the old file,
+/// which we are about to delete.
+/// They will acquire their `flock` (locking step 2)
+/// after we close (deletion step 2)
+/// and then see that they have a stale file.
 #[cfg(unix)]
 mod os {
     use std::{path::Path, os::unix::fs::MetadataExt as _, os::fd::AsFd, fs::File};
