@@ -40,7 +40,7 @@ tor-config = { version = "0.10.0", path = "../tor-config" }
 tor-error = { version = "0.6.0", path = "../tor-error" }
 tor-hsservice = { path = "../tor-hsservice", version = "0.6.0" }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.2.0" }
-tor-proto = { version = "0.15.0", path = "../tor-proto", features = ["experimental-api", "hs-service"] }
+tor-proto = { version = "0.15.0", path = "../tor-proto", features = ["hs-service"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7" }
 tracing = "0.1.36"
 void = "1"
