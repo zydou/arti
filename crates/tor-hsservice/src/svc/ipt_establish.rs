@@ -22,6 +22,7 @@ use tor_cell::relaycell::{
     RelayMsg as _,
 };
 use tor_circmgr::hspool::HsCircPool;
+use tor_error::warn_report;
 use tor_error::{bad_api_usage, debug_report, internal, into_internal};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_keymgr::KeyMgr;
@@ -355,8 +356,7 @@ impl IptEstablisher {
                         let oneshot::Canceled = terminated.void_unwrap_err();
                     }
                     outcome = reactor.keep_intro_established(status_tx).fuse() =>  {
-                        // TODO (#1237): probably we should report this outcome.
-                        let _ = outcome;
+                      warn_report!(outcome.void_unwrap_err(), "Error from intro-point establisher task");
                     }
                 );
             })
@@ -624,7 +624,7 @@ impl<R: Runtime> Reactor<R> {
     async fn keep_intro_established(
         &self,
         mut status_tx: DropNotifyWatchSender<IptStatus>,
-    ) -> Result<(), IptError> {
+    ) -> Result<Void, IptError> {
         let mut retry_delay = tor_basic_utils::retry::RetryDelay::from_msec(1000);
         loop {
             status_tx.borrow_mut().note_attempt();
