@@ -148,7 +148,7 @@ impl tor_error::HasKind for IptError {
             E::NetdirProviderShutdown(e) => e.kind(),
             E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1225) Not correct kind.
             E::BuildCircuit(e) => e.kind(),
-            E::EstablishTimeout => EK::TorNetworkTimeout, // TODO (#1225) right?
+            E::EstablishTimeout => EK::TorNetworkTimeout,
             E::SendEstablishIntro(e) => e.kind(),
             E::ReceiveAck => EK::RemoteProtocolViolation, // TODO (#1225) not always right.
             E::BadEstablished => EK::RemoteProtocolViolation,
