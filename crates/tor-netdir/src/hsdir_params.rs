@@ -36,7 +36,7 @@ use tor_netdoc::doc::netstatus::{MdConsensus, SharedRandVal};
 /// parameters in the consensus, and are used to determine the
 /// position of each HsDir within the ring.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct HsDirParams {
+pub struct HsDirParams {
     /// The time period for this ring.  It's used to ensure that blinded onion
     /// keys rotate in a _predictable_ way over time.
     pub(crate) time_period: TimePeriod,
@@ -64,6 +64,24 @@ const VOTING_PERIODS_IN_SRV_ROUND: u32 = 24;
 const ONE_DAY: Duration = Duration::new(86400, 0);
 
 impl HsDirParams {
+    /// Return the time period for which these parameters are valid.
+    ///
+    /// The `hs_blind_id` for an onion service changes every time period: when
+    /// uploading, callers should use this time period to determine which
+    /// `hs_blind_id`'s descriptor should be sent to which directory.
+    pub fn time_period(&self) -> TimePeriod {
+        self.time_period
+    }
+
+    /// Return the starting time for the shared-random-value protocol that
+    /// produced the SRV for this time period.
+    ///
+    /// When uploading, callers should use an offset from this time to determine
+    /// the revision counter for their descriptors.
+    pub fn start_of_shard_rand_period(&self) -> SystemTime {
+        self.srv_lifespan.start
+    }
+
     /// Compute the `HsDirParams` for the current time period, according to a given
     /// consensus.
     ///

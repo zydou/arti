@@ -65,7 +65,7 @@ use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 #[cfg(feature = "hs-common")]
-use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, std::iter};
+use {hsdir_ring::HsDirRing, std::iter};
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
@@ -99,6 +99,10 @@ pub use err::OnionDirLookupError;
 use params::NetParameters;
 #[cfg(feature = "geoip")]
 use tor_geoip::{CountryCode, GeoipDb, HasCountryCode};
+
+#[cfg(feature = "hs-common")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
+pub use hsdir_params::HsDirParams;
 
 /// Index into the consensus relays
 ///
