@@ -1934,6 +1934,7 @@ version = "0.0.1"
 dependencies = [
  "fslock-arti-fork",
  "thiserror",
+ "winapi",
 ]
 
 [[package]]
