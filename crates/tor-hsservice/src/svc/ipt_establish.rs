@@ -120,12 +120,10 @@ pub(crate) enum IptError {
     #[error("Unable to send an ESTABLISH_INTRO message")]
     SendEstablishIntro(#[source] tor_proto::Error),
 
-    /// We did not receive an INTRO_ESTABLISHED message like we wanted.
-    #[error("Did not receive INTRO_ESTABLISHED message")]
-    // TODO (#1237): I'd like to receive more information here.  What happened
-    // instead?  But the information might be in the MsgHandler, might be in the
-    // Circuit,...
-    ReceiveAck,
+    /// We did not receive an INTRO_ESTABLISHED message like we wanted; instead, the
+    /// circuit was closed.
+    #[error("Circuit closed during INTRO_ESTABLISHED handshake")]
+    ClosedWithoutAck,
 
     /// We received an invalid INTRO_ESTABLISHED message.
     #[error("Got an invalid INTRO_ESTABLISHED message")]
@@ -133,6 +131,11 @@ pub(crate) enum IptError {
     // sure that they are well-formed.
     #[allow(dead_code)]
     BadEstablished,
+
+    /// We received a message that not a valid part of the introduction-point
+    /// protocol.
+    #[error("Invalid message: {0}")]
+    BadMessage(String),
 
     /// We encountered a programming error.
     #[error("Internal error")]
@@ -150,8 +153,9 @@ impl tor_error::HasKind for IptError {
             E::BuildCircuit(e) => e.kind(),
             E::EstablishTimeout => EK::TorNetworkTimeout,
             E::SendEstablishIntro(e) => e.kind(),
-            E::ReceiveAck => EK::RemoteProtocolViolation, // TODO (#1225) not always right.
+            E::ClosedWithoutAck => EK::CircuitCollapse,
             E::BadEstablished => EK::RemoteProtocolViolation,
+            E::BadMessage(_) => EK::RemoteProtocolViolation,
             E::CreateEstablishIntro(_) => EK::Internal,
             E::Bug(e) => e.kind(),
         }
@@ -183,12 +187,13 @@ impl IptError {
             // point eventually even if the introduction point is not to blame.
             IE::BuildCircuit(_) => false,
             IE::EstablishTimeout => false,
-            IE::ReceiveAck => false, // TODO(#1237)
+            IE::ClosedWithoutAck => false,
 
             // This is definitely the introduction point's fault: it sent us
             // an authenticated message, but the contents of that message were
             // definitely wrong.
             IE::BadEstablished => true,
+            IE::BadMessage(_) => true,
 
             // These are, most likely, not the introduction point's fault,
             // though they might or might not be survivable.
@@ -790,12 +795,12 @@ impl<R: Runtime> Reactor<R> {
             .estimate_timeout(&tor_circmgr::timeouts::Action::RoundTrip {
                 length: circuit.n_hops(),
             });
-        let _established = self
+        let _established: IntroEstablished = self
             .runtime
             .timeout(ack_timeout, established_rx)
             .await
             .map_err(|_| IptError::EstablishTimeout)?
-            .map_err(|_| IptError::ReceiveAck)?;
+            .map_err(|_| IptError::ClosedWithoutAck)??;
 
         // This session will be owned by keep_intro_established(), and dropped
         // when the circuit closes, or when the keep_intro_established() future
@@ -849,6 +854,12 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
     ) -> tor_proto::Result<MetaCellDisposition> {
         // TODO (#1237): Is CircProto right or should this be a new error type?
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
+            if let Some(tx) = self.established_tx.take() {
+                let _ = tx.send(Err(IptError::BadMessage(format!(
+                    "Invalid message type {}",
+                    m.cmd()
+                ))));
+            }
             tor_proto::Error::CircProto(format!("Invalid message type {}", m.cmd()))
         })?;
 
@@ -868,7 +879,10 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                 }
             },
             IptMsg::Introduce2(introduce2) => {
-                if self.established_tx.is_some() {
+                if let Some(tx) = self.established_tx.take() {
+                    let _ = tx.send(Err(IptError::BadMessage(
+                        "INTRODUCE2 message without INTRO_ESTABLISHED.".to_string(),
+                    )));
                     return Err(tor_proto::Error::CircProto(
                         "Received an INTRODUCE2 message before INTRO_ESTABLISHED".into(),
                     ));
