@@ -37,6 +37,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
+use crate::keys::expire_publisher_keys;
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -623,7 +624,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             .await?
                     }
                 };
+                let relevant_periods = netdir.hs_all_time_periods();
                 self.handle_consensus_change(netdir).await?;
+                expire_publisher_keys(
+                    &self.imm.keymgr,
+                    &self.imm.nickname,
+                    &relevant_periods,
+                ).unwrap_or_else(|e| {
+                    error_report!(e, "failed to remove expired keys");
+                });
             }
             update = self.ipt_watcher.await_update().fuse() => {
                 if self.handle_ipt_change(update).await? == ShutdownStatus::Terminate {
