@@ -1,6 +1,54 @@
 //! The onion service publisher reactor.
 //!
 //! TODO (#1216): write the docs
+//!
+//! With respect to [`OnionServiceStatus`](crate::status::OnionServiceStatus) reporting,
+//! the following state transitions are possible:
+//!
+//!
+//! ```ignore
+//!
+//!                 update_publish_status(UploadScheduled|AwaitingIpts)  +---------------+
+//!                +---------------------------------------------------->| Bootstrapping |
+//!                |                                                     +---------------+
+//! +----------+   | update_publish_status(Idle)        +---------+             |
+//! | Shutdown |-- +----------------------------------->| Running |----+        |
+//! +----------+   |                                    +---------+    |        |
+//!                |                                                   |        |
+//!                |                                                   |        |
+//!                | run_once() returns an error  +--------+           |        |
+//!                +----------------------------->| Broken |<----------+--------+
+//!                                               +--------+ run_once() returns an error
+//! ```
+//!
+//! Ideally, the publisher should also set the
+//! [`OnionServiceStatus`](crate::status::OnionServiceStatus) to `Recovering` whenever a transient
+//! upload error occurs, but this is currently not possible:
+//!
+//!   * making the upload tasks set the status to `Recovering` (on failure) and `Running` (on
+//!     success) wouldn't work, because the upload tasks run in parallel (they would race with each
+//!     other, and the final status (`Recovering`/`Running`) would be the status of the last upload
+//!     task, rather than the real status of the publisher
+//!   * making the upload task set the status to `Recovering` on upload failure, and letting
+//!    `upload_publish_status` reset it back to `Running also would not work:
+//!    `upload_publish_status` sets the status back to `Running` when the publisher enters its
+//!    `Idle` state, regardless of the status of its upload tasks
+//!
+//! TODO: Indeed, setting the status to `Recovering` _anywhere_ would not work, because
+//! `upload_publish_status` will just overwrite it. We would need to introduce some new
+//! `PublishStatus` variant (currently, the publisher only has 3 states, `Idle`, `UploadScheduled`,
+//! `AwaitingIpts`), for the `Recovering` (retrying a failed upload) and `Broken` (the upload
+//! failed and we've given up) states. However, adding these 2 new states is non-trivial:
+//!
+//!   * how do we define "failure"? Is it the failure to upload to a single HsDir, or the failure
+//!     to upload to **any** HsDirs?
+//!   * what should make the publisher transition out of the `Broken`/`Recovering` states? While
+//!    `handle_upload_results` can see the upload results for a batch of HsDirs (corresponding to
+//!     a time period), the publisher doesn't do any sort of bookkeeping to know if a previously
+//!     failed HsDir upload succeeded in a later upload "batch"
+//!
+//! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
+//! status for reporting fatal errors (crashes).
 
 use std::fmt::Debug;
 use std::iter;
