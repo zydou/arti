@@ -1198,8 +1198,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             // We're about to generate a new version of the descriptor,
                             // so let's generate a new revision counter.
                             let now = imm.runtime.wallclock();
-                            let revision_counter =
-                                imm.generate_revision_counter(&params, now)?;
+                            let revision_counter = imm.generate_revision_counter(&params, now)?;
 
                             build_sign(
                                 &imm.keymgr,
