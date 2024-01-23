@@ -257,7 +257,7 @@ impl HasKind for FatalError {
         match self {
             FE::Spawn { cause, .. } => cause.kind(),
             FE::Keystore(e) => e.kind(),
-            FE::MissingHsIdKeypair(_) => EK::Internal, // TODO (#1225) this is wrong
+            FE::MissingHsIdKeypair(_) => EK::Internal, // TODO (#1256) This is not always right.
             FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::NetdirProviderShutdown(e) => e.kind(),
             FE::Bug(e) => e.kind(),
