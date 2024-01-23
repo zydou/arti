@@ -25,7 +25,8 @@ use digest::Digest as _;
 use tor_llcrypto::{cipher::aes::Aes256Ctr, d::Sha3_256};
 use zeroize::Zeroizing;
 
-/// Key for a simple order-preserving encryption on [`TimePeriodOffset`].
+/// Key for a simple order-preserving encryption on the offset from the start of an SRV protocol
+/// run.
 ///
 /// The algorithm here is chosen to be the same as used in the C tor
 /// implementation.
