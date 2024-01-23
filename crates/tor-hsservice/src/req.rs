@@ -5,22 +5,28 @@
 
 use educe::Educe;
 use futures::{Stream, StreamExt};
+use itertools::Itertools;
 use std::sync::Arc;
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 use tor_hscrypto::{
-    pk::{HsIntroPtSessionIdKey, HsSvcNtorKeypair},
+    pk::{HsBlindIdKeypair, HsIdKey, HsIntroPtSessionIdKey, HsSvcNtorKeypair},
+    time::TimePeriod,
     Subcredential,
 };
+use tor_keymgr::{
+    ArtiPathComponent, KeyMgr, KeyPath, KeyPathRange, KeySpecifierComponent, KeySpecifierPattern,
+};
 
-use tor_error::Bug;
+use tor_error::{internal, Bug};
 use tor_proto::{
     circuit::ClientCirc,
     stream::{DataStream, IncomingStream, IncomingStreamRequest},
 };
 
 use crate::{
+    keys::BlindIdKeypairSpecifierPattern,
     svc::rend_handshake::{self, RendCircConnector},
-    ClientError, IptLocalId,
+    ClientError, FatalError, HsIdPublicKeySpecifier, HsNickname, IptLocalId,
 };
 
 /// Request to complete an introduction/rendezvous handshake.
@@ -75,6 +81,12 @@ pub struct StreamRequest {
 
 /// Keys and objects needed to answer a RendRequest.
 pub(crate) struct RendRequestContext {
+    /// The nickname of the service receiving the request.
+    pub(crate) nickname: HsNickname,
+
+    /// The key manager, used for looking up subcredentials.
+    pub(crate) keymgr: Arc<KeyMgr>,
+
     /// Key we'll use to decrypt the rendezvous request.
     pub(crate) kp_hss_ntor: Arc<HsSvcNtorKeypair>,
 
@@ -82,16 +94,95 @@ pub(crate) struct RendRequestContext {
     /// and prevent replays across sessions.
     pub(crate) kp_hs_ipt_sid: HsIntroPtSessionIdKey,
 
-    /// A set of subcredentials that we accept as identifying ourself on this
-    /// introduction point.
-    pub(crate) subcredentials: Vec<Subcredential>,
-
     /// Provider we'll use to find a directory so that we can build a rendezvous
     /// circuit.
     pub(crate) netdir_provider: Arc<dyn tor_netdir::NetDirProvider>,
 
     /// Circuit pool we'll use to build a rendezvous circuit.
     pub(crate) circ_pool: Arc<dyn RendCircConnector + Send + Sync>,
+}
+
+impl RendRequestContext {
+    /// Obtain the all current `Subcredential`s of `nickname`
+    /// from the `K_hs_blind_id` read from the keystore.
+    pub(crate) fn compute_subcredentials(&self) -> Result<Vec<Subcredential>, FatalError> {
+        let hsid_key_spec = HsIdPublicKeySpecifier::new(self.nickname.clone());
+
+        let hsid = self
+            .keymgr
+            .get::<HsIdKey>(&hsid_key_spec)?
+            .ok_or_else(|| FatalError::MissingHsIdKeypair(self.nickname.clone()))?;
+
+        let pattern = BlindIdKeypairSpecifierPattern {
+            nickname: Some(self.nickname.clone()),
+            period: None,
+        }
+        .arti_pattern()?;
+
+        let blind_id_kps: Vec<(HsBlindIdKeypair, TimePeriod)> = self
+            .keymgr
+            .list_matching(&pattern)?
+            .iter()
+            .map(|(path, key_type)| -> Result<Option<_>, FatalError> {
+                let matches = path
+                    .matches(&pattern)
+                    .ok_or_else(|| internal!("path matched but no longer does?!"))?;
+                let period = Self::parse_time_period(path, &matches)?;
+                // Try to retrieve the key.
+                self.keymgr
+                    .get_with_type::<HsBlindIdKeypair>(path, key_type)
+                    .map_err(FatalError::Keystore)
+                    // If the key is not found, it means it has been garbage collected between the time
+                    // we queried the keymgr for the list of keys matching the pattern and now.
+                    // This is OK, because we only need the "current" keys
+                    .map(|maybe_key| maybe_key.map(|key| (key, period)))
+            })
+            .flatten_ok()
+            .collect::<Result<Vec<_>, FatalError>>()?;
+
+        Ok(blind_id_kps
+            .iter()
+            .map(|(blind_id_key, period)| hsid.compute_subcredential(&blind_id_key.into(), *period))
+            .collect())
+    }
+
+    /// Try to parse the `captures` of `path` as a [`TimePeriod`].
+    fn parse_time_period(
+        path: &KeyPath,
+        captures: &[KeyPathRange],
+    ) -> Result<TimePeriod, tor_keymgr::Error> {
+        use tor_keymgr::{KeyPathError, KeystoreCorruptionError as KCE};
+
+        let path = match path {
+            KeyPath::Arti(path) => path,
+            KeyPath::CTor(_) => todo!(),
+            _ => todo!(),
+        };
+
+        let [denotator] = captures else {
+            return Err(internal!(
+                "invalid number of denotator captures: expected 1, found {}",
+                captures.len()
+            )
+            .into());
+        };
+
+        let Some(denotator) = path.substring(denotator) else {
+            return Err(internal!("captured substring out of range?!").into());
+        };
+
+        let comp = ArtiPathComponent::new(denotator.to_string())
+            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?;
+        let tp = TimePeriod::from_component(&comp).map_err(|error| {
+            KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
+                key: "time_period".to_owned(),
+                value: comp,
+                error,
+            })
+        })?;
+
+        Ok(tp)
+    }
 }
 
 impl RendRequest {

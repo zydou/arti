@@ -49,6 +49,10 @@ pub enum IntroRequestError {
     /// We weren't able to build a ChanTarget from the Introduce2 message.
     #[error("Invalid link specifiers in INTRODUCE2 payload")]
     InvalidLinkSpecs(#[source] tor_linkspec::decode::ChanTargetDecodeError),
+
+    /// We weren't able to obtain the subcredentials for decrypting the Introduce2 message.
+    #[error("Could not obtain subcredebtials")]
+    Subcredentials(#[source] crate::FatalError),
 }
 
 impl HasKind for IntroRequestError {
@@ -59,6 +63,7 @@ impl HasKind for IntroRequestError {
             E::InvalidHandshake(e) => e.kind(),
             E::InvalidPayload(_) => EK::RemoteProtocolViolation,
             E::InvalidLinkSpecs(_) => EK::RemoteProtocolViolation,
+            E::Subcredentials(e) => e.kind(),
         }
     }
 }
@@ -200,11 +205,18 @@ impl IntroRequest {
         use IntroRequestError as E;
         let mut rng = rand::thread_rng();
 
+        // We need the subcredential for the *current time period* in order to do the hs_ntor
+        // handshake. But that can change over time.  We will instead use KeyMgr::get_matching to
+        // find all current subcredentials.
+        let subcredentials = context
+            .compute_subcredentials()
+            .map_err(IntroRequestError::Subcredentials)?;
+
         let (key_gen, rend1_body, msg_body) = hs_ntor::server_receive_intro(
             &mut rng,
             &context.kp_hss_ntor,
             &context.kp_hs_ipt_sid,
-            &context.subcredentials[..],
+            &subcredentials[..],
             req.encoded_header(),
             req.encrypted_body(),
         )
