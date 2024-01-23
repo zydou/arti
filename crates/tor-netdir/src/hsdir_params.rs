@@ -36,13 +36,15 @@ use tor_netdoc::doc::netstatus::{MdConsensus, SharedRandVal};
 /// parameters in the consensus, and are used to determine the
 /// position of each HsDir within the ring.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct HsDirParams {
+pub struct HsDirParams {
     /// The time period for this ring.  It's used to ensure that blinded onion
     /// keys rotate in a _predictable_ way over time.
     pub(crate) time_period: TimePeriod,
     /// The SharedRandVal for this ring.  It's used to ensure that the position
     /// of each HsDir within the ring rotates _unpredictably_ over time.
     pub(crate) shared_rand: SharedRandVal,
+    /// The range of times over which the srv is most current.
+    pub(crate) srv_lifespan: std::ops::Range<SystemTime>,
 }
 
 /// By how many voting periods do we offset the beginning of our first time
@@ -62,6 +64,24 @@ const VOTING_PERIODS_IN_SRV_ROUND: u32 = 24;
 const ONE_DAY: Duration = Duration::new(86400, 0);
 
 impl HsDirParams {
+    /// Return the time period for which these parameters are valid.
+    ///
+    /// The `hs_blind_id` for an onion service changes every time period: when
+    /// uploading, callers should use this time period to determine which
+    /// `hs_blind_id`'s descriptor should be sent to which directory.
+    pub fn time_period(&self) -> TimePeriod {
+        self.time_period
+    }
+
+    /// Return the starting time for the shared-random-value protocol that
+    /// produced the SRV for this time period.
+    ///
+    /// When uploading, callers should use an offset from this time to determine
+    /// the revision counter for their descriptors.
+    pub fn start_of_shard_rand_period(&self) -> SystemTime {
+        self.srv_lifespan.start
+    }
+
     /// Compute the `HsDirParams` for the current time period, according to a given
     /// consensus.
     ///
@@ -133,6 +153,9 @@ fn disaster_params(period: TimePeriod) -> HsDirParams {
     HsDirParams {
         time_period: period,
         shared_rand: disaster_srv(period),
+        srv_lifespan: period
+            .range()
+            .expect("Time period cannot be represented as SystemTime"),
     }
 }
 
@@ -169,16 +192,15 @@ fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<H
 
     Ok(find_srv_for_time(info, start).map(|srv| HsDirParams {
         time_period: period,
-        shared_rand: srv,
+        shared_rand: srv.0,
+        srv_lifespan: srv.1.clone(),
     }))
 }
 
-/// Given a list of SrvInfo, return the SharedRandVal (if any) that is the most
+/// Given a list of SrvInfo, return the SrvInfo (if any) that is the most
 /// recent SRV at `when`.
-fn find_srv_for_time(info: &[SrvInfo], when: SystemTime) -> Option<SharedRandVal> {
-    info.iter()
-        .find(|(_, range)| range.contains(&when))
-        .map(|(srv, _)| *srv)
+fn find_srv_for_time(info: &[SrvInfo], when: SystemTime) -> Option<&SrvInfo> {
+    info.iter().find(|(_, range)| range.contains(&when))
 }
 
 /// Return every SRV from a consensus, along with a duration over which it is
@@ -399,23 +421,23 @@ mod test {
         // See if we can look up SRVs in that period.
         assert_eq!(None, find_srv_for_time(&srvs, t("1985-10-24T23:59:00Z")));
         assert_eq!(
-            Some(SRV1.into()),
+            Some(&srvs[1]),
             find_srv_for_time(&srvs, t("1985-10-25T00:00:00Z"))
         );
         assert_eq!(
-            Some(SRV1.into()),
+            Some(&srvs[1]),
             find_srv_for_time(&srvs, t("1985-10-25T03:59:00Z"))
         );
         assert_eq!(
-            Some(SRV1.into()),
+            Some(&srvs[1]),
             find_srv_for_time(&srvs, t("1985-10-25T00:00:00Z"))
         );
         assert_eq!(
-            Some(SRV2.into()),
+            Some(&srvs[0]),
             find_srv_for_time(&srvs, t("1985-10-25T06:00:05Z"))
         );
         assert_eq!(
-            Some(SRV2.into()),
+            Some(&srvs[0]),
             find_srv_for_time(&srvs, t("1985-10-25T12:00:00Z"))
         );
         assert_eq!(None, find_srv_for_time(&srvs, t("1985-10-25T12:00:30Z")));

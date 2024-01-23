@@ -286,6 +286,7 @@ mod test {
         let params = HsDirParams {
             time_period,
             shared_rand,
+            srv_lifespan: time_period.range().unwrap(),
         };
 
         // service_index AKA hs_index

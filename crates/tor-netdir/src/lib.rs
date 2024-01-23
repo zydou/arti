@@ -65,7 +65,7 @@ use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 #[cfg(feature = "hs-common")]
-use {hsdir_params::HsDirParams, hsdir_ring::HsDirRing, std::iter};
+use {hsdir_ring::HsDirRing, std::iter};
 
 use derive_more::{From, Into};
 use futures::stream::BoxStream;
@@ -99,6 +99,10 @@ pub use err::OnionDirLookupError;
 use params::NetParameters;
 #[cfg(feature = "geoip")]
 use tor_geoip::{CountryCode, GeoipDb, HasCountryCode};
+
+#[cfg(feature = "hs-common")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
+pub use hsdir_params::HsDirParams;
 
 /// Index into the consensus relays
 ///
@@ -1583,7 +1587,7 @@ impl NetDir {
     pub fn hs_dirs_upload<'r, I>(
         &'r self,
         mut hsids: I,
-    ) -> std::result::Result<impl Iterator<Item = (TimePeriod, Relay<'r>)>, Bug>
+    ) -> std::result::Result<impl Iterator<Item = (&'r HsDirParams, Relay<'r>)>, Bug>
     where
         I: Iterator<Item = (HsBlindId, TimePeriod)> + Clone + 'r,
     {
@@ -1626,7 +1630,8 @@ impl NetDir {
         // Now that we've matched each `hsid` with the ring associated with its TP, we can start
         // selecting replicas from each ring.
         Ok(rings.into_iter().flat_map(move |(ring, hsid, period)| {
-            iter::repeat(period).zip(self.select_hsdirs(hsid, ring, spread))
+            assert_eq!(period, ring.params().time_period());
+            iter::repeat(ring.params()).zip(self.select_hsdirs(hsid, ring, spread))
         }))
     }
 
