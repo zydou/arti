@@ -1582,24 +1582,20 @@ impl NetDir {
     /// Return the relays in this network directory that will be used as hidden service directories
     ///
     /// Returns the relays that are suitable for storing a given onion service's descriptors at the
-    /// given time periods.
+    /// given time period.
     #[cfg(feature = "hs-service")]
-    pub fn hs_dirs_upload<'r, I>(
-        &'r self,
-        mut hsids: I,
-    ) -> std::result::Result<impl Iterator<Item = (&'r HsDirParams, Relay<'r>)>, Bug>
-    where
-        I: Iterator<Item = (HsBlindId, TimePeriod)> + Clone + 'r,
-    {
+    pub fn hs_dirs_upload(
+        &self,
+        (hsid, period): (HsBlindId, TimePeriod),
+    ) -> std::result::Result<impl Iterator<Item = Relay<'_>>, Bug> {
         // Algorithm:
         //
         // 1. Choose spread = the parameter `hsdir_spread_store`
-        // 2. for (id, period) in hsids:
-        //   - Determine which HsDirRing to use, based on the time period.
-        //   - Find the shared random value that's associated with that HsDirRing.
-        //   - Let n_replicas = the parameter `hsdir_n_replicas`.
-        //   - Initialize Dirs = []
-        //   - for idx in 1..=n_replicas:
+        // 2. Determine which HsDirRing to use, based on the time period.
+        // 3. Find the shared random value that's associated with that HsDirRing.
+        // 4. Let n_replicas = the parameter `hsdir_n_replicas`.
+        // 5. Initialize Dirs = []
+        // 6. for idx in 1..=n_replicas:
         //       - let H = hsdir_ring::onion_service_index(id, replica, rand,
         //         period).
         //       - Find the position of H within hsdir_ring.
@@ -1613,17 +1609,16 @@ impl NetDir {
         let rings = self
             .hsdir_rings
             .iter()
-            .cartesian_product(hsids.clone())
-            .filter_map(move |(ring, (hsid, period))| {
+            .filter_map(move |ring| {
                 // Make sure the ring matches the TP of the hsid it's matched with.
                 (ring.params().time_period == period).then_some((ring, hsid, period))
             })
             .collect::<Vec<_>>();
 
-        // Each of the specified hsids should have an associated ring.
-        if !hsids.all(|(_hsid, period)| rings.iter().any(|(_, _, tp)| *tp == period)) {
+        // The specified period should have an associated ring.
+        if !rings.iter().any(|(_, _, tp)| *tp == period) {
             return Err(internal!(
-                "some of the specified time periods do not have an associated ring"
+                "the specified time period does not have an associated ring"
             ));
         };
 
@@ -1631,7 +1626,7 @@ impl NetDir {
         // selecting replicas from each ring.
         Ok(rings.into_iter().flat_map(move |(ring, hsid, period)| {
             assert_eq!(period, ring.params().time_period());
-            iter::repeat(ring.params()).zip(self.select_hsdirs(hsid, ring, spread))
+            self.select_hsdirs(hsid, ring, spread)
         }))
     }
 

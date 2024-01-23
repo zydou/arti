@@ -370,10 +370,10 @@ impl TimePeriodContext {
         netdir: &Arc<NetDir>,
         mut old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
     ) -> Result<Vec<(RelayIds, DescriptorStatus)>, FatalError> {
-        let hs_dirs = netdir.hs_dirs_upload([(blind_id, period)].into_iter())?;
+        let hs_dirs = netdir.hs_dirs_upload((blind_id, period))?;
 
         Ok(hs_dirs
-            .map(|(_, hs_dir)| {
+            .map(|hs_dir| {
                 let mut builder = RelayIds::builder();
                 if let Some(ed_id) = hs_dir.ed_identity() {
                     builder.ed_identity(*ed_id);
