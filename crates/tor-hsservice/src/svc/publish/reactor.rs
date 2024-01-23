@@ -208,12 +208,14 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
 
         // TODO: perhaps this should be moved to a new HsDirParams::offset_within_sr() function
         let srv_start = params.start_of_shard_rand_period();
-        let offset = now.duration_since(srv_start).map_err(into_internal!(
-            "current wallclock time not within SRV range?! (now={:?}, SRV_start={:?})",
-            now,
-            srv_start
-        ))?;
-        let rev = ope_key.encrypt(offset.as_secs() as u32);
+        let offset = params.offset_within_srv_period(now).ok_or_else(|| {
+            internal!(
+                "current wallclock time not within SRV range?! (now={:?}, SRV_start={:?})",
+                now,
+                srv_start
+            )
+        })?;
+        let rev = ope_key.encrypt(offset);
 
         Ok(RevisionCounter::from(rev))
     }

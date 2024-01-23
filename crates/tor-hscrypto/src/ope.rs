@@ -66,9 +66,9 @@ impl AesOpeKey {
     /// This algorithm is also not very efficient in its implementation.
     /// We expect that the result will become unacceptable if the time period is
     /// ever larger than a few days.
-    pub fn encrypt(&self, offset: u32) -> u64 {
+    pub fn encrypt(&self, offset: SrvPeriodOffset) -> u64 {
         // We add "1" here per the spec, since the encryption of 0 is 0.
-        self.encrypt_inner(offset.saturating_add(1))
+        self.encrypt_inner(offset.0.saturating_add(1))
     }
 
     /// Implementation for the order-preserving encryption algorithm:
@@ -103,6 +103,15 @@ impl AesOpeKey {
         result
     }
 }
+
+/// An opaque offset within an SRV period.
+///
+/// Used by onion services to compute a HsDesc revision counter.
+#[derive(Copy, Clone, Debug, derive_more::From)]
+pub struct SrvPeriodOffset(
+    // An offset, in seconds.
+    pub(crate) u32,
+);
 
 /// Treating `slice` as a sequence of little-endian 2-byte words,
 /// add them into a u64.

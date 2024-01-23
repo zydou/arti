@@ -30,6 +30,9 @@ use time::{OffsetDateTime, UtcOffset};
 use tor_hscrypto::time::TimePeriod;
 use tor_netdoc::doc::netstatus::{MdConsensus, SharedRandVal};
 
+#[cfg(feature = "hs-service")]
+use tor_hscrypto::ope::SrvPeriodOffset;
+
 /// Parameters for generating and using an HsDir ring.
 ///
 /// These parameters are derived from the shared random values and time
@@ -75,11 +78,27 @@ impl HsDirParams {
 
     /// Return the starting time for the shared-random-value protocol that
     /// produced the SRV for this time period.
-    ///
-    /// When uploading, callers should use an offset from this time to determine
-    /// the revision counter for their descriptors.
     pub fn start_of_shard_rand_period(&self) -> SystemTime {
         self.srv_lifespan.start
+    }
+
+    /// Return an opaque offset for `when` within the shared-random-value protocol period
+    /// corresponding to the SRV for this time period.
+    ///
+    /// When uploading, callers should this offset to determine
+    /// the revision counter for their descriptors.
+    ///
+    /// Returns `None` if when is not within the SRV period.
+    #[cfg(feature = "hs-service")]
+    pub fn offset_within_srv_period(&self, when: SystemTime) -> Option<SrvPeriodOffset> {
+        if self.srv_lifespan.contains(&when) {
+            let d = when
+                .duration_since(self.srv_lifespan.start)
+                .expect("Somehow, range comparison was not reliable!");
+            return Some(SrvPeriodOffset::from(d.as_secs() as u32));
+        }
+
+        None
     }
 
     /// Compute the `HsDirParams` for the current time period, according to a given
