@@ -93,8 +93,7 @@ impl HasKind for StartupError {
             E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
-            // TODO (#1225) AlreadyRunning or LocalResourdeAlreadyInUse - see !1764/!1775
-            E::StateLocked => EK::Other,
+            E::StateLocked => EK::LocalResourceAlreadyInUse,
             E::LoadState(e) => e.kind(),
             E::StateDirectoryInaccessible(e) => e.state_error_kind(),
             E::Fatal(e) => e.kind(),
