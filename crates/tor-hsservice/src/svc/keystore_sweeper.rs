@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::{
-    BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier, HsNickname,
+    HsNickname,
     StartupError,
 };
 use futures::{select_biased, task::SpawnExt};
@@ -61,7 +61,6 @@ impl<R: Runtime> KeystoreSweeper<R> {
             mut shutdown,
         } = self;
 
-        let match_all_arti_pat = tor_keymgr::KeyPathPattern::Arti("*".into());
         let mut netdir_events = netdir_provider.events();
 
         // This task will exit when the RunningOnionService is dropped, causing
@@ -90,49 +89,14 @@ impl<R: Runtime> KeystoreSweeper<R> {
                                     }
                                 };
 
-                                let relevant_periods = netdir.hs_all_time_periods();
                                 // The consensus changed, so we need to remove any expired keys.
-                                let expire_keys = || -> tor_keymgr::Result<()> {
-                                    let all_arti_keys = keymgr.list_matching(&match_all_arti_pat)?;
+                                let relevant_periods = netdir.hs_all_time_periods();
 
-                                    for (key_path, key_type) in all_arti_keys {
-                                        /// Remove the specified key, if it's no longer relevant.
-                                        macro_rules! remove_if_expired {
-                                            ($K:ty) => {{
-                                                if let Ok(spec) = <$K>::try_from(&key_path) {
-                                                    // Only remove the keys of the hidden service
-                                                    // that concerns us
-                                                    if &spec.nickname == &nickname {
-                                                        let is_expired = relevant_periods
-                                                            .iter()
-                                                            .all(|p| p.time_period() != spec.period);
-                                                        // TODO: make the keystore selector
-                                                        // configurable
-                                                        let selector = Default::default();
-
-                                                        if is_expired {
-                                                            keymgr.remove_with_type(
-                                                                &key_path,
-                                                                &key_type,
-                                                                selector
-                                                            )?;
-                                                        }
-                                                    }
-                                                }
-                                            }};
-                                        }
-
-                                        // TODO: any invalid/malformed keys are ignored (rather than
-                                        // removed).
-                                        remove_if_expired!(BlindIdPublicKeySpecifier);
-                                        remove_if_expired!(BlindIdKeypairSpecifier);
-                                        remove_if_expired!(DescSigningKeypairSpecifier);
-                                    }
-
-                                    Ok(())
-                                };
-
-                                if let Err(e) = expire_keys() {
+                                if let Err(e) = crate::keys::expire_publisher_keys(
+                                    &keymgr,
+                                    &nickname,
+                                    &relevant_periods,
+                                ) {
                                     error_report!(e, "failed to remove expired keys");
                                 }
                             }

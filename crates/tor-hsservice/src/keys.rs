@@ -12,7 +12,9 @@ use derive_more::Constructor;
 
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::derive_adhoc_template_KeySpecifier;
+use tor_keymgr::KeyMgr;
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
+use tor_netdir::HsDirParams;
 
 use crate::HsNickname;
 use crate::IptLocalId;
@@ -108,6 +110,52 @@ pub(crate) struct IptKeySpecifier {
     /// lid
     #[adhoc(denotator)]
     pub(crate) lid: IptLocalId,
+}
+
+/// Expire publisher keys for no-longer relevant TPs
+pub(crate) fn expire_publisher_keys(
+    keymgr: &KeyMgr,
+    nickname: &HsNickname,
+    relevant_periods: &[HsDirParams],
+) -> tor_keymgr::Result<()> {
+    let match_all_arti_pat = tor_keymgr::KeyPathPattern::Arti("*".into());
+    let all_arti_keys = keymgr.list_matching(&match_all_arti_pat)?;
+
+    for (key_path, key_type) in all_arti_keys {
+        /// Remove the specified key, if it's no longer relevant.
+        macro_rules! remove_if_expired {
+            ($K:ty) => {{
+                if let Ok(spec) = <$K>::try_from(&key_path) {
+                    // Only remove the keys of the hidden service
+                    // that concerns us
+                    if &spec.nickname == nickname {
+                        let is_expired = relevant_periods
+                            .iter()
+                            .all(|p| p.time_period() != spec.period);
+                        // TODO: make the keystore selector
+                        // configurable
+                        let selector = Default::default();
+
+                        if is_expired {
+                            keymgr.remove_with_type(
+                                &key_path,
+                                &key_type,
+                                selector
+                            )?;
+                        }
+                    }
+                }
+            }};
+        }
+
+        // TODO: any invalid/malformed keys are ignored (rather than
+        // removed).
+        remove_if_expired!(BlindIdPublicKeySpecifier);
+        remove_if_expired!(BlindIdKeypairSpecifier);
+        remove_if_expired!(DescSigningKeypairSpecifier);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
