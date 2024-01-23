@@ -149,7 +149,7 @@ impl tor_error::HasKind for IptError {
         match self {
             E::NoNetdir(_) => EK::BootstrapRequired, // TODO (#1225) maybe not right.
             E::NetdirProviderShutdown(e) => e.kind(),
-            E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1225) Not correct kind.
+            E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1255) Not correct kind.
             E::BuildCircuit(e) => e.kind(),
             E::EstablishTimeout => EK::TorNetworkTimeout,
             E::SendEstablishIntro(e) => e.kind(),
