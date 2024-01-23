@@ -31,7 +31,7 @@ use tor_hscrypto::pk::{
 };
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
-use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
+use tor_netdir::{HsDirParams, NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
@@ -328,8 +328,8 @@ struct Inner {
 
 /// The part of the reactor state that changes with every time period.
 struct TimePeriodContext {
-    /// The time period.
-    period: TimePeriod,
+    /// The HsDir params.
+    params: HsDirParams,
     /// The blinded HsId.
     blind_id: HsBlindId,
     /// The HsDirs to use in this time period.
@@ -349,13 +349,14 @@ impl TimePeriodContext {
     /// Any of the specified `old_hsdirs` also present in the new list of HsDirs
     /// (returned by `NetDir::hs_dirs_upload`) will have their `DescriptorStatus` preserved.
     fn new<'r>(
-        period: TimePeriod,
+        params: HsDirParams,
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
     ) -> Result<Self, FatalError> {
+        let period = params.time_period();
         Ok(Self {
-            period,
+            params,
             blind_id,
             hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?,
             last_successful: None,
@@ -677,7 +678,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let period = inner
             .time_periods
             .iter_mut()
-            .find(|ctx| ctx.period == results.time_period);
+            .find(|ctx| ctx.params.time_period() == results.time_period);
 
         let Some(period) = period else {
             // The uploads were for a time period that is no longer relevant, so we
@@ -803,12 +804,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 //   * are part of a new time period (which we have never published the descriptor
                 //   for), or
                 //   * have just been added to the ring of a time period we already knew about
-                if let Some(ctx) = time_periods.iter().find(|ctx| ctx.period == period) {
-                    TimePeriodContext::new(period, blind_id.into(), netdir, ctx.hs_dirs.iter())
+                if let Some(ctx) = time_periods
+                    .iter()
+                    .find(|ctx| ctx.params.time_period() == period)
+                {
+                    TimePeriodContext::new(
+                        params.clone(),
+                        blind_id.into(),
+                        netdir,
+                        ctx.hs_dirs.iter(),
+                    )
                 } else {
                     // Passing an empty iterator here means all HsDirs in this TimePeriodContext
                     // will be marked as dirty, meaning we will need to upload our descriptor to them.
-                    TimePeriodContext::new(period, blind_id.into(), netdir, iter::empty())
+                    TimePeriodContext::new(params.clone(), blind_id.into(), netdir, iter::empty())
                 }
             })
             .collect::<Result<Vec<TimePeriodContext>, FatalError>>()
@@ -1005,7 +1014,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 return Ok(());
             }
 
-            let time_period = period_ctx.period;
+            let time_period = period_ctx.params.time_period();
 
             let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
