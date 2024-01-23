@@ -17,6 +17,7 @@ full = []
 
 [dependencies]
 fslock = { version = "0.2.0", package = "fslock-arti-fork" }
+thiserror = "1"
 
 [package.metadata.docs.rs]
 all-features = true

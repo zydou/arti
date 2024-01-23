@@ -1933,6 +1933,7 @@ name = "fslock-guard"
 version = "0.0.1"
 dependencies = [
  "fslock-arti-fork",
+ "thiserror",
 ]
 
 [[package]]

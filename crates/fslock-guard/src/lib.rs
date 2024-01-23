@@ -67,7 +67,7 @@ pub struct LockFileGuard {
     ///
     /// This `LockFile` instance will remain locked for as long as this
     /// LockFileGuard exists.
-    _locked: fslock::LockFile,
+    locked: fslock::LockFile,
 }
 
 impl LockFileGuard {
@@ -85,7 +85,7 @@ impl LockFileGuard {
             lockfile.lock()?;
 
             if os::lockfile_has_path(&lockfile, path)? {
-                return Ok(Self { _locked: lockfile });
+                return Ok(Self { locked: lockfile });
             }
         }
     }
@@ -101,11 +101,37 @@ impl LockFileGuard {
         let path = path.as_ref();
         let mut lockfile = fslock::LockFile::open(path)?;
         if lockfile.try_lock()? && os::lockfile_has_path(&lockfile, path)? {
-            return Ok(Some(Self { _locked: lockfile }));
+            return Ok(Some(Self { locked: lockfile }));
         }
         Ok(None)
     }
+
+    /// Try to delete the lock file that we hold.
+    ///
+    /// The provided `path` must be the same as was passed to `lock`.
+    pub fn delete_lock_file<P>(self, path: P) -> Result<(), std::io::Error>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+        if os::lockfile_has_path(&self.locked, path)? {
+            std::fs::remove_file(path)
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                MismatchedPathError {},
+            ))
+        }
+    }
 }
+
+/// An error that we return when the path given to `delete_lock_file` does not
+/// match the file we have.
+///
+/// Since we wrap this in an `io::Error`, it doesn't need to be public or fancy.
+#[derive(thiserror::Error, Debug, Clone)]
+#[error("Called delete_lock_file with a mismatched path.")]
+struct MismatchedPathError {}
 
 // Note: This requires AsFd and AsHandle implementations for `LockFile`.
 //  See https://github.com/brunoczim/fslock/pull/15
