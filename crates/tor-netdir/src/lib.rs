@@ -1587,7 +1587,7 @@ impl NetDir {
     pub fn hs_dirs_upload<'r, I>(
         &'r self,
         mut hsids: I,
-    ) -> std::result::Result<impl Iterator<Item = (TimePeriod, Relay<'r>)>, Bug>
+    ) -> std::result::Result<impl Iterator<Item = (&'r HsDirParams, Relay<'r>)>, Bug>
     where
         I: Iterator<Item = (HsBlindId, TimePeriod)> + Clone + 'r,
     {
@@ -1630,7 +1630,8 @@ impl NetDir {
         // Now that we've matched each `hsid` with the ring associated with its TP, we can start
         // selecting replicas from each ring.
         Ok(rings.into_iter().flat_map(move |(ring, hsid, period)| {
-            iter::repeat(period).zip(self.select_hsdirs(hsid, ring, spread))
+            assert_eq!(period, ring.params().time_period());
+            iter::repeat(ring.params()).zip(self.select_hsdirs(hsid, ring, spread))
         }))
     }
 
