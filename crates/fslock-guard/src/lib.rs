@@ -112,7 +112,7 @@ impl LockFileGuard {
    TODO: This requires AsFd and AsHandle implementations for `LockFile`.
    See https://github.com/brunoczim/fslock/pull/15
 
-/// Helper module for unix metadata manipulation.
+/// Platform module for locking protocol on Unix.
 #[cfg(unix)]
 mod os {
     use std::{path::Path, os::unix::fs::MetadataExt as _, os::fd::AsFd, fs::File};
@@ -128,7 +128,7 @@ mod os {
     }
 }
 
-/// Helper module for windows metadata manipulation.
+/// Platform module for locking protocol on Windows.
 #[cfg(windows)]
 mod os {
     use std::{path::Path, fs::Metadata, os::windows::fs::MetadataExt as _, std::os::windows::io::AsHandle, fs::File};
