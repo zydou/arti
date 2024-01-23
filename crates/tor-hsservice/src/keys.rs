@@ -118,16 +118,16 @@ pub(crate) fn expire_publisher_keys(
     nickname: &HsNickname,
     relevant_periods: &[HsDirParams],
 ) -> tor_keymgr::Result<()> {
-    let match_all_arti_pat = tor_keymgr::KeyPathPattern::Arti("*".into());
-    let all_arti_keys = keymgr.list_matching(&match_all_arti_pat)?;
+    // Only remove the keys of the hidden service
+    // that concerns us
+    let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hs/{}/*", &nickname));
+    let possibly_relevant_keys = keymgr.list_matching(&arti_pat)?;
 
-    for (key_path, key_type) in all_arti_keys {
+    for (key_path, key_type) in possibly_relevant_keys {
         /// Remove the specified key, if it's no longer relevant.
         macro_rules! remove_if_expired {
             ($K:ty) => {{
                 if let Ok(spec) = <$K>::try_from(&key_path) {
-                    // Only remove the keys of the hidden service
-                    // that concerns us
                     if &spec.nickname == nickname {
                         let is_expired = relevant_periods
                             .iter()
