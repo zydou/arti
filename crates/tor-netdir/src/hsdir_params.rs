@@ -43,6 +43,8 @@ pub(crate) struct HsDirParams {
     /// The SharedRandVal for this ring.  It's used to ensure that the position
     /// of each HsDir within the ring rotates _unpredictably_ over time.
     pub(crate) shared_rand: SharedRandVal,
+    /// The range of times over which the srv is most current.
+    pub(crate) srv_lifespan: std::ops::Range<SystemTime>,
 }
 
 /// By how many voting periods do we offset the beginning of our first time
@@ -133,6 +135,9 @@ fn disaster_params(period: TimePeriod) -> HsDirParams {
     HsDirParams {
         time_period: period,
         shared_rand: disaster_srv(period),
+        srv_lifespan: period
+            .range()
+            .expect("Time period cannot be represented as SystemTime"),
     }
 }
 
@@ -169,16 +174,15 @@ fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<H
 
     Ok(find_srv_for_time(info, start).map(|srv| HsDirParams {
         time_period: period,
-        shared_rand: srv,
+        shared_rand: srv.0,
+        srv_lifespan: srv.1.clone(),
     }))
 }
 
-/// Given a list of SrvInfo, return the SharedRandVal (if any) that is the most
+/// Given a list of SrvInfo, return the SrvInfo (if any) that is the most
 /// recent SRV at `when`.
-fn find_srv_for_time(info: &[SrvInfo], when: SystemTime) -> Option<SharedRandVal> {
-    info.iter()
-        .find(|(_, range)| range.contains(&when))
-        .map(|(srv, _)| *srv)
+fn find_srv_for_time(info: &[SrvInfo], when: SystemTime) -> Option<&SrvInfo> {
+    info.iter().find(|(_, range)| range.contains(&when))
 }
 
 /// Return every SRV from a consensus, along with a duration over which it is
@@ -399,23 +403,23 @@ mod test {
         // See if we can look up SRVs in that period.
         assert_eq!(None, find_srv_for_time(&srvs, t("1985-10-24T23:59:00Z")));
         assert_eq!(
-            Some(SRV1.into()),
+            Some(&srvs[1]),
             find_srv_for_time(&srvs, t("1985-10-25T00:00:00Z"))
         );
         assert_eq!(
-            Some(SRV1.into()),
+            Some(&srvs[1]),
             find_srv_for_time(&srvs, t("1985-10-25T03:59:00Z"))
         );
         assert_eq!(
-            Some(SRV1.into()),
+            Some(&srvs[1]),
             find_srv_for_time(&srvs, t("1985-10-25T00:00:00Z"))
         );
         assert_eq!(
-            Some(SRV2.into()),
+            Some(&srvs[0]),
             find_srv_for_time(&srvs, t("1985-10-25T06:00:05Z"))
         );
         assert_eq!(
-            Some(SRV2.into()),
+            Some(&srvs[0]),
             find_srv_for_time(&srvs, t("1985-10-25T12:00:00Z"))
         );
         assert_eq!(None, find_srv_for_time(&srvs, t("1985-10-25T12:00:30Z")));
