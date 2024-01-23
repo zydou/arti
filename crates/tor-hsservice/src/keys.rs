@@ -2,12 +2,16 @@
 //!
 //! Some of these `KeySpecifier`s represent time-bound keys (that are only valid
 //! as long as their time period is relevant). Time-bound keys are expired (removed)
-//! by the [`KeystoreSweeper`](crate::svc::keystore_sweeper::KeystoreSweeper) task.
-//! If you add a new time-bound key, you also need to update
-//! [`KeystoreSweeper`](crate::svc::keystore_sweeper::KeystoreSweeper::launch)
-//! to expire the key when its time-period is no longer relevant.
+//! by [`expire_publisher_keys`].
+//!
+//! If you add a new key that is not a per-service singleton, you also need to
+//! make arrangements to delete old ones.
+//! For TP-based keys, that involves deriving [`HsTimePeriodKeySpecifier`]
+//! and adding a call to `remove_if_expired!` in [`expire_publisher_keys`].
 
-use derive_adhoc::Adhoc;
+use std::fmt::Debug;
+
+use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::Constructor;
 
 use tor_error::internal;
@@ -19,6 +23,33 @@ use tor_netdir::HsDirParams;
 
 use crate::HsNickname;
 use crate::IptLocalId;
+
+/// Keys that are used by publisher, which relate to our HS and a TP
+///
+/// Derived using
+/// the derive-adhoc macro of the same name.
+// We'd like to link to ](crate::derive_adhoc_template_HsTimePeriodKeySpecifier)
+// but linking to a module-local macro doesn't work with rustdoc.
+trait HsTimePeriodKeySpecifier: Debug {
+    /// Inspect the nickname
+    fn nickname(&self) -> &HsNickname;
+    /// Inspect the period
+    fn period(&self) -> &TimePeriod;
+}
+
+define_derive_adhoc! {
+    /// Implement `HsTimePeriodKeySpecifier` for a struct with `nickname`` and `period`
+    HsTimePeriodKeySpecifier =
+
+    impl HsTimePeriodKeySpecifier for $ttype {
+      $(
+        ${when any(approx_equal($fname, nickname), approx_equal($fname, period))}
+        fn $fname(&self) -> &$ftype {
+            &self.$fname
+        }
+      )
+    }
+}
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
@@ -43,7 +74,7 @@ pub struct HsIdKeypairSpecifier {
 }
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier)]
+#[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_blind_id")]
 #[adhoc(summary = "Blinded signing keypair")]
@@ -57,7 +88,7 @@ pub struct BlindIdKeypairSpecifier {
 }
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier)]
+#[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KP_hs_blind_id")]
 #[adhoc(summary = "Blinded public key")]
@@ -71,7 +102,7 @@ pub struct BlindIdPublicKeySpecifier {
 }
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier)]
+#[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
 #[adhoc(prefix = "hs")]
 #[adhoc(role = "KS_hs_desc_sign")]
 #[adhoc(summary = "Descriptor signing key")]
@@ -129,14 +160,17 @@ pub(crate) fn expire_publisher_keys(
         macro_rules! remove_if_expired {
             ($K:ty) => {{
                 if let Ok(spec) = <$K>::try_from(&key_path) {
-                    if &spec.nickname != nickname {
+
+                    // Remove the key identified by `spec` if it's no longer relevant
+                  let remove_if_expired = |spec: &dyn HsTimePeriodKeySpecifier| {
+                    if spec.nickname() != nickname {
                         return Err(internal!(
  "keymgr gave us key {spec:?} that doesn't match our pattern {arti_pat:?}"
                         ).into());
                     }
                         let is_expired = relevant_periods
                             .iter()
-                            .all(|p| p.time_period() != spec.period);
+                            .all(|p| &p.time_period() != spec.period());
                         // TODO: make the keystore selector
                         // configurable
                         let selector = Default::default();
@@ -148,6 +182,11 @@ pub(crate) fn expire_publisher_keys(
                                 selector
                             )?;
                         }
+
+                        tor_keymgr::Result::Ok(())
+                  };
+
+                    remove_if_expired(&spec)?;
                 }
             }};
         }
