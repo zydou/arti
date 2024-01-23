@@ -1517,17 +1517,17 @@ impl NetDir {
         self.hsdir_rings.current.time_period()
     }
 
-    /// Return all the relevant the hidden service directory "time periods"
+    /// Return the [`HsDirParams`] of all the relevant hidden service directory "time periods"
     ///
     /// This includes the current time period (as from
     /// [`.hs_time_period`](NetDir::hs_time_period))
     /// plus additional time periods that we publish descriptors for when we are
     /// acting as a hidden service.
     #[cfg(feature = "hs-service")]
-    pub fn hs_all_time_periods(&self) -> Vec<TimePeriod> {
+    pub fn hs_all_time_periods(&self) -> Vec<HsDirParams> {
         self.hsdir_rings
             .iter()
-            .map(HsDirRing::time_period)
+            .map(|r| r.params().clone())
             .collect()
     }
 

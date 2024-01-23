@@ -765,14 +765,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         netdir
             .hs_all_time_periods()
             .iter()
-            .map(|period| {
+            .map(|params| {
+                let period = params.time_period();
                 let svc_key_spec = HsIdKeypairSpecifier::new(self.imm.nickname.clone());
                 let hsid_kp = self
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
                     .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
-                let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), *period);
+                let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), period);
 
                 // TODO (#1106): make this configurable
                 let keystore_selector = Default::default();
@@ -784,7 +785,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         keystore_selector,
                         || {
                             let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
-                                .compute_blinded_key(*period)
+                                .compute_blinded_key(period)
                                 .map_err(|_| internal!("failed to compute blinded key"))?;
 
                             Ok(hs_blind_id_kp)
@@ -802,12 +803,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 //   * are part of a new time period (which we have never published the descriptor
                 //   for), or
                 //   * have just been added to the ring of a time period we already knew about
-                if let Some(ctx) = time_periods.iter().find(|ctx| ctx.period == *period) {
-                    TimePeriodContext::new(*period, blind_id.into(), netdir, ctx.hs_dirs.iter())
+                if let Some(ctx) = time_periods.iter().find(|ctx| ctx.period == period) {
+                    TimePeriodContext::new(period, blind_id.into(), netdir, ctx.hs_dirs.iter())
                 } else {
                     // Passing an empty iterator here means all HsDirs in this TimePeriodContext
                     // will be marked as dirty, meaning we will need to upload our descriptor to them.
-                    TimePeriodContext::new(*period, blind_id.into(), netdir, iter::empty())
+                    TimePeriodContext::new(period, blind_id.into(), netdir, iter::empty())
                 }
             })
             .collect::<Result<Vec<TimePeriodContext>, FatalError>>()

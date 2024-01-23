@@ -103,8 +103,9 @@ impl<R: Runtime> KeystoreSweeper<R> {
                                                     // Only remove the keys of the hidden service
                                                     // that concerns us
                                                     if &spec.nickname == &nickname {
-                                                        let is_expired = !relevant_periods
-                                                            .contains(&spec.period);
+                                                        let is_expired = relevant_periods
+                                                            .iter()
+                                                            .all(|p| p.time_period() != spec.period);
                                                         // TODO: make the keystore selector
                                                         // configurable
                                                         let selector = Default::default();
