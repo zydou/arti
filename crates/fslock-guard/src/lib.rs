@@ -218,6 +218,47 @@ mod os {
 }
 
 /// Platform module for locking protocol on Windows.
+///
+/// The argument for correctness on Windows proceeds as for Unix, but with a
+/// higher degree of uncertainty, since we are not sufficient Windows experts to
+/// determine if our assumptions hold.
+///
+/// Here we assume as follows:
+/// * When `fslock` calls `CreateFileW`, it gets a `HANDLE` to an open file.
+///   As we use them, the `HANDLE` behaves
+///   similarly to the "fd" in the Unix argument above,
+///   and the open file behaves similarly to the "open-file".
+///   * We assume that any differences that exist in their behavior do not
+///     affect our correctness above.
+/// * When `fslock` calls `LockFileEx`, and it completes successfully,
+///   we now have a lock on the file.
+///   Only one lock can exist on a file at a time.
+/// * When we compare members of `handle.metadata()` and `path.metadata()`,
+///   the comparison will return equal if ~~and only if~~
+///   the two files are truly the same.
+///   * (We know that the "only if" part is not yet guaranteed;
+///     see "Limitations" on lockfile_has_path.)
+///   * When we do switch to look at `file_index`, we will rely only
+///     on the property that a file cannot change its file_index while it is
+///     open.
+/// * Deleting the lock file will actually work, since `fslock` opened it with
+///   FILE_SHARE_DELETE.
+/// * When we delete the lock file, possibly-asynchronous ("deferred") deletion
+///   definitely won't mean that the OS kernel violates our rule that no-one but the lockholder
+///   is allowed to delete the file.
+/// * The above is true even if someone with read
+///   access to the file - eg the human user - opens it without the FILE_SHARE options.
+/// * The same is true even if there is a virus scanner.
+/// * The same is true even on a remote filesystem.
+/// * If someone with read access to the file - eg the human user - opens it for reading
+///   without FILE_SHARE options, the algorithm will still work and not fail
+///   with a file sharing violation io rror.
+///   (Or, every program the user might use to randomly peer at files in arti's
+///   state directory, including the equivalents of `grep -R` and backup programs,
+///   will use suitable FILE_SHARE options.)
+///   (If this assumption is false, the consequence is not data loss;
+///   rather, arti would fall over.  So that would be tolerable if we don't
+///   know how to do better, or if doing better is hard.)
 #[cfg(windows)]
 mod os {
     use std::{fs::File, os::windows::fs::MetadataExt as _, os::windows::io::AsHandle, path::Path};
