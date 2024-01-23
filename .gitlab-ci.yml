@@ -267,7 +267,7 @@ integration-shadow:
 
     JOB_TGEN_REPO: "https://github.com/shadow/tgen.git"
     JOB_TGEN_BRANCH: "main"
-    JOB_TGEN_COMMIT: "30c95bbe723ebe5e4d068adfd975b094e00dbe10"
+    JOB_TGEN_COMMIT: "v1.1.2"
   stage: test
   cache:
     - key: $CI_JOB_NAME-shadow-$JOB_SHADOW_COMMIT
