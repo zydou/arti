@@ -10,6 +10,7 @@
 use derive_adhoc::Adhoc;
 use derive_more::Constructor;
 
+use tor_error::internal;
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::derive_adhoc_template_KeySpecifier;
 use tor_keymgr::KeyMgr;
@@ -128,7 +129,11 @@ pub(crate) fn expire_publisher_keys(
         macro_rules! remove_if_expired {
             ($K:ty) => {{
                 if let Ok(spec) = <$K>::try_from(&key_path) {
-                    if &spec.nickname == nickname {
+                    if &spec.nickname != nickname {
+                        return Err(internal!(
+ "keymgr gave us key {spec:?} that doesn't match our pattern {arti_pat:?}"
+                        ).into());
+                    }
                         let is_expired = relevant_periods
                             .iter()
                             .all(|p| p.time_period() != spec.period);
@@ -143,7 +148,6 @@ pub(crate) fn expire_publisher_keys(
                                 selector
                             )?;
                         }
-                    }
                 }
             }};
         }
