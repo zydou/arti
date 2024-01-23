@@ -87,11 +87,6 @@ impl Drop for IptEstablisher {
 /// An error from trying to work with an IptEstablisher.
 #[derive(Clone, Debug, thiserror::Error)]
 pub(crate) enum IptError {
-    /// We couldn't get a network directory to use when building circuits.
-    #[error("No network directory available")]
-    #[allow(dead_code)] // TODO (#1237) emit this error, or verify that it isn't needed
-    NoNetdir(#[source] tor_netdir::Error),
-
     /// The network directory provider is shutting down without giving us the
     /// netdir we asked for.
     #[error("{0}")]
@@ -147,7 +142,6 @@ impl tor_error::HasKind for IptError {
         use tor_error::ErrorKind as EK;
         use IptError as E;
         match self {
-            E::NoNetdir(_) => EK::BootstrapRequired, // TODO (#1225) maybe not right.
             E::NetdirProviderShutdown(e) => e.kind(),
             E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1255) Not correct kind.
             E::BuildCircuit(e) => e.kind(),
@@ -176,7 +170,7 @@ impl IptError {
         use IptError as IE;
         match self {
             // If we don't have a netdir, then no intro point is better than any other.
-            IE::NoNetdir(_) | IE::NetdirProviderShutdown(_) => false,
+            IE::NetdirProviderShutdown(_) => false,
             // Not strictly "faulty", but unlisted in the directory means we
             // can't use the introduction point.
             IE::IntroPointNotListed => true,
@@ -634,16 +628,7 @@ impl<R: Runtime> Reactor<R> {
         let mut retry_delay = tor_basic_utils::retry::RetryDelay::from_msec(1000);
         loop {
             status_tx.borrow_mut().note_attempt();
-            match self.establish_intro_once().await.and_then(|session| {
-                let netdir = self
-                    .netdir_provider
-                    .timely_netdir()
-                    .map_err(|_| IptError::IntroPointNotListed)?;
-                let relay = netdir
-                    .by_ids(&self.target)
-                    .ok_or(IptError::IntroPointNotListed)?;
-                Ok((session, GoodIptDetails::try_from_circ_target(&relay)?))
-            }) {
+            match self.establish_intro_once().await {
                 Ok((session, good_ipt_details)) => {
                     // TODO (#1239): we need to monitor the netdir for changes to this relay
                     // Eg,
@@ -703,8 +688,8 @@ impl<R: Runtime> Reactor<R> {
     /// point there.
     ///
     /// Does not retry.  Does not time out except via `HsCircPool`.
-    async fn establish_intro_once(&self) -> Result<IntroPtSession, IptError> {
-        let (protovers, circuit) = {
+    async fn establish_intro_once(&self) -> Result<(IntroPtSession, GoodIptDetails), IptError> {
+        let (protovers, circuit, ipt_details) = {
             let netdir = wait_for_netdir(
                 self.netdir_provider.as_ref(),
                 tor_netdir::Timeliness::Timely,
@@ -713,6 +698,7 @@ impl<R: Runtime> Reactor<R> {
             let circ_target = netdir
                 .by_ids(&self.target)
                 .ok_or(IptError::IntroPointNotListed)?;
+            let ipt_details = GoodIptDetails::try_from_circ_target(&circ_target)?;
 
             let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
             let protovers = circ_target.protovers().clone();
@@ -723,7 +709,7 @@ impl<R: Runtime> Reactor<R> {
                 .map_err(IptError::BuildCircuit)?;
             // note that netdir is dropped here, to avoid holding on to it any
             // longer than necessary.
-            (protovers, circuit)
+            (protovers, circuit, ipt_details)
         };
         let intro_pt_hop = circuit
             .last_hop_num()
@@ -805,9 +791,10 @@ impl<R: Runtime> Reactor<R> {
         // This session will be owned by keep_intro_established(), and dropped
         // when the circuit closes, or when the keep_intro_established() future
         // is dropped.
-        Ok(IntroPtSession {
+        let session = IntroPtSession {
             intro_circ: circuit,
-        })
+        };
+        Ok((session, ipt_details))
     }
 }
 
