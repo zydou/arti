@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 # Enable the state_dir module
-state-dir = ["__is_experimental", "amplify", "anyhow", "fslock-guard", "void"]
+state-dir = ["__is_experimental", "amplify", "fslock-guard", "void"]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["__is_experimental"]
@@ -25,7 +25,6 @@ __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"], optional = true }
-anyhow = { version = "1.0.23", optional = true }
 derive_more = "0.99.3"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.6", features = ["walkdir"] }
 fslock-guard = { path = "../fslock-guard", version = "0.0.1", optional = true }
@@ -42,6 +41,7 @@ void = { version = "1", optional = true }
 fslock = { version = "0.2.0" }
 
 [dev-dependencies]
+anyhow = { version = "1.0.23" }
 tempfile = "3"
 [package.metadata.docs.rs]
 all-features = true
