@@ -190,8 +190,7 @@ impl ReplayLog {
                 // in that case, we must truncate the file to resynchronise.
                 // We should probably set a note to truncate just before we call write_all
                 // and clear it again afterwards.
-                f.file
-                    .write_all(&h.0[..])?;
+                f.file.write_all(&h.0[..])?;
 
                 Ok(())
             })()
