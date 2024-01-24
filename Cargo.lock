@@ -5648,9 +5648,12 @@ dependencies = [
 name = "tor-persist"
 version = "0.9.0"
 dependencies = [
+ "amplify",
+ "anyhow",
  "derive_more",
  "fs-mistrust",
  "fslock",
+ "fslock-guard",
  "paste",
  "sanitize-filename",
  "serde",
@@ -5659,6 +5662,7 @@ dependencies = [
  "thiserror",
  "tor-error",
  "tracing",
+ "void",
 ]
 
 [[package]]

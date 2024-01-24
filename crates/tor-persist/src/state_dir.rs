@@ -56,9 +56,7 @@
 //! ```
 //! use std::{collections::HashSet, fmt, time::Duration};
 //! use tor_error::{into_internal, Bug};
-//! # use tor_hsservice::state_dir_for_doctests_unstable_no_semver_guarantees as state_dir;
-//! # #[cfg(all)] // works like #[cfg(FALSE)].  Instead, we have this workaround ^.
-//! use crate::state_dir;
+//! use tor_persist::state_dir;
 //! use state_dir::{InstanceIdString, InstanceIdentity, InstancePurgeHandler};
 //! use state_dir::{InstancePurgeInfo, InstanceStateHandle, StateDirectory, StorageHandle};
 //! #
@@ -145,7 +143,7 @@
 //!    Use `#[cfg]` at call sites to replace the `raw_subdir`
 //!    with whatever is appropriate for the platform.
 
-#![allow(unused_variables, dead_code)]
+#![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
 #![allow(unreachable_pub)] // TODO this module will hopefully move to tor-persist and be pub
 
 use std::cell::Cell;
@@ -158,18 +156,22 @@ use std::time::{Duration, SystemTime};
 
 use derive_more::{AsRef, Deref, Into};
 use serde::{de::DeserializeOwned, Serialize};
-use thiserror::Error;
 use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
+use fslock_guard::LockFileGuard;
 use tor_error::Bug;
+
+pub use crate::Error;
+use crate::load_store;
+use crate::err::{Action, ErrorSource, Resource};
 
 /// TODO HSS remove
 type Todo = Void;
 
 use std::result::Result as StdResult;
 
-/// [`Result`](StdResult) throwing a [`state_dir::Error`](enum@Error)
+/// [`Result`](StdResult) throwing a [`state_dir::Error`](Error)
 pub type Result<T> = StdResult<T, Error>;
 
 /// The whole program's state directory
@@ -490,7 +492,7 @@ impl StateDirectory {
 /// See [`Slug`] for more details.
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 pub struct InstanceStateHandle {
-    flock_guard: Arc<Todo>,
+    flock_guard: Arc<LockFileGuard>,
 }
 
 impl InstanceStateHandle {
@@ -530,23 +532,51 @@ impl InstanceStateHandle {
 /// unless multiple `StorageHandle`s are created
 /// using the same [`InstanceStateHandle`] and `slug`.
 pub struct StorageHandle<T> {
+    /// The directory and leafname
+    instance_dir: CheckedDir,
+    /// `SLUG.json`
+    leafname: String,
     /// We're not sync, and we can load and store a `T`
     marker: PhantomData<Cell<T>>,
     /// Clone of the InstanceStateHandle's lock
-    flock_guard: Arc<Todo>,
+    flock_guard: Arc<LockFileGuard>,
 }
 
 // Like tor_persist, but writing needs `&mut`
-#[allow(missing_docs)] // TODO HSS remove
 impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
-    pub fn delete(&mut self) -> Result<()> {
-        todo!()
-    }
-    pub fn store(&mut self, v: &T) -> Result<()> {
-        todo!()
-    }
+    /// Load this persistent state
+    ///
+    /// `None` means the state was most recently [`delete`](StorageHandle::delete)ed
     pub fn load(&self) -> Result<Option<T>> {
-        todo!()
+        self.with_load_store_target(Action::Loading, |t| t.load())
+    }
+    /// Store this persistent state
+    pub fn store(&mut self, v: &T) -> Result<()> {
+        self.with_load_store_target(Action::Storing, |t| t.store(v))
+    }
+    /// Delete this persistent state
+    pub fn delete(&mut self) -> Result<()> {
+        self.with_load_store_target(Action::Deleting, |t| t.delete())
+    }
+
+    /// Operate using a `load_store::Target`
+    fn with_load_store_target<R, F>(&self, action: Action, f: F) -> Result<R>
+    where F: FnOnce(load_store::Target<'_>) -> std::result::Result<R, ErrorSource>
+    {
+        f(load_store::Target {
+            dir: &self.instance_dir,
+            rel_fname: self.leafname.as_ref(),
+        }).map_err(|source| crate::Error::new(source, action, self.err_resource()))
+    }
+
+    /// Return the proper `Resource` for reporting errors
+    fn err_resource(&self) -> Resource {
+        Resource::File {
+            // TODO ideally we would remember what proportion of instance_dir
+            // came from the original state_dir, so we can put state_dir in the container
+            container: self.instance_dir.as_path().to_owned(),
+            file: self.leafname.clone().into(),
+        }
     }
 }
 
@@ -562,18 +592,5 @@ pub struct InstanceRawSubdir {
     #[deref]
     dir: CheckedDir,
     /// Clone of the InstanceStateHandle's lock
-    flock_guard: Arc<Todo>,
-}
-
-/// Error accessing persistent state
-#[derive(Error, Clone, Debug)]
-#[non_exhaustive]
-pub enum Error {
-    // will gain variants for:
-    //  mistrust error
-    //  io::error
-    //  serde error
-    //  bug
-    //
-    // will contain information such as the fs path or bad parameters
+    flock_guard: Arc<LockFileGuard>,
 }

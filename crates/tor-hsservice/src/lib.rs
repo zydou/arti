@@ -72,9 +72,6 @@ pub mod status;
 mod svc;
 mod timeout_track;
 
-#[rustfmt::skip] // to let us have inline { todo!() }; TODO HSS remove
-mod state_dir;
-
 // rustdoc doctests can't use crate-public APIs, so are broken if provided for private items.
 // So we export the whole module again under this name.
 // Supports the Example in timeout_track.rs's module-level docs.
@@ -87,10 +84,6 @@ mod state_dir;
 #[doc(hidden)]
 pub mod timeout_track_for_doctests_unstable_no_semver_guarantees {
     pub use crate::timeout_track::*;
-}
-#[doc(hidden)]
-pub mod state_dir_for_doctests_unstable_no_semver_guarantees {
-    pub use crate::state_dir::*;
 }
 #[doc(hidden)]
 pub mod time_store_for_doctests_unstable_no_semver_guarantees {
