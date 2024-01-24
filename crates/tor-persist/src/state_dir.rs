@@ -163,6 +163,8 @@ use fslock_guard::LockFileGuard;
 use tor_error::Bug;
 
 pub use crate::Error;
+use crate::load_store;
+use crate::err::{Action, ErrorSource, Resource};
 
 /// TODO HSS remove
 type Todo = Void;
@@ -530,6 +532,10 @@ impl InstanceStateHandle {
 /// unless multiple `StorageHandle`s are created
 /// using the same [`InstanceStateHandle`] and `slug`.
 pub struct StorageHandle<T> {
+    /// The directory and leafname
+    instance_dir: CheckedDir,
+    /// `SLUG.json`
+    leafname: String,
     /// We're not sync, and we can load and store a `T`
     marker: PhantomData<Cell<T>>,
     /// Clone of the InstanceStateHandle's lock
@@ -537,16 +543,40 @@ pub struct StorageHandle<T> {
 }
 
 // Like tor_persist, but writing needs `&mut`
-#[allow(missing_docs)] // TODO HSS remove
 impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
-    pub fn delete(&mut self) -> Result<()> {
-        todo!()
-    }
-    pub fn store(&mut self, v: &T) -> Result<()> {
-        todo!()
-    }
+    /// Load this persistent state
+    ///
+    /// `None` means the state was most recently [`delete`](StorageHandle::delete)ed
     pub fn load(&self) -> Result<Option<T>> {
-        todo!()
+        self.with_load_store_target(Action::Loading, |t| t.load())
+    }
+    /// Store this persistent state
+    pub fn store(&mut self, v: &T) -> Result<()> {
+        self.with_load_store_target(Action::Storing, |t| t.store(v))
+    }
+    /// Deletet this persistent state
+    pub fn delete(&mut self) -> Result<()> {
+        self.with_load_store_target(Action::Deleting, |t| t.delete())
+    }
+
+    /// Operate using a `load_store::Target`
+    fn with_load_store_target<R, F>(&self, action: Action, f: F) -> Result<R>
+    where F: FnOnce(load_store::Target<'_>) -> std::result::Result<R, ErrorSource>
+    {
+        f(load_store::Target {
+            dir: &self.instance_dir,
+            rel_fname: self.leafname.as_ref(),
+        }).map_err(|source| crate::Error::new(source, action, self.err_resource()))
+    }
+
+    /// Return the proper `Resource` for reporting errors
+    fn err_resource(&self) -> Resource {
+        Resource::File {
+            // TODO ideally we would remember what proportion of instance_dir
+            // came from the original state_dir, so we can put state_dir in the container
+            container: self.instance_dir.as_path().to_owned(),
+            file: self.leafname.clone().into(),
+        }
     }
 }
 
