@@ -5652,6 +5652,7 @@ dependencies = [
  "derive_more",
  "fs-mistrust",
  "fslock",
+ "fslock-guard",
  "paste",
  "sanitize-filename",
  "serde",

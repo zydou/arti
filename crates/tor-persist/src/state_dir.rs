@@ -160,6 +160,7 @@ use thiserror::Error;
 use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
+use fslock_guard::LockFileGuard;
 use tor_error::Bug;
 
 /// TODO HSS remove
@@ -488,7 +489,7 @@ impl StateDirectory {
 /// See [`Slug`] for more details.
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 pub struct InstanceStateHandle {
-    flock_guard: Arc<Todo>,
+    flock_guard: Arc<LockFileGuard>,
 }
 
 impl InstanceStateHandle {
@@ -531,7 +532,7 @@ pub struct StorageHandle<T> {
     /// We're not sync, and we can load and store a `T`
     marker: PhantomData<Cell<T>>,
     /// Clone of the InstanceStateHandle's lock
-    flock_guard: Arc<Todo>,
+    flock_guard: Arc<LockFileGuard>,
 }
 
 // Like tor_persist, but writing needs `&mut`
@@ -560,7 +561,7 @@ pub struct InstanceRawSubdir {
     #[deref]
     dir: CheckedDir,
     /// Clone of the InstanceStateHandle's lock
-    flock_guard: Arc<Todo>,
+    flock_guard: Arc<LockFileGuard>,
 }
 
 /// Error accessing persistent state
