@@ -8,11 +8,9 @@
 
 use std::error::Error as StdError;
 use std::future::{self, Future};
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::Either;
-use futures::task::SpawnError;
 use futures::{select_biased, FutureExt};
 
 use retry_error::RetryError;
@@ -160,33 +158,15 @@ pub(super) enum BackoffError<E> {
     /// The [`BackoffSchedule`] told us to stop retrying.
     #[error("Stopped retrying as requested by BackoffSchedule")]
     ExplicitStop(RetryError<E>),
-
-    /// Unable to spawn task
-    //
-    // TODO lots of our Errors have a variant exactly like this.
-    // Maybe we should make a struct tor_error::SpawnError.
-    #[error("Unable to spawn {spawning}")]
-    Spawn {
-        /// What we were trying to spawn.
-        spawning: &'static str,
-        /// What happened when we tried to spawn it.
-        #[source]
-        cause: Arc<SpawnError>,
-    },
-
-    /// An internal error.
-    #[error("Internal error")]
-    Bug(#[from] tor_error::Bug),
 }
 
-impl<E> BackoffError<E> {
-    /// Construct a new `BackoffError` from a `SpawnError`.
-    //
-    // TODO lots of our Errors have a function exactly like this.
-    pub(super) fn from_spawn(spawning: &'static str, err: SpawnError) -> Self {
-        Self::Spawn {
-            spawning,
-            cause: Arc::new(err),
+impl<E> From<BackoffError<E>> for RetryError<E> {
+    fn from(e: BackoffError<E>) -> Self {
+        match e {
+            BackoffError::FatalError(e)
+            | BackoffError::MaxRetryCountExceeded(e)
+            | BackoffError::Timeout(e)
+            | BackoffError::ExplicitStop(e) => e,
         }
     }
 }
@@ -213,6 +193,7 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use std::sync::Arc;
 
     use std::iter;
     use std::sync::RwLock;

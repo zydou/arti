@@ -6,25 +6,65 @@ use std::{
 };
 
 use futures::StreamExt as _;
+use retry_error::RetryError;
 use tor_async_utils::PostageWatchSenderExt;
+
+use crate::{DescUploadError, FatalError};
 
 /// The current reported status of an onion service.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OnionServiceStatus {
-    /// The current high-level state for this onion service.
-    state: State,
-
     /// The current high-level state for the IPT manager.
-    ipt_mgr_state: State,
+    ipt_mgr: ComponentStatus,
 
     /// The current high-level state for the descriptor publisher.
-    publisher_state: State,
-    // TODO (#1083): Add key expiration
-    // TODO (#1083): Add latest-error.
+    publisher: ComponentStatus,
+    // TODO (#1194): Add key expiration
     //
     // NOTE: Do _not_ add general metrics (like failure/success rates , number
     // of intro points, etc) here.
 }
+
+/// The current reported status of an onion service subsystem.
+#[derive(Debug, Clone)]
+struct ComponentStatus {
+    /// The current high-level state.
+    state: State,
+
+    /// The last error we have seen.
+    latest_error: Option<Problem>,
+}
+
+impl ComponentStatus {
+    /// Create a new ComponentStatus for a component that has not been bootstrapped.
+    fn new_shutdown() -> Self {
+        Self {
+            state: State::Shutdown,
+            latest_error: None,
+        }
+    }
+}
+
+impl PartialEq for ComponentStatus {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            state,
+            latest_error,
+        } = self;
+        let Self {
+            state: state_other,
+            latest_error: lastest_error_other,
+        } = other;
+
+        // NOTE: Errors are never equal. We _could_ add half-baked PartialEq implementations for
+        // all of our error types, but it doesn't seem worth it. If there is a state change, or if
+        // we've encountered an error (even if it's the same as the previous one), we'll notify the
+        // watchers.
+        state == state_other && latest_error.is_none() && lastest_error_other.is_none()
+    }
+}
+
+impl Eq for ComponentStatus {}
 
 /// The high-level state of an onion service.
 ///
@@ -66,13 +106,24 @@ pub enum State {
     Broken,
 }
 
+/// A problem encountered by an onion service.
+#[derive(Clone, Debug, derive_more::From)]
+#[non_exhaustive]
+pub enum Problem {
+    /// A fatal error occurred.
+    Runtime(FatalError),
+
+    /// We failed to upload a descriptor.
+    DescriptorUpload(RetryError<DescUploadError>),
+    // TODO: add variants for other transient errors?
+}
+
 impl OnionServiceStatus {
     /// Create a new OnionServiceStatus for a service that has not been bootstrapped.
     pub(crate) fn new_shutdown() -> Self {
         Self {
-            state: State::Shutdown,
-            ipt_mgr_state: State::Shutdown,
-            publisher_state: State::Shutdown,
+            ipt_mgr: ComponentStatus::new_shutdown(),
+            publisher: ComponentStatus::new_shutdown(),
         }
     }
 
@@ -83,7 +134,7 @@ impl OnionServiceStatus {
     pub fn state(&self) -> State {
         use State::*;
 
-        match (self.ipt_mgr_state, self.publisher_state) {
+        match (self.ipt_mgr.state, self.publisher.state) {
             (Shutdown, _) | (_, Shutdown) => Shutdown,
             (Bootstrapping, _) | (_, Bootstrapping) => Bootstrapping,
             (Running, Running) => Running,
@@ -93,17 +144,16 @@ impl OnionServiceStatus {
     }
 
     /// Return the most severe current problem
-    //
-    // TODO (#1083): We need an error type that can encompass StartupError _and_
-    // intermittent problems encountered after we've launched for the first
-    // time.
-    // Perhaps the solution is to rename StartupError?  Or to make a new Problem
-    // enum?
-    // Please feel free to take whatever approach works best.
-    pub fn current_problem(&self) -> Option<&crate::StartupError> {
-        // TODO (#1083): We can't put a StartupError here until the type implements
-        // Eq, since postage::Watch requires that its type is Eq.
-        None
+    pub fn current_problem(&self) -> Option<&Problem> {
+        match (&self.ipt_mgr.latest_error, &self.publisher.latest_error) {
+            (None, None) => None,
+            (Some(e), Some(_)) => {
+                // For now, assume IPT manager errors are always more severe
+                // TODO: decide which error is the more severe (or return both)
+                Some(e)
+            }
+            (_, Some(e)) | (Some(e), _) => Some(e),
+        }
     }
 
     /// Return a time before which the user must re-provision this onion service
@@ -112,7 +162,7 @@ impl OnionServiceStatus {
     /// Returns `None` if the onion service is able to generate and sign new
     /// keys as needed.
     pub fn provisioned_key_expiration(&self) -> Option<SystemTime> {
-        None // TODO (#1083): Implement
+        None // TODO (#1194): Implement
     }
 }
 
@@ -148,35 +198,75 @@ impl futures::Stream for OnionServiceStatusStream {
 #[derive(Clone)]
 pub(crate) struct StatusSender(Arc<Mutex<postage::watch::Sender<OnionServiceStatus>>>);
 
+/// A handle that can be used by the [`IptManager`](crate::svc::ipt_mgr::IptManager)
+/// to update the [`OnionServiceStatus`].
+#[derive(Clone, derive_more::From)]
+pub(crate) struct IptMgrStatusSender(StatusSender);
+
+/// A handle that can be used by the [`Publisher`](crate::svc::publish::Publisher)
+/// to update the [`OnionServiceStatus`].
+#[derive(Clone, derive_more::From)]
+pub(crate) struct PublisherStatusSender(StatusSender);
+
+/// A helper for implementing [`PublisherStatusSender`] and [`IptMgrStatusSender`].
+///
+/// TODO: this macro is a bit repetitive, it would be nice if we could reduce duplication even
+/// furhter (and auto-generate a `note_<state>` function for every `State` variant).
+macro_rules! impl_status_sender {
+    ($sender:ident, $field:ident) => {
+        impl $sender {
+            /// Update `latest_error` and set the underlying state to `Broken`.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_broken(&self, err: impl Into<Problem>) {
+                self.note_status(State::Broken, Some(err.into()));
+            }
+
+            /// Update `latest_error` and set the underlying state to `Recovering`.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_recovering(&self, err: impl Into<Problem>) {
+                self.note_status(State::Recovering, Some(err.into()));
+            }
+
+            /// Set `latest_error` to `None` and the underlying state to `Shutdown`.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_shutdown(&self) {
+                self.note_status(State::Shutdown, None);
+            }
+
+            /// Update the underlying state and latest_error.
+            ///
+            /// If the new state is different, this updates the current status
+            /// and notifies all listeners.
+            #[allow(dead_code)]
+            pub(crate) fn note_status(&self, state: State, err: Option<Problem>) {
+                let sender = &self.0;
+                let mut tx = sender.0.lock().expect("Poisoned lock");
+                let mut svc_status = tx.borrow().clone();
+                svc_status.$field.state = state;
+                svc_status.$field.latest_error = err;
+                tx.maybe_send(|_| svc_status);
+            }
+        }
+    };
+}
+
+impl_status_sender!(IptMgrStatusSender, ipt_mgr);
+impl_status_sender!(PublisherStatusSender, publisher);
+
 impl StatusSender {
     /// Create a new StatusSender with a given initial status.
     pub(crate) fn new(initial_status: OnionServiceStatus) -> Self {
         let (tx, _) = postage::watch::channel_with(initial_status);
         StatusSender(Arc::new(Mutex::new(tx)))
-    }
-
-    /// Update the current IPT manager state.
-    ///
-    /// If the new state is different, update the current status and notify all listeners.
-    //
-    // TODO: should we have separate state enums for the IPT mgr and publisher states?
-    #[allow(dead_code)]
-    pub(crate) fn maybe_update_ipt_mgr(&self, state: State) {
-        let mut tx = self.0.lock().expect("Poisoned lock");
-        let mut svc_status = tx.borrow().clone();
-        svc_status.ipt_mgr_state = state;
-        tx.maybe_send(|_| svc_status);
-    }
-
-    /// Update the current publisher state.
-    ///
-    /// If the new state is different, update the current status and notify all listeners.
-    #[allow(dead_code)]
-    pub(crate) fn maybe_update_publisher(&self, state: State) {
-        let mut tx = self.0.lock().expect("Poisoned lock");
-        let mut svc_status = tx.borrow().clone();
-        svc_status.publisher_state = state;
-        tx.maybe_send(|_| svc_status);
     }
 
     /// Return a copy of the current status.

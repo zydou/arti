@@ -292,6 +292,8 @@ impl OnionService {
         let (ipt_mgr_view, publisher_view) =
             crate::ipt_set::ipts_channel(&runtime, iptpub_storage_handle)?;
 
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
+
         let ipt_mgr = IptManager::new(
             runtime.clone(),
             netdir_provider.clone(),
@@ -306,7 +308,10 @@ impl OnionService {
             state.keymgr.clone(),
             &state.state_dir,
             &state.state_mistrust,
+            status_tx.clone().into(),
         )?;
+
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
@@ -315,6 +320,7 @@ impl OnionService {
             circ_pool,
             publisher_view,
             config_rx,
+            status_tx.clone().into(),
             Arc::clone(&state.keymgr),
         );
 
@@ -407,11 +413,9 @@ impl RunningOnionService {
                 .ok_or(StartupError::AlreadyLaunched)?
         };
 
-        // TODO (#1083): Set status to Bootstrapping.
         match launch.launch() {
             Ok(()) => {}
             Err(e) => {
-                // TODO (#1083): Set status to Shutdown, record error.
                 return Err(e);
             }
         }

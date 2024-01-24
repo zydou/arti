@@ -45,6 +45,7 @@ use tor_rtcompat::Runtime;
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier};
 use crate::replay::ReplayLog;
+use crate::status::IptMgrStatusSender;
 use crate::svc::{ipt_establish, OnionServiceStateMgr, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
@@ -125,6 +126,12 @@ pub(crate) struct Immutable<R> {
     /// **Must have been locked** and this cannot be assured by the type system.
     #[educe(Debug(ignore))]
     replay_log_lock: Arc<LockFile>,
+
+    /// A sender for updating the status of the onion service.
+    //
+    // TODO (#1083): Set the status to Running/Bootstrapping/Recovering where appropriate
+    #[educe(Debug(ignore))]
+    status_tx: IptMgrStatusSender,
 }
 
 /// State of an IPT Manager
@@ -557,6 +564,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         keymgr: Arc<KeyMgr>,
         state_dir: &Path,
         state_mistrust: &fs_mistrust::Mistrust,
+        status_tx: IptMgrStatusSender,
     ) -> Result<Self, StartupError> {
         let irelays = vec![]; // See TODO near persist::load call, in launch_background_tasks
 
@@ -609,6 +617,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             storage,
             replay_log_dir,
             replay_log_lock,
+            status_tx,
         };
         let current_config = config.borrow().clone();
 
@@ -1515,13 +1524,18 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             {
                 Err(crash) => {
                     error!("HS service {} crashed! {}", &self.imm.nick, crash);
+
+                    self.imm.status_tx.note_broken(crash);
                     break;
                 }
                 Ok(ShutdownStatus::Continue) => continue,
-                Ok(ShutdownStatus::Terminate) => break,
+                Ok(ShutdownStatus::Terminate) => {
+                    self.imm.status_tx.note_shutdown();
+
+                    break;
+                }
             }
         }
-        // TODO #1063 Set status to Shutdown.
     }
 
     /// Target number of intro points
@@ -1635,6 +1649,7 @@ mod test {
     use super::*;
 
     use crate::config::OnionServiceConfigBuilder;
+    use crate::status::{OnionServiceStatus, StatusSender};
     use crate::svc::ipt_establish::GoodIptDetails;
     use crate::svc::test::{create_keymgr, create_storage_handles_from_state_mgr};
     use crate::test_temp_dir::TestTempDir;
@@ -1764,6 +1779,7 @@ mod test {
 
             let keymgr = create_keymgr(temp_dir);
             let keymgr = keymgr.into_untracked(); // OK because our return value captures 'd
+            let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
             let mgr = IptManager::new(
                 runtime.clone(),
                 Arc::new(dir),
@@ -1776,6 +1792,7 @@ mod test {
                 keymgr,
                 &state_dir,
                 &mistrust,
+                status_tx,
             )
             .unwrap();
 

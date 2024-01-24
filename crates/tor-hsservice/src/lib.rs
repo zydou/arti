@@ -107,6 +107,7 @@ pub use keys::{
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{RendRequest, StreamRequest};
 pub use svc::netdir::NetdirProviderShutdown;
+pub use svc::publish::UploadError as DescUploadError;
 pub use svc::{OnionService, RunningOnionService};
 
 use err::IptStoreError;

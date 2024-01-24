@@ -1,6 +1,54 @@
 //! The onion service publisher reactor.
 //!
 //! TODO (#1216): write the docs
+//!
+//! With respect to [`OnionServiceStatus`](crate::status::OnionServiceStatus) reporting,
+//! the following state transitions are possible:
+//!
+//!
+//! ```ignore
+//!
+//!                 update_publish_status(UploadScheduled|AwaitingIpts)  +---------------+
+//!                +---------------------------------------------------->| Bootstrapping |
+//!                |                                                     +---------------+
+//! +----------+   | update_publish_status(Idle)        +---------+             |
+//! | Shutdown |-- +----------------------------------->| Running |----+        |
+//! +----------+   |                                    +---------+    |        |
+//!                |                                                   |        |
+//!                |                                                   |        |
+//!                | run_once() returns an error  +--------+           |        |
+//!                +----------------------------->| Broken |<----------+--------+
+//!                                               +--------+ run_once() returns an error
+//! ```
+//!
+//! Ideally, the publisher should also set the
+//! [`OnionServiceStatus`](crate::status::OnionServiceStatus) to `Recovering` whenever a transient
+//! upload error occurs, but this is currently not possible:
+//!
+//!   * making the upload tasks set the status to `Recovering` (on failure) and `Running` (on
+//!     success) wouldn't work, because the upload tasks run in parallel (they would race with each
+//!     other, and the final status (`Recovering`/`Running`) would be the status of the last upload
+//!     task, rather than the real status of the publisher
+//!   * making the upload task set the status to `Recovering` on upload failure, and letting
+//!    `upload_publish_status` reset it back to `Running also would not work:
+//!    `upload_publish_status` sets the status back to `Running` when the publisher enters its
+//!    `Idle` state, regardless of the status of its upload tasks
+//!
+//! TODO: Indeed, setting the status to `Recovering` _anywhere_ would not work, because
+//! `upload_publish_status` will just overwrite it. We would need to introduce some new
+//! `PublishStatus` variant (currently, the publisher only has 3 states, `Idle`, `UploadScheduled`,
+//! `AwaitingIpts`), for the `Recovering` (retrying a failed upload) and `Broken` (the upload
+//! failed and we've given up) states. However, adding these 2 new states is non-trivial:
+//!
+//!   * how do we define "failure"? Is it the failure to upload to a single HsDir, or the failure
+//!     to upload to **any** HsDirs?
+//!   * what should make the publisher transition out of the `Broken`/`Recovering` states? While
+//!    `handle_upload_results` can see the upload results for a batch of HsDirs (corresponding to
+//!     a time period), the publisher doesn't do any sort of bookkeeping to know if a previously
+//!     failed HsDir upload succeeded in a later upload "batch"
+//!
+//! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
+//! status for reporting fatal errors (crashes).
 
 use std::fmt::Debug;
 use std::iter;
@@ -38,6 +86,7 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
+use crate::status::{PublisherStatusSender, State};
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -147,6 +196,8 @@ struct Immutable<R: Runtime, M: Mockable> {
     nickname: HsNickname,
     /// The key manager,
     keymgr: Arc<KeyMgr>,
+    /// A sender for updating the status of the onion service.
+    status_tx: PublisherStatusSender,
 }
 
 impl<R: Runtime, M: Mockable> Immutable<R, M> {
@@ -178,9 +229,9 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
                 let key: ed25519::Keypair = self
                     .keymgr
                     .get::<HsDescSigningKeypair>(&desc_sign_key_spec)?
-                    // TODO: internal! is not the right type for this error (we need an
+                    // TODO (#1194): internal! is not the right type for this error (we need an
                     // error type for the case where a hidden service running in offline mode has
-                    // run out of its pre-previsioned keys). This is somewhat related to #1083
+                    // run out of its pre-previsioned keys).
                     //
                     // This will be addressed when we add support for offline hs_id mode
                     .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
@@ -440,7 +491,7 @@ pub(crate) enum AuthorizedClientConfigError {
 /// An error that occurs while trying to upload a descriptor.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub(crate) enum UploadError {
+pub enum UploadError {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
     #[error("descriptor upload request failed")]
     Request(#[from] RequestFailedError),
@@ -470,6 +521,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+        status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
@@ -489,6 +541,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             mockable,
             nickname,
             keymgr,
+            status_tx,
         };
 
         let inner = Inner {
@@ -539,6 +592,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let nickname = self.imm.nickname.clone();
         let rt = self.imm.runtime.clone();
+        let status_tx = self.imm.status_tx.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
@@ -560,8 +614,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 // Enough time has elapsed. Remind the reactor to retry the upload.
                 if let Err(e) = schedule_upload_tx.send(()).await {
-                    // TODO (#1083): update publisher state
                     debug!(nickname=%nickname, "failed to notify reactor to reattempt upload");
+                    status_tx.note_shutdown();
+                    // This can only happen if the reactor exited (or crashed), so it's safe to
+                    // stop looping at this point (we will break on the next iteration anyway,
+                    // because `reattempt_upload_tx` is also dropped when the reactor is dropped).
+                    break;
                 }
             }
 
@@ -573,6 +631,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 Ok(ShutdownStatus::Continue) => continue,
                 Ok(ShutdownStatus::Terminate) => {
                     debug!(nickname=%self.imm.nickname, "descriptor publisher is shutting down!");
+
+                    self.imm.status_tx.note_shutdown();
                     return Ok(());
                 }
                 Err(e) => {
@@ -582,7 +642,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         self.imm.nickname
                     );
 
-                    // TODO (#1083): Set status to Shutdown.
+                    self.imm.status_tx.note_broken(e.clone());
+
                     return Err(e);
                 }
             }
@@ -926,6 +987,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             self.status(),
             new_state
         );
+
+        let onion_status = match new_state {
+            PublishStatus::Idle => State::Running,
+            PublishStatus::UploadScheduled | PublishStatus::AwaitingIpts => State::Bootstrapping,
+        };
+
+        self.imm.status_tx.note_status(onion_status, None);
 
         self.publish_status_tx
             .send(new_state)
