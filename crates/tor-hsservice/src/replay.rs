@@ -36,19 +36,24 @@ use tor_cell::relaycell::msg::Introduce2;
 pub(crate) struct ReplayLog {
     /// The inner probabilistic data structure.
     seen: data::Filter,
-    /// A file logging fingerprints of the messages we have seen.
+    /// Persistent state file etc., if we're persistent
     ///
-    /// If there is no such file, this RelayLog is ephemeral.
-    log: Option<BufWriter<File>>,
+    /// If is is `None`, this RelayLog is ephemeral.
+    file: Option<PersistFile>,
+}
+
+/// Persistent state file, and associated data
+///
+/// Stored as `ReplayLog.file`.
+#[derive(Debug)]
+pub(crate) struct PersistFile {
+    /// A file logging fingerprints of the messages we have seen.
+    file: BufWriter<File>,
     /// Filesystem lock which must not be released until after we finish writing
     ///
     /// Must come last so that the drop order is correct
-    //
-    // Maybe this and `log` should be in the same `Option`, eliminating the erroneous
-    // state where we only have one?  But that would be tiresome, since it would
-    // involve another struct (and we never actually use `lock`).
     #[allow(dead_code)] // Held just so we unlock on drop
-    lock: Option<Arc<LockFile>>,
+    lock: Arc<LockFile>,
 }
 
 /// A magic string that we put at the start of each log file, to make sure that
@@ -61,8 +66,7 @@ impl ReplayLog {
     pub(crate) fn new_ephemeral() -> Self {
         Self {
             seen: data::Filter::new(),
-            log: None,
-            lock: None,
+            file: None,
         }
     }
     /// Create a ReplayLog backed by the file at a given path.
@@ -126,10 +130,14 @@ impl ReplayLog {
         let mut file = r.into_inner();
         file.seek(SeekFrom::End(0))?;
 
+        let file = PersistFile {
+            file: BufWriter::new(file),
+            lock,
+        };
+
         Ok(Self {
             seen,
-            log: Some(BufWriter::new(file)),
-            lock: Some(lock),
+            file: Some(file),
         })
     }
 
@@ -176,12 +184,13 @@ impl ReplayLog {
     /// Return values are as for `check_for_replay`
     fn check_inner(&mut self, h: &H) -> Result<(), ReplayError> {
         self.seen.test_and_add(h)?;
-        if let Some(f) = self.log.as_mut() {
+        if let Some(f) = self.file.as_mut() {
             // TODO #1207 if write_all fails, it might have written part of the data;
             // in that case, we must truncate the file to resynchronise.
             // We should probably set a note to truncate just before we call write_all
             // and clear it again afterwards.
-            f.write_all(&h.0[..])
+            f.file
+                .write_all(&h.0[..])
                 .map_err(|e| ReplayError::Log(Arc::new(e)))?;
         }
         Ok(())
@@ -190,8 +199,8 @@ impl ReplayLog {
     /// Flush any buffered data to disk.
     #[allow(dead_code)] // TODO #1208
     pub(crate) fn flush(&mut self) -> Result<(), io::Error> {
-        if let Some(f) = self.log.as_mut() {
-            f.flush()?;
+        if let Some(f) = self.file.as_mut() {
+            f.file.flush()?;
         }
         Ok(())
     }
