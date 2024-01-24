@@ -288,6 +288,13 @@ mod os {
             (m1.assume_init(), m2.assume_init())
         };
 
+        // This comparison is about the best we can do on Windows,
+        // though there are caveats.
+        //
+        // See Raymond Chen's writeup at
+        //   https://devblogs.microsoft.com/oldnewthing/20220128-00/?p=106201
+        // and also see BurntSushi's caveats at
+        //   https://github.com/BurntSushi/same-file/blob/master/src/win.rs
         Ok(i1.nFileIndexHigh == i2.nFileIndexHigh
             && i1.nFileIndexLow == i2.nFileIndexLow
             && i1.dwVolumeSerialNumber == i2.dwVolumeSerialNumber)
