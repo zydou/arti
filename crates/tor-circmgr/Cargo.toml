@@ -16,6 +16,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 full = [
     "hs-client",
+    "hs-service",
     "specific-relay",
     "retry-error/full",
     "safelog/full",
@@ -42,12 +43,12 @@ testing = ["tor-guardmgr/testing", "__is_experimental"]
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "hs-service", "ntor_v3", "testing", "geoip"]
+experimental = ["experimental-api", "ntor_v3", "testing", "geoip"]
 experimental-api = ["visibility", "__is_experimental"]
 geoip = ["tor-geoip", "tor-netdir/geoip", "__is_experimental"]
 ntor_v3 = ["tor-proto/ntor_v3", "__is_experimental"]
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "__is_experimental"]
+hs-service = ["hs-common"]
 hs-common = ["tor-hscrypto"]
 __is_experimental = []
 

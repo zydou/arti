@@ -16,6 +16,7 @@ default = []
 
 full = [
     "hs-client",
+    "hs-service",
     "routerdesc",
     "ns_consensus",
     "tor-basic-utils/full",
@@ -34,7 +35,6 @@ experimental = [
     "build_docs",
     "experimental-api",
     "hs-dir",
-    "hs-service",
     "hsdesc-inner-docs",
     "dangerous-expose-struct-fields",
 ]
@@ -57,7 +57,7 @@ ns_consensus = []
 # TODO hs: mark these as part of "full" once they are done and stable.
 hs-dir = ["hs-common", "__is_experimental"]
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "tor-cert/encode", "__is_experimental"]
+hs-service = ["hs-common", "tor-cert/encode"]
 hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
 hsdesc-inner-docs = ["visibility", "__is_experimental"] # TODO maybe fold this feature into `testing`

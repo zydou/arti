@@ -15,6 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 full = [
     "hs-client",
+    "hs-service",
     "tokio",
     "send-control-msg",
     "safelog/full",
@@ -35,11 +36,11 @@ full = [
     "tor-hscrypto?/full",
 ]
 
-experimental = ["experimental-api", "hs-service", "ntor_v3", "stream-ctrl", "testing"]
+experimental = ["experimental-api", "ntor_v3", "stream-ctrl", "testing"]
 ntor_v3 = ["__is_experimental"]
 
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "__is_experimental"]
+hs-service = ["hs-common"]
 hs-common = ["tor-hscrypto"]
 experimental-api = ["__is_experimental"]
 # start_conversation etc.; TODO HS should be renamed

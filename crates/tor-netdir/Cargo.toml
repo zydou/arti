@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-experimental = ["experimental-api", "hs-service", "testing", "geoip"]
+experimental = ["experimental-api", "testing", "geoip"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
@@ -22,7 +22,7 @@ experimental = ["experimental-api", "hs-service", "testing", "geoip"]
 # feature voids your "semver warrantee".
 experimental-api = ["visibility", "__is_experimental"]
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "__is_experimental"]
+hs-service = ["hs-common"]
 hs-common = ["digest", "hex", "time", "tor-hscrypto"]
 geoip = ["tor-geoip", "__is_experimental"]
 
@@ -32,6 +32,7 @@ testing = ["hex", "tor-netdoc/build_docs", "__is_experimental"]
 
 full = [
     "hs-client",
+    "hs-service",
     "tor-basic-utils/full",
     "tor-checkable/full",
     "tor-config/full",
