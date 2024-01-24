@@ -107,7 +107,7 @@ impl AesOpeKey {
 /// An opaque offset within an SRV period.
 ///
 /// Used by onion services to compute a HsDesc revision counter.
-#[derive(Copy, Clone, Debug, derive_more::From)]
+#[derive(Copy, Clone, Debug, PartialEq, derive_more::From)]
 pub struct SrvPeriodOffset(
     // An offset, in seconds.
     pub(crate) u32,

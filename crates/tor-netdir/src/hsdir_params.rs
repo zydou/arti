@@ -82,16 +82,16 @@ impl HsDirParams {
         self.srv_lifespan.start
     }
 
-    /// Return an opaque offset for `when` within the shared-random-value protocol period
-    /// corresponding to the SRV for this time period.
+    /// Return an opaque offset for `when` from the start of the the shared-random-value protocol
+    /// period corresponding to the SRV for this time period.
     ///
     /// When uploading, callers should this offset to determine
     /// the revision counter for their descriptors.
     ///
-    /// Returns `None` if when is not within the SRV period.
+    /// Returns `None` if when is after the start of the SRV period.
     #[cfg(feature = "hs-service")]
     pub fn offset_within_srv_period(&self, when: SystemTime) -> Option<SrvPeriodOffset> {
-        if self.srv_lifespan.contains(&when) {
+        if when >= self.srv_lifespan.start {
             let d = when
                 .duration_since(self.srv_lifespan.start)
                 .expect("Somehow, range comparison was not reliable!");
@@ -538,5 +538,42 @@ mod test {
             TimePeriod::new(d("2 hours"), t("1985-10-25T09:00:00Z"), d("12 hours")).unwrap()
         );
         assert_eq!(secondary[1].shared_rand.as_ref(), &SRV2);
+    }
+
+    #[test]
+    #[cfg(feature = "hs-service")]
+    fn offset_within_srv_period() {
+        // This test doesn't actually use the time_period or shared_rand values, so their value is
+        // arbitrary.
+        let time_period =
+            TimePeriod::new(d("2 hours"), t("1985-10-25T05:00:00Z"), d("12 hours")).unwrap();
+
+        let srv_start = t("1985-10-25T09:00:00Z");
+        let srv_end = t("1985-10-25T20:00:00Z");
+        let srv_lifespan = srv_start..srv_end;
+
+        let params = HsDirParams {
+            time_period,
+            shared_rand: SRV1.into(),
+            srv_lifespan,
+        };
+
+        let before_srv_period = t("1985-10-25T08:59:00Z");
+        let after_srv_period = t("1985-10-26T10:19:00Z");
+        assert!(params.offset_within_srv_period(before_srv_period).is_none());
+        assert_eq!(
+            params.offset_within_srv_period(srv_start).unwrap(),
+            SrvPeriodOffset::from(0)
+        );
+        // The period is 11h long
+        assert_eq!(
+            params.offset_within_srv_period(srv_end).unwrap(),
+            SrvPeriodOffset::from(11 * 60 * 60)
+        );
+        // This timestamp is 1 day 1h 19m from the start of the SRV period
+        assert_eq!(
+            params.offset_within_srv_period(after_srv_period).unwrap(),
+            SrvPeriodOffset::from((25 * 60 + 19) * 60)
+        );
     }
 }
