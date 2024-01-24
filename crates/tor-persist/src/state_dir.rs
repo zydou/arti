@@ -143,7 +143,7 @@
 //!    Use `#[cfg]` at call sites to replace the `raw_subdir`
 //!    with whatever is appropriate for the platform.
 
-#![allow(unused_variables, dead_code)]
+#![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
 #![allow(unreachable_pub)] // TODO this module will hopefully move to tor-persist and be pub
 
 use std::cell::Cell;
@@ -156,19 +156,20 @@ use std::time::{Duration, SystemTime};
 
 use derive_more::{AsRef, Deref, Into};
 use serde::{de::DeserializeOwned, Serialize};
-use thiserror::Error;
 use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use fslock_guard::LockFileGuard;
 use tor_error::Bug;
 
+pub use crate::Error;
+
 /// TODO HSS remove
 type Todo = Void;
 
 use std::result::Result as StdResult;
 
-/// [`Result`](StdResult) throwing a [`state_dir::Error`](enum@Error)
+/// [`Result`](StdResult) throwing a [`state_dir::Error`](Error)
 pub type Result<T> = StdResult<T, Error>;
 
 /// The whole program's state directory
@@ -562,17 +563,4 @@ pub struct InstanceRawSubdir {
     dir: CheckedDir,
     /// Clone of the InstanceStateHandle's lock
     flock_guard: Arc<LockFileGuard>,
-}
-
-/// Error accessing persistent state
-#[derive(Error, Clone, Debug)]
-#[non_exhaustive]
-pub enum Error {
-    // will gain variants for:
-    //  mistrust error
-    //  io::error
-    //  serde error
-    //  bug
-    //
-    // will contain information such as the fs path or bad parameters
 }
