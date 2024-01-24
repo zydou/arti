@@ -31,7 +31,7 @@ use tor_hscrypto::pk::{
 };
 use tor_hscrypto::time::TimePeriod;
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
-use tor_netdir::{NetDir, NetDirProvider, Relay, Timeliness};
+use tor_netdir::{HsDirParams, NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
@@ -199,24 +199,22 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
     /// [encrypted time in period]: https://spec.torproject.org/rend-spec/revision-counter-mgt.html#encrypted-time
     fn generate_revision_counter(
         &self,
-        period: TimePeriod,
+        params: &HsDirParams,
         now: SystemTime,
     ) -> Result<RevisionCounter, FatalError> {
         // TODO: in the future, we might want to compute ope_key once per time period (as oppposed
         // to each time we generate a new descriptor), for performance reasons.
-        let ope_key = self.create_ope_key(period)?;
-        let offset = period
-            .offset_within_period(now)
-            .ok_or_else(|| match period.range() {
-                Ok(std::ops::Range { start, .. }) => {
-                    internal!(
-                        "current wallclock time not within TP?! (now={:?}, TP_start={:?})",
-                        now,
-                        start
-                    )
-                }
-                Err(e) => into_internal!("failed to get TimePeriod::range()")(e),
-            })?;
+        let ope_key = self.create_ope_key(params.time_period())?;
+
+        // TODO: perhaps this should be moved to a new HsDirParams::offset_within_sr() function
+        let srv_start = params.start_of_shard_rand_period();
+        let offset = params.offset_within_srv_period(now).ok_or_else(|| {
+            internal!(
+                "current wallclock time not within SRV range?! (now={:?}, SRV_start={:?})",
+                now,
+                srv_start
+            )
+        })?;
         let rev = ope_key.encrypt(offset);
 
         Ok(RevisionCounter::from(rev))
@@ -328,8 +326,8 @@ struct Inner {
 
 /// The part of the reactor state that changes with every time period.
 struct TimePeriodContext {
-    /// The time period.
-    period: TimePeriod,
+    /// The HsDir params.
+    params: HsDirParams,
     /// The blinded HsId.
     blind_id: HsBlindId,
     /// The HsDirs to use in this time period.
@@ -349,13 +347,14 @@ impl TimePeriodContext {
     /// Any of the specified `old_hsdirs` also present in the new list of HsDirs
     /// (returned by `NetDir::hs_dirs_upload`) will have their `DescriptorStatus` preserved.
     fn new<'r>(
-        period: TimePeriod,
+        params: HsDirParams,
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
     ) -> Result<Self, FatalError> {
+        let period = params.time_period();
         Ok(Self {
-            period,
+            params,
             blind_id,
             hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?,
             last_successful: None,
@@ -369,10 +368,10 @@ impl TimePeriodContext {
         netdir: &Arc<NetDir>,
         mut old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
     ) -> Result<Vec<(RelayIds, DescriptorStatus)>, FatalError> {
-        let hs_dirs = netdir.hs_dirs_upload([(blind_id, period)].into_iter())?;
+        let hs_dirs = netdir.hs_dirs_upload(blind_id, period)?;
 
         Ok(hs_dirs
-            .map(|(_, hs_dir)| {
+            .map(|hs_dir| {
                 let mut builder = RelayIds::builder();
                 if let Some(ed_id) = hs_dir.ed_identity() {
                     builder.ed_identity(*ed_id);
@@ -677,7 +676,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let period = inner
             .time_periods
             .iter_mut()
-            .find(|ctx| ctx.period == results.time_period);
+            .find(|ctx| ctx.params.time_period() == results.time_period);
 
         let Some(period) = period else {
             // The uploads were for a time period that is no longer relevant, so we
@@ -765,14 +764,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         netdir
             .hs_all_time_periods()
             .iter()
-            .map(|period| {
+            .map(|params| {
+                let period = params.time_period();
                 let svc_key_spec = HsIdKeypairSpecifier::new(self.imm.nickname.clone());
                 let hsid_kp = self
                     .imm
                     .keymgr
                     .get::<HsIdKeypair>(&svc_key_spec)?
                     .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
-                let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), *period);
+                let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), period);
 
                 // TODO (#1106): make this configurable
                 let keystore_selector = Default::default();
@@ -784,7 +784,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         keystore_selector,
                         || {
                             let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
-                                .compute_blinded_key(*period)
+                                .compute_blinded_key(period)
                                 .map_err(|_| internal!("failed to compute blinded key"))?;
 
                             Ok(hs_blind_id_kp)
@@ -802,12 +802,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 //   * are part of a new time period (which we have never published the descriptor
                 //   for), or
                 //   * have just been added to the ring of a time period we already knew about
-                if let Some(ctx) = time_periods.iter().find(|ctx| ctx.period == *period) {
-                    TimePeriodContext::new(*period, blind_id.into(), netdir, ctx.hs_dirs.iter())
+                if let Some(ctx) = time_periods
+                    .iter()
+                    .find(|ctx| ctx.params.time_period() == period)
+                {
+                    TimePeriodContext::new(
+                        params.clone(),
+                        blind_id.into(),
+                        netdir,
+                        ctx.hs_dirs.iter(),
+                    )
                 } else {
                     // Passing an empty iterator here means all HsDirs in this TimePeriodContext
                     // will be marked as dirty, meaning we will need to upload our descriptor to them.
-                    TimePeriodContext::new(*period, blind_id.into(), netdir, iter::empty())
+                    TimePeriodContext::new(params.clone(), blind_id.into(), netdir, iter::empty())
                 }
             })
             .collect::<Result<Vec<TimePeriodContext>, FatalError>>()
@@ -1004,7 +1012,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 return Ok(());
             }
 
-            let time_period = period_ctx.period;
+            let time_period = period_ctx.params.time_period();
 
             let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
@@ -1024,6 +1032,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 "spawning upload task"
             );
 
+            let params = period_ctx.params.clone();
             let _handle: () = self
                 .imm
                 .runtime
@@ -1032,7 +1041,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         hs_dirs,
                         &netdir,
                         config,
-                        time_period,
+                        params,
                         Arc::clone(&imm),
                         ipt_upload_view.clone(),
                         upload_task_complete_tx,
@@ -1078,11 +1087,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
         config: Arc<OnionServiceConfig>,
-        time_period: TimePeriod,
+        params: HsDirParams,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
     ) -> Result<(), FatalError> {
+        let time_period = params.time_period();
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
 
         let hsdir_count = hs_dirs.len();
@@ -1116,6 +1126,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let config = Arc::clone(&config);
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
+                let params = params.clone();
 
                 let ed_id = relay_ids
                     .rsa_identity()
@@ -1189,8 +1200,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             // We're about to generate a new version of the descriptor,
                             // so let's generate a new revision counter.
                             let now = imm.runtime.wallclock();
-                            let revision_counter =
-                                imm.generate_revision_counter(time_period, now)?;
+                            let revision_counter = imm.generate_revision_counter(&params, now)?;
 
                             build_sign(
                                 &imm.keymgr,

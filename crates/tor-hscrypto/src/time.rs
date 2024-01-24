@@ -171,33 +171,7 @@ impl TimePeriod {
     pub fn epoch_offset_in_sec(&self) -> u32 {
         self.epoch_offset_in_sec
     }
-
-    /// Return an opaque offset for `when` within this time period.
-    ///
-    /// If `when` is before the start of this time period, return `Some(TimePeriodOffset(0))`.
-    pub fn offset_within_period(&self, when: SystemTime) -> Option<TimePeriodOffset> {
-        if let Ok(r @ std::ops::Range { start, end }) = self.range() {
-            if when >= start {
-                let d = when
-                    .duration_since(start)
-                    .expect("Somehow, range comparison was not reliable!");
-                return Some(TimePeriodOffset(d.as_secs() as u32));
-            } else {
-                return Some(TimePeriodOffset(0));
-            }
-        }
-        None
-    }
 }
-
-/// An opaque offset within a time period.
-///
-/// Used by onion services to compute a HsDesc revision counter.
-#[derive(Copy, Clone, Debug)]
-pub struct TimePeriodOffset(
-    // An offset, in seconds.
-    pub(crate) u32,
-);
 
 /// An error that occurs when creating or manipulating a [`TimePeriod`]
 #[derive(Clone, Debug, thiserror::Error)]

@@ -22,7 +22,7 @@ experimental = ["experimental-api", "testing", "geoip"]
 # feature voids your "semver warrantee".
 experimental-api = ["visibility", "__is_experimental"]
 hs-client = ["hs-common"]
-hs-service = ["hs-common"]
+hs-service = ["hs-common", "tor-hscrypto/ope"]
 hs-common = ["digest", "hex", "time", "tor-hscrypto"]
 geoip = ["tor-geoip", "__is_experimental"]
 

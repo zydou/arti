@@ -539,7 +539,7 @@ mod test {
         let (hsid, blind_id, keymgr) = init_keymgr(&keystore_dir, &nickname, &netdir);
 
         let hsdir_count = netdir
-            .hs_dirs_upload([(blind_id, netdir.hs_time_period())].into_iter())
+            .hs_dirs_upload(blind_id, netdir.hs_time_period())
             .unwrap()
             .collect::<Vec<_>>()
             .len();
