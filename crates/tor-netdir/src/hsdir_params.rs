@@ -82,16 +82,16 @@ impl HsDirParams {
         self.srv_lifespan.start
     }
 
-    /// Return an opaque offset for `when` within the shared-random-value protocol period
-    /// corresponding to the SRV for this time period.
+    /// Return an opaque offset for `when` from the start of the the shared-random-value protocol
+    /// period corresponding to the SRV for this time period.
     ///
     /// When uploading, callers should this offset to determine
     /// the revision counter for their descriptors.
     ///
-    /// Returns `None` if when is not within the SRV period.
+    /// Returns `None` if when is after the start of the SRV period.
     #[cfg(feature = "hs-service")]
     pub fn offset_within_srv_period(&self, when: SystemTime) -> Option<SrvPeriodOffset> {
-        if self.srv_lifespan.contains(&when) {
+        if when >= self.srv_lifespan.start {
             let d = when
                 .duration_since(self.srv_lifespan.start)
                 .expect("Somehow, range comparison was not reliable!");
