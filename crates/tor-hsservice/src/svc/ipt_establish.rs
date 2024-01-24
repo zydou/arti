@@ -840,7 +840,6 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
         _conversation: ConversationInHandler<'_, '_, '_>,
         any_msg: AnyRelayMsg,
     ) -> tor_proto::Result<MetaCellDisposition> {
-        // TODO (#1237): Is CircProto right or should this be a new error type?
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             if let Some(tx) = self.established_tx.take() {
                 let _ = tx.send(Err(IptError::BadMessage(format!(
@@ -848,7 +847,18 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     m.cmd()
                 ))));
             }
-            tor_proto::Error::CircProto(format!("Invalid message type {}", m.cmd()))
+            // TODO: It's not completely clear whether CircProto is the right
+            // type for use in this function (here and elsewhere);
+            // possibly, we should add a different tor_proto::Error type
+            // for protocol violations at a higher level than the circuit
+            // protocol.
+            //
+            // For now, however, this error type is fine: it will cause the
+            // circuit to be shut down, which is what we want.
+            tor_proto::Error::CircProto(format!(
+                "Invalid message type {} on introduction circuit",
+                m.cmd()
+            ))
         })?;
 
         if match msg {
