@@ -36,7 +36,9 @@ use tor_cell::relaycell::msg::Introduce2;
 pub(crate) struct ReplayLog {
     /// The inner probabilistic data structure.
     seen: data::Filter,
-    /// A file logging fingerprints of the messages we have seen.  If there is no such file, this RelayLog is ephemeral.
+    /// A file logging fingerprints of the messages we have seen.
+    ///
+    /// If there is no such file, this RelayLog is ephemeral.
     log: Option<BufWriter<File>>,
     /// Filesystem lock which must not be released until after we finish writing
     ///
