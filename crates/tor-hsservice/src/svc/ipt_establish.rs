@@ -28,6 +28,7 @@ use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_keymgr::KeyMgr;
 use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
+use tor_log_ratelim::log_ratelim;
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
@@ -913,7 +914,20 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                 }
 
                 let request = RendRequest::new(self.lid, introduce2, self.request_context.clone());
-                match self.introduce_tx.try_send(request) {
+                let send_outcome = self.introduce_tx.try_send(request);
+
+                // We only want to report full-stream problems as errors here.
+                // Disconnected streams are expected.
+                let report_outcome = match &send_outcome {
+                    Err(e) if e.is_full() => Err(StreamWasFull {}),
+                    _ => Ok(()),
+                };
+                // TODO: someday we might want to start tracking this by
+                // introduction or service point separately, though we would
+                // expect their failures to be correlated.
+                log_ratelim!("sending rendezvous request to handler task"; report_outcome);
+
+                match send_outcome {
                     Ok(()) => Ok(()),
                     Err(e) => {
                         if e.is_disconnected() {
@@ -928,8 +942,6 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                             //
                             // See discussion at
                             // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
-                            //
-                            // TODO (#1237): record when this happens.
                             Ok(())
                         }
                     }
@@ -946,3 +958,11 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
         Ok(MetaCellDisposition::Consumed)
     }
 }
+
+/// We failed to send a rendezvous request onto the handler test that should
+/// have handled it, because it was not handling requests fast enough.
+///
+/// (This is a separate type so that we can have it implement Clone.)
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Could not send request; stream was full.")]
+struct StreamWasFull {}
