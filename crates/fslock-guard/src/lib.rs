@@ -261,7 +261,8 @@ mod os {
 ///   know how to do better, or if doing better is hard.)
 #[cfg(windows)]
 mod os {
-    use std::{fs::File, os::windows::fs::MetadataExt as _, os::windows::io::AsHandle, path::Path};
+    use std::{fs::File, mem::MaybeUninit, os::windows::io::AsRawHandle, path::Path};
+    use winapi::um::fileapi::{GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION as Info};
 
     /// Return true if `lf` currently exists with the given `path`, and false otherwise.
     ///
@@ -272,11 +273,30 @@ mod os {
     /// `file_index`, but those are not yet stable in Rust.
     ///
     pub(crate) fn lockfile_has_path(lf: &fslock::LockFile, path: &Path) -> std::io::Result<bool> {
-        let m1 = std::fs::metadata(path)?;
-        // TODO: This does an unnecessary DuplicateHandle().
-        let f_dup = File::from(lf.as_handle().try_clone_to_owned()?);
-        let m2 = f_dup.metadata()?;
+        let mut m1: MaybeUninit<Info> = MaybeUninit::uninit();
+        let mut m2: MaybeUninit<Info> = MaybeUninit::uninit();
 
-        Ok(m1.creation_time() == m2.creation_time())
+        let f2 = File::open(path)?;
+
+        let (i1, i2) = unsafe {
+            if GetFileInformationByHandle(lf.as_raw_handle(), m1.as_mut_ptr()) == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if GetFileInformationByHandle(f2.as_raw_handle(), m2.as_mut_ptr()) == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            (m1.assume_init(), m2.assume_init())
+        };
+
+        // This comparison is about the best we can do on Windows,
+        // though there are caveats.
+        //
+        // See Raymond Chen's writeup at
+        //   https://devblogs.microsoft.com/oldnewthing/20220128-00/?p=106201
+        // and also see BurntSushi's caveats at
+        //   https://github.com/BurntSushi/same-file/blob/master/src/win.rs
+        Ok(i1.nFileIndexHigh == i2.nFileIndexHigh
+            && i1.nFileIndexLow == i2.nFileIndexLow
+            && i1.dwVolumeSerialNumber == i2.dwVolumeSerialNumber)
     }
 }

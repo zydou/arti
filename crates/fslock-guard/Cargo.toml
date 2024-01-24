@@ -19,6 +19,9 @@ full = []
 fslock = { version = "0.2.0", package = "fslock-arti-fork" }
 thiserror = "1"
 
+[target.'cfg(windows)'.dependencies.winapi]
+version = "^0.3.8"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
