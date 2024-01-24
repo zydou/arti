@@ -469,7 +469,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         }
 
         let hs_dirs = self.netdir.hs_dirs_download(
-            (self.hs_blind_id, self.netdir.hs_time_period()),
+            self.hs_blind_id,
+            self.netdir.hs_time_period(),
             &mut self.mocks.thread_rng(),
         )?;
 

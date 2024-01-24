@@ -1537,7 +1537,8 @@ impl NetDir {
     #[cfg(feature = "hs-common")]
     pub fn hs_dirs_download<'r, R>(
         &'r self,
-        (hsid, period): (HsBlindId, TimePeriod),
+        hsid: HsBlindId,
+        period: TimePeriod,
         rng: &mut R,
     ) -> std::result::Result<Vec<Relay<'r>>, Bug>
     where
@@ -1586,7 +1587,8 @@ impl NetDir {
     #[cfg(feature = "hs-service")]
     pub fn hs_dirs_upload(
         &self,
-        (hsid, period): (HsBlindId, TimePeriod),
+        hsid: HsBlindId,
+        period: TimePeriod,
     ) -> std::result::Result<impl Iterator<Item = Relay<'_>>, Bug> {
         // Algorithm:
         //
