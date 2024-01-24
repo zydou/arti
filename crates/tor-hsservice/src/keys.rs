@@ -28,7 +28,7 @@ use crate::IptLocalId;
 ///
 /// Derived using
 /// the derive-adhoc macro of the same name.
-// We'd like to link to ](crate::derive_adhoc_template_HsTimePeriodKeySpecifier)
+// We'd like to link to crate::derive_adhoc_template_HsTimePeriodKeySpecifier
 // but linking to a module-local macro doesn't work with rustdoc.
 trait HsTimePeriodKeySpecifier: Debug {
     /// Inspect the nickname
@@ -38,7 +38,7 @@ trait HsTimePeriodKeySpecifier: Debug {
 }
 
 define_derive_adhoc! {
-    /// Implement `HsTimePeriodKeySpecifier` for a struct with `nickname`` and `period`
+    /// Implement `HsTimePeriodKeySpecifier` for a struct with `nickname` and `period`
     HsTimePeriodKeySpecifier =
 
     impl HsTimePeriodKeySpecifier for $ttype {
