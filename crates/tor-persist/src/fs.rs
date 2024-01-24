@@ -151,7 +151,7 @@ impl FsStateMgr {
     fn err_resource(&self, key: &str) -> Resource {
         Resource::File {
             container: self.path().to_path_buf(),
-            file: self.rel_filename(key),
+            file: PathBuf::from("state").join(self.rel_filename(key)),
         }
     }
 
@@ -412,9 +412,12 @@ mod test {
         std::fs::write(dir.path().join("state/Hello.json"), b"hello world \x00\xff").unwrap();
         let bad_utf8: Result<Option<String>> = store.load("Hello");
         assert!(bad_utf8.is_err());
-        assert!(bad_utf8
-            .unwrap_err()
-            .to_string()
-            .starts_with("IO error while loading persistent data on Hello.json in "));
+        assert_eq!(
+            bad_utf8.unwrap_err().to_string(),
+            format!(
+                "IO error while loading persistent data on state/Hello.json in {}",
+                dir.path().display(),
+            ),
+        );
     }
 }
