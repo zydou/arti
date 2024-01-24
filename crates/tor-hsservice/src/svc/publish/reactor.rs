@@ -54,12 +54,14 @@ use crate::{
 /// need it. If not, it schedules the upload to happen `UPLOAD_RATE_LIM_THRESHOLD` seconds from the
 /// current time.
 //
-// TODO (#1121): this value is probably not right.
+// TODO: We may someday need to tune this value; it was chosen more or less arbitrarily.
 const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 
 /// The maximum number of concurrent upload tasks per time period.
 //
-// TODO (#1121): this value was arbitrarily chosen and may not be optimal.
+// TODO: this value was arbitrarily chosen and may not be optimal.  For now, it
+// will have no effect, since the current number of replicas is far less than
+// this value.
 //
 // The uploads for all TPs happen in parallel.  As a result, the actual limit for the maximum
 // number of concurrent upload tasks is multiplied by a number which depends on the TP parameters
@@ -971,12 +973,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Try to upload our descriptor to the HsDirs that need it.
     ///
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
-    /// to happen N minutes from now.
+    /// to happen after [`UPLOAD_RATE_LIM_THRESHOLD`].
     ///
     /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
     /// implement it, as well as in what cases this will return an error).
-    //
-    // TODO (#1121): what is N?
     async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
@@ -988,6 +988,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 trace!("we are rate-limited; deferring descriptor upload");
+                // TODO: Possibly we will someday instead schedule the upload to
+                // happen at `ts + UPLOAD_RATE_LIM_THRESHOLD` instead, to get a
+                // true rate limit.  This logic is, however, enough to achieve
+                // our current purposes.
                 return self
                     .schedule_pending_upload(UPLOAD_RATE_LIM_THRESHOLD)
                     .await;
