@@ -5647,6 +5647,8 @@ dependencies = [
 name = "tor-persist"
 version = "0.9.0"
 dependencies = [
+ "amplify",
+ "anyhow",
  "derive_more",
  "fs-mistrust",
  "fslock",
@@ -5658,6 +5660,7 @@ dependencies = [
  "thiserror",
  "tor-error",
  "tracing",
+ "void",
 ]
 
 [[package]]

@@ -48,6 +48,10 @@ mod handle;
 #[cfg(feature = "testing")]
 mod testing;
 
+#[cfg(feature = "state-dir")]
+#[rustfmt::skip] // to let us have inline { todo!() }; TODO HSS remove
+pub mod state_dir;
+
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::sync::Arc;
 

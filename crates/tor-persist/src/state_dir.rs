@@ -56,9 +56,7 @@
 //! ```
 //! use std::{collections::HashSet, fmt, time::Duration};
 //! use tor_error::{into_internal, Bug};
-//! # use tor_hsservice::state_dir_for_doctests_unstable_no_semver_guarantees as state_dir;
-//! # #[cfg(all)] // works like #[cfg(FALSE)].  Instead, we have this workaround ^.
-//! use crate::state_dir;
+//! use tor_persist::state_dir;
 //! use state_dir::{InstanceIdString, InstanceIdentity, InstancePurgeHandler};
 //! use state_dir::{InstancePurgeInfo, InstanceStateHandle, StateDirectory, StorageHandle};
 //! #
