@@ -45,7 +45,7 @@ pub(crate) enum Action {
     #[display(fmt = "storing persistent data")]
     Storing,
     /// We were trying to remove an element from the store.
-    #[display(fmt = "storing persistent data")]
+    #[display(fmt = "deleting persistent data")]
     Deleting,
     /// We were trying to acquire the lock for the store.
     #[display(fmt = "acquiring lock")]

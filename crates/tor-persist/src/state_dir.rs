@@ -554,7 +554,7 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
     pub fn store(&mut self, v: &T) -> Result<()> {
         self.with_load_store_target(Action::Storing, |t| t.store(v))
     }
-    /// Deletet this persistent state
+    /// Delete this persistent state
     pub fn delete(&mut self) -> Result<()> {
         self.with_load_store_target(Action::Deleting, |t| t.delete())
     }
