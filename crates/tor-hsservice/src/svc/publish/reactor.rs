@@ -39,7 +39,7 @@ use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
 use crate::svc::netdir::wait_for_netdir;
-use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
+use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::ShutdownStatus;
 use crate::{
@@ -70,10 +70,13 @@ const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 // We should try to decouple this value from the TP parameters.
 const MAX_CONCURRENT_UPLOADS: usize = 16;
 
-/// The maximum time allowed for uploading a descriptor to an HSDirs.
-//
-// TODO (#1121): this value is probably not right.
-const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+/// The maximum time allowed for uploading a descriptor to a single HSDirs,
+/// across all attempts.
+const OVERALL_UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+/// The maximum time allowed for a single attempt to upload a descriptor to a
+/// single HSDir.
+const SINGLE_UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
@@ -454,6 +457,10 @@ pub(crate) enum UploadError {
     /// Failed to establish stream to hidden service directory
     #[error("stream failed")]
     Stream(#[source] tor_proto::Error),
+
+    /// The operation timed out before it could complete.
+    #[error("operation timed out")]
+    Timeout,
 
     /// An internal error.
     #[error("Internal error")]
@@ -1026,8 +1033,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
 
             let time_period = period_ctx.params.time_period();
-
-            let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
             let netdir = Arc::clone(
@@ -1174,7 +1179,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     };
 
                     // How long until we're supposed to time out?
-                    let worst_case_end = imm.runtime.now() + UPLOAD_TIMEOUT;
+                    let worst_case_end = imm.runtime.now() + OVERALL_UPLOAD_TIMEOUT;
                     // We generate a new descriptor before _each_ HsDir upload. This means each
                     // HsDir could, in theory, receive a different descriptor (not just in terms of
                     // revision-counters, but also with a different set of IPTs). It may seem like
@@ -1251,21 +1256,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         "generated new descriptor for time period",
                     );
 
-                    let upload_res = match imm
-                        .runtime
-                        .timeout(UPLOAD_TIMEOUT, run_upload(desc.clone()))
-                        .await
-                    {
-                        Ok(res) => res,
-                        Err(_e) => {
-                            warn!(
-                                nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
-                                "descriptor upload timed out",
-                            );
-
-                            UploadStatus::Failure
-                        }
-                    };
+                    // (Actually launch the upload attempt. No timeout is needed
+                    // here, since the backoff::Runner code will handle that for us.)
+                    let upload_res = run_upload(desc.clone()).await;
 
                     // Note: UploadStatus::Failure is only returned when
                     // upload_descriptor_with_retries fails, i.e. if all our retry
@@ -1322,10 +1315,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Upload a descriptor to the specified HSDir.
+    /// upload a descriptor to the specified HSDir.
     ///
     /// If an upload fails, this returns an `Err`. This function does not handle retries. It is up
     /// to the caller to retry on failure.
+    ///
+    /// This function does not handle timeouts.
     async fn upload_descriptor(
         hsdesc: String,
         netdir: &Arc<NetDir>,
@@ -1396,11 +1391,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         };
 
         let fallible_op = || async {
-            Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await
+            imm.runtime
+                .timeout(
+                    SINGLE_UPLOAD_TIMEOUT,
+                    Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)),
+                )
+                .await
+                .map_err(|_t: tor_rtcompat::TimeoutError| UploadError::Timeout)?
         };
 
-        match runner.run(fallible_op).await {
-            Ok(res) => {
+        let outcome: Result<(), BackoffError<UploadError>> = runner.run(fallible_op).await;
+        match outcome {
+            Ok(()) => {
                 debug!(
                     nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
                     "successfully uploaded descriptor to HSDir",
@@ -1491,8 +1493,7 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
     }
 
     fn timeout(&self) -> Option<Duration> {
-        // TODO (#1121): pick a less arbitrary timeout
-        Some(Duration::from_secs(30))
+        Some(OVERALL_UPLOAD_TIMEOUT)
     }
 
     fn next_delay<E: RetriableError>(&mut self, _error: &E) -> Option<Duration> {
@@ -1503,7 +1504,10 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
 impl RetriableError for UploadError {
     fn should_retry(&self) -> bool {
         match self {
-            UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
+            UploadError::Request(_)
+            | UploadError::Circuit(_)
+            | UploadError::Stream(_)
+            | UploadError::Timeout => true,
             UploadError::Bug(_) => false,
         }
     }
