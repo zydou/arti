@@ -62,7 +62,7 @@ use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::task::SpawnExt;
 use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
-use postage::watch;
+use postage::{broadcast, watch};
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
@@ -83,6 +83,7 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayIds};
 use tor_netdir::{HsDirParams, NetDir, NetDirProvider, Relay, Timeliness};
 use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::{Runtime, SleepProviderExt};
+use void::Void;
 
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
@@ -173,6 +174,8 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ///
     /// This field is initialized in [`Reactor::run`].
     ///
+    /// Closing this channel will cause the upload reminder task to exit.
+    ///
     // TODO: decide if this is the right approach for implementing rate-limiting
     reattempt_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
@@ -183,6 +186,15 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ///
     /// A copy of this sender is handed to each upload task.
     upload_task_complete_tx: Sender<TimePeriodUploadResult>,
+    /// A sender for notifying any pending upload tasks that the reactor is shutting down.
+    ///
+    /// Receivers can use this channel to find out when reactor is dropped.
+    ///
+    /// This is currently only used in [`upload_for_time_period`](Reactor::upload_for_time_period).
+    /// Any future background tasks can also use this channel to detect if the reactor is dropped.
+    ///
+    /// Closing this channel will cause any pending upload tasks to be dropped.
+    shutdown_tx: broadcast::Sender<Void>,
 }
 
 /// The immutable, shared state of the descriptor publisher reactor.
@@ -561,6 +573,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
 
         let (publish_status_tx, publish_status_rx) = watch::channel();
+        // Setting the buffer size to zero here is OK,
+        // since we never actually send anything on this channel.
+        let (shutdown_tx, _shutdown_rx) = broadcast::channel(0);
 
         let imm = Immutable {
             runtime,
@@ -588,6 +603,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             reattempt_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
+            shutdown_tx,
         }
     }
 
@@ -1139,10 +1155,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             );
 
             let params = period_ctx.params.clone();
+            let shutdown_rx = self.shutdown_tx.subscribe();
 
             // Spawn a task to upload the descriptor to all HsDirs of this time period.
             //
-            // XXX: shut down any pending upload tasks when the reactor is dropped.
+            // This task will shut down when the reactor is dropped (i.e. when shutdown_rx is
+            // dropped).
             let _handle: () = self
                 .imm
                 .runtime
@@ -1155,6 +1173,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         Arc::clone(&imm),
                         ipt_upload_view.clone(),
                         upload_task_complete_tx,
+                        shutdown_rx,
                     )
                     .await
                     {
@@ -1193,6 +1212,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
     /// implement it, as well as in what cases this will return an error).
+    #[allow(clippy::too_many_arguments)] // TODO: refactor
     async fn upload_for_time_period(
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
@@ -1201,6 +1221,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
         mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
+        shutdown_rx: broadcast::Receiver<Void>,
     ) -> Result<(), FatalError> {
         let time_period = params.time_period();
         trace!(time_period=?time_period, "uploading descriptor to all HSDirs for this time period");
@@ -1241,6 +1262,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
                 let params = params.clone();
+                let mut shutdown_rx = shutdown_rx.clone();
 
                 let ed_id = relay_ids
                     .rsa_identity()
@@ -1354,7 +1376,27 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                     // (Actually launch the upload attempt. No timeout is needed
                     // here, since the backoff::Runner code will handle that for us.)
-                    let upload_res = run_upload(desc.clone()).await;
+                    let upload_res = select_biased! {
+                        shutdown = shutdown_rx.next().fuse() => {
+                            match shutdown {
+                                Some(_) => unreachable!("received Void value?!"),
+                                None => {
+
+                                    // It looks like the reactor has shut down,
+                                    // so there is no point in uploading the descriptor anymore.
+                                    //
+                                    // Let's shut down the upload task too.
+                                    trace!(
+                                        nickname=%imm.nickname, time_period=?time_period,
+                                        "upload task received shutdown signal"
+                                    );
+
+                                    return Err(PublishError::Shutdown);
+                                }
+                            }
+                        },
+                        res = run_upload(desc.clone()).fuse() => res,
+                    };
 
                     // Note: UploadStatus::Failure is only returned when
                     // upload_descriptor_with_retries fails, i.e. if all our retry
@@ -1382,7 +1424,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 );
 
                 return Ok(());
-            },
+            }
             Err(PublishError::Shutdown) => {
                 debug!(
                     nickname=%imm.nickname, time_period=?time_period,
