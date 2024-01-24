@@ -29,7 +29,6 @@ use tracing::{info, warn};
 use crate::ipt_mgr::{IptManager, IptStorageHandle};
 use crate::ipt_set::{IptSetStorageHandle, IptsManagerView};
 use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
-use crate::svc::keystore_sweeper::KeystoreSweeper;
 use crate::svc::publish::Publisher;
 use crate::HsIdKeypairSpecifier;
 use crate::HsIdPublicKeySpecifier;
@@ -39,7 +38,6 @@ use crate::RendRequest;
 use crate::StartupError;
 
 pub(crate) mod ipt_establish;
-pub(crate) mod keystore_sweeper;
 pub(crate) mod publish;
 pub(crate) mod rend_handshake;
 
@@ -105,11 +103,6 @@ struct ForLaunch<R: Runtime> {
     ///
     ///
     ipt_mgr_view: IptsManagerView,
-
-    /// An unlaunched keystore cleaner.
-    ///
-    /// Used for removing expired keys.
-    keystore_sweeper: KeystoreSweeper<R>,
 }
 
 /// Private trait used to type-erase `ForLaunch<R>`, so that we don't need to
@@ -123,7 +116,6 @@ impl<R: Runtime> Launchable for ForLaunch<R> {
     fn launch(self: Box<Self>) -> Result<(), StartupError> {
         self.ipt_mgr.launch_background_tasks(self.ipt_mgr_view)?;
         self.publisher.launch()?;
-        self.keystore_sweeper.launch()?;
 
         Ok(())
     }
@@ -317,21 +309,13 @@ impl OnionService {
         )?;
 
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
-            runtime.clone(),
+            runtime,
             nickname.clone(),
-            Arc::clone(&netdir_provider),
+            netdir_provider,
             circ_pool,
             publisher_view,
             config_rx,
             Arc::clone(&state.keymgr),
-        );
-
-        let keystore_sweeper = KeystoreSweeper::new(
-            runtime,
-            nickname.clone(),
-            Arc::clone(&state.keymgr),
-            netdir_provider,
-            shutdown_rx,
         );
 
         // TODO (#1083): We should pass a copy of this to the publisher and/or the
@@ -350,7 +334,6 @@ impl OnionService {
                         publisher,
                         ipt_mgr,
                         ipt_mgr_view,
-                        keystore_sweeper,
                     }),
                 )),
             }),
