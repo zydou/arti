@@ -111,8 +111,9 @@ impl HasKind for EstablishSessionError {
         match self {
             E::NetdirUnavailable(e) => e.kind(),
             E::UnsupportedOnionKey => EK::RemoteProtocolViolation,
-            // TODO (#1225) Not quite right.
-            EstablishSessionError::RendCirc(_e) => EK::RemoteNetworkTimeout,
+            EstablishSessionError::RendCirc(e) => {
+                tor_circmgr::Error::summarized_error_kind(e.sources())
+            }
             EstablishSessionError::VirtualHop(e) => e.kind(),
             EstablishSessionError::AcceptBegins(e) => e.kind(),
             EstablishSessionError::SendRendezvous(e) => e.kind(),

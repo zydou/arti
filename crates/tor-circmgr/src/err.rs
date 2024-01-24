@@ -196,11 +196,7 @@ impl HasKind for Error {
             E::UsageMismatched(_) => EK::Internal,
             E::LostUsabilityRace(_) => EK::TransientFailure,
             E::RequestTimeout => EK::TorNetworkTimeout,
-            E::RequestFailed(e) => e
-                .sources()
-                .max_by_key(|e| e.severity())
-                .map(|e| e.kind())
-                .unwrap_or(EK::Internal),
+            E::RequestFailed(errs) => E::summarized_error_kind(errs.sources().map(AsRef::as_ref)),
             E::CircCanceled => EK::TransientFailure,
             E::Protocol { error, .. } => error.kind(),
             E::State(e) => e.kind(),
@@ -378,6 +374,17 @@ impl Error {
             } => vec![peer.as_inner()],
             _ => vec![],
         }
+    }
+
+    /// Given an iterator of errors that have occurred while attempting a single
+    /// failed operation, return the [`ErrorKind`] for the entire attempt.
+    pub fn summarized_error_kind<'a, I>(errs: I) -> ErrorKind
+    where
+        I: Iterator<Item = &'a Error>,
+    {
+        errs.max_by_key(|e| e.severity())
+            .map(|e| e.kind())
+            .unwrap_or(ErrorKind::Internal)
     }
 }
 
