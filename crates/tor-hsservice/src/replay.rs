@@ -49,6 +49,13 @@ pub(crate) struct ReplayLog {
 pub(crate) struct PersistFile {
     /// A file logging fingerprints of the messages we have seen.
     file: BufWriter<File>,
+    /// Whether we had a possible partial write
+    ///
+    /// See the comment inside [`ReplayLog::check_inner`].
+    /// `Ok` means all is well.
+    /// `Err` means we may have written partial data to the actual file,
+    /// and need to make sure we're back at a record boundary.
+    needs_resynch: Result<(), ()>,
     /// Filesystem lock which must not be released until after we finish writing
     ///
     /// Must come last so that the drop order is correct
@@ -132,6 +139,7 @@ impl ReplayLog {
 
         let file = PersistFile {
             file: BufWriter::new(file),
+            needs_resynch: Ok(()),
             lock,
         };
 
@@ -186,11 +194,30 @@ impl ReplayLog {
         self.seen.test_and_add(h)?;
         if let Some(f) = self.file.as_mut() {
             (|| {
-                // TODO #1207 if write_all fails, it might have written part of the data;
+                // If write_all fails, it might have written part of the data;
                 // in that case, we must truncate the file to resynchronise.
-                // We should probably set a note to truncate just before we call write_all
+                // We set a note to truncate just before we call write_all
                 // and clear it again afterwards.
+                //
+                // But, first, we need to deal with any previous note we left ourselves.
+                match f.needs_resynch {
+                    Ok(()) => {}
+                    Err(()) => {
+                        // We're going to reach behind the BufWriter, so we need to make
+                        // sure it's in synch with the underlying File.
+                        f.file.flush()?;
+                        let inner = f.file.get_mut();
+                        let len = inner.metadata()?.len();
+                        Self::truncate_to_multiple(inner, len)?;
+                        // cursor is now past end, must reset (see std::fs::File::set_len)
+                        inner.seek(SeekFrom::End(0))?;
+                    }
+                }
+                f.needs_resynch = Err(());
+
                 f.file.write_all(&h.0[..])?;
+
+                f.needs_resynch = Ok(());
 
                 Ok(())
             })()
